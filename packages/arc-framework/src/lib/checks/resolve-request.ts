@@ -13,6 +13,7 @@ export interface ResolvedCheckRequest {
   merged?: string[];
   snapshot?: WorktreeSnapshot;
   worktreeTree?: string;
+  snapshotDirectory?: string;
 }
 export type CheckRequestResolution = { status: "resolved"; request: ResolvedCheckRequest }
   | { status: "refused"; message: string };
@@ -75,7 +76,7 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   }
   const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
   const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory);
-  return { status: "resolved", request: { scope, tree, ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) } };
+  return { status: "resolved", request: { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) } };
 }
 
 async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string) {

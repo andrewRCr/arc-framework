@@ -1,6 +1,6 @@
 /** Git tree snapshots used by executable check requests. */
 import type { GitExec } from "../git/exec.js";
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm, stat, utimes } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -85,7 +85,10 @@ export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent =
   };
   try {
     try {
+      const original = await stat(realIndex);
       await copyFile(realIndex, indexFile);
+      // Preserve the timestamp used by Git to distrust racy cached file metadata.
+      await utimes(indexFile, original.atime, original.mtime);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       await git("git", ["read-tree", "--empty"], { cwd, indexFile });

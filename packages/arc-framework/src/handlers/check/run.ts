@@ -1,10 +1,12 @@
 /** Orchestration for declared repository check requests. */
+import { tmpdir } from "node:os";
 import { mkdir } from "node:fs/promises";
 import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
-import { createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
+import { checkFixesAllowed, refreshFixerContent } from "../../lib/checks/fixers.js";
+import { type TreePathChange, createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
 import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
@@ -24,6 +26,7 @@ export interface DeclaredCheckResult {
   output?: string;
   reason?: string;
   divergent?: string[];
+  rewritten?: string[];
 }
 
 /** Typed result retained independently of output formatting. */
@@ -100,7 +103,8 @@ export async function runDeclaredRequest(
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
   const entries = selectRequestChecks(available, request.form);
-  const snapshotDirectory = entries.some(([, check]) => check.reads_index) ? await checkRecordDirectory(io.git, root) : undefined;
+  const snapshotDirectory = entries.some(([, check]) => check.reads_index) ? await checkRecordDirectory(io.git, root)
+    : entries.some(([, check]) => check.fixes) ? tmpdir() : undefined;
   if (snapshotDirectory !== undefined) await mkdir(snapshotDirectory, { recursive: true });
   const resolved = await resolveCheckRequest(io.git, root, request, snapshotDirectory);
   if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
@@ -119,27 +123,18 @@ async function executeResolvedRequest(
   entries: Array<[string, CheckDeclaration["checks"][string]]>, coordinates: ResolvedCheckRequest, indexViews: CheckIndexViews,
 ): Promise<RunDeclaredChecksResult> {
   const { base, tree } = coordinates;
-  coordinates.worktreeTree = coordinates.scope.kind === "staged" ? await stagedWorktreeTree(io.git, root) : tree;
   if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
+  if (entries.some(([, check]) => check.fixes) && coordinates.snapshot === undefined) {
+    coordinates.snapshot = await createWorktreeSnapshot(io.git, root, coordinates.snapshotDirectory);
+  }
+  coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" ? await stagedWorktreeTree(io.git, root) : tree);
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
-    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: coordinates, selection, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
+    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
   };
-  for (const entry of jobs.filter(job => job.check.fixes)) {
-    await run(entry);
-    const outcome = outcomes.at(-1)?.result.outcome;
-    if (request.form.kind !== "pre-commit" && jobs.some(job => job.check.reads_index)
-      && (outcome === "passed" || outcome === "failed")) {
-      if (coordinates.snapshot !== undefined) coordinates.tree = await coordinates.snapshot.refresh();
-      else {
-        coordinates.snapshot = await createWorktreeSnapshot(io.git, root, await checkRecordDirectory(io.git, root));
-        coordinates.tree = coordinates.snapshot.tree;
-      }
-      coordinates.worktreeTree = coordinates.tree;
-    }
-  }
+  for (const entry of jobs.filter(job => job.check.fixes)) await run(entry);
   const ordinary = jobs.filter(job => !job.check.fixes);
   let cursor = 0;
   const workers = Math.min(ordinary.length, request.serial ? 1 : io.availableParallelism());
@@ -157,22 +152,37 @@ async function executeResolvedRequest(
 
 
 async function runRequestedCheck(
-  { id, check, root, resolved, selection, kind, definition, indexViews }: { indexViews: CheckIndexViews; definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
+  { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree }: { selectionTree: string; indexViews: CheckIndexViews; definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
-  const { tree } = resolved;
+  let { tree } = resolved;
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
   if (selected.status === "not selected") return { id, kind, outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
   if (check.mode === "files") {
-    const matching = selected.paths !== undefined ? { status: "known" as const, paths: selected.paths }
-      : await matchTreeInputs(io, root, tree, check.inputs);
-    if (matching.status !== "known") throw new Error(`Could not resolve inputs for ${id}; retry the check request.`);
-    paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
+    paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths });
     if (paths.length === 0) return { id, kind, outcome: "not selected", reason: "no files to check" };
   }
+  if (check.fixes && request.form.kind !== "pre-commit" && checkFixesAllowed(request)) {
+    tree = resolved.tree = resolved.worktreeTree ?? tree;
+  }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
-  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+}
+
+async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
+  id: string; root: string; tree: string; selectionTree: string; inputs: string[]; selectedPaths?: TreePathChange[];
+}): Promise<string[]> {
+  const { id, root, tree, selectionTree, inputs, selectedPaths } = input;
+  const matching = selectedPaths === undefined ? await matchTreeInputs(io, root, selectionTree, inputs)
+    : { status: "known" as const, paths: selectedPaths };
+  if (matching.status !== "known") throw new Error(`Could not resolve inputs for ${id}; retry the check request.`);
+  const paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
+  if (tree === selectionTree || paths.length === 0) return paths;
+  const current = await matchTreeInputs(io, root, tree, inputs);
+  if (current.status !== "known") throw new Error(`Could not resolve current inputs for ${id}; retry the check request.`);
+  const present = new Set(current.paths.map(path => path.path));
+  return paths.filter(path => present.has(path));
 }
 
 interface SelectedCheck {
@@ -184,14 +194,20 @@ interface SelectedCheck {
   content?: CheckContentContext;
   indexViews: CheckIndexViews;
   divergent: string[];
+  coordinates: ResolvedCheckRequest;
   kind: CheckResultKind;
   definition: CheckDeclaration;
 }
 
-async function executeSelectedCheck(
-  { id, check, root, tree, paths, content, kind, definition, indexViews, divergent }: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-): Promise<DeclaredCheckResult> {
-  const key = divergent.length > 0 ? null : await resolveCheckKey(io, { id, check, root, tree, paths, definition, base: content?.base, merged: content?.merged });
+async function selectedCheckKey(selected: SelectedCheck, io: DeclaredCheckDependencies, tree = selected.tree) {
+  const { id, check, root, paths, content, definition, divergent } = selected;
+  return divergent.length > 0 ? null : resolveCheckKey(io, { id, check, root, tree, paths, definition,
+    base: content?.base, merged: content?.merged });
+}
+
+async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
+  const { id, check, root, paths, content, kind, indexViews } = selected;
+  const key = await selectedCheckKey(selected, io);
   const pass = key === null || request.force ? null : await io.passes.get(key, id);
   if (pass !== null) return { id, kind, outcome: "reused", output: pass.output };
   if (request.dryRun) return { id, kind, outcome: "would run" };
@@ -200,12 +216,20 @@ async function executeSelectedCheck(
   const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
   const indexFile = check.reads_index ? await indexViews.get() : undefined;
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
-  const differences = divergent.length > 0 ? { divergent } : {};
-  if (!result.started) return { id, kind, ...differences, outcome: "couldn't run", output: result.output };
-  if (result.exitCode === 0 && key !== null) {
-    await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
-  }
-  return { id, kind, ...differences, outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
+  return finalizeCheckRun(selected, io, request, result, key);
+}
+
+async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
+  const { id, kind, check, root, divergent, coordinates } = selected;
+  const rewritten = check.fixes && request.form.kind !== "pre-commit" ? await refreshFixerContent(io.git, root, coordinates, coordinates.scope.kind !== "staged" || checkFixesAllowed(request)) : [];
+  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(rewritten.length > 0 ? { rewritten } : {}), output: result.output };
+  if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
+  if (rewritten.length > 0 && !checkFixesAllowed(request)) return { id, kind, ...details, outcome: "failed", reason: "rewrote files during verification" };
+  if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
+  const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
+  if (producedKey !== null) await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
+  return { id, kind, ...details, outcome: "passed" };
 }
 
 async function executeCheckBatches(io: DeclaredCheckDependencies, input: {

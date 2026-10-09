@@ -262,31 +262,15 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
           The comparison uses Git input pathspecs and staged-worktree snapshots, preserving reuse for excluded,
           ignored, and unrelated files. Unavailable or malformed comparisons refuse with a successful retry path.
 
-### `[ ]` **4.3 Fixers outside the commit hook — D7**
+### `[x]` **4.3 Fixers outside the commit hook — D7**
 
 - _Goal:_ Fix-capable checks rewrite files only where content is still forming, and anywhere else a rewrite is a
   failure, so reviewed content is committed content and no verification run silently edits the tree.
 
-    - The staged-worktree tree is computed before fixers, for the change that selection and each `files` check's paths
-      read; at each fix-capable check's turn, before it runs for its lookup and after it runs for its record, recomputed
-      only after a fixer that rewrote a file; and after fixers, for the checked tree that every other check's key, the
-      index view, and `ARC_CHECK_TREE` use. A fix-capable check receives its turn tree instead, as `ARC_CHECK_TREE` and,
-      declaring `reads_index`, as its index view (Task 4.2.a)
-    - Build `test-first` (one behavior at a time):
-        - under `increment`, `segment`, and `run` or `--paths` without `--ci`, a fixer's rewrites land in the worktree
-          and the rewritten files are listed
-        - a fixer's pass is recorded under the tree as it stood right after its run, the content it produced
-        - after an `increment` whose fixer rewrote a file, with the rewrite staged, the commit hook reports the fixer
-          and the checks selected with it `reused`
-        - with two fixers in declared order: when the first rewrites a path among the second's inputs, the second's
-          pass recorded over the earlier content is not reused; when the second rewrites a path among the first's
-          inputs, the commit hook does not reuse the first's pass
-        - a fix-capable `files` check after a fixer that rewrote a file receives as `ARC_CHECK_TREE` the tree at its
-          turn, holding that rewrite
-        - a fixer's rewrite outside the change selects no further check in that run, and a later request carrying it
-          selects the checks it reaches
-        - under every other request, and under any request carrying `--ci`, a fix-capable check that rewrites a file is
-          `failed`, the rewrite stays in the worktree, and its report says it rewrote files
+- _Outcome:_ Fixers use their turn snapshots, retain the initial selection and paths, and omit deleted files. Allowed
+  rewrites stay in the worktree; verification rewrites fail without recording a pass. Each pass keys immediately on
+  produced content, so later fixers cannot extend its coverage. Unchanged content refreshes private-index stat data
+  without recomputing the tree, and copied index timestamps keep equal-size edits visible through Git's cached metadata.
 
 ### `[ ]` **4.4 Outcomes, exit codes, and refusals — D3**
 

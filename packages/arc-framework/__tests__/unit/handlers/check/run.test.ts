@@ -11,7 +11,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean }>) {
+async function fixture(checks: Record<string, { fixes?: boolean }>, failSecondTreeWrite = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -25,7 +25,11 @@ async function fixture(checks: Record<string, { fixes?: boolean }>) {
     { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ stdout: "a".repeat(40), stderr: "" }] },
     { match: ["rev-parse", "--git-path", "index"], responses: [{ stdout: join(root, ".git/index"), stderr: "" }] },
     { match: ["add", "-A"], responses: [{ stdout: "", stderr: "" }] },
-    { match: ["write-tree"], responses: [{ stdout: "b".repeat(40), stderr: "" }] },
+    { match: ["write-tree"], responses: failSecondTreeWrite
+      ? [{ stdout: "b".repeat(40) }, { failure: { exitCode: 128, stderr: "index write failed" } }]
+      : [{ stdout: "b".repeat(40), stderr: "" }] },
+    { match: ["update-index", "--refresh"], responses: [{ stdout: "" }] },
+    { match: ["ls-files", "--others", "--exclude-standard", "-z"], responses: [{ stdout: "" }] },
     { match: { prefix: ["rev-parse"] }, responses: [{ failure: { exitCode: 128, stderr: "missing automatic base" } }] },
   ]).exec;
   const completed: string[] = [];
@@ -66,4 +70,11 @@ it.each([false, true])("bounds ordinary checks by available parallelism and hono
   expect(Math.max(...concurrency)).toBe(serial ? 1 : 2);
   expect(result.result.checks.map(check => check.id)).toEqual(ids);
   expect(result.exitCode).toBe(0);
+});
+
+it("keeps a no-op fixer's captured tree without requiring another tree write", async () => {
+  const { root, io, ids } = await fixture({ format: { fixes: true } }, true);
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ id: "format", outcome: "passed" }] },
+  });
 });

@@ -50,7 +50,7 @@ export function createCheckIndexViews(git: GitExec, root: string, request: Check
   return {
     get: async () => {
       if (request.form.kind === "pre-commit") return request.indexFile ?? join(await resolveCheckoutGitDir(git, root), "index");
-      if (coordinates.snapshot !== undefined) return coordinates.snapshot.indexFile;
+      if (coordinates.snapshot?.tree === coordinates.tree) return coordinates.snapshot.indexFile;
       if (viewedTree !== coordinates.tree) {
         viewedTree = coordinates.tree;
         pending = createCheckIndexView(git, root, coordinates.tree).then(view => { views.push(view); return view; });
