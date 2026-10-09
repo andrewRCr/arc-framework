@@ -19,7 +19,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Run and resume work:", ["activate", "deactivate", "park", "resume", "materialize", "reopen", "abandon", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
     ["Run errands and synchronize:", ["errand", "housekeep", "sync", "user"]],
-    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "extensions"]],
+    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "extensions", "schema"]],
   ],
   review: [
     ["Choose review work:", ["pre-publication", "resolve", "changeset"]],

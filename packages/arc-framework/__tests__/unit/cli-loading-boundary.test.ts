@@ -13,6 +13,7 @@ const viewHandlerPath = join(packageRoot, "src", "handlers", "view.ts");
 const implementationPrefixes = ["./handlers/", "./commands/", "./scripts/"] as const;
 const expectedImplementationModules = [
   "./handlers/init.js",
+  "./handlers/schema.js",
   "./handlers/join.js",
   "./handlers/start.js",
   "./handlers/errand.js",

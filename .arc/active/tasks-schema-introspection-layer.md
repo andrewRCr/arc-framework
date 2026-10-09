@@ -154,59 +154,23 @@ and every result validates against its registered envelope.
   coordinates as slugs, and returns managed checkout-relative paths. User-document projection moved into a helper to
   retain the complexity limit.
 
-### `[ ]` **3.2 Produce typed `list` and `get` results — D2**
+### `[x]` **3.2 Produce typed `list` and `get` results — D2**
 
 - _Goal:_ `list` and `get` answer from the production registry in shapes registered beside it and validated before
   emission, and an unknown id is a typed refusal naming the command that lists valid ones.
 
-- _Note:_ `command-surface-documentation.test.ts` fails on any `arc …` literal in `src` that names an unregistered
-  command, as the remedy does until Task 3.3 registers `schema`; Tasks 3.2 and 3.3 close as one review increment.
+- _Outcome:_ Registered and production-composed strict list, get, and unknown-ID envelopes. Both handlers validate
+  compact JSON before emission, share production lookup and layout paths, and leave metadata-only listing independent of
+  projection.
 
-    - A new `handlers/schema.ts` serves both subcommands over `createProductionSchemaRegistry()`, through
-      `lookupKernelSchema`.
-    - `lib/schema-command/envelope.ts` holds `schema-list-envelope`, `schema-get-envelope`, and
-      `schema-refusal-envelope`, which admits `unknown-schema-id` until `install` adds its two reasons.
-      `registerSchemaCommandSchemas` registers them and is chained into `createProductionSchemaRegistry()`;
-      `PRODUCTION_SCHEMA_IDS` gains them, and the composition assertion in `review-gate-workflows.test.ts` takes the
-      new composer.
-    - `list` emits every id with `version` and `migrationPosture` in the registry's sorted order, as plain lines by
-      default and `{status: "ok", schemas: [{id, version, migrationPosture, editorDocument}]}` with `--json`.
-    - `get <id>` always emits `{status: "ok", id, version, migrationPosture, editorDocument, schema}` with the folded
-      document on its declared side.
-    - `editorDocument` is `{path}` through Task 3.1's document address for an `authored: "editor-document"` schema,
-      and `null` otherwise.
-    - Every JSON result is compact single-line JSON, parsed through its envelope before it is written; an unknown id
-      exits 1 with `{status: "refused", reason: "unknown-schema-id", id, remedy: "arc schema list"}`.
-    - The header comment in `lib/session-envelope/registry.ts` says production composition publishes the
-      session-envelope roots.
-
-    - Build `test-first` (one behavior at a time):
-        - `list --json` returns every production id in sorted order with its version, posture, and `editorDocument`
-        - Plain `list` prints one line per id with its version and posture
-        - `get review-resolve-request` returns its input-side document, where `frontlineActive` is optional
-        - `get` of a marked schema in an injected registry returns its `editorDocument` path
-        - `get` of an unknown id refuses with `unknown-schema-id`, exit 1, and the `arc schema list` remedy
-        - Every result either subcommand emits validates against its registered envelope
-
-### `[ ]` **3.3 Wire `arc schema` into the CLI — D2**
+### `[x]` **3.3 Wire `arc schema` into the CLI — D2**
 
 - _Goal:_ `arc schema list` and `arc schema get <id>` run from the built CLI, with help and input declarations the
   repository's inventory and help-coverage tests reconcile.
 
-    - `cli.ts` registers the `schema` command and its two subcommands. Each action runs through
-      `withInteractionContext`: `list` is machine-readable under `--json`, and `get` always, as the always-JSON review
-      verbs are (`machineReadable: () => true`). `get` declares no `--json`, so the parser refuses one.
-    - Help: `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`) gains `schema`, `schema list`, and `schema get`, which
-      feed `COMMAND_HELP`; `schema` joins "Set up and maintain ARC:" in `HELP_GROUPS` (`lib/cli-help-content.ts`).
-      `cli-help-coverage.test.ts` checks both against every visible command.
-    - Input: `handlers/schema.ts` exports a `CommandInputRegistration` for `schema list` (its `--json` field) and for
-      `schema get` (its `<id>` operand), and a machine-mode `--json` policy declaration for `schema list`.
-      `src/command-input-registrations.ts` collects them with each command family's, and the repository-inventory
-      test reconciles them against every live syntax site.
-    - `cli-loading-boundary.test.ts` pins every handler module `cli.ts` loads, so its `expectedImplementationModules`
-      gains `./handlers/schema.js`.
-    - An e2e test runs `list`, `list --json`, `get` of a request root and of `decompose-cut-map`, and `get` of an
-      unknown id against the built CLI.
+- _Outcome:_ The lazy-loaded schema command runs list and always-JSON get through interaction contexts, with reconciled
+  help, input registrations, and machine-mode policy. Built-CLI tests cover discovery outside a project, authored
+  requests, the cut map, unknown identities, and unsupported flags.
 
 ### `[ ]` **3.4 Name the verb where agents look it up — D5**
 
