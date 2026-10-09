@@ -3,6 +3,7 @@ purpose: Prepare a verified Candidate for publication through private review, co
 audience: agent
 arc:
   methods:
+    - classify-review-risk
     - self-review
     - frontline-review
     - standard-review
@@ -56,6 +57,8 @@ From the local Candidate branch, compose the change-set routing facts — conten
 ownership, and surface authority — as the author judgment the repository cannot read. The lane routing target, the
 routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
 from repository state by the command below; never assemble or restate them here.
+
+**Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact.
 
 Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
@@ -253,6 +256,7 @@ push and change-request creation; do not push from this workflow.
 
 ---
 
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md

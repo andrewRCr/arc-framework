@@ -5,6 +5,7 @@ arc:
   methods:
     - assess-evidence-applicability
     - assess-parallel-fit
+    - classify-review-risk
     - commit-footer
     - frontline-review
     - standard-review
@@ -170,6 +171,9 @@ remote base all name the same exact head. Any tracked change continues through t
    coordinates plus the caller-owned content kind, risk, determinacy, ownership, and surface authority judgments for
    the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
    state, assurance, method activity, repository identity, target trees, or standard-review projection.
+
+   **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact
+   for every change except confidently routine planning-grooming, which is `routine`.
 
 2. **Push** the errand branch upstream.
 
@@ -653,6 +657,7 @@ idempotent and may return the next file-ordered execute-bound offer.
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md

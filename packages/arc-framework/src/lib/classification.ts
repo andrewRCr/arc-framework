@@ -65,6 +65,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/assess-draft-readiness.md",
   "system/methods/assess-evidence-applicability.md",
   "system/methods/adversarial-review.md",
+  "system/methods/classify-review-risk.md",
   "system/methods/classify-work-unit.md",
   "system/methods/commit-footer.md",
   "system/methods/commit-format.md",
