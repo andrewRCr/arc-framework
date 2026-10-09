@@ -49,15 +49,10 @@ naming the field.
 - _Approach:_ the declaration, selection, record, and runner modules live together in a new `src/lib/checks/`
   directory; request handlers sit beside `commit-msg` in `src/handlers/check/`.
 
-    - `[ ]` **1.3.a Field model and defaults**
-        - Build `test-first` (one behavior at a time):
-            - the design's illustrative JavaScript declaration parses with every field typed
-            - omitted per-check fields take their defaults: `mode: project`; `widen` and `cache` true; `shell`,
-              `fixes`, `ci_only`, and `reads_index` false; `inputs` the whole tree; `root` the repository root
-            - `commit_fixes` defaults to `restage` and admits only `restage` or `fail`
-            - `gate` admits `commit`, `push`, `merge`, or absent
-            - an unknown key refuses at the top level, inside a check, and inside `shards`
-            - `$schema` is admitted at the top level only
+    - `[x]` **1.3.a Field model and defaults**
+        - Added the strict declaration field model, conservative per-check defaults, gate and fix-policy enumerators,
+          and the top-level editor reference. Commands, runtime inputs, and shard configuration retain typed values;
+          unknown fields refuse at every object level.
 
     - `[ ]` **1.3.b Id rule**
         - Build `test-first` (one behavior at a time):
