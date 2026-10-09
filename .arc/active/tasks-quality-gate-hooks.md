@@ -95,21 +95,10 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
           and cleaning up on failure. Raw NUL diffs retain complete blob identities and deletions, treat renames as
           deletion/addition pairs, and distinguish an empty change from a failed Git call.
 
-    - `[ ]` **2.1.b Input matching through Git pathspecs**
-        - Each input reaches Git with `glob` magic, and one with a leading `!` as `:(glob,exclude)`, since Git reads a
-          bare `!` literally. A tree's matching paths, with the full blob ids its key digests, come from
-          `git diff --raw -z --no-renames --no-abbrev <empty tree> <tree> -- <pathspecs>`, since Git abbreviates ids
-          otherwise; `git ls-tree` refuses `glob` magic
-        - The verb's matching calls clear `GIT_LITERAL_PATHSPECS`, `GIT_GLOB_PATHSPECS`, `GIT_NOGLOB_PATHSPECS`, and
-          `GIT_ICASE_PATHSPECS`, which Git's repository-local set (`GIT_REPOSITORY_LOCAL_ENVIRONMENT`) leaves in place
-        - No glob library is added: none is a dependency, and `change-facts.ts`'s private `matchesGlob` lets `*`
-          cross `/`
-        - Build `test-first` (one behavior at a time):
-            - `*` matches within one segment, and `**/`, `/**`, and `/**/` cross directories
-            - a leading `!` excludes
-            - absent `inputs` match the whole tree
-            - a pathspec variable in the caller's environment changes nothing that matches
-            - a check whose inputs the change misses is `not selected`
+    - `[x]` **2.1.b Input matching through Git pathspecs**
+        - Added Git glob and exclude matching with full tree-entry identities, whole-tree defaults, and explicit
+          unselected results when no input changed. Matching removes all four ambient pathspec variables through a
+          per-call executor control, preserving the caller's environment and deletion-only selection.
 
     - `[ ]` **2.1.c Minimal runner and the `increment` request**
         - Register `arc check increment` under `checkCmd` (`cli.ts`), loaded lazily through `./commands/check.js` as

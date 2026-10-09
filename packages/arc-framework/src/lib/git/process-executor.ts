@@ -32,6 +32,11 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_COMMON_DIR",
 ]);
 
+function withoutPathspecEnvironment(base: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
+  const variables = new Set(["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]);
+  return Object.fromEntries(Object.entries(base ?? process.env).filter(([variable]) => !variables.has(variable)));
+}
+
 const NONINTERACTIVE_OPENSSH_OPTIONS = [
   "-oBatchMode=yes",
   "-oNumberOfPasswordPrompts=0",
@@ -119,9 +124,12 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
-    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
-      ? { ...(indexedEnvironment ?? process.env), LC_ALL: "C", LANG: "C" }
+    const pathspecEnvironment = options?.clearPathspecEnvironment === true
+      ? withoutPathspecEnvironment(indexedEnvironment)
       : indexedEnvironment;
+    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
+      ? { ...(pathspecEnvironment ?? process.env), LC_ALL: "C", LANG: "C" }
+      : pathspecEnvironment;
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : diagnosticEnvironment;

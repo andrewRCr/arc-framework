@@ -22,13 +22,14 @@ export type TreeChange = { status: "known"; paths: TreePathChange[] } | { status
  * @param cwd - Repository root
  * @param base - Starting coordinate
  * @param tree - Checked tree
+ * @param pathspecs - Optional explicit Git pathspecs
  * @returns Changed paths or an unresolved result when Git fails
  */
-export async function readTreeChange(git: GitExec, cwd: string, base: string, tree: string): Promise<TreeChange> {
+export async function readTreeChange(git: GitExec, cwd: string, base: string, tree: string, pathspecs: readonly string[] = []): Promise<TreeChange> {
   let output: string;
   try {
-    output = (await git("git", ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", base, tree], {
-      cwd, preserveOutput: true,
+    output = (await git("git", ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", base, tree, "--", ...pathspecs], {
+      cwd, preserveOutput: true, clearPathspecEnvironment: true,
     })).stdout;
   } catch {
     return { status: "unresolved" };

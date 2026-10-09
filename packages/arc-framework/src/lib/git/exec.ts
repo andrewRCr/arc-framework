@@ -35,6 +35,8 @@ export interface GitExecOptions {
    * repository-local Git variables.
    */
   indexFile?: string;
+  /** Remove ambient Git pathspec variables when the caller supplies explicit magic. */
+  clearPathspecEnvironment?: boolean;
   /** Per-invocation terminal, presenter, and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
   /** Pin process diagnostics to the stable C locale for bounded classification. */
