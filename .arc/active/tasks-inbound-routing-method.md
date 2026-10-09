@@ -62,110 +62,36 @@ _Mode:_ `slice` — closes on the gate reaching a real owner's hand verdicts fro
 _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries reaches the hand verdicts recorded at
 `2bc91c7a4`, each disposition naming its outcome and deciding test, with test 4 catching the two out-of-scope arrivals.
 
-### `[ ]` **2.1 Ship `route-discovered-work` at the owner's pass — D1, D2, D3, D4, D5, D6, D7, D8, D9**
+### `[x]` **2.1 Ship `route-discovered-work` at the owner's pass — D1, D2, D3, D4, D5, D6, D7, D8, D9**
 
 - _Goal:_ One shipped, overridable method decides disposition, homing, integration, and re-triage through a closed
   outcome vocabulary over a closed door list, keeps every rule about carrying out an outcome in one binding section,
   and is invoked by its first door, the owner's planning pass.
 
-- _Rationale:_ `lint:arc:triggers` fails for a method no workflow declares, and the init and update inventory tests
-  check registration together, so the method, its registration, and its first declaring doors land together and 2.1
-  is proposed as one review increment.
+    - `[x]` **2.1.a Author the contract head**
+        - Added the signature-led, overridable contract with named inputs and a deciding-only result.
 
-- _Note:_ The method ships to every project: it names no internal work unit, ADR, storage-program context, or corpus
-  figure, and its binding section states only today's binding.
+    - `[x]` **2.1.b Write the gate and homing**
+        - The ordered gate checks liveness, the record floor, coupling, and exclusions; homing uses three pointed
+          finalists.
 
-    - `[ ]` **2.1.a Author the contract head**
-        - `system/methods/route-discovered-work.md`, in the method-as-function shape `adversarial-review` uses: the
-          leading blockquote with the signature `route-discovered-work(entry, door, host?) → per concern, one outcome
-          or an Owner-decided pair`, the named-inputs table (`entry`, `door`, `host`), and the typed result (outcome,
-          deciding test, `_Shapes:_` for a `fold` or `hold`).
-        - The blockquote's `Workflow:` line names the two consumers this task wires, `draft-design.md` and
-          `create-spec.md`, and its `When:` line names the point at which each door fires; each later consumer adds
-          itself.
-        - `.override` and `.default` sections; frontmatter `name`, `description`, `arc.methods` and `related:` naming
-          `classify-work-unit`, and `override-active: false`.
-        - State "decides only": callers execute outcomes through verbs after their own interlock; the target's
-          lifecycle position, owner, and horizon advisory come from `arc status`, its design from `arc view`.
+    - `[x]` **2.1.c Write integration, re-triage, and the cascade rule**
+        - Owner and drain re-triage share the gate, with bounded rights, a dispositions table, and decision-shaped
+          cascades.
 
-    - `[ ]` **2.1.b Write the gate and homing**
-        - The charter: disposition → homing → integration → re-triage, one disposition for every destination.
-        - The same-concern pull-in when a work unit starts planning or activates, by the anti-rider concern-identity
-          test, taking no routing outcome.
-        - Tests 1–4 in order: still live (dismiss naming what resolved it; a partly resolved entry splits),
-          Errand-shaped by `classify-work-unit` test 1 (load-bearing infrastructure a review signal, not a floor),
-          coupling (`_Shapes:_ <decision or section>`), and scope boundary (Out of scope, Won't Do, Non-Goals).
-        - The no-home fall-through to `new-stub` — at the drain a `provisional` one unless the Owner commits at the
-          interlock — or `capture` on the fast path without the commitment, and the horizon advisory shown at the
-          door's Owner stop from the listing row, never evaluated by the method.
-        - Homing: shortlist from `WU_Target` and the listing's purpose rows; at most three finalists read with
-          `arc view design --for <slug>`, headings first, then Purpose, scope boundary, and the named section; the
-          routed-into target's held count and oldest date; delegated reads under § Sub-agent scope, advisory until
-          the primary reads the named section, with nothing primary-side — the door or its allowed outcomes — handed
-          to the reader.
+    - `[x]` **2.1.d Write the vocabulary, the doors, and the fast path's judgments**
+        - The seven outcomes and six doors bound proposals, unclear pairs, fallbacks, and gate-before-mint judgments.
 
-    - `[ ]` **2.1.c Write integration, re-triage, and the cascade rule**
-        - `fold` and `hold` with their door defaults; a started work unit takes no woven note from anyone but its
-          owner; an inbound entry carries `routed from <origin>, <date>` and `_Shapes:_`.
-        - Re-triage as the gate run with `host` as the incumbent candidate.
-        - The owner's pass: every outcome but `hold <host>` at the pass that makes the draft ready, and where it runs
-          (readiness exit, create-spec entry check).
-        - The dispositions table the pass leaves in the draft: a row for each entry whose disposition no other record
-          keeps, naming the entry and its outcome, where a `fold` landed, and why an entry was rejected or dismissed.
-          Review of the draft reads it; the readiness check confirms only that no entry remains held; it is retired
-          with the draft at `create-spec`.
-        - The drain's re-triage: rights (backlog stubs only), trigger (an offer at the confirmation interlock),
-          bounded outcomes, and its record kept in the routing plan, never the target's draft.
-        - The cascade rule for work-unit cascades: route a cascade item only when it names the decision it shapes.
+    - `[x]` **2.1.e Write the binding section**
+        - One binding section owns writes, transit, route vehicles, stub designs, and Owner-confirmed waits.
 
-    - `[ ]` **2.1.d Write the vocabulary, the doors, and the fast path's judgments**
-        - The closed seven-outcome table; one concern, one outcome (split by concern first); each door's Owner stop;
-          the Owner-decided pair where the Errand line is unclear, `capture` at the cascade door.
-        - The closed door list with each door's allowed outcomes, and the outside-the-door fallback (a disallowed
-          `fold` becomes `hold` on the same work unit; a held entry stays `hold <host>`). A hold names one work unit,
-          never a group of owners.
-        - Any other caller takes one of the listed doors, and a new door is a change to the list: a sweep run when a
-          work unit starts planning or activates pulls in its own change's concern without the gate, takes the
-          owner's-pass door for anything else it would bring in, and follows the binding's writer line for a sibling
-          stub.
-        - Gate-before-mint, and the judgments a minted stub may not invent — commitment, priority, `Class` from
-          `classify-work-unit`, a legible slug, origin, dependencies — with the `arc stub` options that carry the
-          first five (`name`, `--commitment`, `--priority`, `--class`, `--origin`) and dependencies written into the
-          minted meta's `Depends On` line, which `arc stub` has no option for; and the design carrying the concern
-          and a one-sentence Purpose.
+    - `[x]` **2.1.f Register and cross-reference the method**
+        - Registered the configurable core method across install and sync inventories; reciprocal references and counts
+          agree.
 
-    - `[ ]` **2.1.e Write the binding section**
-        - One section carrying every rule about carrying out an outcome on today's substrate: the buffer section as
-          the inbound entries, owner adoption and its transit reading, the writer line, the dispositions table's rows,
-          the drain's writes (a count shown, never compared), the in-flight new home (by `owner` from `arc status`),
-          route-now's vehicles (route-only Errand with its pre-write re-check, pre-routed capture, the
-          `primary-occupied` case), the cascade's vehicles, a minted stub's `draft-*` (written beside the meta by the
-          minting change and named through `arc stub --design`, which records only the reference), the named gap with
-          its Owner-confirmed wait, and that the Owner stops — not enforcement — hold the writer line.
-        - The body and the door list name outcomes and who may choose them, and point here for the rest.
-
-    - `[ ]` **2.1.f Register and cross-reference the method**
-        - `init-recipe.json` `include_files`, `CONFIGURABLE_FILES` in `src/lib/classification.ts`, the self-hosting
-          manifest, the init, update, framework-sync, and E2E install inventories, the unit init test's file and
-          classification checks, and `strategy-package-project-sync.md`'s inventory with Configurable and
-          installed-file counts matching the recipe.
-        - `system/methods/README.md` § Related Methods: a `route-discovered-work` row (`classify-work-unit`) and the
-          reciprocal entry on `classify-work-unit`'s row; `classify-work-unit`'s frontmatter, which has no `related:`
-          key yet, adds one naming `route-discovered-work`.
-        - `strategy-work-organization.md` § Decision matrix: the new-stub sentence names the stub as this method's
-          `new-stub` outcome, with a reference-style link to the method.
-
-    - `[ ]` **2.1.g Invoke the method at the owner's-pass doors**
-        - `draft-design.md`: declare the method in `arc.methods`; at the loop-exit readiness check, a not-ready gap
-          for inbound entries not yet integrated resolves by a YAML callsite with the owner's-pass door, leaving the
-          dispositions table. No step is added.
-        - `create-spec.md`: declare the method; the entry check runs it with the owner's-pass door for a draft that
-          still holds inbound entries, leaving the dispositions table.
-        - Both callsites pass `host` as the work unit whose draft holds the entries, and both run at the pass that
-          makes the draft ready.
-        - Each consumer shows the result at its Owner stop — the outcome, its `_Shapes:_`, the pair where the result
-          carries one, the horizon advisory of a coupled target that carries one, and any wait the binding names; mark
-          each fire-point and check it by hand.
+    - `[x]` **2.1.g Invoke the method at the owner's-pass doors**
+        - Draft readiness and spec entry invoke the owner-pass door, bind the host, and show the complete result before
+          writes.
 
 ### `[ ]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind** — validate exit criterion at segment scope
 

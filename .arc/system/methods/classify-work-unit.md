@@ -1,6 +1,8 @@
 ---
 name: classify-work-unit
 description: Boundary-test triage and estimate-vs-realized ratchet for a work unit's Class
+related:
+  - route-discovered-work
 override-active: false
 ---
 

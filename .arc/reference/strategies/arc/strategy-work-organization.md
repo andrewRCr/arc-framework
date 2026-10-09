@@ -1301,7 +1301,8 @@ the matrix governs _incidental_ cross-cutting work only. For that incidental cas
 | ----------------------------------- | ------------------------------ | -------------------------------------------------- |
 | **Maintain** — an existing artifact | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
 
-Making a new stub for a concern the record test calls a Work Unit is a transient act through `arc stub`.
+Making a new stub is [route-discovered-work][route-discovered-work]'s `new-stub` outcome for a concern the record
+test calls a Work Unit, a transient act through `arc stub`.
 A stub change that also touches a foreign artifact is two concerns: make the stub, and route the foreign edit
 as its own maintain Errand.
 
@@ -1438,3 +1439,4 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/
 [merge-gate-templates]: ../../templates/arc/merge-gate/README.md
+[route-discovered-work]: ../../../system/methods/route-discovered-work.md

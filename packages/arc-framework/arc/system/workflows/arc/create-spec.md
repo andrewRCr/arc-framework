@@ -5,6 +5,7 @@ purpose: >-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - route-discovered-work
     - resolve-planning-depth
     - classify-work-unit
     - assess-boundary-fit
@@ -74,9 +75,19 @@ let its produced shape indicate the form — a rich, fully-shaped draft feeds `d
 determinacy-confirm feeds `brief` / `outline`. With no draft, read the standing `Class` plus the problem
 directly, narrowing to a **brief-vs-outline** disambiguation.
 
-If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
-draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
-feeds the spec, never carried forward as-is. Then assess formalization-readiness via the
+If a draft still holds inbound entries, run [route-discovered-work][route-discovered-work] at this owner's-pass
+entry-check fire-point before the draft feeds the spec:
+
+```yaml
+route-discovered-work:
+  entry: each held inbound entry
+  door: owner's planning pass
+  host: the work unit whose draft holds the entries
+```
+
+Show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon advisory, and any wait
+the binding names at the Owner's pass. On confirmation, execute through the binding and leave the dispositions
+table; no entry stays held at this ready-making pass. Then assess formalization-readiness via the
 [assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
 them inline (or return to drafting) before investing in spec writing.
 
@@ -364,3 +375,4 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
+[route-discovered-work]: ../../methods/route-discovered-work.md

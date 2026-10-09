@@ -776,6 +776,11 @@
       "classification": "Scaffolded",
       "layer": "arc-in-git",
       "pristine_hash": "c82866f2d63c47b85beee645241ced3c368160f244f5677a19201e6a96a28714"
+    },
+    "system/methods/route-discovered-work.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "cb6d97e8764882fc8b7d67c4c57d83601ed681f9a1a2170c1b58680451769eca"
     }
   }
 }
