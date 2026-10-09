@@ -313,15 +313,10 @@ and a push each dispatch their gate once; the push gate skips `refs/arc/*` and d
 `not selected`, and names the gated ref on failure; `restage` and `fail` behave per integration; and a merge
 conclusion selects only conflicted and parent-unmatched paths.
 
-### `[ ]` **5.1 A commit dispatches the commit gate once under every hook manager — D8**
+### `[x]` **5.1 A commit dispatches the commit gate once under every hook manager — D8**
 
 - _Goal:_ Under husky, lefthook, pre-commit.com, and `core.hooksPath`, every commit runs ARC's pre-commit hook exactly
   once, a deletion-only commit included.
-
-- _Context:_ no lefthook or pre-commit.com binary is provisioned anywhere today. The tests that run real hooks
-  (`e2e/pre-push.e2e.test.ts`, `e2e/commit-msg.e2e.test.ts`, `integration/pre-commit-meta-ref.test.ts`, and
-  `integration/markdown-staged-hook.test.ts`) run ARC's hooks directly or through `.husky/pre-commit`, never under
-  lefthook or pre-commit.com.
 
     - `[x]` **5.1.a Provision the hook managers for the E2E tier**
         - Pinned Lefthook 2.2.1 with its postinstall disabled; E2E setup provides verified executables and prepares
@@ -336,14 +331,10 @@ conclusion selects only conflicted and parent-unmatched paths.
         - Installation types include all three ARC events and preserve existing types and unrelated configuration;
           `init` and `join` report `pre-commit install` when the list changes, with no repeated notice when unchanged
 
-    - `[ ]` **5.1.c One dispatch per commit**
-        - Each integration installs its hooks as a person does: husky's `prepare`, `lefthook install`, plain
-          `pre-commit install`, and `core.hooksPath`
-        - Build `test-first` (one behavior at a time):
-            - under each of the four integrations, a commit dispatches `arc check pre-commit` once
-            - a commit that only deletes files dispatches it too
-            - under each integration, ARC's commit-message check receives the message file
-            - `hooks.pre_commit: disabled` dispatches nothing
+    - `[x]` **5.1.c One dispatch per commit**
+        - Native `init` fixtures install husky through `prepare`, lefthook through `install`, pre-commit.com through plain
+          `install`, and ARC's directory through `core.hooksPath`; commits verify one uncached check execution across
+          24 changed files, deletion-only commits, message refusal/repair, and disabled hooks
 
 ### `[ ]` **5.2 A merge conclusion gates only what the merge produced — D8**
 

@@ -7,3 +7,6 @@ Its optional hook installer copies the shipped commit hook and installs a local 
 
 `nested-git.ts` supplies a declared-check program that commits in an independent temporary repository and records
 the observed content and repository-local Git variable names. It removes its nested repository before exiting.
+
+`hook-manager.ts` initializes committed source inputs through the built CLI, installs real Husky, Lefthook,
+pre-commit.com, or native Git hooks, and supplies actual Git commit results and declared-check execution receipts.
