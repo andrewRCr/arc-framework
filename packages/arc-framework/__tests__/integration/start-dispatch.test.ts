@@ -445,6 +445,7 @@ describe("arc start dispatch — against real worktrees", () => {
       {
         io: h.io,
         internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }),
       },
       { worktreePath: alias, branch: "main", identity: IDENTITY, name: "aliased-widget" },
     );

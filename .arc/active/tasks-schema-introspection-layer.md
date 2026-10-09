@@ -304,30 +304,15 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
   in the same owned checkout. Partial protection runs no writer, and both CLI modes establish directory and exclude
   coverage.
 
-### `[ ]` **5.5 Cold-start scaffold — D4**
+### `[x]` **5.5 Cold-start scaffold — D4**
 
 - _Goal:_ A worktree that `arc start --here` scaffolds into has its editor documents, and a failed write refuses
   through the scaffold's existing rollback and reason.
 
-- _Note:_ `runColdStart` sits at cyclomatic complexity 15 of the gate's 15, with no suppression; it passes its seam
-  to `writeEditorDocumentsOrThrow` as is, adding no branch.
-
-- **Additional Context:** `notes-schema-introspection-layer.md` § Provisioning-site test inventory, the rows for
-  Task 5.5.
-
-    - The writer runs in `runColdStart`'s scaffold `try` (`commands/start.ts`) after `scaffoldIntoWorktree`, so a
-      failure runs `rollbackColdStart` and the command refuses with `could not scaffold the work unit: <message>`,
-      the message naming what failed. Ignored documents already written stay: the worktree is not ARC's to remove,
-      and `rollbackColdStart`'s `git clean -f` leaves ignored files.
-    - `runColdStart` passes the seam Task 5.2 gives `SpawnWorktreeContext`. `ctx(io)` in `unit/commands/start.test.ts`
-      already injects a writer that does nothing; the inline `runColdStart` context in `start-dispatch.test.ts` now
-      injects one.
-    - An e2e assertion checks the directory and the exclude entry after `start --here` in `rename.e2e.test.ts`'s
-      `startInPlace`, once the test removes both first.
-
-    - Build `test-first` (one behavior at a time):
-        - A cold-start scaffold leaves the directory and its exclude entry
-        - An injected writer failure refuses with the existing scaffold reason after rollback
+- _Outcome:_ Cold-start scaffolding provisions editor documents inside its existing compensation boundary. Writer
+  failure preserves the diagnostic scaffold refusal, removes the new meta and protected-base branch, and retains ignored
+  local output. Retrying replaces that output and succeeds; the CLI provisions an existing checkout without an ownership
+  marker.
 
 ### `[ ]` **5.6 Exercise every provisioning path** — validate exit criterion at segment scope
 
