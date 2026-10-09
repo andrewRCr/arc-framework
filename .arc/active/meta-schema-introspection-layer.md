@@ -11,13 +11,14 @@
 - **Design:** `spec-schema-introspection-layer.md`
 - **Task List:** `tasks-schema-introspection-layer.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:e6c0a9a217dcebc7756bb2dd0486c661e5ec8faf42381bdf04f0afdb44214b88`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 5.6 — Exercise every provisioning path (Phase 5 complete)
-- **Next Task:** Task 6.1 — Complete verification (line ~329 in tasks-schema-introspection-layer.md)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 via `verify-work-unit.md` in a fresh session.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

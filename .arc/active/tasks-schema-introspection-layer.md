@@ -265,8 +265,6 @@ _Exit criterion:_ Each provisioning path D4 names writes the exclude entry and t
 the built CLI, and an injected writer failure rolls back a work-unit spawn and refuses decomposition with a
 retryable `occupation-failed`.
 
-_Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site failure and test seam.
-
 ### `[x]` **5.1 Primary-checkout commands: `arc init`, `arc update`, `arc join` — D4**
 
 - _Goal:_ A primary checkout has its editor documents after `arc init`, `arc update`, or `arc join`, and a failed
@@ -326,68 +324,74 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, code, and shell lint; ARC contract checks; both type checks; 17,010 unit/integration
+  cases; 61 focused built-CLI cases; full build — passed.
+- _Success criteria:_ 23 met, none superseded; fresh-context criteria review converged on Pass 1 of 2 with no findings.
+  Verified schema size, validity and authored sides, typed discovery and refusal results, editor publication and
+  provisioning, rollback/retry, and build retirement.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` After `npm run build` and `npm run build:fast` into a fresh `dist/`, it contains no `schemas/` directory
+- `[x]` After `npm run build` and `npm run build:fast` into a fresh `dist/`, it contains no `schemas/` directory
 
-- `[ ]` The build evidence carries one input identity and no schema graph, and test preparation qualifies on the CLI
+- `[x]` The build evidence carries one input identity and no schema graph, and test preparation qualifies on the CLI
   entry and the metafile
 
-- `[ ]` No source, test, build or CI configuration, rule, or reference document refers to `dist/schemas/kernel.json`,
+- `[x]` No source, test, build or CI configuration, rule, or reference document refers to `dist/schemas/kernel.json`,
   `generateRuntimeSchema`, or `hasKernelSchemas`, or says "runtime/schema", "runtime and schema", "schema
   producer", or "schema artifact"
 
-- `[ ]` Every build-coordination behavior the schema producer hosted keeps a test
+- `[x]` Every build-coordination behavior the schema producer hosted keeps a test
 
-- `[ ]` `arc schema get session-init-envelope` returns one self-contained document of about 116 KB with its version
+- `[x]` `arc schema get session-init-envelope` returns one self-contained document of about 116 KB with its version
   and posture, and `get review-status-result` one of about 63 KB
 
-- `[ ]` Every registered root's `get` document passes 2020-12 metaschema validation and compiles in
+- `[x]` Every registered root's `get` document passes 2020-12 metaschema validation and compiles in
   `new Ajv2020({ strict: true, validateFormats: false })`, and no test compiles a projected document with
   `validateSchema: false`
 
-- `[ ]` `get review-resolve-request` leaves `frontlineActive` optional
+- `[x]` `get review-resolve-request` leaves `frontlineActive` optional
 
-- `[ ]` `arc delivery plan inventory schema` returns a document with no external reference
+- `[x]` `arc delivery plan inventory schema` returns a document with no external reference
 
-- `[ ]` A review `--schema` result's `rootId` is `urn:arc:schema:<id>`, the `$id` of the one document it holds
+- `[x]` A review `--schema` result's `rootId` is `urn:arc:schema:<id>`, the `$id` of the one document it holds
 
-- `[ ]` `arc schema get decompose-cut-map` returns the map's input-side document, and the decompose workflow's § 2
+- `[x]` `arc schema get decompose-cut-map` returns the map's input-side document, and the decompose workflow's § 2
   names it
 
-- `[ ]` `arc schema get <unknown>` refuses with `unknown-schema-id` and exit 1, naming `arc schema list` as the
+- `[x]` `arc schema get <unknown>` refuses with `unknown-schema-id` and exit 1, naming `arc schema list` as the
   remedy
 
-- `[ ]` `arc schema list --json` lists every production id with its version, posture, and `editorDocument`
+- `[x]` `arc schema list --json` lists every production id with its version, posture, and `editorDocument`
 
-- `[ ]` Every `list` and `get` result validates against its registered envelope
+- `[x]` Every `list` and `get` result validates against its registered envelope
 
-- `[ ]` In a temporary repository, given a registry holding a marked test schema, the writer produces a
+- `[x]` In a temporary repository, given a registry holding a marked test schema, the writer produces a
   self-contained document under `.arc/system/.internal/schemas/` that validates a sample file with no unresolved
   reference
 
-- `[ ]` `git check-ignore` reports the written document ignored, `git status` stays clean, and an unmarked schema
+- `[x]` `git check-ignore` reports the written document ignored, `git status` stays clean, and an unmarked schema
   gets no document
 
-- `[ ]` An unwritable directory makes `arc schema install` refuse with `editor-documents-unwritable` and exit 1
+- `[x]` An unwritable directory makes `arc schema install` refuse with `editor-documents-unwritable` and exit 1
 
-- `[ ]` `arc schema install --json` outside an ARC project prints only the `arc-project-root-unresolved` refusal and
+- `[x]` `arc schema install --json` outside an ARC project prints only the `arc-project-root-unresolved` refusal and
   exits 1
 
-- `[ ]` Every `install` result validates against its registered envelope
+- `[x]` Every `install` result validates against its registered envelope
 
-- `[ ]` On each provisioning path D4 names, and after `arc schema install` in an existing checkout, the built CLI
+- `[x]` On each provisioning path D4 names, and after `arc schema install` in an existing checkout, the built CLI
   writes the directory and its exclude entry and leaves the managed `.gitignore` block unchanged
 
-- `[ ]` An injected writer failure fails a work-unit spawn and rolls it back as a failed marker exclude does
+- `[x]` An injected writer failure fails a work-unit spawn and rolls it back as a failed marker exclude does
 
-- `[ ]` An injected writer failure at decomposition refuses with `occupation-failed`, and retrying the mode
+- `[x]` An injected writer failure at decomposition refuses with `occupation-failed`, and retrying the mode
   re-enters the candidate and writes its documents
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
