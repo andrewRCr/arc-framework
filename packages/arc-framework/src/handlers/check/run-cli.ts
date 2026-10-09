@@ -125,7 +125,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: runCheckProcess,
-      runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, true),
+      runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),
     }, { form, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
@@ -155,9 +155,12 @@ function checkEnvironment(cwd: string, content?: CheckContentContext): NodeJS.Pr
 }
 
 
-async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, rawStdout = false) {
+async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean } = {}) {
   const result = await execa(command[0] ?? "", command.slice(1), {
-    cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false, stripFinalNewline: !rawStdout,
+    cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false,
+    shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
   });
-  return { exitCode: result.exitCode ?? 1, stdout: result.stdout, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
+  const started = result.exitCode !== undefined || result.signal !== undefined;
+  return { started, exitCode: result.exitCode ?? 1, stdout: result.stdout,
+    output: [result.stdout, result.stderr, ...(!started ? [result.originalMessage] : [])].filter(Boolean).join("\n") };
 }

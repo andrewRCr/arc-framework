@@ -1,4 +1,5 @@
 /** Orchestration for declared repository check requests. */
+import { relative, resolve } from "node:path";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
@@ -13,7 +14,7 @@ import type { CheckPassStore } from "../../lib/checks/record.js";
 export interface DeclaredCheckResult {
   id: string;
   kind: CheckResultKind;
-  outcome: "passed" | "failed" | "not selected" | "reused" | "would run";
+  outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run";
   output?: string;
   reason?: string;
 }
@@ -21,7 +22,7 @@ export interface DeclaredCheckResult {
 /** Typed result retained independently of output formatting. */
 export type RunDeclaredChecksResult = {
   kind: "result";
-  exitCode: 0 | 1;
+  exitCode: 0 | 1 | 2;
   result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; base?: string; tree?: string; merged?: string[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string } };
 
@@ -32,7 +33,7 @@ export interface CheckContentContext { base?: string; tree: string; merged?: rea
 export interface DeclaredCheckDependencies extends CheckKeyIO {
   passes: CheckPassStore;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext): Promise<{ exitCode: number; output: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean }): Promise<{ started: boolean; exitCode: number; output: string }>;
 }
 
 /**
@@ -99,7 +100,7 @@ export async function runDeclaredRequest(
   for (const [id, check] of entries) {
     checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request));
   }
-  return { kind: "result", exitCode: checks.some(check => check.outcome === "failed") ? 1 : 0,
+  return { kind: "result", exitCode: checks.some(check => check.outcome === "couldn't run") ? 2 : checks.some(check => check.outcome === "failed") ? 1 : 0,
     result: { status: "completed", checks, base, tree, ...(resolved.request.merged ? { merged: resolved.request.merged } : {}) } };
 }
 
@@ -141,7 +142,10 @@ async function executeSelectedCheck(
   if (pass !== null) return { id, kind, outcome: "reused", output: pass.output };
   if (dryRun) return { id, kind, outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
-  const result = await io.execute([...command, ...paths], root, content);
+  const cwd = resolve(root, check.root);
+  const argumentsFromRoot = paths.map(path => relative(cwd, resolve(root, path)));
+  const result = await io.execute([...command, ...argumentsFromRoot], cwd, content, { shell: check.shell });
+  if (!result.started) return { id, kind, outcome: "couldn't run", output: result.output };
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
   }

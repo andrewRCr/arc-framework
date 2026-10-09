@@ -231,13 +231,10 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
 - _Goal:_ A selected check runs as its declaration says (in its root, with its paths batched and its environment
   clean), and fixers finish before anything else reads their files.
 
-    - `[ ]` **4.1.a Commands, shell, and root**
-        - Build `test-first` (one behavior at a time):
-            - an argument-list command runs without a shell, so a path with shell metacharacters reaches it verbatim
-            - a `shell: true` string runs through the platform shell
-            - a check runs from its `root`, and a `files` check receives its paths relative to that root
-            - a command that cannot start is `couldn't run`, never `failed`
-            - a `shell: true` check whose program is missing is `failed`, since its shell started
+    - `[x]` **4.1.a Commands, shell, and root**
+        - Argument-list commands preserve literal paths; declared shell strings use the platform shell. Checks run
+          from their root with root-relative file arguments. A command that never starts reports `couldn't run` with
+          exit 2; started shell failures report `failed` with exit 1. A repaired declaration retries successfully.
 
     - `[ ]` **4.1.b Git environment**
         - Build `test-first` (one behavior at a time):
