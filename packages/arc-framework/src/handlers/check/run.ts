@@ -38,13 +38,33 @@ export interface DeclaredCheckDependencies extends TreeMatchIO {
  * @returns Named outcomes and the request's exit status
  */
 export async function runCheckIncrement(root: string, io: DeclaredCheckDependencies, options: { force?: boolean } = {}): Promise<RunDeclaredChecksResult> {
+  return runCommitChecks(root, io, options, false);
+}
+
+/**
+ * Run the commit request over the index supplied by Git.
+ * @param root - Repository root from which relative hook index paths resolve
+ * @param io - Injectable repository and command boundaries
+ * @param options - Force policy and optional exact index supplied by Git
+ * @returns Named outcomes and the request's exit status
+ */
+export async function runCheckPreCommit(
+  root: string, io: DeclaredCheckDependencies, options: { force?: boolean; indexFile?: string } = {},
+): Promise<RunDeclaredChecksResult> {
+  return runCommitChecks(root, io, options, true);
+}
+
+async function runCommitChecks(
+  root: string, io: DeclaredCheckDependencies, options: { force?: boolean; indexFile?: string }, staged: boolean,
+): Promise<RunDeclaredChecksResult> {
   const declaration = await io.readDeclaration(root);
   if (declaration.status === "invalid") return { kind: "error", exitCode: 2,
     error: { kind: "invalid", message: `${declaration.location}: ${declaration.message}` } };
   if (declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [] } };
   const entries = Object.entries(declaration.value.checks).filter(([, check]) => check.gate === "commit" && !check.ci_only);
   if (entries.length === 0) return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [] } };
-  const tree = await stagedWorktreeTree(io.git, root);
+  const tree = staged ? (await io.git("git", ["write-tree"], { cwd: root, indexFile: options.indexFile })).stdout
+    : await stagedWorktreeTree(io.git, root);
   const checks: DeclaredCheckResult[] = [];
   for (const [id, check] of entries) {
     const selected = await selectChangedInputs(io.git, root, "HEAD", tree, check.inputs);

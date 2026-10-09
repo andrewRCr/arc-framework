@@ -18,7 +18,7 @@ import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
 } from "./handlers/check/commit-msg-cli.js";
-import { checkIncrementInputPolicyDeclarations, checkIncrementInputRegistration } from "./handlers/check/run-cli.js";
+import { checkInputPolicyDeclarations, checkIncrementInputRegistration, checkPreCommitInputRegistration } from "./handlers/check/run-cli.js";
 import { errandCommandInputPolicyDeclarations, errandCommandInputRegistrations } from "./handlers/errand.js";
 import {
   errandMergeCommandInputPolicyDeclarations,
@@ -107,6 +107,7 @@ export const commandInputRegistrations = [
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
   checkIncrementInputRegistration,
+  checkPreCommitInputRegistration,
   candidateCommandInputRegistration,
   configValidateCommandInputRegistration,
   startCommandInputRegistration,
@@ -144,7 +145,7 @@ export const commandInputPolicyDeclarations = [
   ...baseCommandInputPolicyDeclarations,
   ...candidateCommandInputPolicyDeclarations,
   ...checkCommitMessageInputPolicyDeclarations,
-  ...checkIncrementInputPolicyDeclarations,
+  ...checkInputPolicyDeclarations,
   ...configCommandInputPolicyDeclarations,
   ...errandCommandInputPolicyDeclarations,
   ...errandMergeCommandInputPolicyDeclarations,

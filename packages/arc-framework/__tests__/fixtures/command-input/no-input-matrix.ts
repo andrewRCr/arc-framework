@@ -26,6 +26,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "candidate applicability resolve", args: ["candidate", "applicability", "resolve", "matrix", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"state\":\"invalid-input\"" } },
   { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
   { commandPath: "check increment", args: ["check", "increment", "--json", "--force"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check pre-commit", args: ["check", "pre-commit", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
   { commandPath: "deactivate", args: ["deactivate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "decompose", args: ["decompose", "origin", "--preflight"], fixture: "arc-project", expected: { exitCode: 1 } },
   { commandPath: "delivery compose", args: ["delivery", "compose", "--landed-prefix", "not-json", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },

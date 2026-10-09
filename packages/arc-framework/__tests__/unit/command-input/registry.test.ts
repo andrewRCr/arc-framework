@@ -66,6 +66,7 @@ describe("command-input schema adapter and registry", () => {
     const source = scanCommanderSource({ file: "cli.ts", sourceText: cliText });
     const flagOnlySchemaPaths = [
       "check increment",
+      "check pre-commit",
       "delivery compose",
       "delivery plan abandon",
       "delivery plan inventory schema",

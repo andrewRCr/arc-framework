@@ -4,8 +4,9 @@ import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js
 import { runArc, runArcNoTty } from "./helpers.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -176,4 +177,38 @@ it("keeps running when its private record directory is unavailable", async () =>
     expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: "passed" }] } });
   }
   expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("2");
+});
+
+it("reuses an increment pass when the same content is staged for pre-commit", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  expect((await runArc(["check", "increment", "--json"], cwd)).exitCode).toBe(0);
+  await execFileAsync("git", ["add", "-A"], { cwd });
+  const result = await runArc(["check", "pre-commit", "--json"], cwd, { env: { GIT_INDEX_FILE: ".git/index" } });
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: "reused", output: "stored summary" }] } });
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("1");
+});
+
+it("runs a staged change the increment request has never checked", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  await execFileAsync("git", ["add", "-A"], { cwd });
+  const result = await runArc(["check", "pre-commit", "--json"], cwd);
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: "passed" }] } });
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("1");
+});
+
+it.each([{ flags: ["-a"] }, { flags: ["--only", "src/a.ts"] }])("checks Git's temporary index during commit $flags", async ({ flags }) => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`;
+  const hook = join(cwd, ".git/hooks/pre-commit");
+  await writeFile(hook, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(CLI_PATH)} --no-input check pre-commit --json\n`);
+  await chmod(hook, 0o755);
+  const commit = execFileAsync("git", ["commit", ...flags, "-m", "changed"], { cwd });
+  await expect(commit).resolves.toMatchObject({ stdout: expect.stringContaining("changed") });
+  const committed = await commit;
+  const envelope = JSON.parse([committed.stdout, committed.stderr].join("\n").split("\n").find(line => line.startsWith("{")) ?? "null");
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD^{tree}"], { cwd });
+  expect(envelope).toMatchObject({ result: { tree: stdout.trim(), checks: [{ outcome: "passed" }] } });
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("1");
 });

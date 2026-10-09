@@ -131,17 +131,10 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
   fixer whose inputs a later fixer rewrote runs again, D7), because the hook's checked tree, the index, yields the same
   key.
 
-    - `[ ]` **2.3.a `arc check pre-commit` over the index**
-        - Checked tree: `git write-tree` of the index Git hands the hook as `GIT_INDEX_FILE`, relative (`.git/index`)
-          for a plain commit, run from the worktree's top level, and absolute for `git commit -a`'s `index.lock` or a
-          path-limited commit's temporary index. ARC's executors drop an inherited `GIT_INDEX_FILE` from any call given
-          a working directory (`environmentForGitCwd`), so the handler reads it, resolves a relative value against the
-          top level, and passes it as `indexFile`. Change: that tree against `HEAD`; selection as in Task 2.1
-        - Build `test-first` (one behavior at a time):
-            - with nothing else changed after `arc check increment` and the change staged, every selected check is
-              `reused`
-            - a staged change the increment run never saw runs the checks it reaches
-            - under `git commit -a`, the checked tree is the index Git hands the hook
+    - `[x]` **2.3.a `arc check pre-commit` over the index**
+        - Added the lazy, registered pre-commit request and shared commit-check orchestration. The adapter resolves
+          inherited index paths against the repository root and passes the exact index to Git; staged content reuses
+          increment passes, while unseen changes execute, including real `-a` and path-limited commit indexes.
 
     - `[ ]` **2.3.b Shipped pre-commit dispatch**
         - In `packages/arc-framework/arc/system/.internal/githooks/pre-commit`, dispatch `arc check pre-commit` as its

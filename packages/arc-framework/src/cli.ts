@@ -144,6 +144,18 @@ checkCmd
     },
   ));
 
+checkCmd
+  .command("pre-commit")
+  .description("Run declared checks over the commit index")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPreCommit(opts, context);
+    },
+  ));
+
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
   .action(async () => {

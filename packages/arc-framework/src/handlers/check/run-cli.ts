@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { execa } from "execa";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { checkRecordDirectory, createCheckPassStore } from "../../lib/checks/record.js";
 import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
@@ -11,12 +12,14 @@ import { createExecaGitExecInput, environmentForGitCwd } from "../../lib/git/pro
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, declareInteractionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../../lib/command-input/registry.js";
-import { runCheckIncrement, type RunDeclaredChecksResult } from "./run.js";
+import { runCheckIncrement, runCheckPreCommit, type RunDeclaredChecksResult } from "./run.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
 /** Public syntax of an increment-boundary check request. */
 export const CheckIncrementInputSchema = z.strictObject({ json: z.boolean().optional(), force: z.boolean().optional() });
 export type CheckIncrementOptions = z.infer<typeof CheckIncrementInputSchema>;
+/** Independently registered syntax for the index-based commit request. */
+export const CheckPreCommitInputSchema = CheckIncrementInputSchema.clone();
 
 /** Input registration owned by the check adapter. */
 export const checkIncrementInputRegistration = {
@@ -24,9 +27,14 @@ export const checkIncrementInputRegistration = {
   schemaFields: { "option.json": "json", "option.force": "force" },
 } satisfies CommandInputRegistration;
 
+/** Input registration for the index-based commit request. */
+export const checkPreCommitInputRegistration = {
+  ...checkIncrementInputRegistration, commandPath: "check pre-commit", schema: CheckPreCommitInputSchema,
+} satisfies CommandInputRegistration;
+
 /** Explicit machine and subprocess policies for the check command. */
-export const checkIncrementInputPolicyDeclarations = [{
-  commandPath: "check increment", aliases: [], sites: [
+export const checkInputPolicyDeclarations = (["check increment", "check pre-commit"] as const).map(commandPath => ({
+  commandPath, aliases: [], sites: [
     declareCliOptionSite("json", {
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
       automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
@@ -54,7 +62,7 @@ export const checkIncrementInputPolicyDeclarations = [{
       },
     ),
   ],
-}] satisfies readonly CommandInputDeclaration[];
+})) satisfies readonly CommandInputDeclaration[];
 
 /**
  * Execute an increment request through real repository I/O.
@@ -63,12 +71,28 @@ export const checkIncrementInputPolicyDeclarations = [{
  * @returns Resolves after writing output and assigning process exit state
  */
 export async function handleCheckIncrement(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
-  const input = CheckIncrementInputSchema.parse(options);
+  return handleCommitChecks(options, interaction, false);
+}
+
+/**
+ * Execute the index-based request through real repository I/O.
+ * @param options - Commander output and force options
+ * @param interaction - Invocation-bound process policy
+ * @returns Resolves after writing output and assigning process exit state
+ */
+export async function handleCheckPreCommit(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
+  return handleCommitChecks(options, interaction, true);
+}
+
+async function handleCommitChecks(options: CheckIncrementOptions, interaction: InteractionContext, staged: boolean): Promise<void> {
+  const input = (staged ? CheckPreCommitInputSchema : CheckIncrementInputSchema).parse(options);
   const git = createGitExec(interaction.subprocess);
   let outcome: RunDeclaredChecksResult;
   try {
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
-    outcome = await runCheckIncrement(root, {
+    const inheritedIndex = process.env.GIT_INDEX_FILE;
+    const request = staged ? runCheckPreCommit : runCheckIncrement;
+    outcome = await request(root, {
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
@@ -79,7 +103,7 @@ export async function handleCheckIncrement(options: CheckIncrementOptions, inter
         });
         return { exitCode: result.exitCode ?? 1, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
       },
-    }, input);
+    }, { ...input, ...(staged && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
