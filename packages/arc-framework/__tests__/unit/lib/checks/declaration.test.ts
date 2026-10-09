@@ -42,3 +42,15 @@ describe("check declaration fields", () => {
     expect(CheckDeclarationSchema.parse({ $schema: "urn:test", checks: {} })).toMatchObject({ $schema: "urn:test" });
   });
 });
+
+describe("check identifiers", () => {
+  it.each(["a", "a1-b_c.d:e", "constructor"])("retains the declared id %s", (id) => {
+    expect(Object.keys(CheckDeclarationSchema.parse({ checks: { [id]: { command: ["npm", "test"] } } }).checks))
+      .toEqual([id]);
+  });
+  it.each(["1", "a,b", "a b", "a\tb", "A", "-a", "aB"])("refuses id %s at its named field", (id) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { [id]: { command: ["npm", "test"] } } });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.some((issue) => issue.path.includes(id))).toBe(true);
+  });
+});

@@ -19,7 +19,7 @@ const CheckSchema = z.strictObject({
 });
 
 export const CheckDeclarationSchema = z.strictObject({
-  checks: z.record(z.string(), CheckSchema),
+  checks: z.record(z.string().regex(/^[a-z][a-z0-9_.:-]*$/u), CheckSchema),
   global_inputs: z.array(z.string()).default([]),
   global_runtime_inputs: z.array(ArgumentListSchema).default([]),
   commit_fixes: z.enum(["restage", "fail"]).default("restage"),

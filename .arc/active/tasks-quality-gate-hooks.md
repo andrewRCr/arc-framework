@@ -54,11 +54,10 @@ naming the field.
           and the top-level editor reference. Commands, runtime inputs, and shard configuration retain typed values;
           unknown fields refuse at every object level.
 
-    - `[ ]` **1.3.b Id rule**
-        - Build `test-first` (one behavior at a time):
-            - an id starts with a lowercase letter and continues with lowercase letters, digits, `-`, `_`, `.`, or `:`
-            - an integer-like, comma-bearing, or whitespace-bearing id refuses, naming the id
-            - a duplicate id refuses, as `js-yaml` rejects a duplicate key in YAML and JSON alike
+    - `[x]` **1.3.b Id rule**
+        - Check ids enforce the lowercase-leading grammar and preserve declared names, including punctuation and
+          `constructor`. Invalid names report their field; the typed-file reader refuses duplicate YAML and JSON
+          keys before validation.
 
     - `[ ]` **1.3.c Cross-field refinements**
         - Applied by the CLI after the structural parse, so no schema document carries them
