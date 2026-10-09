@@ -190,20 +190,14 @@ _Mode:_ `layer` through Phase 4 — closes on the complete set of CLI reads homi
   local ref; regular-file entries only. Pure thesis extraction handles wrapped text and code spans. All 28 unit
   behaviors passed, with fail-first evidence for extraction and source selection.
 
-### `[ ]` **3.2 Report `purpose` and `owner` on `arc status <slug>` — D11**
+### `[x]` **3.2 Report `purpose` and `owner` on `arc status <slug>` — D11**
 
 - _Goal:_ `arc status <slug> --json` carries `purpose` (string or `null`) and `owner` (the meta's `Owner` or `null`),
   and the human output shows a purpose line when one is present, with no existing field changing meaning.
 
-    - In `handleLifecycleStatus` and `formatSlugStateQuery` (`src/handlers/status/lifecycle.ts`), take `owner` from
-      `recordsBySlug.get(slug).selected` and `purpose` from the purpose read over that record.
-    - Build `test-first` (one behavior at a time):
-        - a drafted or specced work unit reports its purpose; a meta-only stub reports `null`
-        - `owner` is present when the meta names one and `null` otherwise
-        - a slug with no record reports both as `null`
-        - an in-flight work unit's purpose comes from its selected ref
-        - the human output carries a purpose line only when the value is present
-        - every existing JSON field keeps its value and meaning
+- _Outcome:_ JSON adds nullable `purpose` and `owner` from the selected record; the human view includes a thesis
+  only when present. Eight real-CLI tests cover local designs, absent values, selected refs, and existing lifecycle
+  fields; output-specific reconstructions establish fail-first behavior.
 
 ### `[ ]` **3.3 Add purpose, owner, lifecycle, and horizon advisory to the listing's `facts` rows — D2, D11**
 
