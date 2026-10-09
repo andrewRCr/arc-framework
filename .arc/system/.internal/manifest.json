@@ -387,6 +387,11 @@
       "layer": "core",
       "pristine_hash": "af65f783952bdd143cd09876cbc32c1aae29c95a27a87d5e7e9b5fe194626461"
     },
+    "system/methods/classify-review-risk.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "bb1f78e6e70801810d533b162b48b0b33275059274a783397227ffae6b561c50"
+    },
     "system/methods/classify-work-unit.md": {
       "classification": "Configurable",
       "layer": "core",

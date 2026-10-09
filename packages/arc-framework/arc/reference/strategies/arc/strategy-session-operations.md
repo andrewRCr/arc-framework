@@ -404,6 +404,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric              |
 | review-triage                 | prepare / integrate          | Prepublication and integration findings              |
 | assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual |
+| classify-review-risk          | prepare / errand             | Every review routing-fact composition                |
 | session-state                 | session-handoff              | Session end only                                     |
 
 ### Review enforcement boundary
