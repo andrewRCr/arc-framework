@@ -115,18 +115,22 @@ hold. Preserve the historical-parity failures as failures. Task 2.3 checks this 
 - _Outcome:_ A1's method change preserves independent routing and reconciles already-covered work at the later pass;
   the contrasting evidence is retained in `notes-inbound-routing-method.md` § A1 — Revision evidence.
 
-### `[ ]` **2.R2 Calibrate the replay with explicit Owner dispositions — A2**
+### `[x]` **2.R2 Calibrate the replay with explicit Owner dispositions — A2**
 
 - _Goal:_ Realize A2's source-backed, Owner-adjudicated replay criterion without altering the classification floor or
   reporting the superseded historical-parity scenario as passed.
 
-    - `[ ]` **2.R2.a Ground and separate the remaining replay differences**
-        - Preserve the blind report, split the bounded regression/shared-limit residuals from broader redesign,
-          validate the footer-policy home, and record the upstream/tool corrections with evidence.
+    - `[x]` **2.R2.a Ground and separate the remaining replay differences**
+        - Preserved the blind report and recorded the bounded residual splits, upstream/tool corrections, and
+          validated footer-policy candidate separately from pending Owner classification.
 
-    - `[ ]` **2.R2.b Record the Owner's classification and holding decisions**
-        - Show each disputed concern's record answers, proposed home/Shapes when applicable, and intentional wait;
-          record the selected route or explicit pair as the Owner disposition.
+    - `[x]` **2.R2.b Record the Owner's classification and holding decisions**
+        - Recorded the accepted small-fix, bounded-investigation, and written-policy classifications, named homes,
+          intentional waits, and the migration pair in the effective 30-entry report.
+
+- _Outcome:_ Owner calibration closes the benchmark disagreements while retaining source corrections and both failed
+  historical-parity reports; the effective report is in `notes-inbound-routing-method.md` § A2 — Owner dispositions
+  and effective report.
 
 ### `[~]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind**
 
@@ -157,16 +161,16 @@ hold. Preserve the historical-parity failures as failures. Task 2.3 checks this 
         - A mismatch traced to a method rule is corrective work for a revision parent, never fixed inside this task.
         - The comparisons failed historical parity; A2 supersedes this criterion, preserving both failed reports.
 
-### `[ ]` **2.3 Validate the Owner-adjudicated replay — A2** — validate exit criterion at segment scope
+### `[x]` **2.3 Validate the Owner-adjudicated replay — A2** — validate exit criterion at segment scope
 
 - _Goal:_ Validate A2's amended exit criterion over the preserved 30-entry blind report, source-correction evidence,
   and explicit Owner dispositions, with no unresolved disagreement or uncertainty.
 
 - **Additional Context:** `notes-inbound-routing-method.md` § Task 2.2 — A1 replay comparison, § A2 — Replay calibration
 
-- Verify coverage of all 30 original entries, deciding rules and source facts, Shapes and exclusion checks for each
-  work-unit candidate, and four answers for every unclear Owner pair. Re-check the two host exclusions and the four
-  own-work contrasts. Record the effective report and preserve the original scenario's failure.
+- _Outcome:_ The effective 30-entry report meets A2's criterion: source-backed splits/routes and accepted Owner
+  choices, both host exclusions, and four contrasting cases. Original historical parity remains failed and
+  superseded. Evidence: `notes-inbound-routing-method.md` § Task 2.3 — Amended segment verification.
 
 ## **Phase 3:** Purpose and owner in `arc status`
 

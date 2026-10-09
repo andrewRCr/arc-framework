@@ -955,8 +955,8 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
 ## Amendments
 
 - **A1** — 2026-10-09 — design: own-work reconciliation at the ready-making pass.
-  _Supersedes:_ D2 ¶1; D9 host rule. _Trigger:_ 2.2 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.3.
+  _Supersedes:_ D2 ¶1; D9 host rule. _Trigger:_ 2.2 segment. _Work:_ 2.R. _Revalidated:_ 2.3.
 - **A2** — 2026-10-09 — design: adjudicate replay proposals with Owner judgment.
-  _Supersedes:_ Replay; Phase 2 exit. _Trigger:_ 2.2 segment. _Work:_ 2.R2. _Revalidated:_ pending → 2.3.
+  _Supersedes:_ Replay; Phase 2 exit. _Trigger:_ 2.2 segment. _Work:_ 2.R2. _Revalidated:_ 2.3.
 
 ---

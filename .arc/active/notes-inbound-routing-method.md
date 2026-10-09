@@ -418,3 +418,107 @@ follows it, regardless of its status marker (`validateSegmentation` in `task-lis
 supersession therefore retires Task 2.2's old role suffix and marks it and its comparison `[~]` at capture; Task 2.3
 alone carries the active suffix. The original role was `— validate exit criterion at segment scope`; both original
 Goals, completed fixture/evaluator leaves, the failed comparisons, and the old criterion remain preserved.
+
+### A2 — Case proposal and pending Owner input
+
+The capture is `435e8f8b0`. The remaining source evaluation is complete; classification choices are pending in three
+case groups. No route is executed by this replay, and no case answer is inferred from the criterion approval.
+
+| Group                 | Captured concern                                                                                  | Proposed floor/read                                                                                                                                                                                                | Candidate or intentional wait                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Small fixes           | 14a source-existence guards; 18 opt-in TTY confirmation; 24 pointed layout assertion              | Errand; No/No/No/No. Steps and policy default are named, no new exclusion is required, and implementation is reversible with a short rationale.                                                                    | Wait as an Errand where storage retirement makes current work throwaway. Future replacement alone does not supply a work-unit floor.                               |
+| Bounded investigation | 1 ref baseline; 4 hosted capacity; 12 runtime examples; 29a cognitive metric                      | Errand with the chosen small scope and short decision record; promote if actual mapping or rationale crosses the floor. The reported unknowns remain visible until the Owner chooses that scope or written design. | No validated work-unit home for these precise decisions in the fixture; new-stub if the Owner requires a record.                                                   |
+| Recorded policy       | 6 completed-ID stability; 15 footer/CI authority; 28 cross-file anchors; 29c quantitative ratchet | Written design proposed: persistent ID provenance or rationale/policy beyond a short decision line. The Owner chooses the floor; an unclear result remains a pair.                                                 | 6: task-list-conventions identifier/sequence decision, coordinated with storage; 15: ghost-mode footer policy; 28: knowledge-lint cross-references; 29c: new-stub. |
+
+For entry 6, the targeted candidate read confirms its Purpose is task grammar/generation gaps and its held
+phase-numbering section explicitly asks whether append-only identifiers stay additive while sequencing is separate.
+Its present Scope has no contrary exclusion. That is a design input this concern can shape; storage remains a
+coordination constraint rather than an automatic priority over the floor. `_Shapes:_ Settle phase-numbering insertion
+semantics and letter-suffix drift — completed-ID persistence`. The other proposed homes retain the already-validated
+Shapes and exclusions from the comparison. Actual lifecycle, owner adoption, and horizon checks remain carry-out
+requirements outside this source-only replay.
+
+Entry 14b's installed-validator migration retains the method's pair: an existing delegation pattern may remain a
+bounded Errand, while new validator surfaces may require code mapping and a larger compatibility record. This is a
+proposal awaiting the Owner at actual routing, not a decision that generic guard work authorizes a new CLI contract.
+Entry 8's solved wrapper/spawn premises remain separate from an unproved universal raw-Git guarantee; no such added
+guarantee is inferred from the capture. The source-backed corrections and compatible rows remain in the effective
+report, with historical disagreements disclosed rather than erased.
+
+### A2 — Owner dispositions and effective report
+
+The Owner selected **all recommended** for the three calibration groups and reaffirmed the same deferred-review
+scope with atomic commits. That supplies the missing classification input for the bounded cases and recorded-policy
+cases below. The evaluation remains a source-only replay; these are dispositions of benchmark proposals, not writes
+or execution of the unrelated concerns. Live routing still obtains its ordinary Owner decision and status evidence.
+
+The blind evaluator's original proposals and uncertainties remain in the preceding comparison. This effective
+report combines them with the separately grounded corrections and the Owner's selected scope/record judgments.
+
+| Entry | Effective disposition                                                                                     | Deciding reason / Owner calibration                                                                                                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Errand for bounded ref measurement and affected-row reporting                                             | Bounded investigation group; short decision record, promote if mapping or a durable record is actually needed.                                                            |
+| 2     | Dismiss completed refresh; Errand warm-run practice                                                       | Verified split; known practice and short record.                                                                                                                          |
+| 3     | Errand machine-readable budget summary                                                                    | Named output/consumer correction under the floor.                                                                                                                         |
+| 4     | Dismiss missing-row premise; Errand bounded capacity/refresh measurement                                  | Bounded investigation group; no invented baseline or larger calibration apparatus.                                                                                        |
+| 5     | Fold host                                                                                                 | Own-work coverage; Shapes: Selection model — two-copy relevance.                                                                                                          |
+| 6     | Hold task-list-conventions; coordinate storage                                                            | Recorded policy group; Shapes: Settle phase-numbering insertion semantics and letter-suffix drift — completed-ID persistence.                                             |
+| 7     | Fold host                                                                                                 | Own-work reconciliation; Shapes: generic dispatch/dogfood ownership after the shipped runner.                                                                             |
+| 8     | Dismiss solved wrapper-detection and spawn premises                                                       | Named code supplies both mechanisms. A universal native-Git guarantee is not inferred or adopted as a new obligation.                                                     |
+| 9     | Dismiss repaired untracked/formatting parts; Errand explicit operand interface                            | Split liveness and the known scope-reporting/refusal fix.                                                                                                                 |
+| 10    | Dismiss implementation bug; Errand raw-status regression                                                  | Grounded missing exemption test is a separate known residual.                                                                                                             |
+| 11    | Dismiss retired validator; Errand three shared-limit replacements; new-stub generalized reader hardening  | Bound the explicit reuse fix separately. The wider captured hardening requires mapping; its evaluator proposal remains distinct.                                          |
+| 12    | Errand bounded runtime-example boundary                                                                   | Bounded investigation group; preserve the planning-coupling guard and promote if semantic mapping exceeds that scope.                                                     |
+| 13    | Dismiss renamed-path premise; Errand install-mode verifier                                                | Consume the existing installation authority, without broadening into inventory redesign.                                                                                  |
+| 14    | Dismiss old loader spelling; Errand self-hosting guards with intentional wait; retain migration pair      | Small fixes group selects the guards. The distinct installed-validator migration remains the method's explicit Errand/new-stub choice for the Owner when actually routed. |
+| 15    | Hold ghost-mode                                                                                           | Recorded policy group; Shapes: Settled inputs — footer policy and absent-state degradation.                                                                               |
+| 16    | Fold host's conditional cache question                                                                    | Own-work coverage; Shapes: Selection model — unchanged inputs and field-data threshold. No cache implementation is authorized by folding it.                              |
+| 17    | Dismiss stale content/emoji/table-CI premises; fold safe restage residual                                 | Upstream scope and actual aligned lint resolve the premises; Shapes: pre-commit dispatch — index-safe auto-fix/restage.                                                   |
+| 18    | Errand opt-in TTY confirmation, with intentional wait where applicable                                    | Small fixes group; existing advisory default and noninteractive posture remain the bounded intent.                                                                        |
+| 19    | Errand exported-surface lint                                                                              | Enforce already-selected TSDoc policy with a short record.                                                                                                                |
+| 20    | Dismiss absence-of-tier premise; new-stub mechanical seam/coverage guard                                  | Existing tier does not prove the new guard; mapping and semantic decision require a record.                                                                               |
+| 21    | Errand actionlint integration                                                                             | Known tool and surfaces; infrastructure does not lift the floor.                                                                                                          |
+| 22    | Dismiss missing repo style-lint premise                                                                   | Existing indexed runner and wrapper supply the policy.                                                                                                                    |
+| 23    | Dismiss omitted-script premise; fold composition residual                                                 | Own-work coverage; Shapes: command composition and local/CI parity.                                                                                                       |
+| 24    | Dismiss stale reader description; Errand pointed recurrence assertion with intentional wait               | Small fixes group; a future projection is coordination, not a wrapper floor.                                                                                              |
+| 25    | Dismiss inclusion/count premises                                                                          | Selection includes untracked paths; the pinned linter/caller exposes the count.                                                                                           |
+| 26    | Fold host                                                                                                 | Own-work coverage; Shapes: pre-commit dispatch — safe format/restage loop.                                                                                                |
+| 27    | Hold knowledge-lint                                                                                       | Shapes: Mechanical tier → Cross-references — prose citations. The host expressly excludes this content.                                                                   |
+| 28    | Hold knowledge-lint                                                                                       | Recorded policy group; Shapes: Mechanical tier → Cross-references — file.md#anchor resolution. Host exclusion remains decisive.                                           |
+| 29    | Errands for bounded source-metric comparison and named test rules; new-stub quantitative ratchet redesign | Bounded investigation and recorded policy groups keep distinct concerns separate.                                                                                         |
+| 30    | Fold host                                                                                                 | Floor/coupling: CLI resolution/execution semantics; Shapes: command connection points and workflow-trigger consolidation.                                                 |
+
+For the small-fix group, the four record answers are No/No/No/No. For the bounded-investigation group, the selected
+small scope supports a short decision record; the source report's uncertain mapping/rationale answers remain visible
+as promotion conditions, rather than claims that future execution cannot uncover a Yes. The recorded-policy group
+selects a durable record: completed-ID provenance implicates costly historical reconciliation, and footer authority,
+anchor grammar, and quantitative floor semantics need their longer policy rationale. The distinct migration pair
+retains Unclear/No/No/Unclear and both outcomes. Accepting that proposal shape does not choose a live migration route.
+
+The existing homes were checked by actual Purpose, named section, and exclusions. The ID section is present in the
+task-grammar draft; ghost-mode's footer decision includes hook/validator policy and degradation, outside its storage,
+review-body, and contributor exclusions; knowledge-lint owns the cross-reference family, which the host excludes.
+Host folds name already-covered Selection/Dispatch sections except the separately justified ceremony executor.
+No proposed home is decided by shared domain, mere existence, or future replacement alone. Metadata/status and
+horizon uncertainty is explicitly confined to carry-out, which the replay never performs.
+
+### Task 2.3 — Amended segment verification
+
+Checked the effective report against **Replay calibration (A2)** and the amended Phase 2 exit criterion:
+
+- All 30 original entries are covered in order, with distinct concerns and resolved/live parts split; the preserved
+  blind report, read disclosure, and source-correction section supply the evidence chain.
+- Deciding rules and the relevant record answers are present. The uncertain migration is returned as its explicit
+  Owner pair; the Owner's calibration supplies the selected bounded and recorded-policy dispositions elsewhere.
+- Every work-unit route names an actual Shapes and has a targeted scope/exclusion check. Both knowledge-content
+  entries remain outside the host, as its explicit exclusion requires.
+- The fresh four-case report still distinguishes kickoff pull-in, ready-making reconciliation, an independent
+  same-file Errand, and a resolved/live split. No method input changed since that witnessed run.
+- The two historical-parity reports remain failed. A2's effective, Owner-adjudicated result is not recorded as a
+  third blind run or as recovery of historical equality. Source-only limitations are retained and accepted within
+  this criterion; no actual routing or follow-up execution is claimed.
+
+**Result: the amended segment criterion is satisfied.** The former historical-parity verifier stays superseded.
+There is no open benchmark disagreement: outstanding choices at real routing are explicitly represented by the
+method's required pair/carry-out boundary, not silently selected. A1 and A2 revalidate through Task 2.3, and the
+CLI-read implementation proceeds with the original classification floor and routing contract intact.
