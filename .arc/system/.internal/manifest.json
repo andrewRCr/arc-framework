@@ -35,7 +35,7 @@
     "system/rules/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3dec559153f183dc7fa1ba43cd622631e9ee3d197b32af0e05d86b934b6e003f"
+      "pristine_hash": "5ca97fbc045f226368a377a34a87efb457f9ab1a6c3972adb11482d981fe6a98"
     },
     "system/rules/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",

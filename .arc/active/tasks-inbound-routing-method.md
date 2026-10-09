@@ -333,15 +333,14 @@ Errand line shows the pair.
   write block and lock-safe execution transition remain unchanged; the routing method's installed fingerprint is
   refreshed alongside the workflow projection.
 
-### `[ ]` **5.2 Sharpen "home" in `DEV-RULES.ARC`'s core invariant — D10**
+### `[x]` **5.2 Sharpen "home" in `DEV-RULES.ARC`'s core invariant — D10**
 
 - _Goal:_ The always-loaded core invariant makes a stub authoritative for the decisions it owns, defines a home as the
   work unit whose decision an item shapes, gives an Errand-shaped item no home, and points at the method — two
   sentences of growth, the invariant marker and its scope unchanged.
 
-    - Replace the core-invariant paragraph's text in `system/rules/DEV-RULES.ARC.md` § Discovered Work Routing with
-      the spec's D10 paragraph, keeping its `**The core invariant.**` lead-in, which § Planning artifacts aren't
-      capture surfaces refers to; no other always-loaded surface changes.
+- _Outcome:_ The core invariant now defines home by a shaped decision, gives Errands no work-unit home, and fires
+  the routing method for placement. Its marker and scope stay intact; no other always-loaded surface changes.
 
 ### `[ ]` **5.3 Read `WU_Target` as a candidate, and pull in only same-concern items, in the inbox docs — D2, D10**
 
