@@ -36,9 +36,10 @@ it("restores an absent environment stub after discovery cleanup", async () => {
         { path: "unit.test.ts", project: "unit" },
       ]).create);
     });
+    delete process.env.VITEST_ENV_CLEANUP_PROBE;
     vi.stubEnv(key, "temporary");
     vi.unstubAllEnvs();
-    expect(process.env[key]).toBe(previous);
+    expect(process.env[key]).toBeUndefined();
   } finally {
     if (previous === undefined) delete process.env.VITEST_ENV_CLEANUP_PROBE;
     else process.env[key] = previous;
