@@ -4,12 +4,14 @@ import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import type { TreeMatchIO } from "../../lib/checks/matching.js";
 import { matchTreeInputs, selectChangedInputs } from "../../lib/checks/matching.js";
 import { stagedWorktreeTree } from "../../lib/checks/tree.js";
+import { checkContentKey } from "../../lib/checks/key.js";
+import type { CheckPassStore } from "../../lib/checks/record.js";
 
 /** One check's externally observable result. */
 export interface DeclaredCheckResult {
   id: string;
   kind: "deadline" | "feedback";
-  outcome: "passed" | "failed" | "not selected";
+  outcome: "passed" | "failed" | "not selected" | "reused";
   output?: string;
   reason?: string;
 }
@@ -23,6 +25,7 @@ export type RunDeclaredChecksResult = {
 
 /** Repository and command boundaries injected into check orchestration. */
 export interface DeclaredCheckDependencies extends TreeMatchIO {
+  passes: CheckPassStore;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string): Promise<{ exitCode: number; output: string }>;
 }
@@ -31,9 +34,10 @@ export interface DeclaredCheckDependencies extends TreeMatchIO {
  * Run the increment-boundary request over repository content.
  * @param root - Resolved repository root
  * @param io - Injectable repository and command boundaries
+ * @param options - Whether selected checks must execute despite reusable passes
  * @returns Named outcomes and the request's exit status
  */
-export async function runCheckIncrement(root: string, io: DeclaredCheckDependencies): Promise<RunDeclaredChecksResult> {
+export async function runCheckIncrement(root: string, io: DeclaredCheckDependencies, options: { force?: boolean } = {}): Promise<RunDeclaredChecksResult> {
   const declaration = await io.readDeclaration(root);
   if (declaration.status === "invalid") return { kind: "error", exitCode: 2,
     error: { kind: "invalid", message: `${declaration.location}: ${declaration.message}` } };
@@ -48,7 +52,6 @@ export async function runCheckIncrement(root: string, io: DeclaredCheckDependenc
       checks.push({ id, kind: "deadline", outcome: "not selected", reason: selected.reason });
       continue;
     }
-    const command = typeof check.command === "string" ? [check.command] : check.command;
     let paths: string[] = [];
     if (check.mode === "files") {
       const matching = selected.status === "selected" ? { status: "known" as const, paths: selected.paths }
@@ -60,9 +63,33 @@ export async function runCheckIncrement(root: string, io: DeclaredCheckDependenc
         continue;
       }
     }
-    const result = await io.execute([...command, ...paths], root);
-    checks.push({ id, kind: "deadline", outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output });
+    checks.push(await executeSelectedCheck({ id, check, root, tree, paths }, io, options.force === true));
   }
   return { kind: "result", exitCode: checks.some(check => check.outcome === "failed") ? 1 : 0,
     result: { status: "completed", checks, base: "HEAD", tree } };
+}
+
+
+interface SelectedCheck {
+  id: string;
+  check: CheckDeclaration["checks"][string];
+  root: string;
+  tree: string;
+  paths: string[];
+}
+
+async function executeSelectedCheck(
+  { id, check, root, tree, paths }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean,
+): Promise<DeclaredCheckResult> {
+  const inputs = check.cache ? await matchTreeInputs(io, root, tree, check.inputs) : null;
+  const key = inputs?.status === "known" ? checkContentKey({ id, declaration: check, inputs: inputs.paths,
+    ...(check.mode === "files" ? { paths } : {}) }) : null;
+  const pass = key === null || force ? null : await io.passes.get(key, id);
+  if (pass !== null) return { id, kind: "deadline", outcome: "reused", output: pass.output };
+  const command = typeof check.command === "string" ? [check.command] : check.command;
+  const result = await io.execute([...command, ...paths], root);
+  if (result.exitCode === 0 && key !== null) {
+    await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
+  }
+  return { id, kind: "deadline", outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
 }

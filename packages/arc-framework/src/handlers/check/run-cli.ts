@@ -1,6 +1,9 @@
 /** Commander and process boundary for declared check requests. */
 import { z } from "zod";
 import { execa } from "execa";
+import { readFile } from "node:fs/promises";
+import { atomicCreateFile } from "../../lib/fs.js";
+import { checkRecordDirectory, createCheckPassStore } from "../../lib/checks/record.js";
 import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
 import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
@@ -12,12 +15,13 @@ import { runCheckIncrement, type RunDeclaredChecksResult } from "./run.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
 /** Public syntax of an increment-boundary check request. */
-export const CheckIncrementInputSchema = z.strictObject({ json: z.boolean().optional() });
+export const CheckIncrementInputSchema = z.strictObject({ json: z.boolean().optional(), force: z.boolean().optional() });
 export type CheckIncrementOptions = z.infer<typeof CheckIncrementInputSchema>;
 
 /** Input registration owned by the check adapter. */
 export const checkIncrementInputRegistration = {
-  commandPath: "check increment", schema: CheckIncrementInputSchema, schemaFields: { "option.json": "json" },
+  commandPath: "check increment", schema: CheckIncrementInputSchema,
+  schemaFields: { "option.json": "json", "option.force": "force" },
 } satisfies CommandInputRegistration;
 
 /** Explicit machine and subprocess policies for the check command. */
@@ -27,6 +31,11 @@ export const checkIncrementInputPolicyDeclarations = [{
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
       automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
       mutationBoundary: "output selection", subprocess: "none",
+    }),
+    declareCliOptionSite("force", {
+      acquisition: "optional", schemaOwnership: "owned", schemaField: "force", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--force"], acceptedSyntax: [] },
+      mutationBoundary: "declared check execution", subprocess: "none",
     }),
     ...([1, 3] as const).map(occurrence => declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
@@ -61,6 +70,8 @@ export async function handleCheckIncrement(options: CheckIncrementOptions, inter
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     outcome = await runCheckIncrement(root, {
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
+      passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
+        readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: async (command, cwd) => {
         const result = await execa(command[0] ?? "", command.slice(1), {
@@ -68,7 +79,7 @@ export async function handleCheckIncrement(options: CheckIncrementOptions, inter
         });
         return { exitCode: result.exitCode ?? 1, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
       },
-    });
+    }, input);
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }

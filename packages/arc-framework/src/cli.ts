@@ -136,6 +136,7 @@ checkCmd
   .command("increment")
   .description("Run checks reached by the current increment")
   .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {

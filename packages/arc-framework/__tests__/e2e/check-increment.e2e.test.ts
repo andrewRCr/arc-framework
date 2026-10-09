@@ -121,3 +121,59 @@ it("passes only changed matching paths that exist to a files check", async () =>
     args: ["src/a.ts", "src/new.ts"], cwd,
   });
 });
+
+const countedCommand = [process.execPath, "-e", "const fs = require('node:fs'); let n = 0; try { n = Number(fs.readFileSync('receipt.json', 'utf8')); } catch {} fs.writeFileSync('receipt.json', String(n + 1)); console.log('stored summary');"];
+
+it("reuses an unchanged pass with its stored summary without executing again", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  const first = await runArc(["check", "increment", "--json"], cwd);
+  expect(first.exitCode, first.stderr).toBe(0);
+  expect(JSON.parse(first.stdout)).toMatchObject({ result: { checks: [{ outcome: "passed", output: "stored summary" }] } });
+  const second = await runArc(["check", "increment", "--json"], cwd);
+  expect(second.exitCode, second.stderr).toBe(0);
+  expect(JSON.parse(second.stdout)).toMatchObject({ result: { checks: [{ id: "lint", outcome: "reused", output: "stored summary" }] } });
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("1");
+});
+
+it("forces execution, records its pass, and bypasses a later reuse hit", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  for (const force of [true, false, true]) {
+    const result = await runArc(["check", "increment", "--json", ...(force ? ["--force"] : [])], cwd);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: force ? "passed" : "reused" }] } });
+  }
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("2");
+});
+
+it.each(["failed", "cache disabled"])("executes again when the prior check was %s", async condition => {
+  const command = condition === "failed" ? [...countedCommand.slice(0, -1), `${countedCommand.at(-1)} process.exit(1);`] : countedCommand;
+  const cwd = await declaredFixture({ lint: { command, gate: "commit", inputs: ["src/**"], cache: condition !== "cache disabled" } });
+  for (let n = 0; n < 2; n++) {
+    const result = await runArc(["check", "increment", "--json"], cwd);
+    expect(result.exitCode, result.stderr).toBe(condition === "failed" ? 1 : 0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: condition === "failed" ? "failed" : "passed" }] } });
+  }
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("2");
+});
+
+it("reruns when another matching input changes while the received files stay the same", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  const first = await runArc(["check", "increment", "--json"], cwd);
+  expect(first.exitCode, first.stderr).toBe(0);
+  await writeFile(join(cwd, "src/deleted.ts"), "new content\n");
+  const second = await runArc(["check", "increment", "--json"], cwd);
+  expect(second.exitCode, second.stderr).toBe(0);
+  expect(JSON.parse(second.stdout)).toMatchObject({ result: { checks: [{ outcome: "passed" }] } });
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("2");
+});
+
+it("keeps running when its private record directory is unavailable", async () => {
+  const cwd = await declaredFixture({ lint: { command: countedCommand, gate: "commit", inputs: ["src/**"] } });
+  await writeFile(join(cwd, ".git/arc-checks"), "not a directory");
+  for (let n = 0; n < 2; n++) {
+    const result = await runArc(["check", "increment", "--json"], cwd);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ result: { checks: [{ outcome: "passed" }] } });
+  }
+  expect(await readFile(join(cwd, "receipt.json"), "utf8")).toBe("2");
+});

@@ -103,7 +103,7 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
 - _Outcome:_ The built CLI composes declaration reading, temporary-index snapshots, Git matching, and command
   execution; a failed check exits 1 while other selected checks still run, and deletion-only files checks are unselected.
 
-### `[ ]` **2.2 A passing run is recorded under its content key — D5, D12**
+### `[x]` **2.2 A passing run is recorded under its content key — D5, D12**
 
 - _Goal:_ A pass is written once, keyed by the content it checked, so a later request over the same content in the
   same worktree replays it, and a fault in the record never becomes a pass or a refusal.
@@ -117,11 +117,13 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
           strict pass-only store using `atomicCreateFile`. Concurrent publication keeps one complete entry; mismatched
           or corrupt records and read/write faults provide no hit and do not refuse execution.
 
-    - `[ ]` **2.2.c Replay**
-        - Build `test-first` (one behavior at a time):
-            - a repeat request over unchanged content reports `reused` with the stored summary, without spawning the
-              check
-            - `--force` spawns it and still records the pass
+    - `[x]` **2.2.c Replay**
+        - Connected the increment runner to the private pass store. Repeat requests replay `reused` with the stored
+          summary; `--force` executes and records a pass. Failures, disabled caching, changed input content, and storage
+          faults execute again without granting a hit.
+
+- _Outcome:_ The built CLI reuses only complete matching pass entries from its own checkout; keys include all declared
+  input content, so a change outside the previously changed paths still invalidates reuse.
 
 ### `[ ]` **2.3 The commit hook reuses the increment-boundary run — D3, D5, D8**
 
