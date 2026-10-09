@@ -31,19 +31,28 @@ Boundary-test triage, then ratchet against any realized design-authoring work.
 Apply in order. The first test sorts work below the wrapper out of the `Class` model entirely; the next two
 each independently promote a WU to `Heavy`; the last promotes `Heavy → Novel` on the derivation axis alone.
 
-1. **Errand vs. WU (the wrapper floor):** _"Is this spec-worthy — does it clear the floor on either intrinsic
-   axis (a design worth recording, or a durable plan a correct execution must navigate — a substantial grounding
-   surface or cross-session tracking), or is it self-evident on both?"_ This reads the same two axes as the `Heavy`
-   triggers below, at their **sub-floor**: the errand is the shared below-floor tier of one spectrum, not a separate
-   increment-count gate.
-    - **Below floor on _both_ axes** → it is an **Errand**, not a WU: one indivisible concern with nothing worth
-      recording as design _and_ no durable plan to navigate (neither a substantial grounding surface nor
-      cross-session tracking) — self-evident, validated by intent + diff + review. `Class` does not apply: an Errand
-      runs below the wrapper (no meta file). **Atomic in character** — bounded to one session; _typically_ one
-      review increment, a determinate sweep extended to a bounded few in-session passes (the extended errand).
-      Commit- and review-pass-count don't gate. Stop here.
-    - **Clears _either_ floor** → it is a WU (**spec-worthy**): a design worth recording (even a determinate one)
-      _or_ a substantial grounding pass a correct plan must navigate. Continue to the two `Heavy` triggers.
+1. **Errand vs. WU (the wrapper floor):** Apply the record test on the two intrinsic axes at their
+   **sub-floor**. The Owner decides; the agent proposes with all four answers shown at the stop where placement
+   already reaches the Owner. This test adds no stop and settles nothing alone.
+    1. **Steps not knowable yet (scale).** A step cannot be named without first mapping the code to find it, or the
+       Owner says one sitting will not hold the work. Ask no duration estimate: a sweep with known steps stays an
+       Errand however many files it touches. Waiting on review, a merge, or another work unit does not count.
+    2. **A deliberate exclusion (derivation).** The change leaves out something a reader would expect, and it must
+       stay left out: a scope boundary that the Errand's intent line has nowhere to state.
+    3. **Costly if wrong (derivation).** Putting a wrong choice right takes more than another Errand, such as
+       persisted data to migrate or a contract other work builds on to unwind.
+    4. **The decision outgrows its line (derivation).** A later reader needs alternatives and rationale beyond a
+       couple of lines of `Decided: X over Y — because Z` in the Errand's PR body and commit.
+    - **Any yes** → a **Work Unit**; continue to the two `Heavy` triggers.
+    - **Otherwise** → an **Errand**, design discussion included: outside the `Class` model, with no meta or WU
+      lifecycle, atomic in character — one indivisible concern in a single session. Commit- and review-pass-count
+      are incidental; a determinate concern may take bounded in-session passes. Stop here.
+    - **Unclear, happening now:** run as an Errand and promote the moment an answer flips. Question 1 names
+      `scale`; questions 2–4 name `derivation`, which wins when both flip. **Not happening now:** no default;
+      show both candidates for the Owner's call at the existing placement stop.
+    - **Deciding and guarding are separate.** These questions do not ask whether a wrong choice would fail
+      quietly. The `Decided:` line, the reviewed lane for load-bearing infrastructure, and the promote trigger
+      guard that direction; they do not raise the wrapper floor.
 
 2. **Derivation trigger (→ `Heavy`):** _"Must a real design be authored — concerns, alternatives, tradeoffs
    that don't exist until someone works them out — before a competent engineer can start?"_

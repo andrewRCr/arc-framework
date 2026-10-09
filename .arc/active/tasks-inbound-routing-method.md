@@ -14,92 +14,42 @@ _Mode:_ `layer` — closes on the record test settled as the single canonical fl
 _Exit criterion:_ `classify-work-unit` boundary test 1 carries the four questions mapped onto its two axes, the
 strategy keeps no copy of the old floor or its create rule, and the new ADR records the reversal.
 
-### `[ ]` **1.1 State the record test as `classify-work-unit`'s canonical floor — D12**
+### `[x]` **1.1 State the record test as `classify-work-unit`'s canonical floor — D12**
 
 - _Goal:_ Boundary test 1 decides Errand versus work unit by four record questions, read on the two axes it already
   names at their sub-floor, with the Owner deciding and the agent proposing.
 
-    - Rewrite boundary test 1 in `system/methods/classify-work-unit.md` around the four questions: steps not knowable
-      yet (or the Owner says one sitting will not hold it; waiting does not count; no duration estimate), a deliberate
-      exclusion, costly if wrong, and a decision that outgrows its `Decided: X over Y — because Z` line.
-    - Map question 1 to the scale axis and questions 2–4 to the derivation axis; any yes makes a work unit, otherwise
-      it is an Errand, design discussion included.
-    - State the Owner's call: the agent proposes with the four answers shown at the stop where placement already
-      reaches the Owner; the test adds no stop and settles nothing alone.
-    - State the unclear cases: happening now runs as an Errand and promotes the moment an answer flips (question 1
-      `scale`, questions 2–4 `derivation`, `derivation` winning a tie); not happening now has no default.
-    - Keep deciding separate from guarding — the questions never ask whether a wrong choice would fail quietly; the
-      quiet direction is guarded by the Decided line, the reviewed lane, and the promote trigger.
-    - Keep both outcome branches: an Errand stops here, outside the `Class` model and atomic in character; a work
-      unit continues to the `Heavy` triggers.
-    - Leave the `Heavy` derivation trigger (test 2) and the ratchet unchanged.
+- _Outcome:_ The four record questions map to scale and derivation; the Owner decides, with unclear cases and promotion
+  explicit.
 
-### `[ ]` **1.2 Point `strategy-work-organization` at the canonical floor and retire the create rule — D12**
+### `[x]` **1.2 Point `strategy-work-organization` at the canonical floor and retire the create rule — D12**
 
 - _Goal:_ The strategy states the Errand / work-unit floor only by pointing at `classify-work-unit` boundary test 1,
   keeps no copy of the old floor, criterion 3, or the create rule, and states making a stub as a transient act.
 
-    - `[ ]` **1.2.a Point § The boundary tests and § Work Character at test 1**
-        - § The boundary tests' test 1 points at `classify-work-unit` test 1 instead of restating the floor.
-        - § Work Character's floor statements point there too: the "Character is not the wrapper floor" paragraph's
-          account of what makes a work unit, and the "One indivisible concern, one session is the sharp line"
-          paragraph, whose session-fit question gives way to the four questions and whose irreducible judgment
-          becomes the Owner's call, still cheap to correct by promotion.
-        - § Work Character's account of atomic character stays.
+    - `[x]` **1.2.a Point § The boundary tests and § Work Character at test 1**
+        - The boundary and character sections point at the canonical record test; atomic character stays distinct.
 
-    - `[ ]` **1.2.b Read the rename worked example against question 1**
-        - § Worked examples' widely-used-symbol rename clears question 1: a correct plan cannot name its call sites
-          until the surface is mapped.
+    - `[x]` **1.2.b Read the rename worked example against question 1**
+        - The rename example clears question 1 because the call sites cannot be named before mapping.
 
-    - `[ ]` **1.2.c Point § Errand Work Class's definitions and character layer at test 1**
-        - The opening Work Unit and Errand definitions take the line from `classify-work-unit` test 1, in place of
-          "design-bearing or trackable work" and the restated floor; the Errand definition keeps its atomic
-          character, its lack of meta and lifecycle, and its tracking by git history.
-        - § Two layers' character layer points at `classify-work-unit` test 1.
+    - `[x]` **1.2.c Point § Errand Work Class's definitions and character layer at test 1**
+        - Both definitions and the universal character layer take their wrapper floor from test 1.
 
-    - `[ ]` **1.2.d Reduce § Decision matrix to the maintain row**
-        - The intro keeps one axis: `classify-work-unit` test 1 decides whether the work needs the Work-Unit wrapper,
-          and self-contained versus cross-cutting decides how an Errand routes.
-        - The table keeps one row, maintaining an existing artifact, across its self-contained and cross-cutting
-          columns.
-        - The create paragraph goes; its two-concerns rule stays for a stub: one that also touches a foreign artifact
-          is two concerns — make the stub, and route the foreign edit as its own maintain Errand.
-        - The create-versus-maintain paragraph and its criteria 1–3 give way to a pointer to test 1 and a sentence
-          stating what does not decide the line: a roadmap slot is when, not what (Errand-shaped work for later waits
-          as a `§ Errand` capture); an owner follows from the wrapper and never decides it; a dependency is waiting,
-          which question 1 excludes.
-        - The symptom check re-examines a candidate against the four questions.
-        - A sentence states making a new stub as a transient act through `arc stub`, for a concern the four questions
-          call a work unit. It names no method yet; Task 2.1.f names it as the routing method's `new-stub` outcome.
+    - `[x]` **1.2.d Reduce § Decision matrix to the maintain row**
+        - The matrix keeps maintain only; stub creation is transient and roadmap, ownership, and waiting do not decide
+          the floor.
 
-### `[ ]` **1.3 Record the record test in a new ADR, with forward pointers on ADR-021 and ADR-027 — D12**
+### `[x]` **1.3 Record the record test in a new ADR, with forward pointers on ADR-021 and ADR-027 — D12**
 
 - _Goal:_ An `Accepted` ADR records the record test replacing ADR-027's derivation test and the retirement of
   ADR-021's create rule and threshold criterion 3, while both earlier ADRs stay standing and point forward to it.
 
-- _Context:_ `strategy-adr-methodology.md` § Choosing the right tier routes reversing a decision to supersession;
-  ADR-027 is the precedent for reversing part of ADR-021's Decision in a new ADR while ADR-021 stays standing with a
-  forward-pointer amendment.
+    - `[x]` **1.3.a Write the ADR at the next free number**
+        - ADR-037 records the accepted record test, its alternatives, the retirement, and retained mechanisms.
 
-    - `[ ]` **1.3.a Write the ADR at the next free number**
-        - Author it under `.arc/reference/adr/` from `.arc/reference/templates/arc/template-adr.md`, per
-          `strategy-adr-methodology.md`; take the next free number at authoring time, not the one free when this plan
-          was written.
-        - Status: `Accepted (<date>)`, with the Status paragraph naming `spec-inbound-routing-method.md` as the
-          decision's source.
-        - Context: the escalation the old floor produced, and the rejected options from the spec's § Alternatives &
-          Rationale that bear on the line (session-length test, lean-to-work-unit when unclear, keeping the create
-          rule beside the test, the line as its own work unit). Decision: the four questions, their axis mapping, the
-          Owner's call, the unclear cases, deciding versus guarding, and the retirement of the create rule and
-          criterion 3. Consequences, and the template's `## Amending This Document` block.
-
-    - `[ ]` **1.3.b Add forward-pointer amendments to ADR-021 and ADR-027**
-        - Each amendment is a dated `**Amendment (YYYY-MM-DD):**` entry under the ADR's `## Amending This Document`.
-        - `adr-021-introduce-errand-work-class.md`: the create rule and threshold criterion 3 are retired by the new
-          ADR; its work classes stand. Its Status paragraph names the new ADR beside ADR-027 as a later refinement.
-        - `adr-027-refine-errand-model.md`: its derivation test is replaced by the record test; its two-floor
-          structure, Errand mechanism, and record-owned identity stand.
-        - Neither is superseded. The directory keeps no ADR index.
+    - `[x]` **1.3.b Add forward-pointer amendments to ADR-021 and ADR-027**
+        - ADR-021 and ADR-027 carry forward-pointer amendments; neither is superseded.
 
 ## **Phase 2:** The routing method and the owner's pass
 
