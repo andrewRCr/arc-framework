@@ -31,28 +31,15 @@ naming the field.
         - Per-sample and total times, with the sample ids, the replay rule, and the measured tip, in the notes file's
           SC17 section
 
-### `[ ]` **1.2 Typed-file read in the configuration layer — D2, D12**
+### `[x]` **1.2 Typed-file read in the configuration layer — D2, D12**
 
 - _Goal:_ A caller asks the configuration layer for a structured project file by its identity and gets back a typed
   value with the file's resolved location, an absent result, or a refusal naming the failing field, without knowing
   where the file lives.
 
-- _Approach:_ a new module in `src/lib/config/` beside `status-reader.ts`. It maps a file identity to its location
-  through the layout's `arc-root` address plus a suffix (`resolveArcPath`, `materializeArcPath`), as
-  `ARC_CONFIG_SUFFIX` does for `arc-config.yml`, and parses with `js-yaml`. It validates with the schema instance the
-  caller passes, the same object the type's registrar registers, as runtime readers validate with their exported schema
-  (`DesignInventoryInputSchema.safeParse` in `design-inventory.ts`) rather than composing the production registry
-  (`createProductionSchemaRegistry()`) in the read path. `parseArcConfig` keeps its line parser; moving it onto this
-  read is out of scope.
-
-    - Build `test-first` (one behavior at a time):
-        - a YAML file returns its typed value, with numbers, booleans, and lists kept typed
-        - a JSON file parses through the same read
-        - a missing file returns absent, distinct from invalid
-        - unparsable content refuses with the parse location
-        - a schema violation refuses naming the field path
-        - a valid read returns the file's repository-relative location beside its value, so a caller can tell whether a
-          change touched the file without composing its path
+- _Outcome:_ `readTypedProjectFile` resolves file identities through the layout, preserves YAML and JSON values, and
+  returns the repository-relative location with valid, absent, or invalid results. Parse failures retain their location;
+  schema failures name field paths, and read failures are distinct from absence.
 
 ### `[ ]` **1.3 Check declaration type, refinements, and registration — D2**
 
