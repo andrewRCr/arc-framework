@@ -776,6 +776,7 @@ export async function runCreateNew(
         exec: ctx.io.exec,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
+        writeEditorDocuments: ctx.writeEditorDocuments,
       },
       {
         mutation: "spawn",

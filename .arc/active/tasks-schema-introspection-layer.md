@@ -276,30 +276,14 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
   a fresh clone. Optional writer seams propagate typed failures through ordinary command errors, while existing virtual
   contexts remain inert. Built-CLI witnesses verify every primary path and preserve the managed ignore block.
 
-### `[ ]` **5.2 Work-unit spawn and atomic graduation — D4**
+### `[x]` **5.2 Work-unit spawn and atomic graduation — D4**
 
 - _Goal:_ A spawned work-unit worktree, including one atomic graduation reaches, has its editor documents, and a
   failed write rolls the spawn or graduation back as a failed marker exclude does.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Provisioning-site test inventory, the rows for
-  Task 5.2.
-
-    - The writer runs in `provisionSpawnedWorktree` (`reconcile-work-unit-worktree.ts`) after
-      `ensureWorktreeMarkerIgnored`; a spawn rolls back through `rollbackFreshSpawn`, a graduation through
-      `atomicGraduate`'s own rollback, which reaches it through `deps.provisionSpawnedWorktree`.
-    - The seam rides `ReconcileWorkUnitWorktreeContext`, and `SpawnWorktreeContext` (`worktree-scaffold.ts`) gains it
-      too: `runCreateNew` (`commands/start.ts`) builds the reconcile context inline and passes `SpawnWorktreeContext`'s
-      seam into it. The reconcile unit test's `buildCtx`, the graduation context in `atomic-graduation.test.ts`,
-      `ctx(io)` in `unit/commands/start.test.ts`, and the inline `runCreateNew` contexts in `start-dispatch.test.ts`
-      inject a writer that does nothing.
-    - An e2e assertion checks the directory and the exclude entry, once the test removes the exclude line first, in
-      the worktree that `rename.e2e.test.ts`'s create-new case spawns and in the one `lifecycle-exit.e2e.test.ts`'s
-      decomposition fixture graduates.
-
-    - Build `test-first` (one behavior at a time):
-        - A spawned worktree has the directory and its exclude entry
-        - An injected writer failure fails the spawn and rolls it back
-        - An injected writer failure during atomic graduation rolls the graduation back
+- _Outcome:_ Shared work-unit provisioning writes editor documents before its ownership marker. Optional seams preserve
+  virtual contexts; real spawned and graduated worktrees regain the directory and clone exclude entry. Typed writer
+  failures reach the existing rollback and remove newly allocated branches and worktrees.
 
 ### `[ ]` **5.3 Transient provisioning — D4**
 

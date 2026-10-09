@@ -42,6 +42,9 @@ import { access, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:
 import { basename, dirname, join } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../../schema-command/editor-documents.js";
 import { createLinkedWorktree } from "../../git/linked-worktree.js";
 import { gitFailureText } from "../../git/process-error.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
@@ -66,6 +69,7 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 
 /** Dependencies for {@link reconcileWorkUnitWorktree}. */
 export interface ReconcileWorkUnitWorktreeContext {
+  writeEditorDocuments?: EditorDocumentsWriter;
   /** Git executor — runs `git worktree add` / `remove` / `list` / `status`. */
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
@@ -325,6 +329,7 @@ export async function provisionSpawnedWorktree(
     registeredHarnessDirs: op.registeredHarnessDirs,
   });
   await ensureWorktreeMarkerIgnored(op.worktreePath, ctx.exec, ctx.fs);
+  await writeEditorDocumentsOrThrow(op.worktreePath, ctx.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
   await writeWorktreeOwnershipMarker(op.worktreePath, {
     createdByArc: true,
     createdFor: { kind: "work-unit", name: op.wuName },
