@@ -29,6 +29,7 @@ import { createRawGitExec } from "../../src/lib/io-context.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -1868,6 +1869,7 @@ describe("arc errand promote", () => {
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
     remoteDir = await createBareRemote(tmpDir, "promotion");
+    await resetEditorDocumentsProvisioning(tmpDir);
 
     const prepared = await runArcAnchoredSequence([
       ["errand", "open", slug, "--json"],
@@ -1875,6 +1877,7 @@ describe("arc errand promote", () => {
     ], tmpDir, { timeout: 60_000 });
 
     expect(prepared.exitCode, prepared.stdout + prepared.stderr).toBe(0);
+    await assertEditorDocumentsProvisioned(tmpDir);
     expect(prepared.results).toHaveLength(2);
     const first = prepared.results[1] as {
       checkoutPath?: unknown;

@@ -285,27 +285,14 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
   virtual contexts; real spawned and graduated worktrees regain the directory and clone exclude entry. Typed writer
   failures reach the existing rollback and remove newly allocated branches and worktrees.
 
-### `[ ]` **5.3 Transient provisioning — D4**
+### `[x]` **5.3 Transient provisioning — D4**
 
 - _Goal:_ A checkout provisioned for transient work has its editor documents, and a failed write takes the
   provisioning failure path that exists today.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Provisioning-site test inventory, the rows for
-  Task 5.3.
-
-    - The writer runs inside the `createMarker` dependency (`createNodeProvisioningDependencies`,
-      `provisioning-runtime.ts`) after `ensureWorktreeMarkerIgnored`; a spawned checkout rolls back through
-      `rollbackSpawnFailure`, reached from `establishReadyMarker`'s error arm, and a primary allocation fails before
-      its marker exists.
-    - The seam rides `NodeProvisioningRuntimeOptions`.
-    - An e2e assertion checks the directory and the exclude entry, once the test removes the exclude line first, in
-      the checkout `errand materialize` spawns (`locus-errand-roundtrip.e2e.test.ts`), and, once it also removes the
-      directory, in the primary checkout an `errand open` allocates (`errand.e2e.test.ts`).
-
-    - Build `test-first` (one behavior at a time):
-        - A spawned transient checkout has the directory and its exclude entry
-        - An injected writer failure rolls a spawned transient checkout back
-        - An injected writer failure fails a primary allocation before its marker exists
+- _Outcome:_ Transient marker creation now provisions editor documents first, with an optional result-returning writer
+  seam. Spawn failures compensate the worktree and branch; primary failures precede marker publication and branch
+  allocation. CLI materialization and primary Errand open each establish fresh directory and exclude witnesses.
 
 ### `[ ]` **5.4 Decomposition — D4**
 
