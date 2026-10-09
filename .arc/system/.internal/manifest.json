@@ -690,7 +690,7 @@
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f9f8c2aa5e9ba49a1f01b5b631446afd21888bb7f22fe6cb9722f1cd34e181a3"
+      "pristine_hash": "bc8c354436614272f0671160315bef09b26f7a628da45d4bbc4522d4c133fce5"
     },
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
@@ -780,7 +780,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "cc05925905d2df451b13369705e2b91dd502cc4713d7fd5da87d595d8a2c214b"
+      "pristine_hash": "2550250d9648a2176067c3fe7248310f2e7444846e39ad0f6ea074e48aac2725"
     }
   }
 }

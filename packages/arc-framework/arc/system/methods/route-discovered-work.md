@@ -11,8 +11,9 @@ override-active: false
 
 # Method: route-discovered-work
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
-> - **When:** The owner's planning pass clears inbound entries at drafting's readiness exit or spec entry.
+> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec], [drain-inbox.md][drain-inbox]
+> - **When:** The drain classifies captures or re-triages picked backlog stubs, or the owner's planning pass clears
+>   inbound entries at drafting's readiness exit or spec entry.
 > - **Signature:** `route-discovered-work(entry, door, host?) → per concern, one outcome or an Owner-decided pair`
 > - **Contract:** Decide disposition → homing → integration → re-triage. Decide only: callers execute outcomes
 >   through verbs after their own interlock. Read lifecycle position, owner, and horizon advisory from `arc status`,
@@ -193,3 +194,4 @@ go into the minted meta's `Depends On`. Its design carries the concern and opens
 [classify-work-unit]: classify-work-unit.md
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md
+[drain-inbox]: ../workflows/arc/supplemental/drain-inbox.md

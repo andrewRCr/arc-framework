@@ -302,64 +302,36 @@ or planned P3 target shows its horizon advisory, each routed-into backlog stub h
 oldest date, and re-triage offer, a picked stub's re-triage takes only the re-triage door's outcomes, and an unclear
 Errand line shows the pair.
 
-### `[ ]` **5.1 Route the drain's captures and re-triage through the method — D2, D4, D5, D8, D9**
+### `[x]` **5.1 Route the drain's captures and re-triage through the method — D2, D4, D5, D8, D9**
 
 - _Goal:_ The drain classifies every capture through the method with the drain doors, confirms a routing plan that
   shows each concern's outcome, `_Shapes:_`, horizon advisory, any Owner-decided pair or named wait, and a re-triage
   offer per routed-into backlog stub holding entries, re-triages the stubs the Owner picks, and writes only what the
   binding allows.
 
-- _Note:_ `review-gate-workflows.test.ts` requires the package and project copies to match and pins § 5's
-  full-protection write mechanics, and `locus-methodology-contracts.test.ts` pins § 6's batch command; leave both.
+    - `[x]` **5.1.a Declare the method and mark its fire-points**
+        - The drain declares routing and its own overlap method, with capture and picked-stub re-triage callsites.
+          The routing method names the drain as a consumer; classification remains its nested dependency.
 
-    - `[ ]` **5.1.a Declare the method and mark its fire-points**
-        - `supplemental/drain-inbox.md` gains an `arc:` frontmatter block declaring `route-discovered-work` and
-          `assess-parallel-fit`, which § 2's overlap read already fires through an in-step link; `classify-work-unit`
-          stays undeclared, since the method's test 2 fires it, not the drain. § 2 carries a YAML callsite and
-          fire-point marker for each drain door.
-        - The method's blockquote `Workflow:` line gains `drain-inbox.md`.
+    - `[x]` **5.1.b Classify through the gate in § 2**
+        - Capture-time character and target hints now feed the gate. Only a gated hold takes owner adoption;
+          grouping consolidates new-stub outcomes, and Errand outcomes take atomic dispositions.
 
-    - `[ ]` **5.1.b Classify through the gate in § 2**
-        - Verify-before-routing becomes the gate's test 1; the Character and scope re-triage bullets defer to the
-          gate's test 2 and drop load-bearing infrastructure as a floor; the Home rule becomes the coupling and
-          scope-boundary tests with homing.
-        - In-flight target adoption runs after the gate: `WU_Target` is the gate's first candidate, owner adoption
-          carries only a gated `hold` into a started work unit, and the user override of that default goes.
-        - Grouping, commitment, the execute-now bias, and the atomic disposition apply to the method's outcomes:
-          grouping consolidates `new-stub` outcomes that share one concern, and an `errand` outcome takes the atomic
-          disposition — execute-now, defer by the homeless-atomic route, or retain.
+    - `[x]` **5.1.c Make § 3's routing plan the drain door's Owner stop**
+        - The confirmation plan carries outcomes, shapes, advisories, pairs, waits, and one count/date/re-triage
+          offer per touched backlog stub holding entries. Picked stubs return to the gate before plan confirmation.
 
-    - `[ ]` **5.1.c Make § 3's routing plan the drain door's Owner stop**
-        - The plan shows each concern's outcome, the `_Shapes:_` of each `fold` or `hold`, the horizon advisory of a
-          held-into target whose listing row carries one, any Owner-decided pair, and any wait the binding names.
-        - Each routed-into backlog stub that already holds entries gets one line: its held count, the oldest entry's
-          date, and an offer to re-triage it this sweep.
-        - Picking a stub returns its held entries to § 2 for re-triage, and the revised plan is presented at this
-          same stop before any write.
+    - `[x]` **5.1.d Defer § 5's integration modes to the method**
+        - Only backlog drafts receive direct folds or held notes, with provenance and shapes. Owner adoption takes
+          gated holds, new stubs always carry a draft, and every deferred Errand takes the homeless-atomic route.
 
-    - `[ ]` **5.1.d Defer § 5's integration modes to the method**
-        - The Existing-stub home bullet's head names a backlog stub's `draft-*`, in place of "a live `active/` or
-          `backlog/` stub" and its `draft-*` / `notes-*`: the drain writes only a backlog stub's draft, and an in-flight
-          target takes owner adoption. § 2's destination-path overlap list follows, naming stub drafts in place of
-          "stub drafts / notes".
-        - The integration modes defer to the method with the drain door's narrower weave — `fold` only for a
-          trivially additive, on-topic note into a backlog stub.
-        - A held entry carries its `routed from <origin>, <date>` provenance and its `_Shapes:_`.
-        - The integration obligation names the owner's pass: the owner folds or dispositions every held entry before
-          the draft is ready, at `draft-design`'s readiness exit and `create-spec`'s entry check.
-        - The owner-adoption default carries only a gated `hold`, and its override goes; the new-stub route always
-          writes the stub's `draft-*`, not only when scope warrants.
-        - The homeless-atomic route takes every deferred `errand` outcome, since no Errand-shaped item has a work-unit
-          home, in place of "an atomic with no determinable home".
+    - `[x]` **5.1.e Carry out the re-triage of a picked stub**
+        - Picked stubs use the bounded re-triage door. Confirmed outcomes move, remove, or retain entries and split
+          residuals; started destinations follow owner adoption or the named wait. Grooming records the moves.
 
-    - `[ ]` **5.1.e Carry out the re-triage of a picked stub**
-        - § 2 re-triages a picked stub's held entries through the method's re-triage door, with that stub as `host`.
-        - § 5 carries out each outcome in the drain's grooming change: `dismiss` removes the entry; `hold <other>`
-          moves it to another backlog stub, or, for a started target, goes as the binding's in-flight new home says;
-          `new-stub` mints a stub with its `draft-*`; `errand` takes the homeless-atomic route; `hold <host>` keeps the
-          entry or rewrites a split's residual in place.
-        - What moved where goes in the grooming PR body under full protection and the commit message under partial,
-          never in the target's draft.
+- _Outcome:_ Picked-stub re-triage feeds the confirmed plan before any outcome write. The protection-mode
+  write block and lock-safe execution transition remain unchanged; the routing method's installed fingerprint is
+  refreshed alongside the workflow projection.
 
 ### `[ ]` **5.2 Sharpen "home" in `DEV-RULES.ARC`'s core invariant — D10**
 
