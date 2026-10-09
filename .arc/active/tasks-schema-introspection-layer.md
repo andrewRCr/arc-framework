@@ -267,26 +267,14 @@ retryable `occupation-failed`.
 
 _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site failure and test seam.
 
-### `[ ]` **5.1 Primary-checkout commands: `arc init`, `arc update`, `arc join` — D4**
+### `[x]` **5.1 Primary-checkout commands: `arc init`, `arc update`, `arc join` — D4**
 
 - _Goal:_ A primary checkout has its editor documents after `arc init`, `arc update`, or `arc join`, and a failed
   write fails the command like any other write it makes.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Provisioning-site test inventory, the rows for
-  Task 5.1.
-
-    - `runInit` and `runUpdate` write the directory beside `pristine.json`; `runJoin` restores the documents to a
-      fresh clone. `runJoinReconfigure` reselects tools, provisions nothing, and runs no writer.
-    - The seam rides each command's existing `io` context; `makeIOContext` (`helpers/integration.ts`) and the
-      `mockIO` builders in `unit/init.test.ts` and `unit/join.test.ts` inject a writer that does nothing.
-    - The managed `.gitignore` block and the entry lists that write it are untouched.
-    - An e2e assertion checks the directory and the exclude entry after `arc init` (`init.e2e.test.ts`), after
-      `arc update` once the test removes both (`update.e2e.test.ts`), and after `arc join` in a clone of an
-      initialized repository (a new `init.e2e.test.ts` case).
-
-    - Build `test-first` (one behavior at a time):
-        - Each command leaves the directory and its exclude entry, with the managed `.gitignore` block unchanged
-        - A writer failure fails each command with its ordinary error
+- _Outcome:_ Init and update provision editor documents beside their persisted installation state; join restores them in
+  a fresh clone. Optional writer seams propagate typed failures through ordinary command errors, while existing virtual
+  contexts remain inert. Built-CLI witnesses verify every primary path and preserve the managed ignore block.
 
 ### `[ ]` **5.2 Work-unit spawn and atomic graduation — D4**
 

@@ -32,6 +32,7 @@ function mockIO(files: Record<string, string> = {}): JoinIOContext {
   const store = new Map(Object.entries(files));
 
   return {
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
       const content = store.get(path);
       if (content === undefined) {
