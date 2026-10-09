@@ -115,6 +115,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | workflow-template-loads       | P3       | andrew | composable-workflows                                  | principle-anchored-core    |
 | docs-content-sweep            | P3       | andrew | docs-site-refresh                                     | release-readiness          |
 | comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                         | —                          |
+| errand-launchpads             | P3       | andrew | storage-seam                                          | —                          |
 
 ### Depth 2
 
