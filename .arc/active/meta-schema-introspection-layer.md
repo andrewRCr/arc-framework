@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Qualify and stage build output without the bundle
+- **Last Completed:** Task 5.6 — Exercise every provisioning path (Phase 5 complete)
+- **Next Task:** Task 6.1 — Complete verification (line ~329 in tasks-schema-introspection-layer.md)
 - **Blockers:** [none]
 
-- **Next Action:** Execute tasks via process-task-loop, starting at Task 1.1
+- **Next Action:** Begin Task 6.1 via `verify-work-unit.md` in a fresh session.
 
 - **PR URL:** [none]
 - **Completed:** [none]
