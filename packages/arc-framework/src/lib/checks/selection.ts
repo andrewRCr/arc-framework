@@ -32,7 +32,8 @@ export async function resolveCheckSelection(
   }
   if (request.form.kind === "run") return { own, widened: false };
   if (base === undefined) return { own, widened: true };
-  const change = scope.kind === "paths" ? await namedPathChange(io, root, tree, scope.paths, ["**"])
+  const change = resolved.mergePaths !== undefined ? await namedPathChange(io, root, tree, resolved.mergePaths, ["**"], true)
+    : scope.kind === "paths" ? await namedPathChange(io, root, tree, scope.paths, ["**"])
     : await readTreeChange(io.git, root, base, tree);
   if (change.status === "unresolved") return { own, widened: true };
   const global = await ownInputChange(io, root, resolved, declaration.global_inputs);
@@ -44,8 +45,9 @@ export async function resolveCheckSelection(
 
 
 async function ownInputChange(io: TreeMatchIO, root: string, resolved: ResolvedCheckRequest, inputs: string[]): Promise<InputSelection> {
-  if (resolved.scope.kind === "paths") {
-    const change = await namedPathChange(io, root, resolved.tree, resolved.scope.paths, inputs);
+  if (resolved.mergePaths !== undefined || resolved.scope.kind === "paths") {
+    const names = resolved.mergePaths ?? (resolved.scope.kind === "paths" ? resolved.scope.paths : []);
+    const change = await namedPathChange(io, root, resolved.tree, names, inputs, resolved.mergePaths !== undefined);
     if (change.status === "unresolved") return change;
     return change.paths.length === 0 ? { status: "not selected", reason: "inputs unchanged" } : { status: "selected", paths: change.paths };
   }
@@ -53,7 +55,7 @@ async function ownInputChange(io: TreeMatchIO, root: string, resolved: ResolvedC
     : selectChangedInputs(io.git, root, resolved.base, resolved.tree, inputs);
 }
 
-async function namedPathChange(io: TreeMatchIO, root: string, tree: string, names: string[], inputs: string[]): Promise<TreeChange> {
+async function namedPathChange(io: TreeMatchIO, root: string, tree: string, names: string[], inputs: string[], exact = false): Promise<TreeChange> {
   const [current, previous] = await Promise.all([matchTreeInputs(io, root, tree, inputs), matchTreeInputs(io, root, "HEAD", inputs)]);
   if (current.status === "unresolved" || previous.status === "unresolved") return { status: "unresolved" };
   const paths = new Map(current.paths.map(path => [path.path, path]));
@@ -61,7 +63,7 @@ async function namedPathChange(io: TreeMatchIO, root: string, tree: string, name
     if (!paths.has(path.path)) paths.set(path.path, { ...path, status: "D", oldMode: path.newMode, oldBlob: path.newBlob,
       newMode: "000000", newBlob: "0".repeat(path.newBlob.length) });
   }
-  return { status: "known", paths: [...paths.values()].filter(path => names.some(name => path.path === name || path.path.startsWith(`${name}/`))) };
+  return { status: "known", paths: [...paths.values()].filter(path => names.some(name => path.path === name || (!exact && path.path.startsWith(`${name}/`)))) };
 }
 
 

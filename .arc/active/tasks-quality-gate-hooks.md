@@ -336,23 +336,15 @@ conclusion selects only conflicted and parent-unmatched paths.
           `install`, and ARC's directory through `core.hooksPath`; commits verify one uncached check execution across
           24 changed files, deletion-only commits, message refusal/repair, and disabled hooks
 
-### `[ ]` **5.2 A merge conclusion gates only what the merge produced — D8**
+### `[x]` **5.2 A merge conclusion gates only what the merge produced — D8**
 
 - _Goal:_ Concluding a merge runs the commit gate over its conflicted paths and resolution edits, never over the whole
   merged-in change.
 
-    - Conflicted paths are `MERGE_MSG`'s lines that start with a tab, bare or after `#`, read through
-      `git rev-parse --git-path MERGE_MSG` so a linked worktree reads its own. Paths matching no parent come from the
-      combined diff `git diff --name-only -z <tree> <first parent> <merged-in parents...>`, as pre-commit.com's
-      `get_conflicted_files` reads both
-    - Build `test-first` (one behavior at a time):
-        - with `MERGE_HEAD` set, the change is the paths `MERGE_MSG` lists as conflicted plus every path whose staged
-          content matches no parent
-        - an edit made while resolving is selected, and a cleanly merged-in path is not
-        - a conflicted path resolved by taking one side is still selected
-        - in a linked worktree, the conclusion reads that worktree's own `MERGE_MSG`
-        - selection and widening then apply as at any commit, and the base is `HEAD`, the first parent, with
-          `ARC_CHECK_MERGED` listing the commits `MERGE_HEAD` names
+- _Outcome:_ Checkout-private merge metadata supplies recorded conflicts and active parents; the exact staged tree's
+  combined diff adds resolution edits. Both own-input selection and widening use that path set, retaining one-sided
+  resolutions and excluding clean incoming content. Native linked-worktree checks prove private metadata lookup;
+  malformed or missing active metadata refuses with repair/retry guidance and resumes after repair.
 
 ### `[ ]` **5.3 Partially staged inputs refuse, and a person may skip named checks — D8**
 
