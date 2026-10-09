@@ -91,12 +91,14 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 - Knowledge-base content checks (cross-references, anchors, forbidden patterns). A project's content checker is a
   declared check like any other.
-- Changing the shipped hook script format or the hook-manager integration's shape (ADR-014). The generated entries gain
-  only what each event's dispatch needs (D8).
+- Changing the shipped hook script format or the hook-manager integration's shape (ADR-014). The generated entries and
+  configuration gain only what each event's dispatch needs (D8).
 - Rewriting or consolidating the 19 structural `CHECK[...]` blocks.
 - Tech-stack defaults or lint-tool opinions in shipped content.
 - A shipped CI workflow or recipe. A project's CI consumes the dry-run list or the verb (D9); examples belong to the
   documentation site.
+- The documentation site's gate prose and its demos (`docs/`). The site is brought current in one later pass, not with
+  each change.
 - A local hook for the merge quality gate; CI and review own it.
 - Harness-specific edit-hook wiring. Any harness hook can call the verb.
 - A warm-watcher feedback layer (`tsc --watch`, a test watcher kept running across a session). It is out of scope, not
@@ -147,7 +149,7 @@ Tier 1/2/3 retires entirely as vocabulary. Four concepts replace it, two of them
   is visibly wrong.
 - **Kind.** `enforcement` (must pass by the deadline and blocks there) versus `feedback` (informative before it). Kind
   is derived, never declared. Every gate, hook, and preset request has a deadline gate: the named gate for a gate
-  request or hook event, the commit gate for the `done` preset, and the push gate for `segment-close` and `new-head`
+  request or hook event, the commit gate for the `increment` preset, and the push gate for `segment` and `new-head`
   (D3). A request by id has none. A result is `enforcement` when the request's deadline gate includes the check and
   `feedback` otherwise, and the verb labels each result. Kind is what lets a test-first sequence carry an intentionally
   failing test across increments while the push gate still holds.
@@ -169,7 +171,8 @@ Cumulative membership makes "must have passed before push" include everything th
 no declaration can put a check in an earlier gate while leaving it out of a later one.
 
 **Zero tolerance holds per gate at its deadline:** every check in a gate passes before that event. This repository's
-project rule ("all quality checks must pass before any commit") changes to that.
+project rule ("all quality checks must pass before any commit") changes to that, and so does the shipped
+`DEV-RULES.PROJECT` template's, which keeps its `[invariant]` marker, now per gate.
 
 **Vocabulary entry.** Define **quality gate** once, in `AGENT-BRIEF.ARC.md`'s vocabulary, with kind as a clause of that
 entry rather than a second term. It replaces the `Class` entry's "Distinct from the quality-gate `Tier 1/2/3`" and the
@@ -232,9 +235,6 @@ checks:
     gate: push
     mode: files
     inputs: ["src/**", "test/**"]
-  test:
-    command: [npx, vitest, --run]
-    gate: merge
     shards: { count: 4, argument: "--shard={index}/{count}" }
 ```
 
@@ -276,9 +276,12 @@ Field semantics:
   `shell: true` and gives `command` as one string, which runs through the platform shell (`/bin/sh` on POSIX systems,
   `cmd.exe` on Windows). A shell check receives no paths, so `shell: true` requires `mode: project`; a `files` check
   that needs shell features calls a script.
-- **`inputs`** are Git `:(glob)` pathspec patterns relative to the repository root: `*` matches within one path segment,
-  `**` across segments, and a leading `!` excludes. The default is the whole tree, so an undeclared input can only cost
-  a run, never yield a false reuse; narrowing is the project's opt-in.
+- **`inputs`** are glob patterns relative to the repository root, which the verb evaluates as Git pathspecs with Git's
+  `glob` magic: `*` matches within one path segment, and `**` crosses directories in Git's forms `**/`, `/**`, and
+  `/**/`. A leading `!` excludes: the verb passes such a pattern with Git's pathspec `exclude` magic, since Git reads a
+  bare `!` literally. The verb's own matching clears Git's pathspec variables (`GIT_LITERAL_PATHSPECS` and its
+  siblings), so a caller's environment never changes what matches. The default is the whole tree, so an undeclared
+  input can only cost a run, never yield a false reuse; narrowing is the project's opt-in.
 - **`runtime_inputs`** name state no tracked file records, such as a tool version or an install (Nx's
   `{ "runtime": "node --version" }`). Each is an argument list run without a shell from the check's `root`, and its
   standard output joins the key. A runtime input that cannot start or exits non-zero leaves the key incomplete, so the
@@ -292,20 +295,21 @@ Field semantics:
   which paths changed only from the verb: the paths it receives, or being selected at all.
 - **Base export.** A `files` check reads what a path held before the change only at the request's base, which the verb
   exports to it beside the checked tree: `ARC_CHECK_BASE` (a commit id) and `ARC_CHECK_TREE` (the checked tree's object
-  id), as pre-commit.com exports `PRE_COMMIT_FROM_REF` and `PRE_COMMIT_TO_REF` to a run over a ref range. A `project`
-  check has no change to read against and receives none of these, so its key carries no change (D5). Where the change is
-  one merge's, either while it concludes or over a range from its first parent to the merge, the base is the first
-  parent. The verb then also exports the merged-in parents, those after the first, as `ARC_CHECK_MERGED` (commit ids,
-  space-separated), so a `files` check can tell what a merge brought in from what the change authored over it, as Git's
-  `MERGE_HEAD` allows today. Any other range keeps its own base, and `ARC_CHECK_MERGED` lists the parents after the
-  first of each merge on its first-parent line (`git rev-list --first-parent --merges`), the line on which a merge's own
-  range is that merge alone. A push that carries a base merge after other commits therefore still shows what that merge
-  brought in, and merges inside the merged-in history add nothing. pre-commit.com's push run marks its range by its two
-  ends alone (`PRE_COMMIT_FROM_REF` and `PRE_COMMIT_TO_REF`). Content a merge brings in passed its own gates where it
-  was committed (D4), whether from the base or from a side branch. A request with no change (`--all`, which `gate merge`
-  and an unscoped `run` use) exports no merged-in parent, so a CI run over GitHub's merge of a pull request into the
-  base never exempts the pull request's own content as brought in. Where no base resolves (D4), none is exported, and
-  what a check that needs one does then is its own call. Which base each request exports is in D4's table.
+  id, or for a fix-capable check the tree at its turn, D7), as pre-commit.com exports `PRE_COMMIT_FROM_REF` and
+  `PRE_COMMIT_TO_REF` to a run over a ref range. A `project` check has no change to read against and receives none of
+  these, so its key carries no change (D5). Where the change is one merge's, either while it concludes or over a range
+  from its first parent to the merge, the base is the first parent. The verb then also exports the merged-in parents,
+  those after the first, as `ARC_CHECK_MERGED` (commit ids, space-separated), so a `files` check can tell what a merge
+  brought in from what the change authored over it, as Git's `MERGE_HEAD` allows today. Any other range keeps its own
+  base, and `ARC_CHECK_MERGED` lists the parents after the first of each merge on its first-parent line
+  (`git rev-list --first-parent --merges`), the line on which a merge's own range is that merge alone. A push that
+  carries a base merge after other commits therefore still shows what that merge brought in, and merges inside the
+  merged-in history add nothing. pre-commit.com's push run marks its range by its two ends alone (`PRE_COMMIT_FROM_REF`
+  and `PRE_COMMIT_TO_REF`). Content a merge brings in passed its own gates where it was committed (D4), whether from the
+  base or from a side branch. A request with no change (`--all`, which `gate merge` and an unscoped `run` use) exports
+  no merged-in parent, so a CI run over GitHub's merge of a pull request into the base never exempts the pull request's
+  own content as brought in. Where no base resolves (D4), none is exported, and what a check that needs one does then is
+  its own call. Which base each request exports is in D4's table.
 - **`root`** is the working directory. `files` paths are passed relative to it, as lefthook's `root` does; this
   repository's root `lint:ts:file` does that translation by hand today.
 - **`ci_only`** marks a check that needs CI's infrastructure or is too slow for local runs (pre-commit.ci's `ci: skip`
@@ -354,31 +358,37 @@ and return typed values. It is built general so `arc-config.yml`'s CLI reader ca
 is not in scope. Today the layer locates the declaration at its tracked path; where another install profile keeps it is
 the layer's concern (D12, invariant 4).
 
-**Editor completion (availability condition).** Editor completion and validation in the file, as Turborepo and
-lefthook offer, come from the CLI's editor-document publication once it ships. Its contract:
+**Editor completion.** Editor completion and validation in the file, as Turborepo and lefthook offer, come from the
+CLI's editor documents:
 
-- a registered type opts in through an optional `authored: "editor-document"` field on its registry metadata
-  (`KernelSchemaMeta` in `kernel/schema/registry.ts`, which today carries `id`, `version`, and `migrationPosture`); the
-  registration is the only declaration, and the document projects the input side, so a defaulted field stays optional;
-- `arc schema install` generates one self-contained document per opted-in type, with `$defs` only, no external `$ref`,
-  and `$id` `urn:arc:schema:<id>`, at `.arc/system/.internal/schemas/<id>.schema.json`, per checkout, ignored, and never
-  tracked;
-- a shared CLI function composes a file's reference to that document: a YAML language-server modeline for a YAML file,
-  a `$schema` value for a JSON one.
+- a registered type opts in through `authored: "editor-document"` on its registry metadata (`KernelSchemaMeta` in
+  `kernel/schema/registry.ts`); the registration is the only declaration, and the document projects the input side, so
+  a defaulted field stays optional;
+- `writeEditorDocuments` (`schema-command/editor-documents.ts`) writes one self-contained document per opted-in type,
+  with `$defs` only, no external `$ref`, and `$id` `urn:arc:schema:<id>`, at
+  `.arc/system/.internal/schemas/<id>.schema.json`, per checkout, excluded from Git and never tracked. `arc schema
+  install` refreshes them, and the commands that provision a checkout, `arc init` and `arc update` among them, write
+  them (`writeEditorDocumentsOrThrow`);
+- `editorDocumentReference` composes a file's reference to that document: a YAML language-server modeline for a YAML
+  file, a `$schema` value for a JSON one.
 
-If that publication ships before this work completes, this work sets the marker on `check-declaration`'s registration,
-the bootstrap writes the file's reference through the shared function (never composing the path itself), and this work
-covers the generated document for the declaration type end to end. If it has not shipped, the type registers without
-the marker and the bootstrap writes no reference. The faithfulness rule above holds either way.
+This work sets the marker on `check-declaration`'s registration, the first production type to carry it, so every
+checkout ARC provisions holds the declaration type's document. `editorDocumentReference` is the reference's only
+authority: the update and reconfigure bootstrap writes the declaration's reference through it, and the initial-setup
+step's declaration opens with a reference line that a contract test holds equal to that function's result for the
+declaration's path. This work covers the generated document for the declaration type end to end.
 
 **Bootstrap.** ARC ships no stack defaults, so a declaration starts from what the project already has.
 
 - **Initial setup.** The agent-run `02_define-project` step authors the declaration with the person, replacing its
-  question "What are the quality gate commands at each tier?". The step validates the result with
-  `arc check gate merge --dry-run`.
-- **Update.** When `arc update` keeps a retired surface for review (`quality-gate-commands.md`, `post-task-quality.md`,
-  or `post-unit-quality.md`; Configurable removals land in `keptForReview` in `manifest/apply.ts`), it runs the
-  bootstrap over these sources as they stood before the update wrote anything:
+  question "What are the quality gate commands at each tier?". The declaration opens with its editor reference
+  (above), and the step validates the result with `arc check gate merge --dry-run`.
+- **Update and reconfigure.** When the change plan built for `arc update` or `arc reconfigure` (`buildChangePlan`)
+  removes a retired surface (`quality-gate-commands.md`, `post-task-quality.md`, or `post-unit-quality.md`), the command
+  runs the bootstrap over these sources as they stood before it wrote anything. Update keeps a Configurable removal for
+  review (`keptForReview` in `manifest/apply.ts`). Reconfigure by default keeps it on disk but untracked, and deletes it
+  when the person chooses (`resolveRemovalsNonInteractive`, `applyRemovalDecisions`). Either way, only the command that
+  retires a surface sees it:
     - the fenced `bash` and `sh` blocks under `QUICK-REFERENCE.md` § Quality Gate Commands' tier headings;
     - the `quality-gate-commands` method's override section, when its override is active;
     - the `post-task-quality` and `post-unit-quality` extensions' `.actions` sections, when populated.
@@ -410,8 +420,8 @@ harness edit hook, and a CI wired to the declaration (D9).
 | `arc check pre-push <remote> <url>` | ARC's pre-push hook: the push event, reading Git's ref lines (D8). |
 | `arc check gate <gate> [scope]`     | A named gate (`commit`, `push`, or `merge`) over a scope.          |
 | `arc check run <id...> [scope]`     | Named checks by id over a scope.                                   |
-| `arc check done`                    | The done-boundary preset (D6).                                     |
-| `arc check segment-close`           | The segment-verifier preset (D6).                                  |
+| `arc check increment`               | The increment-boundary preset (D6).                                |
+| `arc check segment`                 | The segment-verifier preset (D6).                                  |
 | `arc check new-head --from <ref>`   | The preset after a base merge commits a new head (D6).             |
 
 The hook forms are named for the Git hook that calls them, as `commit-msg` is. Every form takes `--dry-run`, `--json`,
@@ -428,15 +438,16 @@ The hook forms are named for the Git hook that calls them, as `commit-msg` is. E
 
 With no scope, `gate merge` and `run` use `--all`, and `gate commit` and `gate push` use `--changed`. The base branch is
 the configured `branch.base`, read through its remote-tracking ref when one exists (for the pushed remote at the push
-hook, the branch's upstream remote elsewhere) and the local branch otherwise.
+hook, the base branch's own upstream elsewhere) and the local branch otherwise. A merge base with it resolves only
+when exactly one exists.
 
 **Presets** compose gates for a fire site, so the composition lives in the CLI rather than workflow prose:
 
-- `done`: the commit gate, plus the `files` checks declared `gate: push`, over `--changed`. Its deadline is the commit
-  gate, so those `push` checks report as feedback.
-- `segment-close`: the push gate over the range from the branch's upstream, or from its merge base with the base branch
-  while unpublished, to the worktree as `git add -A` would stage it. It runs everything `done` runs. Its deadline is the
-  push gate.
+- `increment`: the commit gate, plus the `files` checks declared `gate: push`, over `--changed`. Its deadline is the
+  commit gate, so those `push` checks report as feedback.
+- `segment`: the push gate over the range from the branch's upstream, or from its merge base with the base branch
+  while unpublished, to the worktree as `git add -A` would stage it. It runs everything `increment` runs. Its deadline
+  is the push gate.
 - `new-head --from <ref>`: the push gate over the range from `<ref>` to the checked tree. Its deadline is the push gate.
 
 A request takes no skip or relaxation argument; presets are what a future layer deciding when steps fire chooses
@@ -447,11 +458,14 @@ their gate, and a `project` check whether or not its inputs changed; the scope g
 base, and a named `files` check that would receive no path is `not selected` (Execution).
 
 **Dry run.** `--dry-run` reports what would run, what is reused, and why anything is unselected, with each check's last
-measured cost, without running anything (Turborepo's `--dry`). An agent with a hard tool timeout sees a long gate coming
-and runs it in the background. Its JSON form carries every check in the request's gates, with CI-only and fix-capable
-checks flagged, and each check's resolved invocations: working directory, argument batches, and one invocation per shard
-for a sharded check. It also carries the base, the checked tree, and, where the change carries merges, the merged-in
-parents that the verb would export to `files` checks (D2), for CI (D9).
+measured cost, without running any check (Turborepo's `--dry`); it runs runtime inputs, since a key needs their output
+(D5). It forecasts every key over the tree as it stands, as though no fixer rewrites a file, so a rewrite in the real
+run can turn a forecast reuse into a run. An agent with a hard tool timeout sees a long gate coming and runs it in the
+background. Its JSON form carries every check in the request's gates, with CI-only and fix-capable checks flagged, and
+each check's resolved invocations: working directory, relative to the repository root, and argument batches, and for a
+sharded check, per shard, those batches with the shard argument appended to each, which is one invocation for a
+`project` check. It also carries the base, the checked tree, and, where the change carries merges, the merged-in parents
+that the verb would export to `files` checks (D2), for CI (D9).
 
 **Execution.**
 
@@ -472,8 +486,8 @@ parents that the verb would export to `files` checks (D2), for CI (D9).
 whether "ran zero cases" passes stays the command's own job. Per check:
 
 - `passed`;
-- `failed`: it started, then exited non-zero or was killed. This is the project's check speaking, even when a hang or
-  crash in the change caused it;
+- `failed`: it started, then exited non-zero or was killed, or it rewrote a file where D7 makes a rewrite a failure.
+  This is the project's check speaking, even when a hang or crash in the change caused it;
 - `couldn't run`: it never started (missing, not executable, or a spawn error), so it is neither a pass nor the check's
   own failure;
 - `reused` (D5);
@@ -486,9 +500,10 @@ condition: D8's, a `run` id the declaration does not declare, or an explicitly n
 and cannot is never refused; selection widens instead (D4). A check passes only as `passed` or `reused`. A request exits
 0 when every selected check passed, was reused, or was skipped by a person, or when nothing is declared; `skipped` and
 `none declared` stay labelled in the report and in the precomposed verification line, which never calls them passed. It
-exits 1 when a check failed, whatever its kind, and 2 when a check could not run or the request was invalid or refused,
-ESLint's convention, where 2 means the run itself failed. There is no timeout field: the dry run is how a long gate is
-foreseen.
+exits 1 when a check failed, whatever its kind, and 2 when a check could not run, the request was invalid or refused,
+or the command line itself is malformed: any parse error, such as an unknown option or gate, a missing or extra operand,
+two scopes, or `--ci` on a hook form. That is ESLint's convention, where 2 means the run itself failed. There is no
+timeout field: the dry run is how a long gate is foreseen.
 
 **Output.** Terse and failures-first. A passing check is one line. A failing one shows a bounded tail of its output and
 the path to its full log. Files a fix rewrote are listed, so an agent re-reads them before editing. A run that read
@@ -518,10 +533,10 @@ inputs changed in the request's own change:
 | Request                      | Change                                        | Base (D2)      | Checked tree (D5)   |
 | ---------------------------- | --------------------------------------------- | -------------- | ------------------- |
 | `pre-commit`, `--staged`     | the index against `HEAD` (D8 in a merge)      | `HEAD`         | the index           |
-| `done`, `--changed`          | the staged worktree against `HEAD`            | `HEAD`         | the staged worktree |
+| `increment`, `--changed`     | the staged worktree against `HEAD`            | `HEAD`         | the staged worktree |
 | `--paths`                    | the named paths                               | `HEAD`         | the staged worktree |
 | `--range [base]`, `new-head` | from the base to the checked tree             | the base       | the staged worktree |
-| `segment-close`              | from the upstream (or merge base) to the tree | its start      | the staged worktree |
+| `segment`                    | from the upstream (or merge base) to the tree | its start      | the staged worktree |
 | `pre-push`                   | the pushed range (below)                      | its start      | the pushed tip      |
 | `gate merge`, `--all`, `run` | none: every check in the request runs         | the merge base | the staged worktree |
 
@@ -539,7 +554,7 @@ Selection widens to every check that has not opted out (`widen: false`) when:
 - a global input changed;
 - the declaration file changed (D2);
 - a changed path matches no check's inputs;
-- the base cannot be resolved (a shallow clone, a missing ref).
+- the base cannot be resolved (a shallow clone, a missing ref, more than one merge base, or no common ancestor).
 
 Nx and Turborepo fall back to running everything the same way, so a `files` check that widening selects receives every
 path among its inputs in the checked tree, as under a request with no change (D2).
@@ -563,11 +578,11 @@ each has its own installed dependencies, which a lockfile digest cannot vouch fo
 disposable.
 
 **Key.** Per check: its id; a digest of its resolved declaration entry; a digest of the global inputs' content and the
-global runtime inputs' output; a digest of its own inputs' content in the checked tree; and its runtime inputs' output.
-A `files` check's key also takes each path it receives (D2): the changed paths among its inputs or, under a request with
-no change or when widening selects it, every path among them, each with what it held at the base and, where the change
-carries merges, at each merged-in parent. Environment variables are not in the key; a check that depends on one names it
-as a runtime input.
+global runtime inputs' output; a digest of its own inputs' content in the checked tree, or for a fix-capable check in
+the tree at its turn (D7); and its runtime inputs' output. A `files` check's key also takes each path it receives (D2):
+the changed paths among its inputs or, under a request with no change or when widening selects it, every path among
+them, each with what it held at the base and, where the change carries merges, at each merged-in parent. Environment
+variables are not in the key; a check that depends on one names it as a runtime input.
 
 **What is recorded.** Only passes. A failure, a check that could not run, a skipped check, and a check with
 `cache: false` always run again. A hit replays the stored summary. A fault reading or writing the record degrades to a
@@ -591,9 +606,10 @@ suite building fixture repositories, would otherwise act on this repository's in
 the repository, so Git finds the repository without them.
 
 **Index view.** A check declaring `reads_index: true` (D2) sees a Git index equal to its checked tree, through
-`GIT_INDEX_FILE`. At the commit hook, this is the index Git hands the hook, already equal to the checked tree: the
-repository's own index, under its lock (`index.lock`) for `git commit -a`, or a temporary one for a path-limited commit.
-Elsewhere it is a temporary index the verb builds from the checked tree once fixers finish, only when a selected check
+`GIT_INDEX_FILE`. At the commit hook, this is the index Git hands the hook, already equal to the checked tree, or at a
+fix-capable check's turn to the tree at that turn (D7): the repository's own index, under its lock (`index.lock`) for
+`git commit -a`, or a temporary one for a path-limited commit. Elsewhere it is a temporary index the verb builds from
+the checked tree once fixers finish, or for a fix-capable check from the tree at its turn, only when a selected check
 declares the field, kept in the record's directory and removed after the run; one stranded by a killed run is
 disposable. Such a check, a staged-files linter for one, reads the index through that variable, as Git's own commands
 do, and therefore reads what the event will carry. The index's content is what this guarantees, not its diff against
@@ -616,28 +632,34 @@ the message.
 
 No per-task gate. The fail-fast intent is served at the points where it pays.
 
-- **Done boundary.** A review increment's completion in `process-task-loop`, an errand pass or approved review fix in
-  `run-errand`, `self-review`'s approved fixes, and the other workflow-step runs mapped below request `arc check done`.
-  The commit gate's failures block the commit; the `files` checks declared `gate: push` (for example, related tests
-  through `vitest related` or `jest --findRelatedTests`) are feedback in the completion report. This composition is the
-  framework default, not a project knob. The request runs once the increment's tracked edits are final; while task lists
-  are tracked files, that includes the task list's `[x]` and completion note, which ride the commit, so the checked
-  tree is the committed tree. Fixes apply here, before review (D7).
-- **Segment verifier.** A `slice` or `replication` segment's closing verifier requests `arc check segment-close` at the
-  same point and over the same checked tree, so the push hook after that increment's commit reuses it. The plan declares
-  where broader verification pays off, replacing the "coherent unit" judgment Tier 2 rested on. A red result holds the
-  segment open and goes through `DEV-RULES.ARC` § Quality gate failure: it is a gate failure, not evidence against the
-  design, which only the verifier's scenario tests (a failed scenario still goes to `amend-design`). The CLI already
-  parses each segment's mode (`TaskListSegmentMode` in `segmentation.ts`), so the task cursor names the preset for a
-  segment's closing task and the workflow step dispatches on it rather than evaluating the mode. The verb itself knows
-  nothing of segments. A `layer` segment needs nothing extra.
+- **Increment boundary.** A review increment's completion in `process-task-loop`, an errand pass or approved review fix
+  in `run-errand`, `self-review`'s approved fixes, and the other workflow-step runs mapped below request
+  `arc check increment`. The commit gate's failures block the commit; the `files` checks declared `gate: push` (for
+  example, related tests through `vitest related` or `jest --findRelatedTests`) are feedback in the completion report.
+  A related-tests check there runs, at the increment and at push, the tests the import graph reaches from the change,
+  and, receiving every path, the whole suite at the merge quality gate, which catches what the graph misses: the split
+  local hooks and CI commonly make. A project whose changes often reach its tests through inputs no import graph shows,
+  as when tests assert shipped documents, keeps a whole-suite check at the push gate instead, and requests the
+  related-tests check by id at the increment boundary with no gate (D11). The preset's composition is the framework
+  default, not a project knob. The request runs once the increment's tracked edits are final; while task lists are
+  tracked files, that includes the task list's `[x]` and completion note, which ride the commit, so the checked tree is
+  the committed tree. Fixes apply here, before review (D7).
+- **Segment verifier.** A segment's closing verifier, the task carrying the segment-verifier role suffix, requests
+  `arc check segment` in place of `increment`, at the same point and over the same checked tree, so the push hook after
+  that increment's commit reuses it. The plan declares where broader verification pays off, replacing the "coherent
+  unit" judgment Tier 2 rested on: a `slice` or `replication` segment closes on a verifier unless the plan has one
+  segment, and a `layer` segment needs none but may carry one. A red result holds the segment open and goes through
+  `DEV-RULES.ARC` § Quality gate failure: it is a gate failure, not evidence against the design, which only the
+  verifier's scenario tests (a failed scenario still goes to `amend-design`). The workflow step keys on the task in
+  hand, as `process-task-loop`'s verifier-scenario step already does, so no workflow prose evaluates a segment's mode,
+  and the verb itself knows nothing of segments.
 - **New head.** When a base merge commits a new head (`arc base merge`'s `merged / run-quality-gates` result, in
   `run-errand` and the correction paths), request `arc check new-head --from <pre-merge head>`: the state no earlier run
   saw.
 - **Commit and push hooks.** They run their gates (D8). At the commit hook, every selected check is normally a reuse of
-  the done boundary's run. At the push hook, a check reuses only a run with its key: a `project` check that an earlier
-  request ran over the pushed tip's content, or a `files` check whose run covered the pushed range, which
-  `segment-close` provides. Other selected checks run over the pushed range.
+  the increment boundary's run. At the push hook, a check reuses only a run with its key: a `project` check that an
+  earlier request ran over the pushed tip's content, or a `files` check whose run covered the pushed range, which
+  `segment` provides. Other selected checks run over the pushed range.
 - **Work-unit verification.** `verify-work-unit` runs `arc check gate merge --force`, so attested evidence never rests
   on a replayed result. Convergence verification before an attestation runs the scope its action names, also forced:
   `full` runs the merge quality gate, and `focused` runs the push gate over the branch's change from its merge base,
@@ -648,31 +670,31 @@ No per-task gate. The fail-fast intent is served at the points where it pays.
 
 With these fire sites, the verb carries the re-run rule this repository states in `DEV-RULES.PROJECT`: re-run after a
 base merge (`new-head`, or for a merge concluded by hand, the commit hook's merge scope and then the push gate), after
-a review fix (the done boundary, the commit gate in a correction path, or delivery's review-fix verification), and at
-the first composed-work attestation (forced).
+a review fix (the increment boundary, the commit gate in a correction path, or delivery's review-fix verification), and
+at the first composed-work attestation (forced).
 
 **Translation.** The tiers named when a check ran and the gates name what it must pass before, so the mapping goes by
 fire site, not one to one:
 
-| Fire site today                                                   | Request                                         |
-| ----------------------------------------------------------------- | ----------------------------------------------- |
-| Tier 1 after a task, an errand pass, or a `run-errand` review fix | `arc check done`                                |
-| Tier 3 over `self-review`'s approved fixes                        | `arc check done`                                |
-| `process-task-loop`'s item-2 triggers and pre-report checklist    | `arc check done`                                |
-| `integrate-external-content`'s Tier 1                             | `arc check done`                                |
-| `clean-work-unit`'s Markdown lint                                 | `arc check done`                                |
-| `integrate-work-unit`'s completion-content commit                 | `arc check done`                                |
-| Tier 2 at a coherent unit                                         | `arc check segment-close`, where a plan says so |
-| Tier 1 over a correction-path fix                                 | `arc check gate commit`                         |
-| Tier 1 over an applied `arc wu reconcile` correction              | `arc check gate commit`                         |
-| Tier 1 over the new head a base merge commits                     | `arc check new-head --from <pre-merge head>`    |
-| Convergence verification, `focused`                               | `arc check gate push --range --force`           |
-| Convergence verification, `full` (`verificationKind: "tier-3"`)   | `arc check gate merge --force`                  |
-| Tier 1 on a delivery review fix's `verification.target`           | `arc check gate commit --all --force`           |
-| Tier 2 per delivery member                                        | `arc check gate push --all`                     |
-| `review-response`'s `ready-to-fix` verification                   | its caller's review-fix request above           |
-| Tier 3 before the pull request (`verify-work-unit`)               | `arc check gate merge --force`                  |
-| CI                                                                | the merge quality gate (D9)                     |
+| Fire site today                                                   | Request                                      |
+| ----------------------------------------------------------------- | -------------------------------------------- |
+| Tier 1 after a task, an errand pass, or a `run-errand` review fix | `arc check increment`                        |
+| Tier 3 over `self-review`'s approved fixes                        | `arc check increment`                        |
+| `process-task-loop`'s item-2 triggers and pre-report checklist    | `arc check increment`                        |
+| `integrate-external-content`'s Tier 1                             | `arc check increment`                        |
+| `clean-work-unit`'s Markdown lint                                 | `arc check increment`                        |
+| `integrate-work-unit`'s completion-content commit                 | `arc check increment`                        |
+| Tier 2 at a coherent unit                                         | `arc check segment`, where a plan says so    |
+| Tier 1 over a correction-path fix                                 | `arc check gate commit`                      |
+| Tier 1 over an applied `arc wu reconcile` correction              | `arc check gate commit`                      |
+| Tier 1 over the new head a base merge commits                     | `arc check new-head --from <pre-merge head>` |
+| Convergence verification, `focused`                               | `arc check gate push --range --force`        |
+| Convergence verification, `full` (`verificationKind: "tier-3"`)   | `arc check gate merge --force`               |
+| Tier 1 on a delivery review fix's `verification.target`           | `arc check gate commit --all --force`        |
+| Tier 2 per delivery member                                        | `arc check gate push --all`                  |
+| `review-response`'s `ready-to-fix` verification                   | its caller's review-fix request above        |
+| Tier 3 before the pull request (`verify-work-unit`)               | `arc check gate merge --force`               |
+| CI                                                                | the merge quality gate (D9)                  |
 
 A correction-path fix is one made in `prepare-work-unit` or `integrate-work-unit`. The two delivery rows come from
 `deliver-stack` and run in the review fix target's or the member's own checkout. Delivery's own `tier1ReuseCriteria`
@@ -680,40 +702,50 @@ arm keeps deciding whether its review-fix verification runs at all, so the verb'
 evidence.
 
 Push cadence stays neutral. Gates are deadlines, so a project that pushes once a session and one that pushes hourly get
-the same guarantees, and the done boundary's push subset is what gives regular test feedback between pushes.
+the same guarantees, and the increment boundary's push subset, or a request by id beside it (D11), is what gives regular
+test feedback between pushes.
 
 ### D7 — Fixes and restaging
 
 **Where fixes apply.** Only where content is still being formed:
 
-- the `done` and `segment-close` presets;
+- the `increment` and `segment` presets;
 - a `run` request, or any `--paths` request, without `--ci` (a harness edit hook running a formatter after each edit);
 - the commit hook.
 
-Fix-capable checks run there as fixers, with fixes applied to the worktree, so at the done boundary reviewed content is
-committed content and the hook usually finds nothing to fix. Every other request runs a fix-capable check as a check:
-a `gate` request over any other scope, the push hook, `new-head`, the merge quality gate in `verify-work-unit`,
+Fix-capable checks run there as fixers, with fixes applied to the worktree, so at the increment boundary reviewed
+content is committed content and the hook usually finds nothing to fix. Every other request runs a fix-capable check as
+a check: a `gate` request over any other scope, the push hook, `new-head`, the merge quality gate in `verify-work-unit`,
 convergence verification, and every request carrying `--ci`. If it rewrites any file it is `failed`, as pre-commit.com
 fails a hook that modified files, and the rewrite stays in the worktree for the next commit.
 
 **At the commit hook.** Behavior is the declaration's `commit_fixes`, because practice splits: lint-staged and
 lefthook's `stage_fixed` restage, while pre-commit.com and Overcommit fail.
 
-- `restage` (default) stages a fixer's rewrites of the paths the commit carries into the index Git hands the hook, then
-  computes the checked tree. Following lefthook's rule, the hook fails if the restage itself fails, so unfixed content
-  never commits silently. Staging inside the hook commits nothing, so it never re-triggers the gate, and each fixer runs
-  once. The partially-staged refusal (D8) guarantees that every staged path in a selected check's inputs matches the
-  worktree, so a restage never pulls unstaged hunks into the commit. Under pre-commit.com or lefthook, which hide
-  unstaged edits from that refusal, `restage` acts as `fail` (D8). It also acts as `fail` when the index Git hands the
-  hook is a temporary one, as for a path-limited commit (`git commit <paths>`): Git has already written those paths'
-  unfixed content to the repository's own index, whose lock it holds, so a fix restaged only into the temporary index
-  would leave the repository's index behind the commit. A plain `git commit` hands the hook the repository's own index,
-  and `git commit -a` that index's lock (`index.lock`); restaging holds in both.
-- `fail` fails the hook when a fixer rewrote a file, leaving the rewrite in the worktree for the person to stage.
+- `restage` (default) stages each fixer's rewrites of the paths the commit carries into the index Git hands the hook
+  right after it runs, before its record and the next fix-capable check's turn, so its pass keys on the content it
+  produced and a later fixer looks up over the earlier fixers' output (Fixer assumptions), then computes the checked
+  tree. Following lefthook's rule, the hook fails if the restage itself fails, so unfixed content never commits
+  silently. Staging inside the hook commits nothing, so it never re-triggers the gate, and each fixer runs once. The
+  partially-staged refusal (D8) guarantees that every staged path in a selected check's inputs matches the worktree, so
+  a restage never pulls unstaged hunks into the commit. Under pre-commit.com or lefthook, which hide unstaged edits from
+  that refusal, `restage` acts as `fail` (D8). It also acts as `fail` when the index Git hands the hook is a temporary
+  one, as for a path-limited commit (`git commit <paths>`): Git has already written those paths' unfixed content to the
+  repository's own index, whose lock it holds, so a fix restaged only into the temporary index would leave the
+  repository's index behind the commit. A plain `git commit` hands the hook the repository's own index, and
+  `git commit -a` that index's lock (`index.lock`); restaging holds in both.
+- `fail` fails the hook when a fixer rewrote a file: that fixer is `failed` and records no pass, and the rewrite stays
+  in the worktree for the person to stage.
 
-**Fixer assumptions.** Fixers are assumed idempotent, as every hook tool assumes. The checked tree is computed after
-they finish, so a fixer's pass is recorded under the content it produced, and the commit carrying that content reuses
-it.
+**Fixer assumptions.** Fixers are assumed idempotent, as every hook tool assumes. Fix-capable checks run in declared
+order (D3), and each keys on its inputs' content in the tree at its own turn: it looks up a pass over the tree as it
+stands before it runs, after the fixers before it, and records a pass under the tree as it stands right after it runs,
+the content it produced. A pass therefore never vouches for content its run did not see, even when a later fixer
+rewrites one of its inputs. Once the rewrites are staged, the commit's tree before fixers is that content, so the commit
+reuses each fixer's pass unless a later fixer rewrote one of its inputs. The checked tree, which keys every other check,
+is computed after fixers finish. Selection and each `files` check's paths come from the change as it stood before
+fixers ran, so a fixer's rewrite outside that change selects nothing more in the run; a later request carrying the
+rewrite selects the checks it reaches.
 
 ### D8 — Hooks
 
@@ -741,20 +773,29 @@ declaration elsewhere, an unresolvable CLI skips dispatch, a residual CI covers.
 - A push with no ref lines carries nothing, though Git runs `pre-push` even then, and checks nothing.
 
 **Hook-manager integration** keeps its shape (ADR-014): husky, lefthook, pre-commit.com, or, with no hook manager, ARC's
-own hooks directory through `core.hooksPath` (`configureGitIntegration` in `setup.ts`). Its generated entries gain only
-what each event's dispatch needs (`integrateLefthook`, `ARC_PRE_COMMIT_HOOK`, and `ARC_PRE_PUSH_HOOK` in
-`hook-integration.ts`):
+own hooks directory through `core.hooksPath` (`configureGitIntegration` in `setup.ts`). Its generated entries and
+configuration gain only what each event's dispatch needs (`integrateLefthook`, `integratePreCommit`, and the
+`ARC_PRE_COMMIT_HOOK`, `ARC_COMMIT_MSG_HOOK`, and `ARC_PRE_PUSH_HOOK` entries in `hook-integration.ts`):
 
 - lefthook's pre-push entry gains `use_stdin: true`, so the hook sees the pushed refs;
 - pre-commit.com's `arc-pre-commit` entry gains `pass_filenames: false`, `require_serial: true`, and `always_run: true`.
   Today it passes the staged files (`files: "."`), so pre-commit.com splits them across parallel invocations of ARC's
   hook, and skips the hook on a commit that only deletes files, since its staged-file list leaves deletions out. With
   the three fields, ARC's hook runs once per commit, deletions included;
-- pre-commit.com's `arc-pre-push` entry gains `always_run: true`, since its `files: "^$"` otherwise matches nothing.
+- pre-commit.com's `arc-pre-push` entry gains `always_run: true`, since its `files: "^$"` otherwise matches nothing;
+- pre-commit.com's `arc-commit-msg` entry drops `files: "^$"`. The filter rejects the message file pre-commit.com would
+  pass, so it skips the entry on every commit and ARC's commit-message check never runs there; without it, the entry
+  receives `.git/COMMIT_EDITMSG`, as ARC's hook expects;
+- the generated pre-commit.com configuration lists `commit-msg` and `pre-push` in `default_install_hook_types`, beside
+  `pre-commit` and any type already listed, since `pre-commit install` installs only the listed hook types. Writing the
+  list tells the person to re-run `pre-commit install`.
 
 Only `arc init` and `arc join` write these entries today (`configureGitIntegration`), and both leave an existing entry
 alone. So `arc update` upgrades an existing generated entry in place, in the same update that brings gate dispatch, as
-`integrateLefthook` already upgrades its older commit-msg entry. An entry it cannot upgrade, it reports.
+`integrateLefthook` already upgrades its older commit-msg entry. It recognizes ARC's entries by their ids at the current
+hook path. It rewrites a configuration only when an entry changes, through the same parse-and-dump round-trip init
+uses, which drops the file's comments, so its summary names each file it rewrote. An entry it cannot upgrade, or a
+configuration it cannot parse, it reports.
 
 Under pre-commit.com:
 
@@ -843,7 +884,9 @@ the verb, and this repository's CI is the first consumer (D11). The local-green,
 than through a parity test.
 
 - **One CLI call.** A setup job runs `arc check gate merge --ci --dry-run --json`, whose output (D3) lists every check
-  in the merge quality gate with its resolved invocations: working directory and argument batches.
+  in the merge quality gate with its resolved invocations: working directory, relative to the repository root, and
+  argument batches. CI checkouts are commonly shallow and carry no local base branch, so the setup job's checkout
+  fetches the history and base branch through which the merge base resolves (D3); without them the list carries no base.
 - **Native jobs.** Later jobs run those invocations natively, exporting to `files` checks the base, the checked tree,
   and any merged-in parents the list carries, and fail a fix-capable check that leaves the tree changed
   (`git diff --exit-code`), as the verb would (D7). A job may add its CI's own plumbing around an invocation:
@@ -852,18 +895,19 @@ than through a parity test.
   one job and one status per check, or per shard of a sharded check.
 - **Verb jobs.** A job that runs the verb itself passes `--ci`, so its requests select the CI-only checks.
 - **Every job, every run.** The list carries every check in the gate, not a selection, so every job exists on every run.
-  A project that opts into base-relative selection lets each job skip itself on the selection, with a roll-up job as the
-  one required status, as this repository's `ci.yml` does with `classify-change.sh` and its `ci-ok` roll-up (mirrored by
-  a `merge-ok` compatibility alias). A CI may also keep its own run conditions, such as which runs, lanes, or runners a
-  job takes, as plumbing keyed by check id outside the declaration (D11).
+  A project that opts into base-relative selection lets each job skip itself on the selection, with a roll-up job behind
+  the one required status, as this repository's `ci.yml` does with `classify-change.sh`: its `ci-ok` roll-up gathers
+  every job, and `merge-ok`, the status `main` requires, mirrors it. A CI may also keep its own run conditions, such as
+  which runs, lanes, or runners a job takes, as plumbing outside the declaration, on the jobs and steps that a map keyed
+  by check id places each check on (D11).
 
 CI may opt into base-relative selection only where the host's required checks vouch for the base.
 
 ### D10 — Knowledge placement and retirement
 
 - **Quality gate** enters `AGENT-BRIEF.ARC.md`'s vocabulary as one entry, with kind as its clause (D1).
-- **`quality-gate-commands` retires.** It is Configurable, so `arc update` keeps a project's copy for review and runs
-  the bootstrap (D2). No pointer method remains.
+- **`quality-gate-commands` retires.** It is Configurable, so `arc update` keeps a project's copy for review, and the
+  command that retires it runs the bootstrap (D2). No pointer method remains.
 - **`QUICK-REFERENCE.md` § Quality Gate Commands** leaves the template. Verb help and emitted remedies replace it.
 - **`strategy-quality-gates.md`** shrinks to what an operator needs that the verb cannot say. D1 and D6 replace its
   tier, escalation, and checkpoint-placement content. Its `STRATEGY-INDEX.md` entry is rewritten as a directive firing
@@ -875,28 +919,20 @@ CI may opt into base-relative selection only where the host's required checks vo
   (D2).
 - **`DEV-RULES.ARC`.** Its `--no-verify` invariant extends to `ARC_SKIP` (D8), and its integration-candidate clause
   that a reconciled head "passes Tier 1" names the `new-head` preset.
-- **`TECHNICAL-OVERVIEW.md`.** § 2 Customization Surfaces gains the check declaration as a fourth mechanism, and its
-  methods bullet drops "quality gate commands". § 4 Quality Gates replaces "Tiered approach" with the gate model.
+- **`TECHNICAL-OVERVIEW.md`.** § 2 Customization Surfaces gains the check declaration as a fourth mechanism, its
+  methods bullet drops "quality gate commands", and its extensions bullet drops the unit hook point. § 4 Quality Gates
+  replaces "Tiered approach" with the gate model.
 - **This repository's `DEV-RULES.PROJECT.md`.** § Quality Gates' tiered line and § Selecting what to run shrink to the
   zero-tolerance policy per gate, once the verb computes selection and reuse. The re-run rule moves into D6's fire
-  sites, and the CI-only E2E rule into the declaration, the section keeping only its local half's done-boundary request
-  (D11). Its `strategy-testing-methodology.md` § Integration with Quality Gates is rewritten to the gate model with it.
-- **Pre-push hook prose.** The shipped hooks README (`githooks/README.md`) and `arc-config.yml`'s `hooks.pre_push`
+  sites, and the CI-only E2E rule into the declaration, the section keeping only the increment-boundary request by id of
+  its local E2E check and `test:changed` (D11). Its `strategy-testing-methodology.md` § Integration with Quality Gates
+  is rewritten to the gate model with it, and so is the root `CONTRIBUTING.md`'s rule that every check passes before any
+  commit.
+- **Hook prose.** The shipped hooks README (`githooks/README.md`) and `arc-config.yml`'s `hooks.pre_push`
   comment say the pre-push hook never blocks and that the key toggles only the force-push advisory. Both are rewritten
-  for gate dispatch: the hook's exit status is the push gate's, and the key turns off both (D8).
-- **Documentation site.** Its gate prose is rewritten to the gate model, found by sense as the site inventory below is.
-  At `6521bcb4c` that is `docs/reference/quality-gates.md`; the glossary's quality-gate entries
-  (`docs/reference/glossary.md`); the `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` rows and the
-  `post-task-quality` worked example in `docs/customization/methods.md`; the tier overview, the per-task gate step, and
-  the deferred-review gate sentence in `docs/the-framework.md`; the quality-gates row in `docs/reference/index.md`; the
-  zero-tolerance sentence and check table in `docs/contributing.md`; the tier-definitions convention in
-  `docs/methodology/principles.md`; the per-increment verification paragraph in `docs/methodology/index.md`; the
-  feedback-controls paragraph in `docs/methodology/rationale.md`; and the methods sentence offering to swap in quality
-  gate commands in `docs/index.md`. The task-execution demos (`docs/demos/task-execution.sh` and
-  `docs/demos/task-execution-readme.sh`) narrate the per-task tier and its extension firing, and their GIFs appear in
-  `docs/the-framework.md` and the repository `README.md`, so both are revised and re-rendered as `docs/demos/README.md`
-  describes. Implementation re-runs this search before editing, as for the site inventory. The site's principle,
-  convention, and escape-hatch tiers are an unrelated sense.
+  for gate dispatch: the hook's exit status is the push gate's, and the key turns off both (D8). The README's pre-commit
+  section, which lists what blocks a commit, gains the commit gate's declared checks and the missing-CLI failure, and
+  its `hooks.pre_commit` row says a disabled hook dispatches no gate (D8).
 
 **Site inventory.** Implementation re-runs this search before editing and treats a difference as new sites. At
 `6521bcb4c`, the tier names appear in 24 shipped files under `packages/arc-framework/arc/`, by sense:
@@ -912,13 +948,16 @@ CI may opt into base-relative selection only where the host's required checks vo
 
 `strategy-configurability-architecture.md` and `strategy-session-operations.md` also use "tier" for configurability and
 context-loading tiers, which stay. The sweep goes by sense, not by word, so it also reaches gate-sense prose without the
-numbered names: `02_define-project.template.md`'s tier question (replaced by D2's bootstrap),
+numbered names: `02_define-project.template.md`'s tier question (replaced by D2's bootstrap), the package
+`DEV-RULES.PROJECT.md`'s zero-tolerance rule and `02_define-project.template.md`'s Step 5 question ("What quality checks
+must pass before every commit?"), both restated per gate (D1),
 `strategy-integration.md`'s "which quality-gate tier applies", `strategy-file-classification.md`'s "quality gate
 commands" as an example of Configurable content, `DEV-RULES.ARC.md`'s opening line placing gate commands in
-`DEV-RULES.PROJECT`, and `review-response.md`'s "run the affected quality gates" (D6). Eight integration tests carry
-gate-sense wording from the workflows rewritten here, six as assertions and two in doc comments, and change with them:
-`delivery-workflow`, `evidence-applicability-doctrine`, `prepublication-workflow`, `review-gate-workflows`,
-`pr-open-extensions`, `delivery-rebuild-base-movement`, `integration-reconcile-workflow`, and
+`DEV-RULES.PROJECT`, `amend-design.md`'s "names no tiers", `integrate-external-content.md`'s "additional quality
+checks after each task" as an extension example, and `review-response.md`'s "run the affected quality gates" (D6).
+Eight integration tests carry gate-sense wording from the workflows rewritten here, six as assertions and two in doc
+comments, and change with them: `delivery-workflow`, `evidence-applicability-doctrine`, `prepublication-workflow`,
+`review-gate-workflows`, `pr-open-extensions`, `delivery-rebuild-base-movement`, `integration-reconcile-workflow`, and
 `delivery-window-base-movement`.
 
 References to each retired surface, which are relocated rather than silently deleted:
@@ -959,8 +998,10 @@ element:
 - The `.husky/pre-commit` chain becomes declared checks dispatched by ARC's hook, each trading its own
   `git diff --cached` selection for declared inputs:
     - `lint:md:staged` becomes a `project` check declaring `reads_index: true`, certifying the index, whose inputs cover
-      what triggers it today: non-excluded Markdown, the Markdown configuration, and its checker's runtime files and
-      dependencies (`isMarkdownGateTriggerPath` and `MARKDOWN_GATE_INPUT_PATHS` in `staged-gate.ts`);
+      what triggers it today: non-excluded Markdown, the Markdown configuration, its checker's runtime files and
+      dependencies (`isMarkdownGateTriggerPath` and `MARKDOWN_GATE_INPUT_PATHS` in `staged-gate.ts`), and the import
+      closure of those runtime files, which the script adds to its trigger (`resolveIndexedMarkdownCheckerPaths`). A
+      glob cannot follow imports, so the closure is declared as the package's sources (`packages/arc-framework/src/**`);
     - `check-package-sync.sh` becomes a `files` check declaring `reads_index: true`, since it reads each path's content
       from the index (`git show ":<path>"`). Its blind-copy test reads each path's prior content at the exported base,
       counts no override that a merged-in parent's two copies no longer differ on, and, as its `MERGE_HEAD` exemption
@@ -968,7 +1009,10 @@ element:
       merge or a range that carries one (D2). An identical edit of both copies after a base merge dropped their override
       therefore passes, as it passes at its own commit. Where a merged-in parent's two copies no longer differ, a range
       run cannot see whether the merge itself kept the override, since D2 exports no merge's own copies, so it also
-      passes a blind copy made after a merge that kept it, which the commit gate fails at that copy's own commit;
+      passes a blind copy made after a merge that kept it, which the commit gate fails at that copy's own commit. Where
+      no base is exported (D2), it fails, naming the missing base, since a pass would claim a blind-copy test it never
+      ran; in CI, the setup job, whose dry run resolves that base (D9), and the job running this check each fetch the
+      history it needs, as checkouts there are shallow by default;
     - `check-ts-quality.sh` retires into its parts: `lint:ts:file` as a `files` check with `root`, and `typecheck` and
       `typecheck:test` as `project` checks over the TypeScript inputs.
 - `lint:md` declares `reads_index: true` too, for its drift guard (`findStagedMarkdownWorktreeDrift` in
@@ -983,15 +1027,27 @@ element:
   refuses untracked paths (`validateExplicitMarkdownPaths` in `selection.ts`), after which the index-to-worktree drift
   guard in `worktree-index-drift.ts` fails. It admits the untracked paths Git's exclude rules allow, through the
   worktree view `selection.ts` already offers (`enumerateTrackedMarkdownPaths`' `worktree` source), so a new artifact
-  formats at the done boundary like any other.
+  formats at the increment boundary like any other.
 - `lint:ts:file`'s repository-to-package path translation becomes the check's `root`.
 - `lint:sh` runs a system-installed `shellcheck` with no version file (`run-shellcheck.sh` resolves it from the system
   `PATH`), so its version becomes a runtime input.
 - `lint:md:staged` checks the installed Markdown dependencies against the lockfile, state outside its files, so the
   repository declares a global runtime input that fingerprints its npm install (`node_modules/.package-lock.json`,
   npm's record of what is installed). No reuse outlives a reinstall, and none skips that check after a lockfile change.
+- Tests read and assert the ARC Markdown this repository ships and runs (`packages/arc-framework/arc/**`,
+  `.arc/system/**`, and `.arc/reference/**`), so the relevance table's Markdown-only row does not carry over to them.
+  The unit and integration test checks sit at the push gate with the default whole-tree inputs less the planning state
+  no test reads from the repository (`.arc/active/**`, `.arc/backlog/**`, and `.arc/completed/**`); the one test that
+  decomposes an archived work unit reads a checked-in copy of it among its fixtures. A change to the shipped Markdown
+  therefore selects them, and a test that comes to read another location is covered without a declaration edit.
+  `test:arc-contracts`, a commit-gate check, declares that same Markdown among its inputs, so a change there runs its
+  suites at each increment boundary.
 - `test:changed` selects its own change through `vitest --changed=main` (`local-vitest-runner.ts`); as a `files` check
-  it receives the verb's changed paths instead.
+  it receives the verb's changed paths instead. Its inputs are the TypeScript it finds tests for by import, since a
+  Markdown path reaches no test that way and an empty selection fails it. It declares no `gate`: the unit test checks
+  enforce at push, and a push-gate `files` check joins the merge gate, where it would receive every path and rerun the
+  whole unit suite beside them. It is requested by id at each increment boundary with the local E2E check (below), so
+  its result is feedback and a test-first sequence's failing test never blocks a commit (D1).
 - E2E and portability are declared CI-only, as the project rule ("E2E is enforced by the heavy CI lane before merge")
   has them. Unit, integration, and E2E tests are sharded as the prerequisite CI layout shards them, each with a count
   and the one argument `--shard={index}/{count}`. Each shard job's CI plumbing stays outside the declaration (D9): the
@@ -1000,26 +1056,45 @@ element:
   local half ("run it locally only when E2E files changed or when explicitly requested") becomes a second check: a
   `files` check with no `gate`, so no gate, preset, or attestation runs it (D1), whose inputs are the whole E2E test
   tree, support files included. Its command is a repository script that runs the whole suite whatever paths it receives
-  (Constraint 3). `DEV-RULES.PROJECT.md` keeps the rule's local half as one request (D10): at each done boundary, beside
-  `arc check done`, whose composition it leaves unchanged (D6), the check is requested by id over `--changed`. It then
-  runs the suite when the increment adds or modifies an E2E file and is `not selected` otherwise (D3); a change that
-  only deletes E2E files is left to CI. Its result is feedback, since a request by id has no deadline (D1), and CI
-  enforces E2E. Requested with no scope (`--all`), it runs the suite whenever someone asks. It declares `cache: false`,
-  since the inputs that select it leave out the source the suite tests.
-- CI invokes the verb (D9), over the CI layout on the base branch (§ Prerequisites).
+  (Constraint 3). `DEV-RULES.PROJECT.md` keeps the rule's local half as one request (D10): at each increment boundary,
+  beside `arc check increment`, whose composition it leaves unchanged (D6), the check is requested by id over
+  `--changed`, in the same request as `test:changed`. It then runs the suite when the increment adds or modifies an E2E
+  file and is `not selected` otherwise (D3); a change that only deletes E2E files is left to CI. Its result is feedback,
+  since a request by id has no deadline (D1), and CI enforces E2E. Requested with no scope (`--all`), it runs the suite
+  whenever someone asks. It declares `cache: false`, since the inputs that select it leave out the source the suite
+  tests.
+- CI invokes the verb (D9), over the CI layout on the base branch (§ Prerequisites). The documentation workflow
+  (`docs.yml`) builds and deploys the site after a merge to the base and gates nothing, so it stays outside the
+  declaration.
 - This repository's CI keeps its run conditions as CI plumbing outside the declaration (D9): `classify-change.sh`'s
   light and heavy weight, under which `test:arc-contracts` runs on light runs only and the code checks on heavy runs
   only; the condition running integration, E2E, and portability on reviewed-lane pull requests only; the scheduled and
   dispatched runs and the jobs each takes; the duplicate-push skip; and the cross-platform portability pair's Windows
   and macOS runners. The setup job runs on every run the duplicate-push skip leaves, light runs included, since every
-  job's list comes from its dry run. What differs by check, among those conditions and in each job's plumbing (the shard
-  jobs' above, or `typecheck:test`'s heap headroom through `NODE_OPTIONS`), is keyed by check id. A check the plumbing
-  does not name runs on every run, light and heavy alike, so a new check is never skipped by omission, and the setup job
-  fails when any plumbing names an id its dry run does not list.
+  job's list comes from its dry run, and uploads the list as an artifact that every job running a check downloads, since
+  a job output is capped at 1 MB. The workflow keeps its jobs and steps as literal declarations, as today: each job's
+  runner, dependencies, and shard matrix, and each step's run condition, environment, and appended arguments, stay in
+  the workflow's own expressions, and each job running a check also depends on the setup job, whose artifact it reads.
+  The `build` check runs in a job of its own, under the condition the setup job carries today (heavy, dispatched, and
+  scheduled runs); that job uploads the check's output, and the jobs that read it depend on that job. Which step runs a
+  check is keyed by check id in one map: per id, the steps that run it, each named by its job and step id. What differs
+  by check, among those conditions and in each job's plumbing (the shard jobs' above, or `typecheck:test`'s heap
+  headroom through `NODE_OPTIONS`), sits on the step the map names for it. `test:portability` therefore maps to the
+  Linux portability job's step and to the cross-platform pair's, and `test:portability:macos` to the pair's macOS-only
+  step. A mapped step runs, through one repository script, the entries of the dry-run list that the map assigns to it,
+  one shard's where its job has a shard matrix, resolving each working directory against its own checkout, since the
+  list comes from the setup job's runner. A check the map does not name runs at a default step in the job that runs on
+  every push and pull-request run the duplicate-push skip leaves, light and heavy alike, so a new check is never skipped
+  by omission and needs no workflow edit, and a removed check leaves CI with the list. The setup job fails when the map
+  names an id its dry run does not list or a step the workflow does not declare, or when a sharded check's job has a
+  shard matrix other than its declared count, and a contract test runs the same checks so that a stale map also fails
+  locally.
 - `classify-change.sh`'s `HEAVY_CHECK_NAMES` names every job a heavy pull-request run in the reviewed lane runs, one per
-  check or shard job. It is generated from the dry-run list and that plumbing and kept in the script, since its classify
-  job runs before setup and without the CLI. The setup job fails when the script's list differs from what they yield.
-  The declaration joins this repository's code surface and code-tree identity (`CODE_SURFACE_GLOBS` in
+  job or shard leg, and the setup job, whose pass a lookback match needs. Its names are the workflow's job names, which
+  no declaration change touches, and it stays a list kept in the script, since its classify job runs before setup and
+  without the CLI. The contract test that holds it equal to the workflow's heavy-conditioned jobs and their matrix legs
+  (`workflowHeavyCheckNames` in `classify-change.test.ts`) keeps holding it, counting the setup job, which now runs on
+  every run. The declaration joins this repository's code surface and code-tree identity (`CODE_SURFACE_GLOBS` in
   `change-facts.ts`; `GENUINE_DOCS_GLOBS` classifies it as documentation today), so editing it runs the heavy jobs. A
   lookback match needs a heavy run that passed on the same code tree, setup included, so the verified-tree lookback
   reads only a list that was checked and can neither skip a new job nor wait on a removed one.
@@ -1053,14 +1128,14 @@ on today's substrate and carries through that move without rework, provided thes
 6. **Output honors the surface boundary.** What the verb prints where people read without ARC, such as CI logs and
    check or status text, names the project's checks and results, with no ARC vocabulary.
 7. **Fire sites name the verb, not commit mechanics.** A planning flow that takes no commits fires no gate. While task
-   lists are tracked files, their completion edits ride the commit, so the done boundary runs after them; once task
-   close runs after the increment's commit, the done boundary still runs before that commit.
+   lists are tracked files, their completion edits ride the commit, so the increment boundary runs after them; once task
+   close runs after the increment's commit, the increment boundary still runs before that commit.
 
 ### Prerequisites
 
-- **Editor-document publication** (D2): the registry marker, `arc schema install`'s generated documents, and the shared
-  reference function. If it is not available when this work completes, the declaration ships without editor support
-  and the marker becomes a follow-up.
+- **Editor-document publication** (D2), on the base branch: the registry marker, the generated documents
+  (`writeEditorDocuments`, refreshed by `arc schema install`), and the shared reference function
+  (`editorDocumentReference`).
 - **CI layout**, made separately from this work and on the base branch at `e9ce523a3`: unit tests in 2 balanced shards
   and integration and E2E tests in 4 each, every shard job selected by one `--shard=<index>/<count>` argument; a
   test-duration file and artifact steps around each shard job, a build preflight before each integration and E2E shard,
@@ -1112,8 +1187,8 @@ comment (D2).
 **Per-task cadence.**
 
 - _A blocking per-task block_ is overcorrected, with no evidence it is needed.
-- _Feedback only at edit time through harness hooks_ is harness-specific and leaves no done-boundary check.
-- Chosen: a done-boundary run of the upcoming gate plus the push subset (D6).
+- _Feedback only at edit time through harness hooks_ is harness-specific and leaves no increment-boundary check.
+- Chosen: an increment-boundary run of the upcoming gate plus the push subset (D6).
 
 **Pre-push enablement.** A smart default (on when push gate checks are declared), always opt-in, or always on. Chosen:
 the smart default under the existing `hooks.pre_push` key (D8).
@@ -1165,8 +1240,8 @@ remains the authority. CI runs the merge quality gate over the whole tree by def
   as `fail` under pre-commit.com and lefthook (a provisioned v2.2.1 or later) with set-aside changes restored and for a
   path-limited commit, the partially-staged refusal, and merge conclusion. Every ARC refusal has a test of the refusal
   and of the successful retry after its remedy. E2E tests cover `arc update`'s bootstrap and hook-entry upgrade over an
-  install carrying the retired surfaces, and the editor document for the declaration type when its prerequisite has
-  shipped.
+  install carrying the retired surfaces, and the editor document for the declaration type. A contract test holds the
+  initial-setup step's editor reference equal to the shared function's result.
 - **Rollout.** Mechanics (declaration, verb, hooks) land before the fire-site and knowledge rewrite, which lands before
   first-consumer adoption and CI. CI changes wait on their prerequisite.
 - **Boundary and landing.** `assess-boundary-fit` selects _stays one WU_. The four surfaces (declaration, verb,
@@ -1182,25 +1257,28 @@ remains the authority. CI runs the merge quality gate over the whole tree by def
 
 ## Success Criteria
 
-- **SC1 — Reuse.** A commit made right after `arc check done`, with nothing else changed, executes no check: the hook
-  reports every selected check `reused`. A forced request executes every selected check.
-- **SC2 — Selection.** A Markdown-only change runs no code check, and the report names each unselected check with its
-  reason. A global input change, a declaration change, a changed path no check's inputs match, and an unresolvable base
-  each select every check with `widen: true`, a `files` check among them receiving every path among its inputs and, when
-  it fails, naming the failed request's retry as its remedy; a `widen: false` check is selected only by its own inputs.
-  Without widening, a `files` check whose only changed inputs are deletions is `not selected`.
+- **SC1 — Reuse.** A commit made right after `arc check increment`, with nothing else changed, executes no check: the
+  hook reports every selected check `reused`, except a fixer whose inputs a later fixer rewrote (D7). A forced request
+  executes every selected check.
+- **SC2 — Selection.** A change outside a check's inputs does not select it, and the report names each unselected check
+  with its reason. In this repository (D11), a change only to planning-state Markdown runs no code check, and a change
+  to Markdown its tests read selects the unit and integration test checks. A global input change, a declaration change,
+  a changed path no check's inputs match, and an unresolvable base each select every check with `widen: true`, a
+  `files` check among them receiving every path among its inputs and, when it fails, naming the failed request's retry
+  as its remedy; a `widen: false` check is selected only by its own inputs. Without widening, a `files` check whose
+  only changed inputs are deletions is `not selected`.
 - **SC3 — One definition.** No check list exists outside the declaration: the `.husky/pre-commit` chain, the
-  QUICK-REFERENCE gate blocks, CI's check list, and `classify-change.sh`'s heavy-job names are gone or derived. CI
-  plumbing names check ids only to attach what differs by check (D11). Removing a check from the declaration removes it
-  from hooks, workflow steps, and CI; while the plumbing or `HEAVY_CHECK_NAMES` still names it, the setup job fails
-  until they are updated.
+  QUICK-REFERENCE gate blocks, and CI's check list are gone or derived, and `classify-change.sh`'s heavy-job names list
+  the workflow's jobs, not its checks. CI plumbing names check ids only to place each check on the steps that run it
+  (D11). Removing a check from the declaration removes it from hooks, workflow steps, and CI; while the map still names
+  it, the setup job fails until the map is updated.
 - **SC4 — Workflows name the verb.** A search over D10's inventory finds the tier names only in their unrelated senses
   and in the stored `verificationKind: "tier-3"` value with its `arc attest` echo, and each gate step in a shipped
   workflow is one `arc check` request.
 - **SC5 — Membership and kind.** A `commit` check runs in commit, push, and merge requests, a `push` check in push and
-  merge requests, and a gate-less check only by id. In `done`, a failing `files` check declared `gate: push` is labelled
-  feedback and a failing `commit` check enforcement. `segment-close` runs over the range from the upstream, or from the
-  merge base while unpublished, with the push gate as its deadline. A request's selection and outcomes are identical
+  merge requests, and a gate-less check only by id. In `increment`, a failing `files` check declared `gate: push` is
+  labelled feedback and a failing `commit` check enforcement. `segment` runs over the range from the upstream, or from
+  the merge base while unpublished, with the push gate as its deadline. A request's selection and outcomes are identical
   under every commit and push interlock setting.
 - **SC6 — Outcomes and exits.** Each outcome is produced and exits as specified (0, 1, 2). `skipped` and `none declared`
   are never reported as passed in the report or the verification line. `ARC_SKIP` is honored only by the hook forms, an
@@ -1208,19 +1286,21 @@ remains the authority. CI runs the merge quality gate over the whole tree by def
 - **SC7 — Refusals.** Every ARC refusal (an invalid declaration, partially staged content, an unresolvable CLI with a
   declaration present, an undeclared `run` id, an unresolvable named ref) has a test of the refusal and of the
   successful retry after its remedy.
-- **SC8 — Hooks.** Under husky, lefthook, pre-commit.com, and no hook manager (`core.hooksPath`), the commit and push
-  gates dispatch once per event, a deletion-only commit included. The push gate skips `refs/arc/*` and deletions and
-  reports other refs `not selected`; the force-push advisory skips state refs, and a push-gate failure names the code
-  ref it gated. `arc update` upgrades an existing generated entry and reports one it cannot.
-- **SC9 — Fixes.** Done-boundary fixes apply before review. At the commit hook, `restage` stages a fixer's rewrites and
-  `fail` fails with the rewrite left in the worktree; under pre-commit.com and lefthook, and for a path-limited commit,
-  `restage` acts as `fail`, and a fix overlapping set-aside changes leaves them restored under pre-commit.com and
-  lefthook v2.2.1 or later. Every request that runs fixers as checks fails one that rewrites a file. A new, untracked
-  Markdown artifact formats at the done boundary.
+- **SC8 — Hooks.** Under husky, lefthook, pre-commit.com, and no hook manager (`core.hooksPath`), each installed as a
+  person installs it (plain `pre-commit install` under pre-commit.com), the commit and push gates dispatch once per
+  event, a deletion-only commit included, and ARC's commit-message check receives the message. The push gate skips
+  `refs/arc/*` and deletions and reports other refs `not selected`; the force-push advisory skips state refs, and a
+  push-gate failure names the code ref it gated. `arc update` upgrades an existing generated entry and reports one it
+  cannot.
+- **SC9 — Fixes.** Increment-boundary fixes apply before review. At the commit hook, `restage` stages a fixer's rewrites
+  and `fail` fails with the rewrite left in the worktree; under pre-commit.com and lefthook, and for a path-limited
+  commit, `restage` acts as `fail`, and a fix overlapping set-aside changes leaves them restored under pre-commit.com
+  and lefthook v2.2.1 or later. Every request that runs fixers as checks fails one that rewrites a file. A new,
+  untracked Markdown artifact formats at the increment boundary.
 - **SC10 — Merge conclusion.** During a merge conclusion, the commit gate selects only conflicted paths and paths
   matching no parent. ARC's ROADMAP remedy commit runs no gate, and `new-head` verifies its result. A `files` check
   receives the merged-in parents of the merges on its range's first-parent line, and only those, over a merge's own
-  range and over every longer range that carries one: the push hook's, `segment-close`'s, `new-head`'s, and `--range`'s;
+  range and over every longer range that carries one: the push hook's, `segment`'s, `new-head`'s, and `--range`'s;
   a request with no change exports none. Over each range, `check-package-sync` passes a converged copy such a merge
   brought in and an identical edit of both copies made after it.
 - **SC11 — Attestation.** `verify-work-unit` and both convergence scopes execute every selected check, never a reuse.
@@ -1231,19 +1311,19 @@ remains the authority. CI runs the merge quality gate over the whole tree by def
   validates.
 - **SC13 — CI parity.** This repository's CI runs the merge quality gate from the declaration through the dry run's list
   or the verb. A CI-only check is `not selected` locally with that reason and runs in CI.
-- **SC14 — Editor document (when its prerequisite has shipped).** The generated document for `check-declaration`
-  accepts this repository's declaration and flags an unknown key wherever the CLI rejects one.
+- **SC14 — Editor document.** The generated document for `check-declaration` accepts this repository's declaration and
+  flags an unknown key wherever the CLI rejects one.
 - **SC15 — Storage invariants.** The reuse record lives outside `.git/arc/`, a fault reading or writing it degrades to a
   run, and CI-facing output carries no ARC vocabulary.
 - **SC16 — Stack neutrality.** Shipped content (templates, workflows, and the install recipe) installs no declared
   check and names no stack tool as a default.
 - **SC17 — Measured effect.** This repository's per-increment check time, the per-task gate plus the commit hook, is
-  measured over one sample of commits when implementation starts, and the done boundary plus the commit hook over the
-  same sample once it lands; both are recorded with their method in `notes-quality-gate-hooks.md`.
+  measured over one sample of commits when implementation starts, and the increment boundary plus the commit hook over
+  the same sample once it lands; both are recorded with their method in `notes-quality-gate-hooks.md`.
 - **SC18 — Git environment.** A declared check that creates and commits in a fixture repository passes under the commit
   hook and under every request form. Only a `reads_index` check receives `GIT_INDEX_FILE`, pointing at an index equal to
   its checked tree, and this repository's index readers (D11) read that index at the commit hook, including under
-  `git commit -a`, and at the done boundary.
+  `git commit -a`, and at the increment boundary.
 
 ## Open Questions
 

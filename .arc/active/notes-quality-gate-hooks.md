@@ -58,8 +58,8 @@ against the tree. Route-outs went to `USER-INBOX` captures, each with `WU_Target
 
 ## Coordination
 
-- **Editor-document publication** (D2's prerequisite) is `schema-introspection-layer`'s scope; check its state before
-  deciding whether the declaration type takes the marker.
+- **Editor-document publication** (D2's prerequisite) landed through `schema-introspection-layer`, on the base branch
+  at `38597e53a`; `check-declaration` is the first production type to take its marker (Task 1.3.d).
 - **CI layout** (§ Prerequisites) landed through `test-suite-reliability`, on the base branch at `e9ce523a3`.
 - **Configuration home** under other install profiles (D2, D12 invariant 4) follows `config-storage-architecture`,
   whose CLI side can move `arc-config.yml`'s reader onto D2's typed read.
