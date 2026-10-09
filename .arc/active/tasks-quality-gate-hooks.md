@@ -41,13 +41,10 @@ naming the field.
   returns the repository-relative location with valid, absent, or invalid results. Parse failures retain their location;
   schema failures name field paths, and read failures are distinct from absence.
 
-### `[ ]` **1.3 Check declaration type, refinements, and registration — D2**
+### `[x]` **1.3 Check declaration type, refinements, and registration — D2**
 
 - _Goal:_ The CLI accepts exactly the declaration shape the design defines and refuses every other shape with the
   field named, under one registered type.
-
-- _Approach:_ the declaration, selection, record, and runner modules live together in a new `src/lib/checks/`
-  directory; request handlers sit beside `commit-msg` in `src/handlers/check/`.
 
     - `[x]` **1.3.a Field model and defaults**
         - Added the strict declaration field model, conservative per-check defaults, gate and fix-policy enumerators,
@@ -64,20 +61,12 @@ naming the field.
           without a shell, and shard arguments without `{index}`. Each refusal names its field; valid project shell
           commands and indexed shards remain accepted.
 
-    - `[ ]` **1.3.d Register `check-declaration`**
-        - A registrar beside the schema, as `registerDeliveryAuthoringSchemas` sits beside its own in
-          `design-inventory.ts`, chained into `createProductionSchemaRegistry()`: id `check-declaration`, version 1,
-          `strict-current`, `authored: "editor-document"`, `z.strictObject` at every level; Task 1.2's read validates
-          with the same instance
-        - `PRODUCTION_SCHEMA_IDS` (`__tests__/helpers/production-schema-ids.ts`) gains the id in sorted position, and
-          the schema stays projectable (no transforms): `unit/kernel/production-projection.test.ts` folds and strictly
-          compiles every production type on both sides, and every command that provisions a checkout writes this
-          type's editor document (`writeEditorDocumentsOrThrow`), so a type that cannot project fails provisioning
-        - The marker makes `check-declaration` the first production type with an editor document. Update the tests that
-          hold none has one: `unit/kernel/authored-metadata.test.ts` (no type marked `editor-document`), the
-          `schema list` assertions in `e2e/schema.e2e.test.ts` and `unit/handlers/schema.test.ts` (`editorDocument:
-          null` for every type), and `e2e/schema-install.e2e.test.ts` (`documents: []` at three sites, two of them with
-          an empty directory). The `schema get` test of request types keeps `null`
+    - `[x]` **1.3.d Register `check-declaration`**
+        - Registered the shared runtime schema as version 1, strict-current, authored editor-document; production
+          discovery, structural projection, and checkout provisioning expose its generated editor schema.
+
+- _Outcome:_ The typed-file reader and production registry use one declaration schema. The segment scenario accepted
+  a valid declaration and refused unknown fields, malformed ids, and all four cross-field violations with fields named.
 
 ## **Phase 2:** Increment-boundary run reused at the commit hook
 

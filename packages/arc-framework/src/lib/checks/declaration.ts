@@ -1,5 +1,6 @@
 /** Typed project declarations for executable checks. */
 import { z } from "zod";
+import type { KernelRegistry } from "../kernel/index.js";
 
 const ArgumentListSchema = z.array(z.string()).min(1);
 const CheckSchema = z.strictObject({
@@ -39,3 +40,15 @@ export const CheckDeclarationSchema = z.strictObject({
   $schema: z.string().optional(),
 });
 export type CheckDeclaration = z.infer<typeof CheckDeclarationSchema>;
+
+/**
+ * Register the declaration's shared runtime and editor-document schema.
+ * @param registry - Registry receiving the project-authored contract
+ * @returns The registry with the declaration registered
+ */
+export function registerCheckDeclarationSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(CheckDeclarationSchema, {
+    id: "check-declaration", version: 1, migrationPosture: "strict-current", authored: "editor-document",
+  });
+  return registry;
+}

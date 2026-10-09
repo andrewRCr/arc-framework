@@ -51,9 +51,9 @@ describe("authored schema metadata", () => {
       "review-respond-request",
       "review-terminus-accept-request",
     ]);
-    expect(registry.ids().some((id) => {
+    expect(registry.ids().filter((id) => {
       const meta = registry.meta(id);
       return meta?.authored === "editor-document";
-    })).toBe(false);
+    })).toEqual(["check-declaration"]);
   });
 });
