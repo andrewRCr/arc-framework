@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "subcohort-codeowners-depth",
+  "claimId": "e387432b89bdb69ab5e554da6f146a2b",
+  "createdAt": "2026-10-09T23:22:35.280Z",
+  "updatedAt": "2026-10-09T23:22:35.280Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Extend the CODEOWNERS planning artifact block to the classifier-supported planned sub-cohort member depth",
+  "branch": "chore/subcohort-codeowners-depth",
+  "origin": "inbox",
+  "originEntry": "Let sub-cohort members' planning PRs clear the CODEOWNERS auto-merge block",
+  "originEntrySourceDigest": "sha256:b5076dadb9bed0c65008df8ca4e75a5bbac83e9863524c4e762bc30b377c4695",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
