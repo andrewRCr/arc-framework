@@ -26,6 +26,12 @@ interface FoldContext {
   readonly folded: Map<string, string>;
 }
 
+const schemaMapKeywords = new Set(["$defs", "properties", "patternProperties", "dependentSchemas"]);
+const schemaValueKeywords = new Set([
+  "items", "prefixItems", "contains", "additionalItems", "unevaluatedItems", "additionalProperties",
+  "unevaluatedProperties", "propertyNames", "if", "then", "else", "allOf", "anyOf", "oneOf", "not", "contentSchema",
+]);
+
 function copySchema<T>(value: T): T {
   // A JSON round trip breaks Zod's shared object identities before reference rewriting.
   return JSON.parse(JSON.stringify(value)) as T;
@@ -66,7 +72,13 @@ function rewriteReferences(value: unknown, context: FoldContext): void {
   if (typeof record["$ref"] === "string") {
     record["$ref"] = `#/$defs/${foldReference(record["$ref"], context)}`;
   }
-  for (const nested of Object.values(record)) rewriteReferences(nested, context);
+  // Traverse schema positions only; defaults, examples, and other instance data keep their own keys and values.
+  for (const [keyword, nested] of Object.entries(record)) {
+    if (schemaValueKeywords.has(keyword)) rewriteReferences(nested, context);
+    else if (schemaMapKeywords.has(keyword) && typeof nested === "object" && nested !== null) {
+      for (const schema of Object.values(nested)) rewriteReferences(schema, context);
+    }
+  }
 }
 
 /**

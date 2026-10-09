@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createRegistry, type KernelJSONSchemaBundle } from "../../../src/lib/kernel/index.js";
+import { createKernelRegistry, createRegistry, type KernelJSONSchemaBundle } from "../../../src/lib/kernel/index.js";
 import { foldKernelSchemaClosure, projectKernelSchemaClosure } from "../../../src/lib/kernel/schema/generate.js";
 
 const dialect = "https://json-schema.org/draft/2020-12/schema";
@@ -22,6 +22,29 @@ function fixture(): KernelJSONSchemaBundle {
 }
 
 describe("self-contained schema folding", () => {
+  it.each(["https://example.test/data", "urn:arc:schema:slug"])(
+    "preserves a parsed JSON default containing a reference-like value: %s", (reference) => {
+      const registry = createKernelRegistry();
+      const data = { $ref: reference };
+      const schema = z.object({ value: z.unknown().default(data) });
+      registry.register(schema, { id: "data-default", version: 1, migrationPosture: "strict-current", authored: "request" });
+      expect(schema.parse({})).toEqual({ value: data });
+      expect(projectKernelSchemaClosure(registry, "data-default")).toMatchObject({ properties: { value: { default: data } } });
+    },
+  );
+
+  it.each(["const", "enum", "examples"])("preserves instance data under %s", (keyword) => {
+    const registry = createKernelRegistry();
+    const data = { $ref: "urn:arc:schema:slug", properties: { nested: { $ref: "https://example.test/data" } } };
+    const value = keyword === "const" ? data : [data];
+    registry.register(z.unknown().meta({ [keyword]: value }), {
+      id: "data-annotation", version: 1, migrationPosture: "strict-current",
+    });
+    const result = projectKernelSchemaClosure(registry, "data-annotation");
+    expect(result[keyword]).toEqual(value);
+    expect(result.$defs).toBeUndefined();
+  });
+
   it("folds registered and shared dependencies into local definitions without mutating the bundle", () => {
     const bundle = fixture();
     const before = JSON.stringify(bundle);
