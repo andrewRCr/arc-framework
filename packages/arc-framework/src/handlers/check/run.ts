@@ -3,7 +3,8 @@ import { mkdir } from "node:fs/promises";
 import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
-import { createWorktreeSnapshot } from "../../lib/checks/tree.js";
+import { readCheckDivergence } from "../../lib/checks/divergence.js";
+import { createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
 import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
@@ -22,6 +23,7 @@ export interface DeclaredCheckResult {
   outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run";
   output?: string;
   reason?: string;
+  divergent?: string[];
 }
 
 /** Typed result retained independently of output formatting. */
@@ -117,6 +119,7 @@ async function executeResolvedRequest(
   entries: Array<[string, CheckDeclaration["checks"][string]]>, coordinates: ResolvedCheckRequest, indexViews: CheckIndexViews,
 ): Promise<RunDeclaredChecksResult> {
   const { base, tree } = coordinates;
+  coordinates.worktreeTree = coordinates.scope.kind === "staged" ? await stagedWorktreeTree(io.git, root) : tree;
   if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
@@ -134,6 +137,7 @@ async function executeResolvedRequest(
         coordinates.snapshot = await createWorktreeSnapshot(io.git, root, await checkRecordDirectory(io.git, root));
         coordinates.tree = coordinates.snapshot.tree;
       }
+      coordinates.worktreeTree = coordinates.tree;
     }
   }
   const ordinary = jobs.filter(job => !job.check.fixes);
@@ -167,7 +171,8 @@ async function runRequestedCheck(
     paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
     if (paths.length === 0) return { id, kind, outcome: "not selected", reason: "no files to check" };
   }
-  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
+  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
 }
 
 interface SelectedCheck {
@@ -178,14 +183,15 @@ interface SelectedCheck {
   paths: string[];
   content?: CheckContentContext;
   indexViews: CheckIndexViews;
+  divergent: string[];
   kind: CheckResultKind;
   definition: CheckDeclaration;
 }
 
 async function executeSelectedCheck(
-  { id, check, root, tree, paths, content, kind, definition, indexViews }: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  { id, check, root, tree, paths, content, kind, definition, indexViews, divergent }: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
-  const key = await resolveCheckKey(io, { id, check, root, tree, paths, definition, base: content?.base, merged: content?.merged });
+  const key = divergent.length > 0 ? null : await resolveCheckKey(io, { id, check, root, tree, paths, definition, base: content?.base, merged: content?.merged });
   const pass = key === null || request.force ? null : await io.passes.get(key, id);
   if (pass !== null) return { id, kind, outcome: "reused", output: pass.output };
   if (request.dryRun) return { id, kind, outcome: "would run" };
@@ -194,11 +200,12 @@ async function executeSelectedCheck(
   const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
   const indexFile = check.reads_index ? await indexViews.get() : undefined;
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
-  if (!result.started) return { id, kind, outcome: "couldn't run", output: result.output };
+  const differences = divergent.length > 0 ? { divergent } : {};
+  if (!result.started) return { id, kind, ...differences, outcome: "couldn't run", output: result.output };
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
   }
-  return { id, kind, outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
+  return { id, kind, ...differences, outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
 }
 
 async function executeCheckBatches(io: DeclaredCheckDependencies, input: {

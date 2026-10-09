@@ -12,6 +12,7 @@ export interface ResolvedCheckRequest {
   base?: string;
   merged?: string[];
   snapshot?: WorktreeSnapshot;
+  worktreeTree?: string;
 }
 export type CheckRequestResolution = { status: "resolved"; request: ResolvedCheckRequest }
   | { status: "refused"; message: string };

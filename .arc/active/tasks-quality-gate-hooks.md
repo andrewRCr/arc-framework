@@ -247,7 +247,7 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
           and a failed batch remains failed. Fixers run serially in declaration order before the machine-bounded
           pool; `--serial` uses one worker. Every selected outcome is retained, and sharded checks run unsharded.
 
-### `[ ]` **4.2 Index view and worktree divergence — D5**
+### `[x]` **4.2 Index view and worktree divergence — D5**
 
 - _Goal:_ A check that reads the Git index sees exactly the content the event will carry, and a run that could have
   read anything else is labelled and never reused.
@@ -257,14 +257,10 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
           index with cached stat data; staged requests share a lazy private tree index. Nested roots and later fixer
           turns read the checked content, owner indexes remain intact, and disposable views are removed or ignored.
 
-    - `[ ]` **4.2.b Worktree divergence**
-        - Divergence compares the checked tree with Task 2.1.a's staged-worktree tree over the check's inputs, through
-          the same pathspec diff, so ignored files never count. Where the checked tree is the staged worktree, the two
-          are one tree and no run diverges
-        - Build `test-first` (one behavior at a time):
-            - under a `--staged` request or the `pre-commit` form, an unstaged edit inside a check's inputs leaves the
-              check running, its result labelled with the difference, and its pass unrecorded
-            - a difference outside its inputs leaves its pass recordable
+    - `[x]` **4.2.b Worktree divergence**
+        - Differing worktree inputs are labelled in JSON and human reports and bypass pass lookup and recording.
+          The comparison uses Git input pathspecs and staged-worktree snapshots, preserving reuse for excluded,
+          ignored, and unrelated files. Unavailable or malformed comparisons refuse with a successful retry path.
 
 ### `[ ]` **4.3 Fixers outside the commit hook — D7**
 
