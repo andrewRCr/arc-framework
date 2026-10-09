@@ -294,32 +294,15 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
   seam. Spawn failures compensate the worktree and branch; primary failures precede marker publication and branch
   allocation. CLI materialization and primary Errand open each establish fresh directory and exclude witnesses.
 
-### `[ ]` **5.4 Decomposition — D4**
+### `[x]` **5.4 Decomposition — D4**
 
 - _Goal:_ A decomposition candidate under full protection has its editor documents, and a failed write refuses with
   a retryable `occupation-failed` whose retry re-enters the candidate and writes them.
 
-- _Note:_ `executeGitV3DecomposeOperation` sits at 95 of the gate's 100 lines per function; both `occupy` hooks call
-  one helper that runs the writer, so neither operation grows.
-
-- **Additional Context:** `notes-schema-introspection-layer.md` § Provisioning-site test inventory, the rows for
-  Task 5.4.
-
-    - The writer runs in both modes' `occupy` hooks (`git-decompose-v3-operation.ts`) once `occupyDecomposeResult`
-      returns `occupied` with `protection: "full"`, which first creation and re-entry both pass; a throw becomes the
-      `occupation-failed` refusal (`prepareV3Operation`). Candidate creation in `git-decompose-v3-operation-io.ts`
-      writes the marker's exclude entry, but re-entry skips it, so the writer does not run there. Partial protection
-      creates no worktree and runs no writer.
-    - The seam rides the operation's dependencies; `repositoryDependencies` in
-      `decompose-v3-repository-plan.test.ts` injects a writer that does nothing.
-    - An e2e assertion checks the candidate's directory and the exclude entry after execute and after extract in
-      `decompose-command-modes.e2e.test.ts`.
-
-    - Build `test-first` (one behavior at a time):
-        - A full-protection candidate has the directory and its exclude entry
-        - An injected writer failure refuses with `occupation-failed`
-        - Retrying the mode after the failure re-enters the candidate and writes its documents
-        - Partial protection writes nothing
+- _Outcome:_ Execute and extract share editor-document provisioning after full-protection occupation, covering both
+  candidate creation and re-entry. Writer failures retain the existing occupation-failed remedy; retry writes documents
+  in the same owned checkout. Partial protection runs no writer, and both CLI modes establish directory and exclude
+  coverage.
 
 ### `[ ]` **5.5 Cold-start scaffold — D4**
 
