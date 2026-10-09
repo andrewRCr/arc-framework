@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import yaml from "js-yaml";
 import { integrateHooks } from "../../src/lib/hook-integration.js";
 import type { HookManagerResult } from "../../src/lib/hook-manager.js";
 
@@ -289,6 +290,49 @@ describe("integrateHooks — pre-commit", () => {
     expect(output).toContain("trailing-whitespace");
   });
 
+  it("generates one commit invocation including deletion-only commits", async () => {
+    const io = makeIO({ "/repo/.pre-commit-config.yaml": "repos: []\n" });
+    await integrateHooks(detection, io.readFile, io.writeFile);
+    const generated = yaml.load(io.written["/repo/.pre-commit-config.yaml"] ?? "") as {
+      default_install_hook_types: string[]; repos: { hooks: Record<string, unknown>[] }[];
+    };
+    const hooks = generated.repos[0]?.hooks;
+    expect(hooks?.find(hook => hook.id === "arc-pre-commit")).toMatchObject({
+      pass_filenames: false, require_serial: true, always_run: true,
+    });
+
+  });
+
+  it("passes the commit message file through the generated entry", async () => {
+    const io = makeIO({ "/repo/.pre-commit-config.yaml": "repos: []\n" });
+    await integrateHooks(detection, io.readFile, io.writeFile);
+    const generated = yaml.load(io.written["/repo/.pre-commit-config.yaml"] ?? "") as {
+      repos: { hooks: Record<string, unknown>[] }[];
+    };
+    expect(generated.repos[0]?.hooks.find(hook => hook.id === "arc-commit-msg")).not.toHaveProperty("files");
+  });
+
+  it("lists all three installable hook event types", async () => {
+    const io = makeIO({ "/repo/.pre-commit-config.yaml": "repos: []\n" });
+    await integrateHooks(detection, io.readFile, io.writeFile);
+    const generated = yaml.load(io.written["/repo/.pre-commit-config.yaml"] ?? "") as {
+      default_install_hook_types: string[];
+    };
+    expect(generated.default_install_hook_types).toEqual(["pre-commit", "commit-msg", "pre-push"]);
+  });
+
+  it("keeps existing hook types and unrelated configuration when completing installation types", async () => {
+    const io = makeIO({ "/repo/.pre-commit-config.yaml": [
+      "default_install_hook_types: [post-checkout, pre-commit]",
+      "default_stages: [pre-push]", "repos: []", "",
+    ].join("\n") });
+    await integrateHooks(detection, io.readFile, io.writeFile);
+    expect(yaml.load(io.written["/repo/.pre-commit-config.yaml"] ?? "")).toMatchObject({
+      default_install_hook_types: ["post-checkout", "pre-commit", "commit-msg", "pre-push"],
+      default_stages: ["pre-push"],
+    });
+  });
+
   it("creates repos list when config has none", async () => {
     const io = makeIO({
       "/repo/.pre-commit-config.yaml": "# minimal config\n",
@@ -354,6 +398,7 @@ describe("integrateHooks — pre-commit", () => {
 
   it("is idempotent — does not duplicate entries on second run", async () => {
     const existing = [
+      "default_install_hook_types: [pre-commit, commit-msg, pre-push]",
       "repos:",
       "  - repo: local",
       "    hooks:",

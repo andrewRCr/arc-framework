@@ -50,17 +50,20 @@ const ARC_PRE_PUSH = posix.join(ARC_GIT_HOOKS_DIR, "pre-push");
  * @param detection - Hook manager detection result (from detectHookManager)
  * @param readFile - File reader (injectable for testing)
  * @param writeFile - File writer (injectable for testing)
+ * @returns Native installation instructions when hook event types changed
  */
 export async function integrateHooks(
   detection: HookManagerResult,
   readFile: ReadFileFn,
   writeFile: WriteFileFn,
-): Promise<void> {
+): Promise<string[]> {
   switch (detection.manager) {
     case "husky":
-      return integrateHusky(detection.configPath, readFile, writeFile);
+      await integrateHusky(detection.configPath, readFile, writeFile);
+      return [];
     case "lefthook":
-      return integrateLefthook(detection.configPath, readFile, writeFile);
+      await integrateLefthook(detection.configPath, readFile, writeFile);
+      return [];
     case "pre-commit":
       return integratePreCommit(detection.configPath, readFile, writeFile);
   }
@@ -254,6 +257,7 @@ interface PreCommitRepo {
 
 interface PreCommitConfig {
   repos?: PreCommitRepo[];
+  default_install_hook_types?: string[];
   [key: string]: unknown;
 }
 
@@ -267,6 +271,9 @@ const ARC_PRE_COMMIT_HOOK: PreCommitHook = {
   language: "unsupported_script",
   stages: ["commit"],
   files: ".",
+  pass_filenames: false,
+  require_serial: true,
+  always_run: true,
 };
 
 const ARC_COMMIT_MSG_HOOK: PreCommitHook = {
@@ -275,7 +282,6 @@ const ARC_COMMIT_MSG_HOOK: PreCommitHook = {
   entry: ARC_COMMIT_MSG,
   language: "unsupported_script",
   stages: ["commit-msg"],
-  files: "^$",
 };
 
 const ARC_PRE_PUSH_HOOK: PreCommitHook = {
@@ -291,7 +297,7 @@ async function integratePreCommit(
   configPath: string,
   readFile: ReadFileFn,
   writeFile: WriteFileFn,
-): Promise<void> {
+): Promise<string[]> {
   const content = await readFile(configPath);
   const config = (yaml.load(content) ?? {}) as PreCommitConfig;
 
@@ -309,7 +315,13 @@ async function integratePreCommit(
     localRepo.hooks = [];
   }
 
-  let changed = false;
+  const previousHookTypes = config.default_install_hook_types ?? ["pre-commit"];
+  const hookTypes = [...previousHookTypes, ...["pre-commit", "commit-msg", "pre-push"]
+    .filter(type => !previousHookTypes.includes(type))];
+  const hookTypesChanged = config.default_install_hook_types === undefined
+    || hookTypes.length !== previousHookTypes.length;
+  if (hookTypesChanged) config.default_install_hook_types = hookTypes;
+  let changed = hookTypesChanged;
 
   if (!localRepo.hooks.some((h) => h.id === "arc-pre-commit")) {
     localRepo.hooks.push(ARC_PRE_COMMIT_HOOK);
@@ -329,4 +341,5 @@ async function integratePreCommit(
   if (changed) {
     await writeFile(configPath, yaml.dump(config, { lineWidth: -1 }));
   }
+  return hookTypesChanged ? ["Run pre-commit install to activate the configured Git hook types."] : [];
 }

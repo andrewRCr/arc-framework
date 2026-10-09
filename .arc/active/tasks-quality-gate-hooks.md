@@ -331,16 +331,10 @@ conclusion selects only conflicted and parent-unmatched paths.
         - Installing the explicit Lefthook pin used an approved one-command release-age exception; npm's user setting
           remains unchanged
 
-    - `[ ]` **5.1.b pre-commit.com's commit entries and hook types**
-        - `ARC_PRE_COMMIT_HOOK` (`hook-integration.ts`) gains `pass_filenames: false`, `require_serial: true`, and
-          `always_run: true`. `ARC_COMMIT_MSG_HOOK` drops `files: "^$"`, which rejects the message file, so
-          pre-commit.com skips the entry on every commit; without it the entry receives `.git/COMMIT_EDITMSG`
-        - `integratePreCommit` lists `commit-msg` and `pre-push` in `default_install_hook_types`, keeping `pre-commit`
-          and any type already listed, since `pre-commit install` installs only the listed types, and tells the person
-          to re-run `pre-commit install` when it changes the list
-        - Build `test-first` (one behavior at a time):
-            - the generated entries carry their fields, and the configuration lists the three hook types
-            - an existing `default_install_hook_types` keeps its entries
+    - `[x]` **5.1.b pre-commit.com's commit entries and hook types**
+        - Generated commit entries run once even without filenames; commit-message entries receive the message file
+        - Installation types include all three ARC events and preserve existing types and unrelated configuration;
+          `init` and `join` report `pre-commit install` when the list changes, with no repeated notice when unchanged
 
     - `[ ]` **5.1.c One dispatch per commit**
         - Each integration installs its hooks as a person does: husky's `prepare`, `lefthook install`, plain

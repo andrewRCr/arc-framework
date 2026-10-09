@@ -55,6 +55,7 @@ export interface JoinOptions {
 
 /** Result from a successful join run. */
 export interface JoinResult {
+  hookSetupMessages?: string[];
   role: "maintainer" | "contributor";
   tools: string[];
   identity: string | null;
@@ -99,7 +100,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   }
 
   // Git integration (hooks path)
-  await configureGitIntegration({
+  const hookSetupMessages = await configureGitIntegration({
     cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });
 
@@ -137,6 +138,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   }
 
   return {
+    ...(hookSetupMessages.length > 0 ? { hookSetupMessages } : {}),
     role: prompts.role,
     tools: prompts.tools,
     identity: identityResult,
@@ -268,6 +270,7 @@ export function buildPostJoinMessage(result: JoinResult): string {
   const lines: string[] = [];
 
   lines.push(`Joined as ${result.role}.`);
+  for (const message of result.hookSetupMessages ?? []) lines.push("", message);
 
   if (result.tools.length > 0) {
     lines.push("");
