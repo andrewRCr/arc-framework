@@ -284,6 +284,9 @@ remote base all name the same exact head. Any tracked change continues through t
    - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
+   Author the PR title as an ordinary Conventional Commits subject (`type(scope): description`); reuse the single
+   commit's subject or describe the dominant change.
+
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
    one-line Summary plus a one-line Test Plan only when verification is non-obvious. When gated local review ran,
    include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
