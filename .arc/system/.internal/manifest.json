@@ -585,7 +585,7 @@
     "system/.internal/skills/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6087de7352f2acdf0e8b89b7389c5970e79f6c1997e506afd722e74c17928ce1"
+      "pristine_hash": "e9f9d535349ee3b73c293e5f48bab57f80d1b51c315cdbabada8bafd3956747e"
     },
     "system/workflows/arc/create-spec.md": {
       "classification": "Framework",
@@ -780,7 +780,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "2550250d9648a2176067c3fe7248310f2e7444846e39ad0f6ea074e48aac2725"
+      "pristine_hash": "1f5f01c1cd8f5a1c2a61b3ec088b7927d536f2607ae0c023ef9f0baa659dae50"
     }
   }
 }

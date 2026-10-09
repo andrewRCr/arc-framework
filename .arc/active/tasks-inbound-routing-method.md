@@ -389,42 +389,27 @@ _Exit criterion:_ A classification-only route-now run over four constructed conc
 home with its `_Shapes:_`, returns `new-stub` with every judgment named for a homeless one, `errand` for an
 Errand-shaped one, and D9's pair with D12's four answers for an unclear one.
 
-### `[ ]` **6.1 Add `arc-inbox`'s route-now mode and the capture's `_Shapes:_` — D2, D7, D10**
+### `[x]` **6.1 Add `arc-inbox`'s route-now mode and the capture's `_Shapes:_` — D2, D7, D10**
 
 - _Goal:_ `arc-inbox` continues into the method's fast-path door when the session holds the commitment and captures
   only when it does not, and builds Work Unit captures whose `WU_Target` is a candidate and which may carry
   `_Shapes:_`.
 
-    - `[ ]` **6.1.a Route now from step 1**
-        - The intro and step 1 no longer say the skill runs only once the call is "capture for later": step 1 asks
-          whether the session holds the commitment, captures when it does not, and otherwise continues into a YAML
-          callsite of `route-discovered-work` with the fast-path door, with a marked fire-point.
-        - The proposal before the route shows the outcome, its `_Shapes:_`, the pair where the result carries one, the
-          horizon advisory of a coupled target that carries one, and any wait the binding names.
-        - Step 1 carries the hand-off, each route as the method's binding section says: `fold` lands in the session's
-          own work unit; an `errand` run now and a now-route outside the session's own work unit go to `arc-errand`;
-          a deferred `errand`, a pre-routed capture, and `capture` continue into steps 3–5, taking the section,
-          `WU_Target`, and `_Shapes:_` from the gate and skipping step 2's classification. `arc-errand`'s direct gate
-          enters the hand-off with the outcome the Owner confirmed there, without running the callsite again.
-        - The method's blockquote `When:` line names `arc-inbox`'s route-now mode as the fast-path door.
+    - `[x]` **6.1.a Route now from step 1**
+        - Committed placement invokes the fast-path gate and confirms its result before binding-owned hand-
+          off; an already-confirmed direct Errand result skips re-gating.
 
-    - `[ ]` **6.1.b Name the route-now mode in the `description`**
-        - The frontmatter `description`, the skill's trigger surface, names the mode so the door is reachable.
-        - The skills README's `arc-inbox` line (`system/.internal/skills/README.md`, package source, synced to the
-          project copy) follows the new `description`.
+    - `[x]` **6.1.b Name the route-now mode in the `description`**
+        - The skill description and README name committed route-now and candidate-home capture.
 
-    - `[ ]` **6.1.c Recast step 2's infra-smell note**
-        - It no longer invites escalating an Errand capture to a Work Unit on a design fork alone, and its second look
-          for design hiding checks the capture against `classify-work-unit` test 1; touching load-bearing
-          infrastructure stays a review-lane signal.
+    - `[x]` **6.1.c Recast step 2's infra-smell note**
+        - A second look applies the canonical record questions; infrastructure remains a review-lane signal.
 
-    - `[ ]` **6.1.d Read `WU_Target` as a candidate in step 3**
-        - The `## Work Unit` shape's `WU_Target` is a candidate the drain's gate checks, not a destination its
-          existence decides; the descriptors gain `_Shapes:_`.
+    - `[x]` **6.1.d Read `WU_Target` as a candidate in step 3**
+        - Work Unit captures carry a candidate target and optional Shapes, validated again at drain.
 
-    - `[ ]` **6.1.e Give no Errand-class capture a home in step 5**
-        - Step 5's "homeless errand-class item — one with no determinable home" becomes every Errand-class item, which
-          has no work-unit home: it captures to `## Errand` and transits to the shared inbox at the next drain.
+    - `[x]` **6.1.e Give no Errand-class capture a home in step 5**
+        - Every Errand capture has no work-unit home and takes the drain’s homeless-atomic route.
 
 ### `[ ]` **6.2 Enter `arc-errand`'s route shape only after the gate — D7, D8**
 
