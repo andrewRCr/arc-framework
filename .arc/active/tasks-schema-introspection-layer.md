@@ -314,10 +314,15 @@ _Design decisions:_ `notes-schema-introspection-layer.md` § Provisioning-site f
   local output. Retrying replaces that output and succeeds; the CLI provisions an existing checkout without an ownership
   marker.
 
-### `[ ]` **5.6 Exercise every provisioning path** — validate exit criterion at segment scope
+### `[x]` **5.6 Exercise every provisioning path** — validate exit criterion at segment scope
 
 - _Goal:_ Phase 5's exit criterion is shown through the built CLI on every provisioning path D4 names, with the
   scenario and its result recorded.
+
+- _Outcome:_ A fresh full build passed CLI witnesses for init, update, join, work-unit spawn, atomic graduation,
+  transient materialization, primary Errand allocation, execute/extract, and cold start. Every path established the
+  directory and clone exclude entry. Injected writer failures rolled back spawn and graduation; both decomposition modes
+  refused with occupation-failed and succeeded on the same candidate after retry.
 
 ## **Phase 6:** Verification
 
