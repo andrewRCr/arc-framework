@@ -15,14 +15,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
 | ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
+| `Planning` | storage-projection              | P1       | andrew | —          | state-storage |
 | `Planning` | storage-seam                    | P1       | andrew | —          | state-storage |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
-| `Planning` | inbound-routing-method          | P2       | andrew | —          | —             |
-| `Planning` | quality-gate-hooks              | P3       | andrew | —          | —             |
+| `Active`   | inbound-routing-method          | P2       | andrew | —          | —             |
+| `Active`   | quality-gate-hooks              | P3       | andrew | —          | —             |
 
 ## Ready
 
@@ -34,7 +35,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
-| storage-projection                  | P1       | andrew | —          | state-storage              |
 | storage-ref-backend                 | P1       | andrew | —          | state-storage              |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
@@ -56,6 +56,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | frictionless-capture                | P2       | andrew | —          | —                          |
 | goal-aware-direction                | P2       | andrew | —          | —                          |
 | graduation-cleanup                  | P2       | andrew | —          | —                          |
+| in-process-cli-harness              | P2       | andrew | —          | —                          |
 | knowledge-architecture              | P2       | andrew | —          | —                          |
 | left-errand-resumption              | P2       | andrew | —          | —                          |
 | operational-advisory-registers      | P2       | andrew | —          | —                          |
@@ -85,7 +86,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
-| errand-promotion-concurrency        | P3       | andrew | —          | —                          |
 | external-coord-probe                | P3       | andrew | —          | —                          |
 | external-pm-composition             | P3       | andrew | —          | —                          |
 | grok-compaction-recovery            | P3       | andrew | —          | —                          |
@@ -125,6 +125,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-observe-attest         | P1       | andrew | storage-cutover           | —                         |
 | wu-lifecycle-state-model        | P1       | andrew | storage-cutover           | —                         |
 | naming-conventions              | P2       | andrew | storage-cutover           | doc-conventions           |
+| errand-promotion-concurrency    | P2       | andrew | storage-cutover           | —                         |
 | framework-core-from-package     | P2       | andrew | storage-cutover           | —                         |
 | ghost-mode                      | P2       | andrew | storage-cutover           | —                         |
 | history-policy                  | P2       | andrew | storage-cutover           | —                         |

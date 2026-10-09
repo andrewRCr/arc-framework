@@ -330,6 +330,50 @@
 - _Fold-in:_ define the proof and terminal collection boundary for safe supersession without converting temporal
   sequence into an ungrounded assumption of coverage.
 
+- _Folded in:_ field evidence from "Add complete-review supersession evidence to review orchestration", routed from
+  `USER-INBOX § Work Unit`, housekeep drain (2026-10-09). Its bounded repair ran as the Errand "Let a later complete
+  clean review supersede earlier coverage decisions" and landed (#798); what follows is the policy evidence that stays
+  here.
+
+    - _Observation:_ PR #790 completed a clean whole-change Codex pass 2 at
+      `e478b13646f6510b62fbfc017a781a7fdc3139da`. Its only subsequent content change was a checked 37-line completion
+      entry at `de63887a56ea7d90b464411ab126499e70c9fa4d`. ARC nevertheless requested applicability authority first for
+      pass 1 at `c40d5bf3c8b68b21b118bf9c547b60768166c44d`. After that approved choice committed as
+      `c07bc68f8563d37da3af3c5cf5b1d44e2fd954a5`, status requested a second choice for pass 2. The second residual
+      contained only the same completion entry and the native record of the first choice. This imposed two attended
+      choices and record commits after one complete clean review, without intervening implementation changes.
+
+    - _Source:_ At runtime source `31af4fd168c64181ffb3249bae21ea5cac8da4d8`, `projectEarlierReviewApplicability`
+      projects every retained producer; `projectHostedReservationDischarge` selects the first stopped applicability
+      among historical complete attempts before selecting applicable terminal coverage. Equivalent-residual batching
+      only combines equal residual classes, so the older implementation residual and newer completion residual surfaced
+      separately. The native carry across each selection's own record commit worked for the first choice.
+
+    - _Direction:_ A later qualifying complete review of the same Candidate and lane should supersede earlier coverage
+      authority. Preserve earlier findings and response or settlement history without requiring separate applicability
+      approval for every superseded producer. Let proved coverage, rather than temporal order alone, establish the
+      supersession; a bounded supplemental review supplies only its covered scope.
+
+    - _Verification boundary:_ Characterize complete-clean pass 2 followed by a completion-only change and a selection
+      record commit; prove the latest review alone supplies the current coverage judgment. Also retain material
+      unresolved findings and fail closed for missing, partial, or mismatched coverage.
+
+    - _Further field evidence (2026-10-03):_ After both applicability choices were recorded and review status was
+      settled, the approved generated-ROADMAP base repair advanced PR #790 to `028fde519411f8feb85170b6f8de6b0a69e0bd3f`
+      against `e418f7c7e40e745ad26a2c4bc42f2ecf63b50f27`. The contribution patch stayed byte-identical apart from ROADMAP;
+      its sole ROADMAP difference from the new base was the WU row's Active-to-Integrating state and table padding.
+      Restoring the exact public boundary after the separate convergence-attestation defect exposed another Owner
+      applicability stop for pass 1, still preceding the complete clean pass 2. ARC reported `interaction`,
+      `judgmentRequired: false`, and only ROADMAP in `paths`, while offering `covered` or `review-required` anyway.
+      Current required CI was green, base movement disjoint, and substantive overlap absent. The new choice remained
+      pending at capture. This is further evidence that superseded coverage authority and machine-classified generated
+      effects expose repeated attended decisions; it does not establish that any additional hosted pass ran.
+
+    - _Coordination:_ The stored record's head movement is already in the state-storage register. This capture concerns
+      which review remains authoritative and how many decisions orchestration exposes, beyond storage placement.
+
+    - _Captured during:_ `spec-reader-standard` integration, PR #790, 2026-10-03.
+
 ### `[ ]` **Let project policy set the review floor for documentation, and let an Owner waive a recommended pass**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
@@ -414,6 +458,144 @@
 - _Approach:_ decide whether the test and the recommendation default sit beside complete-or-incremental coverage.
 
 - _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+### `[ ]` **Make settled singleton integration a short, measurable path to merge**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the buffer entries "Collapse approved review correction into one resumable action", "Prune the
+  interlock, status, discharge, and Candidate surfaces against their live readers", and "Treat stacked review
+  correction as one resumable control loop" — the normal-path budget they settle together.
+
+- _Product assessment:_ An ordinary integration should let the Owner understand what remains and make the meaningful
+  risk and merge decisions. Requiring them to manage retained producers, record persistence, repeated applicability,
+  and publication repair makes the product expensive to use even when the implementation is ready. This is a likely
+  adoption blocker, not merely documentation polish. Assess the successful normal path separately from defects.
+
+- _Additional field evidence (2026-10-05):_ PR #813 retained one clean whole-target hosted Codex review through the
+  Owner's covered selection. Completion text and the managed applicability record still produced two post-review
+  commits/pushes and fresh CI cycles. The final checkpoint then stalled before a verdict in lifecycle reading.
+  Its bounded diagnostic made 5,699 Git calls in 30 seconds. The immediate rescan repair is a separate position-1
+  execute-bound Errand. This session also used the documented manual archive bridge in isolated PR #814 because
+  primary was occupied. Both PRs merged. Preserve the checkpoint failure as unavailable evidence, not clean.
+
+- _Liveness assessment:_ Review waits have bounded calls and attention thresholds, but this checkpoint supplied no
+  progress, deadline or usable cancellation handle. Assess an observable, bounded read/continuation boundary that
+  survives storage cutover; do not duplicate the temporary backend repair or treat a timeout as merge clearance.
+  Separate machine delay from attended decisions. The agent also waited too long before bounding diagnosis and
+  asking for the bridge continuation; that execution mistake compounded the product's opaque wait.
+
+- _Post-mortem:_ Identity-global `postmortems/2026-10-05-artifact-editor-handoff/POST-MORTEM.md` records outcomes,
+  witnessed failures, ownership and avoidable execution costs. Reassess the successful path after storage cutover;
+  branch-carried record commits and the two-PR archive bridge already belong to the storage program.
+
+- _Field evidence:_ PR #790's complete hosted Codex pass 2 returned clean at `e478b13646f6510b62fbfc017a781a7fdc3139da`
+  on 2026-10-04 at 00:56:03 UTC. The approved final head `ce04ece722980873628ca26e94624b4a5fcd91b7` merged at
+  02:32:53 UTC, 96 minutes 50 seconds later. The six subsequent first-parent commits comprised completion content,
+  two applicability records, one base merge, convergence evidence, and a publication record; the nine reviewed
+  implementation sources and their projections remained unchanged. That elapsed interval includes diagnosis,
+  discussion, and Owner response time and is not an estimate of wholly avoidable ceremony. Native review completion,
+  immutable targets, explicit dispositions, required checks, and exact-head merge authority remain valuable.
+
+- _Structural cost:_ The shipped integration workflow settles hosted review before composing completion content,
+  then pushes a different target and resolves applicability. Its final checkpoint is also the first permitted base
+  mutation point. These are deliberate sequencing rules, not symptoms of the three queued defects. They add late
+  residuals and serial waits. Separate status, attestation, publication, persistence, push, reconciliation, and
+  checkpoint calls expose machine bookkeeping to the executing agent; the session compounded that cost by turning
+  too much bookkeeping into separate conversations with the Owner.
+
+- _Design direction:_ Audit every attended stop and every mandatory reread, write, review, and check against the new
+  fact or authority it supplies. Assemble predictable completion content before the last necessary complete review,
+  or establish proportionate residual coverage without repeating the complete pass. Observe base feasibility early
+  enough to avoid predictable late churn without imposing a base-refresh requirement for admitted disjoint movement.
+  Carry the selected review source, proved applicable evidence, and prior Owner judgments forward automatically.
+  Let one resumable typed operation compose determinate transitions and emit only the next genuine judgment or final
+  exact-head approval. Keep agent-checkable residuals with the agent; reserve Owner stops for material risk, scope,
+  spend, or authorization. Decide any required authority change explicitly rather than inferring a clean result.
+
+- _Normal-path acceptance:_ Characterize a settled singleton, a completion-only residual, an operational-record
+  write, an admitted disjoint base advance, a substantive residual, and an interrupted continuation. The settled path
+  reaches one final exact-head merge approval without repeating settled coverage or provider choices. Neutral writes
+  create no new implementation review obligation. Reuse checks only when their covered inputs are proved unchanged;
+  materially changed inputs and actual host requirements still require current evidence. Show retained review,
+  remaining obligation, reason, and executable continuation in one concise status surface. Deliberate re-entry remains
+  available and explicit; bookkeeping cannot implicitly undo completed lifecycle progress.
+
+- _Measurement:_ Record review-complete-to-merge elapsed time, machine processing and wait time separately from Owner
+  response time, attended decisions by authority, repeated host reads, post-review head changes, full versus residual
+  review passes, and checks repeated over equivalent inputs. Establish the baseline on representative successful
+  singleton integrations, then set and verify an overhead budget before declaring orchestration right-sized. Do not
+  treat fewer CLI calls alone as success if their latency or attention cost remains.
+
+- _Coordination:_ Fold into this draft's existing correction-loop and surface-pruning concerns. The three execute-bound
+  Errands named at capture — convergence regression, complete-review supersession, and retained source selection — have
+  since landed (#797, #798, #799, #815); build on their results. `state-storage` owns branch-carried records, ceremony
+  commits, and the manual two-PR archive bridge. Its cutover removes those costs but does not by itself settle evidence
+  policy, decision routing, or the normal-path experience. Discoverable request schemas remain with
+  `review-request-contracts`; durable Owner termini with `review-source-authority`; general procedure composition
+  follows `strategy-procedure-evolution.md`. Evaluate this experience as part of the existing review-domain exit,
+  without silently reprioritizing or launching the held work units.
+
+- _Captured during:_ `spec-reader-standard` after PR #790 merged, before archival, 2026-10-03; requested integration
+  UX/DX and wall-clock assessment. Hosted clean result: PR #790 issue comment 5975175841; merge `dffe40fb5ec28d5e213c29d3bb83b8c0279154d7`.
+
+### `[ ]` **Make `arc review resolve` and hosted admission recognize a carried Errand review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the review driver's preceding-producer authority on a carried Errand head, beside the buffer entry
+  "Treat stacked review correction as one resumable control loop"; co-designed with
+  `review-source-authority`'s "Let an explicit Owner merge authorization bind a later head the tooling proves
+  carries no unseen change".
+
+- _Observation:_ `arc review status` now reports a settled earlier Errand review as carried onto a head that
+  mechanically reapplies it over a base merge with no overlapping base movement, and `run-errand` reads status after
+  a reconcile before resolving review. The review driver and hosted admission still see only current-head attempts,
+  so on a carried head `arc review resolve -` returns `ready / hosted-request`, and admission accepts an ordinary next
+  pass without the additional-pass authorization a settled same-head lane requires.
+
+- _Why not a guard:_ an additional-pass authorization cannot validate on a carried head —
+  `invalidAdditionalPassReason` requires the preceding producer to be the last current-head attempt, which a carried
+  head lacks — so refusing admission unless authorized would leave no route to an Owner-requested pass.
+
+- _Approach:_ let the driver accept a carried terminal result, bound to its own head and the carry proof, as the
+  preceding producer, without relabeling it as a review of the new head. Status, resolve, and admission would then
+  agree on one carried state, and an additional-pass authorization could validate against it. This is a new
+  authority contract, hence a work unit rather than an Errand.
+
+- _Captured during:_ the "Carry Errand review evidence across an approved base reconciliation" Errand, 2026-10-05.
+
+### `[ ]` **Let an incremental review drop correction obligations a later pass independently validated**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the decision beside complete-or-incremental coverage that its buffer entry "Decide whether code-review
+  lanes' next-pass recommendation adopts the re-inspection test" names: what a pass's coverage must re-carry, and on
+  what evidence an earlier obligation is discharged.
+
+- _Observation:_ every incremental correction scope re-instructs the material findings of every earlier pass back to
+  the complete root. In `test-suite-reliability` pass 6 that was ten finding pairs, though an incremental pass at
+  `77ce8fb35` had already re-examined the earlier corrections. The carry is enforced in code: in
+  `scripts/review-gate/policy/incremental-coverage-basis.ts`, `buildIncrementalCorrectionScope` unions inherited and
+  new findings, and `resolveCoverageChain` refuses any scope that omits one (`material-finding-omitted`). That
+  safeguard is what keeps an unreviewed fix from disappearing behind a later commit.
+
+- _Design needed:_
+    - **What proves a correction was independently validated.** Review results record no per-finding verdict on the
+      findings a pass was told to re-examine. Reading "not raised again" as validation would be new policy on the gate's
+      integrity path; recording a verdict would add a record field.
+    - **When a later change affects an earlier correction**, which keeps that obligation live (path overlap with the
+      finding's locus, or something stronger).
+    - **How the chain validator accepts the reduction** while still proving every obligation was discharged once.
+
+- _Storage note:_ a new result field is a record shape, which the `state-storage` cohort's pull-forward filter
+  excludes before the seam; that is why this half was not run as an Errand. It waits with this work unit.
+
+- _Origin:_ split from the `USER-INBOX § Errand` capture "Advance incremental review scope after independently
+  validated corrections", whose range half (reviewing only from the predecessor head) runs as an Errand. Scoped
+  2026-10-07 against `main` @ `2feb6b727`.
+
+- _Captured during:_ scoping that Errand, 2026-10-07.
 
 ---
 

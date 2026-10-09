@@ -1,14 +1,14 @@
-# Metadata: errand-promotion-concurrency
+# Metadata: lifecycle-verb-e2e-guards
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-errand-promotion-concurrency.md`
+- **Design:** `draft-lifecycle-verb-e2e-guards.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

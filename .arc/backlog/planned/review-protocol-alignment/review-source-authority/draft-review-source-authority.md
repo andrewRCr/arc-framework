@@ -175,6 +175,122 @@
   requires it; only an authoritative safe failure should advance to the next configured source. Cover the mixed
   hosted-plus-local pre-PR case, not only hosted-only configurations.
 
+### `[ ]` **Let a hosted review source go on a cooldown that expires on its own**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Operator Selection Override and § Provider-owned Capabilities: source eligibility, which a cooldown
+  joins as one more reason a source is ineligible.
+
+- _Observation:_ to stop CodeRabbit from being used during a rate-limit hold, the Owner currently has to remember to
+  skip it or force another source on every review call. The alternative, reordering the configured source array,
+  pulls the wrong lever: order states a lasting preference, and a cooldown is a temporary loss of availability.
+  Changing preference to express availability leaves an undo to remember, and in tracked project config it also
+  costs commits. ARC only reacts at the moment a limit hits. A `rate-limited` or `transient-unavailable` outcome
+  makes the driver try the next source without using up a pass, and `3ba8ba34c` (#788) recognizes CodeRabbit's
+  rate-limit replies. Nothing remembers the limit, so every new request tries the limited source first again and
+  pays for that round trip, or for hitting the limit again.
+
+- _Approach:_ make a cooldown one more reason a source is ineligible, not a new routing concept. Design points:
+    - **A record with an absolute end time:** `{ quota, until, reason, setBy }`. Readers ignore expired records, so
+      the cooldown ends on its own and nothing has to clean it up.
+    - **Two ways to set one:**
+        - The Owner declares it, for example `arc review source cooldown <source> --for 72h`, with a configurable
+          default of about 24h.
+        - ARC sets it when it observes a rate limit. It uses the provider's reset hint when there is one (HTTP
+          `Retry-After`, or CodeRabbit's "wait N minutes"), and a short default of about 1h otherwise.
+    - **Key it on the quota, not the source:** `coderabbit-cli` and `coderabbit-pr` likely draw on one account
+      limit. Each source would declare a quota group, defaulting to its own ID.
+    - **Scope follows whose quota it is:**
+        - A personal seat gets a personal cooldown, stored beside the developer source preferences in
+          `lane-policy-config`.
+        - An organization plan gets a cooldown shared across the project. That is operational state, so it belongs
+          in the storage contract's refs, not tracked config. Only the default durations belong in config.
+    - **Always visible:** resolve and status output name the skipped source, its end time and who set it, through
+      the driver's existing `ineligibleSources`. The integration interlock surfaces any active cooldown.
+    - **Overrides and edge cases:**
+        - `invocation: { mode: "force" }` overrides a cooldown.
+        - If every source is cooling down, review is not skipped: ARC returns a typed stop that names the earliest
+          end time and offers to force a source or wait.
+        - A skipped source uses up no pass, the same as `rate-limited` today.
+        - A `clear` verb ends a cooldown early.
+    - **Open question:** whether repeated limits should lengthen the cooldown, as Envoy's outlier ejection does.
+      Leave that out of a first version.
+
+- _Precedent:_
+    - LiteLLM's router is the closest match. After `allowed_fails` it cools a deployment down for `cooldown_time`,
+      falls back to the others, and recovers on its own.
+    - Circuit breakers follow the same open-wait-reopen pattern: resilience4j (`waitDurationInOpenState`) and Envoy
+      outlier detection (`base_ejection_time`, which lengthens on repeat).
+    - HTTP 429 with `Retry-After` is the standard provider reset hint.
+    - Datadog downtimes, PagerDuty maintenance windows and Slack snooze are expiring snoozes of the
+      "set once, it falls off" kind.
+
+- _Priority:_ not near-term. The Owner wants it captured fully as a Work Unit, since scope, storage placement and
+  quota grouping all need design.
+
+- _Captured during:_ the "Carry Errand review evidence across an approved base reconciliation" Errand, after a
+  CodeRabbit pass ran during the Owner's rate-limit hold, 2026-10-05.
+
+### `[ ]` **Stop CodeRabbit's next format change from failing a whole hosted review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Provider-owned Capabilities: what a provider's unclassified result does to the pass and to fallback;
+  the capture names `review-adapter-extensibility` as the other candidate home.
+
+- _Observation:_ a CodeRabbit review body the parser cannot classify ends the whole pass as `terminal-failure / stop`
+  (`scripts/review-gate/hosted/coderabbit.ts`, the `parseCodeRabbitReviewBody` and dedup arms), so one format change
+  disables every CodeRabbit standard pass until a parser fix lands. Five such fixes have landed since 2026-09-28; the
+  bold-badge one ran as the Errand this was split from.
+
+- _Design needed:_
+    - **The recoverable outcome.** `malformed` already exists in `ReviewAttemptOutcomeSchema`, but the hosted adapter
+      returns `terminal-failure` for body-parse refusals and the workflows stop on both. Decide whether an
+      unclassified provider result is retryable, whether it consumes the pass, and what the typed stop names (the
+      unparsed item and its locus) so the Owner can choose a retry or another source.
+    - **The integrity rule for fallback.** The provider did review, and its unclassified item is still on the pull
+      request. Moving to another source must not drop it or read the review as clean, so fallback needs a rule for
+      what happens to that item.
+    - **A more structured surface.** Whether to read each finding's locus and severity from the inline review
+      comments API or the "Prompt for AI Agents" blocks rather than the decorated badge line, and what that costs for
+      body-only (nitpick and outside-diff) findings, which have no inline comment.
+
+- _Folded in (same-head retry):_ from the `USER-INBOX § Errand` capture "Give a hosted review pass that fails
+  terminally an Owner-authorized retry". Errand `hosted-terminal-failure-admission` landed only its cross-head half: a
+  terminal failure no longer holds the pass at a later head, and at its own head the refusal reads `terminal-failure`
+  and names the failed attempt. What remains belongs to the recoverable-outcome item above:
+    - **Same source, same head** (the case after upgrading ARC for a parser fix): the retry's admission identity is a
+      digest over `HostedAdmissionPreimageSchema`, which is stored as the attempt's `hosted.admission`, so identical
+      inputs replay the failure. `LaneAttempt.retryGeneration` exists but isn't in the preimage; adding it there is a
+      record shape, which the pull-forward filter excludes.
+    - **Another source, same head:** the driver stops on `terminal-failure` by design (`isSafeUnavailable`,
+      `review-policy-driver.ts`), so falling through is a policy decision.
+    - **No Owner route:** the Owner-directed review stop needs one completed pass, so a pass-1 failure with no head
+      movement still has no way forward.
+    - **Precedents:** local retry generations (`lane-progress-local-retry.ts`, automatic, same source and scope) and
+      frontline's Owner-decided `retryOfOperationId`.
+    - **Orphaned review:** after a pass at a later head, the failed provider's review at the earlier head is still on
+      the pull request; the fallback-integrity item above covers it.
+
+- _Deferred finding:_ CodeRabbit pass 2 on PR #835 (thread `PRRT_kwDOP8ODB86qWi_Z`, minor): `finding()` grades an
+  inline thread from `severity(comment.body)` over the whole comment, so a grade shown in inline code or a fence
+  ahead of the real badge would win. Live inline comments put the badge line first, so it has not occurred. Read an
+  inline finding's grade only from its leading badge line, never from code spans or fences, as part of the
+  structured-surface item above.
+
+- _Storage note:_ a persisted attempt carrying the unparsed item, or a new outcome kind, is a record shape, which the
+  `state-storage` cohort's pull-forward filter excludes before the seam.
+
+- _Observation:_ candidate homes: `review-source-authority` owns provider capabilities and source selection;
+  `review-adapter-extensibility` owns the adapter registration contract. Neither currently names parse-failure
+  recovery.
+
+- _Origin:_ split from the `USER-INBOX § Errand` capture "Parse CodeRabbit's bold finding badges, and stop its next
+  format change from failing a whole review", whose bold-badge half runs as Errand `coderabbit-bold-badges`.
+
+- _Captured during:_ that Errand, 2026-10-07.
+
 ---
 
 ### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**

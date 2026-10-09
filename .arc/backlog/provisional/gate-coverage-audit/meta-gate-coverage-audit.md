@@ -1,14 +1,14 @@
-# Metadata: errand-promotion-concurrency
+# Metadata: gate-coverage-audit
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `quality-gate-hooks`
 
 - **Origin:** [internal]
-- **Design:** `draft-errand-promotion-concurrency.md`
+- **Design:** `draft-gate-coverage-audit.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

@@ -301,6 +301,32 @@
 
 - _Captured during:_ the `register-review-request-schemas` errand, 2026-09-18.
 
+### `[ ]` **Settle the review family's `--schema` flags against `arc schema get`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its D4.2 per-verb `--schema`, and its inbound-buffer entries "Narrow public review schema discovery to the
+  requested command" and "Make review request shapes discoverable and their projections derivable".
+
+- _Observation:_ `schema-introspection-layer` ships `arc schema get <id>` over `createProductionSchemaRegistry()`,
+  returning one self-contained document (`$defs` only, `$id` `urn:arc:schema:<id>`) projected on the input side for
+  roots registered `authored: "request"`. It marks all fifteen `REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS` roots `request`, and
+  changes `handleReviewRequestSchema` to compose the production registry and return that one document, keeping
+  `{rootId, schemas}` with a URN `rootId`. The projection fix ends the multi-megabyte closures. This work unit's
+  identity convention derives fourteen of the fifteen ids from the command path; the exception,
+  `review changeset resolve` → `review-chunking-resolve-request`, means callers cannot rely on derivation alone.
+
+- _Approach (lean):_ retire the per-verb flags for `arc schema get`, with each verb's `--help` naming its id; keeping
+  them means thin wrappers over `schema-introspection-layer`'s shared lookup. The decision is this work unit's.
+
+- _Also (decided at `schema-introspection-layer`'s create-spec, 2026-10-07):_ the build stops generating and shipping
+  `dist/schemas/kernel.json`, and `arc schema` becomes the registry's publication surface. This draft's D4.1 rests on
+  "a review-domain JSON Schema bundle already ships" (the `onSuccess` hook in `tsup.config.ts`); that work unit has
+  since shipped, so the premise no longer holds: registering the request schemas publishes them through
+  `arc schema get`, not a packaged bundle.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

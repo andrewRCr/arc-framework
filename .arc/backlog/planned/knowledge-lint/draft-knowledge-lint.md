@@ -126,6 +126,48 @@
   source grounding": its convention owner is `grounded-planning-review`, and the mechanically decidable rule is
   resolution of named symbols. Preserve the semantic absence check with the author-run grounding method.
 
+### `[ ]` **Resolve inbound `§` citations against real headings**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Design > Mechanical tier, family 1 "Cross-references", beside its anchor validation for `file.md#section`;
+  and § Open questions, "Per-family gate wiring".
+
+- _Observation:_ nothing validates inbound `§` citations; `lint:arc:section-refs` enforces the opposite rule (no `§` in
+  code). About 45 citation sites across workflows, methods, and strategies (counted 2026-07-28) orphan silently when a
+  heading is renamed. Forks: file-qualified versus bare same-file citations, the package and `.arc/` copies, and `§`
+  in incidental prose.
+
+- _Approach:_ a check in family 1, possibly renaming `lint:arc:section-refs` to tell the two apart. On gate wiring:
+  `quality-gate-hooks`' check declaration gives each family its own inputs and gate, and its verb dispatches `arc lint`
+  like any declared check.
+
+- _Observation (routing):_ this entry and the next were routed to `quality-gate-hooks` at earlier drains although its
+  Out of scope already handed knowledge-base content checks here.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `judgment-authority-model`
+  create-spec, adversarial pass two).
+
+### `[ ]` **Resolve cross-file Markdown anchors in the section-reference audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Design > Mechanical tier, family 1's "anchor validation for `file.md#section`", and the stable-anchor
+  grammar it adopts from `composable-workflows`.
+
+- _Overlap:_ largely the anchor validation family 1 already names; what this adds is its edge cases. The
+  `USER-INBOX § Errand` capture "Check relative Markdown links over the installed layout, and refuse them in
+  movable artifacts" covers the same anchors for `validate-links.sh`.
+
+- _Observation:_ per the original capture, `lint:arc:section-refs` passes a `file.md#anchor` link whose heading does
+  not exist — the silent break produced when procedure moves across the workflow/CLI seam.
+
+- _Approach:_ resolve cross-file targets against the referenced file's headings; settle slug rules and generated or
+  conditional sections before failing closed, together with the `§` citation checker above.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `judgment-authority-model`
+  Task 4.3).
+
 ---
 
 ## Problem / Motivation

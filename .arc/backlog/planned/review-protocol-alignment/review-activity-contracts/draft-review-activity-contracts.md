@@ -459,6 +459,29 @@
 
 - _Captured during:_ the `delivery-entry-input-shape` errand, 2026-09-18.
 
+- _Folded in:_ "Decide whether a small fix to a non-material finding should cost a full review", routed from `USER-INBOX
+  § Work Unit`, housekeep drain (2026-10-09). The Errand capture "Show at the disposition gate that fixing a finding
+  moves the head and costs a review pass" waits on this decision.
+
+    - _Observation:_ `evidence-applicability` scales verification with the approved fix scope (`targeted` carries,
+      `focused` gets a supplemental check, `full` gets fresh verification), but D3 rule 2 makes review clearance over any
+      `approved-fix` `fresh`. So even a targeted one-line fix of a confirmed minor requires another review pass at the new
+      head. `review-signal-convergence` softens this only through an incremental correction pass over the fix range
+      (§ 5), and Errands can't request one, so on PR #836 a 20-line minor fix cost a complete CodeRabbit pass.
+
+    - _Design needed:_ whether a fix approved for a non-material finding at `targeted` (or `focused`) scope should carry
+      review clearance, be limited to its own diff, or keep requiring a fresh pass; how that interacts with convergence's
+      "a confirmed minor never buys a pass" (§ 3), its `changed-target` reroute (§ 7), and the rule that only actual
+      review establishes coverage (§ 5); and what evidence a carried clearance would need so the agent never clears its
+      own fix.
+
+    - _Observation:_ an Owner-level design question, not an implementation defect: both shipped designs require the
+      post-fix review as written. The defect parts are captured separately (Errand incremental route; disposition-gate
+      pass cost).
+
+    - _Captured during:_ the review of PR #836 against `review-signal-convergence` and `evidence-applicability`,
+      2026-10-08.
+
 ### `[ ]` **Stop letting an omitted activity flag silently deactivate a configured review lane**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
