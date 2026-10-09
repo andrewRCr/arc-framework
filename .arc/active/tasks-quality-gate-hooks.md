@@ -323,16 +323,13 @@ conclusion selects only conflicted and parent-unmatched paths.
   `integration/markdown-staged-hook.test.ts`) run ARC's hooks directly or through `.husky/pre-commit`, never under
   lefthook or pre-commit.com.
 
-    - `[ ]` **5.1.a Provision the hook managers for the E2E tier**
-        - The hook-manager tests commit and push through each manager into the built CLI, so they are E2E tests
-          (`strategy-testing-methodology.md` § E2E) beside the existing real-hook ones, and `npm test` needs no Python
-        - lefthook as a pinned `devDependency` of `packages/arc-framework` at v2.2.1 or later, with `"lefthook": false`
-          in the root `allowScripts`. Its `postinstall` runs `lefthook install` in the installing repository outside
-          CI, and npm only warns about an unlisted install script by default, so it would install lefthook's hooks over
-          husky's; its binaries come from its platform packages, so the tests lose nothing
-        - pre-commit.com at v4.4.0 or later (`unsupported_script` needs it), pinned through `pip` into a cached virtual
-          environment the E2E global setup prepares; CI's E2E jobs gain a Python setup step (Task 7.6.b)
-        - An unavailable tool fails its test with a provisioning message rather than skipping it
+    - `[x]` **5.1.a Provision the hook managers for the E2E tier**
+        - Pinned Lefthook 2.2.1 with its postinstall disabled; E2E setup provides verified executables and prepares
+          pre-commit 4.4.0 in a locked, interpreter-keyed cached virtual environment, repairing incomplete installs
+        - Provisioning refusals name the tool and remedy; synthetic runtime fixtures inject the tool process boundary
+          and copy setup dependencies, keeping Python out of the routine lane
+        - Installing the explicit Lefthook pin used an approved one-command release-age exception; npm's user setting
+          remains unchanged
 
     - `[ ]` **5.1.b pre-commit.com's commit entries and hook types**
         - `ARC_PRE_COMMIT_HOOK` (`hook-integration.ts`) gains `pass_filenames: false`, `require_serial: true`, and
