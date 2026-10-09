@@ -56,6 +56,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | frictionless-capture                | P2       | andrew | —          | —                          |
 | goal-aware-direction                | P2       | andrew | —          | —                          |
 | graduation-cleanup                  | P2       | andrew | —          | —                          |
+| in-process-cli-harness              | P2       | andrew | —          | —                          |
 | knowledge-architecture              | P2       | andrew | —          | —                          |
 | left-errand-resumption              | P2       | andrew | —          | —                          |
 | operational-advisory-registers      | P2       | andrew | —          | —                          |
