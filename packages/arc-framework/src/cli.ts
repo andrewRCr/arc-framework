@@ -88,7 +88,7 @@ import type {
   ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import type { StatusCliOptions } from "./handlers/status.js";
-import type { SchemaListOptions } from "./handlers/schema.js";
+import type { SchemaListOptions, SchemaInstallOptions } from "./handlers/schema.js";
 import type { LocusCliOptions } from "./handlers/locus.js";
 import type { ViewCliOptions } from "./handlers/view.js";
 import type { RecoverAuditOptions } from "./handlers/recover.js";
@@ -1299,6 +1299,16 @@ schemaCmd.command("list")
     { machineReadable: (opts) => opts.json === true },
     async (context, opts: SchemaListOptions) => {
       (await import("./handlers/schema.js")).handleSchemaList(opts, context);
+    },
+  ));
+
+schemaCmd.command("install")
+  .description("Refresh editor documents for the current checkout")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: SchemaInstallOptions) => {
+      await (await import("./handlers/schema.js")).handleSchemaInstall(opts, context);
     },
   ));
 

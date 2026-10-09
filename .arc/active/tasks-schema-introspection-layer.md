@@ -227,48 +227,23 @@ refusal exits 1 with its typed envelope.
   supplying YAML modelines or JSON schema values. It classifies unmarked identities before file types and returns a
   separate unsupported-file result for marked contracts.
 
-### `[ ]` **4.3 Produce typed `install` results — D2, D4**
+### `[x]` **4.3 Produce typed `install` results — D2, D4**
 
 - _Goal:_ `install` runs the writer for the current checkout and reports the written paths, or refuses with a typed
   envelope and exit 1 when it is outside a project or cannot write.
 
-- _Note:_ `command-surface-documentation.test.ts` fails on the remedy's backticked `arc schema install` until Task 4.4
-  registers the subcommand; Tasks 4.3 and 4.4 close as one review increment.
+- _Outcome:_ Install validates its success and closed three-reason refusal envelopes before emission. It resolves the
+  project without a human JSON prefix, reports precise document or exclude failures with repair-and-rerun guidance,
+  prints canonical plain diagnostics, and lets projection defects propagate.
 
-    - `schema-install-envelope` joins the other result schemas in `lib/schema-command/envelope.ts` and
-      `registerSchemaCommandSchemas`, and `schema-refusal-envelope` admits `arc-project-root-unresolved` and
-      `editor-documents-unwritable`, closing its set at three. `PRODUCTION_SCHEMA_IDS` gains the new envelope.
-    - The project root resolves through `resolveArcRoot` (`lib/paths.ts`), not `requireArcProjectRoot`
-      (`handlers/shared.ts`), which logs a human-readable line ahead of any JSON; outside a project, plain output prints
-      `ARC_PROJECT_ROOT_ERROR`.
-    - A writer failure maps to `{status: "refused", reason: "editor-documents-unwritable", target, path, detail,
-      remedy}`, whose remedy says to correct the reported cause and rerun `arc schema install`; plain output prints
-      `detail` and the remedy. The refusal carries `path` only when the writer's failure does, so
-      `schema-refusal-envelope` declares it optional.
-    - Success emits the writer's checkout-relative paths: `{status: "ok", documents: [path]}` with `--json`, and one
-      path per line otherwise.
-
-    - Build `test-first` (one behavior at a time):
-        - `install` in a project returns the written document paths
-        - `install --json` outside a project emits only the `arc-project-root-unresolved` refusal, exit 1
-        - A `documents` failure and an `exclude` failure each refuse with `editor-documents-unwritable`, their
-          target, and exit 1
-        - `install` in an ARC project that is not a Git checkout refuses with an `exclude` failure and no `path`, and
-          the refusal validates against `schema-refusal-envelope`
-        - Every result `install` emits validates against its registered envelope
-
-### `[ ]` **4.4 Wire and document `arc schema install` — D2, D5**
+### `[x]` **4.4 Wire and document `arc schema install` — D2, D5**
 
 - _Goal:_ `arc schema install` runs from the built CLI, and the command reference names it as the refresh for a
   checkout's editor documents.
 
-    - `cli.ts` gains the subcommand, its action running through `withInteractionContext`, machine-readable under
-      `--json`; `COMMAND_SUMMARIES` gains `schema install`.
-    - `handlers/schema.ts` adds a `CommandInputRegistration` for `install`'s `--json` field and a machine-mode
-      `--json` policy declaration, which `src/command-input-registrations.ts` already collects.
-    - QUICK-REFERENCE § ARC CLI Commands, both copies, names `arc schema install` as the refresh after a CLI upgrade
-      or in a checkout provisioned before it existed.
-    - An e2e test runs `install` in a project checkout and `install --json` outside a project against the built CLI.
+- _Outcome:_ The lazy-loaded install command reconciles help, input registration, and machine-mode policy. Both on-
+  demand references name the refresh command. Built-CLI coverage proves existing-checkout installation, typed outside-
+  project and non-Git refusals, and successful retries after document or exclude repair.
 
 ### `[ ]` **4.5 Exercise `arc schema install` in an existing checkout** — validate exit criterion at segment scope
 

@@ -15,9 +15,20 @@ export const SchemaListEnvelopeSchema = z.strictObject({
 export const SchemaGetEnvelopeSchema = z.strictObject({
   status: z.literal("ok"), ...SchemaDescriptorSchema.shape, schema: z.record(z.string(), z.unknown()),
 });
-export const SchemaRefusalEnvelopeSchema = z.strictObject({
-  status: z.literal("refused"), reason: z.literal("unknown-schema-id"), id: z.string(), remedy: z.literal("arc schema list"),
+export const SchemaInstallEnvelopeSchema = z.strictObject({
+  status: z.literal("ok"), documents: z.array(z.string().min(1)),
 });
+export const SchemaRefusalEnvelopeSchema = z.discriminatedUnion("reason", [
+  z.strictObject({
+    status: z.literal("refused"), reason: z.literal("unknown-schema-id"), id: z.string(), remedy: z.literal("arc schema list"),
+  }),
+  z.strictObject({ status: z.literal("refused"), reason: z.literal("arc-project-root-unresolved") }),
+  z.strictObject({
+    status: z.literal("refused"), reason: z.literal("editor-documents-unwritable"),
+    target: z.enum(["documents", "exclude"]), path: z.string().min(1).optional(),
+    detail: z.string(), remedy: z.string().min(1),
+  }),
+]);
 
 /**
  * Register discovery result contracts.
@@ -28,6 +39,7 @@ export function registerSchemaCommandSchemas(registry: KernelRegistry): KernelRe
   for (const [id, schema] of [
     ["schema-list-envelope", SchemaListEnvelopeSchema],
     ["schema-get-envelope", SchemaGetEnvelopeSchema],
+    ["schema-install-envelope", SchemaInstallEnvelopeSchema],
     ["schema-refusal-envelope", SchemaRefusalEnvelopeSchema],
   ] as const) registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });
   return registry;

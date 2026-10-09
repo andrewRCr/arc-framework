@@ -125,6 +125,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "extensions status": "Show extension state and orphaned references",
   "schema": "Discover registered ARC contracts",
   "schema list": "List registered contract identities and metadata",
+  "schema install": "Refresh checkout editor documents",
   "schema get": "Emit one registered contract as JSON",
   "config": "Inspect ARC configuration",
   "config status": "Show ARC configuration settings",

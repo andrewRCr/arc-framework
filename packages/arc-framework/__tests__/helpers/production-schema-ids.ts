@@ -127,6 +127,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "review-target-id-preimage",
   "review-terminus-accept-request",
   "schema-get-envelope",
+  "schema-install-envelope",
   "schema-list-envelope",
   "schema-refusal-envelope",
   "session-init-envelope",

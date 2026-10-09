@@ -36,3 +36,26 @@ describe("schema command envelopes", () => {
     }
   });
 });
+
+// Installation shares the command family's closed result contract.
+describe("schema installation envelopes", () => {
+  it("validates installation paths and rejects non-path values", async () => {
+    const { SchemaInstallEnvelopeSchema } = await import("../../../src/lib/schema-command/envelope.js");
+    expect(SchemaInstallEnvelopeSchema.safeParse({ status: "ok", documents: [] }).success).toBe(true);
+    expect(SchemaInstallEnvelopeSchema.safeParse({ status: "ok", documents: [1] }).success).toBe(false);
+  });
+
+  it("admits exactly the additional project and write refusals", () => {
+    expect(SchemaRefusalEnvelopeSchema.safeParse({ status: "refused", reason: "arc-project-root-unresolved" }).success).toBe(true);
+    expect(SchemaRefusalEnvelopeSchema.safeParse({ status: "refused", reason: "editor-documents-unwritable",
+      target: "exclude", detail: "Git unavailable", remedy: "Correct Git access and rerun arc schema install." }).success).toBe(true);
+    expect(SchemaRefusalEnvelopeSchema.safeParse({ status: "refused", reason: "editor-documents-unwritable",
+      target: "invented", detail: "denied", remedy: "retry" }).success).toBe(false);
+  });
+
+  it("registers the installation result with the production contracts", async () => {
+    const { SchemaInstallEnvelopeSchema } = await import("../../../src/lib/schema-command/envelope.js");
+    const registry = registerSchemaCommandSchemas(createKernelRegistry());
+    expect(registry.get("schema-install-envelope")).toBe(SchemaInstallEnvelopeSchema);
+  });
+});

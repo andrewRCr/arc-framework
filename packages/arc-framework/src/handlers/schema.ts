@@ -5,9 +5,15 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { SlugSchema, type KernelRegistry, type KernelSchemaMeta } from "../lib/kernel/index.js";
 import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
+import { createGitExec } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocuments, type EditorDocumentsResult,
+} from "../lib/schema-command/editor-documents.js";
+import { ARC_PROJECT_ROOT_ERROR } from "./shared.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import {
-  SchemaGetEnvelopeSchema, SchemaListEnvelopeSchema, SchemaRefusalEnvelopeSchema,
+  SchemaGetEnvelopeSchema, SchemaListEnvelopeSchema, SchemaRefusalEnvelopeSchema, SchemaInstallEnvelopeSchema,
 } from "../lib/schema-command/envelope.js";
 import { createProductionSchemaRegistry } from "../production-schema-registry.js";
 
@@ -19,22 +25,24 @@ export interface SchemaHandlerDependencies {
 }
 
 export const SchemaListCommandInputSchema = z.strictObject({ json: z.boolean().optional() });
+export const SchemaInstallCommandInputSchema = z.strictObject({ json: z.boolean().optional() });
 export const SchemaGetCommandInputSchema = z.strictObject({ id: z.string() });
 
 /** Command-owned syntax registrations for contract discovery. */
 export const schemaCommandInputRegistrations = [
   { commandPath: "schema list", schema: SchemaListCommandInputSchema, schemaFields: { "option.json": "json" } },
+  { commandPath: "schema install", schema: SchemaInstallCommandInputSchema, schemaFields: { "option.json": "json" } },
   { commandPath: "schema get", schema: SchemaGetCommandInputSchema, schemaFields: { "operand.id": "id" } },
 ] as const satisfies readonly CommandInputRegistration[];
 
-/** Machine-output policy owned by the list adapter. */
-export const schemaCommandInputPolicyDeclarations = [{
-  commandPath: "schema list", aliases: [], sites: [declareCliOptionSite("json", {
+/** Machine-output policy owned by the list and install adapters. */
+export const schemaCommandInputPolicyDeclarations = ["schema list", "schema install"].map((commandPath): CommandInputDeclaration => ({
+  commandPath, aliases: [], sites: [declareCliOptionSite("json", {
     acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
     automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
     mutationBoundary: "output selection", subprocess: "none",
   })],
-}] satisfies readonly CommandInputDeclaration[];
+})) satisfies readonly CommandInputDeclaration[];
 
 function dependencies(overrides: Partial<SchemaHandlerDependencies>): SchemaHandlerDependencies {
   return {
@@ -100,4 +108,56 @@ export function handleSchemaGet(
     status: "ok", ...descriptor(result.meta), schema: result.schema,
   }))}\n`);
   io.setExitCode(0);
+}
+
+export interface SchemaInstallOptions { json?: boolean }
+export interface SchemaInstallDependencies extends SchemaHandlerDependencies {
+  resolveRoot(): string | null;
+  writeDocuments(root: string, registry: KernelRegistry): Promise<EditorDocumentsResult>;
+  writeError(text: string): void;
+}
+
+/**
+ * Install checkout editor documents and emit one validated result.
+ * @param options - Installation output selection.
+ * @param context - Per-invocation interaction policy.
+ * @param overrides - Optional writer, project-resolution, and output dependencies.
+ */
+export async function handleSchemaInstall(
+  options: SchemaInstallOptions, context?: InteractionContext, overrides: Partial<SchemaInstallDependencies> = {},
+): Promise<void> {
+  const input = SchemaInstallCommandInputSchema.parse(options);
+  const io: SchemaInstallDependencies = {
+    ...dependencies(overrides), resolveRoot: resolveArcRoot,
+    writeDocuments: (root, registry) => writeEditorDocuments(
+      root, createGitExec(context?.subprocess), nodeEditorDocumentsFs, registry,
+    ),
+    writeError: (text) => { process.stderr.write(text); }, ...overrides,
+  };
+  const root = io.resolveRoot();
+  if (root === null) {
+    emitInstallRefusal({ status: "refused", reason: "arc-project-root-unresolved" }, ARC_PROJECT_ROOT_ERROR, input.json, io);
+    return;
+  }
+  const result = await io.writeDocuments(root, io.registry());
+  if (!result.ok) {
+    const remedy = `Correct the reported cause (${result.detail}) and rerun arc schema install.`;
+    emitInstallRefusal({ status: "refused", reason: "editor-documents-unwritable",
+      target: result.target, detail: result.detail, remedy,
+      ...(result.path === undefined ? {} : { path: result.path }),
+    }, `${result.detail}\n${remedy}`, input.json, io);
+    return;
+  }
+  const envelope = SchemaInstallEnvelopeSchema.parse({ status: "ok", documents: result.documents });
+  io.write(input.json ? `${JSON.stringify(envelope)}\n` : envelope.documents.map((path) => `${path}\n`).join(""));
+  io.setExitCode(0);
+}
+
+function emitInstallRefusal(
+  value: unknown, message: string, json: boolean | undefined, io: SchemaInstallDependencies,
+): void {
+  const envelope = SchemaRefusalEnvelopeSchema.parse(value);
+  if (json) io.write(`${JSON.stringify(envelope)}\n`);
+  else io.writeError(`${message}\n`);
+  io.setExitCode(1);
 }

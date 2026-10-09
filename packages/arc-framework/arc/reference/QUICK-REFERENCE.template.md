@@ -197,6 +197,9 @@ access boundary.
 Use `arc schema list` to find registered contracts and `arc schema get <id>` to retrieve one. Read a result's
 `editorDocument` field to locate its editor document.
 
+Run `arc schema install` to refresh checkout editor documents after a CLI upgrade or in a checkout provisioned before
+the command existed.
+
 ### Artifact Viewing
 
 `arc view [kind]` renders an artifact using the existing selectors. With no kind, it checks
