@@ -1,11 +1,12 @@
 /** Discovery decisions use the public controller boundary before native execution. */
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { discoverVitestSelection } from "../../src/lib/vitest-discovery.js";
 import { makeVitestControllerFake } from "../helpers/vitest-controller-fake.js";
 
-let environment: NodeJS.ProcessEnv;
-beforeEach(() => { environment = { ...process.env }; });
-afterEach(() => { process.env = environment; });
+beforeEach(() => {
+  for (const key of ["TEST", "VITEST", "NODE_ENV"]) vi.stubEnv(key, process.env[key]);
+});
+afterEach(() => { vi.unstubAllEnvs(); });
 
 it.each(["empty", "skipped"])("refuses %s discovery and closes before execution", async (fault) => {
   const fake = makeVitestControllerFake(fault === "empty" ? [] : [{ path: "skipped.test.ts", project: "integration", mode: "skip" }],
