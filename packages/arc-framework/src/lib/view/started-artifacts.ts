@@ -1,10 +1,10 @@
 /** Select the current metadata and artifact source for a started work unit. */
 
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, posix } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { SlugSchema } from "../kernel/index.js";
 import type { ProjectReadinessRecord } from "../status/project-view.js";
-import { createWorkUnitArtifactReader, readRegularWorkUnitArtifact, type WorkUnitArtifactReaders } from "../status/work-unit-purpose.js";
+import { createWorkUnitArtifactReader, readRegularWorkUnitArtifact, selectWorkUnitDesign, type WorkUnitArtifactReaders } from "../status/work-unit-purpose.js";
 import type { ResolvedViewArtifact, ResolvedViewTarget, ViewArtifactResult, ViewKind, ViewTargetResult } from "./types.js";
 
 /**
@@ -45,19 +45,46 @@ export function viewArtifactFileRefusal(artifact: ResolvedViewArtifact): string 
  * @param input - Selected target and caller-bound checkout/ref readers.
  * @returns Metadata from the selected source, or null when unavailable.
  */
-export async function readViewTargetMeta(input: {
+export async function readViewTargetMeta(input: ViewTargetArtifactInput): Promise<string | null> {
+  return await readTargetArtifact(input, input.target.metaPath);
+}
+
+/** Readers bound to one selected viewer target. */
+export interface ViewTargetArtifactInput {
   cwd: string;
   target: ResolvedViewTarget;
   readFile?: (path: string) => Promise<string>;
   readAtRef?: WorkUnitArtifactReaders["readAtRef"];
-}): Promise<string | null> {
+}
+
+/**
+ * Resolve the selected target's Design list through the shared purpose selector.
+ * @param input - Target and caller-bound source readers.
+ * @returns The selected file or ref content, or normal absence.
+ */
+export async function resolveViewDesignArtifact(input: ViewTargetArtifactInput): Promise<ViewArtifactResult> {
+  const meta = await readViewTargetMeta(input);
+  if (meta === null) return { status: "absent", kind: "design" };
+  const source = input.target.artifactSource;
+  const paths = source?.kind === "ref" ? posix : { dirname, join };
+  const pathFor = (name: string): string => paths.join(paths.dirname(input.target.metaPath), name);
+  const selected = await selectWorkUnitDesign(meta, (name) => readTargetArtifact(input, pathFor(name)));
+  if (selected === null) return { status: "absent", kind: "design" };
+  const path = viewWorkUnitArtifactPath(input.cwd, input.target, pathFor(selected.name));
+  return source?.kind === "ref" ? {
+    status: "resolved", kind: "design", content: selected.content, ref: source.ref,
+    displayLabel: `${source.ref}:${path}`, workUnit: input.target.slug,
+  } : { status: "resolved", kind: "design", path, workUnit: input.target.slug };
+}
+
+async function readTargetArtifact(input: ViewTargetArtifactInput, path: string): Promise<string | null> {
   const source = input.target.artifactSource;
   if (source?.kind === "ref") {
     return input.readAtRef === undefined ? null
-      : await readRegularWorkUnitArtifact(source.ref, input.target.metaPath, input.readAtRef);
+      : await readRegularWorkUnitArtifact(source.ref, path, input.readAtRef);
   }
   try {
-    return await input.readFile?.(viewWorkUnitArtifactPath(input.cwd, input.target, input.target.metaPath)) ?? null;
+    return await input.readFile?.(viewWorkUnitArtifactPath(input.cwd, input.target, path)) ?? null;
   } catch {
     return null;
   }

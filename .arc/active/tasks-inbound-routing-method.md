@@ -271,41 +271,23 @@ base branch's backlog copy.
 - _Outcome:_ Status, view, and store readers share lifecycle composition. Viewer destinations keep one selected
   copy without growing the orchestrator's complexity; extracting selection removes the resolver's baseline entry.
 
-### `[ ]` **4.3 Add the `design` view kind — D11**
+### `[x]` **4.3 Add the `design` view kind — D11**
 
 - _Goal:_ `arc view design` renders the artifact the meta's `Design` names — the one the purpose read follows, or the
   first listed that exists when none has a Purpose field — from the same copy as the other kinds.
 
-- _Note:_ `resolveExactKind` (`src/lib/view-artifact.ts`) sits at the complexity limit beside the file's recorded
-  `resolveViewArtifactUnchecked` violation; move the work-unit artifact kinds into one helper rather than add a case.
+- _Outcome:_ The new `design` kind shares Purpose-based Design-list selection, with first-readable fallback for
+  briefs and normal absence for missing designs. Its checkout path or ref content matches the other own artifacts;
+  their resolution is grouped in one helper.
 
-- _Note:_ `design` selects from `Design`; it is not an artifact kind and never enters `WorkUnitArtifactKindSchema`
-  (`src/lib/layout/schema.ts`).
-
-    - `VIEW_KINDS` (`src/lib/view/types.ts`) gains `design` after `meta`, keeping the `tasks, spec, draft, meta` run
-      the unknown-kind case in `view.e2e.test.ts` asserts; the `[kind]` argument help in `src/cli.ts` lists it.
-    - The kind parses the meta's `Design` list with the meta parser, resolves each entry beside the meta as
-      `resolveTaskListPath` resolves the task list, and picks through Task 3.1's `Design`-list selection over the
-      target's reader, falling back to the first listed artifact that exists.
-    - Build `test-first` (one behavior at a time):
-        - a drafted work unit's `design` resolves to its draft
-        - a specced work unit's `design` resolves to its spec
-        - a layered PRD and RFC `Design` resolves to the PRD
-        - a `brief`-specced work unit, whose spec has no Purpose field, resolves to that spec
-        - `Design: [none]`, or a `Design` naming only missing artifacts, reports `design` as not present
-        - `spec --for` and `design --for` read the same copy of a started work unit
-
-### `[ ]` **4.4 State the selection in `QUICK-REFERENCE` § Artifact Viewing — D11**
+### `[x]` **4.4 State the selection in `QUICK-REFERENCE` § Artifact Viewing — D11**
 
 - _Goal:_ `QUICK-REFERENCE` § Artifact Viewing states the started-work-unit copy selection over the refs this clone
   holds, the `--path` / `--editor` refusal, and the `design` kind, matching the CLI.
 
-    - Edit `reference/QUICK-REFERENCE.template.md` in the package source and the § Artifact Viewing section of
-      `.arc/reference/QUICK-REFERENCE.md` separately; never copy between them. The project copy keeps its `npx arc`
-      invocations.
-    - Replace the sentence saying kind and `--for` selection stay the same with the copy selection and the `design`
-      kind; say that a start whose branch this clone has never fetched reads as its backlog copy until a fetch brings
-      the ref in.
+- _Outcome:_ Package and project references describe the same copy selection and `design` kind, preserving project
+  invocations. The CLI-layer exit holds: status supplies typed homing facts, and the base-checkout design scenario
+  reads the selected worktree's uncommitted file or its held ref rather than the backlog copy.
 
 ## **Phase 5:** The drain door and the capture surfaces' home
 

@@ -11,7 +11,7 @@ import { isAbsolute, join } from "node:path";
 
 import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
 import { resolveArcPath } from "./layout/index.js";
-import { readViewTargetMeta, resolveRefViewArtifact, viewWorkUnitArtifactPath } from "./view/started-artifacts.js";
+import { readViewTargetMeta, resolveRefViewArtifact, resolveViewDesignArtifact, viewWorkUnitArtifactPath } from "./view/started-artifacts.js";
 import type { WorkUnitArtifactReaders } from "./status/work-unit-purpose.js";
 import {
   VIEW_KINDS,
@@ -153,26 +153,8 @@ async function resolveExactKind(
   target: ResolvedViewTarget,
   dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
+  if (isOwnArtifactKind(kind)) return resolveOwnArtifact(options.cwd, kind, target, dependencies);
   switch (kind) {
-    case "meta":
-      return presentOrAbsent(kind, viewWorkUnitArtifactPath(options.cwd, target, target.metaPath), target.slug, dependencies, target);
-    case "tasks":
-      return resolveTaskPath(options.cwd, target, dependencies);
-    case "spec":
-    case "draft":
-    case "notes":
-      return presentOrAbsent(
-        kind,
-        viewWorkUnitArtifactPath(options.cwd, target, resolveArcPath({
-          kind: "work-unit-artifact",
-          placement: target.placement,
-          slug: target.slug,
-          artifact: kind,
-        })),
-        target.slug,
-        dependencies,
-        target,
-      );
     case "cohort":
       return resolveCohortArtifact(options.cwd, target, dependencies);
     case "session-notes": {
@@ -191,6 +173,43 @@ async function resolveExactKind(
     case "working-memory":
     case "inbox":
       return error(kind, `The ${kind} artifact is identity-global and has no work-unit target.`);
+  }
+}
+
+type OwnArtifactKind = Extract<ViewKind, "meta" | "tasks" | "spec" | "draft" | "notes" | "design">;
+
+function isOwnArtifactKind(kind: ViewKind): kind is OwnArtifactKind {
+  return ["meta", "tasks", "spec", "draft", "notes", "design"].includes(kind);
+}
+
+async function resolveOwnArtifact(
+  cwd: string,
+  kind: OwnArtifactKind,
+  target: ResolvedViewTarget,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewArtifactResult> {
+  switch (kind) {
+    case "meta":
+      return presentOrAbsent(kind, viewWorkUnitArtifactPath(cwd, target, target.metaPath), target.slug, dependencies, target);
+    case "tasks":
+      return resolveTaskPath(cwd, target, dependencies);
+    case "design":
+      return resolveViewDesignArtifact({ cwd, target, readFile: dependencies.readFile, readAtRef: dependencies.readAtRef });
+    case "spec":
+    case "draft":
+    case "notes":
+      return presentOrAbsent(
+        kind,
+        viewWorkUnitArtifactPath(cwd, target, resolveArcPath({
+          kind: "work-unit-artifact",
+          placement: target.placement,
+          slug: target.slug,
+          artifact: kind,
+        })),
+        target.slug,
+        dependencies,
+        target,
+      );
   }
 }
 

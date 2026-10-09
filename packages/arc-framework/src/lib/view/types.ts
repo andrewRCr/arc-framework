@@ -13,6 +13,7 @@ export const VIEW_KINDS = [
   "spec",
   "draft",
   "meta",
+  "design",
   "notes",
   "cohort",
   "session-notes",

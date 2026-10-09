@@ -165,6 +165,9 @@ describe("arc view", () => {
       expect(live.exitCode, live.stderr).toBe(0);
       expect(live.stdout).toContain("# Uncommitted live copy");
       expect(live.stdout).not.toContain("Base backlog copy");
+      const liveDesign = await runArcNoTty(["view", "design", "--for", slug], cwd);
+      expect(liveDesign.exitCode, liveDesign.stderr).toBe(0);
+      expect(liveDesign.stdout).toContain("# Uncommitted live copy");
       const path = await runArcNoTty(["view", "spec", "--for", slug, "--path"], cwd);
       expect(path).toEqual({ stdout: `${specPath}\n`, stderr: "", exitCode: 0 });
       expect(live.stdout).toContain(await readFile(path.stdout.trim(), "utf8"));
@@ -173,6 +176,9 @@ describe("arc view", () => {
       expect(atRef.exitCode, atRef.stderr).toBe(0);
       expect(atRef.stdout).toContain("# Started branch copy");
       expect(atRef.stdout).not.toContain("Base backlog copy");
+      const refDesign = await runArcNoTty(["view", "design", "--for", slug], cwd);
+      expect(refDesign.exitCode, refDesign.stderr).toBe(0);
+      expect(refDesign.stdout).toContain("# Started branch copy");
       const refused = await runArcNoTty(["view", "spec", "--for", slug, "--path"], cwd);
       expect(refused).toMatchObject({ stdout: "", exitCode: 1 });
       expect(refused.stderr).toContain(slug);
