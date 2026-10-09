@@ -179,42 +179,16 @@ homing's shortlist is computed from one listing rather than grepped.
 
 _Mode:_ `layer` through Phase 4 — closes on the complete set of CLI reads homing depends on.
 
-### `[ ]` **3.1 Derive a work unit's purpose from its `Design` artifact — D11**
+### `[x]` **3.1 Derive a work unit's purpose from its `Design` artifact — D11**
 
 - _Goal:_ One read returns the first sentence of the `**Purpose:**` field — a `- **Purpose:**` list item or a bare
   `**Purpose:**` line — in the artifact a meta's `Design` names, the first listed that has one, taken from the
   record's own source (the checkout for a checkout-read meta, the selected ref for an in-flight one), and `null`
   whenever no readable Purpose exists.
 
-- _Approach:_ Keep extraction pure over the field text and resolve from the record's `source`: read the meta at
-  `source.path` — a checkout path through the injected `fs`, or `<ref>:<metaPath>` for an `in-flight-meta` record —
-  parse its `Design` list with the meta parser, and read the artifact beside it from the same source. Never follow
-  `InFlightWorkUnit.design`, which joins the list for display. The per-slug and listing paths share this one read.
-  Its `<ref>:<path>` read and its `Design`-list selection each take their reader from the caller, so `arc view`
-  reuses both (Tasks 4.2 and 4.3). The caller binds the `<ref>:<path>` read to `readGitBlobEntry`
-  (`src/lib/io-context.ts`) with `objectAccess: "local-only"`, so Git never fetches a missing object; an absent entry,
-  or one whose mode is not a regular file's (`100644` / `100755`), reads as absent. The store's `readFileAt` is not a
-  candidate: the `store-production` import rule (`eslint/architecture-imports.ts`) keeps `src/lib/store/in-repo/`
-  private to `src/lib/store/`.
-
-    - Build `test-first` (one behavior at a time):
-        - a `- **Purpose:**` list item and a bare `**Purpose:**` line both return their first sentence; a `## Purpose`
-          heading returns `null`
-        - wrapped Purpose lines join with single spaces
-        - the first sentence ends at the first `.`, `?`, or `!` outside a backtick code span that is followed by
-          whitespace or the field's end
-        - a period inside a code span does not end the sentence
-        - a single sentence with no terminator returns the whole field
-        - a drafted work unit and an `outline`- or `detailed`-specced one return their purpose
-        - a `Design` list of two artifacts returns the first listed one's Purpose, or the second's when the first has
-          none
-        - a `brief` spec (no Purpose field) returns `null`
-        - an empty Purpose field, or the template's `—` placeholder, returns `null`
-        - `Design: [none]`, a missing artifact, or an unreadable one returns `null`
-        - an entry at the ref that is not a regular file returns `null`
-        - an in-flight work unit's artifact is read from its selected ref, not the checkout
-        - a record with no meta file of its own returns `null`, and an archived work unit whose meta and artifact are
-          present returns its purpose
+- _Outcome:_ Shared source-bound readers and Design selection keep metadata and artifacts at the same checkout or
+  local ref; regular-file entries only. Pure thesis extraction handles wrapped text and code spans. All 28 unit
+  behaviors passed, with fail-first evidence for extraction and source selection.
 
 ### `[ ]` **3.2 Report `purpose` and `owner` on `arc status <slug>` — D11**
 
