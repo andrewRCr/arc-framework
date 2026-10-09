@@ -108,23 +108,14 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
 - _Goal:_ A pass is written once, keyed by the content it checked, so a later request over the same content in the
   same worktree replays it, and a fault in the record never becomes a pass or a refusal.
 
-    - `[ ]` **2.2.a Record placement**
-        - `arc-checks/` in the worktree's own Git directory (`resolveCheckoutGitDir`): `.git/arc-checks/` for the main
-          worktree, `.git/worktrees/<name>/arc-checks/` for a linked one, never under `.git/arc/`, as
-          `commit-message-retry-store.ts` keeps its own state in the Git directory
-        - Build `test-first` (one behavior at a time):
-            - the main worktree and a linked worktree each get their own directory
-            - a linked worktree never reads the main worktree's passes
+    - `[x]` **2.2.a Record placement**
+        - `checkRecordDirectory` resolves `arc-checks/` directly inside each worktree's own Git directory. Real linked
+          worktrees have separate directories and cannot read passes published in the primary checkout.
 
-    - `[ ]` **2.2.b Base key and write-once entries**
-        - The key in this slice: check id, a digest of its resolved declaration entry, a digest of its inputs' content
-          in the checked tree, and for a `files` check the paths it received; Task 3.5 completes it
-        - Entries are content-addressed and written with `atomicCreateFile` (`fs.ts`); `EEXIST` is a hit, not a fault
-        - Build `test-first` (one behavior at a time):
-            - the same id, entry, and input content yield the same key, and a change to any one yields another
-            - only `passed` is recorded; `failed` is not
-            - two writers of one key leave one intact entry
-            - an unreadable or unwritable record degrades to a run
+    - `[x]` **2.2.b Base key and write-once entries**
+        - Added a stable digest of check id, resolved declaration, input paths/modes/blobs, and received paths, plus a
+          strict pass-only store using `atomicCreateFile`. Concurrent publication keeps one complete entry; mismatched
+          or corrupt records and read/write faults provide no hit and do not refuse execution.
 
     - `[ ]` **2.2.c Replay**
         - Build `test-first` (one behavior at a time):
