@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "close-backlog-meta-delimiters",
+  "claimId": "cf2189164de9fd291047db0d10eca322",
+  "createdAt": "2026-10-09T23:17:15.616Z",
+  "updatedAt": "2026-10-09T23:17:15.616Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Append the missing closing metadata delimiter to the four captured backlog metas and verify integrity",
+  "branch": "chore/close-backlog-meta-delimiters",
+  "origin": "inbox",
+  "originEntry": "Close the four backlog metas that lack their closing metadata delimiter",
+  "originEntrySourceDigest": "sha256:92e99c9753c99ac092ac4dd238a000c1dec73953c4c2357034b77c1ea49c5342",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
