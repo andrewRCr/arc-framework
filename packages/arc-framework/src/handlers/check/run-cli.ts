@@ -6,63 +6,18 @@ import { resolve } from "node:path";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { checkRecordDirectory, createCheckPassStore } from "../../lib/checks/record.js";
 import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
 import { createExecaGitExecInput, environmentForGitCwd } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
-import { declareCliOptionSite, declareInteractionSite, type CommandInputDeclaration } from "../../lib/command-input/declaration.js";
-import type { CommandInputRegistration } from "../../lib/command-input/registry.js";
-import { runCheckIncrement, runCheckPreCommit, type RunDeclaredChecksResult } from "./run.js";
+import { runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
+import type { CheckForm, CheckRequest } from "../../lib/checks/request.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
-/** Public syntax of an increment-boundary check request. */
-export const CheckIncrementInputSchema = z.strictObject({ json: z.boolean().optional(), force: z.boolean().optional() });
-export type CheckIncrementOptions = z.infer<typeof CheckIncrementInputSchema>;
-/** Independently registered syntax for the index-based commit request. */
-export const CheckPreCommitInputSchema = CheckIncrementInputSchema.clone();
-
-/** Input registration owned by the check adapter. */
-export const checkIncrementInputRegistration = {
-  commandPath: "check increment", schema: CheckIncrementInputSchema,
-  schemaFields: { "option.json": "json", "option.force": "force" },
-} satisfies CommandInputRegistration;
-
-/** Input registration for the index-based commit request. */
-export const checkPreCommitInputRegistration = {
-  ...checkIncrementInputRegistration, commandPath: "check pre-commit", schema: CheckPreCommitInputSchema,
-} satisfies CommandInputRegistration;
-
-/** Explicit machine and subprocess policies for the check command. */
-export const checkInputPolicyDeclarations = (["check increment", "check pre-commit"] as const).map(commandPath => ({
-  commandPath, aliases: [], sites: [
-    declareCliOptionSite("json", {
-      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json", cancellation: "not-applicable",
-      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-      mutationBoundary: "output selection", subprocess: "none",
-    }),
-    declareCliOptionSite("force", {
-      acquisition: "optional", schemaOwnership: "owned", schemaField: "force", cancellation: "not-applicable",
-      automation: { noInput: "same", flags: ["--force"], acceptedSyntax: [] },
-      mutationBoundary: "declared check execution", subprocess: "none",
-    }),
-    ...([1, 3] as const).map(occurrence => declareInteractionSite(
-      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
-      {
-        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
-        automation: { noInput: "disable-terminal-input", flags: [], acceptedSyntax: [] },
-        mutationBoundary: "check repository snapshot", subprocess: "terminal-prompts",
-      },
-    )),
-    declareInteractionSite(
-      { file: "handlers/check/run-cli.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
-      {
-        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
-        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
-        mutationBoundary: "declared check execution", subprocess: "close-stdin",
-      },
-    ),
-  ],
-})) satisfies readonly CommandInputDeclaration[];
+import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckGateInputSchema, CheckRunInputSchema,
+  CheckSegmentInputSchema, CheckNewHeadInputSchema, type CheckScopeOptions, type CheckIncrementOptions } from "./request-input.js";
+export type { CheckIncrementOptions, CheckScopeOptions } from "./request-input.js";
 
 /**
  * Execute an increment request through real repository I/O.
@@ -71,7 +26,7 @@ export const checkInputPolicyDeclarations = (["check increment", "check pre-comm
  * @returns Resolves after writing output and assigning process exit state
  */
 export async function handleCheckIncrement(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
-  return handleCommitChecks(options, interaction, false);
+  return handleDeclaredRequest(options, interaction, { kind: "increment" });
 }
 
 /**
@@ -81,18 +36,90 @@ export async function handleCheckIncrement(options: CheckIncrementOptions, inter
  * @returns Resolves after writing output and assigning process exit state
  */
 export async function handleCheckPreCommit(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
-  return handleCommitChecks(options, interaction, true);
+  return handleDeclaredRequest(options, interaction, { kind: "pre-commit" });
 }
 
-async function handleCommitChecks(options: CheckIncrementOptions, interaction: InteractionContext, staged: boolean): Promise<void> {
-  const input = (staged ? CheckPreCommitInputSchema : CheckIncrementInputSchema).parse(options);
+/**
+ * Execute explicitly named checks through real repository I/O.
+ * @param ids - Declared identifiers
+ * @param options - Output and reuse options
+ * @param interaction - Process interaction policy
+ * @returns Resolves after reporting the request
+ */
+export async function handleCheckRun(ids: string[], options: CheckScopeOptions, interaction: InteractionContext): Promise<void> {
+  return handleDeclaredRequest(options, interaction, { kind: "run", ids });
+}
+
+/**
+ * Execute a named gate through real repository I/O.
+ * @param gate - Requested gate name
+ * @param options - Scope, output, and reuse options
+ * @param interaction - Invocation process policy
+ * @returns Resolves after reporting the request
+ */
+export async function handleCheckGate(gate: string, options: CheckScopeOptions, interaction: InteractionContext): Promise<void> {
+  const parsed = z.enum(["commit", "push", "merge"]).safeParse(gate);
+  if (!parsed.success) {
+    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: `Unknown gate ${gate}; use commit, push, or merge and retry.` } }, options.json === true);
+    return;
+  }
+  return handleDeclaredRequest(options, interaction, { kind: "gate", gate: parsed.data });
+}
+
+/**
+ * Execute the segment preset through repository I/O.
+ * @param options - Output and reuse options
+ * @param interaction - Invocation process policy
+ * @returns Resolves after reporting the request
+ */
+export async function handleCheckSegment(options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
+  return handleDeclaredRequest(options, interaction, { kind: "segment" });
+}
+
+/**
+ * Execute the new-head preset from an explicit earlier ref.
+ * @param options - Earlier ref and output options
+ * @param interaction - Invocation process policy
+ * @returns Resolves after reporting the request
+ */
+export async function handleCheckNewHead(options: CheckIncrementOptions & { from: string }, interaction: InteractionContext): Promise<void> {
+  const { from, ...common } = options;
+  return handleDeclaredRequest(common, interaction, { kind: "new-head", from });
+}
+
+function scopeRequest(input: CheckScopeOptions): CheckRequest["scope"] {
+  if (input.staged) return { kind: "staged" };
+  if (input.changed) return { kind: "changed" };
+  if (input.all) return { kind: "all" };
+  if (input.paths) return { kind: "paths", paths: input.paths };
+  if (input.range !== undefined) return { kind: "range", ...(typeof input.range === "string" ? { base: input.range } : {}) };
+  return undefined;
+}
+
+function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
+  switch (form.kind) {
+    case "gate": return CheckGateInputSchema.safeParse({ ...options, gate: form.gate });
+    case "run": return CheckRunInputSchema.safeParse({ ...options, ids: form.ids });
+    case "new-head": return CheckNewHeadInputSchema.safeParse({ ...options, from: form.from });
+    case "segment": return CheckSegmentInputSchema.safeParse(options);
+    case "pre-commit": return CheckPreCommitInputSchema.safeParse(options);
+    case "increment": return CheckIncrementInputSchema.safeParse(options);
+  }
+}
+
+async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<void> {
+  const parsed = parseRequestOptions(options, form);
+  if (!parsed.success) {
+    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: parsed.error.message } }, options.json === true);
+    return;
+  }
+  const input = parsed.data;
   const git = createGitExec(interaction.subprocess);
   let outcome: RunDeclaredChecksResult;
   try {
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     const inheritedIndex = process.env.GIT_INDEX_FILE;
-    const request = staged ? runCheckPreCommit : runCheckIncrement;
-    outcome = await request(root, {
+    outcome = await runDeclaredRequest(root, {
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
@@ -103,12 +130,16 @@ async function handleCommitChecks(options: CheckIncrementOptions, interaction: I
         });
         return { exitCode: result.exitCode ?? 1, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
       },
-    }, { ...input, ...(staged && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
+    }, { form, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
-  const rendered = renderDeclaredChecks(outcome, input.json === true);
-  if (outcome.kind === "error" && !input.json) process.stderr.write(rendered);
+  report(outcome, input.json === true);
+}
+
+function report(outcome: RunDeclaredChecksResult, json: boolean): void {
+  const rendered = renderDeclaredChecks(outcome, json);
+  if (outcome.kind === "error" && !json) process.stderr.write(rendered);
   else process.stdout.write(rendered);
   process.exitCode = outcome.exitCode;
 }

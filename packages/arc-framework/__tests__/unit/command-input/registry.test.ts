@@ -67,6 +67,7 @@ describe("command-input schema adapter and registry", () => {
     const flagOnlySchemaPaths = [
       "check increment",
       "check pre-commit",
+      "check segment",
       "delivery compose",
       "delivery plan abandon",
       "delivery plan inventory schema",

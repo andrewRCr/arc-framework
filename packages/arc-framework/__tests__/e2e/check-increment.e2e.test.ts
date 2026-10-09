@@ -4,8 +4,9 @@ import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js
 import { runArc, runArcNoTty } from "./helpers.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 
 const execFileAsync = promisify(execFile);
@@ -77,20 +78,8 @@ it("reports a failed check with exit 1 and still runs the other selected checks"
 });
 
 async function declaredFixture(checks: Record<string, unknown>): Promise<string> {
-  const cwd = await createTempRepoCore({ prefix: "arc-increment-declared-" });
+  const cwd = await createDeclaredCheckRepository(checks);
   repositories.push(cwd);
-  await mkdir(join(cwd, ".arc/system"), { recursive: true });
-  await mkdir(join(cwd, "src"));
-  await mkdir(join(cwd, "docs"));
-  await writeFile(join(cwd, ".gitignore"), "receipt.json\n");
-  await writeFile(join(cwd, "src/a.ts"), "base\n");
-  await writeFile(join(cwd, "src/deleted.ts"), "deleted\n");
-  await writeFile(join(cwd, "docs/b.md"), "base\n");
-  await writeFile(join(cwd, "capture.cjs"), "require('node:fs').writeFileSync('receipt.json', JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\n");
-  await writeFile(join(cwd, ".arc/system/arc-checks.yml"), JSON.stringify({ checks }));
-  await execFileAsync("git", ["add", "-A"], { cwd });
-  await execFileAsync("git", ["commit", "-m", "base"], { cwd });
-  await writeFile(join(cwd, "src/a.ts"), "changed\n");
   return cwd;
 }
 

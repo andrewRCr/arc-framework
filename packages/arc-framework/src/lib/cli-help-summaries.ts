@@ -3,6 +3,10 @@
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "check": "Run standalone repository checks",
   "check commit-msg": "Validate a commit message",
+  "check gate": "Run a declared check gate",
+  "check run": "Run declared checks by id",
+  "check segment": "Run checks over the unpublished segment",
+  "check new-head": "Run checks over a newly committed head",
   "check increment": "Run checks reached by the current increment",
   "check pre-commit": "Run declared checks over the commit index",
   "init": "Initialize ARC in the current project",

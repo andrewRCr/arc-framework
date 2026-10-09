@@ -8,7 +8,7 @@
 
 import { fileURLToPath } from "node:url";
 
-import { Command, Option } from "commander";
+import { Command, CommanderError, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
@@ -130,13 +130,93 @@ program
 
 const checkCmd = program
   .command("check")
-  .description("Run standalone repository checks");
+  .description("Run standalone repository checks")
+  .exitOverride(error => {
+    if (error.exitCode !== 0) error.exitCode = 2;
+    throw error;
+  });
+
+checkCmd
+  .command("run")
+  .description("Run declared checks by id")
+  .argument("<ids...>", "Declared check identifiers")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, ids: string[], opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckRun(ids, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("gate")
+  .description("Run a declared check gate")
+  .argument("<gate>", "commit, push, or merge")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, gate: string, opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckGate(gate, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("segment")
+  .description("Run checks over the unpublished segment")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckSegment(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("new-head")
+  .description("Run checks over a newly committed head")
+  .requiredOption("--from <ref>", "Earlier head to compare")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions & { from: string }) => {
+      await (await import("./commands/check.js")).handleCheckNewHead(opts, context);
+    },
+  ));
 
 checkCmd
   .command("increment")
   .description("Run checks reached by the current increment")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
@@ -149,6 +229,8 @@ checkCmd
   .description("Run declared checks over the commit index")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
@@ -2231,6 +2313,10 @@ function formatCommandPath(cmd: Command): string {
 
 applyArcHelp(program);
 program.parseAsync().catch((err: unknown) => {
+  if (err instanceof CommanderError) {
+    process.exitCode = err.exitCode;
+    return;
+  }
   console.error(formatUnexpectedError(err));
   process.exitCode = 1;
 });

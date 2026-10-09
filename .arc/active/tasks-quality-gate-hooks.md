@@ -157,44 +157,25 @@ widening; the base and merged-in parents exported to `files` checks; and the com
 
 _Mode:_ `layer` through Phase 4 — closes on the verb's complete request and execution contract.
 
-### `[ ]` **3.1 Request forms, scopes, and base-branch resolution — D3, D4**
+### `[x]` **3.1 Request forms, scopes, and base-branch resolution — D3, D4**
 
 - _Goal:_ Every request form resolves to one typed request (its gates, scope, change, base, and checked tree), or to a
   refusal naming the input it could not resolve, before anything runs.
 
-    - `[ ]` **3.1.a Forms and flags**
-        - Register `gate <gate> [scope]`, `run <id...> [scope]`, `segment`, and `new-head --from <ref>` beside
-          `increment` and `pre-commit`; every form takes `--dry-run`, `--json`, `--force`, and `--serial`, and every
-          form but the hook forms takes `--ci`
-        - Build `test-first` (one behavior at a time):
-            - a `run` id the declaration does not declare refuses with exit 2, and the corrected request succeeds
-            - `--ci` on a hook form is a usage error, exiting 2
+    - `[x]` **3.1.a Forms and flags**
+        - Registered `gate`, `run`, `segment`, and `new-head` beside the existing forms, with command-owned schemas,
+          inventory policies, common execution/output flags, and explicit non-hook CI options. Unknown ids name a safe
+          retry; malformed commands exit 2, while help exits 0. Dry runs forecast without executing checks.
 
-    - `[ ]` **3.1.b Scopes and defaults**
-        - `--staged`, `--changed`, `--range [base]`, `--all`, and `--paths <paths...>` are mutually exclusive; unscoped,
-          `gate merge` and `run` take `--all`, and `gate commit` and `gate push` take `--changed`
-        - Build `test-first` (one behavior at a time):
-            - each scope resolves its change and checked tree as the design's selection table states: the index for
-              `--staged`, the staged worktree for the others, and the named paths against `HEAD` for `--paths`
-            - two scopes together are a usage error, exiting 2
-            - each form's default scope applies when none is given
+    - `[x]` **3.1.b Scopes and defaults**
+        - Added mutually exclusive staged, changed, range, all, and named-path scopes through one typed request.
+          Staged requests retain Git's index tree; other scopes snapshot the worktree. Gate and by-id defaults select
+          the declared scope, and file checks receive the corresponding existing path set.
 
-    - `[ ]` **3.1.c Base-branch and named-ref resolution**
-        - The base branch is `branch.base` (`readConfigSettings`), read through a remote-tracking ref when one exists:
-          the pushed remote's `<remote>/<base>` at the push hook, and the base branch's own upstream
-          (`<base>@{upstream}`) elsewhere; otherwise the local branch. The existing helpers assume `origin`
-          (`preferRemoteBaseRef`, `readConfiguredUpstreamBranch`), so the verb resolves the remote itself
-        - Every merge base with the base branch (a bare `--range`, `segment` while unpublished, a ref new to the
-          remote at push, and `gate merge`'s base) resolves through `resolveSoleMergeBase` (`base-overlap.ts`): more
-          than one merge base (`ambiguous`), no common ancestor (`unrelated`), or a failed read (`unavailable`) leaves
-          the base unresolved, which widens selection and exports no base
-        - Build `test-first` (one behavior at a time):
-            - the remote-tracking ref wins over a stale local branch, under a remote not named `origin` too
-            - an unpushed branch reads the base through the base branch's own upstream
-            - an unresolvable named ref (`--range <base>`, `new-head --from`) refuses naming it, and the retry with a
-              resolvable ref succeeds
-            - a base the verb resolves itself and cannot (a shallow clone, a missing ref, or more than one merge base)
-              never refuses
+    - `[x]` **3.1.c Base-branch and named-ref resolution**
+        - Read `branch.base` through configuration, resolve its own upstream outside push or the pushed remote's base
+          before local fallback, and require a sole merge base through `resolveSoleMergeBase`. Explicit unresolved refs
+          refuse with a retry remedy; automatic unavailable, unrelated, and ambiguous bases remain absent.
 
 ### `[ ]` **3.2 Selection, widening, and `files` path sets — D4**
 
