@@ -20,8 +20,10 @@ routing and never back.
 **Terms.** A concern is _routed_ when it is written into a work unit as its home. Until the owner integrates it, it is
 an **inbound entry** — today a note in the draft's `## Inbound Buffer — Pending Integration` section, with a
 `routed from <origin>, <date>` provenance line (`drain-inbox.md` § 5). A **door** is a place in the methodology where
-routing happens. A **backlog stub** is a work unit in `backlog/provisional/` or `backlog/planned/`; a **started** work
-unit is one past `arc start`.
+routing happens. A **backlog stub** is a work unit whose artifacts live in `backlog/provisional/` or `backlog/planned/`:
+one not yet started, or one parked at Planning, whose artifacts return there. A **started** work unit is one past
+`arc start` whose artifacts live in `active/` on its branch, including one parked at Active, which keeps them on its
+preserved branch while only a pointer record sits in `backlog/planned/`.
 
 **Evidence** (counted at `c009ab198`, 2026-10-07; the full counts are in `notes-inbound-routing-method.md`):
 
@@ -163,12 +165,15 @@ commitment, `capture`.
 
 **The horizon advisory — advisory, never a gate.** When a coupled entry's target carries a horizon advisory, routing
 shows it to the Owner at the door's Owner stop (D9). The CLI composes it: D11's listing row for a provisional work
-unit or one at the lowest priority (P3) carries `horizonAdvisory`, one line naming the target and its horizon, saying
-an entry routed there waits for it, and asking whether to raise its priority or send a separable part now. The method
-evaluates no tier or priority itself. Test 2 already sends an Errand-shaped concern to execution whatever its
-target's horizon. What remains is a spec-worthy entry that does shape a far-off target: routing it there is still
-right, since the design must be decided together, and the failure is that its urgency is lost where only the owner
-reads it at the next pass. A gate on that coarse horizon proxy would refuse good routes.
+unit, a planned one at the lowest priority (P3), or a parked one at any priority carries `horizonAdvisory`, one line
+naming the target and its horizon, saying an entry routed there waits for it, and asking whether to raise its priority
+— for a parked one, to resume it — or send a separable part now. A parked work unit's entries wait until it resumes,
+which nothing schedules. Any other started work unit's owner takes its entries now, and a completed one is no routing
+target, so neither carries it. The method evaluates no tier or priority itself. Test 2 already sends an Errand-shaped
+concern to execution whatever its target's horizon. What remains is a spec-worthy entry that does shape a far-off
+target: routing it there is still right, since the design must be decided together, and the failure is that its
+urgency is lost where only the owner reads it at the next pass. A gate on that coarse horizon proxy would refuse good
+routes.
 
 ### D3 — Homing
 
@@ -177,12 +182,12 @@ exclusions — D2's bar, which no index alone meets, so some reading of candidat
 
 1. **Shortlist** from the entry's own `WU_Target` hint and the work-unit listing, whose rows carry each candidate's
    derived purpose (D11).
-2. **Validate at most three finalists by targeted reads.** Read each finalist's current design with
-   `arc view design --for <slug>` (D11). Map headings first, then read only the Purpose, the scope boundary, and the
-   section the entry would name. `_Shapes:_` keeps this pointed: checking a claim means reading the
-   section it names, not the whole draft (at `c009ab198` the two largest drafts ran to 1,189 and 916 lines). For the
-   target the drain routes into, it also reads the held entries for their count and the oldest entry's date, which
-   D5's re-triage line reports.
+2. **Validate at most three finalists by targeted reads.** Read each finalist's design with
+   `arc view design --for <slug>`, which reaches a started finalist's current copy where this clone holds its branch
+   (D11). Map headings first, then read only the Purpose, the scope boundary, and the section the entry would name.
+   `_Shapes:_` keeps this pointed: checking a claim means reading the section it names, not the whole draft (at
+   `c009ab198` the two largest drafts ran to 1,189 and 916 lines). For the target the drain routes into, it also reads
+   the held entries for their count and the oldest entry's date, which D5's re-triage line reports.
 3. **Delegate the reads when they would flood the primary's context** — ordinary read-only derivation under
    `DEV-RULES.ARC` § Sub-agent scope, advisory until the primary reads the named section. Nothing primary-side — the
    door or its allowed outcomes — is serialized to the reader.
@@ -213,9 +218,9 @@ The pass runs where a draft's inbound entries already drain: at `draft-design`'s
 and at `create-spec`'s entry check, for entries routed into a ready draft while it waited. It adds no step to either
 workflow. The pass leaves a compact **dispositions table** in the draft: one row for each entry whose disposition no
 other record keeps, naming the entry and its outcome, with where a `fold` landed and why an entry was rejected or
-dismissed. Review of the draft reads that table
-for "integrated or consciously rejected"; the readiness check confirms only that no entry remains held. The table
-lives as long as the draft and is retired with it at `create-spec`.
+dismissed. Review of the draft reads that table for "integrated or consciously rejected"; the readiness check
+confirms only that no entry remains held. The table lives as long as the draft and is retired with it at
+`create-spec`.
 
 **The drain** re-triages a target's held entries as it routes into that target:
 
@@ -313,8 +318,8 @@ substrate. The method body and the door list name outcomes and who may choose th
 - **The dispositions table's rows.** No other record keeps an owner's-pass disposition today, so the table carries a
   row for every entry (D5).
 - **The drain's writes.** The drain writes a backlog stub through its own grooming change — a grooming PR off the base
-  under full protection, whose body records what moved where, or a direct base commit under partial
-  (`drain-inbox.md` § 5) — and leaves an in-flight target to owner adoption. A count it reports is shown, never
+  under full protection, whose body records what moved where, or a direct base commit under partial, whose message
+  does (`drain-inbox.md` § 5) — and leaves an in-flight target to owner adoption. A count it reports is shown, never
   compared: whether it recommends re-triaging a target is its judgment over what it already read (D5).
 - **An in-flight new home.** When the drain's `hold <other>` names a started work unit, the drain cannot write that
   work unit's draft. When the drain's runner owns the target — the `owner` `arc status <slug> --json` reports (D11) —
@@ -325,8 +330,11 @@ substrate. The method body and the door list name outcomes and who may choose th
   deferred or where no Errand can open, as a pre-routed capture; a route into a started work unit is always that
   capture (D7). Before writing, the route-only Errand re-runs the coupling and scope tests — and, for `new-stub`,
   homing's shortlist — in its own checkout off the base, since the session's checkout may hold a stale copy of a
-  backlog stub or miss one minted since; a changed result returns to the Owner. The route-only Errand is route-now's
-  hand-off (Rewrite sites, below).
+  backlog stub or miss one minted since; a changed result returns to the Owner. Invoked directly, the route shape runs
+  route-now's gate itself, with the fast-path door, before the Errand opens, and the Owner sees its result there; a
+  result other than a now-route goes to `arc-inbox`'s route-now hand-off with the outcome the Owner confirmed, and the
+  hand-off carries it without running the gate again. The route-only Errand is route-now's hand-off (Rewrite sites,
+  below).
 - **Cascade's vehicles.** The cascade door's `hold <other>` and `new-stub` are filed as pre-routed captures (D9).
 - **A minted stub's design** is a `draft-*` beside its meta, opening with the one-sentence Purpose and carrying the
   concern, named through `arc stub --design`. The drain's new-stub route writes it too.
@@ -362,10 +370,10 @@ change delivers them:
 
 - **Rewrite sites.** Of what this change ships, the method's binding section and route-now's hand-off are the only
   places the flip rewrites, with the from-the-flip binding as their target. The hand-off is three sites: `arc-inbox`'s
-  route-now step, `arc-errand`'s route shape, and `run-errand.md` Launch's classification of a route-only Errand. Every
-  other caller names the method, not the binding. The drain workflow's own write mechanics — its grooming change and
-  owner adoption — predate this change, and the flip rewrites them on its own account. `arc view`'s pre-flip arm for
-  a started work unit (D11) is deleted at the flip, not rewritten.
+  route-now step, `arc-errand`'s route shape, and `run-errand.md`'s route-only Errand — Launch's classification and
+  Execute's pre-write re-check. Every other caller names the method, not the binding. The drain workflow's own write
+  mechanics — its grooming change and owner adoption — predate this change, and the flip rewrites them on its own
+  account. `arc view`'s pre-flip arm for a started work unit (D11) is deleted at the flip, not rewritten.
 - **`_Shapes:_` as a field** of the inbound entry and of the inbox capture.
 - **The CLI reads** (D11): the purpose read moves behind the draft and spec parsers' Purpose field, and `arc view`'s
   rendering of a started work unit's artifacts behind the store, both with unchanged content. `arc view`'s pre-flip
@@ -497,12 +505,15 @@ never stored**: the purpose lives once, as the draft's or spec's `**Purpose:**` 
 second prose copy that drifts.
 
 - **The read.** Follow the meta's `**Design:**` pointer to its artifact and report the first sentence of that
-  artifact's `**Purpose:**` field: the field's text, its wrapped lines joined by single spaces, up to and including the
-  first `.`, `?`, or `!` that lies outside a backtick code span and is followed by whitespace or the field's end. The
-  artifact is read from the record's own source — the checkout for a meta read from the checkout, the selected ref for
-  an in-flight meta read from a ref. The value is `null` when the `Design` field is `[none]`, when the artifact is
-  missing or unreadable, or when it has no `**Purpose:**` field, as a `brief` spec has none. A record with no readable
-  meta of its own, such as a completed-index record, also reports `null`.
+  artifact's `**Purpose:**` field — a list item (`- **Purpose:**`) or a bare line (`**Purpose:**`), never a
+  `## Purpose` heading: the field's text, its wrapped lines joined by single spaces, up to and including the first `.`,
+  `?`, or `!` that lies outside a backtick code span and is followed by whitespace or the field's end. When
+  `Design` lists more than one artifact, as a layered PRD and RFC do, the read follows the first listed one that has a
+  `**Purpose:**` field. The meta and its artifact are read from the record's own source — the checkout for a meta read
+  from the checkout, the selected ref for an in-flight meta read from a ref. The value is `null` when the `Design` field
+  is `[none]`, when the artifact is missing or unreadable, or when it has no `**Purpose:**` field, as a `brief` spec has
+  none, or only an empty one or the template's `—` placeholder. A record with no meta file of its own also reports
+  `null`; an archived work unit whose meta and artifact are present reports its purpose.
 - **Per work unit.** `arc status <slug> --json` gains `purpose` (string or `null`) and `owner` (the meta's `Owner`, or
   `null`); the human output gains a purpose line when the value is present.
 - **Listing.** `arc status --project --json` already emits a typed `facts` row per work unit beside its rendered
@@ -510,27 +521,34 @@ second prose copy that drifts.
   records that already hold priority and owner (`ProjectReadinessRecord`). Each row gains `purpose`, `owner`, and the
   lifecycle `state` and `position` the per-slug read derives — not the record's own `state`, which is the meta
   lifecycle value (`WorkUnitStateSchema`) and cannot tell a started work unit from a backlog stub, or provisional from
-  planned. Each row also gains `horizonAdvisory`: D2's advisory text, composed by the CLI when the work unit is
-  provisional or at priority P3, and `null` otherwise. Homing needs every candidate's purpose and advisory, and the
-  door rights its lifecycle and owner, all at once — one listing beats a call per slug.
+  planned. Each row also gains `horizonAdvisory`: D2's advisory text, composed by the CLI for a provisional work unit,
+  a planned one at priority P3, or a parked one, and `null` otherwise. Homing needs every candidate's purpose and
+  advisory, and the door rights its lifecycle and owner, all at once — one listing beats a call per slug.
 - **The live design.** Homing reads a finalist's design to validate it (D3), and that read must reach the work unit's
   current copy. Today `arc view <kind> --for <slug>` resolves the slug from the checkout's own lifecycle projection
   (`resolveExplicitViewTarget` over `buildLifecycleIndex` in `handlers/view.ts`), so for a work unit started
   elsewhere it renders the backlog copy the base branch kept from before the start. It instead resolves the slug
-  through the lifecycle composition `arc status` reads (`resolveComposedLifecycleIndex`). A started work unit's
+  through the lifecycle composition `arc status` reads (`resolveComposedLifecycleIndex`), over the refs this clone
+  already holds, as `arc status <slug>` reads them without `--fetch` (acquisition policy `local`); a start whose branch
+  this clone has never fetched still reads as its backlog copy until a fetch brings the ref in. A started work unit's
   artifact is then read from its registered checkout's file when one exists, uncommitted edits included, and
   otherwise from its selected ref (`selectedRefFor` in `lib/status/project-view.ts`), the source the purpose read uses.
   Rendering, `--path`, and `--editor` select the same copy: `--path` and `--editor`, which need a real file, give that
   checkout's file, and for a work unit with no registered checkout they refuse, naming the work unit and its ref, with
-  rendering as the way to read it. A new `design` kind renders the artifact the meta's `**Design:**` names, the one
-  the purpose read follows, whichever of draft or spec it is.
+  rendering as the way to read it. The work unit's own artifacts follow that copy, and `arc view cohort` reads the
+  `**Cohort:**` field from that copy's meta, while the cohort document and the session notes still resolve in this
+  checkout. A slug whose started record cannot be read is reported unavailable, never shown from the base branch's
+  copy. A new `design` kind renders the artifact the meta's `**Design:**` names, the one the purpose read follows, or
+  the first listed one that exists when none has a `**Purpose:**` field, as a `brief` spec has none.
 - **First-sentence convention.** Many Purpose fields run several sentences, so the templates that carry one say it
   opens with a one-sentence thesis: `template-draft.md` and the `outline`, `detailed-prd`, and `detailed-rfc` spec
   templates.
 - **Forward-compatible.** From the flip, the draft and spec parsers expose Purpose as a parsed field and derived views
   read typed listings, so this read moves behind the parser without changing the field (D8). `arc view` renders a
   started work unit's artifacts from the store with the same content; its registered-checkout-or-ref arm and the
-  `--path` / `--editor` refusal are pre-flip, and the cutover deletes them (D8).
+  `--path` / `--editor` refusal are pre-flip, and the cutover deletes them (D8). The `design` kind selects from the
+  `Design` list rather than naming a stored artifact kind, so it survives the flip and resolves each entry through
+  the store.
 
 ### D12 — The Errand / work-unit line: a record test
 
@@ -647,15 +665,22 @@ init, update, framework-sync, and E2E install inventories, the unit init test's 
   drain doors: verify-before-routing becomes D2 test 1; the scope re-triage defers to D12 and drops load-bearing
   infrastructure as a floor; the Home rule becomes the coupling and scope-boundary tests with homing. In-flight target
   adoption runs after the gate: a `WU_Target` is the gate's first candidate, and owner adoption carries only a gated
-  `hold` into a started work unit (D8), in § 2 and in § 5's owner-adoption default alike. § 3's routing plan is the
-  drain door's Owner stop and carries D5's re-triage line per routed-into backlog stub that holds entries. § 5's
-  integration modes defer to the method, with the drain door's narrower weave (D9), and its new-stub route always
-  writes the stub's design, not only when scope warrants (D7, D8).
+  `hold` into a started work unit (D8), in § 2 and in § 5's owner-adoption default alike, whose user override goes,
+  since nothing else reaches a started work unit (D8). § 3's routing plan is the drain door's Owner stop and carries
+  D5's re-triage line per routed-into backlog stub that holds entries; a stub the Owner picks has its held entries
+  re-triaged through the re-triage door, the revised plan is confirmed at the same stop, and § 5 carries those
+  outcomes out, recording what moved where in the grooming change, never in the target's draft (D5, D8). § 5's
+  existing-stub home writes only a backlog stub's draft, and § 2's destination-path overlap list follows (D8). § 5's
+  integration modes defer to the method, with the drain door's narrower weave (D9); a held entry carries `_Shapes:_`
+  beside its provenance (D4); its integration obligation is the owner's pass (D5); its new-stub route always writes
+  the stub's design, not only when scope warrants (D7, D8); and its homeless-atomic route takes every deferred
+  `errand`, since an Errand-shaped item has no work-unit home (D10).
 - **`supplemental/run-errand.md`** — route-to-home for a concern an Errand discovers (the Errand route-to-home door);
   the Decided line (D12) in its lean PR body and its commit; Launch's confirmation showing D12's four answers when one
   is yes, and classifying a route-only Errand by its routing change, not the concern it carries (D7); the promote
-  step's D12 trigger, leaving the floor to the Promote Errand path it already defers to. It also declares
-  `classify-work-unit`, which its Launch classification and promote trigger apply.
+  step's D12 trigger, leaving the floor to the Promote Errand path it already defers to; and, for a route-only Errand,
+  Execute's pre-write re-check, a fast-path callsite run in the Errand's checkout before it writes (D8). It also
+  declares `classify-work-unit`, which its Launch classification and promote trigger apply.
 - **`draft-design.md`** — at the loop-exit readiness check, a not-ready gap for inbound entries not yet integrated is
   resolved by running the method with the owner's-pass door, which leaves the dispositions table (D5). No step is
   added.
@@ -664,23 +689,25 @@ init, update, framework-sync, and E2E install inventories, the unit init test's 
 - **`work-unit-lifecycle/planning/init-work-unit.md`** — the Promote Errand path names the floor by D12's answers:
   question 1 `scale`, questions 2–4 `derivation`, `derivation` winning a tie. No method declaration change.
 
-The two-floor summaries in `arc-errand`, `run-errand.md` Launch, and `init-work-unit.md` stay, since they read true
-under the D12 mapping.
+The two-floor summaries in `arc-errand`, `arc-inbox` step 2, `run-errand.md` Launch, and `init-work-unit.md` stay,
+since they read true under the D12 mapping.
 
 Every consumer, workflow or skill, shows the method's result at its door's Owner stop (D9): the outcome, D9's
-Owner-decided pair where the result carries one, and any wait the binding names (D8).
+Owner-decided pair where the result carries one, the horizon advisory of a coupled target that carries one (D2), and
+any wait the binding names (D8).
 
 **Skills** (a skill carries no `arc:` block, so each gets a callsite only):
 
 - **`arc-inbox`** — step 1 continues into the method's fast-path door when the session holds the commitment
-  (route-now) instead of stopping; the `description` names the route-now mode; step 2's infra-smell note no longer
-  invites escalating to a Work Unit on a design fork alone, keeping it as a review-lane signal (D2, D7); step 3's
-  `## Work Unit` shape reads `WU_Target` as a candidate the drain's gate checks, not a destination its existence
-  decides, and its descriptors gain `_Shapes:_` (D2, D7).
-- **`arc-errand`** — step 1's route shape is entered only after route-now's gate, as the pre-flip vehicle for a
-  now-route, writing backlog stubs only and re-running the coupling and scope tests, and for `new-stub` the
-  shortlist, before it writes; step 2's account of Launch says a route-only Errand is classified by its routing change
-  (D7, D8).
+  (route-now) instead of stopping; the `description` names the route-now mode, and the skills README's `arc-inbox`
+  line follows it; step 2's infra-smell note no longer invites escalating to a Work Unit on a design fork alone,
+  keeping it as a review-lane signal (D2, D7); step 3's `## Work Unit` shape reads `WU_Target` as a candidate the
+  drain's gate checks, not a destination its existence decides, and its descriptors gain `_Shapes:_` (D2, D7); step 5
+  gives no Errand-class capture a work-unit home, so every one takes the drain's homeless-atomic route (D10).
+- **`arc-errand`** — step 1's route shape writes only after route-now's gate, which its own fast-path callsite runs
+  before the Errand opens when the shape is invoked directly, as the pre-flip vehicle for a now-route, writing backlog
+  stubs only, and only once `run-errand`'s pre-write re-check agrees; step 2's account of Launch says a route-only
+  Errand is classified by its routing change (D7, D8).
 
 **Strategy — `strategy-work-organization.md`** — D12:
 
@@ -688,21 +715,29 @@ Owner-decided pair where the result carries one, and any wait the binding names 
   restating the floor; § Work Character's account of atomic character stays.
 - § Worked examples' widely-used-symbol rename clears question 1: a correct plan cannot name its call sites until the
   surface is mapped.
-- § Errand Work Class points its character layer at `classify-work-unit`. Its create-versus-maintain paragraph —
-  criteria 1–3 and "create trips criterion 3" — gives way to a pointer to the same test, and the symptom check
-  re-examines a candidate against the four questions. The decision matrix keeps one row, maintaining an existing
-  artifact, across its self-contained and cross-cutting columns, and a sentence beside it states a new stub as the
-  `new-stub` outcome, made by a transient act.
+- § Errand Work Class's opening Work Unit and Errand definitions and its character layer take the line from
+  `classify-work-unit` test 1. Its create-versus-maintain paragraph — criteria 1–3 and "create trips criterion 3" —
+  gives way to a pointer to the same test and a sentence naming what does not decide the line — a roadmap slot, an
+  owner, a dependency, each for D12's reason — and the symptom check re-examines a candidate against the four
+  questions. The decision matrix keeps one row, maintaining an existing artifact, across its self-contained and
+  cross-cutting columns; its intro and the paragraph beneath it no longer state the create rule, and a sentence beside
+  it states a new stub as the `new-stub` outcome, made by a transient act.
 
-**Strategies — the capture's target and absorption** (D2, D10):
+**Strategies and the shared-inbox template — the capture's target and absorption** (D2, D10):
 
 - **`strategy-session-operations.md`** § USER-INBOX — a `## Work Unit` entry's `WU_Target` is a candidate the drain's
   gate checks, not a destination its existence decides; its Lifecycle paragraph's "`§ Errand` items to their target
   stub" becomes the drain's homeless-atomic route, since an Errand-shaped item has no work-unit home (D10).
 - **`strategy-planning-module.md`** — § `backlog/ATOMIC-INBOX.md` and § Shared-Inbox Write Discipline's "Read at
-  activation": activation and planning kickoff pull in items the work unit's own change covers (the same concern, by
-  the anti-rider rule), not items whose home "turns out to be" the work unit or its domain. § How Work Flows Through's
-  "§ Errand items route to their home" becomes the homeless-atomic route, as above.
+  activation" and "Read at planning-kickoff": activation and planning kickoff pull in items the work unit's own change
+  covers (the same concern, by the anti-rider rule), not items whose home "turns out to be" the work unit or its
+  domain. § `backlog/ATOMIC-INBOX.md`'s "single-step work with no better home than the shared surface" and "flushing
+  homeless `USER-INBOX § Errand` items", and § Shared-Inbox Write Discipline's "genuinely homeless `§ Errand` items",
+  become every `§ Errand` item, and § How Work Flows Through's "§ Errand items route to their home" becomes the
+  homeless-atomic route, as above (D10).
+- **`backlog/ATOMIC-INBOX.template.md`** — the shipped header's "single-step captures with no better home" and "only
+  genuinely homeless single-step items rest in this shared surface" become every Errand-class capture, none of which
+  has a work-unit home (D10).
 
 **Rules — `DEV-RULES.ARC.md`** § Discovered Work Routing: D10's paragraph replaces the core-invariant paragraph.
 
@@ -750,8 +785,8 @@ alternatives. ADR-021 and ADR-027 each gain a forward-pointer amendment. No ship
   Principle 3, whose own example of an operation-anchored trigger is "routing discovered work"), and matches
   `DEV-RULES.ARC` § Discovered Work Routing, which D10 points at it. An `assess-*` name reads as a check rather than an
   act; an `inbound-*` name is too narrow for a method that also routes to Errands, new stubs, and the inbox.
-- **The horizon advisory evaluated in the method's prose** — "provisional or P3" read from the listing. Rejected: a
-  comparison over state written in prose, and advisory text templated there, are what
+- **The horizon advisory evaluated in the method's prose** — "provisional, planned at P3, or parked" read from the
+  listing. Rejected: a comparison over state written in prose, and advisory text templated there, are what
   `strategy-procedure-evolution.md` Principles 1 and 6 assign to the CLI, so D11's listing composes the advisory and
   the method only shows it.
 - **A design locator in `arc status`** — a path and ref the method reads with `git show`. Rejected: reading state
@@ -810,10 +845,11 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
   with no terminator; the `owner` field present and absent; `arc view --for` on a started work unit rendering its
   selected ref's copy rather than the base branch's backlog copy, and its registered checkout's file, uncommitted edit
   included, when one exists, with `--path` naming that same file and refusing for a work unit with no registered
-  checkout; the `design` kind following `Design` for a drafted and a specced work unit; and the listing rows' new
-  fields, including lifecycle `state` and `position` distinguishing a started work unit from a backlog stub and
-  provisional from planned, and `horizonAdvisory` present for a provisional work unit and a P3 one and `null` for a
-  planned P1 or P2 one.
+  checkout; the `design` kind following `Design` for a drafted, a specced, a layered, and a `brief`-specced work
+  unit; and the listing rows' new fields, including lifecycle `state` and `position` distinguishing a started work
+  unit from a backlog stub and provisional from planned, and `horizonAdvisory` present for a provisional work unit, a
+  planned P3 one, and a parked one, and `null` for a planned P1 or P2 one and for an unparked started or a completed
+  P3 one.
 - **Migration and rollout.** No data migration and no sweep: existing buffer sections stay and are re-triaged when
   their home is next touched. An entry routed before this change and lacking `_Shapes:_` is re-checked through the gate
   at that touch. Under the pre-public-release posture, no compatibility shim is added for the retired decision-matrix
@@ -839,34 +875,37 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
   with D12's four answers.
 - **Drain dry run.** A classification-only run of the updated drain (§ 1–§ 3, no writes) over the `USER-INBOX` in hand
   at verification — seeded, where it lacks them, with a capture whose home is a backlog stub that already holds
-  entries and a capture whose Errand line is unclear — produces a routing plan in which every `hold <wu>` carries a
-  `_Shapes:_` naming a section that exists in its target, none matches its target's stated exclusions, each
-  routed-into backlog stub that already holds entries appears with its held count, oldest date, and a re-triage offer,
+  entries, a capture whose home is a provisional or planned P3 stub, and a capture whose Errand line is unclear —
+  produces a routing plan in which every `hold <wu>` carries a `_Shapes:_` naming a section that exists in its target,
+  none matches its target's stated exclusions, a hold into a provisional or planned P3 target shows its horizon
+  advisory, each routed-into backlog stub that already holds entries appears with its held count, oldest date, and a
+  re-triage offer, a stub picked for re-triage takes only the outcomes D9 gives the drain re-triaging a backlog stub,
   and an unclear Errand line appears as D9's Owner-decided pair.
 - **Purpose and owner.** `arc status <slug> --json` reports `purpose` as the first sentence of the `Design` artifact's
   `**Purpose:**` per D11's rule, `null` for a meta-only stub, a `brief` spec, or a missing artifact, and reports
   `owner`. Each `facts` row of `arc status --project --json` carries `purpose`, `owner`, the per-slug `state` and
-  `position`, and `horizonAdvisory` — text for a provisional or P3 work unit, `null` otherwise — and an in-flight work
-  unit's purpose is read from its selected ref.
+  `position`, and `horizonAdvisory` — text for a provisional work unit, a planned P3 one, or a parked one, `null`
+  otherwise — and an in-flight work unit's purpose is read from its selected ref.
 - **The live design.** Run from a checkout of the base branch, `arc view design --for <slug>` for a work unit started
-  elsewhere renders the spec or draft its meta's `Design` names — from its registered checkout's file, uncommitted
-  edits included, when one exists, otherwise as its selected ref holds it — never the backlog copy the base branch
-  keeps; `arc view spec --for <slug>` reads the same source; and `--path` names the same file that rendering reads, or
-  refuses with the work unit and its ref when it has no registered checkout. `QUICK-REFERENCE` § Artifact Viewing states
-  the same selection.
+  elsewhere, whose branch this clone holds, renders the spec or draft its meta's `Design` names — from its registered
+  checkout's file, uncommitted edits included, when one exists, otherwise as its selected ref holds it — never the
+  backlog copy the base branch keeps; `arc view spec --for <slug>` reads the same source; and `--path` names the same
+  file that rendering reads, or refuses with the work unit and its ref when it has no registered checkout.
+  `QUICK-REFERENCE` § Artifact Viewing states the same selection.
 - **The method.** `route-discovered-work.md` ships carrying D9's signature, named inputs, and result; the D2 gate with
   the horizon advisory; homing; integration modes; re-triage; the cascade rule; the outcome vocabulary; the closed door
   list with the outside-the-door fallback; the fast path's gate-before-mint; and one binding section with D8's
-  until-the-flip binding, and no rule about carrying out an outcome on today's substrate outside it. It declares and relates
-  `classify-work-unit`, names no internal work unit, ADR, or storage-program context, and resolves in every inventory
-  § Ship surface lists, with the package-sync strategy's counts matching the recipe.
+  until-the-flip binding, and no rule about carrying out an outcome on today's substrate outside it. It declares and
+  relates `classify-work-unit`, names no internal work unit, ADR, or storage-program context, and resolves in every
+  inventory § Ship surface lists, with the package-sync strategy's counts matching the recipe.
 - **Consumers.** `drain-inbox.md`, `run-errand.md`, `draft-design.md`, and `create-spec.md` each declare the method,
   invoke it at a marked fire-point, and carry the § Ship surface edits; `run-errand.md` also declares
   `classify-work-unit`. `init-work-unit.md`'s Promote Errand path maps D12's answers to `--floor`. `arc-inbox` carries
-  the route-now mode in step 1 and its `description`, the revised infra-smell note, and step 3's `WU_Target` and
-  `_Shapes:_` reading; `arc-errand` carries the gated route shape with its pre-write re-check and the route-only Launch
-  classification. `strategy-session-operations.md` and `strategy-planning-module.md` carry the § Ship surface readings.
-  No consumer restates the gate's tests or the outcome vocabulary.
+  the route-now mode in step 1 and its `description`, the revised infra-smell note, step 3's `WU_Target` and
+  `_Shapes:_` reading, and step 5's homeless Errand capture; `arc-errand` carries the gated route shape and the
+  route-only Launch classification, and `run-errand.md` the route-only Errand's pre-write re-check.
+  `strategy-session-operations.md`, `strategy-planning-module.md`, and the `ATOMIC-INBOX` template's header carry the
+  § Ship surface readings. No consumer restates the gate's tests or the outcome vocabulary.
 - **The Errand line.** `classify-work-unit` boundary test 1 carries D12's four questions mapped onto its two axes.
   `strategy-work-organization.md` points at it from § The boundary tests, § Work Character, and § Errand Work Class,
   keeps no copy of the old floor or criterion 3, keeps the one-row decision matrix with the `new-stub` sentence, and

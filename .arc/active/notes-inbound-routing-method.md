@@ -32,6 +32,14 @@ Counted at `c009ab198` (2026-10-07).
 `composable-workflows`' consolidated buffer dispositions (2026-07-02), and a removed `USER-INBOX` entry that
 redistributed `operational-state-docs`' buffer.
 
+**Held entries by priority** (recounted 2026-10-09). Planned P1 stubs hold 189 entries, planned P2 133, planned P3
+149, and provisional stubs about 30, so the horizon advisory's trigger — provisional, planned at P3, or parked —
+reaches about a third of what is held; a parked work unit's entries ride its preserved branch and are not in these
+counts. Age does not track priority: 18 of the 36 planned P1 and P2 buffers hold an entry older than 60 days, against
+24 of 33 at planned P3. Priority is set once and rarely revisited, so it is a coarse horizon proxy; held-entry age is
+the signal that does not depend on it, which D5's drain line shows today and the back-pressure slot computes from the
+flip.
+
 These counts are the calibration data for the back-pressure slot the storage work owns.
 
 ## Hard-to-place cases from `quality-gate-hooks`
