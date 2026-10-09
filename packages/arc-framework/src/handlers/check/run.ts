@@ -17,6 +17,9 @@ import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from ".
 import type { CheckRequest } from "../../lib/checks/request.js";
 import { selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
 import type { CheckPassStore } from "../../lib/checks/record.js";
+import type { CheckReportStore } from "../../lib/checks/reports.js";
+import { checkVerification } from "./report.js";
+import { checkRetryCommand } from "../../lib/checks/remedies.js";
 
 /** One check's externally observable result. */
 export interface DeclaredCheckResult {
@@ -27,13 +30,16 @@ export interface DeclaredCheckResult {
   reason?: string;
   divergent?: string[];
   rewritten?: string[];
+  logPath?: string;
+  costMs?: number;
+  remedy?: string;
 }
 
 /** Typed result retained independently of output formatting. */
 export type RunDeclaredChecksResult = {
   kind: "result";
   exitCode: 0 | 1 | 2;
-  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; base?: string; tree?: string; merged?: string[] };
+  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string } };
 
 /**
@@ -54,6 +60,8 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   platform: NodeJS.Platform;
   availableParallelism(): number;
   passes: CheckPassStore;
+  reports?: CheckReportStore;
+  now?(): number;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string }>;
 }
@@ -133,7 +141,7 @@ async function executeResolvedRequest(
   entries: Array<[string, CheckDeclaration["checks"][string]]>, coordinates: ResolvedCheckRequest, indexViews: CheckIndexViews,
 ): Promise<RunDeclaredChecksResult> {
   const { base, tree } = coordinates;
-  if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
+  if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree, verification: checkVerification("none declared", []), ...(request.ci ? { ci: true } : {}) } };
   if (entries.some(([, check]) => check.fixes) && coordinates.snapshot === undefined) {
     coordinates.snapshot = await createWorktreeSnapshot(io.git, root, coordinates.snapshotDirectory);
   }
@@ -157,7 +165,7 @@ async function executeResolvedRequest(
   }));
   const checks = outcomes.sort((first, second) => first.position - second.position).map(outcome => outcome.result);
   return { kind: "result", exitCode: declaredChecksExitCode(checks),
-    result: { status: "completed", checks, base, tree: coordinates.tree, ...(coordinates.merged ? { merged: coordinates.merged } : {}) } };
+    result: { status: "completed", checks, verification: checkVerification("completed", checks), ...(request.ci ? { ci: true } : {}), base, tree: coordinates.tree, ...(coordinates.merged ? { merged: coordinates.merged } : {}) } };
 }
 
 
@@ -177,7 +185,11 @@ async function runRequestedCheck(
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
-  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  if (result.outcome === "failed" || result.outcome === "couldn't run") {
+    result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: check.mode === "files" && check.widen && selection.widened && request.form.kind !== "run" });
+  }
+  return result;
 }
 
 async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
@@ -225,15 +237,19 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   const cwd = resolve(root, check.root);
   const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
   const indexFile = check.reads_index ? await indexViews.get() : undefined;
+  const startedAt = (io.now ?? performance.now.bind(performance))();
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
-  return finalizeCheckRun(selected, io, request, result, key);
+  const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
+  const measurement = await io.reports?.save(id, result.output, costMs);
+  return { ...await finalizeCheckRun(selected, io, request, result, key), costMs,
+    ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, root, divergent, coordinates } = selected;
   const rewritten = check.fixes && request.form.kind !== "pre-commit" ? await refreshFixerContent(io.git, root, coordinates, coordinates.scope.kind !== "staged" || checkFixesAllowed(request)) : [];
-  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(rewritten.length > 0 ? { rewritten } : {}), output: result.output };
+  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes && request.form.kind !== "pre-commit" ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
   if (rewritten.length > 0 && !checkFixesAllowed(request)) return { id, kind, ...details, outcome: "failed", reason: "rewrote files during verification" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };

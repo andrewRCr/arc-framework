@@ -138,5 +138,5 @@ it("refreshes index stat data after a fixer rewrites identical bytes without cha
   const result = await runArc(["check", "run", "touch", "index", "--json"], root);
   expect(result.exitCode, result.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8")).diff).toBe("");
-  expect(JSON.parse(result.stdout).result.checks[0].rewritten).toBeUndefined();
+  expect(JSON.parse(result.stdout).result.checks[0].rewritten).toEqual([]);
 });

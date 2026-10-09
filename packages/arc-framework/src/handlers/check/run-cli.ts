@@ -4,7 +4,8 @@ import { execa } from "execa";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { availableParallelism } from "node:os";
-import { atomicCreateFile } from "../../lib/fs.js";
+import { atomicCreateFile, atomicWriteFile } from "../../lib/fs.js";
+import { createCheckReportStore } from "../../lib/checks/reports.js";
 import { checkRecordDirectory, createCheckPassStore } from "../../lib/checks/record.js";
 import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -126,6 +127,8 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
+      reports: createCheckReportStore({ directory: () => checkRecordDirectory(git, root),
+        readFile: path => readFile(path, "utf8"), writeFile: atomicWriteFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: runCheckProcess,
       runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),

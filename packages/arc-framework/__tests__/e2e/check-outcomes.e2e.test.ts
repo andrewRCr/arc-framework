@@ -54,6 +54,6 @@ it("reports an empty gate as none declared with exit 0", async () => {
   repositories.push(root);
   const result = await runArc(["check", "gate", "commit"], root);
   expect(result.exitCode, result.stderr).toBe(0);
-  expect(result.stdout.trim()).toBe("none declared");
+  expect(result.stdout.trim().split(/\r?\n/u)).toEqual(["none declared", "Checks: none declared."]);
   expect(result.stdout).not.toContain("passed");
 });

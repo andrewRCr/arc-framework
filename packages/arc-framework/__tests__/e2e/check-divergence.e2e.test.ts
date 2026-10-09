@@ -24,7 +24,7 @@ it.each([
   const before = await runArc(request, root);
   expect(before.exitCode, before.stderr).toBe(0);
   expect(JSON.parse(before.stdout).result.checks[0].outcome).toBe("passed");
-  const records = await readdir(join(root, ".git/arc-checks"));
+  const records = (await readdir(join(root, ".git/arc-checks"))).filter(name => /^[0-9a-f]{64}\.json$/u.test(name));
   await writeFile(join(root, "src/a.ts"), "unstaged input\n");
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await runArc(request, root);
@@ -32,7 +32,7 @@ it.each([
     expect(JSON.parse(result.stdout).result.checks[0]).toMatchObject({ outcome: "passed", divergent: ["src/a.ts"] });
   }
   expect(await readFile(join(root, "receipt.json"), "utf8")).toBe("run\nrun\nrun\n");
-  expect(await readdir(join(root, ".git/arc-checks"))).toEqual(records);
+  expect((await readdir(join(root, ".git/arc-checks"))).filter(name => /^[0-9a-f]{64}\.json$/u.test(name))).toEqual(records);
   await writeFile(join(root, "src/a.ts"), "changed\n");
   const restored = await runArc(request, root);
   expect(JSON.parse(restored.stdout).result.checks[0].outcome).toBe("reused");

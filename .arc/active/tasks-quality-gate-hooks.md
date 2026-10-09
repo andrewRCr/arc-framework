@@ -281,22 +281,15 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
   over failures regardless of kind. Native parse guards preserve exit 2 while help and version retain exit 0; repairing
   the named declaration field resumes execution. Skipped checks and empty gates remain distinct from passed checks.
 
-### `[ ]` **4.5 Report, verification line, and remedies — D3, D12**
+### `[x]` **4.5 Report, verification line, and remedies — D3, D12**
 
 - _Goal:_ A reader gets one terse report that leads with failures, names a remedy for each that discards no work, and
   carries a precomposed verification line, and nothing CI-facing speaks ARC vocabulary.
 
-    - Build `test-first` (one behavior at a time):
-        - a passing check prints one line; a failing one prints a bounded output tail and the path to its full log in
-          the record directory
-        - each result carries its kind and outcome; rewritten files are listed; a divergent run says so
-        - each run records its measured cost beside its log
-        - the verification line reflects outcomes and never calls `skipped` or `none declared` passed
-        - a failed check's remedy is its output plus the rerun by id over the failed run's scope and base, never with
-          `--ci`, and that rerun applies a fixer's fixes
-        - a widened `files` check's remedy is the failed request retried as made, `--ci` included, or for a hook the
-          guarded commit or push
-        - under `--ci`, output names the project's checks and results, with no ARC vocabulary
+- _Outcome:_ Reports lead with failures, retain distinct full logs and measured costs in the checkout's disposable
+  record directory, and compose verification from named outcomes. Retries preserve scope and resolved range bases;
+  widened file checks retry the original request or guarded commit. Failed fixers expose rewrite presence, and CI
+  human text uses project check vocabulary.
 
 ### `[ ]` **4.6 JSON envelope and dry run — D3, D9**
 
