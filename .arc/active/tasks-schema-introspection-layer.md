@@ -207,50 +207,16 @@ _Exit criterion:_ In an existing checkout, `arc schema install` writes the edito
 clone-level exclude entry, `git status` stays clean and the managed `.gitignore` block is unchanged, and each
 refusal exits 1 with its typed envelope.
 
-### `[ ]` **4.1 Write a checkout's editor documents behind their own exclude entry — D4**
+### `[x]` **4.1 Write a checkout's editor documents behind their own exclude entry — D4**
 
 - _Goal:_ One writer leaves a checkout's CLI-owned directory holding exactly one self-contained document per marked
   schema, ignored through the clone's own exclude entry written first, and reports what it wrote or a typed failure
   naming what failed.
 
-    - The idempotent append in `ensureWorktreeMarkerIgnored` (`lib/git/worktree-marker.ts`) moves into a helper in
-      `lib/git/` that takes the pattern, resolves the clone's shared `info/exclude` with
-      `git rev-parse --git-path info/exclude` run with `cwd` set to the checkout root, appends the pattern once, and
-      reports the absolute path it resolved against that root, on success and on any failure after Git answers:
-      reading the file, creating its directory, or writing it. The marker calls it with its own pattern, and its tests
-      keep passing unchanged.
-    - `writeEditorDocuments` (`lib/schema-command/editor-documents.ts`) takes the checkout root, the caller's
-      `GitExec`, an `EditorDocumentsFs` that extends `WorktreeMarkerIgnoreFs` with a recursive `rm` (a node adapter
-      sits beside it), and an optional registry. It resolves the directory through Task 3.1's root address, adds its
-      pattern `.arc/system/.internal/schemas/` through the helper before writing any document, projects the input
-      side once when any schema is marked, and folds each marked root from that bundle into the document address's
-      path.
-    - Each write replaces the directory's contents, so a schema that loses its marker loses its document; with no
-      marked schema the writer leaves the exclude entry and an empty directory without projecting.
-    - Success returns the checkout-relative paths written. A failure returns `{target, path, detail}`: `target` is
-      `"documents"` or `"exclude"`; `path` is absolute, since a linked worktree's `info/exclude` lies outside the
-      checkout, and absent only when Git cannot resolve `info/exclude`; and `detail` carries the underlying message.
-      Each caller applies its own failure policy.
-    - `writeEditorDocumentsOrThrow`, beside it, serves the provisioning sites, whose rollback paths are all reached by
-      a throw. It takes the same inputs and an optional writer of `writeEditorDocuments`' type, defaulting to it, and
-      throws an `EditorDocumentsWriteError` carrying a returned failure's `{target, path, detail}`. A site's seam is
-      that optional writer, so an injected failure throws exactly as a production one does.
-    - The generated files take no `init-recipe.json` entry, as `pristine.json` takes none.
-    - Integration tests run in a temporary repository with a registry holding a marked test schema.
-
-    - Build `test-first` (one behavior at a time):
-        - The written document validates a sample file with no unresolved reference
-        - `git check-ignore` reports the document ignored and `git status` stays clean
-        - An unmarked schema gets no document
-        - With no marked schema, the writer projects nothing and leaves the exclude entry and an empty directory
-        - A rerun removes a document whose schema lost its marker
-        - The exclude entry is written once and before any document
-        - An unwritable directory returns a `documents` failure naming its absolute path
-        - An unreadable `info/exclude` and an unwritable one each return an `exclude` failure naming its absolute
-          path, and write no document
-        - A failing `git rev-parse` returns an `exclude` failure with no `path`, and writes no document
-        - The throwing form calls the writer it is given, throws `EditorDocumentsWriteError` carrying a returned
-          failure, and returns the paths otherwise
+- _Outcome:_ The writer installs only marked input-side closures, replaces its owned directory, and skips projection
+  when none are marked. A shared idempotent clone-exclude helper establishes ignore coverage first and retains resolved
+  failure paths; marker callers retain their throw policy. Typed write failures and the injectable throwing wrapper
+  support provisioning rollback.
 
 ### `[ ]` **4.2 Compose the reference a project file uses — D4**
 

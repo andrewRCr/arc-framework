@@ -14,7 +14,7 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, posix, resolve } from "node:path";
+import { dirname, isAbsolute, join, posix } from "node:path";
 
 import { atomicWriteJson, retryTransientFileSystemRefusal } from "../fs.js";
 import { isCanonicalDigest } from "../kernel/canonical/canonical-json.js";
@@ -34,6 +34,7 @@ import type {
   RetirementEvidenceRef,
 } from "../work-unit/retirement-authority.js";
 import type { GitExec } from "./exec.js";
+import { ensureGitExcludePattern, type GitExcludeFs } from "./exclude.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
 export type WorktreeSubject =
@@ -192,11 +193,7 @@ const MARKER_IGNORE_PATTERN = posix.join(
 );
 
 /** Filesystem seam for registering the marker's Git ignore rule. */
-export interface WorktreeMarkerIgnoreFs {
-  readFile(path: string): Promise<string>;
-  writeFile(path: string, content: string): Promise<void>;
-  mkdir(path: string, options: { recursive: boolean }): Promise<void>;
-}
+export type WorktreeMarkerIgnoreFs = GitExcludeFs;
 
 /** Production filesystem adapter for marker ignore registration. */
 export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
@@ -235,23 +232,8 @@ export async function ensureWorktreeMarkerIgnored(
   exec: GitExec,
   fs: WorktreeMarkerIgnoreFs,
 ): Promise<void> {
-  const { stdout } = await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd });
-  const rawPath = stdout.trim();
-  const excludePath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-
-  let content = "";
-  try {
-    content = await fs.readFile(excludePath);
-  } catch (err) {
-    if (!isNodeError(err) || err.code !== "ENOENT") throw err;
-  }
-
-  const lines = content.split(/\r?\n/u);
-  if (lines.includes(MARKER_IGNORE_PATTERN)) return;
-
-  const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
-  await fs.mkdir(dirname(excludePath), { recursive: true });
-  await fs.writeFile(excludePath, `${prefix}${MARKER_IGNORE_PATTERN}\n`);
+  const result = await ensureGitExcludePattern(cwd, MARKER_IGNORE_PATTERN, exec, fs);
+  if (!result.ok) throw result.error;
 }
 
 /**
