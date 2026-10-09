@@ -54,3 +54,21 @@ describe("check identifiers", () => {
     if (!result.success) expect(result.error.issues.some((issue) => issue.path.includes(id))).toBe(true);
   });
 });
+
+describe("cross-field check rules", () => {
+  it.each([
+    { check: { command: "echo ready", shell: true, mode: "files" }, field: "mode" },
+    { check: { command: ["echo", "ready"], shell: true }, field: "command" },
+    { check: { command: "echo ready" }, field: "command" },
+    { check: { command: ["npm", "test"], shards: { count: 4, argument: "--shard={count}" } }, field: "shards.argument" },
+  ])("refuses an incompatible $field", ({ check, field }) => {
+    const result = CheckDeclarationSchema.safeParse({ checks: { test: check } });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path.join(".")))
+      .toContain(`checks.test.${field}`);
+  });
+  it("accepts a project shell command with indexed shards", () => {
+    const check = { command: "echo ready", shell: true, shards: { count: 4, argument: "--shard={index}/{count}" } };
+    expect(CheckDeclarationSchema.parse({ checks: { test: check } })).toMatchObject({ checks: { test: check } });
+  });
+});

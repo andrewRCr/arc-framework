@@ -16,6 +16,19 @@ const CheckSchema = z.strictObject({
   shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
   cache: z.boolean().default(true),
   reads_index: z.boolean().default(false),
+}).superRefine((check, context) => {
+  if (check.shell && check.mode === "files") {
+    context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
+  }
+  if (check.shell && typeof check.command !== "string") {
+    context.addIssue({ code: "custom", path: ["command"], message: "A shell command must be one string." });
+  }
+  if (!check.shell && typeof check.command === "string") {
+    context.addIssue({ code: "custom", path: ["command"], message: "A string command requires shell: true." });
+  }
+  if (check.shards !== undefined && !check.shards.argument.includes("{index}")) {
+    context.addIssue({ code: "custom", path: ["shards", "argument"], message: "A shard argument must contain {index}." });
+  }
 });
 
 export const CheckDeclarationSchema = z.strictObject({

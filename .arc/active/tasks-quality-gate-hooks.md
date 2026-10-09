@@ -59,13 +59,10 @@ naming the field.
           `constructor`. Invalid names report their field; the typed-file reader refuses duplicate YAML and JSON
           keys before validation.
 
-    - `[ ]` **1.3.c Cross-field refinements**
-        - Applied by the CLI after the structural parse, so no schema document carries them
-        - Build `test-first` (one behavior at a time):
-            - `shell: true` with `mode: files` refuses
-            - `shell: true` with an argument-list `command` refuses
-            - a string `command` without `shell: true` refuses
-            - a shard argument without `{index}` refuses
+    - `[x]` **1.3.c Cross-field refinements**
+        - Runtime refinements reject shell commands in files mode, argument lists used with a shell, strings used
+          without a shell, and shard arguments without `{index}`. Each refusal names its field; valid project shell
+          commands and indexed shards remain accepted.
 
     - `[ ]` **1.3.d Register `check-declaration`**
         - A registrar beside the schema, as `registerDeliveryAuthoringSchemas` sits beside its own in
