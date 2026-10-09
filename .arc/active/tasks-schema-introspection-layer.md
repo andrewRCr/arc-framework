@@ -172,25 +172,20 @@ and every result validates against its registered envelope.
   help, input registrations, and machine-mode policy. Built-CLI tests cover discovery outside a project, authored
   requests, the cut map, unknown identities, and unsupported flags.
 
-### `[ ]` **3.4 Name the verb where agents look it up — D5**
+### `[x]` **3.4 Name the verb where agents look it up — D5**
 
 - _Goal:_ An agent finds a registered contract on demand through `arc schema`, and an agent completing a decompose
   cut map is pointed at its structural contract, with nothing added to always-loaded context.
 
-    - `[ ]` **3.4.a QUICK-REFERENCE § ARC CLI Commands, both copies**
+    - `[x]` **3.4.a QUICK-REFERENCE § ARC CLI Commands, both copies**
 
-        - Package source first (`arc/reference/QUICK-REFERENCE.template.md`, a configurable template), then the
-          project copy (`.arc/reference/QUICK-REFERENCE.md`).
-        - Names `arc schema` as the way to retrieve a registered contract and the `editorDocument` field as the way
-          to find an editor document; restates neither the directory nor the result shapes.
+        - Both on-demand references name list/get discovery and the `editorDocument` location field, preserving the
+          project reference's custom guidance.
 
-    - `[ ]` **3.4.b `decompose-work-unit.md` § 2, both copies**
+    - `[x]` **3.4.b `decompose-work-unit.md` § 2, both copies**
 
-        - One inline line where the agent completes the map names `arc schema get decompose-cut-map` as the map's
-          structural contract — each authoring slot's shape, discriminators, and allowed constants — and says the
-          refinements and cross-field checks stay with `arc decompose`.
-        - Inline prose with the bare `arc` invocation, not a fenced block: `decompose-workflow-contract.test.ts` pins
-          the workflow's fenced bash blocks, forbids `npx arc`, and holds the two copies byte-equal.
+        - Both workflows point authoring to the cut map's structural contract and retain CLI-owned refinements and
+          cross-field checks. The copies remain byte-equal and their pinned fenced commands are unchanged.
 
 ### `[ ]` **3.5 Exercise `list` and `get` against the built CLI** — validate exit criterion at segment scope
 

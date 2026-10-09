@@ -340,6 +340,11 @@ Materialization, pull, and sync verbs likewise own their documented Git writes. 
 Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
 code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
 
+### Schema Discovery
+
+Use `arc schema list` to find registered contracts and `arc schema get <id>` to retrieve one. Read a result's
+`editorDocument` field to locate its editor document.
+
 ### Artifact Viewing
 
 `arc view [kind]` renders an artifact using the existing selectors. With no kind, it checks
