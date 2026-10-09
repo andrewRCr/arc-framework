@@ -211,6 +211,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     examples: [
       ["arc errand open my-fix", "Open an isolated atomic concern"],
       ['arc errand open my-fix --from-inbox "Fix the formatting issue"', "Adopt an existing inbox capture"],
+      ["arc errand open my-fix --isolate", "Open in a new worktree, leaving the primary free"],
     ],
     notes: [["Example context:", "The quoted title must match an existing capture's inner bold title. "
       + "Review and merge require their own approvals."]],

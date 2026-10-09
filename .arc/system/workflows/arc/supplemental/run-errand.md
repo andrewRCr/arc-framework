@@ -91,6 +91,9 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
      transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
      branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
+     free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
+     own provisioned transient and the primary stays free for another session; partial protection refuses it.
    - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
      re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
      `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
@@ -638,16 +641,16 @@ checkout paths, and `settlement` are the sole closure evidence.
 
 When the current conversation has already agreed one exact next Errand, that named target takes precedence over
 `nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
-a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
-result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
-ambiguous.
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`, adding `--isolate`
+under the session's isolate posture. Consume the open result as the new sibling locus. The target must resolve to one
+exact Errand entry; stop when it is missing or ambiguous.
 
 Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
 `key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
 returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
-`arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
-or reorder inbox captures.
+`arc errand open <slug> --from-inbox <nextOffer.key> --json`, adding `--isolate` under the session's isolate posture.
+Consume the open result as the new sibling locus. On decline, return to the restored parent/between-WUs frame. Never
+scan for a substitute, persist an Errand sequence, or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is

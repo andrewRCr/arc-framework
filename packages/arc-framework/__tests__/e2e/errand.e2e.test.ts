@@ -700,6 +700,69 @@ describe("arc errand open", () => {
     }
   });
 
+  it("leaves the free primary to another session when --isolate provisions a transient", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "isolate-remote");
+    let spawnedPath: string | null = null;
+    try {
+      const isolated = await runArc(["errand", "open", "isolated-errand", "--isolate", "--json"], tmpDir);
+      expect(isolated.exitCode, isolated.stdout + isolated.stderr).toBe(0);
+      const opened = JSON.parse(isolated.stdout.trim()) as { allocation?: { checkoutPath?: unknown } };
+      expect(opened).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "spawned", checkoutPath: expect.any(String) },
+      });
+      spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
+      expect(spawnedPath).not.toBe(tmpDir);
+      expect((await git(tmpDir, ["symbolic-ref", "--short", "HEAD"])).trim()).toBe("main");
+
+      const unisolated = await runArc(["errand", "open", "primary-errand", "--json"], tmpDir);
+      expect(unisolated.exitCode, unisolated.stdout + unisolated.stderr).toBe(0);
+      expect(JSON.parse(unisolated.stdout.trim())).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "primary", checkoutPath: tmpDir },
+      });
+    } finally {
+      if (spawnedPath !== null) {
+        await git(tmpDir, ["worktree", "remove", "--force", spawnedPath]).catch(() => undefined);
+        await cleanupTempDir(spawnedPath);
+      }
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("refuses --isolate under partial protection with a retry that opens the free primary", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
+    const remoteDir = await createBareRemote(tmpDir, "partial-isolate-remote");
+    try {
+      const refused = await runArc(["errand", "open", "partial-errand", "--isolate", "--json"], tmpDir);
+
+      expect(refused.exitCode).toBe(1);
+      expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+        outcome: "refused",
+        operation: "errand-open",
+        reason: "full-protection-required",
+        recommendedPromptText: expect.stringContaining("Retry without --isolate"),
+      });
+      expect(refused.stderr).toBe("");
+
+      const retried = await runArc(["errand", "open", "partial-errand", "--json"], tmpDir);
+      expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+      expect(JSON.parse(retried.stdout.trim())).toMatchObject({
+        outcome: "applied",
+        operation: "errand-open",
+        allocation: { kind: "primary", checkoutPath: tmpDir },
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
   it.each([
     { operation: "errand-open", args: ["errand", "open", "bad slug", "--json"] },
     {

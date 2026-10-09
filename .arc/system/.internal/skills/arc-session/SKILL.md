@@ -1,6 +1,6 @@
 ---
 name: arc-session
-description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>] [--next], --housekeep, or --plan <stub>.
+description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>] [--next] [--isolate], --housekeep, or --plan <stub>.
 disable-model-invocation: false
 ---
 
@@ -34,7 +34,8 @@ active — the resumed work unit's checkout is preserved. Each is orthogonal to 
 - `--errand [<slug|description>]` — isolated atomic work. A bare `--errand` (no slug/description) is supported:
   the entry elicits the concern, or adopts a flagged `USER-INBOX § Errand` capture.
   `--errand --next` adopts the first execute-bound capture in file order without elicitation; it cannot also carry
-  a slug or description.
+  a slug or description. Adding `--isolate` gives every Errand the session opens its own worktree, leaving the
+  primary free for another session (full protection only).
 - `--housekeep` — drain the user inbox to its authoritative homes (reaches the `arc-housekeep` skill).
 - `--plan <stub>` — groom a `backlog/` stub's draft (`planned` or `provisional`) in place, resumable via
   `--plan <stub>` across sessions.
