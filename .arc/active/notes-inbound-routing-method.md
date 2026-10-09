@@ -278,3 +278,143 @@ Primary comparison against the revised method confirmed:
 These four observations satisfy the appended own-work criterion at method scope. They do not pass the original
 30-entry scenario or close A1's revalidation: the independent replay runs next, against a new exact export with the
 revised methodology overlaid. Earlier reports and the hand verdicts are excluded from its input roots.
+
+### Task 2.2 — A1 replay comparison
+
+The renewed blind replay is `/tmp/inbound-routing-replay-a1-report.md`, from fresh evaluator
+`/root/blind_replay_a1`. All 30 original entries were assessed; the complete content-read disclosure names 85 inputs
+within the two authorized scratch roots, with no reported outside-root exposure or historical answer-key read. The
+fixture manifest is `/tmp/inbound-routing-replay-a1-manifest.json`. Its three overlaid methodology files match the
+current source bytes in both copies. The original Replay criterion was checked byte-for-byte against `1fb8d2136`.
+
+**Result: the original segment scenario still fails.** Entry 7 now folds by the amended own-work rule, and the four
+contrasts pass, but multiple historical outcomes remain unreproduced. An Owner pair is an unresolved classification,
+not a unique historical verdict recovered. Neither this comparison nor the root's factual corrections turns the blind
+report into a passing result. Task 2.2 and A1's original-scenario revalidation remain open.
+
+| Entry                       | Historical verdict                                   | A1 replay                                                                        | Comparison / primary validation                                                                               |
+| --------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1 — baseline recovery       | Errand or test-suite-reliability follow-up           | Errand/new-stub pair for ref recovery; Errand for affected rows                  | Errand candidate compatible; pair still needs Owner input.                                                    |
+| 2 — warm practice           | Errand or follow-up                                  | Dismiss refresh; Errand practice                                                 | Compatible live residual.                                                                                     |
+| 3 — machine-readable result | Errand or follow-up                                  | Errand                                                                           | Compatible.                                                                                                   |
+| 4 — hosted capacity         | Errand or follow-up                                  | Dismiss existing rows; new-stub for capacity/refresh policy                      | Floor disagreement remains.                                                                                   |
+| 5 — two-copy selection      | Host fold                                            | Host fold, own-work coverage                                                     | Compatible.                                                                                                   |
+| 6 — completed task IDs      | Storage hold                                         | Hold task-list-conventions                                                       | Different home; proposed Shapes names another held entry.                                                     |
+| 7 — ownership cleanup       | Host fold                                            | Host fold, own-work coverage                                                     | Approved timing correction works.                                                                             |
+| 8 — missing hooks path      | Errand                                               | Dismiss wrapper detection and obsolete spawn absence                             | Different outcome; wrapper protects ARC commits, not every raw Git path.                                      |
+| 9 — excluded lint operand   | Errand                                               | Dismiss other repaired parts; Errand operand interface                           | Compatible live residual.                                                                                     |
+| 10 — raw Git status tokens  | Dismiss fix; Errand missing regression               | Dismiss                                                                          | Expected raw-status regression residual still omitted; existing four tests cover planning IDs/merge behavior. |
+| 11 — large blobs            | Dismiss retired validator; Errand three local limits | Dismiss old validator; new-stub generalized hardening                            | Broad hardening survives now, but the bounded shared-limit residual needs its own split and floor.            |
+| 12 — runtime examples       | Errand                                               | Errand/new-stub pair                                                             | Owner floor choice unresolved.                                                                                |
+| 13 — install verifier       | Errand                                               | Dismiss old path; Errand mode-selection fix                                      | Compatible live residual; broader inventory redesign no longer substituted.                                   |
+| 14 — source-only hooks      | Storage hold                                         | Dismiss old loader spelling; Errand guards; Errand/new-stub migration pair       | Outcome/holding difference remains; retirement coordination is not blanket packaging ownership.               |
+| 15 — CI message ranges      | Hold ghost-mode                                      | Errand/new-stub pair                                                             | Floor unresolved; ghost-mode's actual footer-policy decision was not checked as a finalist.                   |
+| 16 — message caching        | Host fold                                            | Host fold, own-work coverage                                                     | Compatible conditional question.                                                                              |
+| 17 — Markdown rules         | Dismiss shipped content; host fold restage           | Dismiss basic rules; Errands for table equivalence/emoji; host fold restage      | Host fold compatible; archived upstream spec resolves the extra content premises as described below.          |
+| 18 — push confirmation      | Hold history-policy                                  | Errand, all No                                                                   | Direct floor/historical-holding disagreement.                                                                 |
+| 19 — TSDoc                  | Errand                                               | Errand                                                                           | Compatible.                                                                                                   |
+| 20 — seam/E2E guards        | New work-unit home                                   | Dismiss tier absence; new-stub mechanical guards                                 | Compatible new-home class.                                                                                    |
+| 21 — actionlint             | Errand                                               | Errand                                                                           | Compatible.                                                                                                   |
+| 22 — pre-commit style lint  | Dismiss                                              | Dismiss                                                                          | Compatible.                                                                                                   |
+| 23 — CI/local parity        | Host fold                                            | Dismiss omission; host fold composition                                          | Compatible live residual.                                                                                     |
+| 24 — flat layout            | Storage hold                                         | Dismiss stale reader premise; Errand recurrence assertion                        | Floor/holding disagreement remains.                                                                           |
+| 25 — untracked files        | Dismiss                                              | Dismiss inclusion; Errand count verification                                     | Primary verified visible count through the exact pinned linter/caller; raw report retained.                   |
+| 26 — restage loop           | Host fold                                            | Host fold, own-work coverage                                                     | Compatible.                                                                                                   |
+| 27 — prose citations        | Hold knowledge-lint; exclusion applies               | Hold knowledge-lint                                                              | Compatible; host exclusion expressly applied.                                                                 |
+| 28 — anchors                | Hold knowledge-lint; exclusion applies               | Errand/hold knowledge-lint pair                                                  | Work-unit candidate and exclusion recovered; floor choice remains unresolved.                                 |
+| 29 — complexity/test bloat  | Errand                                               | Production policy pair; Errand named test rules; new-stub count-ratchet redesign | Partly compatible; broader redesign and policy floor remain disputed.                                         |
+| 30 — ceremony invocation    | Host fold                                            | Host fold after floor/coupling                                                   | Compatible.                                                                                                   |
+
+**Primary source corrections, separate from the blind report:**
+
+- **17, upstream policy:** the exported completed `spec-markdown-formatting.md` § Non-Goals explicitly excludes an
+  emoji ban and canonical delimiter spacing. Its § 10 directs the host to drop stale table-CI/emphasis/emoji ownership
+  while retaining generic orchestration and consuming the shipped check-only runner. The new report did not read that
+  upstream artifact. An assumed upstream emoji rule is not a newly authorized independent policy; the captured
+  enforcement premise is obsolete. A deliberate new ban would be another concern. Exact serializer bytes likewise
+  are not the settled lint contract: that spec states accepted serializer spacing is not the lint contract. The
+  fixture config selects aligned `MD060`; the pinned rule checks pipe alignment, not just the older per-file style
+  consistency. No new check is warranted solely because the originally proposed script name does not exist.
+- **25, tool output:** the fixture pins `markdownlint-cli2` 0.23.0. That exact locally installed version's
+  `markdownlint-cli2.mjs:1049` prints `Linting: ${fileCount} file(s)` under normal progress; the fixture sets no
+  `noProgress`, and `runWorktreeMarkdownlint` supplies explicit selected paths without formatting flags.
+  `lint-markdown-worktree.ts:executeLinter` inherits stdout/stderr. The ordinary gate logs also witness this line.
+  The root used dependency source outside the exported fixture for this validation; the blind evaluator did not.
+- **10/11, residual bounds:** the canonical meta-reference suite still has no raw-status exemption case; its four
+  tests verify genuine planning references and merge behavior. Entry 11's shared-limit request has concrete known
+  sites: `validate-meta-spec.ts:279`, `remedy-roadmap-conflict.ts:50`, and `assert-roadmap-regenerated.ts:127` against
+  `process-executor.ts:MAX_GIT_OUTPUT_BYTES`. The primary proposes `errand` for the raw-status regression and the
+  three explicit limit replacements, each with record answers No/No/No/No: named test/edit sites, no durable exclusion,
+  reversal within another Errand, and a short rationale. A separate generalized-reader analysis may need a work unit
+  without turning this small explicit reuse residual into one. No out-of-scope source fix was made.
+- **15, candidate omission:** the fixture's `draft-ghost-mode.md` § Settled inputs explicitly owns trailer form,
+  footer settings/defaults, the commit hook, and absent-state degradation. The new evaluator did not read it. That
+  decision is a legitimate candidate for CI-footer enforcement. Its Purpose is the no-footprint profile and its
+  explicit exclusions concern storage implementation, review-disposition bodies, and contributor operation; none
+  excludes the captured footer enforcement. The primary proposes the corrected pair `errand` / `hold ghost-mode`,
+  with `_Shapes:_ Settled inputs — footer policy and absent-state degradation`, pending the same floor decision.
+  This is not permission to let a destination override an all-No result.
+
+### Next decision proposal — replay calibration
+
+Recommend keeping D12's record floor and D2's coupling requirement. The updated method passed the approved timing
+contrasts. The remaining report combines evaluator omissions, missing upstream/tool context, different captured-scope
+readings, and Owner-dependent floor decisions. Another blind pass over the same underspecified Owner inputs is not a
+bounded fix for all of those differences, and historical holding labels alone do not establish method defects.
+
+A further **design-arm amendment is proposed, not applied**: retain the original historical-parity criterion and its
+failed evidence, append an explicitly superseding criterion, and adjudicate the comparison rather than modifying the
+floor to force old labels. Proposed replacement behavior:
+
+> A fixture-confined evaluator covers all 30 historical entries against the named historical tree with the current
+> method, splitting distinct concerns and resolved/live parts. Each proposal names its deciding rule and source
+> evidence; each fold/hold names Shapes validated against the target's actual scope and exclusions. An unclear record
+> floor returns the method's Owner pair with its four answers. Both knowledge-content entries are excluded from the
+> host; the own-work timing and independent-concern contrasts pass. Every difference from the historical triage,
+> including a remaining source uncertainty or omitted candidate, receives an explicit Owner disposition before the
+> segment closes. Historical equality is not inferred from a pair or from a primary correction to the blind report.
+
+The disposition proposal for calibration is: accept the already-compatible rows; retain the source corrections for
+17/25 and bounded Errand proposals for 10/11; use 15's validated candidate in its pair; and settle the record floor
+and intentional waiting for the disputed rows (4, 6, 8, 12, 14, 15, 18, 24, 28, 29) against their bounded capture.
+A proposal is not approval: those Owner dispositions and any supersession remain pending. No criterion, Goal, old
+verdict, classification rule, or lifecycle state was changed in response to the second failed replay.
+
+### A2 — Replay calibration
+
+Accepted the proposed criterion amendment with Owner judgment retained. This is a low-depth design-arm amendment:
+the replacement criterion composes D9's existing proposal/pair contract, D12's Owner authority, source verification,
+and the completed contrast checks. No routing rule, floor, production interface, or lifecycle changes. The amendment
+adds a checkable criterion, a `2.R2` corrective parent, and a replacement segment verifier `2.3`; it does not rewrite
+Task 2.2's Goal or the original Replay criterion. The original verifier and its failed comparison are marked
+superseded, not passed; A1's revalidation pointer now names the replacement check through A2.
+
+Superseded Success Criteria text:
+
+> - **Replay.** An evaluator given the method and the 30 routed-in entries of `quality-gate-hooks`' draft as they stood
+>   at `7ea9addfa` — and not that draft's § Buffer triage in any version that carries it, from `d229217cf` on — judges
+>   liveness and homes against the tree at `c009ab198`, which those verdicts were triaged against, and reaches the hand
+>   verdicts recorded there at `2bc91c7a4` from rules the method states: a split verdict as one outcome per
+>   part, a two-option verdict as either option, and every disposition naming its D9 outcome and the D2 test that
+>   decided it, with no judgment the method leaves unnamed. Test 4 catches the two entries that arrived after that
+>   draft's out of scope had excluded their subject.
+
+The full original criterion remains verbatim in the specification. The Phase 2 exit likewise remains verbatim,
+followed by the explicit amended exit. The blind reports stay separate from primary corrections and Owner decisions;
+no record calls either historical-parity run passed.
+
+Propagation: the spec's appended criterion supersedes only historical-label equality; method inputs, result pairs,
+D2/D12 authority, and the remaining implementation tasks are unaffected. The completed own-work revision remains
+complete; its contrasting evidence feeds the replacement verifier. No new segment or delivery boundary is introduced.
+
+The author-run grounding slice and reader/binding checks over this amendment found no unresolved design claim. The
+30-entry report and its disclosed reads witness evaluator coverage; the actual method states pair/Owner authority;
+source corrections name the archived upstream spec, pinned linter, readers, and footer-policy section. The task-audit
+grounding-only read places correction before verification and retains all old Goals. These are author checks, not
+independent review or Owner case dispositions. The case calibration remains open while classification input is pending.
+
+Capture structure check: `lint:md:descriptors` rejects an old segment-verifier suffix when a replacement verifier
+follows it, regardless of its status marker (`validateSegmentation` in `task-list/segmentation.ts`). The approved
+supersession therefore retires Task 2.2's old role suffix and marks it and its comparison `[~]` at capture; Task 2.3
+alone carries the active suffix. The original role was `— validate exit criterion at segment scope`; both original
+Goals, completed fixture/evaluator leaves, the failed comparisons, and the old criterion remain preserved.

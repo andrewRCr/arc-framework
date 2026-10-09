@@ -62,6 +62,11 @@ _Mode:_ `slice` — closes on the gate reaching a real owner's hand verdicts fro
 _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries reaches the hand verdicts recorded at
 `2bc91c7a4`, each disposition naming its outcome and deciding test, with test 4 catching the two out-of-scope arrivals.
 
+_Amended exit criterion (A2):_ All 30 historical entries have source-backed proposals under the method, including
+explicit Owner pairs for unclear floors and validated Shapes/scope for work-unit routes. The Owner dispositions
+resolve every disagreement or source uncertainty; the two knowledge-content exclusions and the own-work contrasts
+hold. Preserve the historical-parity failures as failures. Task 2.3 checks this criterion.
+
 ### `[x]` **2.1 Ship `route-discovered-work` at the owner's pass — D1, D2, D3, D4, D5, D6, D7, D8, D9**
 
 - _Goal:_ One shipped, overridable method decides disposition, homing, integration, and re-triage through a closed
@@ -110,16 +115,31 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
 - _Outcome:_ A1's method change preserves independent routing and reconciles already-covered work at the later pass;
   the contrasting evidence is retained in `notes-inbound-routing-method.md` § A1 — Revision evidence.
 
-### `[ ]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind** — validate exit criterion at segment scope
+### `[ ]` **2.R2 Calibrate the replay with explicit Owner dispositions — A2**
+
+- _Goal:_ Realize A2's source-backed, Owner-adjudicated replay criterion without altering the classification floor or
+  reporting the superseded historical-parity scenario as passed.
+
+    - `[ ]` **2.R2.a Ground and separate the remaining replay differences**
+        - Preserve the blind report, split the bounded regression/shared-limit residuals from broader redesign,
+          validate the footer-policy home, and record the upstream/tool corrections with evidence.
+
+    - `[ ]` **2.R2.b Record the Owner's classification and holding decisions**
+        - Show each disputed concern's record answers, proposed home/Shapes when applicable, and intentional wait;
+          record the selected route or explicit pair as the Owner disposition.
+
+### `[~]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind**
 
 - _Goal:_ Evidence that an evaluator holding only the method reaches the owner's hand verdicts for
   `quality-gate-hooks`' 30 routed-in entries.
 
+    - _Amended in:_ 2.R2 (A2)
+
 - **Additional Context:** `notes-inbound-routing-method.md` § Evidence counts, § Hard-to-place cases from
   `quality-gate-hooks`
 
-- _Note:_ The replay comparison failed; the 30-entry comparison and amendment triage are preserved in
-  `notes-inbound-routing-method.md` § Task 2.2 replay evidence. The verifier and its comparison subtask remain open.
+- _Outcome:_ Both historical-parity scenarios failed. Superseded by A2; Task 2.3 validates the amended criterion.
+  The original Goal and failed comparison remain preserved; this task is not recorded as passed.
 
     - `[x]` **2.2.a Build the blind fixture**
         - Exported the exact historical tree and host draft in scratch; overlaid the landed methods, excluded author
@@ -129,12 +149,24 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
         - A fresh evaluator returned all 30 entry dispositions, deciding tests, Shapes, and a read inventory without
           source exposure.
 
-    - `[ ]` **2.2.c Compare against the hand verdicts at `2bc91c7a4`**
+    - `[~]` **2.2.c Compare against the hand verdicts at `2bc91c7a4`**
         - A split verdict counts as one outcome per part, a two-option verdict as either option; every disposition
           names its outcome and test, and no judgment rests on a rule the method leaves unnamed.
         - Test 4 catches the two entries that arrived after the target's out of scope had handed their subject to
           `knowledge-lint`.
         - A mismatch traced to a method rule is corrective work for a revision parent, never fixed inside this task.
+        - The comparisons failed historical parity; A2 supersedes this criterion, preserving both failed reports.
+
+### `[ ]` **2.3 Validate the Owner-adjudicated replay — A2** — validate exit criterion at segment scope
+
+- _Goal:_ Validate A2's amended exit criterion over the preserved 30-entry blind report, source-correction evidence,
+  and explicit Owner dispositions, with no unresolved disagreement or uncertainty.
+
+- **Additional Context:** `notes-inbound-routing-method.md` § Task 2.2 — A1 replay comparison, § A2 — Replay calibration
+
+- Verify coverage of all 30 original entries, deciding rules and source facts, Shapes and exclusion checks for each
+  work-unit candidate, and four answers for every unclear Owner pair. Re-check the two host exclusions and the four
+  own-work contrasts. Record the effective report and preserve the original scenario's failure.
 
 ## **Phase 3:** Purpose and owner in `arc status`
 

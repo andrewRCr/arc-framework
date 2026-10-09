@@ -930,6 +930,15 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
   ready-making owner's pass. A resolved part is dismissed before reconciliation; an independent all-No concern that
   shares its file still returns `errand` through the ordered gate.
 
+- **Replay calibration (A2; supersedes Replay).** A fixture-confined evaluator covers all 30 entries at `7ea9addfa`
+  against `c009ab198` with the current method, without historical triage or author conclusions. Split distinct concerns
+  and resolved/live parts. Each proposal names its deciding rule and source evidence; each fold/hold names `_Shapes:_`
+  validated against actual target scope and exclusions. An unclear floor returns the Owner pair and all four answers.
+  Both knowledge-content entries are excluded from the host, and the own-work timing/independent-concern contrasts
+  pass. Every historical disagreement, source uncertainty, or omitted candidate has an explicit Owner disposition
+  before closure. Preserve the original failed historical-parity reports; neither a pair nor a primary source
+  correction is recorded as historical equality.
+
 ## Open Questions
 
 - **Whether the gate holds in the drain's real cost envelope.** The coupling and scope checks must not make the drain
@@ -946,6 +955,8 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
 ## Amendments
 
 - **A1** — 2026-10-09 — design: own-work reconciliation at the ready-making pass.
-  _Supersedes:_ D2 ¶1; D9 host rule. _Trigger:_ 2.2 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.2.
+  _Supersedes:_ D2 ¶1; D9 host rule. _Trigger:_ 2.2 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.3.
+- **A2** — 2026-10-09 — design: adjudicate replay proposals with Owner judgment.
+  _Supersedes:_ Replay; Phase 2 exit. _Trigger:_ 2.2 segment. _Work:_ 2.R2. _Revalidated:_ pending → 2.3.
 
 ---
