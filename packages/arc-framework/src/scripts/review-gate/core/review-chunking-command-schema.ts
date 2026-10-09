@@ -36,7 +36,7 @@ export function registerReviewChunkingCommandSchemas(registry: KernelRegistry): 
   registry.register(ReviewChunkingResolveRequestSchema, {
     id: REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID,
     version: 1,
-    migrationPosture: "strict-current",
+    migrationPosture: "strict-current", authored: "request",
   });
   return registry;
 }

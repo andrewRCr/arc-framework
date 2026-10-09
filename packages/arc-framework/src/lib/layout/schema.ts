@@ -108,6 +108,8 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("candidate-record"), slug: SlugSchema }),
   z.strictObject({ kind: z.literal("integration-boundary-record"), slug: SlugSchema }),
   z.strictObject({ kind: z.literal("transition-record"), origin: SlugSchema }),
+  z.strictObject({ kind: z.literal("editor-document-root") }),
+  z.strictObject({ kind: z.literal("editor-document"), schema: SlugSchema }),
   z.strictObject({ kind: z.literal("inbox"), scope: z.discriminatedUnion("kind", [ProjectActiveScopeSchema, IdentityInboxScopeSchema]) }),
   z.strictObject({ kind: z.literal("placement-root"), tier: ArcPlacementTierSchema }),
   z.strictObject({

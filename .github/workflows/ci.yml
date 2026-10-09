@@ -185,7 +185,7 @@ jobs:
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
   # Shared full build for heavy runs. Consumers restore the installation and dist,
-  # then qualify or repair runtime/schema output in their own execution context.
+  # then qualify or repair CLI and metafile output in their own execution context.
   # Light / schedule / duplicate-push runs skip this job entirely.
   setup:
     name: Shared setup

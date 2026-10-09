@@ -39,7 +39,7 @@ it("retains qualified runtime generations across default measurement output", as
         "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1"],
         { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
       expect(result, result.stderr).toMatchObject({ exitCode: 0 });
-      const qualified = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+      const qualified = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
       expect(qualified).toMatchObject({ status: "qualified" });
       if (qualified.status !== "qualified") throw new Error(qualified.reason);
       if (generation === undefined) generation = qualified.evidence.generation;

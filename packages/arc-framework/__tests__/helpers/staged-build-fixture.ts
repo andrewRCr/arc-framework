@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { BuildArtifactLease } from "../../src/lib/build-ownership.js";
 import type { StagedBuildGeneration, BuildMode } from "../../src/lib/build-entry.js";
 import { captureBuildBaseline, certifyBuildGeneration } from "../../src/lib/build-baseline.js";
-import { projectKernelSchemas, serializeKernelSchemaBundle } from "../../src/lib/kernel/schema/generate.js";
 import { makeBuildFixture, writeBuildFixtureFile } from "./build-fixture.js";
 
 /**
@@ -16,7 +15,7 @@ export function makeStagedBuildFixture(
   mode: BuildMode = "fast", confirmOwnership: () => Promise<void> = async () => {},
 ) {
   const { root, packageRoot } = makeBuildFixture();
-  const sources = { cli: "src/cli.ts", schema: "src/scripts/build-schema.ts", controls: "src/control.ts" };
+  const sources = { cli: "src/cli.ts", controls: "src/control.ts" };
   writeBuildFixtureFile(join(packageRoot, "tsconfig.json"), JSON.stringify({
     compilerOptions: { target: "ESNext", module: "NodeNext", moduleResolution: "NodeNext" },
     include: ["src/**/*.ts"],
@@ -25,11 +24,10 @@ export function makeStagedBuildFixture(
   const before = captureBuildBaseline(packageRoot);
   const directory = join(packageRoot, ".arc-dev-build-fixture");
   const graphs = {
-    cli: [`packages/cli/${sources.cli}`], schema: [`packages/cli/${sources.schema}`],
+    cli: [`packages/cli/${sources.cli}`],
     controls: [`packages/cli/${sources.controls}`],
   };
   writeBuildFixtureFile(join(directory, "cli.js"), 'export const marker = "new-staged-runtime";\n');
-  writeBuildFixtureFile(join(directory, "schemas/kernel.json"), serializeKernelSchemaBundle(projectKernelSchemas()));
   writeBuildFixtureFile(join(directory, "metafile-esm.json"), JSON.stringify({
     inputs: { [sources.cli]: { bytes: 25, imports: [] } },
     outputs: { "cli.js": { bytes: 50, inputs: { [sources.cli]: { bytesInOutput: 25 } },

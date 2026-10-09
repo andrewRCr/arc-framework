@@ -71,7 +71,7 @@ export function registerDeliveryAuthoringSchemas(registry: KernelRegistry): Kern
   registry.register(DesignInventoryInputSchema, {
     id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
     version: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
-    migrationPosture: "strict-current",
+    migrationPosture: "strict-current", authored: "request",
   });
   return registry;
 }

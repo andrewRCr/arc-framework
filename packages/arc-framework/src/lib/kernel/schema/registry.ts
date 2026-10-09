@@ -22,6 +22,12 @@ export interface KernelSchemaMeta {
   readonly id: string;
   readonly version: number;
   readonly migrationPosture: MigrationPosture;
+  /**
+   * Authored contracts project their input side. An editor document describes the real values a
+   * standard YAML or JSON parser yields, uses strict objects wherever the CLI rejects unknown
+   * keys, and admits `$schema` when its files may be JSON.
+   */
+  readonly authored?: "request" | "editor-document";
 }
 
 /** One JSON Schema emitted by the kernel projection. */
@@ -32,13 +38,19 @@ export interface KernelJSONSchemaBundle {
   readonly schemas: Record<string, KernelJSONSchema>;
 }
 
+/** Required side and optional identity mapping for one registry projection. */
+export interface KernelProjectionOptions {
+  readonly io: "input" | "output";
+  readonly uri?: (id: string) => string;
+}
+
 /** Public discovery and projection contract for kernel and subsystem schemas. */
 export interface KernelRegistry {
   register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T;
   get(id: string): z.ZodType | undefined;
   meta(id: string): KernelSchemaMeta | undefined;
   ids(): readonly string[];
-  toJSONSchema(options?: { readonly uri?: (id: string) => string }): KernelJSONSchemaBundle;
+  toJSONSchema(options: KernelProjectionOptions): KernelJSONSchemaBundle;
 }
 
 /** Stable schema-registry failure variants. */
@@ -72,7 +84,15 @@ function compareIdentity(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+const authoredSides: ReadonlySet<string> = new Set(["request", "editor-document"]);
+
 function validateMetadata(meta: KernelSchemaMeta): void {
+  if (meta.authored !== undefined && !authoredSides.has(meta.authored)) {
+    throw new SchemaError(
+      `Invalid authored side for ${meta.id}: ${JSON.stringify(meta.authored)}`,
+      "schema.registry.invalid-metadata",
+    );
+  }
   if (!SlugSchema.safeParse(meta.id).success) {
     throw new SchemaError(
       `Invalid schema identity: ${JSON.stringify(meta.id)}`,
@@ -93,6 +113,45 @@ function validateMetadata(meta: KernelSchemaMeta): void {
   }
 }
 
+function boundTupleProjection(
+  schema: z.core.$ZodTypes, jsonSchema: KernelJSONSchema, io: "input" | "output",
+): void {
+  const definition = schema._zod.def;
+  if (definition.type !== "tuple") return;
+  const optionality = io === "input" ? "optin" : "optout";
+  let minimum = definition.items.length;
+  while (minimum > 0 && definition.items[minimum - 1]?._zod[optionality] === "optional") minimum -= 1;
+  jsonSchema.minItems = minimum;
+  if (definition.rest === null) jsonSchema.maxItems = definition.items.length;
+  else delete jsonSchema.maxItems;
+  if (definition.items.length === 0) delete jsonSchema.prefixItems;
+}
+
+function projectRegistry(
+  entries: ReadonlyMap<string, RegistryEntry>, options: KernelProjectionOptions,
+): KernelJSONSchemaBundle {
+  const projection = z.registry<{ id: string }>();
+  for (const id of [...entries.keys()].sort(compareIdentity)) {
+    const schema = entries.get(id)?.schema;
+    if (schema !== undefined) projection.add(schema, { id });
+  }
+  const uri = options.uri ?? ((id: string) => `urn:arc:schema:${id}`);
+  const bundle = z.toJSONSchema(projection, {
+    target: "draft-2020-12",
+    io: options.io,
+    reused: "ref",
+    override: ({ zodSchema, jsonSchema }) => { boundTupleProjection(zodSchema, jsonSchema, options.io); },
+    uri,
+  });
+  // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
+  // that document but omits the document's own identity, so normalize it to the same bundle
+  // contract as every registered root.
+  if (bundle.schemas.__shared !== undefined && bundle.schemas.__shared.$id === undefined) {
+    bundle.schemas.__shared.$id = uri("__shared");
+  }
+  return bundle;
+}
+
 /** Create an empty schema registry for downstream composition. */
 export function createRegistry(): KernelRegistry {
   const nativeRegistry = z.registry<KernelSchemaMeta>();
@@ -100,10 +159,12 @@ export function createRegistry(): KernelRegistry {
 
   return {
     register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T {
+      const authored = meta.authored;
       const storedMeta: KernelSchemaMeta = Object.freeze({
         id: meta.id,
         version: meta.version,
         migrationPosture: meta.migrationPosture,
+        ...(authored === undefined ? {} : { authored }),
       });
       validateMetadata(storedMeta);
       if (entries.has(storedMeta.id)) {
@@ -135,25 +196,7 @@ export function createRegistry(): KernelRegistry {
     ids(): readonly string[] {
       return [...entries.keys()].sort(compareIdentity);
     },
-    toJSONSchema(options): KernelJSONSchemaBundle {
-      const projection = z.registry<{ id: string }>();
-      for (const id of [...entries.keys()].sort(compareIdentity)) {
-        const schema = entries.get(id)?.schema;
-        if (schema !== undefined) projection.add(schema, { id });
-      }
-      const uri = options?.uri ?? ((id: string) => `${id}.schema.json`);
-      const bundle = z.toJSONSchema(projection, {
-        target: "draft-2020-12",
-        uri,
-      });
-      // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
-      // that document but omits the document's own identity, so normalize it to the same bundle
-      // contract as every registered root.
-      if (bundle.schemas.__shared !== undefined && bundle.schemas.__shared.$id === undefined) {
-        bundle.schemas.__shared.$id = uri("__shared");
-      }
-      return bundle;
-    },
+    toJSONSchema: (options) => projectRegistry(entries, options),
   };
 }
 

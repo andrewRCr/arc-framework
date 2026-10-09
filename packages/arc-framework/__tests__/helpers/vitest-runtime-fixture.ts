@@ -42,9 +42,8 @@ export async function setup(project) {
 import { it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-it("consumes qualified runtime and schema", () => {
+it("consumes qualified runtime and metafile", () => {
   expect(readFileSync(join(import.meta.dirname, "../dist/cli.js"), "utf8")).toContain("new-native-runtime");
-  expect(JSON.parse(readFileSync(join(import.meta.dirname, "../dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
 });
 `);
   }

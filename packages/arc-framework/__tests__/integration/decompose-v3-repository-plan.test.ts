@@ -105,6 +105,7 @@ async function repositoryDependencies(repo: string) {
       return new Uint8Array(stdout);
     },
     cohortTemplate,
+    writeEditorDocuments: async () => ({ ok: true as const, documents: [] }),
   };
 }
 

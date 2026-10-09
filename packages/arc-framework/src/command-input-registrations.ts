@@ -89,6 +89,7 @@ import {
   reviewCommandInputPolicyDeclarations,
   reviewCommandInputRegistrations,
 } from "./handlers/review.js";
+import { schemaCommandInputRegistrations, schemaCommandInputPolicyDeclarations } from "./handlers/schema.js";
 import { startCommandInputPolicyDeclarations, startCommandInputRegistration } from "./handlers/start.js";
 import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } from "./handlers/status.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
@@ -132,6 +133,7 @@ export const commandInputRegistrations = [
   ...reviewCommandInputRegistrations,
   ...integrationCommandInputRegistrations,
   ...baseCommandInputRegistrations,
+  ...schemaCommandInputRegistrations,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */
@@ -168,6 +170,7 @@ export const commandInputPolicyDeclarations = [
   ...releaseStatusCommandInputPolicyDeclarations,
   ...reviewCommandInputPolicyDeclarations,
   ...startCommandInputPolicyDeclarations,
+  ...schemaCommandInputPolicyDeclarations,
   ...statusCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,
   ...userCommandInputPolicyDeclarations,

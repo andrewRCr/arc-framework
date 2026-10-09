@@ -4,6 +4,9 @@ import { readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { z } from "zod";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../schema-command/editor-documents.js";
 
 import { canonicalDigest, canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
@@ -55,6 +58,7 @@ import {
 } from "../../scripts/integration/spine-refusal.js";
 
 export interface GitV3DecomposeOperationDependencies extends GitV3RepositoryPlanDependencies {
+  writeEditorDocuments?: EditorDocumentsWriter;
   spawningIdentity: string;
 }
 
@@ -338,6 +342,18 @@ function decodeRetirementOperationMap(completedMap: unknown):
     : { status: "ready", value: decoded.value };
 }
 
+async function provisionOccupiedEditorDocuments(
+  occupied: DecomposeResultOccupationResult,
+  dependencies: GitV3DecomposeOperationDependencies,
+): Promise<DecomposeResultOccupationResult> {
+  if (occupied.status === "occupied" && occupied.protection === "full") {
+    await writeEditorDocumentsOrThrow(
+      occupied.path, dependencies.exec, nodeEditorDocumentsFs, undefined, dependencies.writeEditorDocuments,
+    );
+  }
+  return occupied;
+}
+
 /**
  * Compose, occupy, materialize, stage, and durably prepare one completed v3 map.
  *
@@ -382,7 +398,7 @@ export async function executeGitV3DecomposeOperation(
     completedMap: completedMap.value,
   }, {
     occupy: async (occupationInput): Promise<DecomposeResultOccupationResult> => {
-      const occupied = await occupyDecomposeResult(occupationInput, io.occupation);
+      const occupied = await provisionOccupiedEditorDocuments(await occupyDecomposeResult(occupationInput, io.occupation), dependencies);
       if (occupied.status === "occupied") {
         targetCwd = occupied.protection === "full" ? occupied.path : dependencies.cwd;
       }
@@ -502,7 +518,7 @@ export async function executeGitV3ExtractionOperation(
     extractionFacts: composed.extractionFacts,
   }, {
     occupy: async (occupationInput): Promise<DecomposeResultOccupationResult> => {
-      const occupied = await occupyDecomposeResult(occupationInput, io.occupation);
+      const occupied = await provisionOccupiedEditorDocuments(await occupyDecomposeResult(occupationInput, io.occupation), dependencies);
       if (occupied.status === "occupied") {
         targetCwd = occupied.protection === "full" ? occupied.path : dependencies.cwd;
       }

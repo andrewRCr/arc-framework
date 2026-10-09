@@ -115,12 +115,14 @@ describe("arc delivery", () => {
         id: "delivery-design-inventory-input",
         version: 1,
         schema: {
-          $id: "delivery-design-inventory-input.schema.json",
+          $id: "urn:arc:schema:delivery-design-inventory-input",
           additionalProperties: false,
           required: ["artifacts"],
         },
       },
     });
+    const inventoryDocument = (JSON.parse(inventorySchema.stdout) as { value: { schema: unknown } }).value.schema;
+    expect(JSON.stringify(inventoryDocument)).not.toMatch(/"\$ref":"(?!#)/u);
   });
 
   it("reaps refs and retires records through the destructive closeout verb", async () => {
