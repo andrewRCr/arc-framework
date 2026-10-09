@@ -177,23 +177,15 @@ _Mode:_ `layer` through Phase 4 — closes on the verb's complete request and ex
           before local fallback, and require a sole merge base through `resolveSoleMergeBase`. Explicit unresolved refs
           refuse with a retry remedy; automatic unavailable, unrelated, and ambiguous bases remain absent.
 
-### `[ ]` **3.2 Selection, widening, and `files` path sets — D4**
+### `[x]` **3.2 Selection, widening, and `files` path sets — D4**
 
 - _Goal:_ A gate or preset request selects exactly the checks its change reaches, widens to every widening check
   whenever reach cannot be decided, and gives each `files` check exactly the paths it must check.
 
-    - Build `test-first` (one behavior at a time):
-        - a change outside a check's inputs leaves it unselected, and the report names that reason
-        - a changed global input, a changed declaration file, a changed path no check's inputs match, and an
-          unresolvable base each select every check with `widen: true`
-        - a `widen: false` check is selected only by its own inputs
-        - a widened `files` check receives every path among its inputs in the checked tree
-        - a deletion selects `project` checks and can widen, but is never passed; a `files` check left with no path is
-          `not selected` with that reason under every request
-        - `gate merge` and `--all` select without filtering
-        - `run` runs the named checks regardless of gate, and never widens
-        - a CI-only check is `not selected` without `--ci`, with that reason, and selected with it
-        - an ignored path never selects or widens
+- _Outcome:_ `selection.ts` reads Git input reach across the complete declaration and widens for global inputs,
+  declaration edits, uncovered changes, and unavailable bases. Named-path scopes retain Git glob matching and deletion
+  reach. Widening opt-outs retain only their own changes; widened file checks receive all matching existing paths.
+  CI-only exclusions name their reason, named runs ignore gates and shared widening, and ignored paths remain absent.
 
 ### `[ ]` **3.3 Base export and merged-in parents — D2**
 

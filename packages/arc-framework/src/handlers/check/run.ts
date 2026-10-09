@@ -2,9 +2,10 @@
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import type { TreeMatchIO } from "../../lib/checks/matching.js";
-import { matchTreeInputs, selectChangedInputs } from "../../lib/checks/matching.js";
+import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
 import { checkContentKey } from "../../lib/checks/key.js";
+import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import type { CheckRequest } from "../../lib/checks/request.js";
 import type { CheckPassStore } from "../../lib/checks/record.js";
 
@@ -86,14 +87,15 @@ export async function runDeclaredRequest(
   const missing = ids?.find(id => available[id] === undefined);
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
-  const entries = Object.entries(available).filter(([id, check]) => ids === undefined ? check.gate === gate && (!check.ci_only || request.ci === true) : ids.includes(id));
+  const entries = Object.entries(available).filter(([id, check]) => ids === undefined ? check.gate === gate : ids.includes(id));
   const resolved = await resolveCheckRequest(io.git, root, request);
   if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
   const { base, tree } = resolved.request;
   if (entries.length === 0) return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
+  const selection = await resolveCheckSelection(io, root, declaration.status === "absent" ? { checks: {}, global_inputs: [], global_runtime_inputs: [], commit_fixes: "restage" } : declaration.value, request, resolved.request);
   const checks: DeclaredCheckResult[] = [];
   for (const [id, check] of entries) {
-    checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request }, io, request));
+    checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection }, io, request));
   }
   return { kind: "result", exitCode: checks.some(check => check.outcome === "failed") ? 1 : 0,
     result: { status: "completed", checks, base, tree } };
@@ -101,20 +103,18 @@ export async function runDeclaredRequest(
 
 
 async function runRequestedCheck(
-  { id, check, root, resolved }: { id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest },
+  { id, check, root, resolved, selection }: { id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
-  const { scope, base, tree } = resolved;
-  const selected = base === undefined || scope.kind === "all" || scope.kind === "paths" || (request.form.kind === "run" && check.mode === "project")
-    ? { status: "unresolved" as const } : await selectChangedInputs(io.git, root, base, tree, check.inputs);
+  const { tree } = resolved;
+  const selected = selectCheckInputs({ id, check, request, resolved, selection });
   if (selected.status === "not selected") return { id, kind: "deadline", outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
   if (check.mode === "files") {
-    const matching = selected.status === "selected" ? { status: "known" as const, paths: selected.paths }
+    const matching = selected.paths !== undefined ? { status: "known" as const, paths: selected.paths }
       : await matchTreeInputs(io, root, tree, check.inputs);
     if (matching.status !== "known") throw new Error(`Could not resolve inputs for ${id}; retry the check request.`);
     paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
-    if (scope.kind === "paths") paths = paths.filter(path => scope.paths.some(named => path === named || path.startsWith(`${named}/`)));
     if (paths.length === 0) return { id, kind: "deadline", outcome: "not selected", reason: "no files to check" };
   }
   return executeSelectedCheck({ id, check, root, tree, paths }, io, request.force === true, request.dryRun === true);
