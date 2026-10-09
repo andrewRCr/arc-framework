@@ -3,7 +3,7 @@
   "slug": "review-risk-criteria",
   "claimId": "8a24117201cfaa4d3e8825aabd8e0263",
   "createdAt": "2026-10-09T20:41:33.743Z",
-  "updatedAt": "2026-10-09T20:41:33.743Z",
+  "updatedAt": "2026-10-09T21:52:41.555Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "State the criteria for calling a change set sensitive versus routine where callers compose review routing facts",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Define what makes a change set `sensitive` for review routing",
   "originEntrySourceDigest": "sha256:68c0822de947b53d8bed999e90412954f040fdb3d1db35a02b6deefd8518cbe5",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-risk-criteria",
+    "headSha": "759c6cb298d1db8af08734658d3d16e4251574ae"
+  }
 }
