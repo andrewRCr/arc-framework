@@ -1,8 +1,8 @@
 # Metadata: Inbound Routing Method
 
-| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
-| ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/inbound-routing-method` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
+| --------- | --------- | ----------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/inbound-routing-method` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-inbound-routing-method.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — State the record test as `classify-work-unit`'s canonical floor
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — land D12's four record questions as boundary test 1's canonical floor
 
 - **PR URL:** [none]
 - **Completed:** [none]
