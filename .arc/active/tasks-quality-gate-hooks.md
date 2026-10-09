@@ -141,10 +141,14 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
           present. Disabled hooks dispatch nothing; the hook and README mirrors match, and structural fixtures use a
           restricted CLI search path.
 
-### `[ ]` **2.4 Increment-boundary run reused at commit** — validate exit criterion at segment scope
+### `[x]` **2.4 Increment-boundary run reused at commit** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a real fixture repository through the built CLI and ARC's shipped
   hook, recorded as the scenario run and its result.
+
+- _Outcome:_ The real fixture ran its project and files checks on both the initial and forced increment requests;
+  the files check received `data.txt`. A following commit through the shipped hook under `core.hooksPath` reported
+  both reused and left the execution receipts unchanged. The scenario result is `/tmp/arc-quality-segment2-result.json`.
 
 ## **Phase 3:** Request contract: forms, scopes, selection, and base
 
