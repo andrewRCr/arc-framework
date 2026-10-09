@@ -245,10 +245,14 @@ refusal exits 1 with its typed envelope.
   demand references name the refresh command. Built-CLI coverage proves existing-checkout installation, typed outside-
   project and non-Git refusals, and successful retries after document or exclude repair.
 
-### `[ ]` **4.5 Exercise `arc schema install` in an existing checkout** — validate exit criterion at segment scope
+### `[x]` **4.5 Exercise `arc schema install` in an existing checkout** — validate exit criterion at segment scope
 
 - _Goal:_ Phase 4's exit criterion is shown against a fresh build of the CLI in an existing checkout, with the
   scenario and its result recorded.
+
+- _Outcome:_ Nine CLI scenarios passed against a fresh full build. Existing-checkout installation leaves the generated
+  directory excluded, Git status clean, and the managed ignore block unchanged. Every refusal validates and exits 1,
+  including a non-Git exclude failure without a path; document and exclude failures each succeed after repair and retry.
 
 ## **Phase 5:** Provision editor documents wherever ARC provisions an editing checkout
 
