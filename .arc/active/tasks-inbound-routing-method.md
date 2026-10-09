@@ -239,79 +239,37 @@ rows carry purpose, owner, lifecycle state and position, and the horizon advisor
 run from a base-branch checkout reads a started work unit's current copy, whose branch this clone holds, never the
 base branch's backlog copy.
 
-### `[ ]` **4.1 Resolve `arc view --for` through the composed lifecycle — D11**
+### `[x]` **4.1 Resolve `arc view --for` through the composed lifecycle — D11**
 
 - _Goal:_ `arc view <kind> --for <slug>` resolves the slug through the lifecycle composition `arc status <slug>`
   reads, so a work unit started elsewhere whose branch this clone holds resolves to its started record — located in
   its registered checkout, or at its selected ref when it has none — rather than the backlog copy the base branch
   kept.
 
-- _Note:_ The started-work-unit arm — this target and Task 4.2's reads — branches on whether state lives off the
-  checkout's branch, which the storage cutover deletes; keep it in one module so its removal is one edit.
+- _Outcome:_ Status, view, and the store share configured lifecycle composition and transient classification.
+  Started targets select registered working-copy metadata or their local ref; indeterminate targets carry the
+  composition warning.
 
-    - Move `handleLifecycleStatus`'s composition call (`src/handlers/status/lifecycle.ts`) — local acquisition,
-      `branch.base`, and the transient Errand indexes — into one helper beside `resolveComposedLifecycleIndex` in
-      `src/lib/work-unit/composed-lifecycle-index.ts`, taking the identity, the acquisition policy, and its `exec` and
-      `fs` from its caller; `arc view` passes `local`, as `arc status <slug>` does without `--fetch`, so it reads the
-      refs this clone holds. `arc status <slug>`, `createViewDependencies`' `resolveExplicitTarget`
-      (`src/handlers/view.ts`), and `composedMetas` (`src/lib/store/in-repo/meta.ts`), which makes the same local call
-      for the store, all call it, so the composition lives in one place; the view's `buildLifecycleIndex` call goes.
-    - A record selected from the checkout keeps `resolveExplicitViewTarget`'s classification and signature, fed the
-      composed `index`: `store-lifecycle-index.test.ts` and `store-lifecycle-consumers-differential.test.ts` call it
-      as their legacy reader. A record whose `selected.source.kind` is `in-flight-meta` goes to one function that
-      locates the started target — its `worktreePathBySlug` checkout, otherwise the `<ref>` of its `<ref>:<metaPath>`
-      source — and reads the meta there for the task-list pointer.
-    - `ResolvedViewTarget` (`src/lib/view/types.ts`) carries that location, so the work unit's artifact paths resolve
-      against the target's checkout rather than `options.cwd`.
-    - A slug the composition marks indeterminate (`isComposedLifecycleSlugIndeterminate`) is unavailable, with the
-      composition's warning for it, rather than resolved to the base branch's copy.
-    - Build `test-first` (one behavior at a time):
-        - a work unit started elsewhere resolves as started: in its registered checkout when one exists, otherwise at
-          its selected ref
-        - a backlog stub still resolves to its backlog placement in this checkout
-        - a completed work unit still refuses, and an unknown slug is still unavailable
-        - an indeterminate slug is unavailable, never its backlog copy
-        - `arc status <slug>` output is unchanged through the shared helper
-
-### `[ ]` **4.2 Read a started work unit's artifact from its registered checkout or selected ref — D11**
+### `[x]` **4.2 Read a started work unit's artifact from its registered checkout or selected ref — D11**
 
 - _Goal:_ Rendering, `--path`, and `--editor` select one copy of a started work unit's artifact — its registered
   checkout's file, uncommitted edits included, otherwise its selected ref — and `--path` and `--editor` refuse,
   naming the work unit and its ref, when no registered checkout exists.
 
-- _Note:_ `runView` (`src/commands/view/run.ts`) holds that file's recorded complexity violation, which the gate
-  cannot see grow; give the copy selection to helpers so `runView` gains no branch.
+    - `[x]` **4.2.a Read the work unit's kinds from the target's location**
+        - Own artifacts and cohort metadata follow the selected checkout or local ref. Cohort documents and session
+          notes remain local to the invoking checkout; ref results carry content and a ref-qualified display label.
 
-    - `[ ]` **4.2.a Read the work unit's kinds from the target's location**
-        - `meta`, `tasks`, `spec`, `draft`, `notes`, and the meta read behind `cohort` follow the target's location.
-          The cohort document still resolves in this checkout, and `session-notes` keeps its checkout-local read,
-          since no branch carries it.
-        - In a registered checkout these are real files. At a ref, existence and content come from Task 3.1's
-          `<ref>:<path>` read, which `ViewArtifactDependencies` gains beside `pathExists`; `presentOrAbsent`,
-          `resolveTaskPath`, and `resolveFurthestPresent` use it for a ref target.
-        - A ref-read `ViewArtifactResult` carries the content, the ref, and a `<ref>:<path>` display label in place of
-          a file path.
-        - Build `test-first` (one behavior at a time):
-            - from a base-branch checkout, a started work unit renders its selected ref's copy, not the backlog copy
-            - a registered checkout's file is read, uncommitted edit included
-            - with no kind, the fallback order finds the artifacts at the ref
-            - `cohort` follows the started work unit's meta, and `session-notes` still reads this checkout
+    - `[x]` **4.2.b Route each destination through the selected copy**
+        - Rendering reads selected content; path and editor destinations use the selected real file or refuse with
+          the work unit, ref, and rendering remedy. CLI help describes local-ref selection and these destinations.
 
-    - `[ ]` **4.2.b Route each destination through the selected copy**
-        - Rendering reads the result's content or file and labels the pager with its display label; `--path` and
-          `--editor` name the registered checkout's file.
-        - For a ref-read result, `--path` and `--editor` refuse, naming the work unit and its ref, and point at
-          rendering as the way to read it.
-        - The help text for `--for`, `--path`, and `--editor` describes the copy selection, that it reads the refs
-          this clone holds, and the refusal.
-        - Build `test-first` (one behavior at a time):
-            - `--path` names the same registered-checkout file that rendering reads
-            - `--path` and `--editor` refuse for a work unit with no registered checkout, naming it and its ref
+    - `[x]` **4.2.c Prove the selection end to end**
+        - A base-checkout CLI case reads an uncommitted linked-worktree spec and its exact path, then reads the
+          committed branch copy and refuses path output after checkout removal.
 
-    - `[ ]` **4.2.c Prove the selection end to end**
-        - `__tests__/e2e/view.e2e.test.ts` gains a case run from a base-branch checkout that keeps the backlog copy,
-          with the work unit started on a branch whose spec differs. With a linked worktree holding an uncommitted
-          edit, rendering and `--path` read that file; with none, the branch's copy renders and `--path` refuses.
+- _Outcome:_ Status, view, and store readers share lifecycle composition. Viewer destinations keep one selected
+  copy without growing the orchestrator's complexity; extracting selection removes the resolver's baseline entry.
 
 ### `[ ]` **4.3 Add the `design` view kind — D11**
 

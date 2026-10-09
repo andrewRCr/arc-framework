@@ -11,8 +11,28 @@ export interface WorkUnitArtifactReaders {
   readAtRef(ref: string, path: string): Promise<GitBlobEntry | null>;
 }
 
+/**
+ * Decode one regular artifact from a caller-bound local ref reader.
+ * @param ref - Selected local ref.
+ * @param path - Repository-relative artifact path.
+ * @param readAtRef - Caller-bound tree-entry reader.
+ * @returns UTF-8 content, or null for unavailable, nonregular, or undecodable entries.
+ */
+export async function readRegularWorkUnitArtifact(
+  ref: string, path: string, readAtRef: WorkUnitArtifactReaders["readAtRef"],
+): Promise<string | null> {
+  try {
+    const entry = await readAtRef(ref, path);
+    if (entry === null || (entry.mode !== "100644" && entry.mode !== "100755")) return null;
+    return new TextDecoder("utf-8", { fatal: true }).decode(entry.bytes);
+  } catch {
+    return null;
+  }
+}
+
 /** One source-bound metadata reader and its sibling-artifact reader. */
 export interface WorkUnitArtifactReader {
+  location: { kind: "checkout"; metaPath: string } | { kind: "ref"; ref: string; metaPath: string };
   readMeta(): Promise<string | null>;
   readArtifact(name: string): Promise<string | null>;
 }
@@ -43,14 +63,13 @@ export function createWorkUnitArtifactReader(
   const read = async (path: string): Promise<string | null> => {
     try {
       if (ref === null) return await readers.fs.readFile(path);
-      const entry = await readers.readAtRef(ref, path);
-      if (entry === null || (entry.mode !== "100644" && entry.mode !== "100755")) return null;
-      return new TextDecoder("utf-8", { fatal: true }).decode(entry.bytes);
+      return await readRegularWorkUnitArtifact(ref, path, (selectedRef, artifactPath) => readers.readAtRef(selectedRef, artifactPath));
     } catch {
       return null;
     }
   };
   return {
+    location: ref === null ? { kind: "checkout", metaPath } : { kind: "ref", ref, metaPath },
     readMeta: () => read(metaPath),
     readArtifact: (name) => read(paths.join(paths.dirname(metaPath), name)),
   };

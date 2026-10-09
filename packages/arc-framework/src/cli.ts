@@ -1401,12 +1401,15 @@ program
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
-  .option("--path", "Print the artifact's absolute path instead of rendering it")
-  .option("-e, --editor", "Open the artifact's real file in the configured editor")
-  .option("--for <slug>", "Override ambient context with the named work-unit slug")
+  .option("--path", "Print the selected file's absolute path; refuse ref-only artifacts")
+  .option("-e, --editor", "Open the selected real file in the configured editor; refuse ref-only artifacts")
+  .option("--for <slug>", "Select a work unit's registered checkout or a ref this clone holds")
   .addHelpText("after", [
     "",
-    "Bare selection: tasks -> spec -> draft -> meta. Ordinary view renders the file.",
+    "Bare selection: tasks -> spec -> draft -> meta. Ordinary view renders the selected copy.",
+    "--for reads a started work unit's registered checkout, including uncommitted edits;",
+    "otherwise it renders its selected ref. It reads only refs this clone already holds.",
+    "Without a registered checkout, --path and --editor refuse; use rendering to read it.",
     "Editor handoff:",
     "  --editor / -e opens the same real absolute file as --path.",
     "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",

@@ -3,13 +3,11 @@
 import * as p from "../../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
-import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../../lib/errand/record.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
 import { readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
-import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
+import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
   parseIntegrationBoundaryLocus,
@@ -37,23 +35,13 @@ export async function handleLifecycleStatus(
   // The index walk binds real I/O; the resolution stays a pure lib projection.
   // Transient identities still feed the oracle so recorded Errand
   // branches are not mis-emitted as `no-record-or-meta` residue.
-  const { settings } = await readConfigSettings(cwd);
   const { identity } = await readIdentityPointers(exec);
-  const transient = projectTransientInFlightRead(
-    await readTransientInFlightIndexes({ exec, identity }),
-  );
-  const composed = await resolveComposedLifecycleIndex({
-    cwd,
+  const composed = await resolveCallerComposedLifecycleIndex({
+    cwd, exec, identity,
+    acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
     fs: {
       readdir: (path) => readdir(path, { withFileTypes: true }),
       readFile: (path) => readFile(path, "utf8"),
-    },
-    oracle: {
-      exec,
-      acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
-      baseBranch: settings["branch.base"],
-      errandSlugByBranch: transient.indexes.slugByBranch,
-      errandRecordsComplete: transient.complete,
     },
   });
   const query = resolveSlugQuery(composed.index, slug);

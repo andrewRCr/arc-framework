@@ -24,8 +24,12 @@ export type ViewKind = typeof VIEW_KINDS[number];
 
 export type ViewArtifactResult =
   | { status: "resolved"; kind: ViewKind; path: string; workUnit: string | null }
+  | { status: "resolved"; kind: ViewKind; content: string; ref: string; displayLabel: string; workUnit: string | null }
   | { status: "absent"; kind: ViewKind }
   | { status: "error"; kind: string; message: string };
+
+/** A resolved file or reference artifact ready for a viewer destination. */
+export type ResolvedViewArtifact = Extract<ViewArtifactResult, { status: "resolved" }>;
 
 export interface ResolvedViewTarget {
   status: "resolved";
@@ -34,12 +38,13 @@ export interface ResolvedViewTarget {
   location: Location;
   metaPath: string;
   taskListPath: string | null;
+  artifactSource?: { kind: "checkout"; cwd: string } | { kind: "ref"; ref: string };
 }
 
 export type ViewTargetResult =
   | ResolvedViewTarget
   | { status: "completed"; slug: string }
-  | { status: "unavailable"; slug?: string };
+  | { status: "unavailable"; slug?: string; message?: string };
 
 export interface ResolveViewArtifactOptions {
   cwd: string;

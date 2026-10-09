@@ -1107,11 +1107,6 @@
       "count": 1
     }
   },
-  "src/lib/view-artifact.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/lib/view-renderer.ts": {
     "complexity": {
       "count": 5
