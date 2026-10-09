@@ -51,6 +51,23 @@
 
 - _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
 
+### `[ ]` **State the cascade rule as the coupling test: route only what names the decision it shapes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § The shared concern — "push refinements back at iteration" and the shared planning-coordination
+  hook.
+
+- _Observation:_ `inbound-routing-method` D6 reconciles "always route, never re-open" with its coupling test. A
+  cascade item is the consequence of a settled decision for another work unit's assumptions, so it can name the
+  decision it shapes there, and naming it is what makes that work unit affected. The rule: route a cascade item when
+  it names that decision; never re-open the affected work unit's body mid-pass; never route on shared domain alone.
+  Direction-level cascades stay outside the shipped method.
+
+- _Approach:_ adopt the statement for the push-back discipline, or say where it differs.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ## Structural decision (settle first at planning)
 
 This stub deliberately holds the thinking as a **single WU** for now. The proposed end-state is a **cohort**, and
