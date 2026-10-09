@@ -57,3 +57,12 @@ it("shows the failed output tail and full-log path while keeping successful chec
   expect(result).not.toContain("successful stdout");
   expect(result.split("\n").filter(line => line.startsWith("success:"))).toHaveLength(1);
 });
+
+it("shows a forecast's last measured cost without presenting it as a new execution", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "lint", kind: "enforcement", outcome: "would run", lastCostMs: 10,
+      cwd: ".", mode: "project", shell: false, ciOnly: false, fixes: false, batches: [["lint"]] }],
+  } }, false);
+  expect(result).toContain("lint: would run");
+  expect(result).toContain("last run: 10 ms");
+});

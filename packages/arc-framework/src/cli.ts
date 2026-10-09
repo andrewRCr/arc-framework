@@ -20,6 +20,7 @@ import {
 } from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { isDecomposeMachineReadableInvocation } from "./lib/work-unit/decompose-command-routing.js";
+import { throwCheckParserResult, writeCheckParserDiagnostic } from "./lib/checks/usage.js";
 import type { InitOptions } from "./handlers/init.js";
 import type { JoinOptions } from "./handlers/join.js";
 import type { StartOptions } from "./handlers/start.js";
@@ -131,10 +132,8 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks")
-  .exitOverride(error => {
-    if (error.exitCode !== 0) error.exitCode = 2;
-    throw error;
-  });
+  .configureOutput({ writeErr: writeCheckParserDiagnostic })
+  .exitOverride(throwCheckParserResult);
 
 checkCmd
   .command("run")

@@ -20,9 +20,10 @@ import type { CheckPassStore } from "../../lib/checks/record.js";
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
+import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 
 /** One check's externally observable result. */
-export interface DeclaredCheckResult {
+export interface DeclaredCheckResult extends Partial<CheckForecast> {
   id: string;
   kind: CheckResultKind;
   outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
@@ -32,6 +33,7 @@ export interface DeclaredCheckResult {
   rewritten?: string[];
   logPath?: string;
   costMs?: number;
+  lastCostMs?: number;
   remedy?: string;
 }
 
@@ -40,7 +42,8 @@ export type RunDeclaredChecksResult = {
   kind: "result";
   exitCode: 0 | 1 | 2;
   result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[] };
-} | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string } };
+} | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string }
+  | { kind: "usage"; code: string; message: string } };
 
 /**
  * Classify a request from all named outcomes, with unavailable execution taking precedence.
@@ -150,7 +153,12 @@ async function executeResolvedRequest(
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
-    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
+    const result = await runRequestedCheck({ id, check, root, resolved: coordinates, selection, selectionTree: tree, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request);
+    if (request.dryRun) {
+      const last = await io.reports?.latest(id);
+      if (last) result.lastCostMs = last.costMs;
+    }
+    outcomes.push({ position, result });
   };
   for (const entry of jobs.filter(job => job.check.fixes)) await run(entry);
   const ordinary = jobs.filter(job => !job.check.fixes);
@@ -174,14 +182,16 @@ async function runRequestedCheck(
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
   let { tree } = resolved;
+  let forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
-  if (selected.status === "not selected") return { id, kind, outcome: "not selected", reason: selected.reason };
+  if (selected.status === "not selected") return { id, kind, ...forecast, outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
   if (check.mode === "files") {
     paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths });
-    if (paths.length === 0) return { id, kind, outcome: "not selected", reason: "no files to check" };
+    if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
   }
-  if (check.fixes && request.form.kind !== "pre-commit" && checkFixesAllowed(request)) {
+  if (request.dryRun) forecast = resolveCheckForecast(check, root, paths, io.platform);
+  if (usesFormingWorktree(check, request)) {
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
@@ -189,7 +199,11 @@ async function runRequestedCheck(
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: check.mode === "files" && check.widen && selection.widened && request.form.kind !== "run" });
   }
-  return result;
+  return { ...result, ...forecast };
+}
+
+function usesFormingWorktree(check: CheckDeclaration["checks"][string], request: CheckRequest): boolean {
+  return check.fixes && request.form.kind !== "pre-commit" && checkFixesAllowed(request);
 }
 
 async function selectedFilePaths(io: DeclaredCheckDependencies, input: {

@@ -74,6 +74,11 @@ it("exports only the merged-in parents on a range's first-parent line and none f
   const context = JSON.parse(JSON.parse(range.stdout).result.checks[0].output);
   expect(context).toMatchObject({ base, merged: `${second} ${first}` });
   expect(context.merged).not.toContain(nested);
+  const forecast = await runArc(["check", "gate", "commit", "--range", base, "--dry-run", "--json"], root);
+  expect(forecast.exitCode, forecast.stderr).toBe(0);
+  expect(JSON.parse(forecast.stdout).result).toMatchObject({ base,
+    tree: JSON.parse(range.stdout).result.tree, merged: [second, first],
+  });
   const all = await runArc(["check", "gate", "commit", "--all", "--force", "--json"], root);
   expect(all.exitCode, all.stderr).toBe(0);
   expect(JSON.parse(JSON.parse(all.stdout).result.checks[0].output)).not.toHaveProperty("merged");

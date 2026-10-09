@@ -62,7 +62,7 @@ export async function handleCheckRun(ids: string[], options: CheckScopeOptions, 
 export async function handleCheckGate(gate: string, options: CheckScopeOptions, interaction: InteractionContext): Promise<void> {
   const parsed = z.enum(["commit", "push", "merge"]).safeParse(gate);
   if (!parsed.success) {
-    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: `Unknown gate ${gate}; use commit, push, or merge and retry.` } }, options.json === true);
+    report({ kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: `Unknown gate ${gate}; use commit, push, or merge and retry.` } }, options.json === true);
     return;
   }
   return handleDeclaredRequest(options, interaction, { kind: "gate", gate: parsed.data });
@@ -112,7 +112,7 @@ function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
 async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<void> {
   const parsed = parseRequestOptions(options, form);
   if (!parsed.success) {
-    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: parsed.error.message } }, options.json === true);
+    report({ kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } }, options.json === true);
     return;
   }
   const input = parsed.data;

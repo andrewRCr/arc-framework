@@ -291,26 +291,15 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
   widened file checks retry the original request or guarded commit. Failed fixers expose rewrite presence, and CI
   human text uses project check vocabulary.
 
-### `[ ]` **4.6 JSON envelope and dry run — D3, D9**
+### `[x]` **4.6 JSON envelope and dry run — D3, D9**
 
 - _Goal:_ A caller can foresee a long gate, and CI can derive its jobs from one machine-readable listing that matches
   what the verb would run.
 
-    - Build `test-first` (one behavior at a time):
-        - `--json` emits a versioned envelope carrying `schemaVersion` and either `result` or `error`, as
-          `arc check commit-msg` does (`commit-msg-output.ts`)
-        - a malformed command line's envelope carries a `usage` error, as `arc check commit-msg` reports one
-          (`commit-msg-cli.ts`)
-        - `--dry-run` reports what would run, what would be reused, and why anything is unselected, with each check's
-          last measured cost, running the runtime inputs a key needs but no check
-        - it forecasts every key over the tree as it stands, as though no fixer rewrites a file, so a fixer that
-          follows one forecast to run is forecast `reused` when a pass over the tree as it stands is recorded
-        - the JSON dry run lists every check in the request's gates, flags CI-only and fix-capable checks, and gives
-          each its working directory, relative to the repository root, and argument batches, and a sharded check, per
-          shard, those batches with the shard argument appended to each: one invocation for a `project` check, and for a
-          sharded `files` check under `--all`, one per batch
-        - it carries the base, the checked tree, and the merged-in parents the verb would export
-        - a `--ci` dry run lists exactly what the verb would run under `--ci`
+- _Outcome:_ Dry runs retain every gate member and its last measured cost, forecast unchanged content, and resolve
+  relative working directories, literal batches, capabilities, and shard invocations for CI. Range listings retain
+  the checked tree, base, and merged-parent coordinates. Native parser failures use usage envelopes with successful
+  repair paths; portable record filenames preserve declaration IDs.
 
 ## **Phase 5:** Hook dispatch under every hook manager
 

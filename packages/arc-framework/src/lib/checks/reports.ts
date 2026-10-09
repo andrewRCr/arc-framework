@@ -31,11 +31,11 @@ export function createCheckReportStore(io: CheckReportIO): CheckReportStore {
     save: async (id, output, costMs) => {
       try {
         const directory = await io.directory();
-        const logPath = join(directory, `${id}.${randomUUID()}.log`);
+        const logPath = join(directory, `${encodeURIComponent(id)}.${randomUUID()}.log`);
         const measurement = MeasurementSchema.parse({ schemaVersion: 1, id, logPath, costMs });
         await io.writeFile(logPath, output);
         await io.writeFile(`${logPath}.json`, `${JSON.stringify(measurement)}\n`);
-        await io.writeFile(join(directory, `${id}.latest.json`), `${JSON.stringify(measurement)}\n`);
+        await io.writeFile(join(directory, `${encodeURIComponent(id)}.latest.json`), `${JSON.stringify(measurement)}\n`);
         return measurement;
       } catch {
         return undefined;
@@ -44,7 +44,7 @@ export function createCheckReportStore(io: CheckReportIO): CheckReportStore {
     latest: async id => {
       try {
         const directory = await io.directory();
-        const parsed = MeasurementSchema.safeParse(JSON.parse(await io.readFile(join(directory, `${id}.latest.json`))));
+        const parsed = MeasurementSchema.safeParse(JSON.parse(await io.readFile(join(directory, `${encodeURIComponent(id)}.latest.json`))));
         return parsed.success && parsed.data.id === id ? parsed.data : undefined;
       } catch {
         return undefined;
