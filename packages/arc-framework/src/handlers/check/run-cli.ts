@@ -3,6 +3,7 @@ import { z } from "zod";
 import { execa } from "execa";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { availableParallelism } from "node:os";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { checkRecordDirectory, createCheckPassStore } from "../../lib/checks/record.js";
 import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
@@ -120,6 +121,8 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     const inheritedIndex = process.env.GIT_INDEX_FILE;
     outcome = await runDeclaredRequest(root, {
+      platform: process.platform,
+      availableParallelism,
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),

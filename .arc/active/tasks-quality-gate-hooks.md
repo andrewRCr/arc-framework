@@ -226,7 +226,7 @@ _Exit criterion:_ Unit and integration tests hold the verb's complete non-hook c
 membership and kind, every outcome and exit status, each verb refusal with its retry, fixers outside the commit hook,
 ranges' merged-in parents, forced runs, record faults and placement, and the checks' Git environment.
 
-### `[ ]` **4.1 Command execution — D2, D3, D5**
+### `[x]` **4.1 Command execution — D2, D3, D5**
 
 - _Goal:_ A selected check runs as its declaration says (in its root, with its paths batched and its environment
   clean), and fixers finish before anything else reads their files.
@@ -241,21 +241,11 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
           under every non-hook form and through the shipped hook during plain commits, `git commit -a`, and linked
           worktree commits; its receipt confirms the committed content and clean environment.
 
-    - `[ ]` **4.1.c Batching, ordering, and parallelism**
-        - Node exposes no argument-length limit, so each platform gets a fixed budget from a pure function tested per
-          platform. `io-context.ts`'s 16 KiB (`GIT_PATHSPEC_BATCH_BYTES`) suits `git` spawned directly, but on Windows
-          execa runs a `.cmd` or `.bat` command such as `npm` through `cmd.exe`, escaping each argument
-          (`execa/lib/arguments/command-file.js`), and `cmd.exe` caps a command line at 8,191 characters, so a batch is
-          measured after that escaping
-        - Parallelism is bounded by `availableParallelism` (`node:os`), as `test-cost/run.ts` reads it
-        - Build `test-first` (one behavior at a time):
-            - paths split into batches under the platform's argument-length limit, and a check passes only when every
-              batch passes
-            - fix-capable checks run first, one at a time in declared order
-            - the rest run in parallel, bounded by the machine's available parallelism, and `--serial` runs them one at
-              a time
-            - every selected check runs and every failure is reported
-            - a sharded check runs unsharded
+    - `[x]` **4.1.c Batching, ordering, and parallelism**
+        - `batching.ts` sizes literal file arguments by platform encoding and Windows command escaping, preserves
+          portable root-relative paths, and names a safe retry when a single argument cannot fit. Every batch runs,
+          and a failed batch remains failed. Fixers run serially in declaration order before the machine-bounded
+          pool; `--serial` uses one worker. Every selected outcome is retained, and sharded checks run unsharded.
 
 ### `[ ]` **4.2 Index view and worktree divergence — D5**
 

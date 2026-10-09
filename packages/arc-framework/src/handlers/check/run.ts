@@ -1,5 +1,6 @@
 /** Orchestration for declared repository check requests. */
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
+import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
@@ -31,6 +32,8 @@ export interface CheckContentContext { base?: string; tree: string; merged?: rea
 
 /** Repository and command boundaries injected into check orchestration. */
 export interface DeclaredCheckDependencies extends CheckKeyIO {
+  platform: NodeJS.Platform;
+  availableParallelism(): number;
   passes: CheckPassStore;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean }): Promise<{ started: boolean; exitCode: number; output: string }>;
@@ -96,10 +99,23 @@ export async function runDeclaredRequest(
   const { base, tree } = resolved.request;
   if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
   const selection = await resolveCheckSelection(io, root, declaration.value, request, resolved.request, declaration.location);
-  const checks: DeclaredCheckResult[] = [];
-  for (const [id, check] of entries) {
-    checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request));
-  }
+  const jobs = entries.map(([id, check], position) => ({ id, check, position }));
+  const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
+  const run = async ({ id, check, position }: (typeof jobs)[number]) => {
+    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: resolved.request, selection, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
+  };
+  for (const entry of jobs.filter(job => job.check.fixes)) await run(entry);
+  const ordinary = jobs.filter(job => !job.check.fixes);
+  let cursor = 0;
+  const workers = Math.min(ordinary.length, request.serial ? 1 : io.availableParallelism());
+  await Promise.all(Array.from({ length: workers }, async () => {
+    for (;;) {
+      const entry = ordinary[cursor++];
+      if (entry === undefined) return;
+      await run(entry);
+    }
+  }));
+  const checks = outcomes.sort((first, second) => first.position - second.position).map(outcome => outcome.result);
   return { kind: "result", exitCode: checks.some(check => check.outcome === "couldn't run") ? 2 : checks.some(check => check.outcome === "failed") ? 1 : 0,
     result: { status: "completed", checks, base, tree, ...(resolved.request.merged ? { merged: resolved.request.merged } : {}) } };
 }
@@ -143,11 +159,32 @@ async function executeSelectedCheck(
   if (dryRun) return { id, kind, outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
   const cwd = resolve(root, check.root);
-  const argumentsFromRoot = paths.map(path => relative(cwd, resolve(root, path)));
-  const result = await io.execute([...command, ...argumentsFromRoot], cwd, content, { shell: check.shell });
+  const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
+  const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check });
   if (!result.started) return { id, kind, outcome: "couldn't run", output: result.output };
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
   }
   return { id, kind, outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
+}
+
+async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
+  command: readonly string[]; paths: string[]; cwd: string; content?: CheckContentContext; check: CheckDeclaration["checks"][string];
+}) {
+  const { command, paths, cwd, content, check } = input;
+  const outputs: string[] = [];
+  let exitCode = 0;
+  try {
+    const batches = check.mode === "files" ? batchCheckPaths(command, paths, io.platform) : [[]];
+    for (const batch of batches) {
+      const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell });
+      if (result.output) outputs.push(result.output);
+      if (!result.started) return { ...result, output: outputs.join("\n") };
+      if (result.exitCode !== 0) exitCode = result.exitCode;
+    }
+  } catch (error) {
+    outputs.push(String(error));
+    return { started: false, exitCode: 1, output: outputs.join("\n") };
+  }
+  return { started: true, exitCode, output: outputs.join("\n") };
 }

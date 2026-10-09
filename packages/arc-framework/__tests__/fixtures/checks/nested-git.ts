@@ -1,3 +1,5 @@
+/** A declared-check program for committing in an independent Git repository. */
+export const nestedGitCheckProgram = String.raw`
 /** Commit in an independent fixture repository and report the check's Git environment. */
 const fs = require("node:fs");
 const { tmpdir } = require("node:os");
@@ -22,3 +24,4 @@ try {
 } finally {
   fs.rmSync(repository, { recursive: true, force: true });
 }
+`;

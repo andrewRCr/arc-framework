@@ -1,20 +1,20 @@
 /** Checks receive a clean Git environment through requests and installed hooks. */
 import { afterEach, expect, it } from "vitest";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createDeclaredCheckRepository, installDeclaredCommitHook } from "../fixtures/checks/repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runArc } from "./helpers.js";
+import { nestedGitCheckProgram } from "../fixtures/checks/nested-git.js";
 
 const repositories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
 const localVariables = ["GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
   "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE",
   "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE", "GIT_COMMON_DIR"];
-const nestedGit = resolve(import.meta.dirname, "../fixtures/checks/nested-git.cjs");
 const git = promisify(execFile);
 
 it("removes every repository-local Git variable from a check's environment", async () => {
@@ -31,7 +31,7 @@ it("removes every repository-local Git variable from a check's environment", asy
 
 it.each(["plain", "all", "linked"])("commits a nested fixture through the shipped hook in a %s commit", async mode => {
   const primary = await createDeclaredCheckRepository({ nested: {
-    command: [process.execPath, nestedGit], gate: "commit", inputs: ["src/**"], cache: false,
+    command: [process.execPath, "-e", nestedGitCheckProgram], gate: "commit", inputs: ["src/**"], cache: false,
   } });
   repositories.push(primary);
   let root = primary;
@@ -53,7 +53,7 @@ it.each([
   ["new-head", "--from", "HEAD"], ["run", "nested"],
 ])("creates and commits in an independent repository through check %j", async (...form) => {
   const root = await createDeclaredCheckRepository({ nested: {
-    command: [process.execPath, nestedGit], gate: "commit", inputs: ["src/**"], cache: false,
+    command: [process.execPath, "-e", nestedGitCheckProgram], gate: "commit", inputs: ["src/**"], cache: false,
   } });
   repositories.push(root);
   const result = await runArc(["check", ...form, "--json"], root, {

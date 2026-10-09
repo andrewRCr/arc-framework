@@ -42,7 +42,7 @@ it("runs below the repository root and passes paths relative to that working dir
   expect(result.exitCode, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ outcome: "passed" }]);
   expect(JSON.parse(await readFile(join(root, "docs/receipt.json"), "utf8"))).toEqual({
-    cwd: join(root, "docs"), args: [join("..", "src/a.ts")],
+    cwd: join(root, "docs"), args: ["../src/a.ts"],
   });
 });
 
