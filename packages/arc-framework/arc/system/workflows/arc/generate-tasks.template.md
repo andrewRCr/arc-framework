@@ -295,8 +295,8 @@ See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for
 For each parent task, fill in the body:
 
 - Small enough to complete in a single work session (typically < 3 files modified)
-- Include quality checkpoints at appropriate stages (see [Quality Gates Strategy][quality-gates] for tier
-  guidance)
+- Include segment verifiers where the plan calls for broader verification; each closing verifier requests
+  `arc check segment`
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
 - **Add task-local context pointers sparingly.** When a task needs external context the executor should read
@@ -612,7 +612,6 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 ---
 
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
-[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md

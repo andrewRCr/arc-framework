@@ -492,16 +492,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           its index fires on those decisions. Customization, integration, classification, and session guidance use
           gate terminology and the declaration, while preserving unrelated configurability and context-loading tiers.
 
-    - `[ ]` **6.2.c References and templates**
-        - `QUICK-REFERENCE.template.md` loses § Quality Gate Commands, its entry in the on-demand section list, and its
-          strategy pointer
-        - `template-contributing.md`'s setup verification requests `arc check gate merge` in place of its `npm` command
-          block and its QUICK-REFERENCE pointer
-        - The package's `DEV-RULES.PROJECT.md`: the zero-tolerance policy holds per gate at its deadline, keeping its
-          `[invariant]` marker; its tiered line is rewritten to the gate model; and its comment recording each gate's
-          command in QUICK-REFERENCE § Quality Gate Commands points to the declaration instead
-        - `generate-tasks.template.md`'s checkpoint pointer, `extensions/README.md`'s gate passages, and
-          `01_verify-and-configure.md`'s `post-task-quality` reference
+    - `[x]` **6.2.c References and templates**
+        - Shipped quick-reference gate blocks are removed; contributor setup requests the merge gate and the project
+          rules template preserves zero tolerance per event deadline. Generation, extension, and setup guidance use
+          check requests and surviving extension examples; this checkout's project-specific gate blocks remain intact.
 
     - `[ ]` **6.2.d This repository's technical overview**
         - `TECHNICAL-OVERVIEW.md`: § 2 gains the check declaration as a fourth customization mechanism, its methods

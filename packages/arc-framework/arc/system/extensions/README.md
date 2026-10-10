@@ -23,14 +23,14 @@ declare extension dependencies in frontmatter (`arc.extensions`) — see
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
 
+Project checks are declared in `.arc/system/arc-checks.yml` and run at their deadlines through `arc check`.
+
 ## Index
 
 - [post-context-load](post-context-load.md) — additional context loading at session start
 - [pre-spec-finalization-review](pre-spec-finalization-review.md) — team review ceremony at the spec-finalization
   gate, on top of the spec-review self-review
-- [post-task-quality](post-task-quality.md) — additional checks after each task
 - [post-task-completion](post-task-completion.md) — additional actions after task marked complete
-- [post-unit-quality](post-unit-quality.md) — additional checks at coherent unit boundaries
 - [pre-activation](pre-activation.md) — verification gate before WU activation
 - [post-work-unit-activate](post-work-unit-activate.md) — actions after work unit activation
 - [pre-commit-review](pre-commit-review.md) — agent-layer review before commit, complementary to git hooks
@@ -49,9 +49,7 @@ answer the question "when should my extension fire?"; lifecycle ordering does.
 |------------------------------|----------------------------------|---------------------------------|-------------------------------------------|
 | post-context-load            | session-init                     | Step 2 → orientation            | Load additional context at session start  |
 | pre-spec-finalization-review | create-spec                      | spec-review → finalization stop | Team review ceremony at spec finalization |
-| post-task-quality            | process-task-loop                | Tier 1 pass → mark `[x]`        | Supplement Tier 1 after each task         |
 | post-task-completion         | process-task-loop                | Mark `[x]` → report             | External tracker sync / notifications     |
-| post-unit-quality            | process-task-loop                | Tier 2 at unit boundary         | Supplement Tier 2 at unit boundaries      |
 | pre-activation               | activate-work-unit               | Pre-condition gate → state-flip | Verify plan-quality before activation     |
 | post-work-unit-activate      | activate-work-unit               | After core activation           | PM layer interface after activation       |
 | pre-commit-review            | arc-commit / prepare-commits     | Staging → commit                | Agent-layer review before commit          |
