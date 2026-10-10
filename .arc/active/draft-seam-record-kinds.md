@@ -10,12 +10,26 @@
 
 ## Continuity
 
-- **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, with the
-  shared decisions it owns (items 1–8 and 11), from a draft the readiness check found formalization-ready for the cut
-  (2026-10-09); what stays open is this member's own detail design.
-- **Next:** draft-design, first in the seam's design order with `seam-lifecycle` (`cohort-storage-seam.md`
-  § Coordination): re-verify the modules its kinds replace or extend against the current code, then carry the settled
-  decisions into its spec.
+- **Readiness:** formalization-ready (2026-10-10), with the adversarial review folded and the draft re-read whole for
+  coherence. The cut carried this member's section of `storage-seam`'s draft over unchanged, with the shared decisions
+  it owns (items 1–8 and 11), from a draft the readiness check found formalization-ready for the cut (2026-10-09); this
+  member's own detail design settled in pass 1, and the draft-close checks followed. `Class: Heavy` (Owner, 2026-10-10,
+  at capture): derivation runs high, since its seven open items each settled against real alternatives, and so does
+  scale — the lineage readers' rewrite at about 70 sites in 16 production files and about 22 test files,
+  `meta-reader.ts`' setters, and the hook rules moving into write checks. Not `Novel`: every decision composes existing
+  patterns.
+- **Pass 1 (2026-10-10).** Base merged at `59dd07d6b`, bringing the import ratchet and ADR-022's acceptance. The
+  draft-design entry read sets a bounded depth (the shared decisions are settled and the open items compose existing
+  patterns) and keeps `Class: Light` provisionally: derivation does not re-raise, and the scale trigger is borderline,
+  re-read at capture. The modules the kinds replace or extend were re-grounded at `59dd07d6b`, the corrections folded in
+  place. Its seven open items settled (§ This member's design and the sections after § Members); `storage-ref-backend`'s
+  draft-design session confirmed the registration's shapes and settled the refusal, merge, and pre-flip-anchor questions
+  with this one directly, and took the lineage kind's rename records into its import as former slugs. Adversarial review
+  (2026-10-10, `ADVERSARIAL-PASSES.md`) ran its two passes: pass 1 found five major and five minor gaps, and a fix check
+  over its folds seven more; pass 2 found one major and five minor, and a fix check over its folds three minor. All
+  folded, and the loop stopped at the cap (`cap-exhausted`).
+- **Next:** `create-spec`, from this draft. `storage-ref-backend` and the siblings re-read the spec before their own are
+  approved (§ Coordination).
 
 **Reading this draft.** `cohort-storage-seam.md` holds the seam's coordination, its scope boundary, and how the
 register's keys are cited. A `§ Shared decisions` item lives in its owner's draft: items 1–8 and 11 in
@@ -25,7 +39,290 @@ register's keys are cited. A `§ Shared decisions` item lives in its owner's dra
 `draft-seam-decomposition.md`, `draft-seam-delivery-review.md`, `draft-seam-locus.md`, and
 `draft-seam-status-roadmap.md`. `D` and `A` numbers are `spec-storage-contract.md`'s decisions and amendments.
 
+## Open
+
+None. This member's detail design settled item by item into § This member's design, and its scope boundary, unknowns,
+coordination, and success signal, which the spec cannot take from `cohort-storage-seam.md` by reference, into the
+sections of those names (Owner, 2026-10-10).
+
 ## Decisions
+
+### This member's design
+
+- **Boundary: one work unit.** The cut made this member on purpose; its five kinds share one registry slot and one
+  write-check design, and program work units land single-branch with chunked review, so no deliverable lands apart.
+- **Where the kinds live** — settled (Owner, 2026-10-10). Each kind's parser, field schema, field writers, write
+  check, and anchor declaration live in one module per kind under `lib/store/kinds/`, from which both backends
+  register them. The import ratchet (`store-raw-state`, `eslint/architecture-imports.ts`) admits `meta-reader.ts`
+  only inside `lib/store/`, and its floor counts the callers still reading state beneath the contract, so a caller
+  leaves the floor only by rerouting, never by a file move:
+    - **Parsers stay inside the store** (narrowed below, 2026-10-10). Callers outside it take parsed fields from the
+      contract's `read` and `list`, never from a kind's parser. 54 production files outside the store import
+      `parseMetaRecord` to parse bytes they read themselves — the raw reads the floor counts — so the meta kind
+      registers the parser `meta-reader.ts` already holds, and `meta-reader.ts` stays on the ratchet's list; the new
+      parsers' modules join it. `lib/task-list/` stays a public library: it computes over a task list's content and
+      reads none, and its one file-backed reader reroutes with its caller (item 5).
+    - **Field writers are the public surface,** pure transforms over content a verb read through the contract, before
+      its `put`. `meta-reader.ts` keeps exporting today's setters for unrerouted callers — about ten production files call
+      them — delegating to the kind's writers, so those callers stay counted until their members reroute them.
+    - **No types from `commands/`.** The kind modules define their own types, inferred from each kind's schema
+      (ADR-022), and import nothing from the command layer, as `lib/store/`'s top-level modules import nothing from
+      `commands/` today. `meta-reader.ts`' imports of `ActiveLayout` and `MetaFileCandidate` from
+      `commands/active/types.ts` serve only its disk reader (`readActiveMetaCandidates`), which stays there for its
+      callers' members to reroute.
+    - **One folder per kind** (Owner, 2026-10-10, amending "one module per kind" above). The ratchet matches whole
+      files (`RAW_STATE_MODULES`, `eslint/architecture-imports.ts`), so a module on its list cannot also export the
+      public writers. Each kind takes a folder, `lib/store/kinds/<kind>/`: its parser and registration in a file that
+      joins the list, and its parsed-fields schema, types, and field writers in public files, with which callers narrow
+      a record's `fields` as `ParsedMetaRecordSchema` serves today (`lib/store/lifecycle-index.ts`,
+      `lib/store/current-work-unit.ts`). The backends and the projection reach the write check through the registry.
+    - **Only meta parsing stays on the list** (Owner, 2026-10-10, after the adversarial pass, narrowing "the new
+      parsers' modules join it" and the folder's listed file above). The ratchet's set names meta parsing and the record
+      stores, never the codecs (`cohort-storage-seam.md` § Seam setup): lineage's store (`transition-record-store.ts`)
+      is listed and its codec (`transition-record.ts`) is not. Callers outside the store run the lineage codec and parse
+      cohort bytes today — the transition-record enumeration, decomposition's record builder, and base advancement
+      (`transition-record-enumeration.ts`, `decompose-transition-record.ts`,
+      `git-decompose-transition-base-advancement.ts`), the ROADMAP assert (`roadmap-regeneration-assert.ts`), and
+      decomposition's two `Parent` checks over bytes a cut composes, which no store read reaches — and rerouting them is
+      not this member's (§ Scope boundary), so listing the codecs would grow the floor. The lineage, cohort-document,
+      and Purpose parse functions are public pure functions, as `lib/task-list/` is, each in its kind's folder beside
+      the schema and writers, while each kind's registration stays in its listed file, the meta's wrapping
+      `parseMetaRecord`, and the meta's parsing stays in `meta-reader.ts`, listed. Some of those callers can never
+      reroute: decomposition's record builder and `Parent` checks parse what the cut composes, and base advancement
+      serializes the record it commits, none of which a store read reaches. Lineage's raw Git read stays counted at its
+      entry point (`git-transition-record-enumeration.ts`, through its import of `TRANSITION_RECORD_NAMESPACE` from the
+      listed `transition-record-store.ts`), as do the producers and the ROADMAP assert that import that store, though a
+      reader taking records through the entry point is not counted itself at `59dd07d6b`, until the
+      `layout-read-ratchet` Errand lists the entry point and its importers join the floor; cohort documents and drafts
+      are read by file or Git blob outside the ratchet's modules and go uncounted today, so listing their parsers would
+      count only the callers this member moves onto them (amended 2026-10-10, after the fix check). Listing them and
+      accepting a floor grown by about four files was the alternative.
+    - **The production registration set** (Owner, 2026-10-10, after pass 2). Both backends register the same set from
+      one module, `lib/store/kinds/registrations.ts`, which joins the ratchet's list: anything inside `lib/store/` takes
+      it freely, and an import of it from outside the store is a ratchet violation, so no module hands meta parsing on
+      uncounted, which a public aggregate would, since the ratchet ignores every file under `lib/store/`
+      (`rawStateViolations`). `Store` exposes no registry (`lib/store/contract.ts`), and today's one production registry
+      is built privately (`createInRepoContext`). A caller outside the store cannot import the module without failing
+      lint — a new violation, which the floor never admits — so the projection's write-back, built later against it,
+      reaches it from inside `lib/store/` (amended 2026-10-10, after the fix check). A public aggregate, and a
+      check-and-parse operation on the contract, which changes it for one consumer, were the alternatives.
+    - **Rejected:** moving everything and rewriting every import (the floor would empty on day one with nothing
+      rerouted), and re-exporting the writers from a `lib/store/` barrel over `meta-reader.ts` (the façade PR #865
+      removed from the Errand barrel).
+- **What a kind registers** — settled (Owner, 2026-10-10). Each kind module exports one registration — its parser, and
+  a write check and anchor declaration where it has them — and `createKindRegistry` takes registrations rather than
+  bare parsers; both backends register the same set.
+    - **The slot becomes real.** Today only D7's reference backend reads the registry's parser, over the test parsers
+      its fixture installs (`__tests__/helpers/store/read.ts`, `write.ts`, `lookup.ts`); the in-repo implementation
+      decodes the meta and lineage records with hard-wired codecs (`decodeTrackedContent`,
+      `lib/store/in-repo/read-codec.ts`). Its reads and listings decode through the registered parser instead, so the
+      meta reads as today, through the same parser, and drafts, specs, and cohort documents gain parsed fields.
+      Candidate and integration-boundary records keep their codecs until `seam-delivery-review` registers their kinds.
+      How its writes validate before the flip is § What lands before the flip's.
+    - **The write check is a standalone function,** callable with no write: `storage-projection` runs it from
+      write-back and `arc save` before a write, and from its checkout-removal check, which writes nothing (its draft,
+      § Coordination, item 1). It takes the record's reference — its UID and its slug after the batch — the prior record
+      as content and parsed fields, absent on a creation, the next likewise, absent on a removal, the writer, and a
+      read-only view of the store (`read`, `list`, and `lookup`) over the state the batch produces. The writer is a verb,
+      as the batch's provenance names it (`CallerProvenanceSchema`, `lib/store/links.ts`), or a hand edit, which
+      write-back and `arc save` pass. It returns every rule the write breaks, each a stable kind-scoped rule
+      identifier, such as `meta.verb-owned-field`, with its condition and remedy; none admits the write. Content that
+      fails to parse is refused before the check runs, and a prior version that fails to parse counts as absent, so
+      the write is checked whole. A backend refuses with `record-malformed`, naming the rules broken: the contract's
+      vocabulary already defines it as a record failing its kind's parse or validation, naming the failing rule
+      (D4), so no refusal is added.
+    - **The anchor declaration** answers `storage-ref-backend` (its draft, § Decisions, 2026-10-10): an optional list
+      on the registration of the parsed fields holding a state-version anchor — the meta's `stateAtHandoff` today
+      (item 4). It names a field by its key in the parser's output, which the backend reads, never by its Markdown
+      label, and the registration's type admits only a field whose parsed value is a state version or none, so a
+      wrong name fails to compile. It sits on the registration rather than `KindMechanism`, which excludes the field
+      schema (`lib/store/registry.ts`). Names rather than an accessor function: they suffice, and let the backend name
+      the field in its unresolvable-state-version refusal. `storage-ref-backend` confirmed the shape (2026-10-10) and
+      keeps its stored-path home on `KindMechanism` beside `inRepo`, as mechanism rather than schema.
+    - **Refusing and merging** (Owner, 2026-10-10, with `storage-ref-backend`). A backend refuses with the first broken
+      rule in rule-identifier order, its condition counting the others: write-back and `arc save`, which need every
+      rule at once, call the check directly, and a verb breaking a rule is a defect or stale state that one rule
+      diagnoses, so `record-malformed` keeps its one `rule`. A merge after fetch is never refused, since both sides are
+      published: the backend runs the checks over the merged result and reports what breaks. A merge runs under the
+      sync verb's provenance, so the authority rules, which bind only a hand edit, stay silent, and no writer value is
+      added. A rule reading records outside the batch holds as of the write, over a view no compare-and-swap guards: a
+      race or a merge can produce a state it would refuse, and its readers report that state (item 11).
+    - **The writer from provenance** (Owner, 2026-10-10, after the adversarial pass). A batch's provenance carries only
+      a `verb`, a `lifecycleAction`, and an optional `codeHead` (`CallerProvenanceSchema`), so a backend derives the
+      writer from it: the verbs under which `storage-projection`'s write-back and `arc save` persist read as a hand
+      edit, and any other verb as itself. Every backend then enforces the authority rules where every write lands,
+      rather than only through the projection's direct call, on which the gates those rules guard — `State`, a task's
+      completion — would otherwise rest alone; no field is added. The verbs are `write-back` and `save`, under lifecycle
+      action `edit`, held in one exported `HAND_EDIT_VERBS` beside `CallerProvenanceSchema` (`lib/store/links.ts`) that
+      the backends' derivation and write-back both import (`storage-projection`, 2026-10-10); this member lands it with
+      the reference backend's derivation, the first to need it (Owner, 2026-10-10, after the fix check). Binding the
+      authority rules only through the projection's direct call was the alternative.
+- **What lands before the flip** — settled (Owner, 2026-10-10).
+    - **Session context applies D15.** D15's table already places session context in the meta from the flip and
+      `SESSION-NOTES.md` until then, keyed on the one capability (D1). The meta schema gains `State at Handoff`, `Commit
+      at Handoff`, `Session Type`, and the session-context section now — a `## Session Context` section after the last
+      field line, before any Release Notes Entry or Completion Notes, which handoff writes whole and archive clears
+      (Owner, 2026-10-10) — each omitted when absent, as `Promotion Receipt` is: `renderBullets` skips such a field at
+      its default and `reconcileMetaFields` does not count it missing (`lib/active/meta-reader.ts`), so no meta changes
+      and nothing writes them before the flip. The parsed and durable schemas gain them together, as item 3's sections
+      do. Verbs keep writing `Next Task`, `Last Completed`, and `Blockers` until the capability flips; record kinds
+      supplies writers for both sets, and each member's verb branches on the capability. The parsed record keeps the
+      retired fields until `storage-cutover`'s deletion pass, so rerouted code compiles unchanged across the flip.
+    - **The in-repo implementation runs no write checks.** Before the flip every step is today's commit behind today's
+      gates (D15), and hand edits and the pre-commit checks stay as today (item 11); its writes of a meta stay
+      unvalidated, as `writeContent` lands them today (`lib/store/in-repo/write-codec.ts`), and so do a cohort
+      document's, while a lineage record still validates at write, through its kind's parser in place of the hard-wired
+      schema. The reference backend (D7) runs every registered check in its write and batch path, and the conformance
+      suite carries the check cases, so the ref backend, the projection, and members' rerouted verbs build against
+      tested rules before the flip. That amends D7 forward: each backend's fixture declares whether it runs write checks
+      — the reference and ref backends yes, the in-repo implementation no.
+    - **How the checks are tested** (Owner, 2026-10-10, after the adversarial pass, amending "the conformance suite
+      carries the check cases" above). The reference fixture installs pure test parsers, never production schemas
+      (`createReferenceFixture`, `__tests__/helpers/store/reference-fixture.ts`), and its content would break the
+      production rules. So each rule is unit-tested as the pure function it is, with breaking and admitting cases over a
+      stub view, which reaches the held-entries rule before `seam-locus` registers the inbound kind; and the conformance
+      suite gains one item under a test registration: a backend whose fixture declares write checks runs the registered
+      check in its write and batch paths and refuses with `record-malformed`, naming the first rule broken and counting
+      the others. Its test registration records the writer and view it receives, so the item also proves that a verb in
+      `HAND_EDIT_VERBS` arrives as a hand edit and any other as itself, and that a batch's check sees the batch's other
+      writes (amended 2026-10-10, after the fix check). The item installs its test registration through the fixture
+      contract: `ConformanceRegistration.create` takes an optional registry override, as `createReferenceFixture`
+      already takes `registryOverrides`, and a fixture declaring write checks builds its store with it (amended
+      2026-10-10, after pass 2). `FixtureDeclarations` (`__tests__/helpers/store/fixture-contract.ts`) gains the
+      declaration. A second reference fixture with production registrations and real content for every kind was the
+      alternative.
+    - **Lineage takes its final shape when the kind lands.** Its writer emits one shape for both backends (item 2), and
+      rerouted code runs unchanged across the flip (D15), so the in-repo implementation stores item 6's shape from the
+      start: each reference an object of its name at the transition and its UID, the UID absent until the import mints
+      it (A11), as an owner's is (`OwnerIdentitySchema`, `lib/store/identity.ts`); `incoming` for today's `edges`; and
+      `outgoing`, required on a decomposition. The 14 tracked records (`.arc/system/.internal/transitions/`) convert
+      with it. `outgoing` derives for both decompose records from the origin's `Depends On` before its cut:
+      `chunked-delivery`'s `review-chunking`, which no member took, and `storage-seam`'s two prerequisites, both
+      shipped. Today's shape (`TransitionRecordSchema`, `lib/work-unit/transition-record.ts`) is read at about 70 sites
+      in 16 production files and about 22 test files, across lifecycle's, decomposition's, and status's map partitions
+      and the store; record kinds rewrites them with the kind, as it moves decomposition's `Parent` checks, and the rows
+      stay their members'. The records' producers change with them: the decomposition record's builder
+      (`createDecomposeTransitionRecord`, `decompose-transition-record.ts`), which derives `outgoing` from the cut map's
+      outgoing dispositions (`outgoingDispositions`, `decompose-v3-schema.ts`); the terminal writer
+      (`terminal-transition-record-writer.ts`); abandon's and rename's verbs (`verbs/abandon.ts`, `verbs/rename.ts`);
+      and the in-repo write path's own-key read (`write-codec.ts`). No member implements against those files first,
+      since each depends on this one. Keeping today's fields with `outgoing` and a side map of UIDs beside them was
+      rejected: today's shape is no reason by itself (D15), and a map beside the names needs its own rule to stay
+      consistent with them.
+- **The field writers** — settled (Owner, 2026-10-10). Today's setters take preformatted Markdown: callers pair
+  `setMetaBulletFields` with `formatValue` (`finalize-stage.ts`, `decompose-v3-repository-plan.ts`), which is how
+  `Task List` comes to be written as an identifier by one verb and an identifier list by another (item 1); one generic
+  writer reaches any field; and `setMetaCandidate` runs `reconcileMetaFields` on every call, which re-renders the whole
+  bullet region and deletes a section inside the field block.
+    - **Typed values, rendered by the writer.** Each writer takes the field's semantic value as the meta schema types
+      it — a `WorkUnitState`, a `WorkClass`, a slug list, or none — and renders its canonical form, sentinels
+      included. No caller formats a value.
+    - **One exported writer per field, touching only its own lines.** A core-table writer re-renders only the table's
+      three rows, as today; a bullet writer replaces only its bullet, inserting it at its canonical place when absent,
+      and moves nothing else; the field region ends at its last field line, so a section inside the block survives.
+      Creating a meta is one typed writer (item 1). The generic any-field writer stays internal, never adopted, and
+      `Promotion Receipt`'s immutability moves into its own writer. A meta with no H1 or `---` to anchor a write makes
+      the writer throw, where today such a meta mostly passes unchanged — `reconcileMetaFields` returns it as is — and a
+      setter throws only when the missing anchor blocks it (`setMetaTitle` with no H1; `setMetaFinalizeFields` and
+      `setMetaCandidate` with the bullet they would write absent), graduation, `arc start`, and the pre-commit check
+      refusing it first (`validateMetaFieldBlockShape`); from the flip the write check's shape rule refuses it first.
+    - **The section-deletion fix.** `reconcileMetaFields` inserts only the missing lines and never re-renders a present
+      one, and `setMetaCandidate`'s unconditional reconcile goes, since its writer inserts its own absent bullet.
+    - **The other kinds' writers.** The task list's: the close verb's marker writer, setting `[x]` or `[~]` on one
+      task line, and the splice between the `arc:delivery-plan` markers that `arc delivery compose` calls with the
+      plan it renders — rendering stays delivery's (`lib/delivery/task-list-render.ts`), the region the kind's.
+      Lineage's: one create-only writer from a typed record to canonical bytes. The cohort document's: its creation
+      rendering — Purpose, a backticked `Parent`, member sections — for decomposition's scaffold, and the member-heading
+      rename for rename's sweep. Drafts and specs get none: verbs edit their text inside their own batch (item 8).
+- **What each parser returns** — settled (Owner, 2026-10-10). A read or listing returns a record's `fields` untyped
+  (`StoreRecordSchema`, `lib/store/read.ts`), and callers narrow them with the kind's parsed-fields schema.
+    - **The task list: its header's `Design`, or none, and never a refusal.** 22 of the 129 tracked task lists fail
+      today's scanner (`scanTaskListStructure`), all archived between 2025-q4 and 2026-q2, with root-level markers or
+      identifiers from before the current grammar, and the parser refuses nothing a stored record holds (item 11). Item
+      5's `lib/task-list/` stays the kind's parsing library: readers run it over the content a read returns, each
+      deriving its own view — the cursor, the last completed task, tallies, the current region, the Goal inventory, or
+      segmentation — and the write check runs it over the prior and next versions. Delivery's coherence check reads the
+      parsed `Design` in place of its header pattern (`handlers/delivery.ts`) when delivery reroutes it. Rejected:
+      refusing a list the scanner rejects, which would list those 22 as diagnostics; converting them, which invents
+      identifiers for archived tasks; and carrying the cursor or the scan in the fields, since every caller reads one
+      work unit, holds its content, and derives something different.
+    - **Lineage: the typed final shape.** `{ schemaVersion: 2, origin, kind, successors, incoming, outgoing? }`, each
+      reference `{ name, uid? }` as lineage's final shape has it (above); `kind` is `decompose`, `abandon`, or `rename`;
+      an `incoming` entry is today's edge, a dependent replaced by named targets or dropped with a reason; and an
+      `outgoing` entry is a prerequisite with the members taking it, none when no member took it. Today's rules carry
+      over — successor counts, canonical order by name, unique dependents, edges only on a decomposition
+      (`TransitionRecordSchema`) — and `outgoing` is present exactly on a decomposition, with unique prerequisites, each
+      one's members unique. A member is any destination the cut map lets take a prerequisite — a successor, or an
+      existing work unit a heterogeneous cut names (`dependencyRecipients`, `decompose-v3-schema.ts`), as `incoming`'s
+      targets already are — so the parser checks no member against `successors`, and item 6's members taking a
+      prerequisite include that work unit (amended 2026-10-10, after the fix check, from "members drawn from the
+      successors"). The parser refuses a record the schema rejects, as today's codec does, since a create-only machine
+      record converts whole. `schemaVersion` 2 marks the converted shape; the store's per-record format version
+      (`FormatVersionSchema`, `lib/store/identity.ts`) is separate and unchanged. The in-repo implementation's own-key
+      evidence reads `origin.name` (`decodeTrackedContent`), so `identity-mismatch` holds. `outgoing` carries no reason:
+      nothing reads one, and a shipped prerequisite reads as shipped from its own placement. `rename` stays until the
+      flip, since the in-repo arm writes rename records and resolves former slugs through them (item 6; D5), and from
+      the flip lineage holds terminal transitions only. `storage-ref-backend`'s import turns the three rename records
+      into former slugs on their successors, all three archived, and imports no rename lineage (its draft-design
+      session, 2026-10-10, pending its Owner's read), so `storage-cutover`'s deletion pass drops `rename` from the kind.
+    - **Drafts, specs, and companions: `purpose`, and never a refusal.** One Purpose reader serves the three kinds: the
+      field's text as written, `—` or empty included, its wrapped lines joined, or none when absent (item 8). Status
+      keeps its opening-sentence cut and its reading of `—` (`extractWorkUnitPurpose`,
+      `lib/status/work-unit-purpose.ts`). Companions take it too, amending item 8: a paired spec's halves are
+      companions, one kind whose parser sees only content (`RecordParser`), and status's `design` selector
+      (`selectWorkUnitDesign`) reads the first `Design` entry with a Purpose, where a paired spec lists both halves and
+      item 3 admits any companion the work item holds. A companion without the field reads none, and the notes kind
+      (`work-item/notes`) keeps no parser, as item 8 has it. Passing the parser the record's key was the alternative: a
+      contract type changed for one kind.
+    - **The cohort document: `purpose` and `parent`.** Purpose as drafts read it; the write check refuses an empty or
+      `—` value (item 7). `parent` is none when the line is omitted or `[none]`, and the slug when backticked; the
+      parser refuses any other `Parent` line, a bare value or a second line. The repository holds six documents omitting
+      it, nine with `[none]`, three backticked, and one bare, `cohort-storage-seam.md`, converted first (§ Conversion
+      order). `Parent` refuses where Purpose does not because it is the cohort's one stored statement of where it nests,
+      from which the projection lays out the folder, so a guessed parent misplaces the cohort; a rejected document lists
+      as a diagnostic naming it (D5), and a rule reading it refuses only a write that changes a `Cohort` to name it
+      (item 11). Reading a bare value as the slug, with a write-check rule refusing new bare lines, was the alternative.
+      The shipped cohort template's `Parent` placeholder (`template-cohort.md`, package source and its synced copy)
+      takes the backticked form with the parser, so a document written from it parses, and the scaffold's template
+      anchor moves with it (Owner, 2026-10-10, after the adversarial pass).
+- **Conversion order** — settled (Owner, 2026-10-10). Of 259 tracked metas only the five archived bullet-form ones
+  lack a core table, and every meta parses today. Decomposition's topology check admits a subcohort only with one bare
+  `Parent` equal to its parent (`structurallyMatches`), and its scaffold writes a bare one for each subcohort a cut
+  creates (`renderV3IncompleteCohort`), both in `decompose-v3-topology.ts`. Transition records keep landing on `main`,
+  six commits since 2026-08-06, the latest `storage-seam`'s cut (2026-10-09).
+    - **Each conversion lands in this work unit's change, ahead of the code that stops reading the old form:** the
+      five metas before the fallback retires (§ Record kinds); `cohort-storage-seam.md` with the cohort parser, the
+      scaffold, and the two `Parent` checks (item 7); and the 14 lineage records with the kind and its readers' rewrite
+      (§ What lands before the flip). The change lands as one merge, so `main` never holds a mixed state; which review
+      chunk carries each conversion is task planning's.
+    - **Arrivals convert at the final base merge.** Records `main` gains in an old form before landing — a transition
+      record from an abandon, cut, or rename, or a subcohort document from a cut's scaffold — convert at the last base
+      merge before landing, where the new parsers read every tracked meta, transition record, and cohort document and
+      any they refuse converts. No writer produces a bullet-form meta, so none arrives. After landing a stray old form
+      surfaces where it is read, as a listing diagnostic or, for a meta, A9's refused inventory, and for lineage in CI:
+      the live transition-record test (`live-transition-records.test.ts`) parses and round-trips every tracked record on
+      every pull request, docs-only ones through the ARC contract tier (`test:arc-contracts`,
+      `.github/workflows/ci.yml`), and record kinds rewrites it to the converted shape with the other readers, until
+      `storage-cutover`'s deletion pass removes it. A new test of the same kind over metas and cohort documents was
+      rejected: the readers already report a stray form.
+    - **`cohort-storage-seam.md` waits for this change.** Converted on `main` now, it would make every cut touching it
+      refuse until this work unit lands. Waiting costs nothing: siblings edit its member sections and coordination
+      prose, never the `Parent` line, and no verb re-parents a cohort, so base merges do not conflict there.
+    - **A conversion is a committed edit to tracked records, never shipped code:** no migration reader or script
+      ships, under the pre-public-release posture (`DEV-RULES.PROJECT.md`). Parsing before and after verifies each:
+      a meta's parsed fields equal under the fallback before and the table after; a lineage record keeps its origin,
+      kind, successors, and edges, read as `incoming`; `outgoing` derives from each origin's `Depends On` before its
+      cut, from history; and the cohort document's `parent` reads `state-storage`.
+    - **Checkouts on older code** (Owner, 2026-10-10, after the adversarial pass). One record it cannot parse makes the
+      transition-record enumeration report the namespace corrupt (`validateTransitionRecordEnumeration`,
+      `transition-record-enumeration.ts`, behind `enumerateGitTransitionRecords`), so a checkout whose code predates
+      landing reads the base's converted records as a user-reference conflict, at session-init and from `arc user
+      reconcile` (`user-reference-reconcile.ts`), until it merges base. Delivery reads the records at the local base
+      branch, which every worktree shares (`GitDeliveryRenameTransitionSource`, `lib/delivery/plan-resolution.ts`), so
+      from the first pull of base anywhere, while any delivery plan is stored, an old-code checkout finds its delivery
+      subject indeterminate and the review gate refuses its pre-publication reservation
+      (`selectPrePublicationReservationTarget`). That is bounded and recoverable, merging base its remedy; landing
+      proposes a WORKING-MEMORY entry naming each symptom, as the repository did for `8399b8da4`.
 
 ### Shared decisions
 
@@ -152,20 +449,21 @@ field, which the contract left open, is item 2's.
       ambiguous reports it rather than choosing. Status renders the edges, decomposition redistributes them, lifecycle
       discharges them, and in-flight derivation reads them.
     - **`Design`** lists the work item's own artifact filenames; no meta in the repository names another work unit's
-      file or a URL, though the pre-commit check admits any `.md` name or URL, two at most (`validateSpec`,
-      `validate-meta-spec.ts`), and `arc stub --design` and `arc start --from` store their input as given (`stub.ts`,
-      `spec-input-parser.ts`). The parser reads any entry (item 11). The meta's write check admits a new or changed
-      entry only when it is the work item's own: its draft or spec name after the batch, `draft-<slug>.md` or
-      `spec-<slug>.md` as the layout resolver projects them (`resolveArcPath`, `lib/layout/projection.ts`), written or
-      not, since the `design` selector skips an absent one; or the filename of a companion the work item holds, read
-      through the view, since a companion may take any name (D13) — in the in-repo implementation a paired spec's
-      halves, `spec-prd` and `spec-rfc`, at `spec-<slug>-prd.md` and `spec-<slug>-rfc.md` (D8). It refuses a third
-      entry, as the hook does today. So from the flip a URL or another work unit's file is refused, from those verbs
-      too, and how `arc start --from` takes a draft or spec seed is lifecycle's (§ Lifecycle). Decomposition's planning
-      profile, graduation's planning tuple (`planning-artifact-tuple.ts`), locus's in-flight derivation, which projects
-      it into in-flight entries, the purpose read and `arc view design`, the stage consistency check
-      (`current-workflow-consistency.ts`), and delivery's coherence check read it; the last accepts one or two entries,
-      one of them the task list's own `Design` header (`handlers/delivery.ts`), which item 5 carries.
+      file or a URL, though the pre-commit check admits any bare `.md` filename or `http(s)` URL, two at most
+      (`validateSpec`, `validate-meta-spec.ts`), and `arc stub --design` and `arc start --from` store their input as
+      given (`stub.ts`, `spec-input-parser.ts`). The parser reads any entry (item 11). The meta's write check admits a
+      new or changed entry only when it is the work item's own: its draft or spec name after the batch,
+      `draft-<slug>.md` or `spec-<slug>.md` as the layout resolver projects them (`resolveArcPath`,
+      `lib/layout/projection.ts`), written or not, since the `design` selector skips an absent one; or the filename of a
+      companion the work item holds, read through the view, since a companion may take any name (D13) — in the in-repo
+      implementation a paired spec's halves, `spec-prd` and `spec-rfc`, at `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`
+      (D8). It refuses a third entry, as the hook does today. So from the flip a URL or another work unit's file is
+      refused, from those verbs too, and how `arc start --from` takes a draft or spec seed is lifecycle's (§ Lifecycle).
+      Decomposition's planning profile, graduation's planning tuple (`planning-artifact-tuple.ts`), locus's in-flight
+      derivation, which projects it into in-flight entries, the purpose read and `arc view design`, the stage
+      consistency check (`current-workflow-consistency.ts`), and delivery's coherence check read it; the last accepts
+      one or two entries, one of them the task list's own `Design` header (`handlers/delivery.ts`), which item 5
+      carries.
     - **`Cohort`** is a cohort slug, or `parent/child` one level deep, naming an open cohort, one whose document archive
       has not closed, and a `parent/child` value agrees with the child's `Parent` (items 7 and 11). From the flip the
       owner edits it: the store moves nothing, and the projection re-derives the backlog folder from the field (D5).
@@ -178,7 +476,16 @@ field, which the contract left open, is item 2's.
       so an entry written before the flip and integrated after it is still checked. The parser reads the sections as
       they are: eleven archived metas' shipped entries fail those rules today, nine labelling their categories in bold
       rather than with `###` headings and two failing the category rule, and they keep reading unchanged rather than
-      being rewritten. Delivery reads the parsed sections (D18).
+      being rewritten. Delivery reads the parsed sections (D18). The parsed meta gains them in this member as
+      `completionNotes` and `releaseNotesEntry`, each the list of that section's bodies in file order, wherever it sits,
+      empty when absent — the shape readiness reads today (`sectionBodies`, `scripts/review-gate/readiness.ts`) — so its
+      uniqueness and at-most-once rules still see a duplicate over the stored record (Owner, 2026-10-10, after pass 2).
+      The durable record gains them with the parsed one: `MetaRecordSchema` is strict, and `toMetaRecord`
+      (`lib/active/meta-reader.ts`) returns null on a key it does not know, which the review gate refuses
+      (`scripts/review-gate/hosts/local/live-context.ts`, `scripts/review-gate/policy/pre-publication-composition.ts`),
+      so `ParsedMetaRecordSchema` and `MetaRecordSchema` gain each new key together, as `promotionReceipt` sits in both,
+      and the registered `meta-record` validation surface changes in place under the pre-public-release posture (amended
+      2026-10-10, after the fix check).
     - **The progress fields** are item 4's.
 4. **Session context** — settled (Owner, 2026-10-09). From the flip it is a prose section of the meta that locus's
    handoff writes, beside a few fields: D5 names the state-version anchor and leaves which of today's handoff fields
@@ -282,12 +589,15 @@ field, which the contract left open, is item 2's.
       no `Parent` line (`planRenameReferences`). Until the flip the path is the truth, and record kinds moves
       decomposition's two checks, which compare a document's `Parent` with its path when a cut touches it, onto the
       parsed field: its topology check (`structurallyMatches`, `decompose-v3-topology.ts`) and its destination check
-      (`validateCohortDocumentClaim`, `git-decompose-v3-destination-validation.ts`). It moves decomposition's scaffold
-      (`renderV3IncompleteCohort`, in the same topology module), which writes a bare parent today, to the backticked
-      form. Those changes land with the parser's registration, which first converts the repository's bare-`Parent`
-      documents — this cut's own `cohort-storage-seam.md` among them — as the meta kind converts its bullet-form metas
-      before its fallback retires (§ Record kinds): a scaffold changed alone fails its own topology check, and no reader
-      accepts the bare form. The template's "convenience pointer" note changes in the flip rewrite.
+      (`validateCohortDocumentClaim`, `git-decompose-v3-destination-validation.ts`). Both compare text today, requiring
+      no `Parent` line for a top-level cohort and a bare one for a subcohort, so a cut touching any of the six planned
+      top-level documents that carry `[none]`, or the one subcohort document with a backticked parent, refuses; the
+      parsed field admits all three forms. It moves decomposition's scaffold (`renderV3IncompleteCohort`, in the same
+      topology module), which writes a bare parent today, to the backticked form. Those changes land with the parser's
+      registration, which first converts the repository's one bare-`Parent` document, this cut's own
+      `cohort-storage-seam.md`, as the meta kind converts its bullet-form metas before its fallback retires (§ Record
+      kinds): a scaffold changed alone fails its own topology check, and no reader accepts the bare form. The template's
+      "convenience pointer" note changes in the flip rewrite.
     - **Anyone with write access to the project edits it,** as anyone grooms a backlog stub (D13), through three-way
       line merge (D6). D13 fixes the document's home but not who edits it. Each member's own section under
       `## Members` stays that member's by convention, which is what lets parallel writers merge cleanly; nothing
@@ -332,13 +642,16 @@ field, which the contract left open, is item 2's.
       selector read Purpose (§ Status and roadmap), provisional on `inbound-routing-method`; decomposition reads only
       the meta's `Design` for its planning profile (`inferPlanningProfile`).
     - **Left unparsed:** the title line, since a work item's identity is its name and UID (D2), not its heading. Rename
-      retitles only an exact self-title on the first top-level heading, `# Draft: <slug>` or a spec's
-      `# Spec (<form>): <slug>` (`ARTIFACT_SELF_TITLE_RULES`, `rename-reference-sweep.ts`), skipping any other title,
-      and decomposition only a first line holding the origin slug (`retitleScaffold`), each a text edit in its own
-      batch; 108 of this repository's 142 backlog and active drafts carry a display title neither touches. Decomposition
-      does refuse a scaffold whose first line is not a top-level heading (`scaffold-title-missing`,
-      `decompose-v3-repository-plan.ts`), a check that stays in its verb. `Origin`, which repeats the meta's base field
-      (item 2) and has no reader. And the spec form, which only title labels carry.
+      retitles only an exact self-title on the first top-level heading, `# Draft: <slug>` or a spec's `# Spec (<form>):
+      <slug>` (`ARTIFACT_SELF_TITLE_RULES`, `rename-reference-sweep.ts`), skipping any other title, and decomposition
+      only a first line holding the origin slug (`retitleScaffold`), each a text edit in its own batch; of this
+      repository's 150 backlog and active drafts (`59dd07d6b`), 125 carry a title rename skips and 116 one neither
+      touches. Decomposition does refuse a scaffold whose first line is not a top-level heading
+      (`scaffold-title-missing`, `decompose-v3-repository-plan.ts`), a check that stays in its verb. `Origin`, which
+      repeats the meta's base field (item 2) and has no reader. And the spec form, which only title labels carry.
+    - **Amended (Owner, 2026-10-10):** companions take the drafts' Purpose parser, a paired spec's halves among them,
+      since one parser serves the companion kind; the notes kind keeps none (§ This member's design, what each parser
+      returns).
 
 Items 9 and 10 are `seam-locus`'s and `seam-lifecycle`'s.
 
@@ -346,10 +659,12 @@ Items 9 and 10 are `seam-locus`'s and `seam-lifecycle`'s.
     `lib/store/registry.ts`), so it cannot refuse what the items above have persist refuse. A kind with such rules
     registers a write check beside its parser, given the record's reference — its UID and its slug after the batch — the
     prior parsed record, the next one, the writer, and a read-only view of the store, and refusing with the rule it
-    breaks. The parser stays content-only and refuses nothing a stored record already holds, so `list` and `read` keep
-    returning parsed fields with no prior version to supply. Record kinds adds the check's slot to the registry
-    (`createKindRegistry`) and builds its kinds' checks with their parsers, and the Errand record's, which carries only
-    item 3's slug rules while the record's schema stays the contract's.
+    breaks. (Refined 2026-10-10 in § What a kind registers: the prior and next records arrive as content and parsed
+    fields, and the check returns every rule the write breaks, from which a backend refuses with the first.) The parser
+    stays content-only and refuses nothing a stored record already holds, so `list` and `read` keep returning parsed
+    fields with no prior version to supply. Record kinds adds the check's slot to the registry (`createKindRegistry`)
+    and builds its kinds' checks with their parsers, and the Errand record's, which carries only item 3's slug rules
+    while the record's schema stays the contract's.
     - **A rule checks what the write changes:** a new record whole; otherwise the fields, sections, and task lines that
       differ from the prior version. A value that predates a rule, or was valid when written and has gone stale since —
       an edge now ambiguous, a dependency retired — keeps reading and is reported by its readers (item 3); it never
@@ -403,14 +718,14 @@ The record kinds every other member writes or reads, built first.
   kinds items 1–8 settle — the meta, task list, draft and spec with a paired spec's halves, lineage, and cohort document
   — registered in the registry's parser slots (`createKindRegistry`, `lib/store/registry.ts`), with the write check's
   slot beside them, and the Errand record's write check (item 3). It also builds condition (c)'s report over the cohort
-  document's member headings and its members' `Cohort` fields (item 7). Notes and other companions get no parser (item
-  8). Its decisions are settled here, and every other member's `Depends On` names it. It inherits no map rows, though
-  its kinds replace or extend modules some name: those for `meta-reader.ts` and the transition-record store and writer
-  in lifecycle's partition, and `descriptor-worktree.ts` in status's, reroute callers and stay with their members. It
-  also edits the two modules decomposition's key-49 rows name for its `Parent` checks (`decompose-v3-topology.ts`, which
-  holds the scaffold too, and `git-decompose-v3-destination-validation.ts`), moving them onto the parsed field (item 7),
-  while those rows stay decomposition's; and `lib/active/cohort-consistency.ts` for the report, whose row stays
-  lifecycle's.
+  document's member headings and its members' `Cohort` fields (item 7). Notes get no parser (item 8); other companions share
+  the drafts' Purpose parser (item 8, amended 2026-10-10). Its decisions are settled here, and every other
+  member's `Depends On` names it. It inherits no map rows, though its kinds replace or extend modules some name: those
+  for `meta-reader.ts` and the transition-record store and writer in lifecycle's partition, and `descriptor-worktree.ts`
+  in status's, reroute callers and stay with their members. It also edits the two modules decomposition's key-49 rows
+  name for its `Parent` checks (`decompose-v3-topology.ts`, which holds the scaffold too, and
+  `git-decompose-v3-destination-validation.ts`), moving them onto the parsed field (item 7), while those rows stay
+  decomposition's; and `lib/active/cohort-consistency.ts` for the report, whose row stays lifecycle's.
 - **The meta kind's parser.** It keeps the shipped `identifier-list` value class (`formatValue` and
   `normalizeIdentifierListValue` in `lib/active/meta-reader.ts`), which renders each element backticked and parses the
   list back, under existing tests. Retire the legacy flat-bullet fallback — `parseCoreTable` returns null for a meta
@@ -424,13 +739,14 @@ The record kinds every other member writes or reads, built first.
   checkpoint and merge.
 - **Content rules leaving the hook checks** land in the family write checks (key 28), each over the lines a write adds
   or changes (§ Shared decisions, item 11): the task-numbering hook and `lint:md`'s descriptor rules skip the archive
-  today, and three archived task lists in `completed/2025-q4/` carry numeric third-level identifiers. The pre-commit
-  `task-numbering` check moves into the task-list kind's write check, beside its rules that a completed task keeps its
-  identifier and its `_Goal:_` (item 5), compared with the record's prior version rather than `HEAD`, while open tasks
-  and future phases stay freely restructurable. The identifier rule holds whatever the footer policy (`ghost-mode`):
-  task captures are keyed by task ID (D3; `taskCaptures` in `lib/store/links.ts`), so a renumbered completed task would
-  orphan its captures. `hooks.task_numbering`, which sets the hook to `error`, `warning`, or `off`, retires with the
-  hook at the flip, since the write check reads no configuration. Stored-task validation from `lint:md:descriptors`
+  today, and four archived task lists carry numeric third-level identifiers, three in `completed/2025-q4/` and one in
+  `completed/2026-q2/` (`6.2.0`, `tasks-release-wrappers-foundation.md`). The pre-commit `task-numbering` check moves
+  into the task-list kind's write check, beside its rules that a completed task keeps its identifier and its `_Goal:_`
+  (item 5), compared with the record's prior version rather than `HEAD`, while open tasks and future phases stay freely
+  restructurable. The identifier rule holds whatever the footer policy (`ghost-mode`): task captures are keyed by task
+  ID (D3; `taskCaptures` in `lib/store/links.ts`), so a renumbered completed task would orphan its captures.
+  `hooks.task_numbering`, which sets the hook to `error`, `warning`, or `off`, retires with the hook at the flip, since
+  the write check reads no configuration. Stored-task validation from `lint:md:descriptors`
   (`selectTaskDescriptorPaths`, `runWorktreeTaskDescriptorLint`) moves in too, its segmentation diagnostics
   (`scanTaskListSegmentation`) spanning the whole plan, so the write check refuses only one the prior version's scan did
   not report, matched without its line (item 11); the shipped task template and tracked non-state task documents keep
@@ -438,16 +754,89 @@ The record kinds every other member writes or reads, built first.
   with `State` and `Design`, and `prepare-work-unit` with a task list that resolves and holds no open task — move into
   the meta's write check (item 11). Its field-shape rules each take a home. The closed field block — an H1 and a later
   standalone `---` delimiter, which the field writers need to anchor a write (`validateMetaFieldBlockShape`), with a
-  `State` and a `Design` line and no second `State`, `Design`, or `Cohort` line — becomes a meta write-check shape rule
-  over a new or changed meta (item 11), never a parser refusal, which A9 would turn into a refused inventory; the four
-  backlog metas that broke it were closed on `main` at `acd6ede9c`. The block may also hold sections — completed metas
-  carry the Release Notes Entry and Completion Notes that integration composes above the `---` — so record kinds' field
-  writers end the field region at its last field line: today `reconcileMetaFields` (`lib/active/meta-reader.ts`), when
-  it backfills a missing field, replaces every line from the first field bullet to the `---`, deleting any section
+  `State` and a `Design` line and no second `State`, `Design`, or `Cohort` line (`validateSpec`,
+  `validateLifecycleFields`, and `validateCohort` in `scripts/validate-meta-spec.ts`) — becomes a meta write-check shape
+  rule over a new or changed meta (item 11), never a parser refusal, which A9 would turn into a refused inventory; the
+  four backlog metas that broke it were closed on `main` at `acd6ede9c`. The block may also hold sections — completed
+  metas carry the Release Notes Entry and Completion Notes that integration composes above the `---` — so record kinds'
+  field writers end the field region at its last field line: today `reconcileMetaFields` (`lib/active/meta-reader.ts`),
+  when it backfills a missing field, replaces every line from the first field bullet to the `---`, deleting any section
   between. The two-entry `Design` cap joins item 3's `Design` rule; `State`'s four values are the meta schema's
   (`WorkUnitStateSchema`, `MetaRecordSchema`), and only verbs write `State` (item 1); and the `Cohort` path cap is items
   3 and 7's.
 - **The cohort document's parser** lands with decomposition's scaffold and two checks moved onto its parsed `Parent`,
   after converting the bare-`Parent` documents (§ Shared decisions, item 7).
+
+## Scope boundary
+
+This member builds what § Record kinds and § This member's design settle (Owner, 2026-10-10). By order it also takes the
+cohort's machine-local entry: the first member to edit the registry adds a per-worktree Git-directory root to
+`MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) for `quality-gate-hooks`' reuse record, and record kinds edits it first,
+changing `createKindRegistry` to take registrations (`cohort-storage-seam.md` § Soft coordination); and the shipped
+cohort template's `Parent` placeholder moves to the backticked form with the cohort parser (§ What each parser returns);
+and it lands `HAND_EDIT_VERBS` (`lib/store/links.ts`) with the reference backend's writer derivation (§ What a kind
+registers).
+
+**Won't Do:**
+
+- Reroute callers, which adopt the writers as their members reroute them — beyond the lineage records' readers and
+  producers, rewritten to the new shape with the kind rather than rerouted, decomposition's two `Parent` checks and its
+  scaffold, and condition (c)'s report, settled above.
+- Register the Candidate and integration-boundary kinds (`seam-delivery-review`), or the inbound list and Errand
+  description kinds (`seam-locus`).
+- Run write checks in the in-repo implementation, or change hand edits and the pre-commit checks before the flip.
+- Remove the hook checks, the meta's retired session fields, or lineage's `rename` — `storage-cutover`'s deletion pass.
+- Call the write check from the ref backend or from write-back and `arc save` (`storage-ref-backend`,
+  `storage-projection`).
+- Move `meta-reader.ts`' disk reader (`readActiveMetaCandidates`), which its callers' members reroute.
+- Change any workflow's text, or status's Purpose presentation — its opening-sentence cut and reading of `—`.
+
+## Unknowns and Assumptions
+
+- **Rename records at import.** `storage-ref-backend` took them into its import as former slugs, pending its Owner's
+  read; if that Owner declines, the lineage kind keeps `rename` for the imported records rather than dropping it.
+- **The held-entries rule** rests on item 9's settled schema, provisional on `inbound-routing-method`.
+- **Assumption:** no member implements against the lineage readers or the meta setters before this one lands, which
+  each member's `Depends On` edge on it holds.
+
+## Coordination
+
+Routed at draft close as one `USER-INBOX` capture:
+
+- **`storage-cutover`:** its deletion pass drops lineage's `rename` and the parsed meta's retired `Next Task`,
+  `Last Completed`, and `Blockers` with their writers; and its live transition-record test, which record kinds
+  rewrites to the converted shape, is still deleted there.
+
+Sent directly to each draft-design session (2026-10-10):
+
+- **`storage-projection`:** the write check reads the verbs under which write-back and `arc save` persist as a hand edit
+  (§ What a kind registers), so its draft names those two verbs. Otherwise the check matches its § Coordination item 1
+  as it stands — callable with no write, a hand edit as the writer, every rule returned. The production registration set
+  is a listed module inside `lib/store/` (§ Where the kinds live), which an import from outside the store cannot reach
+  without failing lint, so write-back reaches it from inside the store; its draft already places the engine in
+  `lib/store/projection/`.
+
+- **`storage-ref-backend`:** its write path derives the writer through `HAND_EDIT_VERBS` (§ What a kind registers), and
+  the suite's check cases are one item, each rule unit-tested here (§ What lands before the flip), so its verification
+  names that item rather than per-rule cases; the item installs its test registration through
+  `ConformanceRegistration.create`'s registry override, so its store factory takes one. Its draft takes
+  `Depends On: seam-record-kinds` (Owner, 2026-10-10), so it builds against these once this work unit ships.
+
+None goes to the siblings, which re-read this spec under the cohort's safety net before their own specs are approved, as
+`storage-ref-backend` re-reads it before its own.
+
+## Success signal
+
+- Listing each kind whose parser this member registers over this repository — `work-item/meta`, `work-item/task-list`,
+  `work-item/draft`, `work-item/spec`, `work-item/companion`, `lineage/transition`, and `cohort/document` — returns
+  complete with no diagnostics, and every meta's parsed fields equal today's on today's keys.
+- Each rule's unit cases refuse its breaking write and admit its valid counterpart; and in the conformance suite each
+  backend whose fixture declares write checks — the reference backend at landing — refuses a registered check's breaking
+  write with `record-malformed` naming the first rule broken, checks a verb in `HAND_EDIT_VERBS` as a hand edit, and
+  checks a batch against its other writes, while the in-repo fixture declares none and writes as today.
+- A section inside a meta's field block survives every field writer.
+- No import-ratchet rule's floor grows from its count at this work unit's base (`store-raw-state`: 170 violations across
+  123 files at `59dd07d6b`, before the `layout-read-ratchet` Errand lists the transition-record enumeration and adds a
+  rule for layout-resolver reads).
 
 ---
