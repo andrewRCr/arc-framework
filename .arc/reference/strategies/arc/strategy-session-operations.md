@@ -893,8 +893,9 @@ workspace root, cross-WU scope.
   No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
   retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
 - **`## Work Unit`** — spec-worthy entries that need draft-doc / PRD treatment before scheduling. Each
-  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
-  destination stub — existence at drain decides route-vs-create.
+  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming a candidate
+  for the drain's routing gate to check. Existence alone does not establish a home; the concern must shape a
+  decision in that work unit's actual design.
 
 **Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
@@ -927,9 +928,10 @@ the retention. The drain therefore closes on **no un-triaged entries**, not nece
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — _not_ at the integration ceremony; destinations vary by PM mode:
 
-- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Errand` items to their
-  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Work Unit` items to an
-  existing stub or a new _provisional_ stub (there is no shared Work-Unit inbox). See
+- **`pm.mode: arc-in-git`** — housekeep routes every capture through the drain's routing gate. Every
+  Errand-shaped item takes the homeless-atomic route — execution, shared `backlog/ATOMIC-INBOX.md` deferral, or
+  explicit Owner retention — since none has a work-unit home. Work-unit-shaped concerns take the gate's existing
+  or new stub outcome; `WU_Target` remains a candidate, and there is no shared Work-Unit inbox. See
   `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
   details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration

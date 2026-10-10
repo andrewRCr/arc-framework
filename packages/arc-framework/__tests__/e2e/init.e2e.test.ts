@@ -185,8 +185,8 @@ describe("init", () => {
     const methodNames = [
       "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
       "assess-evidence-applicability", "adversarial-review",
-      "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format", "frontline-review",
-      "standard-review",
+      "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
+      "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
       "review-response", "review-triage",

@@ -10,7 +10,9 @@
 import { isAbsolute, join } from "node:path";
 
 import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
-import { materializeArcPath, resolveArcPath } from "./layout/index.js";
+import { resolveArcPath } from "./layout/index.js";
+import { readViewTargetMeta, resolveRefViewArtifact, resolveViewDesignArtifact, viewWorkUnitArtifactPath } from "./view/started-artifacts.js";
+import type { WorkUnitArtifactReaders } from "./status/work-unit-purpose.js";
 import {
   VIEW_KINDS,
   type ResolvedViewTarget,
@@ -35,7 +37,7 @@ export interface ViewArtifactDependencies {
     slug: string;
   }) => Promise<ViewTargetResult>;
   resolveRecordedTarget?: (options: { cwd: string }) => Promise<ViewTargetResult>;
-  resolveCohort: (options: { cwd: string; activeMetaPath: string }) => Promise<string | null>;
+  resolveCohort: (options: { cwd: string; activeMetaPath: string; metaContent?: string }) => Promise<string | null>;
   resolveSessionNotes: (options: {
     cwd: string;
     identity: string;
@@ -46,6 +48,8 @@ export interface ViewArtifactDependencies {
     identity: string;
   }) => Promise<UserSurfacePaths>;
   pathExists: (path: string) => Promise<boolean>;
+  readAtRef?: WorkUnitArtifactReaders["readAtRef"];
+  readFile?: (path: string) => Promise<string>;
 }
 
 /** Resolve one view kind through the injected semantic authorities. */
@@ -103,9 +107,7 @@ async function resolveViewArtifactUnchecked(
     return error(kind ?? "view", `Work unit "${target.slug}" is completed; completed viewing is unsupported.`);
   }
   if (target.status === "unavailable") {
-    return options.forSlug === undefined
-      ? error(kind ?? "view", "No active work unit matches the current branch.")
-      : error(kind ?? "view", `Work unit "${options.forSlug}" is unavailable in this checkout.`);
+    return unavailableTarget(options, target);
   }
 
   if (kind === undefined) return resolveFurthestPresent(options.cwd, target, dependencies);
@@ -151,38 +153,10 @@ async function resolveExactKind(
   target: ResolvedViewTarget,
   dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
+  if (isOwnArtifactKind(kind)) return resolveOwnArtifact(options.cwd, kind, target, dependencies);
   switch (kind) {
-    case "meta":
-      return presentOrAbsent(kind, absolute(options.cwd, target.metaPath), target.slug, dependencies);
-    case "tasks": {
-      const path = await resolveTaskPath(options.cwd, target, dependencies);
-      return path === null
-        ? { status: "absent", kind }
-        : { status: "resolved", kind, path, workUnit: target.slug };
-    }
-    case "spec":
-    case "draft":
-    case "notes":
-      return presentOrAbsent(
-        kind,
-        materializeArcPath(options.cwd, resolveArcPath({
-          kind: "work-unit-artifact",
-          placement: target.placement,
-          slug: target.slug,
-          artifact: kind,
-        })),
-        target.slug,
-        dependencies,
-      );
-    case "cohort": {
-      const path = await dependencies.resolveCohort({
-        cwd: options.cwd,
-        activeMetaPath: target.metaPath,
-      });
-      return path === null
-        ? { status: "absent", kind }
-        : presentOrAbsent(kind, absolute(options.cwd, path), target.slug, dependencies);
-    }
+    case "cohort":
+      return resolveCohortArtifact(options.cwd, target, dependencies);
     case "session-notes": {
       if (options.identity === null) {
         return error(kind, "No ARC identity is configured for this identity-scoped artifact.");
@@ -202,22 +176,80 @@ async function resolveExactKind(
   }
 }
 
+type OwnArtifactKind = Extract<ViewKind, "meta" | "tasks" | "spec" | "draft" | "notes" | "design">;
+
+function isOwnArtifactKind(kind: ViewKind): kind is OwnArtifactKind {
+  return ["meta", "tasks", "spec", "draft", "notes", "design"].includes(kind);
+}
+
+async function resolveOwnArtifact(
+  cwd: string,
+  kind: OwnArtifactKind,
+  target: ResolvedViewTarget,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewArtifactResult> {
+  switch (kind) {
+    case "meta":
+      return presentOrAbsent(kind, viewWorkUnitArtifactPath(cwd, target, target.metaPath), target.slug, dependencies, target);
+    case "tasks":
+      return resolveTaskPath(cwd, target, dependencies);
+    case "design":
+      return resolveViewDesignArtifact({ cwd, target, readFile: dependencies.readFile, readAtRef: dependencies.readAtRef });
+    case "spec":
+    case "draft":
+    case "notes":
+      return presentOrAbsent(
+        kind,
+        viewWorkUnitArtifactPath(cwd, target, resolveArcPath({
+          kind: "work-unit-artifact",
+          placement: target.placement,
+          slug: target.slug,
+          artifact: kind,
+        })),
+        target.slug,
+        dependencies,
+        target,
+      );
+  }
+}
+
+async function resolveCohortArtifact(
+  cwd: string,
+  target: ResolvedViewTarget,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewArtifactResult> {
+  const metaContent = await readViewTargetMeta({
+    cwd, target, readFile: dependencies.readFile, readAtRef: dependencies.readAtRef,
+  });
+  if (target.artifactSource !== undefined && metaContent === null) return { status: "absent", kind: "cohort" };
+  const path = await dependencies.resolveCohort({
+    cwd, activeMetaPath: target.metaPath,
+    ...(metaContent === null ? {} : { metaContent }),
+  });
+  return path === null ? { status: "absent", kind: "cohort" }
+    : presentOrAbsent("cohort", absolute(cwd, path), target.slug, dependencies);
+}
+
 async function resolveTaskPath(
   cwd: string,
   target: ResolvedViewTarget,
   dependencies: ViewArtifactDependencies,
-): Promise<string | null> {
-  if (target.taskListPath !== null) {
-    const pointer = absolute(cwd, target.taskListPath);
-    if (await dependencies.pathExists(pointer)) return pointer;
-  }
-  const conventional = materializeArcPath(cwd, resolveArcPath({
+): Promise<ViewArtifactResult> {
+  const conventional = viewWorkUnitArtifactPath(cwd, target, resolveArcPath({
     kind: "work-unit-artifact",
     placement: target.placement,
     slug: target.slug,
     artifact: "tasks",
   }));
-  return await dependencies.pathExists(conventional) ? conventional : null;
+  const paths = new Set([
+    ...(target.taskListPath === null ? [] : [viewWorkUnitArtifactPath(cwd, target, target.taskListPath)]),
+    conventional,
+  ]);
+  for (const path of paths) {
+    const result = await presentOrAbsent("tasks", path, target.slug, dependencies, target);
+    if (result.status !== "absent") return result;
+  }
+  return { status: "absent", kind: "tasks" };
 }
 
 function isViewKind(kind: string): kind is ViewKind {
@@ -229,10 +261,22 @@ async function presentOrAbsent(
   path: string,
   workUnit: string | null,
   dependencies: ViewArtifactDependencies,
+  target?: ResolvedViewTarget,
 ): Promise<ViewArtifactResult> {
+  const atRef = await resolveRefViewArtifact({ kind, path, target, readAtRef: dependencies.readAtRef });
+  if (atRef !== null) return atRef;
   return await dependencies.pathExists(path)
     ? { status: "resolved", kind, path, workUnit }
     : { status: "absent", kind };
+}
+
+function unavailableTarget(
+  options: ResolveViewArtifactOptions,
+  target: Extract<ViewTargetResult, { status: "unavailable" }>,
+): ViewArtifactResult {
+  return error(options.kind ?? "view", target.message ?? (options.forSlug === undefined
+    ? "No active work unit matches the current branch."
+    : `Work unit "${options.forSlug}" is unavailable in this checkout.`));
 }
 
 function error(kind: string, message: string): ViewArtifactResult {

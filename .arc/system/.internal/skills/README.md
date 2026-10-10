@@ -24,7 +24,7 @@ and personal skills use no prefix.
 - `arc-task-review` — Post-implementation review: spec deviations, judgment calls, unaddressed observations (on-demand)
 - `arc-plan` — Collaborative exploration setup: context gathering, framing questions, freeform (on-demand)
 - `arc-commit` — Atomic commit with active status file staging (during session)
-- `arc-inbox` — Capture a deferred work item to USER-INBOX, classified and routed by character (during session)
+- `arc-inbox` — Route a discovered concern now when committed, or capture it for later with a candidate home
 - `arc-errand` — Run an out-of-work-unit errand now from the current session, dispatching into run-errand (during session)
 - `arc-handoff` — Session handoff (end of session)
 - `arc-housekeep` — Drain USER-INBOX between work units, routing each entry to its home (between sessions)

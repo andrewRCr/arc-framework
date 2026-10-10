@@ -11,6 +11,35 @@ import { runView } from "../../../src/commands/view.js";
 import type { RunViewOptions, ViewArtifactResolver, ViewDependencies } from "../../../src/commands/view.js";
 
 describe("runView", () => {
+  const referenceArtifact = {
+    status: "resolved", kind: "spec", workUnit: "feature", ref: "refs/heads/feat/feature",
+    content: "# Selected ref copy\n", displayLabel: "refs/heads/feat/feature:.arc/active/spec-feature.md",
+  } as const;
+
+  it("renders selected reference content without reading a checkout file", async () => {
+    const result = await runView({ cwd: "/repo", kind: "spec", project: false, identity: "andrew", nonInteractive: true }, {
+      resolveArtifact: async () => referenceArtifact,
+      readFile: async () => { throw new Error("checkout read forbidden"); },
+    });
+    expect(result).toMatchObject({ stderr: "", exitCode: 0 });
+    expect(result.stdout).toMatch(/^spec · feature · 1 line · rendered \d{2}:\d{2}\n\n# Selected ref copy\n$/u);
+  });
+
+  it.each(["path", "editor"] as const)("refuses %s for a reference artifact with a rendering remedy", async (destination) => {
+    const result = await runView({
+      cwd: "/repo", kind: "spec", project: false, identity: "andrew", [destination]: true, editorAllowed: true,
+    }, {
+      resolveArtifact: async () => referenceArtifact,
+      readFile: async () => { throw new Error("checkout read forbidden"); },
+      launchEditor: async () => { throw new Error("editor launch forbidden"); },
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("feature");
+    expect(result.stderr).toContain("refs/heads/feat/feature");
+    expect(result.stderr).toContain("arc view spec --for feature");
+  });
+
   it("passes an omitted kind through as bare lifecycle-aware view", async () => {
     const resolveArtifact = vi.fn<ViewArtifactResolver>().mockResolvedValue({
       status: "resolved",

@@ -52,7 +52,8 @@ when populating any `.override` section. Methods not listed here are independent
 | self-review                   | review-triage                                                            | Uses review-triage for findings            |
 | review-response               | review-triage                                                            | Consumes approved finding dispositions     |
 | assess-boundary-fit           | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
-| classify-work-unit            | assess-boundary-fit                                                      | Upper/lower WU-boundary tests              |
+| classify-work-unit            | route-discovered-work, assess-boundary-fit                               | Wrapper floor and upper boundary           |
+| route-discovered-work         | classify-work-unit                                                       | Disposition applies the wrapper floor      |
 | assess-design-proportionality | design-audit, adversarial-review                                         | Material proportionality and broader fit   |
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |

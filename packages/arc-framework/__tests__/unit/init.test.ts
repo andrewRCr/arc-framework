@@ -272,6 +272,7 @@ describe("resolveFileList — actual recipe", () => {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
+    expect(files).toContain("system/methods/route-discovered-work.md");
     expect(files).toContain("system/methods/assess-boundary-fit.md");
     expect(files).not.toContain("system/methods/assess-cohort-fit.md");
     expect(files).toContain("system/methods/assess-design-proportionality.md");
@@ -315,6 +316,7 @@ describe("classifyFile", () => {
     expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
     expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/route-discovered-work.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/review-chunking.md")).toBe("Configurable");

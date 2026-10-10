@@ -78,20 +78,14 @@ distinction sorts inbox items, individual tasks, and whole work units.
   planning pipeline rather than executing as-is. The line from atomic is not pass-count but **durability** — needing
   a tracked plan that outlives the session, not merely more than one review pass.
 
-**Character is not the wrapper floor** — the wrapper is the **spec-worthiness** gate ([§ Class Model](#class-model)
-boundary test #1) — but character and wrapper relate tightly. **An Errand is always atomic:** one indivisible
-self-evident concern bounded to one session (a determinate sweep — a doc-grooming pass, a `ROADMAP` re-render, a
-housekeep drain that fans out — is _one_ concern, however many files, commits, or in-session review passes it lands
-in). What makes work multi-step — and so a **Work Unit** (however light) — is needing a **durable** decomposition: a
-tracked plan that outlives the session, which is also what authoring or recording a design needs. A second _review
-pass_ alone does not cross the line; needing a _tracked plan_ does. A WU is spec-worthy — a design worth recording,
-or a durable plan a correct execution must navigate — and is _usually_ multi-step, though a small spec-worthy
-concern can be atomic in character too; the WU is decided by spec-worthiness, not by counting passes.
+**Character is not the wrapper floor** — [classify-work-unit][classify-work-unit] boundary test 1 decides
+Errand versus Work Unit by its record test. An Errand is always atomic: one indivisible concern, bounded to a
+single session; a determinate sweep remains one concern however many files, commits, or in-session review passes
+it takes. A Work Unit is usually multi-step, though a small concern that clears the record test can be atomic too.
 
-**One indivisible concern, one session** is the sharp line — not increment- or pass-count. "Is this _one_ concern
-that fits a single session without a durable plan?" carries irreducible boundary judgment — two careful readers can
-split a marginal case differently and both be ARC-correct. The ambiguity is deliberate: within the bounds, the
-developer decides, and a mis-call is cheap to correct via the Errand→WU promotion edge (`arc errand promote`).
+**One indivisible concern, one session** describes atomic character, not a session-fit estimate for the wrapper.
+Apply the four questions in [classify-work-unit][classify-work-unit] test 1; the Owner decides with the agent's
+answers shown. A mis-call is cheap to correct through Errand-to-WU promotion when an answer flips.
 
 **Route by fate, not by wrapper.** Capture surfaces sort on what the work _becomes_ — Errand vs WU (spec-worthy?),
 not which artifact happened to produce it. For the during-WU-vs-later routing table, see
@@ -154,14 +148,8 @@ distinct planning shape (a discovery / research phase + an ADR), suggested, neve
 Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
 promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation axis alone:
 
-1. **Errand vs. WU (the wrapper floor).** _Is this spec-worthy — does it clear the floor on either intrinsic axis
-   (a design worth recording, or a durable plan a correct execution must navigate — a substantial grounding surface
-   or cross-session tracking), or is it self-evident on both?_ This reads the same two axes below at their
-   **sub-floor** — the Errand is the shared below-floor tier of one spectrum, not a separate cardinality gate.
-   **Below floor on both** → it is an [Errand](#errand-work-class), not a WU (one indivisible self-evident concern,
-   atomic in character — _typically_ one review increment, a determinate one extended to a bounded few in-session
-   passes, however many commits): below the wrapper, no meta, no `Class`. **Clears either floor** → it is a WU
-   (spec-worthy); continue.
+1. **Errand vs. WU (the wrapper floor).** Apply [classify-work-unit][classify-work-unit] boundary test 1,
+   the canonical record test. An Errand stops outside the `Class` model; a Work Unit continues here.
 2. **Derivation trigger (→ `heavy`).** _Must a real design be authored — concerns, alternatives, tradeoffs that do
    not exist until someone works them out — before a competent engineer can start?_ **Yes** → `heavy`. Count only
    _spec-worthy_ design (the floor above): a choice resolved during implementation is not derivation.
@@ -183,8 +171,8 @@ commits_ — the re-based gate's admission is that commit-count alone no longer 
   nothing to author and no substantial grounding a correct plan must navigate. Below floor on both axes — one
   concern reviewed once, an Errand.
 - **Widely-used-symbol rename → `heavy` WU.** A rename whose correct plan must verify call-sites across a broad
-  surface clears the _scale_ floor: spec-worthy by grounding demand, so a WU even though the design is
-  determinate.
+  surface clears record question 1: its correct plan cannot name the call sites until the surface is mapped,
+  so it is a WU even though the design is determinate.
 
 The two axes form a 2×2; each cell is recognizable in retrospect:
 
@@ -1274,25 +1262,21 @@ for a solo maintainer it stands in for the missing second pair of eyes.
 
 ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
 
-- **Work Unit (WU)** — a bounded unit of design-bearing or trackable work with its own branch, a
-  `meta-{name}.md`, a lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
+- **Work Unit (WU)** — a concern that clears [classify-work-unit][classify-work-unit] boundary test 1, with its
+  own branch, `meta-{name}.md`, lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
   planning entry point (spawn or cold-start; see [§ Branching](#branching)).
-- **Errand** — a single self-evident concern below the WU wrapper, **below floor on both intrinsic `Class` axes**
-  (nothing worth recording as design, no durable plan a correct execution must navigate — neither a substantial
-  grounding surface nor cross-session tracking) and validated by intent + diff + review. **Atomic in character** —
-  one indivisible concern bounded to a single session; _typically_ one review increment, though a determinate sweep
-  may stage into a bounded few **in-session** review passes (the _extended errand_) and stays an Errand, however
-  many commits it lands in. No meta, no lifecycle, no name as a WU. Tracked by git history (Conventional Commits +
-  the `standalone (...)` context footer — see [`commit-footer`][commit-footer-method]), not by the planning layer
-  (ROADMAP, backlog, `active/`).
+- **Errand** — a concern below [classify-work-unit][classify-work-unit] boundary test 1. Atomic in character:
+  one indivisible concern bounded to a single session, typically one review increment; a determinate sweep may take
+  bounded in-session review passes and multiple commits. No meta, no WU lifecycle. Tracked by git history
+  (Conventional Commits + the `standalone (...)` context footer; see [commit-footer][commit-footer-method]).
 
 ### Two layers — one character, a mode-scaled mechanism
 
 An Errand is one **work character** (off-WU, a single self-evident concern below the wrapper) whose **mechanism is
 a mode-scaled projection** of `branch.protection`:
 
-- **Character layer (universal).** The Errand-vs-WU gate — spec-worthiness ([§ Class Model](#class-model) boundary
-  test #1) — is the same judgment in every protection mode, learned once.
+- **Character layer (universal).** The record test in [classify-work-unit][classify-work-unit] boundary
+  test 1 is the same judgment in every protection mode, learned once.
 - **Mechanism layer (mode-scaled).** _Partial — the floor:_ a direct base commit tracked by its `standalone (...)`
   context footer; commit-then-done, no branch, no lifecycle. _Full — the lattice:_ a short-lived branch + PR with a
   derived lifecycle (see [§ Cheap-branch path](#cheap-branch-path)).
@@ -1309,39 +1293,23 @@ path. Work you are not committing to now is an inbox capture — triaged at a la
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
 § Discovered Work Routing). A third case sits outside the matrix entirely: work your **own work unit's spec
 already claims** — a coordination write-back it scoped in — is WU scope and rides the WU's PR, never an Errand;
-the matrix governs _incidental_ cross-cutting work only. For that incidental case, two axes govern the choice:
-**create vs. maintain** decides whether the work needs the Work-Unit wrapper at all; **self-contained vs.
-cross-cutting** decides how an Errand routes once it does not.
+the matrix governs _incidental_ cross-cutting work only. For that incidental case,
+[classify-work-unit][classify-work-unit] boundary test 1 decides whether the work needs the Work-Unit wrapper;
+**self-contained vs. cross-cutting** decides how an Errand routes.
 
-| Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
-| ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
-| **Create** — a new tracked unit of future work | Work Unit                      | Work Unit                                          |
-| **Maintain** — an existing artifact            | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
+| Once committed to act ↓             | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
+| ----------------------------------- | ------------------------------ | -------------------------------------------------- |
+| **Maintain** — an existing artifact | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
 
-Create resolves to a Work Unit in both columns: minting a tracked deliverable is itself what trips the
-threshold, so the routing axis only bites for **maintain**. A create that also touches a foreign artifact is
-two concerns — mint the Work Unit, and route the foreign edit as its own maintain Errand.
+Making a new stub is [route-discovered-work][route-discovered-work]'s `new-stub` outcome for a concern the record
+test calls a Work Unit, a transient act through `arc stub`.
+A stub change that also touches a foreign artifact is two concerns: make the stub, and route the foreign edit
+as its own maintain Errand.
 
-**Create vs. maintain — the Work-Unit/Errand axis.** _Creating_ a new tracked unit of future work — a backlog
-stub — is a (small) Work Unit even at one commit, because its output is a tracked deliverable with a meta file
-and a roadmap slot. _Maintaining_ an existing artifact — a dependency note, a cross-reference, a doc fix — is
-an Errand. The split operationalizes the general Work-Unit threshold: promote to a Work Unit when the work is
-**spec-worthy** — _any_ of these hold —
-
-1. it clears the **scale floor** — a correct plan must navigate a _substantial_ codebase-grounding pass, beyond
-   the routine floor (spec-worthy by grounding demand);
-2. it carries **design that must be authored and referenced** (a Spec — the derivation floor);
-3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
-   cross-session lifecycle).
-
-None of these → it is an Errand, _however many commits it spans_ — and, when determinate, however many in-session
-review passes it is staged into. Create trips criterion 3; a maintain edit that turns out to clear a floor —
-substantial grounding, authored design, or a need for cross-session tracking — trips 1, 2, or 3 and likewise
-promotes, but spanning multiple commits or staging review into a few in-session passes never does on its own. As an
-empirical _symptom_ check — not the primary criterion — a candidate too large to review in one window
-(~400 lines / ~60 minutes) is either an **extended errand** (determinate, reviewed in a bounded few in-session
-passes) or hides authored design / a substantial grounding surface / a need for cross-session tracking — re-examine
-it against floors 1–3 to tell which.
+The record test alone decides the wrapper. A roadmap slot is when, not what: Errand-shaped work for later waits
+as a `§ Errand` capture. An owner follows from the wrapper and never decides it. A dependency is waiting, which
+record question 1 excludes. As a symptom check, re-examine a candidate too large to review in one window against
+the four questions; size alone may describe an extended Errand and never decides the line.
 
 **Self-contained vs. cross-cutting — the Errand-routing axis.** This axis applies once the work resolves to an
 Errand. A **self-contained** Errand touches only artifacts in your own scope and takes the cheap-branch path
@@ -1471,3 +1439,4 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/
 [merge-gate-templates]: ../../templates/arc/merge-gate/README.md
+[route-discovered-work]: ../../../system/methods/route-discovered-work.md

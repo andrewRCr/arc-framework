@@ -350,9 +350,16 @@ the command existed.
 
 ### Artifact Viewing
 
-`arc view [kind]` renders an artifact using the existing selectors. With no kind, it checks
-**tasks → spec → draft → meta**. `--path` prints the selected file's absolute path; `--editor` or `-e` opens
-that same real file in the configured editor. Kind, `--for`, and `inbox --project` selection stays the same.
+`npx arc view [kind]` renders an artifact. With no kind, it checks **tasks → spec → draft → meta**. The `design` kind
+follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
+`--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
+
+`--for <slug>` selects the named work unit through its composed lifecycle. For a started work unit, it reads the
+registered checkout's file, including uncommitted edits, or otherwise the selected ref this clone already holds.
+A start whose branch this clone has never fetched reads as its backlog copy until a fetch brings the ref in.
+Without a registered checkout, `--path` and `--editor` refuse with the work unit and ref; render the artifact to read
+it instead. The work unit's own artifacts and cohort metadata follow the selected copy; the cohort document and
+session notes remain local to the invoking checkout. `inbox --project` selects the shared project inbox.
 
 Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
 delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,

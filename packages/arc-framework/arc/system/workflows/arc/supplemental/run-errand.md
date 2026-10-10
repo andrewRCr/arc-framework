@@ -4,6 +4,8 @@ audience: agent
 arc:
   methods:
     - assess-evidence-applicability
+    - route-discovered-work
+    - classify-work-unit
     - assess-parallel-fit
     - classify-review-risk
     - commit-format
@@ -65,7 +67,10 @@ session at that checkout and stop before execution.
 
 Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated checkout.
 
-1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
+1. **Classify — errand vs. work unit.** Apply [classify-work-unit][classify-work-unit] boundary test 1. For a
+   route-only Errand, classify the routing change — writing an entry or minting a stub — rather than the carried
+   concern. Show all four record answers for the Owner's call only when one is Yes; do not show the carried concern's
+   answers at this Launch. Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
    enough to need a durable cross-session plan — route those through [`init-work-unit`][init-work-unit]. A
    determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that _crosses a
@@ -115,6 +120,18 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 Honor the [Review-Increment Invariant][dev-rules-arc]: each review increment's change **accumulates uncommitted**,
 is **reviewed once at its gate**, and is committed only **after** approval — never commit-then-review.
 
+**Route-only pre-write re-check.** Before the routing write, invoke the fast-path gate in the Errand's own checkout.
+Re-check coupling and scope, and for `new-stub` the shortlist, against the base's current copies. A changed result
+returns to the Owner before any write; an unchanged confirmed result follows the method's binding.
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern and route the Owner confirmed before this Errand opened
+  door: fast path
+```
+
 **Most errands are one pass.** Make the change, run the project's Tier 1 quality gates on what you touched, gate,
 and commit.
 
@@ -124,9 +141,29 @@ cross-session plan). Propose the split and get approval first ("this is ~N passe
 pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
 work-unit signal; needing a _durable plan_ is.
 
-**Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
-cross-session plan — stop and continue through the [Promote Errand path][promote-errand-to-wu]. That path owns the
-floor judgment, generation-checked conversion, meta commit, and capture settlement; do not promote inline.
+**Spec-worthy → promote.** The moment any answer in [classify-work-unit][classify-work-unit] boundary test 1 flips
+Yes, stop and continue through the [Promote Errand path][promote-errand-to-wu]. Design worth recording or a durable
+cross-session plan crosses the floor; that path owns the floor judgment, generation-checked conversion, meta commit,
+and capture settlement. Do not promote inline.
+
+**A discovered concern** runs the Errand route-to-home door before placement:
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern discovered during the Errand, with any WU_Target and _Shapes_
+  door: errand route-to-home
+```
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before routing the discovered concern. Show the outcome, `_Shapes:_`, any unclear pair
+> with its four record answers, the coupled target's horizon advisory verbatim, and any named wait; await approval
+> before carrying out that route through the method's binding.
+
+Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures; `errand` waits
+as a `§ Errand` capture unless the Owner runs it as its own Errand; `capture` has its home undecided; `dismiss` writes
+nothing. Keep the method's writer line: this Errand's change stays its own concern.
 
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
@@ -154,8 +191,14 @@ Run each review increment (one for a typical errand; a few for an extended one):
    ```text
    <type>(<scope>): <errand summary>
 
+   Decided: <X> over <Y> — because <Z>
+
    Context: standalone (<kind>)
    ```
+
+   Record each fork settled as `Decided: X over Y — because Z` in the commit body, each as its own paragraph above
+   the `Context:` trailer. Omit that paragraph when no fork was settled; never put a wrapped decision inside the
+   final trailer block. Partial protection records decisions in the commit only.
 
    See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
@@ -289,7 +332,8 @@ remote base all name the same exact head. Any tracked change continues through t
    [`commit-format` method][commit-format].
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary plus a one-line Test Plan only when verification is non-obvious. When gated local review ran,
+   one-line Summary, followed by each settled fork as `Decided: X over Y — because Z`, plus a one-line Test Plan
+   only when verification is non-obvious. When gated local review ran,
    include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
    Follow-Up sections.
 
@@ -676,3 +720,5 @@ idempotent and may return the next file-ordered execute-bound offer.
 [review-triage]: ../../../methods/review-triage.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+[route-discovered-work]: ../../../methods/route-discovered-work.md
+[classify-work-unit]: ../../../methods/classify-work-unit.md
