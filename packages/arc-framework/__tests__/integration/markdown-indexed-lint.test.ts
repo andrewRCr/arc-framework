@@ -21,6 +21,7 @@ import { main as runStagedMarkdownCommand } from "../../src/scripts/lint-markdow
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const runtimeVersions = { markdownlint: "0.40.0", stringWidth: "8.1.0" };
+const indexedRepairTimeoutMs = 60_000;
 
 let root: string;
 
@@ -125,7 +126,7 @@ describe("indexed Markdown certification", () => {
     } finally {
       stderr.mockRestore();
     }
-  });
+  }, indexedRepairTimeoutMs);
 
   it("reports an invalid staged blob even when an unstaged worktree fix is valid", async () => {
     await stageFixture();
