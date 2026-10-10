@@ -906,6 +906,61 @@ function hostedResult(input: ReturnType<typeof hostedResponseFixture>): ReviewRe
   };
 }
 
+/** A frontline findings outcome for one fixture's finding, with the operation that produced it. */
+function frontlineFixture(records: ReturnType<typeof fixture>, maxPasses = 2) {
+  const source = {
+    sourceId: "coderabbit-cli",
+    kind: "command" as const,
+    executable: "coderabbit",
+    argv: ["review"],
+  };
+  const findingsOutcome = normalizeFrontlineOutcome({
+    providerResult: { kind: "findings", findings: [records.finding] },
+    source,
+    target: records.target,
+    pass: 1,
+    maxPasses,
+  });
+  const record = createFrontlineOutcomeRecord({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: records.target.repositoryId,
+    operationId: "frontline-operation",
+    sourceIdentity: source.sourceId,
+    executableIdentity: {
+      digest: digest("coderabbit"),
+      qualifiedVersion: "coderabbit/1.0.0",
+    },
+    outcome: findingsOutcome,
+  });
+  const durableRef = "git-common:review-gate/outcomes/frontline.json#1";
+  const outcomeRef = bindReviewSourceReference({
+    kind: "frontline",
+    operationId: record.operationId,
+    durableRef,
+  });
+  const operation: FrontlineRunState = {
+    schemaVersion: 1,
+    semanticsVersion: "review-operation/v1",
+    kind: "frontline-run",
+    operationId: record.operationId,
+    updatedAt: "2026-07-23T17:00:00Z",
+    repositoryId: records.target.repositoryId,
+    targetId: records.target.targetId,
+    sourceIdentity: source.sourceId,
+    lineage: {
+      kind: "candidate",
+      candidateId: digest("frontline-candidate"),
+    },
+    logicalPass: 1,
+    retryGeneration: 0,
+    outcome: "findings",
+    policyVersion: digest("frontline-policy"),
+    sourceBindingId: computeFrontlineSourceBindingId(source),
+  };
+  return { source, record, durableRef, outcomeRef, operation };
+}
+
 /** The same approved set, approved by an identity that is not the active local one. */
 function foreignApproval(records: ReturnType<typeof fixture>) {
   const result = localResult(records);
@@ -1180,16 +1235,19 @@ describe("review response command", () => {
 
   it.each([
     { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "fix" as const,
-      capPosition: "at-ceiling", stopReason: "cap-exhausted" },
+      capPosition: "at-ceiling", stopReason: "cap-exhausted", consequence: { kind: "ceiling-decision" },
+      consequenceText: " Approving a FIX moves the head, and another pass needs a ceiling decision." },
     { logicalPass: 1, maxPasses: 3, severity: "major" as const, disposition: "fix" as const,
-      capPosition: "below-ceiling", stopReason: null },
+      capPosition: "below-ceiling", stopReason: null, consequence: { kind: "next-pass", coverage: null },
+      consequenceText: " Approving a FIX moves the head, which needs standard pass 2 of 3." },
     { logicalPass: 2, maxPasses: 2, severity: "minor" as const, disposition: "fix" as const,
-      capPosition: "at-ceiling", stopReason: null },
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "decided-at-fixed-head" },
+      consequenceText: " Approving a FIX moves the head; review status there decides whether another pass is needed." },
     { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "defer" as const,
-      capPosition: "at-ceiling", stopReason: null },
+      capPosition: "at-ceiling", stopReason: null, consequence: { kind: "no-fix" }, consequenceText: "" },
   ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses for a $severity "
     + "$disposition", async ({
-    logicalPass, maxPasses, severity, disposition, capPosition, stopReason,
+    logicalPass, maxPasses, severity, disposition, capPosition, stopReason, consequence, consequenceText,
   }) => {
     const records = fixture(workUnitVehicle, undefined, undefined, "whole-target", logicalPass);
     const deps = dependencies(records);
@@ -1229,6 +1287,7 @@ describe("review response command", () => {
             materialFix: disposition === "fix" && severity === "major",
           },
           capPosition,
+          fixConsequence: consequence,
           potentialStopReason: stopReason,
           nextPassAuthority: "none",
         },
@@ -1242,11 +1301,129 @@ describe("review response command", () => {
     const symbol = { minor: "🟡", major: "🟠", critical: "🔴" }[severity];
     expect(assessment.summaryText).toBe(
       `Standard pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
-        + (stopReason === "cap-exhausted" ? " Another pass needs a ceiling decision." : ""),
+        + consequenceText,
     );
     expect(response.payload.dispositionReportText).toContain("### F1 — ");
     expect(response.payload.dispositionReportText).not.toContain("Standard pass");
   });
+
+  const errandLineage = {
+    kind: "head-bound", vehicleKind: "errand", vehicleIdentity: errandVehicle.claimId, headSha: objectId("c"),
+  } as const;
+
+  function localErrandCase(logicalPass: number) {
+    const records = fixture(errandVehicle, undefined, errandLineage, "whole-target", logicalPass);
+    const deps = dependencies(records);
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    return { records, deps, source: { kind: "attested-local" as const, receiptRef: records.receiptRef } };
+  }
+
+  function hostedCase(
+    vehicle: LocalReviewAuthority["vehicle"],
+    adapt: (result: Extract<ReviewResult, { kind: "hosted" }>) => ReviewResult = (result) => result,
+  ) {
+    const hosted = hostedResponseFixture("review-thread", vehicle);
+    const deps = dependencies(hosted.records);
+    const result = hostedResult(hosted);
+    if (result.kind !== "hosted") throw new Error("expected a hosted result fixture");
+    deps.resultReader.readResult = async () => adapt(result);
+    return { records: hosted.records, deps, source: { kind: "hosted" as const, attemptRef: hosted.attemptRef } };
+  }
+
+  function hostedErrandCase(sourceIdentity: string, retrigger: "incremental" | "full-final") {
+    return hostedCase(workUnitVehicle, (result) => ({
+      ...result,
+      sourceIdentity,
+      admission: { ...result.admission, lineage: errandLineage },
+      requirement: { ...result.requirement, retrigger },
+    }));
+  }
+
+  function frontlineCase(recordedMaxPasses = 2) {
+    const records = fixture(errandVehicle);
+    const { record, durableRef, outcomeRef, operation } = frontlineFixture(records, recordedMaxPasses);
+    const deps = dependencies(records);
+    deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
+    deps.readCandidateLineage = async () => null;
+    return { records, deps, source: { kind: "frontline" as const, outcomeRef } };
+  }
+
+  it.each([
+    { name: "a local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
+      consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+    { name: "a local Errand's minor fix at the ceiling", build: () => localErrandCase(2), severity: "minor" as const,
+      consequence: { kind: "ceiling-decision" },
+      text: "Standard pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
+        + "head, and another pass needs a ceiling decision." },
+    { name: "a codex-pr Errand review's fix", build: () => hostedErrandCase("codex-pr", "incremental"),
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, with complete coverage." },
+    { name: "a coderabbit-pr Errand review's fix", build: () => hostedErrandCase("coderabbit-pr", "incremental"),
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+    { name: "a full-final coderabbit-pr Errand review's fix",
+      build: () => hostedErrandCase("coderabbit-pr", "full-final"),
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, with complete coverage." },
+    { name: "a coderabbit-pr Errand review's fix once that source is removed",
+      build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, with complete coverage." },
+    { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
+      consequence: { kind: "lane-closes" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+        + "another standard pass." },
+    { name: "a frontline minor fix", build: () => frontlineCase(), severity: "minor" as const,
+      consequence: { kind: "lane-closes" },
+      text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
+        + "another frontline pass." },
+    { name: "a frontline major fix", build: () => frontlineCase(), severity: "major" as const,
+      consequence: { kind: "next-pass", coverage: null },
+      text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
+        + "needs frontline pass 2 of 2." },
+    { name: "a frontline major fix at its recorded ceiling", build: () => frontlineCase(1),
+      severity: "major" as const, consequence: { kind: "ceiling-decision" },
+      text: "Frontline pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
+        + "head, and another pass needs a ceiling decision." },
+  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], ...row })))(
+    "states what approving $name does to the lane",
+    async ({ build, configuredSources, severity, consequence, text }) => {
+      const { records, deps, source } = build();
+      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses: 2 });
+      const response = await respondToReviewCommand({
+        schemaVersion: 1,
+        source,
+        proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: [{
+            findingId: records.finding.findingId,
+            sourceVerification: "verified",
+            verificationRefs: ["source:src/index.ts:7"],
+            verifiedSeverity: severity,
+            disposition: "fix",
+            title: "Finding title",
+            issue: "The reviewer's claim.",
+            rationale: "The source supports a fix.",
+            recommendation: "Apply the fix.",
+            openQuestions: [],
+          }],
+        },
+      }, deps);
+      if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
+      expect(response.payload.provisionalPassAssessment).toMatchObject({
+        fixConsequence: consequence,
+        potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
+      });
+      expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+    },
+  );
 
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");
@@ -3174,57 +3351,8 @@ describe("review response command", () => {
 
   it("materializes and settles frontline dispositions from exact durable operation context", async () => {
     const records = fixture(errandVehicle);
-    const source = {
-      sourceId: "coderabbit-cli",
-      kind: "command" as const,
-      executable: "coderabbit",
-      argv: ["review"],
-    };
-    const findingsOutcome = normalizeFrontlineOutcome({
-      providerResult: { kind: "findings", findings: [records.finding] },
-      source,
-      target: records.target,
-      pass: 1,
-      maxPasses: 2,
-    });
-    const record = createFrontlineOutcomeRecord({
-      schemaVersion: 1,
-      semanticsVersion: "review-advisory/v1",
-      repositoryId: records.target.repositoryId,
-      operationId: "frontline-operation",
-      sourceIdentity: source.sourceId,
-      executableIdentity: {
-        digest: digest("coderabbit"),
-        qualifiedVersion: "coderabbit/1.0.0",
-      },
-      outcome: findingsOutcome,
-    });
-    const durableRef = "git-common:review-gate/outcomes/frontline.json#1";
-    const outcomeRef = bindReviewSourceReference({
-      kind: "frontline",
-      operationId: record.operationId,
-      durableRef,
-    });
+    const { source, record, durableRef, outcomeRef, operation } = frontlineFixture(records);
     const deps = dependencies(records);
-    const operation: FrontlineRunState = {
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
-      kind: "frontline-run",
-      operationId: record.operationId,
-      updatedAt: "2026-07-23T17:00:00Z",
-      repositoryId: records.target.repositoryId,
-      targetId: records.target.targetId,
-      sourceIdentity: source.sourceId,
-      lineage: {
-        kind: "candidate",
-        candidateId: digest("frontline-candidate"),
-      },
-      logicalPass: 1,
-      retryGeneration: 0,
-      outcome: "findings",
-      policyVersion: digest("frontline-policy"),
-      sourceBindingId: computeFrontlineSourceBindingId(source),
-    };
     deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
     deps.readCandidateLineage = async () => null;
     const proposal = await respondToReviewCommand({

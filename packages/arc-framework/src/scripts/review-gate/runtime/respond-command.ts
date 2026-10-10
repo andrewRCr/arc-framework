@@ -71,7 +71,10 @@ import {
   RespondEnvelopeSchema,
   type CandidateBoundMemberFixAuthoring,
 } from "../core/review-command-envelope.js";
-import { ProvisionalPassAssessmentSchema } from "../core/provisional-pass-assessment.js";
+import {
+  ProvisionalPassAssessmentSchema,
+  type ProvisionalFixConsequence,
+} from "../core/provisional-pass-assessment.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
@@ -86,7 +89,8 @@ import type {
   LocalCorrectionTargetConfirmation,
   LocalTargetConfirmation,
 } from "../hosts/local/repository-target.js";
-import type { HostedTarget } from "../hosted/request.js";
+import { hostedProviderReviewsIncrementally } from "../hosted/correction-review-capability.js";
+import { HostedProviderIdSchema, type HostedTarget } from "../hosted/request.js";
 import { laneContinuationOperationId } from "../lane-progress.js";
 import {
   projectCandidateDeltaVerification,
@@ -1733,11 +1737,81 @@ async function withdrawConditionalResponseAuthority(
     });
 }
 
+/**
+ * The coverage an Errand's next standard pass expects: only the fix where the reviewing source runs that pass and can
+ * cover a proven fix range alone, otherwise everything.
+ */
+function errandNextPassCoverage(
+  result: Exclude<ReviewResult, { kind: "frontline" }>,
+  configuredSources: readonly string[],
+): "complete" | "incremental-when-proven" {
+  const reviewingSource = result.kind === "hosted" ? result.sourceIdentity : "delegated-agent";
+  // The next pass keeps the reviewing source only while it stays configured; any other reports complete coverage,
+  // which every source admits.
+  if (!configuredSources.includes(reviewingSource)) return "complete";
+  if (result.kind === "attested-local") return "incremental-when-proven";
+  const provider = HostedProviderIdSchema.safeParse(result.sourceIdentity);
+  return provider.success && hostedProviderReviewsIncrementally(provider.data)
+    && result.requirement.retrigger === "incremental"
+    ? "incremental-when-proven"
+    : "complete";
+}
+
+/** What approving the proposal's fixes does to the lane subject that owns the reviewed result's pass progress. */
+function projectFixConsequence(input: {
+  proposal: ProposedDispositionSet;
+  result: ReviewResult;
+  configuredSources: readonly string[];
+  materialFix: boolean;
+  belowCeiling: boolean;
+}): ProvisionalFixConsequence {
+  if (!input.proposal.dispositionSet.findings.some((finding) => finding.disposition === "fix")) {
+    return { kind: "no-fix" };
+  }
+  const { result } = input;
+  const lineage = result.admission.lineage;
+  // An Errand's standard progress is bound to its head, so every fixed head starts unreviewed.
+  const errand = result.kind !== "frontline" && lineage.kind === "head-bound" && lineage.vehicleKind === "errand";
+  if (input.materialFix || errand) {
+    if (!input.belowCeiling) return { kind: "ceiling-decision" };
+    const coverage = errand ? errandNextPassCoverage(result, input.configuredSources) : null;
+    return { kind: "next-pass", coverage };
+  }
+  return result.kind === "frontline" || lineage.kind === "delivery-member"
+    ? { kind: "lane-closes" }
+    : { kind: "decided-at-fixed-head" };
+}
+
+function fixConsequenceText(
+  consequence: ProvisionalFixConsequence,
+  lane: "frontline" | "standard",
+  nextPass: string,
+): string {
+  switch (consequence.kind) {
+    case "no-fix":
+      return "";
+    case "lane-closes":
+      return ` Approving a FIX moves the head without another ${lane} pass.`;
+    case "next-pass": {
+      const coverage = consequence.coverage === null ? ""
+        : consequence.coverage === "complete" ? ", with complete coverage"
+          : ", covering only the fix where its chain is proven";
+      return ` Approving a FIX moves the head, which needs ${lane} pass ${nextPass}${coverage}.`;
+    }
+    case "ceiling-decision":
+      return " Approving a FIX moves the head, and another pass needs a ceiling decision.";
+    case "decided-at-fixed-head":
+      return " Approving a FIX moves the head; review status there decides whether another pass is needed.";
+  }
+}
+
 function projectProvisionalPassAssessment(input: {
   proposal: ProposedDispositionSet;
   lane: "frontline" | "standard";
+  result: ReviewResult;
   admittedLogicalPass: number;
   configuredMaxPasses: number;
+  configuredSources: readonly string[];
 }): z.infer<typeof ProvisionalPassAssessmentSchema> {
   const severityRank = { minor: 1, major: 2, critical: 3 } as const;
   let confirmedFindingCount = 0;
@@ -1756,9 +1830,14 @@ function projectProvisionalPassAssessment(input: {
       ? "at-ceiling" as const
       : "above-ceiling" as const;
   const materialFix = fixesMaterialFinding(input.proposal.dispositionSet.findings);
-  const potentialStopReason = materialFix && capPosition !== "below-ceiling"
-    ? "cap-exhausted" as const
-    : null;
+  const fixConsequence = projectFixConsequence({
+    proposal: input.proposal,
+    result: input.result,
+    configuredSources: input.configuredSources,
+    materialFix,
+    belowCeiling: capPosition === "below-ceiling",
+  });
+  const potentialStopReason = fixConsequence.kind === "ceiling-decision" ? "cap-exhausted" as const : null;
   const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity, materialFix };
   const severitySymbol = { minor: "🟡", major: "🟠", critical: "🔴" } as const;
   const signalText = maxConfirmedSeverity === null
@@ -1768,7 +1847,11 @@ function projectProvisionalPassAssessment(input: {
   const positionText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
     capPosition
   ];
-  const stopText = potentialStopReason === null ? "" : " Another pass needs a ceiling decision.";
+  const consequenceText = fixConsequenceText(
+    fixConsequence,
+    input.lane,
+    `${input.admittedLogicalPass + 1} of ${input.configuredMaxPasses}`,
+  );
   const laneText = input.lane === "standard" ? "Standard" : "Frontline";
   return ProvisionalPassAssessmentSchema.parse({
     status: "provisional",
@@ -1777,10 +1860,11 @@ function projectProvisionalPassAssessment(input: {
     configuredMaxPasses: input.configuredMaxPasses,
     proposedSignal,
     capPosition,
+    fixConsequence,
     potentialStopReason,
     nextPassAuthority: "none",
     summaryText: `${laneText} pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}${positionText}. `
-      + `${signalText}${stopText}`,
+      + `${signalText}${consequenceText}`,
   });
 }
 
@@ -1841,11 +1925,16 @@ async function prepareResponseProposal(
     const proposal = prepareDispositionProposal(request, source);
     const lane = source.result.kind === "frontline" ? "frontline" : "standard";
     const configured = await dependencies.readConfiguredLanePolicy(lane);
+    // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
+    const passPosition = source.result.kind === "frontline"
+      ? { admittedLogicalPass: source.result.outcome.pass, configuredMaxPasses: source.result.outcome.maxPasses }
+      : { admittedLogicalPass: source.result.admission.logicalPass, configuredMaxPasses: configured.maxPasses };
     const provisionalPassAssessment = projectProvisionalPassAssessment({
       proposal,
+      result: source.result,
       lane,
-      admittedLogicalPass: source.result.admission.logicalPass,
-      configuredMaxPasses: configured.maxPasses,
+      ...passPosition,
+      configuredSources: configured.sources,
     });
     const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
     return RespondEnvelopeSchema.parse({
