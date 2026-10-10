@@ -1916,13 +1916,18 @@ async function prepareResponseProposal(
     }
     const proposal = prepareDispositionProposal(request, source);
     const lane = source.result.kind === "frontline" ? "frontline" : "standard";
-    const configured = await dependencies.readConfiguredLanePolicy(lane);
+    // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
+    const passPosition = source.result.kind === "frontline"
+      ? { admittedLogicalPass: source.result.outcome.pass, configuredMaxPasses: source.result.outcome.maxPasses }
+      : {
+          admittedLogicalPass: source.result.admission.logicalPass,
+          configuredMaxPasses: (await dependencies.readConfiguredLanePolicy(lane)).maxPasses,
+        };
     const provisionalPassAssessment = projectProvisionalPassAssessment({
       proposal,
       result: source.result,
       lane,
-      admittedLogicalPass: source.result.admission.logicalPass,
-      configuredMaxPasses: configured.maxPasses,
+      ...passPosition,
     });
     const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
     return RespondEnvelopeSchema.parse({

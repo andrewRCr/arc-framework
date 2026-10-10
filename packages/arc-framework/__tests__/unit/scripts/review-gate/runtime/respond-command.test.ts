@@ -907,7 +907,7 @@ function hostedResult(input: ReturnType<typeof hostedResponseFixture>): ReviewRe
 }
 
 /** A frontline findings outcome for one fixture's finding, with the operation that produced it. */
-function frontlineFixture(records: ReturnType<typeof fixture>) {
+function frontlineFixture(records: ReturnType<typeof fixture>, maxPasses = 2) {
   const source = {
     sourceId: "coderabbit-cli",
     kind: "command" as const,
@@ -919,7 +919,7 @@ function frontlineFixture(records: ReturnType<typeof fixture>) {
     source,
     target: records.target,
     pass: 1,
-    maxPasses: 2,
+    maxPasses,
   });
   const record = createFrontlineOutcomeRecord({
     schemaVersion: 1,
@@ -1339,9 +1339,9 @@ describe("review response command", () => {
     }));
   }
 
-  function frontlineCase() {
+  function frontlineCase(recordedMaxPasses = 2) {
     const records = fixture(errandVehicle);
-    const { record, durableRef, outcomeRef, operation } = frontlineFixture(records);
+    const { record, durableRef, outcomeRef, operation } = frontlineFixture(records, recordedMaxPasses);
     const deps = dependencies(records);
     deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
     deps.readCandidateLineage = async () => null;
@@ -1374,14 +1374,18 @@ describe("review response command", () => {
       consequence: { kind: "lane-closes" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
         + "another standard pass." },
-    { name: "a frontline minor fix", build: frontlineCase, severity: "minor" as const,
+    { name: "a frontline minor fix", build: () => frontlineCase(), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
       text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
         + "another frontline pass." },
-    { name: "a frontline major fix", build: frontlineCase, severity: "major" as const,
+    { name: "a frontline major fix", build: () => frontlineCase(), severity: "major" as const,
       consequence: { kind: "next-pass", coverage: null },
       text: "Frontline pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
         + "needs frontline pass 2 of 2." },
+    { name: "a frontline major fix at its recorded ceiling", build: () => frontlineCase(1),
+      severity: "major" as const, consequence: { kind: "ceiling-decision" },
+      text: "Frontline pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
+        + "head, and another pass needs a ceiling decision." },
   ])("states what approving $name does to the lane", async ({ build, severity, consequence, text }) => {
     const { records, deps, source } = build();
     deps.readConfiguredLanePolicy = async () => ({ sources: ["delegated-agent"], maxPasses: 2 });
