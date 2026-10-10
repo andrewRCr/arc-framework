@@ -86,7 +86,7 @@ Three design choices shape the skill, validated through pre-planning iteration:
    risks unintended over-add ratchet.
 
 3. **Skill carries the routing decision; workflow carries procedural scaffolding.** Mirrors the
-   [arc-commit][arc-commit] / [prepare-commits][prepare-commits] split. Skill is genuinely useful
+   arc-commit / prepare-commits split. Skill is genuinely useful
    in isolation for simple cases (single artifact, obvious destination); workflow loads only when
    the chosen destination requires multi-step execution that doesn't fit inline.
 
@@ -260,7 +260,7 @@ skill.
 - **Multi-destination orchestration:** sequence for edits across multiple files (rule + cross-link
   from QUICK-REFERENCE; rule + supporting strategy doc; rule + workflow body).
 - **Package-sync workflow handoff:** when destination is framework-owned (dev variant only),
-  invoke existing package-sync discipline per [Package-Project Sync Strategy][package-sync].
+  invoke existing package-sync discipline per Package-Project Sync Strategy.
   Workflow handoff, not duplication.
 - **Method-override scaffolding:** patterns for when destination requires creating a project-level
   method override of a framework default. File path layout, frontmatter shape.
@@ -440,7 +440,3 @@ Small items deferred to PRD or implementation contact (not blockers for the plan
 - Documentation-hook placement and wording.
 
 ---
-
-[arc-commit]: ../../../system/.internal/skills/arc-commit/SKILL.md
-[prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
-[package-sync]: ../../../reference/strategies/project/strategy-package-project-sync.md

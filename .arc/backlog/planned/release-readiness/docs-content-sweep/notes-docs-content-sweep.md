@@ -216,7 +216,7 @@ to docs-narrative third-person ("Contributors run the pipeline scoped to their p
 >
 > The parenthetical is freeform — describe what the contribution addresses. The commit format
 > (subject line) follows the same rules as maintainer commits (conventional commits by default,
-> per [arc-config.yml][arc-config]).
+> per arc-config.yml).
 
 **Suggested destination:** `docs/concepts/contributor-role/` § Commit Convention or
 `docs/reference/contributor-commits/` — keep the worked example for readers; the briefing version
@@ -453,8 +453,8 @@ paragraph) plus rule-heading annotations removed throughout the file (17 sites).
 **Content:**
 
 > Every rule traces to one of ARC's 11 principles (P1–P11). Rules marked `[configurable]` point
-> to a specific override mechanism in [`arc-config.yml`][arc-config] or a file in
-> [`system/methods/`][arc-methods-dir] — ARC ships a default, your team can replace it. All other
+> to a specific override mechanism in `arc-config.yml` or a file in
+> `system/methods/` — ARC ships a default, your team can replace it. All other
 > rules are followed as stated.
 >
 > For the full principle definitions, see the [Philosophy][core-philosophy] docs.
@@ -507,7 +507,7 @@ adopter needs, without restating the rules themselves.
 > **Design context**: Sessions implement P5 (Context Preservation) — structured document loading
 > for agents with ephemeral context. Agents with persistent memory may need lighter ceremonies;
 > the principle (work context must be recoverable) still applies. The session state mechanism is
-> overridable via the [session-state method][arc-methods-session].
+> overridable via the session-state method.
 
 **Suggested destination:** `docs/methodology/session-model/` § Design Context or
 `docs/methodology/principles/p5-context-preservation/` — framing content about why ARC treats
@@ -613,9 +613,9 @@ Entry 19.
 
 **Stylistic integration notes:** Trimmed workflow retains the imperative ("Do all changes
 serve one logical concern? When in doubt, split and ask.") and points to
-[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline. The dropped enumeration is
+DEV-RULES.ARC § Commit Discipline. The dropped enumeration is
 pattern-recognition material — recognizing these three common combinations is adopter-level
-guidance that doesn't need re-reading every task. Pairs with the [Commit Discipline][dev-rules-arc]
+guidance that doesn't need re-reading every task. Pairs with the Commit Discipline
 full atomicity treatment.
 
 ## Entry 16 — 3_process-task-loop.md § Incidental Work Management — Quick Decision Guide criteria
@@ -762,7 +762,7 @@ line range — no template-only delta in this region).
 > **Design context**: This workflow is optimized for agents with ephemeral context — capturing state that
 > would otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff
 > ceremonies; the principle (state must be recoverable by a new session) still applies. The session state
-> mechanism is overridable via the [session-state method][arc-methods-session].
+> mechanism is overridable via the session-state method.
 
 **Suggested destination:** `docs/methodology/session-model/` § Design Context or `docs/methodology/handoff/`
 — framing content about why handoff exists as a structured ritual. Pairs naturally with Entry 11
@@ -1086,7 +1086,7 @@ straight two-copy file, no template-only delta.
 > - **Feature** — User-facing capabilities
 > - **Technical** — Infrastructure, architecture, or process improvements
 >
-> See [Work Organization Strategy][work-org] for the complete
+> See Work Organization Strategy for the complete
 > decision tree.
 
 **Suggested destination:** `docs/methodology/work-types/` § Feature vs Technical or
@@ -1095,7 +1095,7 @@ two-work-type taxonomy. Pairs naturally with the Work Organization Strategy's de
 docs absorption can show the taxonomy-definition → decision-tree progression.
 
 **Stylistic integration notes:** Trimmed workflow retains a one-line pointer ("ARC distinguishes
-feature and technical work — see [Work Organization Strategy][work-org] for the decision tree")
+feature and technical work — see Work Organization Strategy for the decision tree")
 in the preamble; the definitional content moves to Step 2 inline ("Classify as **feature** (adds
 user-visible capability from the product vision) or **technical** (infrastructure, architecture,
 or internal improvement)"). The two-bullet taxonomy extracted here is pedagogical framing that
@@ -1126,7 +1126,7 @@ simplified preview of the full checklist or fold it into the checklist page itse
 at-a-glance summary.
 
 **Stylistic integration notes:** Trimmed workflow retains a one-line pointer to the discovery
-checklist ("**Without a plan**: Work through the [discovery checklist][discovery-checklist] in
+checklist ("**Without a plan**: Work through the discovery checklist in
 full to establish scope") and drops the inline enumeration. The five bullets duplicated content
 already owned by `strategy-work-planning.md § Discovery Checklist` (the authoritative source) —
 two-copy redundancy in the agent-loaded surface. Docs audience can support the preview
@@ -1147,7 +1147,7 @@ straight two-copy file, no template-only delta.
 > implementation scratch). Keep the file header minimal: title plus contents. No purpose block
 > describing how the file will be consumed, no provenance lines citing the plan doc, no
 > "retired with this commit" metadata, no explanations of the file's relationship to specific
-> commits. Write for the reader, not the author (see [DEV-RULES.ARC][dev-rules-arc]
+> commits. Write for the reader, not the author (see DEV-RULES.ARC
 > § Documentation Boundaries).
 
 **Suggested destination:** `docs/methodology/planning-pipeline/` § Plan → PRD Transition or
@@ -1160,7 +1160,7 @@ reader overflow examples) or treat this as a planning-pipeline-specific illustra
 
 **Stylistic integration notes:** Trimmed workflow retains a compact operational constraint
 ("Keep the notes file header minimal (title + contents only) — no purpose block, no provenance
-to the plan, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation
+to the plan, no commit metadata. See DEV-RULES.ARC § Documentation
 Boundaries.") inside the Step 5 procedural list. Absorbed content carries the "living
 scratchpad" framing, the "leave the structure open for sections added during task execution"
 rationale, and the specific anti-patterns enumerated (purpose block, provenance lines,
@@ -1188,7 +1188,7 @@ List Format region itself has no template-only delta).
 > ```
 >
 > The PRD path should reflect the PRD's current location (matching the task list's save location).
-> In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
+> In arc-in-git mode, activation updates both paths when documents move to
 > `active/`.
 
 **Suggested destination:** `docs/reference/task-lists/` § Header Format or folded into the
@@ -1223,7 +1223,7 @@ line range — straight two-copy file, no template-only delta.
 >   (`integrate-planning-branch` — workflow retired with WOR's single-branch-per-WU model)
 > - **Partial protection:** Planning branch PR merged, or committed directly to base branch
 >   (documented exception for solo developers — see
->   [Branch Protection Modes][work-org-protection])
+>   Branch Protection Modes)
 
 **Suggested destination:** `docs/methodology/branch-protection/` § Planning Artifacts Routing or
 folded into `docs/reference/work-organization/` § Branch Protection Modes — adopter-facing
@@ -1365,7 +1365,7 @@ range — straight two-copy file.
 **Content:**
 
 > - Use `mv` instead of `git mv` → Loses file history
-> - Archive before merge → Run [integrate-work-unit][integrate-work-unit] first
+> - Archive before merge → Run integrate-work-unit first
 > - Archive before all branches merged → Multi-branch work units archive once after final merge
 > - Skip status file deletion → dangling state file in `active/` confuses next session-init
 
@@ -1624,7 +1624,7 @@ straight two-copy file.
 
 > **Design principle:** _Deactivation means undo-activation of a work unit that didn't
 > meaningfully start._ If work has happened, the correct operation is pause (`arc-shift`,
-> future), completion ([`integrate-work-unit.md`][integrate]), or abandonment
+> future), completion (`integrate-work-unit.md`), or abandonment
 > (`clean-work-unit.md` — workflow retired pre-WOR) — not deactivation.
 
 **Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Deactivation vs Pause vs
@@ -1787,7 +1787,7 @@ two-copy file.
 >   base branch
 > - **Team sub-branches** — A developer merging their personal branch into a shared integration branch
 >
-> See [Work Organization Strategy § Task Lists and Branches][work-org-branches] for the complete
+> See Work Organization Strategy § Task Lists and Branches for the complete
 > many-to-one relationship model.
 
 **Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Multi-Branch Patterns —
@@ -1818,14 +1818,14 @@ consequence signal + operational recommendation.
 > single commit on the base. Any downstream branches that still reference the original commits will face
 > conflict-heavy rebases — Git cannot reconcile the squashed commit with the originals. For multi-branch
 > work, consider using regular merge for intermediate PRs even when squash is the project default, or
-> plan for the manual rebase cost on downstream branches. See [Configurability Architecture §
-> Merge Strategy][config-merge] for behavioral implications of each strategy.
+> plan for the manual rebase cost on downstream branches. See Configurability Architecture §
+> Merge Strategy for behavioral implications of each strategy.
 
 **Retained in trimmed workflow:**
 
 > **If `merge.strategy: squash`:** Squash on an intermediate branch breaks downstream rebases —
 > consider regular merge for multi-branch work even when squash is the project default. See
-> [Configurability Architecture § Merge Strategy][config-merge].
+> Configurability Architecture § Merge Strategy.
 
 **Extracted (removed from workflow):** The mechanistic expansion of _why_ squash breaks
 rebases ("collapses its commits into a single commit on the base. Any downstream branches
@@ -1888,7 +1888,7 @@ straight two-copy file.
 > - **Squash-merging intermediate branches** — Breaks downstream branch rebases. See merge strategy
 >   note in step 2.
 > - **Archiving too early** — Rotation is not archival. Archive only when **all** tasks in the task list
->   are complete. See [integrate-work-unit][integrate-work-unit].
+>   are complete. See integrate-work-unit.
 > - **Forgetting `Branch(es)` field update** — Stale tracking makes session initialization harder for
 >   the next session or collaborator.
 > - **Not rebasing downstream branches** — After merging to the base branch, existing downstream branches
@@ -1918,7 +1918,7 @@ package-source copy same line — straight two-copy file.
 **Content (pre-trim preamble):**
 
 > Creates a planning branch for delivering planning artifacts (and optionally archival of a prior work unit)
-> to the base branch. This is the planning-side counterpart to [activate-work-unit][activate-work-unit] —
+> to the base branch. This is the planning-side counterpart to activate-work-unit —
 > lighter, because planning branches carry artifacts rather than implementation.
 
 **Extracted (removed from workflow):** The "— lighter, because planning branches carry
@@ -2009,7 +2009,7 @@ implementation." clause); package-source copy same line range — straight two-c
 **Content (pre-trim preamble):**
 
 > Planning branches deliver planning artifacts (PRDs, task lists) and optionally archival of a prior work unit
-> to the base branch via PR. This is intentionally lighter than [integrate-work-unit][integrate-work-unit] —
+> to the base branch via PR. This is intentionally lighter than integrate-work-unit —
 > no completion doc, no pre-merge review, no task verification — because planning branches carry artifacts,
 > not implementation.
 
@@ -2040,13 +2040,13 @@ guidance); package-source copy same line range — straight two-copy file.
 > **Scope of the PR body:** Describe what this PR delivers, not what happens next. Workflow
 > continuity (post-merge activation, session boundaries, "next action after merge" style
 > sections) belongs in SESSION-NOTES, not the PR body. The reader is reviewing a change set —
-> keep the body scoped to what they need to evaluate it. See [DEV-RULES.ARC][dev-rules-arc]
+> keep the body scoped to what they need to evaluate it. See DEV-RULES.ARC
 > § Write for the reader.
 
 **Retained in trimmed workflow:**
 
 > **PR body scope:** Describe what the PR delivers, not post-merge workflow continuity (see
-> [DEV-RULES.ARC][dev-rules-arc] § Write for the reader).
+> DEV-RULES.ARC § Write for the reader).
 
 **Extracted (removed from workflow):** The expansion listing specific examples of post-merge
 workflow continuity ("post-merge activation, session boundaries, 'next action after merge'
@@ -2077,10 +2077,10 @@ same line range — straight two-copy file.
 **Content:**
 
 > - **PM updates for the new WU on the planning branch** — Activation-triggered updates (ROADMAP marking
->   new WU in-progress, PROJECT-STATUS updates) belong in [activate-work-unit][activate-work-unit], not
+>   new WU in-progress, PROJECT-STATUS updates) belong in activate-work-unit, not
 >   here. Only archival-triggered updates (marking the completed WU) belong on batch branches.
 > - **Moving files from backlog to active** (arc-in-git) — That's
->   [activate-work-unit][activate-work-unit] Step 3. Planning branches deliver to `backlog/`;
+>   activate-work-unit Step 3. Planning branches deliver to `backlog/`;
 >   activation moves to `active/`.
 > - **Skipping quality gates** — Planning artifacts are documentation — markdown linting still applies.
 > - **Forgetting branch cleanup** — Delete the planning branch after merge to keep branches tidy.
@@ -2315,7 +2315,7 @@ copy same line range — straight two-copy file.
 
 **Suggested destination:** This content is obsolete, not absorption-ready. The authoritative
 session-init loading model lives in `.arc/system/workflows/arc/session-lifecycle/session-init.md`
-(Step 4 "Load Context Documents") and is overridable via the [session-state method][arc-methods-session].
+(Step 4 "Load Context Documents") and is overridable via the session-state method.
 This trimmed-out hierarchy is a stale-by-design shadow copy — docs absorption should link to
 the session-init workflow's canonical list rather than carrying this content forward. Retain
 for historical reference during the sweep; mark for discard once the final docs site resolves
@@ -2531,20 +2531,4 @@ slides off.
 
 ---
 
-<!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
-     appear in source files quoted above so MD052 stays clean in the staging file. The sweep WU
-     resolves these to final docs URLs alongside [TODO-docs-site] resolution. -->
-
-[arc-config]: ../../../../system/arc-config.yml
-[arc-methods-dir]: ../../../../system/methods/README.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
-[arc-methods-session]: ../../../../system/methods/session-state.md
-[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
-[discovery-checklist]: ../../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
-[activate-work-unit]: ../../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
-[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
-[integrate-work-unit]: ../../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[integrate]: ../../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[config-merge]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
