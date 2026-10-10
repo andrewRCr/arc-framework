@@ -2,10 +2,10 @@
 
 | **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
 | ---------- | --------- | ------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/storage-projection` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/storage-projection` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
-- **Depends On:** [none]
+- **Depends On:** `seam-lifecycle`, `seam-locus`
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28)
 - **Design:** `draft-storage-projection.md`
