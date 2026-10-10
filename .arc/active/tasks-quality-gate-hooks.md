@@ -482,12 +482,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
 - _Context:_ adopter-facing surfaces state what is, with no transitional framing and no pointer to internal work
   (`DEV-RULES.PROJECT.md` § Audience Boundaries).
 
-    - `[ ]` **6.2.a Brief and ARC rules**
-        - `AGENT-BRIEF.ARC.md`: the quality gate vocabulary entry with kind as its clause, worded to agree with
-          § Rule Authority; it replaces the **Quality gates** paragraph and the `Class` entry's tier clause
-        - `DEV-RULES.ARC.md`: the opening line placing gate commands; the `--no-verify` invariant extended to
-          `ARC_SKIP`; the integration-candidate clause naming the `new-head` preset; the tier-definitions load line
-          removed
+    - `[x]` **6.2.a Brief and ARC rules**
+        - The brief defines quality gates by event deadline with enforcement and feedback in the same entry.
+          ARC rules point checks to the declaration, prohibit agents from setting `ARC_SKIP`, and require new-head
+          checks for reconciled bases; obsolete tier-loading guidance and its unused strategy link are removed.
 
     - `[ ]` **6.2.b Strategies**
         - `strategy-quality-gates.md` shrinks to what an operator needs that the verb cannot say, and its

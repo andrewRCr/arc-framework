@@ -24,9 +24,6 @@ configuration; draft-state lock (`merge.lock: draft`) is a per-PR structural hol
 **Never infer merge safety from `self-review`, `frontline-review`, a clean report, or passing local checks** ·
 `[invariant]`.
 
-**Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
-`quality-gate-commands` method.
-
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
 invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist). After the interlock-validation
 cascade, `arc release commit` accepts the same message/flags as `git commit`; `arc release push` supplies
@@ -47,7 +44,7 @@ Precise meanings — assume the technical sense.
   not yet in the problem domain), not _composed_ from existing patterns. Indicates weight across planning,
   execution, and review — intrinsic demand, not output volume — and is the signal roadmap and parallelism
   planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
-  from the quality-gate `Tier 1/2/3`.
+  from quality gates.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
   group's shared coordination. The work unit is the leaf. Nesting is path-valued via the `Cohort` field, capped at
   one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
@@ -88,6 +85,11 @@ Precise meanings — assume the technical sense.
 - **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
   to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
   said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
+- **Quality gate:** A deadline named by the event a check must pass before: the commit gate, push gate, or merge
+  quality gate. A request labels a result's kind `enforcement` when its deadline gate includes the check, and
+  `feedback` otherwise. Enforcement failures hold the gate and are never the agent's to set aside. Feedback failures
+  are reported and handled under DEV-RULES.ARC § Quality gate failure; an intentionally carried failure is named in
+  the completion report and accepted at its approval gate before the deadline.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
