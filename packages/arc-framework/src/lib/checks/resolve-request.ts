@@ -13,6 +13,7 @@ export interface ResolvedCheckRequest {
   base?: string;
   merged?: string[];
   mergePaths?: string[];
+  mergePathsUnresolved?: true;
   snapshot?: WorktreeSnapshot;
   worktreeTree?: string;
   snapshotDirectory?: string;
@@ -80,7 +81,7 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   }
   const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
   const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
-  return attachMergeSelection(git, root, request, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
 }
 
 async function resolveRequestHead(git: GitExec, root: string, request: CheckRequest): Promise<
@@ -93,13 +94,14 @@ async function resolveRequestHead(git: GitExec, root: string, request: CheckRequ
 }
 
 async function attachMergeSelection(
-  git: GitExec, root: string, request: CheckRequest, head: string | undefined, resolved: ResolvedCheckRequest,
+  git: GitExec, root: string, head: string | undefined, resolved: ResolvedCheckRequest,
 ): Promise<CheckRequestResolution> {
-  if (request.form.kind !== "pre-commit" || head === undefined) return { status: "resolved", request: resolved };
+  if (resolved.scope.kind !== "staged" || head === undefined) return { status: "resolved", request: resolved };
   try {
     const active = await readMergeCheckPaths(git, root, head, resolved.tree);
     return { status: "resolved", request: active === undefined ? resolved
-      : { ...resolved, merged: active.merged, mergePaths: active.paths } };
+      : { ...resolved, merged: active.merged, mergePaths: active.paths,
+        ...(active.unresolved ? { mergePathsUnresolved: true } : {}) } };
   } catch (error) {
     return { status: "refused", message: `Could not read active merge selection: ${error instanceof Error ? error.message : String(error)}. Repair the checkout's merge metadata or abort and restart the merge, then retry git commit.` };
   }
