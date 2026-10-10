@@ -449,6 +449,19 @@ function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceR
   const fromLayout = (declaration: ts.Node): boolean => (ts.isImportDeclaration(declaration) || ts.isExportDeclaration(declaration))
     && layoutModule(literal(declaration.moduleSpecifier));
   const lookup = syntaxBindingLookup(source);
+  const isLayoutNamespace = (identifier: ts.Identifier): boolean => {
+    const declaration = isSyntaxValueReference(identifier) ? lookup(identifier) : undefined;
+    return declaration !== undefined && ts.isNamespaceImport(declaration) && fromLayout(declaration.parent.parent);
+  };
+  // A namespace read by a literal member name stays traceable; any other value use hands the resolver on with it.
+  const isNamespacePassedOn = (identifier: ts.Identifier): boolean => {
+    if (!isLayoutNamespace(identifier)) return false;
+    let use: ts.Node = identifier;
+    while (ts.isParenthesizedExpression(use.parent)) use = use.parent;
+    const access = use.parent;
+    return !(ts.isPropertyAccessExpression(access) && access.expression === use)
+      && !(ts.isElementAccessExpression(access) && access.expression === use && literal(access.argumentExpression) !== undefined);
+  };
   // The resolver under any local name: a named import, or a member of a namespace import, of the layout module.
   const isResolver = (expression: ts.Expression): boolean => {
     if (ts.isIdentifier(expression)) {
@@ -459,9 +472,7 @@ function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceR
     if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
     const member = ts.isPropertyAccessExpression(expression) ? expression.name.text : literal(expression.argumentExpression);
     const namespace = unparenthesized(expression.expression);
-    const declaration = member === "resolveArcPath" && ts.isIdentifier(namespace) && isSyntaxValueReference(namespace)
-      ? lookup(namespace) : undefined;
-    return declaration !== undefined && ts.isNamespaceImport(declaration) && fromLayout(declaration.parent.parent);
+    return member === "resolveArcPath" && ts.isIdentifier(namespace) && isLayoutNamespace(namespace);
   };
   const isResolverUse = (node: ts.Node): node is ts.Expression => ts.isIdentifier(node)
     ? isSyntaxValueReference(node) && isResolver(node)
@@ -490,6 +501,9 @@ function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceR
         violations.push({ node, predicate: "work-unit-paths", reason: "layout resolver re-exported outside the store" });
       }
       return;
+    }
+    if (ts.isIdentifier(node) && isNamespacePassedOn(node)) {
+      violations.push({ node, predicate: "work-unit-paths", reason: "layout namespace passed on outside the store" });
     }
     if (isResolverUse(node)) report(node);
     ts.forEachChild(node, visit);

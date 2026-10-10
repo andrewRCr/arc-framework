@@ -90,6 +90,7 @@ describe("work-unit path ratchet", () => {
   const namespace = 'import * as layout from "../lib/layout/index.js"; ';
   const unread = "layout address without a literal kind outside the store";
   const loaded = "layout module loaded by require or dynamic import outside the store";
+  const handedOn = "layout namespace passed on outside the store";
 
   it.each([
     [`${named}resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });`, "work-unit path work-unit-artifact outside the store"],
@@ -108,6 +109,11 @@ describe("work-unit path ratchet", () => {
     ['const { resolveArcPath } = require("../lib/layout/index.js");', loaded],
     ['import layout = require("../lib/layout/index.js"); void layout;', loaded],
     ['import { createRequire } from "node:module"; const { resolveArcPath } = createRequire(import.meta.url)("../lib/layout/index.js");', loaded],
+    [`${namespace}const { resolveArcPath } = layout; resolveArcPath({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}const alias = layout; alias.resolveArcPath({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}layout[member]({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}use((layout));`, handedOn],
+    [`${namespace}export { layout };`, handedOn],
   ])("refuses %s", (text, reason) => {
     expect(violations("handlers/outside.ts", text, "work-unit-paths")).toEqual([reason]);
   });
@@ -128,6 +134,7 @@ describe("work-unit path ratchet", () => {
     [`${named}type Path = ReturnType<typeof resolveArcPath>;`],
     ['import type * as layout from "../lib/layout/index.js"; type Path = ReturnType<typeof layout.resolveArcPath>;'],
     [`${namespace}class Path implements layout.resolveArcPath {}`],
+    [`${namespace}void layout.LayoutError; void layout["ArcLayoutAddressSchema"]; void (layout).resolveArcPath({ kind: "arc-root" });`],
     ['type Address = import("../lib/layout/index.js").ArcLayoutAddress;'],
     ['import { resolveArcPath } from "./elsewhere.js"; resolveArcPath({ kind: "work-unit-artifact" });'],
     ['function resolveArcPath(address: unknown): unknown { return address; } resolveArcPath({ kind: "work-unit-artifact" });'],
