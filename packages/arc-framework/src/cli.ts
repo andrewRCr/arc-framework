@@ -237,6 +237,22 @@ checkCmd
     },
   ));
 
+checkCmd
+  .command("pre-push")
+  .description("Run declared checks over the checked-out branch's pushed range")
+  .argument("<remote>", "Pushed remote name, or empty under a hook manager")
+  .argument("<url>", "Pushed remote URL, or empty under a hook manager")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, remote: string, url: string, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPrePush(remote, url, opts, context);
+    },
+  ));
+
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
   .action(async () => {

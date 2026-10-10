@@ -22,8 +22,10 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
     return `${JSON.stringify(envelope)}\n`;
   }
   if (outcome.kind === "error") return `error: ${outcome.error.message}\n`;
-  const ignored = outcome.result.ignoredSkips?.length
-    ? `ARC_SKIP ignored unknown checks: ${outcome.result.ignoredSkips.join(", ")}\n` : "";
+  const refs = (outcome.result.pushRefs ?? [])
+    .map(ref => `${ref.ref}: ${ref.outcome}${ref.reason ? ` (${ref.reason})` : ""}\n`).join("");
+  const ignored = refs + (outcome.result.ignoredSkips?.length
+    ? `ARC_SKIP ignored unknown checks: ${outcome.result.ignoredSkips.join(", ")}\n` : "");
   const verification = outcome.result.verification ?? checkVerification(outcome.result.status, outcome.result.checks);
   if (outcome.result.status === "none declared") return `${ignored}none declared\n${verification}\n`;
   const failureFirst = [...outcome.result.checks].sort((a, b) =>

@@ -31,6 +31,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "check segment", args: ["check", "segment", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
   { commandPath: "check new-head", args: ["check", "new-head", "--from", "HEAD", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
   { commandPath: "check pre-commit", args: ["check", "pre-commit", "--json"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "none declared" } },
+  { commandPath: "check pre-push", args: ["check", "pre-push", "origin", "local-origin", "--json"], stdin: "", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "no refs selected" } },
   { commandPath: "deactivate", args: ["deactivate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "decompose", args: ["decompose", "origin", "--preflight"], fixture: "arc-project", expected: { exitCode: 1 } },
   { commandPath: "delivery compose", args: ["delivery", "compose", "--landed-prefix", "not-json", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },

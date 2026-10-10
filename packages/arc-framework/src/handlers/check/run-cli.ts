@@ -4,6 +4,8 @@ import { execa } from "execa";
 import { access, readFile } from "node:fs/promises";
 import { detectHookManager } from "../../lib/hook-manager.js";
 import { resolve } from "node:path";
+import type { GitExec } from "../../lib/git/exec.js";
+import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { availableParallelism } from "node:os";
 import { atomicCreateFile, atomicWriteFile } from "../../lib/fs.js";
 import { createCheckReportStore } from "../../lib/checks/reports.js";
@@ -14,11 +16,13 @@ import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
 import { createExecaGitExecInput, environmentForGitCwd } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
-import { runDeclaredRequest, type RunDeclaredChecksResult, type CheckContentContext } from "./run.js";
-import type { CheckForm, CheckRequest } from "../../lib/checks/request.js";
+import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult, type CheckContentContext } from "./run.js";
+import { isCheckHookForm, type CheckForm, type CheckRequest } from "../../lib/checks/request.js";
+import { classifyPushRef, readPushEvent, type PushEvent } from "../../lib/checks/push.js";
+import { checkVerification } from "./report.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
-import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckGateInputSchema, CheckRunInputSchema,
+import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckPrePushInputSchema, CheckGateInputSchema, CheckRunInputSchema,
   CheckSegmentInputSchema, CheckNewHeadInputSchema, type CheckScopeOptions, type CheckIncrementOptions } from "./request-input.js";
 export type { CheckIncrementOptions, CheckScopeOptions } from "./request-input.js";
 
@@ -90,6 +94,57 @@ export async function handleCheckNewHead(options: CheckIncrementOptions & { from
   return handleDeclaredRequest(common, interaction, { kind: "new-head", from });
 }
 
+/**
+ * Read and execute the push event supplied by Git or its hook manager.
+ * @param remote - Positional remote name
+ * @param url - Positional remote URL
+ * @param options - Hook output and execution options
+ * @param interaction - Invocation-bound process policy
+ * @returns Resolves after reporting the pushed range
+ */
+export async function handleCheckPrePush(remote: string, url: string, options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
+  try {
+    const chunks: Buffer[] = [];
+    if (!process.stdin.isTTY) for await (const chunk of process.stdin as AsyncIterable<Buffer>) chunks.push(chunk);
+    const event = readPushEvent(Buffer.concat(chunks).toString("utf8"), remote, url, process.env);
+    report(await runPushEvent(event, options, interaction), options.json === true);
+  } catch (error) {
+    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } }, options.json === true);
+  }
+}
+
+async function runPushEvent(event: PushEvent, options: CheckIncrementOptions, interaction: InteractionContext): Promise<RunDeclaredChecksResult> {
+  const checks: Extract<RunDeclaredChecksResult, { kind: "result" }>["result"]["checks"] = [];
+  const git = createGitExec(interaction.subprocess);
+  const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
+  const currentRef = await currentPushRef(git, root);
+  const pushRefs = event.refs.map(ref => classifyPushRef(ref, currentRef));
+  let last: Extract<RunDeclaredChecksResult, { kind: "result" }>["result"] | undefined;
+  for (const [index, ref] of event.refs.entries()) {
+    if (pushRefs[index]?.outcome !== "checked") continue;
+    const outcome = await runDeclaredCliRequest(options, interaction, { kind: "pre-push", ref: ref.localRef,
+      tip: ref.localOid ?? ref.localRef, old: ref.remoteOid, remote: event.remote, url: event.url });
+    if (outcome.kind === "error") return { ...outcome, error: { ...outcome.error, message: `${ref.localRef}: ${outcome.error.message}` } };
+    last = outcome.result;
+    checks.push(...last.checks);
+  }
+  return { kind: "result", exitCode: declaredChecksExitCode(checks), result: {
+    ...(last ?? { status: "completed" }), checks, pushRefs,
+    verification: last === undefined ? "Checks: no refs selected." : checkVerification(last.status, checks),
+  } };
+}
+
+async function currentPushRef(git: GitExec, root: string): Promise<string | null> {
+  const args = ["symbolic-ref", "--quiet", "HEAD"];
+  try {
+    return (await git("git", args, { cwd: root, preserveOutput: true })).stdout.replace(/\r?\n$/u, "");
+  } catch (cause) {
+    const failure = normalizeGitRejection(cause, { command: "git", args });
+    if (failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.signal === undefined) return null;
+    throw new Error("Could not resolve the checkout branch; repair its HEAD and retry git push.", { cause });
+  }
+}
+
 function scopeRequest(input: CheckScopeOptions): CheckRequest["scope"] {
   if (input.staged) return { kind: "staged" };
   if (input.changed) return { kind: "changed" };
@@ -106,15 +161,19 @@ function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
     case "new-head": return CheckNewHeadInputSchema.safeParse({ ...options, from: form.from });
     case "segment": return CheckSegmentInputSchema.safeParse(options);
     case "pre-commit": return CheckPreCommitInputSchema.safeParse(options);
+    case "pre-push": return CheckPrePushInputSchema.safeParse({ ...options, remote: form.remote ?? "", url: form.url ?? "" });
     case "increment": return CheckIncrementInputSchema.safeParse(options);
   }
 }
 
 async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<void> {
+  report(await runDeclaredCliRequest(options, interaction, form), options.json === true);
+}
+
+async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm): Promise<RunDeclaredChecksResult> {
   const parsed = parseRequestOptions(options, form);
   if (!parsed.success) {
-    report({ kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } }, options.json === true);
-    return;
+    return { kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } };
   }
   const input = parsed.data;
   const git = createGitExec(interaction.subprocess);
@@ -122,7 +181,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
   try {
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     const inheritedIndex = process.env.GIT_INDEX_FILE;
-    const hookSkip = form.kind === "pre-commit" ? process.env.ARC_SKIP?.split(",").map(id => id.trim()).filter(Boolean) : undefined;
+    const hookSkip = isCheckHookForm(form) ? process.env.ARC_SKIP?.split(",").map(id => id.trim()).filter(Boolean) : undefined;
     const hookFixesFail = form.kind === "pre-commit"
       && (process.env.PRE_COMMIT !== undefined || (await detectHookManager(root, access))?.manager === "lefthook");
     outcome = await runDeclaredRequest(root, {
@@ -140,7 +199,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
-  report(outcome, input.json === true);
+  return outcome;
 }
 
 function report(outcome: RunDeclaredChecksResult, json: boolean): void {

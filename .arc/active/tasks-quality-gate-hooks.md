@@ -372,23 +372,16 @@ conclusion selects only conflicted and parent-unmatched paths.
   rewrites for staging and retry without a pass; failed restaging blocks with repair guidance. Native conflicting-edit
   scenarios verify both manager rollbacks preserve set-aside and unrelated work and permit repaired commits.
 
-### `[ ]` **5.5 A push gates the checked-out branch's pushed range — D8, D12**
+### `[x]` **5.5 A push gates the checked-out branch's pushed range — D8, D12**
 
 - _Goal:_ `arc check pre-push` gates exactly the checked-out branch's pushed content, skips what it cannot or must not
   check, and names the ref it gated when it fails.
 
-    - Build `test-first` (one behavior at a time):
-        - ref lines come from standard input, and otherwise from pre-commit.com's `PRE_COMMIT_*` variables, which also
-          supply the remote when the arguments are empty
-        - refs under `refs/arc/*` and deletions are skipped, and a push carrying only those runs no gate
-        - only `refs/heads/<current branch>` is checked, at its pushed tip; any other pushed ref is `not selected` with
-          that reason
-        - the range starts at the remote's old tip, or for a ref new to the remote at the pushed tip's merge base with
-          the base branch, including when pre-commit.com omits its from and to refs
-        - a failure names the gated ref
-        - a push with no ref lines checks nothing
-        - a worktree ahead of the pushed tip labels the run and leaves it unrecorded
-        - a `segment` run over the same range is reused
+- _Outcome:_ `pre-push` captures Git stdin or native manager metadata and gates the checkout branch at its pushed tip.
+  State refs and deletions are skipped, foreign refs report no worktree, and failures name the gated code ref.
+  Remote-old and new-ref ranges share selection and reuse with `segment`; unavailable automatic bases widen.
+  Divergent passes stay unrecorded, push rewrites retain the checked tip, and widened retries name `git push`.
+  Full symbolic refs and ASCII protocol separators preserve tag-shadowed and Unicode branch names.
 
 ### `[ ]` **5.6 The shipped pre-push hook dispatches the push gate — D8, D12**
 

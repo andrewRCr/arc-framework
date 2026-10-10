@@ -47,7 +47,7 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest, 
     const upstream = await revision(git, root, "@{upstream}");
     if (upstream !== undefined) return upstream;
   }
-  const base = await resolveCheckBaseBranch(git, root, request.baseBranch ?? "main");
+  const base = await resolveCheckBaseBranch(git, root, request.baseBranch ?? "main", request.form.kind === "pre-push" ? request.form.remote : undefined);
   if (base === undefined) return undefined;
   const resolved = await resolveSoleMergeBase({
     exec: (command, args, options) => git(command, args, { ...options, cwd: root }),
@@ -66,19 +66,30 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest, 
  */
 export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest, snapshotDirectory?: string): Promise<CheckRequestResolution> {
   const scope = requestScope(request);
-  const head = await revision(git, root, "HEAD");
+  const headResolution = await resolveRequestHead(git, root, request);
+  if (headResolution.status === "refused") return headResolution;
+  const { head } = headResolution;
   let base: string | undefined;
   if (scope.kind === "range" && scope.base !== undefined) {
     base = await revision(git, root, scope.base);
-    if (base === undefined) return { status: "refused", message: `Could not resolve ref ${scope.base}; provide a resolvable commit ref and retry.` };
+    if (base === undefined && request.form.kind !== "pre-push") return { status: "refused", message: `Could not resolve ref ${scope.base}; provide a resolvable commit ref and retry.` };
   } else if (scope.kind === "range" || scope.kind === "all") {
     base = await automaticBase(git, root, request, head);
   } else {
     base = head;
   }
   const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
-  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory);
+  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
   return attachMergeSelection(git, root, request, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+}
+
+async function resolveRequestHead(git: GitExec, root: string, request: CheckRequest): Promise<
+  { status: "resolved"; head: string | undefined } | { status: "refused"; message: string }
+> {
+  const head = await revision(git, root, request.form.kind === "pre-push" ? request.form.tip : "HEAD");
+  return request.form.kind === "pre-push" && head === undefined
+    ? { status: "refused", message: `Could not resolve pushed tip ${request.form.tip}; repair the local ref and retry git push.` }
+    : { status: "resolved", head };
 }
 
 async function attachMergeSelection(
@@ -94,7 +105,8 @@ async function attachMergeSelection(
   }
 }
 
-async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string) {
+async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string, head?: string) {
+  if (request.form.kind === "pre-push" && head !== undefined) return { tree: (await git("git", ["rev-parse", "--verify", `${head}^{tree}`], { cwd: root })).stdout, snapshot: undefined };
   const snapshot = scope.kind !== "staged" && snapshotDirectory !== undefined
     ? await createWorktreeSnapshot(git, root, snapshotDirectory) : undefined;
   const tree = scope.kind === "staged"

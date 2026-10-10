@@ -38,6 +38,7 @@ export function checkRetryCommand(input: {
 }): string {
   const { id, request, resolved, widenedFiles } = input;
   if (widenedFiles && request.form.kind === "pre-commit") return "git commit";
+  if (widenedFiles && request.form.kind === "pre-push") return "git push";
   const args = widenedFiles ? originalArguments(request) : ["run", id, ...scopeArguments(resolved.scope, resolved.base)];
   return ["arc", "check", ...args].map(quote).join(" ");
 }

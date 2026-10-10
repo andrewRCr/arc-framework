@@ -8,6 +8,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "check segment": "Run checks over the unpublished segment",
   "check new-head": "Run checks over a newly committed head",
   "check increment": "Run checks reached by the current increment",
+  "check pre-push": "Run declared checks over the checked-out branch's pushed range",
   "check pre-commit": "Run declared checks over the commit index",
   "init": "Initialize ARC in the current project",
   "join": "Join an existing ARC project",

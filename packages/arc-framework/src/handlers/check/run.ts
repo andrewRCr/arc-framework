@@ -1,5 +1,6 @@
 /** Orchestration for declared repository check requests. */
 import { tmpdir } from "node:os";
+import type { PushRefDisposition } from "../../lib/checks/push.js";
 import { mkdir } from "node:fs/promises";
 import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
@@ -16,7 +17,7 @@ import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
 import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
-import type { CheckRequest } from "../../lib/checks/request.js";
+import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
 import { selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
 import type { CheckPassStore } from "../../lib/checks/record.js";
 import type { CheckReportStore } from "../../lib/checks/reports.js";
@@ -43,7 +44,7 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
 export type RunDeclaredChecksResult = {
   kind: "result";
   exitCode: 0 | 1 | 2;
-  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[]; ignoredSkips?: string[] };
+  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[]; ignoredSkips?: string[]; pushRefs?: PushRefDisposition[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string }
   | { kind: "usage"; code: string; message: string } };
 
@@ -122,7 +123,7 @@ export async function runDeclaredRequest(
     error: { kind: "invalid", message: `${declaration.location}: ${declaration.message}` } };
   const ids = request.form.kind === "run" ? request.form.ids : undefined;
   const available = declaration.status === "absent" ? {} : declaration.value.checks;
-  const ignoredSkips = request.form.kind === "pre-commit"
+  const ignoredSkips = isCheckHookForm(request.form)
     ? [...new Set(request.skip ?? [])].filter(id => !Object.hasOwn(available, id)) : [];
   const missing = ids?.find(id => !Object.hasOwn(available, id));
   if (missing !== undefined) return { kind: "error", exitCode: 2,
@@ -154,7 +155,7 @@ async function executeResolvedRequest(
   if (entries.some(([, check]) => check.fixes) && coordinates.snapshot === undefined) {
     coordinates.snapshot = await createWorktreeSnapshot(io.git, root, coordinates.snapshotDirectory);
   }
-  coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" ? await stagedWorktreeTree(io.git, root) : tree);
+  coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" || request.form.kind === "pre-push" ? await stagedWorktreeTree(io.git, root) : tree);
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
   const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection });
   if (refusal !== undefined) return { kind: "error", exitCode: 2, error: { kind: "refused", message: refusal } };
@@ -216,7 +217,7 @@ function usesFormingWorktree(check: CheckDeclaration["checks"][string], request:
 }
 
 function isSkippedHookCheck(request: CheckRequest, id: string): boolean {
-  return request.form.kind === "pre-commit" && request.skip?.includes(id) === true;
+  return isCheckHookForm(request.form) && request.skip?.includes(id) === true;
 }
 
 function usesWidenedFileRetry(check: CheckDeclaration["checks"][string], selection: CheckSelection, request: CheckRequest): boolean {
@@ -319,7 +320,7 @@ async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDep
   if (!check.fixes) return { rewritten: [] };
   const hook = request.form.kind === "pre-commit";
   const rewritten = await refreshFixerContent(io.git, root, coordinates,
-    !hook && (coordinates.scope.kind !== "staged" || checkFixesAllowed(request)));
+    !hook && request.form.kind !== "pre-push" && (coordinates.scope.kind !== "staged" || checkFixesAllowed(request)));
   if (rewritten.length === 0) return { rewritten };
   if (!checkFixesAllowed(request)) return { rewritten, reason: "rewrote files during verification" };
   if (!hook) return { rewritten };

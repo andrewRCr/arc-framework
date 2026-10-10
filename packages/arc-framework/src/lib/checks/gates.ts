@@ -15,7 +15,7 @@ export function checkRequestDeadline(form: CheckForm): CheckGate | undefined {
   switch (form.kind) {
     case "gate": return form.gate;
     case "increment": case "pre-commit": return "commit";
-    case "segment": case "new-head": return "push";
+    case "segment": case "new-head": case "pre-push": return "push";
     case "run": return undefined;
     default: return assertNever(form);
   }
