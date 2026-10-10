@@ -3,7 +3,7 @@
   "slug": "name-status-score-exemption-test",
   "claimId": "4b4f6771cde9c4d9ad681d3618d9105c",
   "createdAt": "2026-10-10T01:21:06.764Z",
-  "updatedAt": "2026-10-10T01:21:06.764Z",
+  "updatedAt": "2026-10-10T12:49:47.621Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "name-status-score-exemption-test",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Pin the name-status score exemption in the meta-reference check with a test",
   "originEntrySourceDigest": "sha256:13c06f18d114cdb77a333506fa2eff6a92596b7302d3ef2538990f4a413a3362",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/name-status-score-exemption-test",
+    "headSha": "47b38ffc00b9401866b9ca4c86b672bd0306f149"
+  }
 }
