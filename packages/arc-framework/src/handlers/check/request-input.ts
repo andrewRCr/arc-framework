@@ -70,7 +70,7 @@ export const checkInputPolicyDeclarations: readonly CommandInputDeclaration[] = 
         { acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
           automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: [] }, mutationBoundary: "push ref input", subprocess: "explicit-stdin" }),
     ] : []),
-    declareInteractionSite({ file: "handlers/check/run-cli.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+    declareInteractionSite({ file: "lib/checks/process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       { acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
         automation: { noInput: "same", flags: [], acceptedSyntax: [] }, mutationBoundary: "declared check execution", subprocess: "close-stdin" }),
   ],
