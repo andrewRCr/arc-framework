@@ -53,8 +53,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     });
   });
 
-  it("matches the agent-consumable catalog size", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(AGENT_CONSUMABLE_CONFIG_FIELDS.length);
+  // Keep this expected count hand-maintained: a catalog addition or omission must not
+  // change both sides of the completeness check.
+  it("enumerates the 35 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(35);
   });
 
   it("excludes all hooks.* keys", () => {
