@@ -1,8 +1,8 @@
 # Metadata: Seam Record Kinds
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
+| **State**  | **Owner** | **Branch**               | **Class** | **Priority** |
+| ---------- | --------- | ------------------------ | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/seam-record-kinds` | `Light`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
