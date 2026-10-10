@@ -11,7 +11,7 @@
 - **Design:** `spec-quality-gate-hooks.md`
 - **Task List:** `tasks-quality-gate-hooks.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:206e16aae2b9d9324c7853040197a1408fcf05c3c5fb36bb0e69522b883b46bd`
+- **Candidate:** `sha256:3492ba2107ef6b58f1ad07c35220adfe6bc6c5ce73f9998c56faddf258303484`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
