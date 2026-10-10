@@ -121,6 +121,8 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before enterin
    bare `--errand` / `--plan` **elicits first** — prompt for the concern, adopt a flagged `USER-INBOX § Errand`
    capture, or disambiguate the stub — before entry; it never silently launches. `--errand --next` is sufficient
    without elicitation and cannot also carry a slug or description; resolve its queue head only after notes sync.
+   `--isolate` modifies only `--errand` (bare, seeded, or with `--next`) and starts the session in
+   [`run-errand`][run-errand]'s isolate posture.
 2. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
    worktree channel is skipped per above), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
@@ -131,8 +133,9 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before enterin
           overlap, derives and confirms a branch-safe slug, and opens with `--from-inbox <nextOffer.key>`.
         - `empty / none` — render `recommendedPromptText` and end the signal path without eliciting another concern.
         - `refused / stop` — render `reason`, `remedy`, `retryCommand`, and `recommendedPromptText`, then stop.
-    - `--errand` — invoke `arc errand open`; render its `recommendedPromptText`, direct subsequent work to
-      `allocation.checkoutPath`, and retain `parentCheckoutPath` when present as the warm-return parent.
+    - `--errand` — invoke `arc errand open`, adding `--isolate` when supplied; render its `recommendedPromptText`,
+      direct subsequent work to `allocation.checkoutPath`, and retain `parentCheckoutPath` when present as the
+      warm-return parent.
     - `--housekeep` / `--plan` — run the selected workflow's write-context preflight and relocation path. These
       workflows use their base-branch grooming path and do not create a durable transient role.
 4. **Run the subject workflow**; Step 5 / Step 6 then run in signal-leaf mode (orient on the subject, not the WU).
@@ -386,8 +389,9 @@ uses only the free primary and refuses unsafe occupancy.
    errand-vs-Work-Unit (with the stop-and-route
    exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and invokes
    `arc errand open <slug>` (adopt a flagged capture with `--from-inbox <entry-title>`, or with
-   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title). Render its
-   `recommendedPromptText` and execute from `allocation.checkoutPath`; the originating checkout remains unchanged.
+   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title; add `--isolate` when supplied).
+   Render its `recommendedPromptText` and execute from `allocation.checkoutPath`; the originating checkout remains
+   unchanged.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 

@@ -70,6 +70,23 @@
 
 - _Captured during:_ `storage-contract` create-spec, 2026-09-30.
 
+### `[ ]` **Re-point the horizon-test seam at the routing method's advisory**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § Dependencies / Coordination `shared-inbox-model` bullet ("its routing-disposition **horizon test**
+  becomes cheaply answerable once targets exist"), read with the horizon band in § The model.
+
+- _Observation:_ the horizon test now lives in `inbound-routing-method` as an advisory, never a gate: when a coupled
+  entry targets a provisional, P3, or parked work unit, routing tells the Owner the entry will wait there — raise its
+  priority (or resume a parked one), or does a separable part go now? The CLI composes it as `horizonAdvisory` on each
+  `arc status --project --json` row from the target's commitment tier and priority, and the method only shows it
+  (`spec-inbound-routing-method.md` D2, D11). Now/Next targets are its refined input, refining that composition.
+
+- _Approach:_ name the routing method's advisory as that consumer; no gate.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---
 
 ## Problem / Motivation

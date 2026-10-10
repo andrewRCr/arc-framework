@@ -150,7 +150,7 @@ nor a clean commit boundary, with no good cross-machine resume path.
 
 **Why now.** The friction is small per occurrence but systemic — it nudges users away from
 deferred review, which is a legitimate and necessary mode of operation. The fix is methodology-
-internal and composes cleanly with adjacent work ([plan-interlock-release-wrappers][plan-irw],
+internal and composes cleanly with adjacent work (plan-interlock-release-wrappers,
 `plan-coord-probe.md`). Better to land the conceptual model before more workflows
 or methods accrete dependencies on the current conflation.
 
@@ -232,7 +232,7 @@ batch; bundling signals fire transparently when warranted; review at return beco
 inspection rather than approval gate; user requests changes via follow-up commits or amend on
 the still-unpushed branch.
 
-**Forward compat with [plan-interlock-release-wrappers][plan-irw].** Wrappers enforce interlock
+**Forward compat with plan-interlock-release-wrappers.** Wrappers enforce interlock
 state at the CLI boundary; commit increments are still leaves with judgment-bundling overlay.
 The wrapper sees a `commit_interlock` state authorizing release; whether that release is
 per-leaf or bundled is upstream of the wrapper's concern. Clean composition.
@@ -337,7 +337,7 @@ reshape on its own — could ship independently as a separate WU or fold in if s
 - Leaf-default commit boundaries are handoff-clean _in practice_ under plan-coord-probe — i.e.,
   the next machine's session-init can resume cleanly when the previous session committed at a
   leaf and pushed. Validate against plan-coord-probe's session-init contract once that lands.
-- The interlock-validation library shape from [plan-interlock-release-wrappers][plan-irw] reads
+- The interlock-validation library shape from plan-interlock-release-wrappers reads
   commit-increment state cleanly without adapter friction. If the wrapper's interlock-state
   contract grows a "bundling-in-flight" axis, that's the wrapper's concern, not this plan's.
 - Existing `commit_interlock: on-task-approval` users do not experience the deferred-review
@@ -375,7 +375,7 @@ each ripple is small. Not atomic because the design decisions warrant a plan doc
 ### Dependencies
 
 - **No upstream blocker.** Concept is independent of in-flight work. Can land any time.
-- **Soft sequencing preference.** Land before [plan-interlock-release-wrappers][plan-irw] —
+- **Soft sequencing preference.** Land before plan-interlock-release-wrappers —
   the wrapper's interlock-validation library is cleaner if the commit-increment vocabulary is
   established. Not strict.
 - **Soft sequencing preference.** Land before `plan-coord-probe.md` —
@@ -392,5 +392,3 @@ bundling. Captured as plan doc directly (no inbox graduation step) given the des
 the conversation.
 
 ---
-
-[plan-irw]: ../../../../reference/strategies/arc/strategy-interlock-release-wrappers.md

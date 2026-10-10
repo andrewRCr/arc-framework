@@ -163,7 +163,7 @@ _Testing & quality tooling:_
 
 - **Test Framework**: Vitest — unit, integration, and E2E test tiers
 - **Documentation Linting**: markdownlint-cli2 (pinned local) — `npm run -s lint:md`
-- **Code Linting**: typescript-eslint (recommended-type-checked) — `npm run lint:ts`
+- **Code Linting**: typescript-eslint (strict-type-checked) — `npm run lint:ts`
 - **Shell Linting**: shellcheck (system-installed) — `npm run lint:sh`
 
 _CI & configuration:_
@@ -206,7 +206,7 @@ workflow.
 
 - **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
 - **TypeScript type checking** — `tsc --noEmit` with strict mode
-- **Code linting** — typescript-eslint (recommended-type-checked) and shellcheck
+- **Code linting** — typescript-eslint (strict-type-checked) and shellcheck
 - **Test suite** — Vitest with all tests passing
 - **Build verification** — tsup produces working CLI output
 - **CI validation** — GitHub Actions validates all gates on push and PR

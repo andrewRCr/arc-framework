@@ -2,10 +2,10 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-errand-promotion-concurrency.md`

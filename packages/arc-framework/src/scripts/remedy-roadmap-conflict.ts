@@ -15,7 +15,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
-import { environmentForGitCwd } from "../lib/git/process-executor.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
@@ -47,7 +47,7 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
     env,
     signal: options?.signal,
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
     timeout: 30_000,
   });
   return { stdout, stderr };

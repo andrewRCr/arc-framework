@@ -617,6 +617,7 @@ errand
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--isolate", "Always provision a transient worktree, leaving the primary free (full protection only)")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

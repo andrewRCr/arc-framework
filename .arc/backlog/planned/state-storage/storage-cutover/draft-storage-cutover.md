@@ -96,4 +96,25 @@
   review copy, and integration's candidate tail — and add to quiesce that every session hands off before the flip, so
   each resumes on the rewritten text.
 
+### `[ ]` **Retire the live transition-record test when lineage moves to the store**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Scope's deletion pass, and the register row for Candidate and transition records.
+
+- _Observation:_ An integration test reads the tracked transition records in `.arc/system/.internal/transitions/`
+  directly and checks them for structural integrity: each parses, round-trips to canonical bytes, is the one record
+  for its origin under `<origin>.json`, and projects to a valid reference set. The ARC contract test tier runs it, so
+  docs-only pull requests that add or change a record are checked. The storage register row for Candidate and
+  transition records names the records but not this reader. Once lineage is a store family written only by verbs,
+  the folder is gone and the store's own record validation carries the integrity check.
+
+- _Approach:_ In the deletion pass after the flip, delete `live-transition-records.test.ts` and its entry in the ARC
+  contract tier selection (`src/lib/local-vitest-runner.ts` and its unit test). Until the flip the in-repo
+  implementation keeps the tracked records, so the test stays valid. If missed, the test fails loudly on the missing
+  directory rather than passing vacuously.
+
+- _Captured during:_ Errand `transition-record-checks`, 2026-09-30; re-routed from `storage-seam` at its draft
+  consolidation, 2026-10-05, because the records leave the tracked folder only at the flip.
+
 ---

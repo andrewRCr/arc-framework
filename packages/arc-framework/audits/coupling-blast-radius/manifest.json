@@ -45,6 +45,9 @@
     "excluded": [
       { "path": "packages/arc-framework/audits/coupling-blast-radius/routing-ledger.json", "reason": "Generated routing output; never an audit input." },
       { "path": "packages/arc-framework/audits/coupling-blast-radius/scan-result.json", "reason": "Generated scan output; excluding it prevents recursive self-enumeration." },
+      { "path": "packages/arc-framework/LICENSE", "reason": "Legal material outside the coupling-audit tooling boundary." },
+      { "path": "packages/arc-framework/LICENSE-CONTENT", "reason": "Legal material outside the coupling-audit tooling boundary." },
+      { "path": "packages/arc-framework/NOTICE", "reason": "Legal material outside the coupling-audit tooling boundary." },
       { "path": "CONTRIBUTING.md", "reason": "Public project prose, not self-hosting tooling." },
       { "path": "LICENSE", "reason": "Legal material outside the coupling-audit tooling boundary." },
       { "path": "README.md", "reason": "Public project prose; shipped package prose is authoritative." }

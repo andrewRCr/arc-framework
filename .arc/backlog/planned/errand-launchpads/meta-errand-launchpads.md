@@ -1,14 +1,14 @@
-# Metadata: e2e-build-coordination
+# Metadata: errand-launchpads
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `seam-locus`
 
 - **Origin:** [internal]
-- **Design:** `draft-e2e-build-coordination.md`
+- **Design:** `draft-errand-launchpads.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Separate the focused-test argument seam from the E2E build/freshness boundary, then choose a
-  cross-process publication strategy for the CLI bundle.
+- **Next Action:** —
 
 - **PR URL:** [none]
 - **Completed:** [none]

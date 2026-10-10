@@ -7,6 +7,8 @@ arc:
     - route-discovered-work
     - classify-work-unit
     - assess-parallel-fit
+    - classify-review-risk
+    - commit-format
     - commit-footer
     - frontline-review
     - standard-review
@@ -95,6 +97,9 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
      transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
      branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
+     free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
+     own provisioned transient and the primary stays free for another session; partial protection refuses it.
    - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
      re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
      `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
@@ -214,6 +219,9 @@ remote base all name the same exact head. Any tracked change continues through t
    the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
    state, assurance, method activity, repository identity, target trees, or standard-review projection.
 
+   **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact
+   for every change except confidently routine planning-grooming, which is `routine`.
+
 2. **Push** the errand branch upstream.
 
    - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
@@ -319,6 +327,9 @@ remote base all name the same exact head. Any tracked change continues through t
    - `closed-unmerged / reopen-change-request` — reopen `candidate`, then enter Step 4.
    - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
+
+   Title the PR with the single commit's subject, or compose a subject for the dominant change by the
+   [`commit-format` method][commit-format].
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
    one-line Summary, followed by each settled fork as `Decided: X over Y — because Z`, plus a one-line Test Plan
@@ -678,16 +689,16 @@ checkout paths, and `settlement` are the sole closure evidence.
 
 When the current conversation has already agreed one exact next Errand, that named target takes precedence over
 `nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
-a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
-result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
-ambiguous.
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`, adding `--isolate`
+under the session's isolate posture. Consume the open result as the new sibling locus. The target must resolve to one
+exact Errand entry; stop when it is missing or ambiguous.
 
 Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
 `key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
 returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
-`arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
-or reorder inbox captures.
+`arc errand open <slug> --from-inbox <nextOffer.key> --json`, adding `--isolate` under the session's isolate posture.
+Consume the open result as the new sibling locus. On decline, return to the restored parent/between-WUs frame. Never
+scan for a substitute, persist an Errand sequence, or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is
@@ -697,11 +708,13 @@ idempotent and may return the next file-ordered execute-bound offer.
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
+[commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
