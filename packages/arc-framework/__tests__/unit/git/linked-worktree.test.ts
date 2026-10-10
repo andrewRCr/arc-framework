@@ -183,6 +183,8 @@ describe("setupLinkedWorktree", () => {
         return { stdout: "" };
       },
       fs: {
+        pathExists: async () => false,
+        copyFileIfAbsent: async () => {},
         directoryExists: async (path) => {
           events.push(`exists ${path}`);
           return path.endsWith("/.codex");
@@ -216,6 +218,8 @@ describe("setupLinkedWorktree", () => {
     await expect(setupLinkedWorktree({
       exec: async () => { throw new Error("exit 17"); },
       fs: {
+        pathExists: async () => false,
+        copyFileIfAbsent: async () => {},
         directoryExists: async () => true,
         copyDirectory: async () => { copied = true; },
       },
@@ -227,5 +231,73 @@ describe("setupLinkedWorktree", () => {
     })).rejects.toThrow(/worktree\.post_create failed: exit 17/u);
 
     expect(copied).toBe(false);
+  });
+
+  it("copies ignored include-file matches before post-create and harness directories", async () => {
+    const events: string[] = [];
+    const includeFile = join("/work/repo", ".worktreeinclude");
+
+    await setupLinkedWorktree({
+      exec: async (command, args) => {
+        events.push([command, ...args].join(" "));
+        if (args.includes(`--exclude-from=${includeFile}`)) {
+          return { stdout: ".env\0.arc/user/notes.md\0config/local.json\0notes.txt\0" };
+        }
+        if (args.includes("--exclude-standard")) return { stdout: ".env\0config/local.json\0" };
+        return { stdout: "" };
+      },
+      fs: {
+        pathExists: async (path) => path === includeFile,
+        copyFileIfAbsent: async (source, destination) => {
+          events.push(`copy-file ${source} ${destination}`);
+        },
+        directoryExists: async () => true,
+        copyDirectory: async (source, destination) => {
+          events.push(`copy ${source} ${destination}`);
+        },
+      },
+    }, {
+      worktreePath: "/work/target",
+      primaryWorktreePath: "/work/repo",
+      postCreateScript: "npm install",
+      registeredHarnessDirs: ".codex",
+    });
+
+    const command = process.platform === "win32"
+      ? "cmd.exe /d /s /c npm install"
+      : "sh -c npm install";
+    expect(events).toEqual([
+      `git ls-files --others --ignored -z --exclude-from=${includeFile}`,
+      "git ls-files --others --ignored --exclude-standard -z -- "
+        + ":(literal).env :(literal)config/local.json :(literal)notes.txt",
+      `copy-file ${join("/work/repo", ".env")} ${join("/work/target", ".env")}`,
+      `copy-file ${join("/work/repo", "config/local.json")} ${join("/work/target", "config/local.json")}`,
+      command,
+      `copy ${join("/work/repo", ".codex")} ${join("/work/target", ".codex")}`,
+    ]);
+  });
+
+  it("fails before post-create setup when an include-file copy fails", async () => {
+    let postCreateRan = false;
+
+    await expect(setupLinkedWorktree({
+      exec: async (command) => {
+        if (command !== "git") postCreateRan = true;
+        return { stdout: ".env\0" };
+      },
+      fs: {
+        pathExists: async () => true,
+        copyFileIfAbsent: async () => { throw new Error("permission denied"); },
+        directoryExists: async () => false,
+        copyDirectory: async () => {},
+      },
+    }, {
+      worktreePath: "/work/target",
+      primaryWorktreePath: "/work/repo",
+      postCreateScript: "npm install",
+      registeredHarnessDirs: "",
+    })).rejects.toThrow(/\.worktreeinclude copy failed: permission denied/u);
+
+    expect(postCreateRan).toBe(false);
   });
 });

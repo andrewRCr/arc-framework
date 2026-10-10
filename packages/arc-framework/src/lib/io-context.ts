@@ -26,6 +26,7 @@ import {
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
 import { isGitObjectId } from "../lib/git/object-id.js";
+import { partitionGitPathspecBatches } from "../lib/git/pathspec-batches.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
 
@@ -62,8 +63,6 @@ type ParsedGitBlobMetadata =
 
 /** Keep each captured object batch below the shared 64 MiB process-output ceiling. */
 const GIT_BLOB_CONTENT_BATCH_BYTES = 32 * 1024 * 1024;
-/** Keep literal pathspec batches below conservative cross-platform argument limits. */
-const GIT_PATHSPEC_BATCH_BYTES = 16 * 1024;
 const gitMetadataDecoder = new TextDecoder("utf-8", { fatal: true });
 const gitInputEncoder = new TextEncoder();
 
@@ -82,25 +81,6 @@ function splitNulRecords(bytes: Uint8Array): Uint8Array[] | null {
     start = index + 1;
   }
   return records;
-}
-
-function partitionGitPathspecBatches(paths: readonly string[]): string[][] {
-  const batches: string[][] = [];
-  let batch: string[] = [];
-  let batchBytes = 0;
-  for (const path of paths) {
-    const pathspec = `:(literal)${path}`;
-    const framedBytes = gitInputEncoder.encode(pathspec).byteLength + 1;
-    if (batch.length > 0 && batchBytes + framedBytes > GIT_PATHSPEC_BATCH_BYTES) {
-      batches.push(batch);
-      batch = [];
-      batchBytes = 0;
-    }
-    batch.push(pathspec);
-    batchBytes += framedBytes;
-  }
-  if (batch.length > 0) batches.push(batch);
-  return batches;
 }
 
 function parseGitBlobMetadataHeader(
