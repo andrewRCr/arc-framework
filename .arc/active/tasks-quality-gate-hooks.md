@@ -498,7 +498,7 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
         - The overview includes project check declarations beside settings, methods, and extensions, removes the
           quality-method and unit-hook examples, and describes event deadlines and fresh verification requests.
 
-### `[ ]` **6.3 Code identifiers and emitted text drop the tier names — D1, D10**
+### `[x]` **6.3 Code identifiers and emitted text drop the tier names — D1, D10**
 
 - _Goal:_ No code identifier or emitted string names a tier, apart from the stored `verificationKind: "tier-3"` value
   and its `arc attest` echo.
@@ -512,11 +512,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           `commitGateReuseCriteria`, `ReviewFixCommitGateVerificationSchema`, and `commitGate` without aliases.
         - Delivery correction fixtures name their verification evidence `gates://commit`.
 
-    - `[ ]` **6.3.c Emitted text and comments**
-        - `entry-inspection.ts`'s "Tier 1 checks" names the commit gate; `eligibility.ts`'s "Tier 2 outcome" comment
-          names the push gate; the convergence remedy in `integration-boundary-locus.ts` names
-          `arc check gate merge --force`
-        - `verificationKind: "tier-3"` and `attest.ts`'s echo keep their spelling
+    - `[x]` **6.3.c Emitted text and comments**
+        - Delivery entry remedies name commit gate checks, member eligibility comments name the push gate, and
+          full convergence remedies name `arc check gate merge --force`.
+        - The stored `verificationKind: "tier-3"` value and its attestation echo retain their spelling.
 
 ### `[ ]` **6.4 Bootstrap proposes a declaration from existing gate commands — D2**
 

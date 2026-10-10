@@ -201,7 +201,7 @@ export function createRunConvergenceVerificationAction(
     command: attestArgv.join(" "),
     interactionText: requiredScope === "focused"
       ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
-      : "Run Tier 3, then replace the carried evidence placeholder and attest.",
+      : "Run arc check gate merge --force, then replace the carried evidence placeholder and attest.",
     postAttestContinuation,
   });
 }

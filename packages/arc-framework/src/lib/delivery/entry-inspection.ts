@@ -854,7 +854,7 @@ export async function inspectDeliveryEntry(
       stateRevision: state.revision,
       ...continuation,
       recommendedActionText:
-        "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
+        "Complete the pending changed-member verification and commit gate checks, close the correction task, then "
         + "acknowledge the exact review-fix continuation before resuming delivery.",
     };
   }
