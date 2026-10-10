@@ -34,12 +34,19 @@ describe("raw state helper ratchet", () => {
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
     ["handlers/outside.ts", 'void import("../lib/errand/identity-transaction.js");', "lib/errand/identity-transaction.ts"],
+    ["handlers/outside.ts", 'void require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'void module.require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import meta = require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); void load("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
   ])("refuses a value reference outside the store in %s: %s", (path, text, helper) => {
     expect(violations(path, text, "store-raw-state")).toEqual([`raw state helper ${helper} outside the store`]);
   });
 
   it.each([
     ["handlers/outside.ts", 'import type { MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'import { type MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'export { type MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'type Reader = import("../lib/active/meta-reader.js").MetaRecord;'],
     ["handlers/outside.ts", 'import "../lib/active/meta-schema.js";'],
     ["lib/store/current-work-unit.ts", 'import { parseMetaFile } from "../active/meta-reader.js";'],
     ["lib/store/in-repo/meta.ts", 'import { buildComposedLifecycleIndex } from "../../work-unit/composed-lifecycle-index.js";'],

@@ -347,12 +347,30 @@ function storeViolations(
   return violations;
 }
 
+function typeOnlyReference(node: ts.Node): boolean {
+  if (ts.isImportTypeNode(node)) return true;
+  if (ts.isImportEqualsDeclaration(node)) return node.isTypeOnly;
+  if (ts.isImportDeclaration(node)) {
+    const clause = node.importClause;
+    const names = clause?.namedBindings;
+    return clause?.phaseModifier === ts.SyntaxKind.TypeKeyword || (clause !== undefined && clause.name === undefined
+      && names !== undefined && ts.isNamedImports(names) && names.elements.length > 0
+      && names.elements.every((entry) => entry.isTypeOnly));
+  }
+  if (ts.isExportDeclaration(node)) {
+    const names = node.exportClause;
+    return node.isTypeOnly || (names !== undefined && ts.isNamedExports(names) && names.elements.length > 0
+      && names.elements.every((entry) => entry.isTypeOnly));
+  }
+  return false;
+}
+
 function rawStateViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
   const file = resolve(filename);
   const owners = new Set(RAW_STATE_MODULES.map((path) => join(sourceRoot, path)));
   if (within(join(sourceRoot, "lib/store"), file) || owners.has(file)) return [];
-  return storeReferences(source).flatMap(({ node, specifier }): ArchitectureImportViolation[] => {
-    if (!specifier.startsWith(".")) return [];
+  return moduleReferences(source).flatMap(({ node, specifier }): ArchitectureImportViolation[] => {
+    if (!specifier.startsWith(".") || typeOnlyReference(node)) return [];
     const target = resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts"));
     if (!owners.has(target)) return [];
     const helper = relative(sourceRoot, target).replaceAll("\\", "/");
