@@ -234,6 +234,35 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
   });
 
   it.each([
+    ["different title", "fix output"],
+    ["replacement generation", "fix output"],
+    ["description origin", "fix output"],
+    ["maximum intent", "x".repeat(4_096)],
+    ["escape-expanding intent", "\u0001".repeat(1_024)],
+  ] as const)("names both selectors for a changed intent with %s and resumes without them", async (change, intent) => {
+    const record = parseOrdinaryErrandRecord({ ...makeRecord(), intent,
+      ...(change === "description origin" ? {} : { origin: "inbox", originEntry: "Fix output capture",
+        originEntrySourceDigest: `sha256:${"a".repeat(64)}` }) });
+    const fixture = resumeFixture(record);
+    const refusal = await fixture.run({ intent: "changed", inbox: {
+      title: change === "replacement generation" ? "Fix output capture" : "Other capture",
+      sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: true,
+    } });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText.length).toBeLessThanOrEqual(4_096);
+    expect(refusal.recommendedPromptText).toContain("Recorded intent: ");
+    expect(refusal.recommendedPromptText).toContain(JSON.stringify(intent.slice(0, 16)).slice(1, -1));
+    expect(refusal.recommendedPromptText).toContain("Rerun without --intent and any inbox selector");
+    expect(refusal.recommendedPromptText).toMatch(/\(--from-inbox, --inbox-title-file, or --inbox-entry-file\) to resume with the recorded intent and origin\.$/u);
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
+    } });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+
+  it.each([
     ["intent", "maximum length", "x".repeat(4_096)],
     ["intent", "escape expansion", "\u0001".repeat(1_024)],
     ["inbox entry", "maximum length", "x".repeat(4_096)],

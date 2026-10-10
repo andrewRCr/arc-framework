@@ -379,7 +379,9 @@ function validateResumeContinuity(
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
     return resumeContinuityRefusal(
       "Resume cannot change the Errand intent. Recorded intent: ", record.intent,
-      ". Rerun without --intent to resume with the recorded intent.",
+      originEntry === null ? ". Rerun without --intent to resume with the recorded intent."
+        : ". Rerun without --intent and any inbox selector (--from-inbox, --inbox-title-file, or --inbox-entry-file)"
+          + " to resume with the recorded intent and origin.",
     );
   }
   if (originEntry !== null && (
