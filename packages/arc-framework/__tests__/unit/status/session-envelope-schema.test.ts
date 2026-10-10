@@ -154,6 +154,34 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it.each(["baseBranchSync", "retiredSubdirs"] as const)(
+    "names an undeclared %s key and accepts retry after removal",
+    (slot) => {
+      const value = fixture("orient");
+      expectValid(value);
+      setPath(value, [slot, "value", "unexpectedKey"], true);
+      const before = JSON.stringify(value);
+      expect(() => assertSessionInitProbeResult(value)).toThrow('Unrecognized key: "unexpectedKey"');
+      expect(JSON.stringify(value)).toBe(before);
+      const probeValue = (value[slot] as { value: Record<string, unknown> }).value;
+      delete probeValue.unexpectedKey;
+      expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+      expectValid(value);
+    },
+  );
+
+  it.each([
+    [["baseBranchSync", "value", "checkout", "primary"], "yes", "baseBranchSync.value.checkout.primary"],
+    [["retiredSubdirs", "value", "candidates"], [42], "retiredSubdirs.value.candidates.0"],
+  ] as const)("preserves a nested slot issue path %s and accepts repaired input", (path, replacement, issuePath) => {
+    const value = fixture("orient");
+    const repaired = clone(value);
+    setPath(value, path, replacement);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(issuePath);
+    expect(() => assertSessionInitProbeResult(repaired)).not.toThrow();
+    expectValid(repaired);
+  });
+
   it("refuses undeclared base-distance fields while retaining a valid composed value", () => {
     const value = fixture("orient");
     expectValid(value);
@@ -626,7 +654,7 @@ describe("session-init envelope schema", () => {
       "orient",
       ["retiredSubdirs", "value", "candidates"],
       ["invalid name"],
-      "retiredSubdirs.value",
+      "retiredSubdirs.value.candidates.0",
     ],
     [
       "partial-push-marker-surface",

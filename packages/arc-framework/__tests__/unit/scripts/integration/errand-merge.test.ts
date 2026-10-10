@@ -125,6 +125,20 @@ describe("Errand merge contract", () => {
       continuation,
     },
     {
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      reason: "base-reconcile-required",
+      detail: "The current plan requires an ordinary base reconcile.",
+      coordinates,
+      applicability: {
+        verdict: "supplemental",
+        residual: ["src/index.ts"],
+        reason: "bounded-overlap",
+        judgmentRequired: true,
+      },
+      continuation,
+    },
+    {
       state: "reconcile-regenerable",
       nextAction: "reconcile-regenerable",
       reason: "regenerable-reconcile-required",
@@ -695,6 +709,46 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
+  it("reconciles a substantive overlap the host would merge, leaving its review residual for the new head", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async () => composeErrandFinalPlan({
+      target: approvedTarget,
+      drift: {
+        verdict: "reconcile", baseOid: oid("b"), headOid: approvedTarget.headSha, movement: "overlapping",
+        integrationEvidence: {
+          coverage: "complete", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 0,
+          truncated: false, limitations: [],
+        },
+        overlap: { status: "available", substantivePaths: ["eslint.config.js"], regenerablePaths: [] },
+      },
+      feasibility: directPlan().observation.feasibility,
+      admission: directPlan().observation.admission,
+    });
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      detail: expect.stringContaining("overlapping"),
+      applicability: {
+        verdict: "supplemental",
+        residual: ["eslint.config.js"],
+        reason: "bounded-overlap",
+        judgmentRequired: true,
+      },
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+          ],
+        },
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
   it.each([true, false])("handles disjoint GitHub recomputation (becomes current: %s) without reconciliation", async (becomesCurrent) => {
     const { value, state } = dependencies();
     const host = githubMergeLag({
@@ -829,12 +883,48 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("requires a bounded judgment before a reviewed-lane reconcile", async () => {
+  it.each([
+    ["a bounded", { verdict: "supplemental", residual: ["src/index.ts"], reason: "bounded-overlap", judgmentRequired: true }],
+    ["an unbounded", { verdict: "fresh", residual: null, reason: "unbounded-residual", judgmentRequired: false }],
+  ] as const)("reconciles an overlapping base before judging review, disclosing %s residual", async (_label, applicability) => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
       observation: { ...directPlan().observation, movement: "overlapping" },
       plan: { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" },
+      reviewApplicability: applicability.residual === null
+        ? applicability
+        : { ...applicability, residual: [...applicability.residual] },
+    });
+
+    // The reconcile replaces the head the review covered, so the clearance question belongs to the reconciled
+    // head. Judging it here first answered it for a head about to be discarded, and nothing could feed the
+    // answer back.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      reason: "base-reconcile-required",
+      applicability,
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+          ],
+        },
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
+  it("reports a blocked plan before the review applicability its overlap leaves", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      observation: { ...directPlan().observation, movement: "overlapping" },
+      plan: { state: "blocked", reason: "conflict", paths: ["src/index.ts"] },
       reviewApplicability: {
         verdict: "supplemental",
         residual: ["src/index.ts"],
@@ -844,9 +934,10 @@ describe("Errand merge operation", () => {
     });
 
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
-      state: "applicability-judgment-required",
-      nextAction: "assess-applicability",
-      reason: "bounded-review-residual",
+      state: "conflict",
+      nextAction: "stop",
+      reason: "substantive-conflict",
+      paths: ["src/index.ts"],
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
@@ -1032,7 +1123,8 @@ describe("Errand merge operation", () => {
         }
       : directPlan();
 
-    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+    const result = await mergeErrand(request, value);
+    expect(result).toMatchObject({
       state: "reconcile-base",
       nextAction: "reconcile-base",
       reason: "base-reconcile-required",
@@ -1048,6 +1140,8 @@ describe("Errand merge operation", () => {
         },
       },
     });
+    // Clearance that carries leaves nothing for the reconciled head to settle.
+    expect(result).not.toHaveProperty("applicability");
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });
 
@@ -1070,10 +1164,12 @@ describe("Errand merge operation", () => {
         }
       : directPlan();
 
+    // The host's demand authorizes the reconcile, never the merge: the overlap stays on the result for the
+    // reconciled head's review status to settle.
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
-      state: "applicability-judgment-required",
-      nextAction: "assess-applicability",
-      reason: "bounded-review-residual",
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      applicability: { verdict: "supplemental", residual: ["src/index.ts"], judgmentRequired: true },
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });
