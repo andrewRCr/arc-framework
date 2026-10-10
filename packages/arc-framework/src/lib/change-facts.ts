@@ -303,6 +303,7 @@ const CODE_SURFACE_GLOBS = [
   "package-lock.json",
   "scripts/*.sh",
   ".github/workflows/ci.yml",
+  ".arc/system/arc-checks.yml",
   ".arc/system/extensions/*",
 ] as const;
 

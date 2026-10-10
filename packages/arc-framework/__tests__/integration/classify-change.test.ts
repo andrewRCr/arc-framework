@@ -343,6 +343,7 @@ describe("classify-change.sh classify", () => {
   it.each([
     ["src source", ["packages/arc-framework/src/lib/classify.ts"]],
     ["the CI workflow", [".github/workflows/ci.yml"]],
+    ["the check declaration", [".arc/system/arc-checks.yml"]],
     ["test source", ["packages/arc-framework/__tests__/unit/x.test.ts"]],
   ])("is heavy when the change touches %s", async (_label, files) => {
     expect(await classify(files)).toBe("heavy");
@@ -1464,6 +1465,16 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     });
   });
 
+  it("does not reuse a green code tree after the declaration changes", async () => {
+    const { repo, checksDir, base } = await layeredRepo();
+    const path = ".arc/system/arc-checks.yml";
+    const before = "checks:\n  verify:\n    gate: merge\n    command: [node, --version]\n";
+    const prior = await writeAndCommit(repo, { [path]: before }, "declare check");
+    const head = await writeAndCommit(repo, { [path]: before.replace("--version", "--help") }, "change declared command");
+    await injectChecks(checksDir, prior, allGreen());
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
+  });
+
   it.each([
     ["sensitive packaged content", "packages/arc-framework/arc/system/extensions/example.md"],
     ["classifier content", "scripts/classify-change.sh"],
@@ -1545,6 +1556,15 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       weight: "heavy",
       reason: "unverified",
     });
+  });
+
+  it.each([
+    ["failed", greenExcept("Shared setup", "failure")],
+    ["absent", greenOmitting("Shared setup")],
+  ])("requires the matching green code tree's setup check when it is %s", async (_state, checks) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, checks);
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
   });
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {

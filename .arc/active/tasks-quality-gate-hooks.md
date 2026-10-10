@@ -705,7 +705,7 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           skipping, and native portability runners. The macOS-only check remains conditional on runner OS;
           forecast/setup and build dependencies now feed the unchanged required-status mirror.
 
-### `[ ]` **7.7 Heavy-job names and code-tree identity follow the declaration — D11**
+### `[x]` **7.7 Heavy-job names and code-tree identity follow the declaration — D11**
 
 - _Goal:_ The verified-tree lookback only ever reads a job list that was checked, and editing the declaration runs the
   heavy jobs.
@@ -715,12 +715,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           display name. The workflow reader counts setup without a heavy condition and limits it to installation,
           base preparation, source forecasting, plumbing validation, and duration/artifact preparation.
 
-    - `[ ]` **7.7.b Declaration in the code surface**
-        - `CODE_SURFACE_GLOBS` (`change-facts.ts`) gains `.arc/system/arc-checks.yml`, which `GENUINE_DOCS_GLOBS`'s
-          `.arc/*` classifies as documentation today, so it joins code-tree identity
-        - Build `test-first` (one behavior at a time):
-            - a declaration-only change classifies heavy
-            - a lookback match needs a heavy run that passed on the same code tree, setup included
+    - `[x]` **7.7.b Declaration in the code surface**
+        - The check declaration participates in code-tree identity and makes declaration-only changes heavy.
+          Native lookback regressions reject prior green trees after declaration edits and matching trees whose
+          Shared setup check failed or is absent.
 
 ### `[ ]` **7.8 Editor completion proven end to end — D2**
 
