@@ -20,14 +20,12 @@ Use this when a domain's rules are substantial enough to warrant separation.
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
+**Zero Tolerance Policy:** Every check in a quality gate must pass before its event, no exceptions · `[invariant]`.
 
-**Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
-integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
-pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
-and task list integration.
+**Quality gates:** The commit gate, push gate, and merge quality gate enforce the project's declared checks at their
+respective deadlines. Each check names its earliest gate; later gates include it.
 
-<!-- Record each gate's command in QUICK-REFERENCE § Quality Gate Commands, not here. -->
+<!-- Declare project checks and their commands in .arc/system/arc-checks.yml, not here. -->
 
 ## Testing Requirements
 
@@ -106,5 +104,4 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 ---
 
 [dev-rules-arc]: DEV-RULES.ARC.md
-[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md

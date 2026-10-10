@@ -371,7 +371,7 @@ apply.
 **Terminal closure is unchanged** — [`verify-work-unit`][verify-work-unit] reruns its walk against the current
 work-unit subject as it already prescribes; the delta form is for member re-records.
 
-Which gates re-run is the project's own selection rule; this procedure names no tiers. Once a Candidate exists,
+The check request's selection decides which checks re-run. Once a Candidate exists,
 whether prior review, verification, and merge evidence still holds — and at what scope — is settled by the
 review-applicability disclosure [`prepare-work-unit`][prepare-work-unit] prescribes, never here. An amendment
 landing after attestation closes its own check and still owes that disclosure.

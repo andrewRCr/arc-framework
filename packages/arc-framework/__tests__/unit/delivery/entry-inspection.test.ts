@@ -772,9 +772,9 @@ describe("delivery entry inspection", () => {
         selectedDeliverableId,
         verification: {
           memberDeliverableIds,
-          tier1Required: true,
+          commitGateRequired: true,
           target: { head: terminal.head, tree: terminal.tree },
-          tier1ReuseCriteria: {
+          commitGateReuseCriteria: {
             kind: "exact-tree",
             targetTree: terminal.tree,
             requiredResult: "passed",

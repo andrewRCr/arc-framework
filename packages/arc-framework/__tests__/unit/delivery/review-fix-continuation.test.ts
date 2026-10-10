@@ -600,7 +600,7 @@ describe("delivery review-fix continuation projection", () => {
       verification: {
         applicability: "focused",
         target: terminalVerificationTarget,
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
           targetTree: terminalVerificationTarget.tree,
@@ -697,7 +697,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
-        tier1ReuseCriteria: { targetTree: continuation.verification.target.tree },
+        commitGateReuseCriteria: { targetTree: continuation.verification.target.tree },
       },
       resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
@@ -705,13 +705,13 @@ describe("delivery review-fix continuation projection", () => {
     const verification = {
       applicability: "focused" as const,
       target: continuation.verification.target,
-      tier1: {
+      commitGate: {
         outcome: "passed" as const,
         provenance: "exact-tree-reuse" as const,
         targetTree: continuation.verification.target.tree,
         coveredInputs: "unchanged" as const,
       },
-      verificationEvidenceRefs: ["criteria://member", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member", "gates://commit"],
     };
     expect(projectDeliveryReviewFixContinuation({ request: { ...request, verification }, entry })).toMatchObject({
       status: "dispatch",

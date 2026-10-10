@@ -35,11 +35,11 @@ structure is identical — team scaling requires no migration. Add team members 
 
 ## What Lives Where
 
-| Location           | Contains                                              | Ownership                            |
-|--------------------|-------------------------------------------------------|--------------------------------------|
-| `active/`          | Task lists, PRDs, meta files, work unit artifacts     | Project-level — shared, tracked      |
-| `backlog/`         | ROADMAP, backlogs                                     | Project-level — shared, tracked      |
-| `user/{identity}/` | Session notes, personal captures, freeform notes      | Personal — one developer, gitignored |
+| Location           | Contains                                          | Ownership                            |
+| ------------------ | ------------------------------------------------- | ------------------------------------ |
+| `active/`          | Task lists, PRDs, meta files, work unit artifacts | Project-level — shared, tracked      |
+| `backlog/`         | ROADMAP, backlogs                                 | Project-level — shared, tracked      |
+| `user/{identity}/` | Session notes, personal captures, freeform notes  | Personal — one developer, gitignored |
 
 **Why the separation:** personal content is gitignored so it doesn't create merge conflicts
 between developers. Project-level planning artifacts stay in their natural shared locations
@@ -55,7 +55,7 @@ ARC loads from specific files in your workspace during session lifecycle operati
 the only paths the framework actively manages; everything else you put here is freeform.
 
 | Path               | Loaded at    | Purpose                                                         |
-|--------------------|--------------|-----------------------------------------------------------------|
+| ------------------ | ------------ | --------------------------------------------------------------- |
 | `SESSION-NOTES.md` | session-init | Session context from prior sessions; written at session-handoff |
 | `ATOMIC-INBOX.md`  | session-init | Personal task capture queue (arc-in-git only)                   |
 

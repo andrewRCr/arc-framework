@@ -22,7 +22,9 @@ describe("schema discovery handlers", () => {
     handleSchemaList({ json: true }, undefined, dependencies);
     const registry = createProductionSchemaRegistry();
     expect(JSON.parse(result.stdout)).toEqual({ status: "ok", schemas: registry.ids().map((id) => ({
-      id, version: registry.meta(id)?.version, migrationPosture: registry.meta(id)?.migrationPosture, editorDocument: null,
+      id, version: registry.meta(id)?.version, migrationPosture: registry.meta(id)?.migrationPosture,
+      editorDocument: id === "check-declaration"
+        ? { path: ".arc/system/.internal/schemas/check-declaration.schema.json" } : null,
     })) });
     expect(result.stdout.split("\n")).toHaveLength(2);
     expect(SchemaListEnvelopeSchema.safeParse(JSON.parse(result.stdout)).success).toBe(true);

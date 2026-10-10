@@ -538,14 +538,14 @@ sibling tells you the axis. Not worth solving.
 
 ## Renames
 
-| Current                                 | Renamed                       | Scope            | Location           |
-| --------------------------------------- | ----------------------------- | ---------------- | ------------------ |
-| `USER-INBOX.md`                         | `INBOX.USER.md`               | user             | `user/{id}/`       |
-| `ATOMIC-INBOX.md`                       | `INBOX.PROJECT.md` (rename)   | project (shared) | `backlog/`         |
-| `ROADMAP.md`                            | `STATUS.PROJECT.md`           | project          | `backlog/`         |
-| _(new — WF builds)_                     | `STATUS.USER.md`              | user             | `user/{id}/`       |
-| `WORKING-MEMORY.md`                     | `MEMORY.USER.md`              | user             | `user/{id}/`       |
-| `SESSION-NOTES.md`                      | `NOTES.SESSION.md`            | session/per-WU   | `user/{id}/<wu>/`  |
+| Current             | Renamed                     | Scope            | Location          |
+| ------------------- | --------------------------- | ---------------- | ----------------- |
+| `USER-INBOX.md`     | `INBOX.USER.md`             | user             | `user/{id}/`      |
+| `ATOMIC-INBOX.md`   | `INBOX.PROJECT.md` (rename) | project (shared) | `backlog/`        |
+| `ROADMAP.md`        | `STATUS.PROJECT.md`         | project          | `backlog/`        |
+| _(new — WF builds)_ | `STATUS.USER.md`            | user             | `user/{id}/`      |
+| `WORKING-MEMORY.md` | `MEMORY.USER.md`            | user             | `user/{id}/`      |
+| `SESSION-NOTES.md`  | `NOTES.SESSION.md`          | session/per-WU   | `user/{id}/<wu>/` |
 
 Section anchors rename from `## Atomic` / `## Backlog` to **`## Atomic` / `## Work Unit`** — the character
 axis ARC already routes on ("inboxes route by character, not wrapper presence"), retiring the bad "backlog"

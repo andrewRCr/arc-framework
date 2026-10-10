@@ -22,8 +22,8 @@ describe("arc schema install", () => {
     const ignored = await readFile(join(root, ".gitignore"), "utf8");
     const result = await runArc(["schema", "install", "--json"], root);
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(result.stdout))).toEqual({ status: "ok", documents: [] });
-    expect(await readdir(join(root, directory))).toEqual([]);
+    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(result.stdout))).toEqual({ status: "ok", documents: [`${directory}/check-declaration.schema.json`] });
+    expect(await readdir(join(root, directory))).toEqual(["check-declaration.schema.json"]);
     expect(await readFile(join(root, ".git/info/exclude"), "utf8")).toContain(`${directory}/\n`);
     expect(await readFile(join(root, ".gitignore"), "utf8")).toBe(ignored);
     expect(await git(root, ["status", "--porcelain"])).toBe("");
@@ -53,8 +53,8 @@ describe("arc schema install", () => {
     await rm(blocking);
     const repaired = await runArc(["schema", "install", "--json"], root);
     expect(repaired.exitCode, repaired.stderr).toBe(0);
-    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(repaired.stdout))).toEqual({ status: "ok", documents: [] });
-    expect(await readdir(join(root, directory))).toEqual([]);
+    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(repaired.stdout))).toEqual({ status: "ok", documents: [`${directory}/check-declaration.schema.json`] });
+    expect(await readdir(join(root, directory))).toEqual(["check-declaration.schema.json"]);
   });
 
   it("reports an exclude failure and succeeds after the exclude file is repaired", async () => {
@@ -71,7 +71,7 @@ describe("arc schema install", () => {
     await rm(exclude, { recursive: true });
     const repaired = await runArc(["schema", "install", "--json"], root);
     expect(repaired.exitCode, repaired.stderr).toBe(0);
-    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(repaired.stdout))).toEqual({ status: "ok", documents: [] });
+    expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(repaired.stdout))).toEqual({ status: "ok", documents: [`${directory}/check-declaration.schema.json`] });
   });
 
   it("reports an exclude refusal without a path outside a Git checkout", async () => {

@@ -1,5 +1,6 @@
 /** Production schema-registry composition shared by public emitters and contract verification. */
 
+import { registerCheckDeclarationSchemas } from "./lib/checks/declaration.js";
 import { registerDeliveryAuthoringSchemas } from "./lib/delivery/design-inventory.js";
 import { registerDeliveryDomainSchemas } from "./lib/delivery/schema.js";
 import { createKernelRegistry, type KernelRegistry } from "./lib/kernel/index.js";
@@ -14,7 +15,7 @@ import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register
  * @returns A fresh registry containing the complete production schema surface.
  */
 export function createProductionSchemaRegistry(): KernelRegistry {
-  return registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
+  return registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
     registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
-  ))));
+  )))));
 }

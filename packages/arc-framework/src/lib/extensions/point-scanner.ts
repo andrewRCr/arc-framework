@@ -6,7 +6,7 @@
  * provided workflow file line-by-line and records every occurrence as a
  * structured reference. Both the trailing-header form
  * (`### 3. … · `#post-context-load``) and the inline-bullet form
- * (`- **Extensions** · `#post-task-quality`: …`) resolve through the same
+ * (`- **Extensions** · `#post-task-completion`: …`) resolve through the same
  * anchor, so one pattern suffices.
  *
  * Caller responsibility: the scanner accepts an explicit file list so each

@@ -212,7 +212,7 @@ describe("delivery review-fix routing", () => {
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
       applicability: "full" as const,
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
     const recorded = advanceDeliveryReviewFixResponse(input);
@@ -331,7 +331,7 @@ describe("delivery review-fix routing", () => {
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
       applicability: "full" as const,
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
 
@@ -532,7 +532,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     });
 
     expect(result).toMatchObject({
@@ -565,7 +565,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:30:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toMatchObject({
       status: "already-recorded",
       nextAction: "renew-public-continuation",
@@ -586,7 +586,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toMatchObject({
       status: "already-recorded",
       nextAction: "renew-public-continuation",
@@ -621,7 +621,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -641,7 +641,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -679,7 +679,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",
@@ -699,7 +699,7 @@ describe("delivery review-fix routing", () => {
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
       applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
     })).toEqual({
       status: "refused",
       reason: "candidate-verification-replay-unproven",

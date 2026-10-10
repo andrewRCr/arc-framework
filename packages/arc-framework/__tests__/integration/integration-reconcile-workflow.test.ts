@@ -114,7 +114,7 @@ describe("integration current-WU reconcile workflow", () => {
     const flatStep = step.replace(/\s+/gu, " ");
     const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
     const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");
-    const exactChecks = flatStep.indexOf("Tier 1 over the exact merged head", mergedOnly);
+    const exactChecks = flatStep.indexOf("arc check new-head --from <pre-merge head>", mergedOnly);
     const basePush = flatStep.indexOf("`push-interlock` release", exactChecks);
     const postMergeRerun = flatStep.indexOf("Restart this step", basePush);
     expect(skippedClean).toBeGreaterThan(-1);

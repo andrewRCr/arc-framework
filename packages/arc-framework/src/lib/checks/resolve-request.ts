@@ -1,0 +1,143 @@
+/** Resolve checked trees and base coordinates before executing repository checks. */
+import type { GitExec } from "../git/exec.js";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolveSoleMergeBase } from "../git/base-overlap.js";
+import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
+import { readCheckMergedParents } from "./merged.js";
+import { readMergeCheckPaths } from "./merge.js";
+import { createWorktreeSnapshot, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
+
+/** Coordinates retained by a resolved request. An unavailable automatic base is deliberately absent. */
+export interface ResolvedCheckRequest {
+  scope: CheckScope;
+  tree: string;
+  base?: string;
+  merged?: string[];
+  mergePaths?: string[];
+  mergePathsUnresolved?: true;
+  snapshot?: WorktreeSnapshot;
+  worktreeTree?: string;
+  snapshotDirectory?: string;
+}
+export type CheckRequestResolution = { status: "resolved"; request: ResolvedCheckRequest }
+  | { status: "refused"; message: string };
+
+async function revision(git: GitExec, root: string, ref: string): Promise<string | undefined> {
+  try {
+    return (await git("git", ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`], { cwd: root })).stdout.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the configured base using its own upstream or a pushed remote before local fallback.
+ * @param git - Git process boundary
+ * @param root - Repository root
+ * @param branch - Configured local base branch
+ * @param remote - Optional remote receiving a push
+ * @returns The resolved base commit or an unavailable coordinate
+ */
+export async function resolveCheckBaseBranch(git: GitExec, root: string, branch: string, remote?: string): Promise<string | undefined> {
+  const preferred = remote === undefined ? `${branch}@{upstream}` : `refs/remotes/${remote}/${branch}`;
+  return await revision(git, root, preferred) ?? await revision(git, root, `refs/heads/${branch}`);
+}
+
+async function automaticBase(git: GitExec, root: string, request: CheckRequest, head: string | undefined): Promise<string | undefined> {
+  if (head === undefined) return undefined;
+  if (request.form.kind === "segment") {
+    const upstream = await revision(git, root, "@{upstream}");
+    if (upstream !== undefined) return upstream;
+  }
+  const base = await resolveCheckBaseBranch(git, root, request.baseBranch ?? "main", request.form.kind === "pre-push" ? request.form.remote : undefined);
+  if (base === undefined) return undefined;
+  const resolved = await resolveSoleMergeBase({
+    exec: (command, args, options) => git(command, args, { ...options, cwd: root }),
+    leftRevision: head, rightRevision: base,
+  });
+  return resolved.status === "resolved" ? resolved.mergeBase : undefined;
+}
+
+/**
+ * Resolve a validated form into one checked tree and base, or refuse an explicitly unresolved ref.
+ * @param git - Git process boundary
+ * @param root - Repository root
+ * @param request - Typed request and configured base branch
+ * @param snapshotDirectory - Retain a worktree snapshot in this directory when supplied
+ * @returns Coordinates or a refusal naming the explicit input and safe retry
+ */
+export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest, snapshotDirectory?: string): Promise<CheckRequestResolution> {
+  const normalized = normalizePathScope(root, requestScope(request));
+  if (normalized.status === "refused") return normalized;
+  const { scope } = normalized;
+  const headResolution = await resolveRequestHead(git, root, request);
+  if (headResolution.status === "refused") return headResolution;
+  const { head } = headResolution;
+  const baseResolution = await resolveRequestBase(git, root, request, scope, head);
+  if (baseResolution.status === "refused") return baseResolution;
+  const { base } = baseResolution;
+  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
+  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
+  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+}
+
+async function resolveRequestBase(git: GitExec, root: string, request: CheckRequest, scope: CheckScope,
+  head: string | undefined): Promise<{ status: "resolved"; base?: string } | { status: "refused"; message: string }> {
+  let base: string | undefined;
+  if (scope.kind === "range" && scope.base !== undefined) {
+    base = await revision(git, root, scope.base);
+    if (base === undefined && request.form.kind !== "pre-push") return { status: "refused", message: `Could not resolve ref ${scope.base}; provide a resolvable commit ref and retry.` };
+  } else if (scope.kind === "range" || scope.kind === "all") {
+    base = await automaticBase(git, root, request, head);
+  } else {
+    base = head;
+  }
+  return { status: "resolved", base };
+}
+
+function normalizePathScope(root: string, scope: CheckScope): { status: "resolved"; scope: CheckScope }
+  | { status: "refused"; message: string } {
+  if (scope.kind !== "paths") return { status: "resolved", scope };
+  const paths: string[] = [];
+  for (const path of scope.paths) {
+    const normalized = relative(root, resolve(root, path));
+    if (path.includes("\0") || isAbsolute(path) || normalized === ".." || normalized.startsWith(`..${sep}`)) {
+      return { status: "refused", message: `Unsupported path ${JSON.stringify(path)}; name a repository-relative path inside this checkout and retry.` };
+    }
+    paths.push(normalized.split(sep).join("/") || ".");
+  }
+  return { status: "resolved", scope: { kind: "paths", paths: [...new Set(paths)] } };
+}
+
+async function resolveRequestHead(git: GitExec, root: string, request: CheckRequest): Promise<
+  { status: "resolved"; head: string | undefined } | { status: "refused"; message: string }
+> {
+  const head = await revision(git, root, request.form.kind === "pre-push" ? request.form.tip : "HEAD");
+  return request.form.kind === "pre-push" && head === undefined
+    ? { status: "refused", message: `Could not resolve pushed tip ${request.form.tip}; repair the local ref and retry git push.` }
+    : { status: "resolved", head };
+}
+
+async function attachMergeSelection(
+  git: GitExec, root: string, head: string | undefined, resolved: ResolvedCheckRequest,
+): Promise<CheckRequestResolution> {
+  if (resolved.scope.kind !== "staged" || head === undefined) return { status: "resolved", request: resolved };
+  try {
+    const active = await readMergeCheckPaths(git, root, head, resolved.tree);
+    return { status: "resolved", request: active === undefined ? resolved
+      : { ...resolved, merged: active.merged, mergePaths: active.paths,
+        ...(active.unresolved ? { mergePathsUnresolved: true } : {}) } };
+  } catch (error) {
+    return { status: "refused", message: `Could not read active merge selection: ${error instanceof Error ? error.message : String(error)}. Repair the checkout's merge metadata or abort and restart the merge, then retry git commit.` };
+  }
+}
+
+async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string, head?: string) {
+  if (request.form.kind === "pre-push" && head !== undefined) return { tree: (await git("git", ["rev-parse", "--verify", `${head}^{tree}`], { cwd: root })).stdout, snapshot: undefined };
+  const snapshot = scope.kind !== "staged" && snapshotDirectory !== undefined
+    ? await createWorktreeSnapshot(git, root, snapshotDirectory) : undefined;
+  const tree = scope.kind === "staged"
+    ? (await git("git", ["write-tree"], { cwd: root, indexFile: request.indexFile })).stdout
+    : snapshot?.tree ?? await stagedWorktreeTree(git, root);
+  return { tree, snapshot };
+}

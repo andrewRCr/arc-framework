@@ -424,7 +424,7 @@ here so the next iteration doesn't re-derive the exclusion.
 ### Aggregate ranking
 
 | Candidate               | Tokens saved | Tool calls saved | Status / conflicts (2026-07-02)                                              |
-|-------------------------|--------------|------------------|------------------------------------------------------------------------------|
+| ----------------------- | ------------ | ---------------- | ---------------------------------------------------------------------------- |
 | D3.1 freshness          | ~50          | 1-3              | **Open** — pairs with handoff-opt                                            |
 | D3.2 currentTask        | ~150         | 1                | **Largely shipped** (`taskCursor`); residual above                           |
 | D3.3 lifecycleWorkflow  | ~40          | 0                | **Shipped** (`loadSet`)                                                      |

@@ -26,7 +26,9 @@ describe("arc schema discovery", () => {
     expect(json.exitCode, json.stderr).toBe(0);
     const payload = SchemaListEnvelopeSchema.parse(JSON.parse(json.stdout));
     expect(payload).toEqual({ status: "ok", schemas: registry.ids().map((id) => ({
-      id, version: registry.meta(id)?.version, migrationPosture: registry.meta(id)?.migrationPosture, editorDocument: null,
+      id, version: registry.meta(id)?.version, migrationPosture: registry.meta(id)?.migrationPosture,
+      editorDocument: id === "check-declaration"
+        ? { path: ".arc/system/.internal/schemas/check-declaration.schema.json" } : null,
     })) });
     expect(json.stdout.trim().split("\n")).toHaveLength(1);
   });

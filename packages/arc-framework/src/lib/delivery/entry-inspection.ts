@@ -300,12 +300,12 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
       target: z.strictObject({
         head: DeliveryGitObjectIdSchema,
         tree: DeliveryGitObjectIdSchema,
       }),
-      tier1ReuseCriteria: z.strictObject({
+      commitGateReuseCriteria: z.strictObject({
         kind: z.literal("exact-tree"),
         targetTree: DeliveryGitObjectIdSchema,
         requiredResult: z.literal("passed"),
@@ -854,7 +854,7 @@ export async function inspectDeliveryEntry(
       stateRevision: state.revision,
       ...continuation,
       recommendedActionText:
-        "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
+        "Complete the pending changed-member verification and commit gate checks, close the correction task, then "
         + "acknowledge the exact review-fix continuation before resuming delivery.",
     };
   }

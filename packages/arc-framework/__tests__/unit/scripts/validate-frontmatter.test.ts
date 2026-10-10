@@ -24,7 +24,7 @@ const validMethod = [
 
 const validExtension = [
   "---",
-  "name: post-task-quality",
+  "name: post-task-completion",
   "description: Additional quality checks after each task",
   "active: false",
   "---",
@@ -56,12 +56,12 @@ describe("classifyPath", () => {
   });
 
   it("classifies extension files under .arc/ and package-source copies", () => {
-    expect(classifyPath(".arc/system/extensions/post-task-quality.md")).toBe(
+    expect(classifyPath(".arc/system/extensions/post-task-completion.md")).toBe(
       "extension",
     );
     expect(
       classifyPath(
-        "packages/arc-framework/arc/system/extensions/post-task-quality.md",
+        "packages/arc-framework/arc/system/extensions/post-task-completion.md",
       ),
     ).toBe("extension");
   });
@@ -106,7 +106,7 @@ describe("validateFiles", () => {
   it("passes when a method and extension file both have valid frontmatter", () => {
     const files = {
       ".arc/system/methods/commit-format.md": validMethod,
-      ".arc/system/extensions/post-task-quality.md": validExtension,
+      ".arc/system/extensions/post-task-completion.md": validExtension,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
@@ -136,18 +136,18 @@ describe("validateFiles", () => {
   it("reports diagnostics for an invalid extension — path + field are named", () => {
     const invalid = [
       "---",
-      "name: post-task-quality",
+      "name: post-task-completion",
       "description: Example",
       "---",
       "",
     ].join("\n");
-    const files = { ".arc/system/extensions/post-task-quality.md": invalid };
+    const files = { ".arc/system/extensions/post-task-completion.md": invalid };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
     expect(
       result.diagnostics.some(
         (d) =>
-          d.includes(".arc/system/extensions/post-task-quality.md") &&
+          d.includes(".arc/system/extensions/post-task-completion.md") &&
           d.includes("`active`"),
       ),
     ).toBe(true);
@@ -168,8 +168,8 @@ describe("validateFiles", () => {
     const files = {
       ".arc/system/methods/commit-format.md":
         "---\ndescription: no name\noverride-active: false\n---\n",
-      ".arc/system/extensions/post-task-quality.md":
-        "---\nname: post-task-quality\ndescription: Example\n---\n",
+      ".arc/system/extensions/post-task-completion.md":
+        "---\nname: post-task-completion\ndescription: Example\n---\n",
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);

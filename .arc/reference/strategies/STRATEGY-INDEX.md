@@ -27,9 +27,9 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
       compose, where the pipeline's stage boundaries fall; the `resolve-planning-depth` method and the
       `draft-design` / `create-spec` workflows cover routine depth resolution and authoring.
-- `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
-    - Consult when: escalating a gate failure, or identifying a non-obvious integration checkpoint — routine
-      per-task and per-unit gate runs are covered by the `quality-gate-commands` method
+- `arc/strategy-quality-gates.md`
+    - ALWAYS load before choosing a check's deadline or deciding whether related tests can hold the push gate;
+      do not infer coverage from an import graph alone. Verb help and remedies cover routine selection and execution.
 - `arc/strategy-session-operations.md`
     - ALWAYS load before placing new guidance content in a loading tier, or authoring an interlock, recovery, or
       handoff step — the tier classification criteria and loading mechanisms have no leaner surface;

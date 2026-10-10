@@ -16,7 +16,6 @@ arc:
     - review-triage
     - review-response
   extensions:
-    - post-task-quality
     - pre-pr-open
     - post-pr-open
     - pre-push-review
@@ -132,8 +131,7 @@ route-discovered-work:
   door: fast path
 ```
 
-**Most errands are one pass.** Make the change, run the project's Tier 1 quality gates on what you touched, gate,
-and commit.
+**Most errands are one pass.** Make the change, request `arc check increment`, review, and commit.
 
 **Extended errand (the exception).** A _determinate_ concern too large to review in one window may be staged into
 a **bounded few in-session passes** — but only when it crosses **neither floor** (no design to author, no durable
@@ -174,9 +172,7 @@ simulate abandonment by deleting a branch, marker, or identity. Consume the type
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
-1. **Build** the change and run Tier 1 quality gates on what you touched.
-
-   - **Extensions** · `#post-task-quality`: If `post-task-quality` is active, run its `.actions`. Otherwise skip.
+1. **Build** the change and request `arc check increment` once over its final edits.
 
    > [!IMPORTANT]
    > `workflow-interlock`: Stop after the change is complete and its gates pass. Surface the diff and verification
@@ -308,8 +304,8 @@ remote base all name the same exact head. Any tracked change continues through t
    envelope carries no action unless it names a `remedy`: then render `remedy.text` and continue only through
    `remedy.argv`, passing any `remedy.stdin` unchanged. Approval is required before any finding-driven fix,
    durable deferral, channel settlement, or other mutation/commitment. A complete no-action record-only set must
-   be approved for its exact target before continuing. Approved fixes run Tier 1 gates, commit atomically, push,
-   and create a new target. Never carry clearance or merge authority.
+   be approved for its exact target before continuing. Approved fixes request `arc check increment`, commit atomically,
+   push, and create a new target. Never carry clearance or merge authority.
 
    A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
    another provider invocation requires an explicit Owner decision and a new request carrying
@@ -502,7 +498,7 @@ remote base all name the same exact head. Any tracked change continues through t
    standard lane at that head, carried from the earlier reviewed head; skip its `arc review resolve -`. Any other
    state resolves the lane as usual.
 
-   Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
+   Request `arc check increment` after every review-driven change. A new target invalidates clearance and integration
    authority. After the routed review settles or the exact Owner-directed review stop above is approved, run
    `arc review planning-lane <base-sha> <head-sha>` over the exact PR delta. Only literal `planning` is eligible
    for the **auto-merge-lane**; `reviewed` selects the **reviewed-lane**, while command failure or malformed output
@@ -637,8 +633,9 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
      with the exact continuation intact. A later re-entry invokes only its supplied remedy; never poll or recursively
      invoke the terminal command.
    - `reconcile-base / reconcile-base` and `reconcile-regenerable / reconcile-regenerable` invoke only the supplied
-     remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` runs Tier 1 on the new head, pushes
-     through the generic contract, and returns through Step 4 before fresh approval.
+     remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` requests
+     `arc check new-head --from <pre-merge head>`, using the returned `expectedHead`, then pushes through the generic
+     contract and returns through Step 4 before fresh approval.
      `skipped-clean / continue-reconcile`, `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
      `head-contained-by-base / rerun-checkpoint` return through Step 4 without gates or push. `conflict / stop`,
      `regenerable-refused / stop`, and `blocked / stop` render the supplied explanation and stop; any other result

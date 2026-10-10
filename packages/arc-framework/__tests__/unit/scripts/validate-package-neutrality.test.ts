@@ -37,14 +37,14 @@ const neutralMethod = [
 
 const neutralExtension = [
   "---",
-  "name: post-task-quality",
+  "name: post-task-completion",
   "description: Additional quality checks",
   "active: false",
   "---",
   "",
-  "# Extension: post-task-quality",
+  "# Extension: post-task-completion",
   "",
-  "## post-task-quality.actions",
+  "## post-task-completion.actions",
   "",
   "[No extension configured]",
   "",
@@ -78,7 +78,7 @@ describe("classifyPackagePath", () => {
   it("classifies package-source extension files", () => {
     expect(
       classifyPackagePath(
-        "packages/arc-framework/arc/system/extensions/post-task-quality.md",
+        "packages/arc-framework/arc/system/extensions/post-task-completion.md",
       ),
     ).toBe("package-extension");
   });
@@ -172,7 +172,7 @@ describe("validateFiles", () => {
   it("passes when a neutral method + neutral extension are the only candidates", () => {
     const files = {
       "packages/arc-framework/arc/system/methods/commit-format.md": neutralMethod,
-      "packages/arc-framework/arc/system/extensions/post-task-quality.md":
+      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
         neutralExtension,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -183,7 +183,7 @@ describe("validateFiles", () => {
   it("flags a package-source extension that ships `active: true`", () => {
     const activeTrue = neutralExtension.replace("active: false", "active: true");
     const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-quality.md":
+      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
         activeTrue,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -192,7 +192,7 @@ describe("validateFiles", () => {
       result.diagnostics.some(
         (d) =>
           d.includes(
-            "packages/arc-framework/arc/system/extensions/post-task-quality.md",
+            "packages/arc-framework/arc/system/extensions/post-task-completion.md",
           ) && d.includes("`active: false`"),
       ),
     ).toBe(true);
@@ -224,7 +224,7 @@ describe("validateFiles", () => {
       "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", true),
       "packages/arc-framework/arc/system/methods/frontline-review.md": activatableMethod("frontline-review", false),
       "packages/arc-framework/arc/system/extensions/pre-pr-open.md": neutralExtension
-        .replaceAll("post-task-quality", "pre-pr-open"),
+        .replaceAll("post-task-completion", "pre-pr-open"),
     };
     expect(validateFiles(Object.keys(validFiles), fakeReader(validFiles))).toEqual({
       pass: true,
@@ -245,7 +245,7 @@ describe("validateFiles", () => {
       "**Custom local step** — run this tool.",
     );
     const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-quality.md":
+      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
         customBody,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -254,7 +254,7 @@ describe("validateFiles", () => {
       result.diagnostics.some(
         (d) =>
           d.includes(
-            "packages/arc-framework/arc/system/extensions/post-task-quality.md",
+            "packages/arc-framework/arc/system/extensions/post-task-completion.md",
           ) &&
           d.includes("`.actions` body must be exactly `[No extension configured]`"),
       ),
@@ -289,7 +289,7 @@ describe("validateFiles", () => {
       .replace("active: false", "active: true")
       .replace("[No extension configured]", "**local step**");
     const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-quality.md": both,
+      "packages/arc-framework/arc/system/extensions/post-task-completion.md": both,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
@@ -304,7 +304,7 @@ describe("validateFiles", () => {
         "**Run local reviewer on the diff**",
       );
     const files = {
-      ".arc/system/extensions/post-task-quality.md": localCustomExtension,
+      ".arc/system/extensions/post-task-completion.md": localCustomExtension,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);

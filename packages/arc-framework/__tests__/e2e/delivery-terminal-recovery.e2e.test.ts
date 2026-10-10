@@ -994,7 +994,7 @@ describe("delivery terminal recovery", () => {
       status: "rebound",
       selectedDeliverableId,
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       acknowledgementInput: {
         planId: fixture.planId,
         selectedDeliverableId,

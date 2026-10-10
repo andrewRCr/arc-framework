@@ -343,6 +343,7 @@ describe("classify-change.sh classify", () => {
   it.each([
     ["src source", ["packages/arc-framework/src/lib/classify.ts"]],
     ["the CI workflow", [".github/workflows/ci.yml"]],
+    ["the check declaration", [".arc/system/arc-checks.yml"]],
     ["test source", ["packages/arc-framework/__tests__/unit/x.test.ts"]],
   ])("is heavy when the change touches %s", async (_label, files) => {
     expect(await classify(files)).toBe("heavy");
@@ -1188,6 +1189,8 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
 
   /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
   const HEAVY_CHECKS = [
+    "Shared setup",
+    "Build",
     "Lint & Typecheck",
     "Unit Tests (1)",
     "Unit Tests (2)",
@@ -1216,21 +1219,28 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       })),
     }).parse(load(workflowSource));
     const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
-    const preparationCommand = /^npm (?:ci|run build)$/u;
     const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
       + "packages/arc-framework/.test-cost-runs/duration-input";
+    const preparationCommands = new Set([
+      "npm ci", durationPreparationCommand,
+      "git show-ref --verify --quiet refs/heads/main || git branch main origin/main",
+      "node --import tsx scripts/run-ci-checks.mjs validate",
+      'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
+        + 'mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json',
+    ]);
     const preparationAction = /^actions\/(?:checkout|setup-node|cache(?:\/restore)?|upload-artifact)@/u;
     const names: string[] = [];
     for (const [jobId, job] of Object.entries(workflow.jobs)) {
       // Light runs omit these jobs or steps regardless of their verification command.
-      if (!heavyCondition.test(job.if ?? "")
+      if (jobId !== "setup" && !heavyCondition.test(job.if ?? "")
         && !job.steps.some((step) => heavyCondition.test(step.if ?? ""))) continue;
       // Shared setup publishes artifacts, so it is the sole non-verification exception.
       // Fail closed if that job acquires any verification command or action.
       if (jobId === "setup") {
         expect(job.steps.every((step) => step.run !== undefined
-          ? preparationCommand.test(step.run.trim()) || step.run.trim() === durationPreparationCommand
+          ? preparationCommands.has(step.run.trim())
           : preparationAction.test(step.uses ?? "")), "Shared setup must remain artifact preparation only").toBe(true);
+        names.push(job.name);
         continue;
       }
       const matrix = job.strategy?.matrix ?? {};
@@ -1279,6 +1289,11 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     expect([...HEAVY_CHECKS].sort()).toEqual([...names].sort());
   });
 
+  it("requires shared setup even when it has no heavy condition", async () => {
+    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
+    expect(workflowHeavyCheckNames(workflow)).toContain("Shared setup");
+  });
+
   const verificationSteps = [
     ["node", "run: node scripts/verify.mjs"],
     ["npx", "run: npx verify-tool"],
@@ -1302,14 +1317,17 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   });
 
   it.each([
-    ["command", /- run: npm run build/u, "- run: node scripts/verify.mjs"],
+    ["command", /run: npm ci/u, "run: node scripts/verify.mjs"],
     ["duration command", /prepare-duration-input\.ts/u, "verify-duration-input.ts"],
     ["action", /uses: actions\/upload-artifact@[^\n]+/u, "uses: example/verification@v1"],
   ] as const)("rejects a verification %s in the shared setup exception", async (_label, pattern, replacement) => {
     const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
-    expect(workflow).toMatch(pattern);
+    const start = workflow.indexOf("  setup:");
+    const end = workflow.indexOf("  build:", start);
+    const setup = workflow.slice(start, end);
+    expect(setup).toMatch(pattern);
 
-    expect(() => workflowHeavyCheckNames(workflow.replace(pattern, replacement)))
+    expect(() => workflowHeavyCheckNames(workflow.slice(0, start) + setup.replace(pattern, replacement) + workflow.slice(end)))
       .toThrow("Shared setup must remain artifact preparation only");
   });
 
@@ -1447,6 +1465,16 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     });
   });
 
+  it("does not reuse a green code tree after the declaration changes", async () => {
+    const { repo, checksDir, base } = await layeredRepo();
+    const path = ".arc/system/arc-checks.yml";
+    const before = "checks:\n  verify:\n    gate: merge\n    command: [node, --version]\n";
+    const prior = await writeAndCommit(repo, { [path]: before }, "declare check");
+    const head = await writeAndCommit(repo, { [path]: before.replace("--version", "--help") }, "change declared command");
+    await injectChecks(checksDir, prior, allGreen());
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
+  });
+
   it.each([
     ["sensitive packaged content", "packages/arc-framework/arc/system/extensions/example.md"],
     ["classifier content", "scripts/classify-change.sh"],
@@ -1528,6 +1556,15 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       weight: "heavy",
       reason: "unverified",
     });
+  });
+
+  it.each([
+    ["failed", greenExcept("Shared setup", "failure")],
+    ["absent", greenOmitting("Shared setup")],
+  ])("requires the matching green code tree's setup check when it is %s", async (_state, checks) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, checks);
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
   });
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {
