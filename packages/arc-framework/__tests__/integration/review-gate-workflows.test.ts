@@ -890,7 +890,7 @@ describe("trusted review-gate workflows", () => {
     expect(frontline).toMatch(/Errand atomicity[\s\S]*whole-target/iu);
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
-    expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
+    expect(frontline).toMatch(/Approved fixes[\s\S]*arc check increment[\s\S]*new target/iu);
     expect(frontline).not.toContain("`chunk-pending / continue-chunks`");
     expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*whole-target/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
@@ -1092,7 +1092,7 @@ describe("trusted review-gate workflows", () => {
     for (const [state, nextAction] of Object.entries(actions)) {
       expect(terminal).toContain(`\`${state} / ${nextAction}\``);
     }
-    expect(terminal).toMatch(/merged \/ run-quality-gates` runs Tier 1[\s\S]*pushes[\s\S]*Step 4/iu);
+    expect(terminal).toMatch(/merged \/ run-quality-gates`[\s\S]*arc check new-head --from <pre-merge head>[\s\S]*pushes[\s\S]*Step 4/iu);
     expect(terminal).toMatch(/skipped-clean \/ continue-reconcile[\s\S]*without gates or push/iu);
     expect(terminal).toMatch(/conflict \/ stop[\s\S]*blocked \/ stop[\s\S]*explanation and stop/iu);
   });

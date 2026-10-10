@@ -56,8 +56,8 @@ code systematically underperforms on error cases and edge conditions.
 **Process findings** using the [review-triage method](review-triage.md). Present the author self-review as a standalone
 non-producer report with report-local `F` labels, faithful claims and loci, source-verification evidence, ARC judgment,
 proposed action, and open questions. Obtain complete-set approval before applying fixes. This path does not fabricate
-a distinct reviewer grade, native label, producer ordinal, receipt, or canonical producer identity. Run Tier 3 quality
-gates on modified files. Commit finding-driven fixes with the canonical `(code review)` context footer; reserve lifecycle-phase
+a distinct reviewer grade, native label, producer ordinal, receipt, or canonical producer identity. Request `arc check increment`
+once over the approved fixes. Commit finding-driven fixes with the canonical `(code review)` context footer; reserve lifecycle-phase
 footers for ceremony commits rather than the fixes review produced.
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side

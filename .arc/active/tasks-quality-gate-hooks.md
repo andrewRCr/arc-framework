@@ -470,14 +470,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           reopen on persistent enforcement failure before completion hooks. Unresolved member reports request checks
           after preserving evidence; coherent-unit triggers and delivery acknowledgment order remain intact.
 
-    - `[ ]` **6.1.b Errand and supplemental workflows**
-        - `run-errand.md`: a pass or approved review fix requests `arc check increment`; a base merge's
-          `merged / run-quality-gates` requests `arc check new-head --from <pre-merge head>`
-        - `self-review.md` over approved fixes, `integrate-external-content.md`'s Tier 1 step, and
-          `clean-work-unit.md`'s Markdown lint request `arc check increment`
-        - `integrate-external-content.md`'s extension examples drop "additional quality checks after each task" and
-          `post-task-quality`; `amend-design.md`'s sentence that it names no tiers says the verb's selection decides
-          which checks re-run
+    - `[x]` **6.1.b Errand and supplemental workflows**
+        - Errand passes, approved fixes, external-content integration, and cleanup request one increment check.
+          Errand base merges request new-head checks from the returned pre-merge head before push and fresh review;
+          amendment guidance delegates check selection to the request, and redundant quality examples are removed.
 
     - `[ ]` **6.1.c Lifecycle workflows**
         - `verify-work-unit.md` requests `arc check gate merge --force`
