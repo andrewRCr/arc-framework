@@ -199,6 +199,10 @@ export default tseslint.config(
   },
   ...composeArchitectureBans(architectureBans),
   {
-    ignores: ["dist/", "eslint.config.js"],
+    ignores: ["dist/", "eslint.config.js",
+      // bundle-require uses a lowercase base36 token truncated to 13 characters, including an empty token.
+      ...Array.from({ length: 14 }, (_, length) =>
+        `**/*.bundled_${"[a-z0-9]".repeat(length)}.{mjs,cjs}`),
+    ],
   },
 );
