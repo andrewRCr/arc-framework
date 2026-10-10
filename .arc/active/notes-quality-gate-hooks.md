@@ -383,6 +383,58 @@ npm run -s lint:ts:file -- packages/arc-framework/__tests__/integration/eslint-a
   packages/arc-framework/src/lib/syntax-bindings.ts
 ```
 
+### Measured after result
+
+**Measured tip:** `96e5992290c47dfe9af5106316915da6e91ff77d`, in disposable clone `/tmp/arc-quality-after`, on
+`measurement/quality-gate-after`. All 20 complete original path sets exist at this tip. The baseline's identity,
+installation, build preparation, neutral edit rule, untimed warm-up, monotonic timer, and ordinary Husky hooks are
+retained. The boundary commands change to:
+
+```bash
+npx arc check increment --json
+npx arc check run test:changed test:e2e:local --changed --json
+git commit -m "chore(measurement): replay fixed check inputs" -m "Context: standalone (maintenance)"
+```
+
+Before each timed sample, the scratch branch is reset, its edits reapplied and staged, and `.git/arc-checks/` removed.
+Every timed check request is fresh: none reports reuse. All 60 timed steps exit zero; all ordinary commit hooks reuse
+selected checks without executing or skipping one. Preparation and warm-up are excluded, and the scratch branch
+returns clean to the measured tip after the last sample. No failed attempt or retry contributes to the measurement.
+
+The after total is **701.697s (11m 41.697s)**; mean **35.085s**, median
+**35.885s** per increment. Against the before total **2650.467s**, the observed reduction is
+**73.526%**. This includes the declaration's selection and reuse changes. The fixed sample's
+one Markdown-only and 19 mixed/other increments, and the baseline's ambient-load caveat, still bound interpretation.
+The runner's requests are sequential; no additional check run was started by this session during the replay.
+
+| Sample | Before seconds | Increment seconds | Feedback seconds | Hook seconds | After seconds |
+| ------ | -------------- | ----------------- | ---------------- | ------------ | ------------- |
+| 1      | 48.520         | 15.815            | 18.517           | 1.325        | 35.658        |
+| 2      | 53.780         | 16.167            | 18.930           | 1.685        | 36.782        |
+| 3      | 18.154         | 15.260            | 0.555            | 1.696        | 17.511        |
+| 4      | 248.920        | 15.954            | 0.561            | 1.620        | 18.135        |
+| 5      | 73.883         | 16.641            | 18.574           | 1.798        | 37.013        |
+| 6      | 77.993         | 15.812            | 19.131           | 1.264        | 36.207        |
+| 7      | 51.651         | 15.692            | 19.381           | 1.259        | 36.332        |
+| 8      | 52.025         | 15.910            | 18.741           | 1.273        | 35.924        |
+| 9      | 50.508         | 15.750            | 18.921           | 1.258        | 35.929        |
+| 10     | 51.876         | 15.852            | 18.676           | 1.297        | 35.825        |
+| 11     | 55.255         | 16.221            | 18.686           | 1.645        | 36.552        |
+| 12     | 271.097        | 3.951             | 0.563            | 1.160        | 5.674         |
+| 13     | 344.357        | 70.338            | 0.556            | 1.441        | 72.335        |
+| 14     | 253.448        | 3.861             | 0.557            | 1.151        | 5.569         |
+| 15     | 260.549        | 70.328            | 0.538            | 1.431        | 72.297        |
+| 16     | 36.550         | 15.690            | 17.434           | 1.265        | 34.388        |
+| 17     | 346.850        | 3.863             | 0.562            | 1.164        | 5.590         |
+| 18     | 281.739        | 70.886            | 0.550            | 1.439        | 72.875        |
+| 19     | 37.046         | 15.876            | 18.611           | 1.358        | 35.846        |
+| 20     | 36.265         | 15.675            | 18.295           | 1.283        | 35.254        |
+
+The machine-readable observations and all warm/timed logs are retained in `/tmp/arc-quality-after-results/`; the
+baseline remains in `/tmp/arc-quality-baseline-repaired-results/`. Each JSON sample names its original commit, full
+path set, actual argv, elapsed time, exit status, and log. Tables round seconds to three decimals; totals use the
+unrounded observations.
+
 ## Buffer triage
 
 The 30 entries routed in before design were triaged on 2026-10-07 against `c009ab198`, each verdict spot-checked

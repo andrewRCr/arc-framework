@@ -729,18 +729,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   unknown keys at the root, check, and shard boundaries, matching native CLI refusals. The declaration header
   matches the editor reference resolved for its own path.
 
-### `[ ]` **7.9 Measure the increment boundary against the baseline — SC17**
+### `[x]` **7.9 Measure the increment boundary against the baseline — SC17**
 
 - _Goal:_ SC17's "after" figure exists over the same sample and method as Task 1.1, so the measured effect is a
   like-for-like comparison.
 
-    - Replay Task 1.1's sample by its replay rule in a disposable clone at this work's tip, running
-      `arc check increment` and the increment boundary's request by id that Task 7.5 writes (`test:changed` and the
-      local E2E check over `--changed`), then committing through the commit hook per sample, and record the times
-      beside the baseline in the notes file's SC17 section
-    - Tool caches are warm as in Task 1.1, but the clone's reuse record (`.git/arc-checks/`) is cleared before each
-      sample's timed request, so no timed request reuses a pass recorded by a warm-up or an earlier sample; the commit
-      hook's reuse of that request's passes is part of what is measured
+- _Outcome:_ Replayed all 20 complete original path sets at the committed tip with native increment and combined
+  feedback requests followed by the ordinary commit hook. `notes-quality-gate-hooks.md` records the comparison,
+  per-command times, cold-request and hook-reuse evidence, and the retained sample/load limits.
 
 ### `[ ]` **7.10 First consumer end to end** — validate exit criterion at segment scope
 
