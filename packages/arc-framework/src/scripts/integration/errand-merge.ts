@@ -123,7 +123,7 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
     state: z.literal("reconcile-base"),
     nextAction: z.literal("reconcile-base"),
     reason: z.literal("base-reconcile-required"),
-    /** The review clearance the reconcile leaves for its new head to settle, when the base movement overlaps it. */
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
     applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
@@ -131,7 +131,7 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
     state: z.literal("reconcile-regenerable"),
     nextAction: z.literal("reconcile-regenerable"),
     reason: z.literal("regenerable-reconcile-required"),
-    /** The review clearance the reconcile leaves for its new head to settle, when the base movement overlaps it. */
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
     applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({

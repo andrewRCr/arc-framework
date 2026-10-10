@@ -642,9 +642,9 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
      `skipped-clean / continue-reconcile`, `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
      `head-contained-by-base / rerun-checkpoint` return through Step 4 without gates or push. `conflict / stop`,
      `regenerable-refused / stop`, and `blocked / stop` render the supplied explanation and stop; any other result
-     is a contract violation. When the reconcile result carries `applicability`, the base movement it absorbs
-     overlaps the reviewed change: surface that residual with the remedy. The new head's review status settles it
-     through Step 4; it does not fire the method below.
+     is a contract violation. When the reconcile result carries `applicability`, review does not carry across the
+     base movement it absorbs: surface its `verdict` and `reason`, and its `residual` when present, with the remedy.
+     The new head's review status settles it through Step 4; it does not fire the method below.
    - `invalidated / request-approval` returns through Step 4 and settles a fresh exact request before approval.
    - `conflict / stop`, `host-refused / stop`, and non-retryable operational results stop on their supplied
      explanation. Lock recovery and mutation-state classification remain owned by the verb.
