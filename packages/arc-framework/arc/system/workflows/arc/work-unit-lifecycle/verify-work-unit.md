@@ -7,7 +7,6 @@ arc:
     - self-review
     - review-triage
     - commit-footer
-    - quality-gate-commands
     - review-chunking
 ---
 

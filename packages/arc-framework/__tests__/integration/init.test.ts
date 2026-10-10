@@ -311,7 +311,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "review-chunking.md",
       "self-review.md",
       "issue-triage.md",
-      "quality-gate-commands.md",
       "resolve-plan-segmentation.md",
       "resolve-planning-depth.md",
       "review-response.md",
@@ -338,8 +337,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
-      "post-task-quality.md",
-      "post-unit-quality.md",
       "post-work-unit-activate.md",
       "post-work-unit-archive.md",
       "pre-activation.md",
@@ -376,14 +373,14 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "assess-evidence-applicability", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
-        "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+        "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-response", "review-triage",
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
       const extensionNames = [
-        "post-context-load", "post-task-completion", "post-task-quality",
-        "post-unit-quality", "post-work-unit-activate",
+        "post-context-load", "post-task-completion",
+        "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
         "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ];

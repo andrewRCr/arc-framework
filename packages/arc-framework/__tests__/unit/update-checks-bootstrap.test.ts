@@ -7,7 +7,7 @@ import yaml from "js-yaml";
 import { runReconfigure } from "../../src/commands/reconfigure.js";
 import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
 import type { IOContext } from "../../src/commands/init.js";
-import type { Manifest, Recipe } from "../../src/lib/types.js";
+import type { FileEntry, Manifest, Recipe } from "../../src/lib/types.js";
 import { buildManifestFiles } from "../../src/lib/classification.js";
 import { buildInstallConfig } from "../../src/lib/config/index.js";
 import { getFrameworkVersion } from "../../src/lib/version.js";
@@ -36,9 +36,13 @@ async function setup(existingDeclaration?: string) {
   const manifest: Manifest = { schema_version: 1, framework_version: getFrameworkVersion(), installed_at: "2026-01-01T00:00:00Z",
     install_config: buildInstallConfig({ project_name: "Checks", pm_mode: "none", tools: [], team_mode: false }),
     files: buildManifestFiles(oldFiles, new Set(), { "reference/QUICK-REFERENCE.md": "reference/QUICK-REFERENCE.template.md" }) };
+  const retiredSurfaces = JSON.parse(await readFile(new URL("../fixtures/retired-check-surfaces.json", import.meta.url), "utf8")) as Record<string, { entry: FileEntry; content: string }>;
+  for (const path of retired) manifest.files[path] = retiredSurfaces[path]!.entry;
   for (const [path, content] of Object.entries(oldFiles)) await put(join(cwd, ".arc", path), content);
   await put(join(cwd, ".arc/system/.internal/manifest.json"), JSON.stringify(manifest));
-  await put(join(cwd, ".arc/system/.internal/pristine.json"), JSON.stringify(oldFiles));
+  const pristine = { ...oldFiles };
+  for (const path of retired) pristine[path] = retiredSurfaces[path]!.content;
+  await put(join(cwd, ".arc/system/.internal/pristine.json"), JSON.stringify(pristine));
   const templateDir = join(cwd, "templates");
   await put(join(templateDir, "README.md"), oldFiles["README.md"]);
   await put(join(templateDir, "reference/QUICK-REFERENCE.template.md"), "");

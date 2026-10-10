@@ -18,48 +18,48 @@ function ref(extensionName: string, suffix = ""): ExtensionPointRef {
 
 describe("classifyExtensionRefs", () => {
   it("returns empty arrays when given no references", () => {
-    const result = classifyExtensionRefs([], ["post-task-quality"]);
+    const result = classifyExtensionRefs([], ["post-task-completion"]);
     expect(result).toEqual({ resolved: [], orphans: [] });
   });
 
   it("classifies a reference as resolved when its extension file exists", () => {
     const result = classifyExtensionRefs(
-      [ref("post-task-quality")],
-      ["post-task-quality", "pre-merge"],
+      [ref("post-task-completion")],
+      ["post-task-completion", "pre-merge"],
     );
-    expect(result.resolved).toEqual([ref("post-task-quality")]);
+    expect(result.resolved).toEqual([ref("post-task-completion")]);
     expect(result.orphans).toEqual([]);
   });
 
   it("classifies a reference as orphaned when its extension file is missing", () => {
     const result = classifyExtensionRefs(
-      [ref("post-task-quality")],
+      [ref("post-task-completion")],
       ["pre-merge"],
     );
     expect(result.resolved).toEqual([]);
-    expect(result.orphans).toEqual([ref("post-task-quality")]);
+    expect(result.orphans).toEqual([ref("post-task-completion")]);
   });
 
   it("preserves multiple refs to the same extension in each bucket", () => {
     // Reference-level classification — duplicate references to the same
     // extension are both legitimate (multiple fire points), so each must
     // survive intact in the resolved bucket.
-    const refs = [ref("post-task-quality", "-1"), ref("post-task-quality", "-2")];
-    const result = classifyExtensionRefs(refs, ["post-task-quality"]);
+    const refs = [ref("post-task-completion", "-1"), ref("post-task-completion", "-2")];
+    const result = classifyExtensionRefs(refs, ["post-task-completion"]);
     expect(result.resolved).toEqual(refs);
     expect(result.orphans).toEqual([]);
   });
 
   it("splits mixed references into resolved and orphans buckets, preserving input order", () => {
     const refs = [
-      ref("post-task-quality", "-a"),
+      ref("post-task-completion", "-a"),
       ref("ghost-extension", "-b"),
       ref("pre-merge", "-c"),
       ref("ghost-extension", "-d"),
     ];
-    const result = classifyExtensionRefs(refs, ["post-task-quality", "pre-merge"]);
+    const result = classifyExtensionRefs(refs, ["post-task-completion", "pre-merge"]);
     expect(result.resolved).toEqual([
-      ref("post-task-quality", "-a"),
+      ref("post-task-completion", "-a"),
       ref("pre-merge", "-c"),
     ]);
     expect(result.orphans).toEqual([

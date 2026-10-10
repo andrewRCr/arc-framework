@@ -4,6 +4,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
+import type { FileEntry, Manifest } from "../../src/lib/types.js";
+import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
+import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 
 const roots: string[] = [];
@@ -102,4 +105,65 @@ it.each(managers)("reports malformed %s configuration, completes file updates, a
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
   expect(repaired.stdout + repaired.stderr).not.toContain("Hook upgrade warnings");
   expect(yaml.load(await readFile(path, "utf8"))).toEqual(config);
+}, 60_000);
+
+it("preserves retired check sources and proposes inactive checks while upgrading hooks in the same update", async () => {
+  const { root, path, config } = await installed("lefthook");
+  const arcDir = join(root, ".arc");
+  const manifestPath = join(arcDir, "system/.internal/manifest.json");
+  const pristinePath = join(arcDir, "system/.internal/pristine.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
+  const pristine = JSON.parse(await readFile(pristinePath, "utf8")) as Record<string, string>;
+  const retiredSurfaces = JSON.parse(await readFile(new URL("../fixtures/retired-check-surfaces.json", import.meta.url), "utf8")) as Record<string, { entry: FileEntry; content: string }>;
+  const authored: Record<string, string> = {};
+  for (const [source, legacy] of Object.entries(retiredSurfaces)) {
+    manifest.files[source] = legacy.entry;
+    pristine[source] = legacy.content;
+    const name = source.split("/").at(-1)!.replace(".md", "");
+    const method = source.includes("/methods/");
+    const command = method ? "npm run build" : name === "post-task-quality" ? "npm run security" : "npm test";
+    authored[source] = `---\nname: ${name}\ndescription: Project checks\n${method ? "override-active: true" : "active: false"}\n---\n`
+      + `## ${name}.${method ? "override" : "actions"}\n${method ? "### Tier 3 full\n" : ""}`
+      + `\`\`\`bash\n${command}\n\`\`\`\n`
+      + (name === "post-task-quality" ? "Inspect the security dashboard.\n" : "");
+    await writeFile(join(arcDir, source), authored[source]!);
+  }
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await writeFile(pristinePath, JSON.stringify(pristine));
+  const quickPath = "reference/QUICK-REFERENCE.md";
+  await writeFile(join(arcDir, quickPath), (await readFile(join(arcDir, quickPath), "utf8"))
+    + "\n## Quality Gate Commands\n### Tier 1 increment\n```sh\nnpm run lint\n```\n");
+  delete config["pre-push"]!.commands["arc-pre-push"]!.use_stdin;
+  await writeFile(path, yaml.dump(config));
+
+  const update = await runArc(["update", "--quiet"], root);
+  expect(update.exitCode, update.stdout + update.stderr).toBe(0);
+  const declarationPath = join(arcDir, "system/arc-checks.yml");
+  const content = await readFile(declarationPath, "utf8").catch(() => null);
+  expect(content).not.toBeNull();
+  if (content === null) return;
+  const reference = editorDocumentReference("check-declaration", ".arc/system/arc-checks.yml");
+  expect(reference.status).toBe("found");
+  if (reference.status === "found") expect(content.split("\n")[0]).toBe(reference.reference);
+  const declaration = CheckDeclarationSchema.parse(yaml.load(content));
+  expect(Object.values(declaration.checks).map(check => check.command)).toEqual([
+    "npm run lint", "npm run build", "npm run security", "npm test",
+  ]);
+  for (const check of Object.values(declaration.checks)) {
+    expect(check.gate).toBeUndefined();
+    expect(check.shell).toBe(true);
+  }
+  const updatedManifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
+  const updatedPristine = JSON.parse(await readFile(pristinePath, "utf8")) as Record<string, string>;
+  for (const [source, original] of Object.entries(authored)) {
+    expect(await readFile(join(arcDir, source), "utf8")).toBe(original);
+    expect(updatedManifest.files[source]).toBeUndefined();
+    expect(updatedPristine[source]).toBeUndefined();
+  }
+  const output = update.stdout + update.stderr;
+  for (const source of [...Object.keys(authored), quickPath]) expect(output).toContain(source);
+  for (const command of ["npm run lint", "npm run build", "npm run security", "npm test"]) expect(output).toContain(command);
+  expect(output).toContain("Inspect the security dashboard.");
+  expect(output).toContain(path);
+  expect((yaml.load(await readFile(path, "utf8")) as Config)["pre-push"]!.commands["arc-pre-push"]!.use_stdin).toBe(true);
 }, 60_000);

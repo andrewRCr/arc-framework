@@ -4,13 +4,10 @@ audience: agent
 arc:
   methods:
     - issue-triage
-    - quality-gate-commands
     - review-chunking
     - testing-standards
     - validate-criteria
   extensions:
-    - post-task-quality
-    - post-unit-quality
     - post-task-completion
 ---
 
@@ -78,8 +75,6 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
-     - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
-       (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
      - **First**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
        delivery-member checks have completed
        - Update task description to reflect actual work done (not just original plan)
@@ -192,8 +187,6 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      within the phase are complete.
 
     - **First**: Ensure new code has appropriate test coverage for new or modified logic
-    - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
-      (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
     - **Second**: Verify completion before reporting (use pre-report checklist below)
 
   3. **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
@@ -419,9 +412,7 @@ updates**. Always update the task list file before reporting completion.
 
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
-[arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [adversarial-review]: ../../methods/adversarial-review.md

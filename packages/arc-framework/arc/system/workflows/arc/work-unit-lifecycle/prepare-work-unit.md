@@ -10,7 +10,6 @@ arc:
     - review-triage
     - review-response
     - commit-footer
-    - quality-gate-commands
 ---
 
 # Workflow: Prepare Work Unit for Publication

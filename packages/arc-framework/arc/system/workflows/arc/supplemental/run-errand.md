@@ -12,7 +12,6 @@ arc:
     - review-triage
     - review-response
   extensions:
-    - post-task-quality
     - pre-pr-open
     - post-pr-open
     - pre-push-review
@@ -132,8 +131,6 @@ simulate abandonment by deleting a branch, marker, or identity. Consume the type
 Run each review increment (one for a typical errand; a few for an extended one):
 
 1. **Build** the change and request `arc check increment` once over its final edits.
-
-   - **Extensions** · `#post-task-quality`: If `post-task-quality` is active, run its `.actions`. Otherwise skip.
 
    > [!IMPORTANT]
    > `workflow-interlock`: Stop after the change is complete and its gates pass. Surface the diff and verification

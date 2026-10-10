@@ -11,7 +11,6 @@ arc:
     - review-triage
     - review-response
     - commit-footer
-    - quality-gate-commands
   extensions:
     - pre-pr-open
     - post-pr-open

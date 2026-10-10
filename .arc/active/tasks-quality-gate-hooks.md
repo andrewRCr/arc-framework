@@ -537,39 +537,29 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           `arc check gate merge --dry-run`, and keeps command patterns and standards in their project documents.
         - The template uses the registered editor reference; native initialization installs no declaration.
 
-### `[ ]` **6.5 Retire `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` — D10**
+### `[x]` **6.5 Retire `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` — D10**
 
 - _Goal:_ The three retired surfaces leave the install with every structural reference to them, and every surviving
   shipped file keeps an `init-recipe.json` disposition.
 
-- _Context:_ check the recipe in both directions; a removed declaration's fire-point markers are not validated, so
-  verify each by hand.
+    - `[x]` **6.5.a Files, recipe, and classification**
+        - Removed the three package and installed files, their recipe and classification entries, and regenerated
+          manifest membership through the production change plan without changing surviving records.
 
-    - `[ ]` **6.5.a Files, recipe, and classification**
-        - Delete the three files from the package and `.arc/`; drop their `init-recipe.json` `include_files` entries
-          and `CONFIGURABLE_FILES` entries (`classification.ts`); regenerate this repository's manifest
+    - `[x]` **6.5.b Declarations and markers**
+        - Removed the retired method declarations and both extension declarations, markers, and link definitions
+          from package and installed workflows.
 
-    - `[ ]` **6.5.b Declarations and markers**
-        - Remove `quality-gate-commands` from the `arc.methods` of `process-task-loop.template.md`,
-          `integrate-work-unit.md`, `prepare-work-unit.md`, and `verify-work-unit.md`
-        - Remove `post-task-quality` and `post-unit-quality` from the `arc.extensions` of
-          `process-task-loop.template.md` and `run-errand.md`, with their markers; `lint:arc:triggers` and
-          `validate-extension-points` stay clean
+    - `[x]` **6.5.c Scanners, validators, and tests**
+        - Install inventories omit the retired surfaces; scanner, validator, and status fixtures use surviving
+          extension names. Bootstrap fixtures retain producer-derived historical installation records.
 
-    - `[ ]` **6.5.c Scanners, validators, and tests**
-        - The doc comments in `point-scanner.ts`, `frontmatter/extension.ts`, and `validate-extension-points.ts`
-        - Tests that name the files: `init` (unit and integration), `init.e2e`, and `update`; fixtures in `extensions`,
-          `status`, `extensions-format`, `orphan-detector`, `point-scanner`, `frontmatter/extension`,
-          `validate-extension-points`, `validate-frontmatter`, and `validate-package-neutrality` move to other names
+    - `[x]` **6.5.d Sync strategy counts**
+        - The sync inventory lists 43 Configurable files and 150 installed files, matching the resolved recipe.
 
-    - `[ ]` **6.5.d Sync strategy counts**
-        - `strategy-package-project-sync.md`'s Configurable list and counts (46 to 43; installed files 153 to 150),
-          which `framework-sync.test.ts` asserts from the recipe
-
-    - `[ ]` **6.5.e Update over an install carrying the retired surfaces**
-        - Build `test-first` (one behavior at a time):
-            - update keeps the three files for review, writes the gate-unset proposal, and reports every source
-            - update upgrades the install's generated hook entries in the same run
+    - `[x]` **6.5.e Update over an install carrying the retired surfaces**
+        - Native update retains all three authored files, writes the gate-unset proposal with its editor reference,
+          reports every source and prose action, and upgrades generated hooks in the same invocation.
 
 ### `[ ]` **6.6 Tier-sense inventory exhausted** — validate exit criterion at segment scope
 
