@@ -3,7 +3,7 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 
 import type { GitBlobEntry } from "../io-context.js";
-import { dirname, join, posix } from "node:path";
+import { dirname, join, posix, win32 } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { ProjectReadinessRecord, ProjectReadinessRecordSource } from "./project-view.js";
 
@@ -95,6 +95,7 @@ export async function selectWorkUnitDesign(
   }
   let fallback: WorkUnitDesignArtifact | null = null;
   for (const name of design) {
+    if (!isSiblingArtifactName(name)) continue;
     const content = await readArtifact(name);
     if (content === null) continue;
     const artifact = { name, content, purpose: extractWorkUnitPurpose(content) };
@@ -102,6 +103,12 @@ export async function selectWorkUnitDesign(
     if (purposeField(content) !== null) return artifact;
   }
   return fallback;
+}
+
+/** Design references name movable sibling artifacts on every supported platform. */
+function isSiblingArtifactName(name: string): boolean {
+  return name !== "." && name !== ".."
+    && posix.basename(name) === name && win32.basename(name) === name;
 }
 
 /**

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   extractWorkUnitPurpose,
   readWorkUnitPurpose,
+  selectWorkUnitDesign,
   type WorkUnitArtifactReaders,
 } from "../../../src/lib/status/work-unit-purpose.js";
 import type { ProjectReadinessRecordSource } from "../../../src/lib/status/project-view.js";
@@ -37,6 +38,25 @@ describe("extractWorkUnitPurpose", () => {
     ["# Brief\nNo purpose field.", null],
   ])("reads the field in %s", (content, expected) => {
     expect(extractWorkUnitPurpose(content)).toBe(expected);
+  });
+});
+
+describe("selectWorkUnitDesign", () => {
+  it.each([
+    "../outside.md", "../../../outside.md", "/outside.md", "nested/design.md",
+    "..\\outside.md", "nested\\design.md", "C:\\outside.md", "C:outside.md",
+    "\\\\server\\share\\design.md", ".", "..",
+  ])("ignores a non-sibling Design entry %s", async (name) => {
+    const meta = makeMetaFixture("demo", { design: [name] });
+    expect(await selectWorkUnitDesign(meta, () => Promise.resolve("**Purpose:** Outside thesis."))).toBeNull();
+  });
+
+  it("continues to a valid Design entry after an invalid readable entry", async () => {
+    const meta = makeMetaFixture("demo", { design: ["../outside.md", "spec-demo.md"] });
+    const selected = await selectWorkUnitDesign(meta, (name) => Promise.resolve(
+      name === "spec-demo.md" ? "**Purpose:** Valid thesis." : "**Purpose:** Outside thesis.",
+    ));
+    expect(selected).toEqual({ name: "spec-demo.md", content: "**Purpose:** Valid thesis.", purpose: "Valid thesis." });
   });
 });
 
@@ -87,6 +107,25 @@ describe("readWorkUnitPurpose", () => {
 
   it.each([{ design: [] }, { design: ["missing.md"] }])("returns null for absent designs $design", async ({ design }) => {
     expect(await readWorkUnitPurpose(source, readersFor({ [metaPath]: makeMetaFixture("demo", { design }) }))).toBeNull();
+  });
+
+  it.each([false, true])("keeps checkout and ref Purpose reads beside metadata (fallback: %s)", async (fallback) => {
+    const design = ["../outside.md", ...(fallback ? ["spec-demo.md"] : [])];
+    const meta = makeMetaFixture("demo", { design });
+    const readers = readersFor({
+      [metaPath]: meta,
+      [join("/checkout", "outside.md")]: "**Purpose:** Outside thesis.",
+      [join("/checkout", "active", "spec-demo.md")]: "**Purpose:** Valid thesis.",
+    }, {
+      "refs/heads/feat/demo:active/meta-demo.md": { mode: "100644", content: meta },
+      "refs/heads/feat/demo:outside.md": { mode: "100644", content: "**Purpose:** Outside thesis." },
+      "refs/heads/feat/demo:active/spec-demo.md": { mode: "100644", content: "**Purpose:** Valid thesis." },
+    });
+    const expected = fallback ? "Valid thesis." : null;
+    expect(await readWorkUnitPurpose(source, readers)).toBe(expected);
+    expect(await readWorkUnitPurpose({
+      kind: "in-flight-meta", location: "active", path: "refs/heads/feat/demo:active/meta-demo.md",
+    }, readers)).toBe(expected);
   });
 
   it("returns null for a record without its own meta", async () => {
