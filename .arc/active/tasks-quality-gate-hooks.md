@@ -413,16 +413,14 @@ conclusion selects only conflicted and parent-unmatched paths.
   their bytes while framework updates complete, and repair permits a clean retry; Husky and manager-free installs
   retain their integration.
 
-### `[ ]` **5.8 ARC's ROADMAP remedy commit runs no commit gate — D8**
+### `[x]` **5.8 ARC's ROADMAP remedy commit runs no commit gate — D8**
 
 - _Goal:_ ARC's ROADMAP-conflict remedy commit concludes the way a clean merge does, so a red gate cannot abort it as
   `remedy-refused`, and `new-head` verifies both merge paths alike.
 
-    - Build `test-first` (one behavior at a time):
-        - `mergeAppendOnly`'s remedy commit (`merge-composition.ts`) runs `git commit --no-edit --no-verify`, pinned in
-          `merge-composition.test.ts`, whose remedy tests check no commit arguments today
-        - with ARC's commit hook installed and a failing declared check, the remedied merge still concludes
-        - the clean and the remedied merge both return `merged / run-quality-gates` (`mergeExpectedBase` in `merge.ts`)
+- _Outcome:_ The guarded ROADMAP remedy concludes with `git commit --no-edit --no-verify`. Native clean and
+  regenerated merges retain their exact parents and return `merged / run-quality-gates`; neither dispatches the
+  commit gate, while `new-head` subsequently runs and reports a failing declared check on each resulting head.
 
 ### `[ ]` **5.9 Gates dispatch under every hook manager** — validate exit criterion at segment scope
 
