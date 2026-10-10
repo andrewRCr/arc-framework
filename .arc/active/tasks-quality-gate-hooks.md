@@ -770,9 +770,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 
 - _Quality gates:_ All 16 forced local merge checks passed, including both type checks, lint, build, unit, integration
   and contract tests; related unit and full local E2E feedback passed. CI-only exclusions remain explicit.
-- _Success criteria:_ All 20 met; SC15 carries the approved temporary-index storage deviation. The complete criteria
-  report and seven approved corrective findings are retained in `notes-quality-gate-hooks.md`; adversarial Pass 4 of 4
-  ended non-converged at its cap, with the last fix locally verified and no successor pass.
+- _Success criteria:_ All 22 current criteria are met in the forward report in `notes-quality-gate-hooks.md`. SC15 keeps
+  the approved temporary-index storage deviation. The historical 20-entry report and seven approved corrective findings
+  remain preserved. Adversarial Pass 4 of 4 ended non-converged at its cap, with the last fix locally verified and no
+  successor pass.
 
 ---
 

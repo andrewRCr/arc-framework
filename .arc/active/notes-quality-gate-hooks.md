@@ -875,3 +875,183 @@ in `/tmp/arc-quality-standard-fix-red-unit.log`, `/tmp/arc-quality-standard-fix-
 `/tmp/arc-quality-standard-fix-red-remaining.log`, `/tmp/arc-quality-standard-fix-terminal-newline-red.log`, and
 `/tmp/arc-quality-standard-fix-final-red.log`. The first native merge reconstruction exposed a missing fixture link
 validator; the corrected fixture then failed on the expected indexed-content mismatch and passed after restoration.
+
+## Current criteria bindings after A1 and A2
+
+This forward report binds the current 22-entry slice. The original terminal report above remains historical evidence
+for its recorded 20-entry slice and inspected span: its final two digests identify current ordinals 21 and 22, not
+the amendment criteria now at 19 and 20. No historical entry or immutable criterion text has been rewritten.
+
+The source walk includes the complete work-unit change set against base `530ed15f50cfe03cbe4baebeda9006072a91466e`,
+the reachable tree at `66127f942d4a427b598bebda4d285113ce452f4a`, and the approved second review-fix source delta.
+The final verification bundle records the exact checked source tree and completed requests; record-closing edits
+follow their source witnesses. Criterion 15 keeps its named, approved temporary-index deviation.
+
+```yaml
+criteria-slice: tasks-quality-gate-hooks.md > Success Criteria
+span:
+  diff: 530ed15f50cfe03cbe4baebeda9006072a91466e -> tree a109130b6d54d69d9ec62652213cb051cc425953
+  reachability: complete work-unit tree a109130b6d54d69d9ec62652213cb051cc425953
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:30ee1d12f93b8f665fa427febcb743864899968371953f50e8f235efc98f18da
+    evidence: >-
+      check runner content keys and force bypass; check-increment and check-fixers E2E
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:b71ee64ca3aa70476e046b86228ddb7adb4c9382e2af3bb5f556b12417173966
+    evidence: >-
+      selection.ts four widening triggers and deletion filtering; check-selection E2E; actual planning/framework dry-
+      run forecasts; archived-planning selection uses current repository declaration in native increment/segment
+      forecasts; check-project-selection.e2e.test.ts passes both forms without code checks; existing four-trigger
+      widening suite passes.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:2fe64517d7241014abb956efb3096539e0a071511a4955376a9f51be43bec5e4
+    evidence: >-
+      declaration-driven hooks and CI forecast/plumbing; actual CI plumbing integration tests and retired hook chain
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:54ed6e61ff58017911114e8cd82b356467b3096ab4f97b8fb16d77a93e8e2f63
+    evidence: >-
+      complete numbered-tier corpus search, delivery identifier rename and shipped arc check fire sites
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:5b5ce3aeaf2798e00dd63fdba19a72480c482d14f5b7f980f814d328c29c50cc
+    evidence: >-
+      gates.ts cumulative membership and deadline-only kinds; check-gates E2E interlock matrix
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:8bb25339d30e47cfa83e2f21124f0f0e57ea4fbe6835d1252a7aee167f3c74ac
+    evidence: >-
+      runner outcomes/exit precedence and hook-only ARC_SKIP; check-outcomes and check-hook-policy E2E
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:88918e37424b9aa0c7b4c524312e9c8df3b9adcb5925a88bee8af017019123a9
+    evidence: >-
+      paired refusal/repair tests in check-outcomes, check-hook-policy, check-pre-commit-hook and check-request E2E
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:7cf964af58592541556d75490cb6d292e46843c0d050ac46c074fac816b0ffa3
+    evidence: >-
+      push.ts classifyPushRef maps native HEAD through the captured symbolic checkout branch, preserves original ref
+      attribution and existing state/deletion/detached/tag/other-branch exclusions. Native hook-manager-push
+      failure/repair matrix passes for HEAD and qualified branch spelling under all four managers, once per event.
+      Existing commit dispatch, deletion, commit-message, ref disposition and upgrade suites remain green.
+    state: "[x]"
+  - locus: Success Criteria > 9
+    criterion-digest: sha256:066146fb3d18beb1dcc4221ea142c4b350909f5237fe93495d37beb5482dec92
+    evidence: >-
+      fixers and commit-fixes source; check-fixers/hook-manager-fixers E2E; native untracked formatter consumer from
+      Task 7.4.e
+    state: "[x]"
+  - locus: Success Criteria > 10
+    criterion-digest: sha256:1752cd2b3fd3de07c9f3188fa66f0ab3dea34e0e6cb2a9f6a78dec80769f3bc9
+    evidence: >-
+      merge.ts decodes complete native comment records against NUL-delimited tree/parent paths and retains authored
+      combined-diff paths; ambiguous records propagate conservative selection. resolve-request.ts preserves active
+      merge coordinates for named staged retries. selection.ts retains deleted historical conflicts across captured
+      parents while omitting absent files from arguments. Native check-merge, check-base, base-merge-hooks and
+      package-sync tests cover hooks, refusal/repair, all range forms, custom prefixes, multiline ambiguity and
+      deleted conflicts.
+    state: "[x]"
+  - locus: Success Criteria > 11
+    criterion-digest: sha256:7d2462e976d57ab884b3838f7e63f2ef083625d2838a2291e91fbcb377ae5c52
+    evidence: >-
+      forced verify and convergence workflow calls; runner force bypasses pass lookup; cache access confined to
+      runner
+    state: "[x]"
+  - locus: Success Criteria > 12
+    criterion-digest: sha256:febd0f61ae2f58370b4ddec6f15a745dace3c8e0e003644c0e97ec9f5baefba8
+    evidence: >-
+      bootstrap snapshots original sources and keeps gates unset; update-checks-bootstrap unit and update-hook-
+      upgrade E2E
+    state: "[x]"
+  - locus: Success Criteria > 13
+    criterion-digest: sha256:729a6e0fe4ff57da8e367e8db28042d5a053f0a79aeadf839111d32b95496568
+    evidence: >-
+      CI merge --ci forecast and validated placement map; ci-check-plumbing/ci-check-runner integration; recorded
+      hosted run at 581a2d159
+    state: "[x]"
+  - locus: Success Criteria > 14
+    criterion-digest: sha256:e1c81c769048ef7b66a1bcd79a0e9a68ac29722cd51584840ec45eec960cae23
+    evidence: >-
+      registered strict input schema and generated editor document; schema-declaration E2E accepts actual repository
+      declaration and rejects unknown fields; current generated editor document accepts corrected declaration
+    state: "[x]"
+  - locus: Success Criteria > 15
+    criterion-digest: sha256:eea14cbf83435a0be0a93ac5a15409d3556bc996e4aa7775d2e5594c38e6c73f
+    evidence: >-
+      worktree-private arc-checks directory and best-effort stores; record unit/integration fault tests; check-report
+      E2E vocabulary/log faults createCheckIndexDirectory falls back to private system temporary storage for indexes
+      when record storage is unavailable; native worktree/staged/hook checks execute twice without reuse, see the
+      exact checked tree, preserve the real index/worktree, and clean temporary indexes. - Deviation: On record-
+      directory faults, disposable indexes use private system temporary storage. The reuse record remains worktree-
+      private in arc-checks, outside arc/. This is the approved fallback implementing the storage-fault contract.
+    state: "[x]"
+  - locus: Success Criteria > 16
+    criterion-digest: sha256:3d7b053e904e2f5b1f0a8af69bcc1d4d3cef2261c54aa25fe40a94bafac1cf93
+    evidence: >-
+      full shipped corpus and recipe inspection: no installed declaration and no stack-tool gate defaults
+    state: "[x]"
+  - locus: Success Criteria > 17
+    criterion-digest: sha256:8f2c1c2fa58db162a49849ca9c0672c4cf9c166a34075d5ca32eb112238fc8ed
+    evidence: >-
+      notes-quality-gate-hooks fixed 20-commit sample, before and after argv/timings/load limits; 2650.467s before
+      and 701.697s after
+    state: "[x]"
+  - locus: Success Criteria > 18
+    criterion-digest: sha256:fb149c38162edd7441183d53d032670333480dce4a9e10dc0195baed2a9676f1
+    evidence: >-
+      process.ts sanitizes Git environment; index-view.ts declared index isolation; check-git-environment/check-
+      index/markdown-commit-index E2E
+    state: "[x]"
+  - locus: Success Criteria > 19
+    criterion-digest: sha256:5ae6a09977a0acdd0c3febe8453654198be60e6657465532aa41c3a581aaea71
+    evidence: >-
+      bootstrap-extraction.ts consumeFencedLine/finishBlock retains the entire fence and terminal boundary newline;
+      bootstrap-extraction and update-checks-bootstrap unit tests plus update-hook-upgrade E2E exercise shell state,
+      complete text, placeholders, incomplete fences and inactive proposal retirement. Amendment verification retains
+      the fail-first and corrected native execution witnesses.
+    state: "[x]"
+  - locus: Success Criteria > 20
+    criterion-digest: sha256:095d861349cd99c57bfe82068fad134567b8f7127d54e36249a9cc9db6df60bd
+    evidence: >-
+      key-resolver.ts historicalContent independently matches own/global inputs at each exported historical
+      coordinate; key.ts includes the complete content and version 2. check-historical-reuse E2E runs the actual
+      package-sync script over equal checked trees and received paths with differing historical counterpart content,
+      then proves unrelated history still reuses. Amendment verification retains the observed native result.
+    state: "[x]"
+  - locus: Success Criteria > 21
+    criterion-digest: sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c
+    evidence: >-
+      Fresh forced merge verification passed all 16 local checks on tree a109130b6d54d69d9ec62652213cb051cc425953:
+      both type checks, all declared local linters, formatting, package sync, build, 14296 unit tests, 3248
+      integration tests and 104 contract tests. Separate feedback passed 12 related unit tests and 1019 local E2E
+      tests. The FULL-SOURCE.json and FEEDBACK.json artifacts retain the completed requests; CI-only E2E and
+      portability remain explicit local exclusions.
+    state: "[x]"
+  - locus: Success Criteria > 22
+    criterion-digest: sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f
+    evidence: >-
+      All 22 implementation criteria and current local checks are resolved for Candidate preparation. The temporary-
+      index deviation remains recorded. Standard review Pass 2 corrections are locally verified; exactly Pass 3 is
+      authorized and remains pending. The earlier adversarial criteria loop ended non-converged at Pass 4 of 4.
+      Candidate code review, hosted admission, publication and exact-head integration authorization remain later
+      obligations.
+    state: "[x]"
+summary: 22 met; 0 superseded; 0 unresolved
+```
+
+The current witness bundle is retained under the identity-local
+`.arc/user/andrew/quality-gate-hooks/review/STANDARD-PASS-2/FIX-VERIFICATION/` directory. Its red focused run records
+four behavioral failures; the corrected focused run passed 57 tests. The initial full run's test-type failure was
+corrected, and an edit made while its formatter was running invalidated that check; neither failure is claimed as a
+pass. The stable source rerun passed all 16 checks. The final checked-tree result remains separately recorded from
+this report's inspected source span.
+
+The corpus discovery regression includes both added inventory paths. Scanning those two inputs found 99 classified
+and 388 unclassified raw candidates before dispositions; `CORPUS-ADDITIONS.json` retains their actual evidence.
+Historical generated scan and routing output remain unchanged; this correction adds inputs for subsequent audit runs
+and does not claim a new complete coupling-audit disposition.
