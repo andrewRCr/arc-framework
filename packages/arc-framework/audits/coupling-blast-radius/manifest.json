@@ -24,6 +24,7 @@
       ".editorconfig",
       ".gitattributes",
       ".github/CODEOWNERS",
+      ".github/check-plumbing.yml",
       ".github/workflows/arc-lane-attestation.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/docs.yml",
@@ -39,6 +40,7 @@
       "package.json",
       "scripts/check-package-sync.sh",
       "scripts/classify-change.sh",
+      "scripts/run-ci-checks.mjs",
       "scripts/worktree-post-create.sh"
     ],
     "excluded": [

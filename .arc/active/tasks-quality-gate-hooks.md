@@ -665,28 +665,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   `deriveEffectiveE2EShards` (`shard-run.ts`, called by `measure-e2e-shards.ts`), since the literal stays, held to the
   declared count (Task 7.6.a).
 
-    - `[ ]` **7.6.a Setup job and the step map**
-        - Runs `arc check gate merge --ci --dry-run --json` on every run the duplicate-push skip leaves, light runs
-          included, and uploads its output as an artifact that every job running a check downloads, since a job output
-          is capped at 1 MB
-        - The map is one file keyed by check id, `.github/check-plumbing.yml`: per id, the steps that run it, each named
-          by its job and step id. Each step the map names carries a step `id:` in `ci.yml`
-        - The setup job validates the map against the dry-run list and `ci.yml`, failing when the map names an id the
-          dry run does not list or a step `ci.yml` does not declare, or when a sharded check's job has a literal `shard`
-          matrix other than one to its declared count, naming each. A contract test runs the same validation over this
-          repository's map, workflow, and declaration, so a stale map fails `npm test` too
-        - It runs only the dry run and the validation and prepares the duration input; the build moves to the `build`
-          job (Task 7.6.b). The dry run runs the CLI from source
-          (`node --import tsx packages/arc-framework/src/cli.ts`), as the duration step runs its script; the stale-build
-          guard reads only a built `dist` entry (`isBuiltBundleEntry`)
-        - Its checkout fetches full history and creates a local `main` at `origin/main` where the checkout left none,
-          since checkouts there are shallow and carry no local base branch; Task 3.1.c then resolves the base, and the
-          dry run's list carries `gate merge`'s merge base
-        - Build `test-first` (one behavior at a time), over the validation:
-            - a map entry naming an id the dry run does not list fails, naming the id
-            - a map entry naming a step `ci.yml` does not declare fails, naming the step
-            - a sharded check whose job's `shard` matrix differs from its declared count fails, naming the check
-            - this repository's map, `ci.yml`, and declaration pass
+    - `[x]` **7.6.a Setup job and the step map**
+        - Setup forecasts from source on every nonduplicate run and validates mapped ids, steps, and literal shard
+          matrices before publishing its artifact. Forecast output is created outside the checkout; a native
+          producer test proves its checked tree remains available in a clean consumer clone.
 
     - `[ ]` **7.6.b Check and shard jobs**
         - Each mapped step runs, through one repository script beside `classify-change.sh`, run from source as the dry
@@ -718,14 +700,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
             - each invocation receives the base, checked tree, and merged-in parents the list carries
             - a fix-capable check that leaves the tree changed fails
 
-    - `[ ]` **7.6.c Run conditions as plumbing**
-        - Light and heavy weight (`test:arc-contracts` on light runs only, code checks on heavy runs only), the
-          reviewed-lane condition, scheduled and dispatched runs with the `run_portability_pair` input, the
-          duplicate-push skip, and the cross-platform runners stay in each job's and step's own `if:` and `runs-on:`, as
-          today. Each check takes the conditions of the steps the map names for it: `test:portability` maps to the
-          `portability` job's step and to `portability-cross-platform`'s, and `test:portability:macos` to the latter's
-          macOS-only step (`if: runner.os == 'macOS'`)
-        - `merge-ok`, the status `main` requires, keeps mirroring the `ci-ok` roll-up, which gathers every job
+    - `[x]` **7.6.c Run conditions as plumbing**
+        - Workflow steps retain light/heavy checks, reviewed-lane suites, dispatched and scheduled runs, duplicate
+          skipping, and native portability runners. The macOS-only check remains conditional on runner OS;
+          forecast/setup and build dependencies now feed the unchanged required-status mirror.
 
 ### `[ ]` **7.7 Heavy-job names and code-tree identity follow the declaration — D11**
 

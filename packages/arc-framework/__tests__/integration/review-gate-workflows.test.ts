@@ -66,7 +66,7 @@ describe("trusted review-gate workflows", () => {
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
@@ -81,6 +81,7 @@ describe("trusted review-gate workflows", () => {
     const linuxJobs = [
       "classify",
       "setup",
+      "build",
       "lint-typecheck",
       "unit",
       "integration",
@@ -141,7 +142,7 @@ describe("trusted review-gate workflows", () => {
     const unit = jobValue(await read("ci.yml"), "unit");
     expect(unit.permissions).toMatchObject({ contents: "read", actions: "write" });
     const steps = unit.steps as Array<Record<string, unknown>>;
-    const test = steps.find((step) => typeof step.run === "string" && step.run.startsWith("npm run test:unit"));
+    const test = steps.find((step) => step.id === "test");
     expect(test?.run).toContain("--reporter=default");
     expect(test?.run).toContain("--reporter=github-actions");
     expect(test?.run).toContain("--reporter=json");
@@ -157,19 +158,19 @@ describe("trusted review-gate workflows", () => {
     expect(steps.at(-1)?.name).toBe("Report test budget");
   });
 
-  it("runs four E2E shards with a denominator derived from the matrix", async () => {
+  it("runs four E2E shards from the declaration forecast", async () => {
     const workflow = await read("ci.yml");
     const e2e = jobValue(workflow, "e2e");
     expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
     expect(e2e.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
     const steps = e2e.steps as Array<Record<string, unknown>>;
     const runs = steps.map((step) => step.run)
-      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:e2e"));
-    expect(runs).toEqual(["npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run e2e test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run e2e test --shard ${{ matrix.shard }}"]);
     expect(steps.some((step) => typeof step.run === "string" && step.run.includes("--exclude"))).toBe(false);
   });
 
-  it("runs four integration shards with a denominator derived from the matrix", async () => {
+  it("runs four integration shards from the declaration forecast", async () => {
     const workflow = await read("ci.yml");
     const integration = jobValue(workflow, "integration");
 
@@ -180,8 +181,8 @@ describe("trusted review-gate workflows", () => {
     expect(Array.isArray(steps)).toBe(true);
     const runs = (steps as Array<Record<string, unknown>>)
       .map((step) => step.run)
-      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:"));
-    expect(runs).toEqual(["npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run integration test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run integration test --shard ${{ matrix.shard }}"]);
   });
 
   it("provisions Node before the classifier hashes the code tree", async () => {
@@ -241,12 +242,10 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
-        "github.event_name == 'schedule' }}",
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+        "github.event_name == 'schedule') }}",
     );
-    // The pair consumes no classify output, so it is dependency-free: a `needs`
-    // paired with a custom `if` would let a failed classify start it anyway.
-    expect(jobValue(workflow, "portability-cross-platform")).not.toHaveProperty("needs");
+    expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
     const triggers = (load(workflow) as { on?: Record<string, unknown> }).on;
     expect(triggers?.workflow_dispatch).toMatchObject({
       inputs: { run_portability_pair: { type: "boolean", default: false } },
@@ -302,14 +301,15 @@ describe("trusted review-gate workflows", () => {
     const lintSteps = jobValue(workflow, "lint-typecheck").steps;
     expect(Array.isArray(lintSteps)).toBe(true);
     const focused = (lintSteps as Array<Record<string, unknown>>)
-      .filter((step) => step.run === "npm run test:arc-contracts");
-    expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
+      .filter((step) => step.id === "arc-contracts");
+    expect(focused).toEqual([{ id: "arc-contracts", if: "${{ needs.classify.outputs.weight == 'light' }}",
+      run: "node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts" }]);
 
     const unitCondition = "${{ !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
       "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
-    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
+    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
       "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
       "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
     for (const jobName of ["integration", "e2e"]) expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);

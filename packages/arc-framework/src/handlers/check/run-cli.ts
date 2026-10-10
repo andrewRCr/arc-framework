@@ -1,6 +1,6 @@
 /** Commander and process boundary for declared check requests. */
 import { z } from "zod";
-import { execa } from "execa";
+import { runCheckProcess } from "../../lib/checks/process.js";
 import { access, readFile } from "node:fs/promises";
 import { detectHookManager } from "../../lib/hook-manager.js";
 import { resolve } from "node:path";
@@ -14,9 +14,9 @@ import { CheckDeclarationSchema } from "../../lib/checks/declaration.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
-import { createExecaGitExecInput, environmentForGitCwd } from "../../lib/git/process-executor.js";
+import { createExecaGitExecInput } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
-import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult, type CheckContentContext } from "./run.js";
+import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
 import { isCheckHookForm, type CheckForm, type CheckRequest } from "../../lib/checks/request.js";
 import { classifyPushRef, readPushEvent, type PushEvent } from "../../lib/checks/push.js";
 import { checkVerification } from "./report.js";
@@ -207,30 +207,4 @@ function report(outcome: RunDeclaredChecksResult, json: boolean): void {
   if (outcome.kind === "error" && !json) process.stderr.write(rendered);
   else process.stdout.write(rendered);
   process.exitCode = outcome.exitCode;
-}
-
-
-function checkEnvironment(cwd: string, content?: CheckContentContext, indexFile?: string): NodeJS.ProcessEnv {
-  const env = { ...(environmentForGitCwd(cwd) ?? process.env) };
-  delete env.ARC_CHECK_BASE;
-  delete env.ARC_CHECK_TREE;
-  delete env.ARC_CHECK_MERGED;
-  if (indexFile !== undefined) env.GIT_INDEX_FILE = indexFile;
-  if (content !== undefined) {
-    env.ARC_CHECK_TREE = content.tree;
-    if (content.base !== undefined) env.ARC_CHECK_BASE = content.base;
-    if (content.merged?.length) env.ARC_CHECK_MERGED = content.merged.join(" ");
-  }
-  return env;
-}
-
-
-async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}) {
-  const result = await execa(command[0] ?? "", command.slice(1), {
-    cwd, env: checkEnvironment(cwd, content, policy.indexFile), extendEnv: false, stdin: "ignore", reject: false,
-    shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
-  });
-  const started = result.exitCode !== undefined || result.signal !== undefined;
-  return { started, exitCode: result.exitCode ?? 1, stdout: result.stdout,
-    output: [result.stdout, result.stderr, ...(!started ? [result.originalMessage] : [])].filter(Boolean).join("\n") };
 }

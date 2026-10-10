@@ -16,6 +16,7 @@ export const ARC_CONTRACT_SUITES = [
   "live-transition-records",
   "pr-open-extensions",
   "review-gate-workflows",
+  "ci-check-plumbing",
 ] as const;
 
 /**

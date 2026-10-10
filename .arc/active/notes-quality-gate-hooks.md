@@ -432,3 +432,14 @@ The mechanics slice (declaration through hooks) is roughly 8–12 of the 13–20
 an implementation slot beside the storage program's Stage 2. The work lands single-branch with chunked review, by Owner
 direction (2026-10-07), following the landing rule the storage program sets for its own members
 (`cohort-state-storage.md` § Soft coordination).
+
+## Native CI forecast replay
+
+The first local replay used the source CLI's merge-gate CI forecast and the mapped `lint-typecheck` steps, with
+`CI=1`, from the implementation checkout. Both checks covered their complete forecast path sets. Wall times include
+runner startup; hosted Actions timing evidence remains pending for the first CI run.
+
+| Check          | Native step wall time | Batches |
+| -------------- | --------------------- | ------- |
+| `lint:ts`      | 47.110s               | 1       |
+| `lint:ts:file` | 60.047s               | 7       |
