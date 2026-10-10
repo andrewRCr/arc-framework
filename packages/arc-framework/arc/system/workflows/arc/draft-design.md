@@ -5,6 +5,7 @@ purpose: >-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - route-discovered-work
     - resolve-planning-depth
     - classify-work-unit
     - assess-boundary-fit
@@ -160,8 +161,21 @@ formalization-ready gate:
 
 At loop-exit, assess the draft's formalization-readiness with the
 [assess-draft-readiness][assess-draft-readiness] method. On **ready**, the draft crosses into create-spec; on
-**not-ready**, re-synthesize against the returned gaps and keep iterating. These readiness states describe a
-draft's maturity for cross-session continuity; a draft is `formalization-ready` when the method returns `ready`.
+**not-ready**, re-synthesize against the returned gaps and keep iterating. For a gap of inbound entries not yet
+integrated, run [route-discovered-work][route-discovered-work] at this owner's-pass fire-point:
+
+```yaml
+route-discovered-work:
+  entry: each held inbound entry
+  door: owner's planning pass
+  host: the work unit whose draft holds the entries
+```
+
+At the Owner's pass, show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon
+advisory, and any wait the binding names. On confirmation, execute through the binding and leave the dispositions
+table before re-assessing readiness. This is the pass that makes the draft ready; nothing remains held.
+These readiness states describe a draft's maturity for cross-session continuity; a draft is `formalization-ready`
+when the method returns `ready`.
 
 **Coherence-consolidation (`high`-only, suggest-not-enforce).** A draft that iterates across many sessions
 accretes superseded sketch beside current design — the design can be settled while the document is not yet a
@@ -291,3 +305,4 @@ planning-depth level is never recorded.
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
+[route-discovered-work]: ../../methods/route-discovered-work.md

@@ -3,11 +3,11 @@
 import * as p from "../../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
-import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../../lib/errand/record.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
-import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
+import { readGitBlobEntry } from "../../lib/io-context.js";
+import { readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
+import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
   parseIntegrationBoundaryLocus,
@@ -35,26 +35,22 @@ export async function handleLifecycleStatus(
   // The index walk binds real I/O; the resolution stays a pure lib projection.
   // Transient identities still feed the oracle so recorded Errand
   // branches are not mis-emitted as `no-record-or-meta` residue.
-  const { settings } = await readConfigSettings(cwd);
   const { identity } = await readIdentityPointers(exec);
-  const transient = projectTransientInFlightRead(
-    await readTransientInFlightIndexes({ exec, identity }),
-  );
-  const composed = await resolveComposedLifecycleIndex({
-    cwd,
+  const composed = await resolveCallerComposedLifecycleIndex({
+    cwd, exec, identity,
+    acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
     fs: {
       readdir: (path) => readdir(path, { withFileTypes: true }),
       readFile: (path) => readFile(path, "utf8"),
     },
-    oracle: {
-      exec,
-      acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
-      baseBranch: settings["branch.base"],
-      errandSlugByBranch: transient.indexes.slugByBranch,
-      errandRecordsComplete: transient.complete,
-    },
   });
   const query = resolveSlugQuery(composed.index, slug);
+  const record = composed.recordsBySlug.get(slug)?.selected;
+  const purpose = record === undefined ? null : await readWorkUnitPurpose(record.source, {
+    fs: { readFile: (path) => readFile(path, "utf8") },
+    readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
+  });
+  const owner = record?.owner ?? null;
   const worktreePath = composed.worktreePathBySlug.get(slug);
   const operationalReadPath = worktreePath
     ?? (composed.recordsBySlug.get(slug)?.writablePath === undefined ? undefined : cwd);
@@ -73,6 +69,8 @@ export async function handleLifecycleStatus(
   ];
   const output = {
     ...query,
+    purpose,
+    owner,
     integrationBoundary: operational.integrationBoundary,
     ...(worktreePath !== undefined ? { worktreePath } : {}),
     ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
@@ -83,6 +81,7 @@ export async function handleLifecycleStatus(
   }
   p.intro("arc status");
   p.note(formatSlugStateQuery(query, {
+    purpose,
     integrationBoundary: output.integrationBoundary,
     worktreePath,
     warnings: output.warnings ?? [],
@@ -95,6 +94,7 @@ export async function handleLifecycleStatus(
 function formatSlugStateQuery(
   query: SlugStateQuery,
   enrichment: {
+    purpose?: string | null;
     integrationBoundary?: IntegrationBoundaryLocus | null;
     worktreePath?: string;
     warnings?: readonly string[];
@@ -109,6 +109,7 @@ function formatSlugStateQuery(
     `position: ${position}`,
     `occupied: ${query.occupied} · shipped: ${query.shipped}`,
   ];
+  if (enrichment.purpose !== null && enrichment.purpose !== undefined) lines.push(`purpose: ${enrichment.purpose}`);
   if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
   if (enrichment.integrationBoundary !== null && enrichment.integrationBoundary !== undefined) {
     lines.push(`boundary: ${enrichment.integrationBoundary.locus}`);

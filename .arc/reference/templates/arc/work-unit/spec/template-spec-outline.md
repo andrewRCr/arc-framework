@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent — distilled "what + why," not
-  framing prose. Body sections carry the full context.}
+- **Purpose:** {One- to three-line north-star summary of the WU's intent, opening with a one-sentence thesis.
+  Distilled "what + why," not framing prose; body sections carry the full context.}
 
 ---
 

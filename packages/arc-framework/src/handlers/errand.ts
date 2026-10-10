@@ -524,6 +524,11 @@ export interface ErrandOpenOptions {
   inboxTitleFile?: string;
   /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
+  /**
+   * Always provision a transient worktree rather than occupying a free primary,
+   * so the primary stays free for another session. Requires full protection.
+   */
+  isolate?: boolean;
 }
 
 const InboxTitleSourcesSchema = z.object({
@@ -542,6 +547,7 @@ export const ErrandOpenInputSchema = InboxTitleSourcesSchema.extend({
   slug: SlugSchema,
   intent: z.string().min(1).optional(),
   json: z.boolean().optional(),
+  isolate: z.boolean().optional(),
 }).strict().superRefine((value, ctx) => {
   if (titleSourceCount(value) > 1) {
     ctx.addIssue({ code: "custom", message: "Provide at most one inbox title source." });
@@ -610,6 +616,16 @@ async function runErrandOpenHandler(
     return;
   }
   const protection = protectionValue;
+  if (input.isolate === true && protection === "partial") {
+    emitErrandOpenResult(createErrandOperationResult({
+      outcome: "refused",
+      operation: "errand-open",
+      reason: "full-protection-required",
+      recommendedPromptText: "--isolate provisions a transient worktree, which requires branch.protection: full. "
+        + "Retry without --isolate to open in the free primary.",
+    }), opts.json === true);
+    return;
+  }
 
   const base = settings["branch.base"].trim();
   if (base === "") {
@@ -694,6 +710,7 @@ async function runErrandOpenHandler(
       base,
       syncBase: settings["session.remote_sync"] === "enabled"
         && settings["session.init_pull.base"] === "always",
+      isolation: input.isolate === true ? "require-isolation" : "prefer-primary",
       createdAt,
       identity,
       locationTemplate: settings["worktree.location_template"],
@@ -1764,6 +1781,7 @@ export const errandCommandInputRegistrations = [
       "option.from-inbox": "fromInbox",
       "option.inbox-title-file": "inboxTitleFile",
       "option.inbox-entry-file": "inboxEntryFile",
+      "option.isolate": "isolate",
       "option.json": "json",
     },
   },

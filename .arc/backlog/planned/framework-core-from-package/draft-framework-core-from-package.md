@@ -10,6 +10,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Add generated editor documents to the projection's path list; consolidate the managed `.gitignore` lists**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the ignore strategy's path list, which the storage program keeps open for this work unit.
+
+- _Observation (editor documents):_ `schema-introspection-layer` generates per-schema editor documents at
+  `.arc/system/.internal/schemas/<id>.schema.json`: derived, never stored, written by one writer at `arc init`,
+  `arc update`, `arc join`, and every ARC-owned worktree provisioning site, refreshed by `arc schema install`, with no
+  `init-recipe.json` entry. The writer ignores the directory per clone through the shared `info/exclude`, as
+  `ensureWorktreeMarkerIgnored` does, and leaves the tracked `.gitignore` block untouched.
+
+- _Observation (`.gitignore` block):_ the managed block is written from five identical hand-copied entry lists
+  (`init.ts`, `update.ts`, `reconfigure.ts`, and twice in `join.ts`). No layout address covers today's entries
+  (`pristine.json`, `worktree-marker.json`, the `.arc/user/*/` glob, harness skill paths), and the ARC repository's
+  own block, which no command maintains there, already lacks `worktree-marker.json`.
+
+- _Approach:_ join the schemas directory to the projection's path list, ignored per clone as the storage direction
+  sets, and derive the block's entries from one list.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+---
+
 ## Problem
 
 `arc update` rewrites up to 103 Framework-class files that `strategy-file-classification` says never to edit, and

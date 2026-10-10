@@ -302,9 +302,11 @@ Before implementing any task, assess whether tests come first; the [test-first m
 When you encounter an issue — in a file you're editing, during analysis, anywhere in the course of work —
 take responsibility for it. Never silently drop an observation that should be fixed or captured.
 
-**The core invariant.** A work unit's stub/draft is the single authoritative source for its domain concerns;
-capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
-item with a known home may rest in a capture surface** · `[invariant]`.
+**The core invariant.** A work unit's stub/draft is the single authoritative source for the decisions it owns;
+capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. An item's
+home is the work unit whose decision it shapes — shared domain alone makes a neighbor, not a home, and an
+Errand-shaped item has none: it runs as an Errand or waits as an Errand capture. Place it by the
+[route-discovered-work][arc-methods-rdw] method. **No item with a known home may rest in a capture surface** · `[invariant]`.
 
 ### Leave it cleaner
 
@@ -526,6 +528,7 @@ Load these documents when you reach the relevant work — not during session ini
 [arc-methods-cf]: ../../system/methods/commit-format.md
 [arc-methods-ccf]: ../../system/methods/commit-footer.md
 [arc-methods-it]: ../../system/methods/issue-triage.md
+[arc-methods-rdw]: ../../system/methods/route-discovered-work.md
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md

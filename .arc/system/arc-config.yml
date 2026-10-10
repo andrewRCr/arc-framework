@@ -53,6 +53,10 @@ worktree.post_create: bash scripts/worktree-post-create.sh
 # Comma-separated list of top-level gitignored harness directories to copy
 # from the primary checkout into ARC-created linked worktrees. ARC copies only
 # entries that exist on the primary checkout and skips absent entries.
+# For individual files such as `.env`, list gitignore-syntax patterns in a
+# `.worktreeinclude` file at the primary checkout's root instead: before the
+# post-create script runs, ARC copies each matching untracked, gitignored file
+# outside `.arc/` into the new worktree, leaving files already there in place.
 worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 
 # --- Commit Discipline ---

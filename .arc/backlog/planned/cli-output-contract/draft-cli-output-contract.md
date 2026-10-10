@@ -12,6 +12,40 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Assess an explicit agent invocation preset for the CLI output contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Concern 2 — the `--json` boolean hides two output conventions: whether the declared output mode
+  carries an agent invocation preset.
+
+- _Observation:_ ARC is primarily agent-operated while human UX/DX remains a requirement. A runtime invocation
+  preset could spare callers repeatedly selecting compatible output and interaction options. This is distinct
+  from help grouping: an agent can invoke human-facing presentation, and humans can consume structured output.
+
+- _Approach:_ Assess whether an explicit `--agent` preset provides enough benefit over the underlying output and
+  interaction controls. Candidate semantics include noninteractive execution, a declared machine-readable output
+  format, presentation suitable for captured output, and structured results when further input or authorization
+  is required. Specify success and failure behavior together, keep the underlying choices independently usable,
+  and preserve the distinction between suppressing prompts and granting approval.
+
+- _Reference:_ CodeRabbit's current `--agent` mode selects NDJSON review output; headless or agent mode returns a
+  structured action-required result when confirmation is needed. See its
+  [review modes](https://docs.coderabbit.ai/cli#review-modes) and
+  [consent behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
+
+- _Scope:_ An open design question for `cli-output-contract`, not a commitment to add a flag. Preserve human UX/DX;
+  a runtime preset does not itself require separate agent help, a caller-based command partition, or changes in
+  the `cli-help-discovery` work unit.
+
+- _Captured during:_ `cli-help-discovery` draft-design, shared human/agent ergonomics discussion, 2026-10-03.
+
+---
+
 ## Concern 1 — machine-mode failures are prose
 
 - _Observation:_ a command in machine mode still fails in prose. `cli.ts:2003` composes the self-hosting stale-build

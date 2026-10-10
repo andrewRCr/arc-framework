@@ -75,6 +75,8 @@ export interface IndexProjectViewFsOptions {
 
 /** Options for rendering the staged-index ROADMAP view. */
 export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions {
+  /** Opt into typed purpose facts while retaining the exact same Markdown render. */
+  includePurpose?: boolean;
   /** Optional H1 text without the leading `#`. */
   title?: string;
   /** Base branch for the local-ref oracle. */
@@ -281,6 +283,7 @@ export async function renderRoadmapFromIndexViewResult(
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
+    includePurpose: options.includePurpose === true,
     ...(options.title !== undefined ? { title: options.title } : {}),
     fs,
     localRefs: {

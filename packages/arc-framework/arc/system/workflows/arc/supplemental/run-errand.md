@@ -4,7 +4,11 @@ audience: agent
 arc:
   methods:
     - assess-evidence-applicability
+    - route-discovered-work
+    - classify-work-unit
     - assess-parallel-fit
+    - classify-review-risk
+    - commit-format
     - commit-footer
     - frontline-review
     - standard-review
@@ -62,7 +66,10 @@ session at that checkout and stop before execution.
 
 Confirm the work is an Errand, check for in-flight overlap, then open or resume its allocated checkout.
 
-1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
+1. **Classify — errand vs. work unit.** Apply [classify-work-unit][classify-work-unit] boundary test 1. For a
+   route-only Errand, classify the routing change — writing an entry or minting a stub — rather than the carried
+   concern. Show all four record answers for the Owner's call only when one is Yes; do not show the carried concern's
+   answers at this Launch. Confirm the work is a single **self-evident** concern that fits one
    session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
    enough to need a durable cross-session plan — route those through [`init-work-unit`][init-work-unit]. A
    determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that _crosses a
@@ -89,6 +96,9 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
      transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
      branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
+     free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
+     own provisioned transient and the primary stays free for another session; partial protection refuses it.
    - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
      re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
      `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
@@ -109,6 +119,18 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 Honor the [Review-Increment Invariant][dev-rules-arc]: each review increment's change **accumulates uncommitted**,
 is **reviewed once at its gate**, and is committed only **after** approval — never commit-then-review.
 
+**Route-only pre-write re-check.** Before the routing write, invoke the fast-path gate in the Errand's own checkout.
+Re-check coupling and scope, and for `new-stub` the shortlist, against the base's current copies. A changed result
+returns to the Owner before any write; an unchanged confirmed result follows the method's binding.
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern and route the Owner confirmed before this Errand opened
+  door: fast path
+```
+
 **Most errands are one pass.** Make the change, request `arc check increment`, review, and commit.
 
 **Extended errand (the exception).** A _determinate_ concern too large to review in one window may be staged into
@@ -117,9 +139,29 @@ cross-session plan). Propose the split and get approval first ("this is ~N passe
 pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
 work-unit signal; needing a _durable plan_ is.
 
-**Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
-cross-session plan — stop and continue through the [Promote Errand path][promote-errand-to-wu]. That path owns the
-floor judgment, generation-checked conversion, meta commit, and capture settlement; do not promote inline.
+**Spec-worthy → promote.** The moment any answer in [classify-work-unit][classify-work-unit] boundary test 1 flips
+Yes, stop and continue through the [Promote Errand path][promote-errand-to-wu]. Design worth recording or a durable
+cross-session plan crosses the floor; that path owns the floor judgment, generation-checked conversion, meta commit,
+and capture settlement. Do not promote inline.
+
+**A discovered concern** runs the Errand route-to-home door before placement:
+
+**Method fire-point** · [route-discovered-work][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: the concern discovered during the Errand, with any WU_Target and _Shapes_
+  door: errand route-to-home
+```
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before routing the discovered concern. Show the outcome, `_Shapes:_`, any unclear pair
+> with its four record answers, the coupled target's horizon advisory verbatim, and any named wait; await approval
+> before carrying out that route through the method's binding.
+
+Build captures with `arc-inbox`'s entry shape: `hold <wu>` and `new-stub` become pre-routed captures; `errand` waits
+as a `§ Errand` capture unless the Owner runs it as its own Errand; `capture` has its home undecided; `dismiss` writes
+nothing. Keep the method's writer line: this Errand's change stays its own concern.
 
 **Explicit abandon.** On explicit direction to discard a safely preserved generation, invoke
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
@@ -145,8 +187,14 @@ Run each review increment (one for a typical errand; a few for an extended one):
    ```text
    <type>(<scope>): <errand summary>
 
+   Decided: <X> over <Y> — because <Z>
+
    Context: standalone (<kind>)
    ```
+
+   Record each fork settled as `Decided: X over Y — because Z` in the commit body, each as its own paragraph above
+   the `Context:` trailer. Omit that paragraph when no fork was settled; never put a wrapped decision inside the
+   final trailer block. Partial protection records decisions in the commit only.
 
    See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
@@ -166,6 +214,9 @@ remote base all name the same exact head. Any tracked change continues through t
    coordinates plus the caller-owned content kind, risk, determinacy, ownership, and surface authority judgments for
    the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
    state, assurance, method activity, repository identity, target trees, or standard-review projection.
+
+   **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact
+   for every change except confidently routine planning-grooming, which is `routine`.
 
 2. **Push** the errand branch upstream.
 
@@ -273,8 +324,12 @@ remote base all name the same exact head. Any tracked change continues through t
    - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
+   Title the PR with the single commit's subject, or compose a subject for the dominant change by the
+   [`commit-format` method][commit-format].
+
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary plus a one-line Test Plan only when verification is non-obvious. When gated local review ran,
+   one-line Summary, followed by each settled fork as `Decided: X over Y — because Z`, plus a one-line Test Plan
+   only when verification is non-obvious. When gated local review ran,
    include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
    Follow-Up sections.
 
@@ -631,16 +686,16 @@ checkout paths, and `settlement` are the sole closure evidence.
 
 When the current conversation has already agreed one exact next Errand, that named target takes precedence over
 `nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
-a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
-result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
-ambiguous.
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`, adding `--isolate`
+under the session's isolate posture. Consume the open result as the new sibling locus. The target must resolve to one
+exact Errand entry; stop when it is missing or ambiguous.
 
 Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
 `key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
 returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
-`arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
-or reorder inbox captures.
+`arc errand open <slug> --from-inbox <nextOffer.key> --json`, adding `--isolate` under the session's isolate posture.
+Consume the open result as the new sibling locus. On decline, return to the restored parent/between-WUs frame. Never
+scan for a substitute, persist an Errand sequence, or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is
@@ -650,13 +705,17 @@ idempotent and may return the next file-ordered execute-bound offer.
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
+[commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+[route-discovered-work]: ../../../methods/route-discovered-work.md
+[classify-work-unit]: ../../../methods/classify-work-unit.md

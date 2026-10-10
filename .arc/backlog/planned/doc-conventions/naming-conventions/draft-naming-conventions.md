@@ -350,6 +350,113 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   say so. Either admit incidental parentheticals on every in-chain anchor or scope the method per anchor. Update
   the method, validator tables, and refusal suggestions together.
 
+### `[ ]` **Settle the work-item vocabulary: work item → design unit | errand**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Renames, its buffer entry on spelling out "work unit" on user-facing surfaces, and ADR-021's deferred
+  wrapper rename. The pending capture "Say 'needs no written design' in the Errand definition" amends this
+  entry's Definition bullet.
+
+- _Decision (Owner, 2026-10-06):_
+    - **Family:** "work item", user-facing as well as internal — the storage contract's landed family term and the
+      industry-standard noun.
+    - **Types:** "design unit", renaming "work unit", and "errand", kept. "Design" carries both senses — design work,
+      and a recorded design, with a brief as the floor — so it also covers the scale-only case: a determinate but
+      large refactor that clears the durable-plan floor still carries a recorded design.
+    - **Errand names the thing and the process:** run it "as an errand". No separate process noun, and no lifecycle
+      name minted for the design-unit side for symmetry — the two flows really differ.
+    - **Definition:** reword the AGENT-BRIEF vocabulary entry to "An errand is a standalone task: one self-evident
+      concern that needs no design" — defined by contrast with the tasks a design unit plans.
+
+- _Rejected, with reasons — record them so they are not reopened:_
+    - **"atomic" as the noun.** It names indivisibility, not design-lessness, so the pair mis-teaches both
+      off-diagonal cases: a small change with real tradeoffs is a design unit, and a large determinate sweep is an
+      extended errand. The character sense stays load-bearing — atomic tasks and commits, and a small spec-worthy
+      concern can be atomic in character. The transactional sense lives in code: `atomicGraduate` in
+      `lib/work-unit/atomic-graduation.ts`, and most of `src/`'s 229 `atomic*` hits. And `688a39791` already moved
+      the inbox sections from character to fate naming. ADR-021's original rejection stands.
+    - **"task" as the noun.** It collides at the exact routing fork — fold into the task list as "a new task", or
+      route out — and it is unmarked: the default word for whatever an agent is asked to do, so an agent cannot tell
+      the term of art from ordinary use. It is also wired into mechanics: the task-interlock, `taskCommit`,
+      `taskCursor`, `process-task-loop`. It survives as the definition's gloss instead.
+    - **"work unit" as the family noun with a type field.** Widening an existing term is a per-occurrence semantic
+      migration — about 1,200 shipped and 4,200 `src/` occurrences, nearly all meaning the heavy type — that grep
+      cannot separate. And prose is mostly type-specific, so the types need strong standalone nouns. The type-field
+      structure itself is already the storage contract's model.
+    - **A register-neutral replacement for "errand."** chore (a commit and branch type; implies maintenance only,
+      while errands land `feat`), change (change request), patch and fix (fix-shaped), increment (review
+      increment), standalone task (clips to "task"), action item (`Next Action`, extension `.actions`, GitHub
+      Actions). The lighter register is deliberate: it signals weight against "design unit", as ADR-021 intended,
+      and ARC already speaks it — spike, chore, groom, housekeep.
+
+- _Approach:_ amend ADR-021, which chose "errand", rejected "atomic", and deferred the wrapper rename to "a clearly
+  superior, collision-free term". The rename cascade stays after the cutover, as sequenced. Before it, only stored
+  values adopt the decided names (below); code identifiers stay consistent with their surroundings until the cascade
+  renames them together. Fold the buffer's "Spell out 'work unit' on user-facing surfaces" item into the rename: the
+  same rule for "design unit", with `DU`, like `WU`, internal shorthand only.
+
+- _Stale row:_ the draft's § Renames still renames the inbox sections to `## Atomic` / `## Work Unit`; `688a39791`
+  already chose `## Errand` / `## Work Unit`, routing by fate over character. Correct it and record why — that axis
+  has flipped once.
+
+- _Coupling:_ `spec-storage-contract.md` leaves the work-item base's type field, its name and values, to the Part B
+  changes. A coordination note sits in `storage-seam`'s SESSION-NOTES so its parser stores no value this rename would
+  then rewrite in every repository the cutover imports.
+
+- _Captured during:_ a read-only naming discussion session, 2026-10-06.
+
+### `[ ]` **Lowercase ARC's defined terms in prose, keeping an enumerated capitalized list**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the casing convention in `DEV-RULES.PROJECT` § Documentation Standards that the design-unit cascade
+  sweeps, beside the buffer's vocabulary-budget pass.
+
+- _Observation:_ shipped prose capitalizes "Errand" mid-sentence about as often as not (121 against 130 in
+  `packages/arc-framework/arc/`), while "work unit" is mostly lowercase (303 against 29). The capital reads as a
+  proper noun and gives the light type a branded, ceremonial register the heavy type lacks.
+
+- _Decision (Owner, 2026-10-06):_ defined terms are lowercase in running prose — "run it as an errand" — and
+  capitalized only at sentence start, in headings, and as a glossary entry's bold label. A short, **enumerated**
+  list keeps a capital where it separates the term from a generic sense in the same prose: `Owner`, the role, beside
+  "the owner of the governed surface"; and `Candidate`, the integration record, beside generic "candidates". Errand,
+  work unit, and design unit are not on it. Enumerate rather than judge: a "where it reads naturally" rule drifts.
+
+- _Exceptions:_ literal names are quoted as written — the inbox heading `## Errand`, `USER-INBOX § Errand`. Code
+  identifiers, CLI verbs (`arc errand`), and enum values in code spans follow their own conventions.
+
+- _Precedent:_ developer tools lowercase their core nouns — GitHub's "pull request", GitLab's "merge request" and
+  "epic", git's "commit" — and the Microsoft and Google developer-documentation style guides capitalize only proper
+  nouns and product names. Methodology frameworks capitalize defined terms (the Scrum Guide, SAFe), the ceremonial
+  register ARC avoids.
+
+- _Approach:_ codify in DEV-RULES.PROJECT § Documentation Standards and sweep with the design-unit cascade. Guard it
+  mechanically: flag an unlisted term capitalized mid-sentence outside headings and code spans, as a Vale-style term
+  rule or a small markdownlint custom rule — beside the buffer's glossary-membership check if that lands in
+  `knowledge-lint`.
+
+- _Captured during:_ a read-only naming discussion session, 2026-10-06.
+
+### `[ ]` **Say "needs no written design" in the Errand definition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the Definition bullet of the pending capture "Settle the work-item vocabulary: work item → design unit |
+  errand" (Owner decision, 2026-10-06), which rewords the AGENT-BRIEF entry to "one self-evident concern that needs no
+  design".
+
+- _Observation:_ `inbound-routing-method` D12 makes the Errand / work-unit line a record test: a concern is a work
+  unit when its steps are not knowable yet, it carries a deliberate exclusion, a wrong choice is costly to put right,
+  or its decision outgrows an Errand's `Decided: X over Y — because Z` line. Working a fork out in conversation does
+  not by itself make a work unit. This refines rather than overrides the 2026-10-06 decision: "a small change with
+  real tradeoffs is a design unit" holds for the tradeoffs these questions catch. "Needs no design" would state the
+  reading D12 corrects, the one that escalated design-fork captures into stubs.
+
+- _Approach:_ "needs no written design".
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---
 
 ### `[ ]` **Re-evaluate the `standalone` context-footer anchor and its parenthetical set**

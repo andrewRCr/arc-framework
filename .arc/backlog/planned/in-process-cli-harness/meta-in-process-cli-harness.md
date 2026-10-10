@@ -1,20 +1,25 @@
-# Metadata: Inbound Routing Method
+# Metadata: in-process-cli-harness
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-inbound-routing-method.md`
+- **Design:** `draft-in-process-cli-harness.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft to PRD when implementation comes into reach.
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---

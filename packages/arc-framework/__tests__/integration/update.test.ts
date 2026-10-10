@@ -184,7 +184,7 @@ describe("update integration — baseline (real recipe)", () => {
     const perFilePaths = [
       ...[
         "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+        "route-discovered-work", "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-response", "review-triage",

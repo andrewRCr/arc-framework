@@ -67,12 +67,12 @@ shared atomic inbox.
 
 ### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
 
-Committed-tracked queue of _homeless_ atomic-character entries — single-step work with no better
-home than the shared surface. The between-WUs housekeep drain _writes_ it, flushing homeless
-`USER-INBOX § Errand` items here; activation and planning-kickoff _read_ from it, pulling in items
-whose home turns out to be the WU. Entries execute as-is from inbox at their owning WU; completion
-deletes the entry, and the routing record lives in the deletion commit message plus the absorbing
-artifact. Multi-step work never lands here — it always has a stub home.
+Committed-tracked queue of Errand-class captures, none of which has a work-unit home. The between-WUs housekeep
+drain _writes_ it, deferring `USER-INBOX § Errand` items here unless they execute or the Owner explicitly retains
+them. Activation and planning-kickoff _read_ it, absorbing only items the work unit's own change already covers,
+by the anti-rider concern-identity test. Independent concerns execute as Errands; completion removes the entry.
+Absorption records its placement in the deletion commit message plus the absorbing artifact. Spec-worthy work
+always takes the routing gate's stub outcome instead.
 
 **Entry shape:** H3 with a `[ ]` checkbox and bold title, followed by italic-descriptor bullets
 — `_Observation:_`, `_Proposed action:_`, `_Scope:_`, `_Branch:_`, `_Captured during:_` (and
@@ -109,10 +109,11 @@ New work item
 ```
 
 Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep drain routes them —
-_not_ the integration ceremony: § Errand items route to their home, or flush to
-`backlog/ATOMIC-INBOX.md` if homeless; § Work Unit items route to an existing stub, or scaffold a new
-_provisional_ stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
-Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
+_not_ the integration ceremony: every capture passes through the drain's routing gate. Errand-shaped items have
+no work-unit home and take the homeless-atomic route — execution, shared-inbox deferral, or explicit Owner retention.
+Work-unit-shaped concerns take the gate's existing or new stub outcome under `backlog/{planned,provisional}/`;
+`WU_Target` is a candidate to check, never an existence-based placement. There is no shared Work-Unit inbox.
+Errands execute from their capture; work-unit concerns mature into `plan-<wu-name>.md` and (when
 ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
 pipeline.
 
@@ -126,14 +127,15 @@ see [DEV-RULES.ARC][dev-rules] § Discovered Work Routing.
 The shared `backlog/ATOMIC-INBOX.md` is **written** at one point and **read** at two — never
 continuously multi-writer-edited:
 
-- **Written by the housekeep drain (between-WUs).** When `USER-INBOX` drains, genuinely homeless
-  `§ Errand` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives _off_ the
-  integration ceremony. (`§ Work Unit` items never flush here — multi-step work is scaffolded into a
-  _provisional_ stub instead; there is no shared multi-step inbox.)
-- **Read at activation** — a WU pulls in shared-inbox items whose home turns out to be its domain;
-  the rest stay put. Absorption _from_ `USER-INBOX` is the degenerate case (empty post-housekeep).
-- **Read at planning-kickoff** — when a maintainer commits to a backlog WU, shared-inbox or
-  provisional-subdir items promote into its plan/PRD as concrete tasks.
+- **Written by the housekeep drain (between-WUs).** Every Errand-shaped capture has no work-unit home.
+  `§ Errand` items defer to `ATOMIC-INBOX` unless they execute or the Owner explicitly retains them. This is the
+  only write path, and it lives _off_ the integration ceremony. Work-unit-shaped concerns take the routing gate's
+  stub outcomes; there is no shared Work-Unit inbox.
+- **Read at activation** — a WU absorbs only shared-inbox items its own change already covers, by the anti-rider
+  concern-identity test; independent concerns stay put. The same test governs absorption from `USER-INBOX`.
+- **Read at planning-kickoff** — a maintainer's commitment prompts the same own-change coverage check over
+  shared-inbox and provisional-subdir items. Only covered concerns fold into its plan/PRD; sharing a domain
+  alone does not let an independent concern ride the change.
 
 **Absorbed entries are deleted, not marked.** The routing record lives in the deletion commit
 message plus the absorbing artifact (task list or WU subdir). Don't leave strikethrough,
@@ -141,8 +143,8 @@ message plus the absorbing artifact (task list or WU subdir). Don't leave strike
 
 Batching writes to the single drain point — rather than continuous multi-writer edits — eliminates
 by construction a class of merge conflicts on the shared file. Live capture lives in
-`USER-INBOX.md`; cross-team and cross-worktree visibility materializes when housekeep next flushes a
-homeless item.
+`USER-INBOX.md`; cross-team and cross-worktree visibility materializes when housekeep next flushes an
+Errand item.
 
 ---
 

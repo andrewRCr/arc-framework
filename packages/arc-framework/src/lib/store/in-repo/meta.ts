@@ -128,10 +128,7 @@ function preferredCopies(candidates: MetaSource[]): MetaSource[] {
  * @returns Today's composed lifecycle view with no fetch or prospective overlay.
  */
 export async function composedMetas(context: InRepoContext, diagnostics?: ListingDiagnostic[]): Promise<ComposedLifecycleIndexResult> {
-  const [{ resolveComposedLifecycleIndex }, { readConfigSettings }, transient] = await Promise.all([
-    import("../../work-unit/composed-lifecycle-index.js"), import("../../config/status-reader.js"),
-    import("../../errand/record.js"),
-  ]);
+  const { resolveCallerComposedLifecycleIndex } = await import("../../work-unit/composed-lifecycle-index.js");
   const { ports } = context;
   const failures: unknown[] = [];
   const exec: typeof ports.exec = async (command, args, options) => {
@@ -139,13 +136,10 @@ export async function composedMetas(context: InRepoContext, diagnostics?: Listin
     catch (error) { if (!isCompletedGitFailure(error)) failures.push(error); throw error; }
   };
   const identity = await ports.identity();
-  const read = transient.projectTransientInFlightRead(await transient.readTransientInFlightIndexes({ exec, identity }));
-  const { settings } = await readConfigSettings(ports.checkoutRoot);
   const acquisition = metaDiscovery(context, undefined, undefined, diagnostics);
-  const composition = await resolveComposedLifecycleIndex({ cwd: ports.checkoutRoot, fs: acquisition.fs, oracle: {
-    exec, acquisitionPolicy: "local", baseBranch: settings["branch.base"],
-    errandSlugByBranch: read.indexes.slugByBranch, errandRecordsComplete: read.complete,
-  } });
+  const composition = await resolveCallerComposedLifecycleIndex({
+    cwd: ports.checkoutRoot, fs: acquisition.fs, exec, identity, acquisitionPolicy: "local",
+  });
   if (failures.length > 0) throw failures[0];
   acquisition.requireReadable();
   return composition;

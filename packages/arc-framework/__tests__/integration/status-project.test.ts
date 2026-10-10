@@ -25,6 +25,7 @@ import {
   removeGitBackedDir,
 } from "../helpers/integration.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -124,7 +125,10 @@ describe("arc status --project", () => {
 
     await execFileAsync("git", ["checkout", "-b", "plan/ref-only"], { cwd: repo });
     await mkdir(join(repo, ".arc", "active"), { recursive: true });
-    await writeFile(join(repo, ".arc", "active", "meta-ref-only.md"), meta("ref-only", "Active", "plan/ref-only"));
+    await writeFile(join(repo, ".arc", "active", "meta-ref-only.md"), makeMetaFixture("ref-only", {
+      state: "Active", owner: "andrew", branch: "plan/ref-only", priority: "P1", design: ["spec-ref-only.md"],
+    }));
+    await writeFile(join(repo, ".arc", "active", "spec-ref-only.md"), "**Purpose:** Ref-only thesis. More.\n");
     await commitAll(repo, "activate ref-only");
     await execFileAsync("git", ["push", "-u", "origin", "plan/ref-only"], { cwd: repo });
 
@@ -170,6 +174,16 @@ describe("arc status --project", () => {
     expect(result.stdout).not.toContain("ref-only-errand");
     expect(sectionBetween(result.stdout, "## Ready", "## Blocked")).not.toContain("ref-only");
     expect(result.exitCode).toBe(0);
+    const query = JSON.parse(await runSlug(repo, "ref-only", { json: true })) as {
+      purpose: string | null; owner: string | null; state: string; position: unknown;
+    };
+    const listing = JSON.parse(await runProject(repo, { project: true, local: true, json: true })) as {
+      facts: { slug: string; purpose: string | null; owner: string | null; state: string; position: unknown }[];
+    };
+    expect(query.purpose).toBe("Ref-only thesis.");
+    expect(listing.facts.find((fact) => fact.slug === "ref-only")).toMatchObject({
+      purpose: query.purpose, owner: query.owner, state: query.state, position: query.position,
+    });
   });
 
   it.each(["Planning", "Active", "Integrating"] as const)(
@@ -341,9 +355,11 @@ describe("arc status --project", () => {
 
     // Stage foo at P2, then dirty the working file to P3 (unstaged) so the index,
     // the working tree, and HEAD all disagree.
-    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P2"));
+    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), `${metaAt("foo", "Active", "[none]", "P2")}- **Design:** \`spec-foo.md\`\n`);
+    await writeFile(join(repo, ".arc", "active", "spec-foo.md"), "**Purpose:** Index thesis. More.\n");
     await execFileAsync("git", ["add", "-A"], { cwd: repo });
     await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P3"));
+    await writeFile(join(repo, ".arc", "active", "spec-foo.md"), "**Purpose:** Worktree thesis. More.\n");
 
     const staged = await runProject(repo, { project: true, staged: true });
     const worktree = await runProject(repo, { project: true, local: true });
@@ -353,6 +369,11 @@ describe("arc status --project", () => {
     expect(staged).toMatch(/\|\s*foo\s*\|\s*P2\b/u);
     expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
     expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
+    const stagedJson = JSON.parse(await runProject(repo, { project: true, staged: true, json: true }));
+    expect(stagedJson.facts).toContainEqual(expect.objectContaining({
+      slug: "foo", purpose: "Index thesis.", owner: "andrew", state: "active",
+      position: { phase: "Active", location: "active" },
+    }));
   });
 
   it.each([

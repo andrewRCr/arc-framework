@@ -145,6 +145,11 @@ co-mingles execution-intent records with personal session-notes content and mism
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-10-09):** [ADR-037][adr-037] refines this decision. ADR-037 replaces the derivation test with the
+record test; the two-floor structure, Errand mechanism, and record-owned identity stand.
+Neither record is superseded.
+
 ---
 
 [adr-021]: adr-021-introduce-errand-work-class.md
+[adr-037]: adr-037-decide-errand-boundary-by-record-test.md

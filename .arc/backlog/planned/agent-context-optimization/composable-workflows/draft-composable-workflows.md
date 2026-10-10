@@ -35,6 +35,25 @@
 - _Fold-in:_ compile those facts into one typed resume slot and next action so the workflow dispatches a result
   instead of reimplementing the join.
 
+- _Folded in:_ "Own the durable integration-resume directive", routed from `USER-INBOX § Work Unit`, housekeep drain
+  (2026-10-09); it restates this item from the directive side.
+
+    - _Observation:_ integration resume rides transient caller prose, such as "open the PR", rather than a code-owned
+      directive, so a resumed session reconstructs where integration stopped.
+
+    - _Approach:_ make the directive code-owned and storage-agnostic rather than arbitrary caller prose, derive precise
+      continuation from live PR and worktree state, and keep `PR URL` and `Completed` as archive-time durable facts.
+      Coordinate agenda-derived precision with the session-init agenda; do not mint a second PR-open lifecycle verb by
+      default.
+
+    - _Interim:_ a standalone workflow Errand was proposed to replace the transient prose with a stable "resume from the
+      first incomplete observable integration step" pointer; no such pointer is in the shipped workflows (checked
+      2026-10-05).
+
+    - _Captured during:_ PR #217 review, 2026-07-10; routed to `operational-state-docs`, then to `storage-seam`
+      (2026-09-30); re-routed out of `storage-seam` at its draft consolidation, 2026-10-05, as procedure composition
+      rather than storage.
+
 ### `[ ]` **Dispatch published remedy actions instead of reducing them to prompt text**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
@@ -278,6 +297,19 @@
 - _Fold-in:_ when a step guarantee replaces procedural enforcement, re-run classification rather than migrating
   the marker. Use `session-init/probe-envelope.md`'s force sentences as the concrete D3 case, then decide whether
   the compiler needs a standing reclassification obligation for any prose-to-mechanism transition.
+
+### `[ ]` **Lift the envelope-schema reference onto `arc schema get`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its "Envelope schema generation" lean (pilot the shape here, lift to `schema-introspection-layer`).
+
+- _Observation:_ `schema-introspection-layer` ships `arc schema get <id>`: JSON Schema projected from the registered
+  Zod schema, one self-contained document per contract, with its registry version and posture. A schema registered in
+  `createProductionSchemaRegistry()` publishes with no further mechanism, so the generated-from-types reference this
+  draft wants needs only the registration and a pointer to `arc schema get`.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
 
 ---
 

@@ -166,6 +166,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/assess-design-proportionality.md",
       "system/methods/assess-evidence-applicability.md",
       "system/methods/adversarial-review.md",
+      "system/methods/classify-review-risk.md",
       "system/methods/design-audit.md",
       "system/methods/source-grounding.md",
       "system/methods/spec-review.md",
@@ -246,6 +247,21 @@ describe("framework sync (self-hosting drift check)", () => {
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
       expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
+  });
+
+  it("ships discovered-work routing as a configurable core method", async () => {
+    const methodPath = "system/methods/route-discovered-work.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({
+      classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex"),
+    });
   });
 
   it("keeps residual evidence assessment registered across every shipment surface", async () => {

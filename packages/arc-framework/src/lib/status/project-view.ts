@@ -16,6 +16,9 @@ import { basename } from "node:path";
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
+import { readGitBlobEntry } from "../io-context.js";
+import { resolveWorkUnitPurposes, type WorkUnitArtifactReaders } from "./work-unit-purpose.js";
+import { projectHorizonAdvisory } from "./project-horizon.js";
 import {
   deriveInFlight,
   type DeriveInFlightResult,
@@ -80,6 +83,8 @@ export interface ProjectReadinessRecord extends ProjectReadinessRecordCandidate 
   source: ProjectReadinessRecordSource;
   sources: readonly ProjectReadinessRecordSource[];
   scheduling?: "parked";
+  /** Optional derived thesis; populated only when requested by the caller. */
+  purpose?: string | null;
 }
 
 /** One losslessly retained record candidate before slug-keyed view merging. */
@@ -136,6 +141,11 @@ export interface ProjectReadinessProvider {
 /** Per-record facts the render layer consumes to build readiness tiers. */
 export interface ProjectReadinessFact {
   slug: string;
+  purpose: string | null;
+  owner: string | null;
+  state: ReturnType<typeof resolveSlugQuery>["state"];
+  position: ReturnType<typeof resolveSlugQuery>["position"];
+  horizonAdvisory: string | null;
   dependencySatisfaction: ProjectDependencySatisfaction;
   readiness: ProjectReadinessVerdict;
   unsatisfiedDependencies: readonly string[];
@@ -210,6 +220,10 @@ export interface ResolveProjectReadinessViewInputOptions {
   title?: string;
   /** Injectable filesystem for tests and handler-owned I/O contexts. */
   fs?: ProjectViewFs;
+  /** Opt into artifact reads for typed status listings; Markdown-only callers leave this off. */
+  includePurpose?: boolean;
+  /** Local-only ref reader used by the optional purpose pass. */
+  readAtRef?: WorkUnitArtifactReaders["readAtRef"];
   /** Optional local-ref oracle input to merge at-ref active metas into the record set. */
   localRefs?: ProjectReadinessLocalRefsOptions;
   /** Optional in-flight oracle input to merge at-ref active metas into the record set. */
@@ -770,7 +784,12 @@ export async function resolveProjectReadinessViewInput(
   options: ResolveProjectReadinessViewInputOptions,
 ): Promise<ProjectReadinessViewInput> {
   const composition = await resolveProjectReadinessComposition(options);
-  return composition.view;
+  if (options.includePurpose !== true) return composition.view;
+  const records = await resolveWorkUnitPurposes(composition.records, {
+    fs: options.fs ?? DEFAULT_FS,
+    readAtRef: options.readAtRef ?? ((ref, path) => readGitBlobEntry(options.cwd, ref, path, { objectAccess: "local-only" })),
+  });
+  return { ...composition.view, records };
 }
 
 function lifecycleIndexFromRecords(records: readonly ProjectReadinessRecord[]): LifecycleIndex {
@@ -882,11 +901,18 @@ function factsFor(
   records: readonly ProjectReadinessRecord[],
   classification: DependencyClassification,
   readiness: ReadonlyMap<string, ProjectReadinessVerdict>,
+  index: LifecycleIndex,
 ): ProjectReadinessFact[] {
   return records.map((record) => {
     const unsatisfiedDependencies = unsatisfiedFor(classification, record.slug);
+    const query = resolveSlugQuery(index, record.slug);
     return {
       slug: record.slug,
+      purpose: record.purpose ?? null,
+      owner: record.owner ?? null,
+      state: query.state,
+      position: query.position,
+      horizonAdvisory: projectHorizonAdvisory(record, query.state),
       dependencySatisfaction: unsatisfiedDependencies.length === 0 ? "satisfied" : "unsatisfied",
       readiness: readinessFor(readiness, record.slug),
       unsatisfiedDependencies: [...unsatisfiedDependencies],
@@ -960,7 +986,7 @@ export function composeProjectReadinessViewResult(
     ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
   ];
   const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
-  const facts = factsFor(records, classification, readiness);
+  const facts = factsFor(records, classification, readiness, index);
   const factsBySlug = new Map(facts.map((fact) => [fact.slug, fact]));
 
   const active = records

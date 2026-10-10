@@ -19,6 +19,26 @@
   contract's concurrency mechanism for that family (C4) governs the race.
 - _Approach:_ Re-derive the concern against the contract's write semantics at next planning; much of it may dissolve.
 
+### `[ ]` **Raise errand-promotion-concurrency to P2, and start it after the storage flip**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its meta's priority and `Depends On`, and its Design Direction's primary-transfer transaction.
+
+- _Applied at the drain (2026-10-09):_ the meta now carries `P2` and `Depends On: storage-cutover`, as the Owner
+  confirmed; the Design Direction's primary-transfer transaction stays for planning.
+
+- _Observation:_ `inbound-routing-method` D12 makes promotion the designed exit for an unclear Errand: run it as an
+  Errand and promote the moment a record-test answer flips. In-place promotion of a primary-hosted Errand, which
+  leaves its work unit occupying the primary checkout, grows more frequent. At P3 the horizon advisory fires
+  (`spec-inbound-routing-method.md` D2). The Owner leans to P2 but waiting on the storage cohort (2026-10-07):
+  register row "Errand promotion waits for its new meta to be committed" rewrites promotion at the flip as a
+  type-field write on the Errand's own record and says to re-scope this work unit; its buffer entry "Re-plan
+  promotion's meta creation and commit as a store write" says the same; and `cohort-state-storage.md` § Cross-cohort
+  keeps work that edits the lifecycle write path off the seam.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---
 
 ## Problem / Motivation
