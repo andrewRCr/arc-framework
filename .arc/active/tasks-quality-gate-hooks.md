@@ -487,17 +487,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           ARC rules point checks to the declaration, prohibit agents from setting `ARC_SKIP`, and require new-head
           checks for reconciled bases; obsolete tier-loading guidance and its unused strategy link are removed.
 
-    - `[ ]` **6.2.b Strategies**
-        - `strategy-quality-gates.md` shrinks to what an operator needs that the verb cannot say, and its
-          `STRATEGY-INDEX.md` entry becomes a directive firing condition. It keeps one sentence on placing a
-          related-tests check: at the push gate, with the merge quality gate's whole-suite run catching what the
-          import graph misses, unless changes often reach the tests through inputs no import graph shows; then a
-          whole-suite check holds the push gate, and the related-tests check has no gate and is requested by id at the
-          increment boundary
-        - The gate-sense passages and retired-surface references in `strategy-configurability-architecture.md`,
-          `strategy-session-operations.md`, `strategy-integration.md`, and `strategy-file-classification.md`; their
-          configurability and context-loading tiers stay
-        - Rewritten passages name no stack tool as a default
+    - `[x]` **6.2.b Strategies**
+        - The gate strategy retains operator decisions about deadlines, dependency inputs, and related-test coverage;
+          its index fires on those decisions. Customization, integration, classification, and session guidance use
+          gate terminology and the declaration, while preserving unrelated configurability and context-loading tiers.
 
     - `[ ]` **6.2.c References and templates**
         - `QUICK-REFERENCE.template.md` loses § Quality Gate Commands, its entry in the on-demand section list, and its

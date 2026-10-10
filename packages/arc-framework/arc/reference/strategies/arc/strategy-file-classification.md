@@ -30,7 +30,7 @@ settings, method overrides, extensions, or Configurable files).
 ### Configurable
 
 Framework structure combined with project-specific content. Contains both ARC methodology
-(sections, rules, processing guidance) and user content (project stack, quality gate commands,
+(sections, rules, processing guidance) and user content (project stack, quality standards,
 custom sections). Clean section-level separation in most files.
 
 **Examples:** DEV-RULES.PROJECT, AGENT-BRIEF.PROJECT, QUICK-REFERENCE, STRATEGY-INDEX.
