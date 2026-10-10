@@ -475,14 +475,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           Errand base merges request new-head checks from the returned pre-merge head before push and fresh review;
           amendment guidance delegates check selection to the request, and redundant quality examples are removed.
 
-    - `[ ]` **6.1.c Lifecycle workflows**
-        - `verify-work-unit.md` requests `arc check gate merge --force`
-        - `integrate-work-unit.md`: the completion-content commit requests `arc check increment`; a review-driven
-          change, an applied `arc wu reconcile` correction, and each staged boundary correction `arc check gate commit`;
-          a `merged / run-quality-gates` head `arc check new-head --from <pre-merge head>`; and convergence
-          `gate push --range --force` (`focused`) or `gate merge --force` (`full`)
-        - `prepare-work-unit.md`: an approved correction-path fix requests `arc check gate commit`; convergence and its
-          final run as above
+    - `[x]` **6.1.c Lifecycle workflows**
+        - Verification requests the forced merge gate; convergence requests forced push-range or merge checks from
+          the action's scope while preserving attestation arguments. Lifecycle corrections request the commit gate,
+          completion content requests increment checks, and merged bases request new-head checks before checkpointing.
 
     - `[ ]` **6.1.d Delivery and review**
         - `deliver-stack.md`: a review fix's `verification.target` requests `arc check gate commit --all --force` and a

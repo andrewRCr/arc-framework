@@ -426,8 +426,8 @@ re-enter status without the coverage option so the still-required complete lane 
 reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
 needs new authority, material cost, or resolution of genuine uncertainty.
 
-Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
-never rewrite a prior exact-target result as if it ran on the new head.
+Request `arc check gate commit` after every review-driven change. A new target invalidates clearance and merge
+authorization; never rewrite a prior exact-target result as if it ran on the new head.
 
 The WU stays in `**State:** Integrating` throughout this phase. Composition + sweep do not fire here.
 
@@ -513,8 +513,8 @@ unlike Step 5's Release Notes. Leave it uncommitted until Step 7.
 
 ### 7) Commit completion content
 
-Run the applicable quality gates ([`quality-gate-commands`][arc-methods-qg]) and stop on failure. Bundle the
-composition edits under the provisional-candidate exception; this commit does not make the branch merge-ready.
+Request `arc check increment` and stop on failure. Bundle the composition edits under the provisional-candidate
+exception; this commit does not make the branch merge-ready.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -573,8 +573,8 @@ arc wu reconcile {name} --apply --json
 ```
 
 `pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
-rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, run Tier 1
-over the staged correction, then commit:
+rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, request
+`arc check gate commit` over the staged correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -622,7 +622,7 @@ After an explicit `covered`, `targeted-check`, or `changed` choice, compose the 
 `payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
 check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
 For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
-Candidate selection staged. Run Tier 1 over that correction, then commit:
+Candidate selection staged. Request `arc check gate commit` over that correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -663,7 +663,8 @@ This reuses ordinary delivery reconciliation and adds no new operation.
 `candidate-publication-commit-required / commit-boundary` renders `payload.recommendedActionText` verbatim and
 requires the staged path to equal `payload.boundaryPath`, then continues below.
 
-For either staged publication route, run Tier 1 over the exact new head and boundary correction, then commit:
+For either staged publication route, request `arc check gate commit` over the exact new head and boundary correction,
+then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -684,9 +685,10 @@ supplies neither verdict.
 
 `recompose-required / rerun-checkpoint` invokes its supplied remedy and restarts this step.
 
-`candidate-convergence-pending / run-convergence-verification` uses only the supplied action: run
-`action.verificationKind` at `action.requiredScope`, obtain a fresh verification evidence reference, replace only
-the `{verificationEvidenceRef}` operand in `action.attestArgv`, invoke that exact argv, then restart this step. Never
+`candidate-convergence-pending / run-convergence-verification` uses only the supplied `action.requiredScope`:
+`focused` requests `arc check gate push --range --force`; `full` requests `arc check gate merge --force`. Retain
+`action.verificationKind`, obtain a fresh verification evidence reference, replace only the `{verificationEvidenceRef}`
+operand in `action.attestArgv`, invoke that exact argv, then restart this step. Never
 invoke the placeholder-bearing argv unchanged or substitute the Candidate root verification reference.
 
 `blocked / stop` renders its supplied reason, detail, and structured remedy, then stops. The delivery-native
@@ -708,8 +710,8 @@ Candidate head; only the regenerable arm carries `--regenerate-roadmap`.
 `blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point. Before
 stopping, render the supplied semantic reason, detail, decisive coordinates, and `continuation` remedy or terminal
 explanation.
-`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
-over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
+`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, request
+`arc check new-head --from <pre-merge head>`, using the returned `expectedHead`. Make no applicability or review
 judgment before the checkpoint classifies the exact target.
 
 For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
@@ -767,8 +769,8 @@ unchanged. `invalidated / checkpoint` returns to the checkpoint. `invalidated / 
 When settlement reports `fix-not-performed`, complete the approved fix and submit its exact `verifiedFix` response
 at the approved verification scope before re-checkpointing the resulting head; the prior merge approval does not
 carry to a changed head.
-Dispatch the typed base-merge result through the same result arms above, including fresh Tier 1, push, checkpoint,
-and approval after `merged / run-quality-gates`. `blocked / stop` stops.
+Dispatch the typed base-merge result through the same result arms above, including the new-head check, push,
+checkpoint, and approval after `merged / run-quality-gates`. `blocked / stop` stops.
 Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather
 than deriving a continuation from its evidence fields.
 The integration interlock is the sole merge authority.
@@ -864,7 +866,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass

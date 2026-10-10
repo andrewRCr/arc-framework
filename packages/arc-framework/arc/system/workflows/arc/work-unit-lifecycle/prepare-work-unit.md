@@ -133,12 +133,13 @@ A null `policy` means no lane operation is open — follow the envelope's `nextA
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
 
-For `run-convergence-verification`, use only the typed action: run its `nextAction.verificationKind` at
-`nextAction.requiredScope`, obtain a fresh verification evidence reference, replace only the
+For `run-convergence-verification`, use only the typed action's `nextAction.requiredScope`: `focused` requests
+`arc check gate push --range --force`; `full` requests `arc check gate merge --force`. Retain
+`nextAction.verificationKind`, obtain a fresh verification evidence reference, replace only the
 `{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
-verification scope in prose or substitute the Candidate root task-list reference. Complete final Tier 3 without an
-intervening commit. Keep every projection staged while the returned action re-enters prepublication, through
-`candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
+verification scope in prose or substitute the Candidate root task-list reference. Complete the final forced merge
+check without an intervening commit. Keep every projection staged while the returned action re-enters prepublication,
+through `candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
 
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
@@ -193,8 +194,8 @@ arc review respond -
 
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
-continuation. The scope does not select fewer checks here. Approved fixes run Tier 1 gates
-([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Disclose review
+continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`,
+commit atomically, and produce a new target. Disclose review
 applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
 `focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
 uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its
@@ -256,5 +257,4 @@ push and change-request creation; do not push from this workflow.
 [review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [deliver-stack]: ../supplemental/deliver-stack.md
