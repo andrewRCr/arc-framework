@@ -7,12 +7,61 @@ import ts from "typescript";
 const { syntaxBindingLookup } = await import(new URL("../src/lib/syntax-bindings.ts", import.meta.url).href) as
   typeof import("../src/lib/syntax-bindings.js");
 
+/** Predicates whose existing violations are recorded as a suppression floor that rerouting drains to zero. */
+const RATCHET_PREDICATES = ["store-raw-state", "surface-names"] as const;
+
 /** Predicate IDs accepted by the native configuration schema. */
 export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
-  "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity"] as const;
+  "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity",
+  ...RATCHET_PREDICATES] as const;
 
 /** A named module-local architecture predicate. */
 export type ArchitecturePredicate = typeof ARCHITECTURE_PREDICATES[number];
+
+function isRatchet(predicate: ArchitecturePredicate): boolean {
+  return RATCHET_PREDICATES.some((ratchet) => ratchet === predicate);
+}
+
+/**
+ * Native rule IDs with the predicates each accepts. Suppressions are counted per file and rule, so each ratchet
+ * reports under its own ID: its floor then lends no slack to the fail-closed predicates or to the other ratchet.
+ */
+export const ARCHITECTURE_RULES: Readonly<Record<string, readonly ArchitecturePredicate[]>> = {
+  "architecture-imports": ARCHITECTURE_PREDICATES.filter((predicate) => !isRatchet(predicate)),
+  ...Object.fromEntries(RATCHET_PREDICATES.map((predicate) => [predicate, [predicate]])),
+};
+
+/**
+ * Name the native rule that reports a predicate.
+ * @param predicate - Module-local predicate ID.
+ * @returns The rule ID, without the plugin prefix.
+ */
+export function architectureRuleFor(predicate: ArchitecturePredicate): string {
+  return isRatchet(predicate) ? predicate : "architecture-imports";
+}
+
+/**
+ * Modules that read or write operational state beneath the storage contract, relative to the source root. Production
+ * code reaches them through `lib/store/`; the modules may still import one another.
+ */
+const RAW_STATE_MODULES = [
+  "lib/active/meta-reader.ts",
+  "lib/work-unit/lifecycle-index.ts",
+  "lib/work-unit/composed-lifecycle-index.ts",
+  "lib/git/ref-tree.ts",
+  "lib/errand/ref-tree.ts",
+  "lib/work-unit/candidate-record-store.ts",
+  "lib/work-unit/transition-record-store.ts",
+  "lib/errand/identity-snapshot.ts",
+  "lib/errand/identity-transaction.ts",
+  "lib/user-sync/inbox-writer.ts",
+] as const;
+
+/**
+ * Presentation names and path fragments of ARC surfaces, which only the layout resolver spells. The meta filename
+ * prefix leaves aside a whole kebab-case code such as `meta-read-failed`, which names no file.
+ */
+const SURFACE_NAME = /USER-INBOX|ATOMIC-INBOX|ROADMAP|STATUS\.USER|\.arc\/active\/|(?:^|[/^])meta-(?![a-z0-9]+(?:-[a-z0-9]+)*$)/u;
 
 /** A source reference violating an enabled architecture predicate. */
 export interface ArchitectureImportViolation {
@@ -298,6 +347,45 @@ function storeViolations(
   return violations;
 }
 
+function rawStateViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
+  const file = resolve(filename);
+  const owners = new Set(RAW_STATE_MODULES.map((path) => join(sourceRoot, path)));
+  if (within(join(sourceRoot, "lib/store"), file) || owners.has(file)) return [];
+  return storeReferences(source).flatMap(({ node, specifier }): ArchitectureImportViolation[] => {
+    if (!specifier.startsWith(".")) return [];
+    const target = resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts"));
+    if (!owners.has(target)) return [];
+    const helper = relative(sourceRoot, target).replaceAll("\\", "/");
+    return [{ node, predicate: "store-raw-state", reason: `raw state helper ${helper} outside the store` }];
+  });
+}
+
+function surfaceNameViolations(source: ts.SourceFile): ArchitectureImportViolation[] {
+  const violations: ArchitectureImportViolation[] = [];
+  const specifiers = new Set<ts.Node>();
+  const visit = (node: ts.Node): void => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined) {
+      specifiers.add(node.moduleSpecifier);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      specifiers.add(node.argument.literal);
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments[0] !== undefined) {
+      specifiers.add(node.arguments[0]);
+    } else if (ts.isExternalModuleReference(node)) {
+      specifiers.add(node.expression);
+    } else if (!specifiers.has(node)
+      && (ts.isStringLiteralLike(node) || ts.isTemplateLiteralToken(node) || ts.isRegularExpressionLiteral(node))) {
+      const name = SURFACE_NAME.exec(node.text)?.[0];
+      if (name !== undefined) {
+        violations.push({ node, predicate: "surface-names", reason: `surface name ${name} outside the layout resolver` });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return violations;
+}
+
 function configuredIdentityViolations(source: ts.SourceFile): ArchitectureImportViolation[] {
   const violations: ArchitectureImportViolation[] = [];
   const orderedLiterals = (nodes: readonly ts.Node[]): (string | undefined)[] =>
@@ -387,6 +475,8 @@ export function findArchitectureImportViolations(
   }
   violations.push(...additionalDependencyViolations(references, filename, sourceRoot, predicates));
   if (predicates.includes("configured-identity")) violations.push(...configuredIdentityViolations(source));
+  if (predicates.includes("store-raw-state")) violations.push(...rawStateViolations(source, filename, sourceRoot));
+  if (predicates.includes("surface-names")) violations.push(...surfaceNameViolations(source));
   return violations;
 }
 
@@ -409,19 +499,22 @@ function parsedModule(context: Rule.RuleContext): ts.SourceFile {
 /**
  * Create the native rule for named architecture predicates.
  * @param sourceRoot - Absolute production source root.
+ * @param accepted - Predicate IDs this rule accepts; every predicate by default.
  * @returns ESLint rule definition consuming predicate IDs.
  */
-export function createArchitectureImportsRule(sourceRoot: string): Rule.RuleModule {
+export function createArchitectureImportsRule(
+  sourceRoot: string, accepted: readonly ArchitecturePredicate[] = ARCHITECTURE_PREDICATES,
+): Rule.RuleModule {
   return {
     meta: {
       type: "problem",
-      schema: [{ type: "array", items: { enum: [...ARCHITECTURE_PREDICATES] }, uniqueItems: true }],
+      schema: [{ type: "array", items: { enum: [...accepted] }, uniqueItems: true }],
       messages: { boundary: "{{predicate}}: {{reason}}" },
     },
     create(context) {
       const options: unknown = context.options[0];
       if (!Array.isArray(options) || !options.every((value): value is ArchitecturePredicate =>
-        ARCHITECTURE_PREDICATES.some((predicate) => predicate === value))) {
+        accepted.some((predicate) => predicate === value))) {
         throw new Error("Architecture predicates require supported predicate IDs");
       }
       return {

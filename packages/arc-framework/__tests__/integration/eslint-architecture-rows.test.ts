@@ -78,6 +78,8 @@ const cases = [
   ["src/handlers/view.ts", 'import "../commands/active.js";', "no-restricted-imports"],
   ["src/handlers/view.ts", 'import "../lib/git/index.js";', "no-restricted-imports"],
   ["src/commands/active/status.ts", 'import "../../lib/git/index.js";', "no-restricted-imports"],
+  ["src/handlers/planted.ts", 'import "../lib/active/meta-reader.js";', "arc/store-raw-state"],
+  ["src/handlers/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;', "arc/surface-names"],
 ] as const;
 
 describe("actual architecture table enforcement", () => {
@@ -180,6 +182,16 @@ describe("actual architecture table enforcement", () => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.filter(({ ruleId }) => ["arc/architecture-imports", "no-restricted-imports", "no-restricted-syntax"].includes(ruleId ?? ""))).toEqual([]);
+  });
+
+  it.each([
+    ["src/lib/store/planted.ts", 'import "../active/meta-reader.js";'],
+    ["src/lib/work-unit/composed-lifecycle-index.ts", 'import "./lifecycle-index.js";'],
+    ["src/lib/layout/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
+  ])("allows the ratchet's owning boundary in %s: %s", async (path, text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId }) => ["arc/store-raw-state", "arc/surface-names"].includes(ruleId ?? ""))).toEqual([]);
   });
 
   it.each([

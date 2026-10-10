@@ -105,11 +105,20 @@
     }
   },
   "src/cli.ts": {
+    "arc/surface-names": {
+      "count": 11
+    },
     "max-lines": {
       "count": 1
     }
   },
   "src/commands/active/status.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 3
     },
@@ -138,7 +147,21 @@
     }
   },
   "src/commands/rename.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/start.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -169,12 +192,38 @@
       "count": 1
     }
   },
+  "src/commands/user/compact.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/commands/user/drift.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/commands/user/inbox-mutation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 5
+    }
+  },
   "src/commands/user/paired-push.ts": {
     "max-lines-per-function": {
       "count": 1
     }
   },
+  "src/commands/user/push-fetch.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/commands/user/save-load.ts": {
+    "arc/surface-names": {
+      "count": 2
+    },
     "max-lines": {
       "count": 1
     },
@@ -183,6 +232,9 @@
     }
   },
   "src/commands/user/sync-status.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 8
     },
@@ -198,7 +250,25 @@
       "count": 1
     }
   },
+  "src/handlers/active.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/handlers/base.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/handlers/candidate-mutation-owner.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/handlers/candidate.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -211,7 +281,18 @@
       "count": 1
     }
   },
+  "src/handlers/delivery-entry.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/handlers/delivery-execution.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 18
     },
@@ -239,6 +320,9 @@
     }
   },
   "src/handlers/delivery.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     },
@@ -247,6 +331,12 @@
     }
   },
   "src/handlers/errand.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 5
     },
@@ -276,6 +366,9 @@
     }
   },
   "src/handlers/lifecycle-delivery-review.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
     "complexity": {
       "count": 2
     },
@@ -284,6 +377,12 @@
     }
   },
   "src/handlers/lifecycle.ts": {
+    "arc/store-raw-state": {
+      "count": 4
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 5
     },
@@ -292,6 +391,16 @@
     },
     "max-lines-per-function": {
       "count": 1
+    }
+  },
+  "src/handlers/plan.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/handlers/reconcile.ts": {
+    "arc/store-raw-state": {
+      "count": 2
     }
   },
   "src/handlers/recover.ts": {
@@ -334,6 +443,9 @@
     }
   },
   "src/handlers/review.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 5
     },
@@ -345,6 +457,12 @@
     }
   },
   "src/handlers/start.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 9
+    },
     "complexity": {
       "count": 2
     },
@@ -353,7 +471,31 @@
     }
   },
   "src/handlers/status.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/status/lifecycle.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/handlers/status/session-context.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/handlers/status/views.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -374,6 +516,9 @@
     }
   },
   "src/handlers/user.ts": {
+    "arc/surface-names": {
+      "count": 8
+    },
     "complexity": {
       "count": 2
     },
@@ -381,8 +526,24 @@
       "count": 1
     }
   },
+  "src/handlers/view.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
   "src/lib/active/cohort-consistency.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/active/cohort-live-context.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -391,12 +552,28 @@
       "count": 1
     }
   },
+  "src/lib/active/meta-reader.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
   "src/lib/advisory-lock.ts": {
     "complexity": {
       "count": 2
     }
   },
+  "src/lib/base-drift/current-adapters.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
   "src/lib/change-facts.ts": {
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 4
     }
@@ -404,6 +581,11 @@
   "src/lib/change-stats.ts": {
     "complexity": {
       "count": 1
+    }
+  },
+  "src/lib/classification.ts": {
+    "arc/surface-names": {
+      "count": 2
     }
   },
   "src/lib/command-input/declaration.ts": {
@@ -438,6 +620,9 @@
     }
   },
   "src/lib/compaction-seed/emitter.ts": {
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -516,6 +701,9 @@
     }
   },
   "src/lib/delivery/from-branch.ts": {
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
@@ -539,6 +727,11 @@
     },
     "max-lines-per-function": {
       "count": 3
+    }
+  },
+  "src/lib/delivery/lifecycle-contribution.ts": {
+    "arc/store-raw-state": {
+      "count": 1
     }
   },
   "src/lib/delivery/local-stores.ts": {
@@ -615,6 +808,9 @@
     }
   },
   "src/lib/delivery/repository-entry.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
@@ -654,6 +850,9 @@
     }
   },
   "src/lib/delivery/review-fix-record-effects.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -714,6 +913,11 @@
       "count": 1
     }
   },
+  "src/lib/errand/abandon-runtime.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/errand/change-request-lifecycle.ts": {
     "complexity": {
       "count": 1
@@ -724,9 +928,22 @@
       "count": 3
     }
   },
+  "src/lib/errand/close-runtime.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/errand/exact-branch-generation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
+    }
+  },
+  "src/lib/errand/identity-claims.ts": {
+    "arc/store-raw-state": {
+      "count": 2
     }
   },
   "src/lib/errand/identity-transaction.ts": {
@@ -735,12 +952,30 @@
     }
   },
   "src/lib/errand/identity-transitions.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     }
   },
+  "src/lib/errand/index.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    }
+  },
+  "src/lib/errand/leave-runtime.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/errand/leave.ts": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/link-runtime.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -749,7 +984,20 @@
       "count": 1
     }
   },
+  "src/lib/errand/materialize-branch.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/merge.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
   "src/lib/errand/open-runtime.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -771,6 +1019,9 @@
     }
   },
   "src/lib/errand/promote-runtime.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     }
@@ -778,6 +1029,11 @@
   "src/lib/errand/promote.ts": {
     "complexity": {
       "count": 1
+    }
+  },
+  "src/lib/errand/record.ts": {
+    "arc/store-raw-state": {
+      "count": 3
     }
   },
   "src/lib/errand/terminal-result.ts": {
@@ -827,6 +1083,12 @@
     }
   },
   "src/lib/git/in-flight-derivation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -852,12 +1114,20 @@
       "count": 1
     }
   },
+  "src/lib/git/publication-failure.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/git/push-worktree.ts": {
     "complexity": {
       "count": 1
     }
   },
   "src/lib/git/remote-ref-reader.ts": {
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     }
@@ -865,6 +1135,19 @@
   "src/lib/git/worktree-marker.ts": {
     "complexity": {
       "count": 3
+    }
+  },
+  "src/lib/git/worktree-roster.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 2
+    }
+  },
+  "src/lib/git/worktree-scaffold.ts": {
+    "arc/store-raw-state": {
+      "count": 1
     }
   },
   "src/lib/git/worktree-sync.ts": {
@@ -901,11 +1184,23 @@
     }
   },
   "src/lib/locus/derived-evidence.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 3
+    },
     "complexity": {
       "count": 1
     }
   },
   "src/lib/locus/derived-lifecycle-evidence.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     }
@@ -942,6 +1237,12 @@
     }
   },
   "src/lib/locus/subject-meta.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     },
@@ -966,11 +1267,27 @@
     }
   },
   "src/lib/markdown/authority.ts": {
+    "arc/surface-names": {
+      "count": 3
+    },
     "complexity": {
       "count": 1
     }
   },
+  "src/lib/markdown/format-plan.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/markdown/selection.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
   "src/lib/recover/audit.ts": {
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 5
     }
@@ -998,8 +1315,26 @@
       "count": 4
     }
   },
+  "src/lib/release/interlock-validation.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/release/wu-resolution.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
   "src/lib/session-init/branch-gone-cascade.ts": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/session-init/cohort-doc.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1011,11 +1346,29 @@
       "count": 2
     }
   },
+  "src/lib/session-init/in-flight-work-unit-sweep.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/session-init/inbox-state.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/session-init/lifecycle-residue-sweep.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/session-init/partial-push-marker-surface.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1030,11 +1383,68 @@
       "count": 1
     }
   },
+  "src/lib/setup.ts": {
+    "arc/surface-names": {
+      "count": 4
+    }
+  },
+  "src/lib/status/project-roadmap-render.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/status/project-view-ref.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
   "src/lib/status/project-view.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/status/ready-mine-source.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/status/roadmap-conflict-auto-remedy.ts": {
+    "arc/surface-names": {
+      "count": 4
+    }
+  },
+  "src/lib/status/roadmap-regeneration-assert.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/status/user-view.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/status/work-unit-purpose.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/store/in-repo/meta.ts": {
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1082,13 +1492,49 @@
       "count": 1
     }
   },
+  "src/lib/user-reference-reconcile.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/user-surfaces.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/branch-bounded-notes-export.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
+  "src/lib/user-sync/cas-retry.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/user-sync/compaction.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     }
   },
+  "src/lib/user-sync/execution-offer.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/user-sync/inbox-writer.ts": {
+    "arc/surface-names": {
+      "count": 19
+    },
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/notes-merge.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1107,11 +1553,46 @@
       "count": 1
     }
   },
+  "src/lib/user-sync/parser.ts": {
+    "arc/surface-names": {
+      "count": 2
+    }
+  },
+  "src/lib/user-sync/sync-state-merge.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/sync-state-publish.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/sync-state-ref.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/view-artifact.ts": {
+    "arc/surface-names": {
+      "count": 2
+    }
+  },
   "src/lib/view-renderer.ts": {
     "complexity": {
       "count": 5
     },
     "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/view/started-artifacts.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/backlog-stub.ts": {
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1141,6 +1622,14 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/completed-index.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 2
+    }
+  },
   "src/lib/work-unit/composed-lifecycle-index.ts": {
     "complexity": {
       "count": 2
@@ -1151,6 +1640,11 @@
       "count": 2
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-sweep.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1170,11 +1664,26 @@
       "count": 2
     }
   },
+  "src/lib/work-unit/decompose-v3-finish-remedies.ts": {
+    "arc/surface-names": {
+      "count": 4
+    }
+  },
   "src/lib/work-unit/decompose-v3-materializer.ts": {
     "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-operation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-plan-composer.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1196,11 +1705,30 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/decompose-v3-refusal.ts": {
+    "arc/surface-names": {
+      "count": 6
+    }
+  },
   "src/lib/work-unit/decompose-v3-repository-plan.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-repository-tree.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1238,7 +1766,20 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/executor-context-current-wu.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/executor-context-status.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/executor-context.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -1249,11 +1790,20 @@
     }
   },
   "src/lib/work-unit/git-candidate-subject.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
   },
   "src/lib/work-unit/git-decompose-transition-base-advancement.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     },
@@ -1261,12 +1811,34 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/git-decompose-v3-destination-validation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-decompose-v3-operation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/git-decompose-v3-preflight.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
   },
   "src/lib/work-unit/git-graduation-transaction.ts": {
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     },
@@ -1280,6 +1852,12 @@
     }
   },
   "src/lib/work-unit/git-retirement-authorization-context.ts": {
+    "arc/store-raw-state": {
+      "count": 4
+    },
+    "arc/surface-names": {
+      "count": 5
+    },
     "complexity": {
       "count": 1
     },
@@ -1287,7 +1865,15 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/git-transition-record-enumeration.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/lifecycle-executor.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "complexity": {
       "count": 4
     },
@@ -1298,6 +1884,16 @@
       "count": 2
     }
   },
+  "src/lib/work-unit/lifecycle-guards.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/lifecycle-index.ts": {
+    "arc/surface-names": {
+      "count": 5
+    }
+  },
   "src/lib/work-unit/mutators/reconcile-work-unit-worktree.ts": {
     "complexity": {
       "count": 1
@@ -1306,18 +1902,61 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/mutators/rewrite-renamed-meta.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/mutators/set-phase.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/park-planning-landing.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 3
+    },
     "complexity": {
       "count": 2
     }
   },
   "src/lib/work-unit/park-retirement-proof.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
   },
   "src/lib/work-unit/planning-artifact-tuple.ts": {
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/pointer-record.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/rename-preflight.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/rename-reference-sweep.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1332,6 +1971,9 @@
     }
   },
   "src/lib/work-unit/side-effects/discharge-dep-edges.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     },
@@ -1339,7 +1981,28 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/side-effects/readiness-regen.ts": {
+    "arc/surface-names": {
+      "count": 3
+    }
+  },
+  "src/lib/work-unit/teardown-lifecycle-projection.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/terminal-transition-record-writer.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/validated-graduation-transaction.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1348,11 +2011,27 @@
     }
   },
   "src/lib/work-unit/verbs/abandon.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
       "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/activate-deactivate.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/archive.ts": {
+    "arc/store-raw-state": {
+      "count": 2
     }
   },
   "src/lib/work-unit/verbs/attest.ts": {
@@ -1363,7 +2042,18 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/verbs/finalize-stage.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/verbs/park-resume.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 3
     },
@@ -1371,7 +2061,15 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/verbs/promote-demote.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
   "src/lib/work-unit/verbs/publish.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1380,16 +2078,30 @@
     }
   },
   "src/lib/work-unit/verbs/rename.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
   },
+  "src/lib/work-unit/verbs/reopen.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/work-unit/verbs/stub.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
   },
   "src/lib/work-unit/verbs/teardown.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "complexity": {
       "count": 3
     },
@@ -1404,6 +2116,9 @@
     }
   },
   "src/scripts/base/merge-composition.ts": {
+    "arc/surface-names": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1416,6 +2131,14 @@
   },
   "src/scripts/base/merge.ts": {
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/check-foreign-writes.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1439,6 +2162,9 @@
     }
   },
   "src/scripts/integration/candidate-response-confirmation.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1447,6 +2173,9 @@
     }
   },
   "src/scripts/integration/checkpoint-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 3
+    },
     "complexity": {
       "count": 5
     },
@@ -1488,6 +2217,9 @@
     }
   },
   "src/scripts/integration/lineage-review-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     },
@@ -1511,6 +2243,11 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/remedy-roadmap-conflict.ts": {
+    "arc/surface-names": {
       "count": 1
     }
   },
@@ -1570,6 +2307,19 @@
       "count": 1
     }
   },
+  "src/scripts/review-gate/hosts/local/live-context.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/assurance.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/scripts/review-gate/policy/candidate-review-fix-continuation.ts": {
     "complexity": {
       "count": 2
@@ -1612,7 +2362,15 @@
       "count": 3
     }
   },
+  "src/scripts/review-gate/policy/mechanical-review-applicability-carry.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/scripts/review-gate/policy/pre-publication-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -1677,7 +2435,18 @@
     }
   },
   "src/scripts/review-gate/readiness.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
+      "count": 4
+    },
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/candidate-response-head-continuation.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1700,6 +2469,9 @@
     }
   },
   "src/scripts/review-gate/runtime/local-prepare-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -1732,11 +2504,17 @@
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 1
     }
   },
   "src/scripts/review-gate/status-composition.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 3
     },
@@ -1745,6 +2523,9 @@
     }
   },
   "src/scripts/review-gate/status-errand.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1760,6 +2541,19 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/scripts/validate-cohort-consistency.ts": {
+    "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/scripts/validate-meta-spec.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/surface-names": {
       "count": 2
     }
   }
