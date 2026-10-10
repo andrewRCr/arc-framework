@@ -20,7 +20,7 @@ it("enables task locations for line filters while preserving an explicit overrid
 const tiers = [
   ["full", []],
   ["unit", ["--project", "unit", "--project", "unit-mocks"]],
-  ["changed", ["--changed=main", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
+  ["changed", ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
   ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
   ["integration", ["--project", "integration"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",

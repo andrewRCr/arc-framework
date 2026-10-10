@@ -623,25 +623,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           commit and full lint at push, both type checks, shell lint with its tool-version input, package sync, and
           build. Table formatting selects writable artifacts and package sources, projecting Framework outputs.
 
-    - `[ ]` **7.4.b Test checks**
-        - `test:changed` as a gate-less `files` check, requested by id with the local E2E check (Task 7.5): the unit
-          test checks enforce at push, and at the push gate it would join the merge gate and rerun the whole unit
-          suite over every path. It receives the verb's changed paths, with `local-vitest-runner.ts` taking paths in
-          place of its `--changed=main` selection, and its inputs are the TypeScript it finds tests for by import.
-          `unit/vitest-controller-logic.test.ts` pins that selection and changes with it
-        - The unit and integration test checks at the push gate, with the whole-tree inputs less `.arc/active/**`,
-          `.arc/backlog/**`, and `.arc/completed/**`. `integration/decompose-v3-repository-plan.test.ts`
-          (`copiedRealNotesRepository`) reads an archived work unit from `.arc/completed/`; it reads a byte-identical
-          copy among its fixtures instead, the files named `spec.md`, `tasks.md`, and `notes.md` so the descriptor
-          lint's task-list pattern (`TASK_LIST_PATH_RE` in `descriptor-worktree.ts`) skips them. Then confirm that no
-          other test reads those trees from the repository rather than from a fixture it builds
-        - `test:arc-contracts` (`ARC_CONTRACT_SUITES` in `local-vitest-runner.ts`) at the commit gate, with
-          `packages/arc-framework/arc/**`, `.arc/system/**`, and `.arc/reference/**` among its inputs
-        - Unit, integration, and E2E tests sharded as the CI layout shards them (2, 4, and 4), each with the argument
-          `--shard={index}/{count}`; E2E, `test:portability`, and `test:portability:macos` `ci_only`, the last run on
-          macOS only (Task 7.6.c)
-        - The local E2E check: a gate-less `files` check over the whole E2E tree, support files included, with
-          `cache: false`, whose command is a repository script that runs the whole suite whatever paths it receives
+    - `[x]` **7.4.b Test checks**
+        - Declared related unit feedback, whole unit/integration push checks, commit contracts, sharded CI E2E and
+          portability, and uncached local E2E feedback. Related selection consumes supplied paths; the local adapter
+          runs the complete suite. Decomposition and coupling-audit planning inputs now use byte-identical fixtures.
 
     - `[x]` **7.4.c Global inputs**
         - Lockfiles and tool configuration invalidate all check keys. The installed npm record is fingerprinted by a

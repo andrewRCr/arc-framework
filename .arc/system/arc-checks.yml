@@ -264,6 +264,116 @@ checks:
       - packages/arc-framework/templates/**
       - packages/arc-framework/tsup*.ts
       - packages/arc-framework/build-compiler.config.ts
+  test:changed:
+    command:
+      - npm
+      - run
+      - -s
+      - test:changed
+      - --
+    mode: files
+    root: packages/arc-framework
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  test:unit:
+    command:
+      - npm
+      - run
+      - -s
+      - test:unit
+      - --
+    gate: push
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+    shards:
+      count: 2
+      argument: --shard={index}/{count}
+  test:integration:
+    command:
+      - npm
+      - run
+      - -s
+      - test:integration
+      - --
+    gate: push
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+    shards:
+      count: 4
+      argument: --shard={index}/{count}
+  test:arc-contracts:
+    command:
+      - npm
+      - run
+      - -s
+      - test:arc-contracts
+    gate: commit
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+  test:e2e:
+    command:
+      - npm
+      - run
+      - -s
+      - test:e2e
+      - --
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+    shards:
+      count: 4
+      argument: --shard={index}/{count}
+  test:portability:
+    command:
+      - npm
+      - run
+      - -s
+      - test:portability
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+  test:portability:macos:
+    command:
+      - npm
+      - run
+      - -s
+      - test:portability:macos
+    gate: merge
+    ci_only: true
+    inputs:
+      - '**'
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+  test:e2e:local:
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/run-local-e2e.mjs
+    mode: files
+    cache: false
+    inputs:
+      - packages/arc-framework/__tests__/e2e/**
+      - scripts/run-local-e2e.mjs
 global_inputs:
   - package.json
   - package-lock.json

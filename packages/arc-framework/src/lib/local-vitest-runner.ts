@@ -22,7 +22,7 @@ export const ARC_CONTRACT_SUITES = [
  * Execute one configured tier through Vitest's supported in-process API.
  *
  * @param tier - Logical package-script tier.
- * @param forwardedArguments - User-supplied Vitest filters and flags.
+ * @param forwardedArguments - Related source paths for the changed tier, or native Vitest filters and flags.
  * @returns Completion after Vitest has closed its controller resources.
  */
 export async function runLocalVitestTier(
@@ -31,7 +31,7 @@ export async function runLocalVitestTier(
 ): Promise<void> {
   const { filter, options } = parseCLI([
     "vitest",
-    "run",
+    tier === "changed" ? "related" : "run",
     ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
@@ -52,7 +52,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
     case "unit":
       return ["--project", "unit", "--project", "unit-mocks"];
     case "changed":
-      return ["--changed=main", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"];
+      return ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"];
     case "lane":
       return [
         "--project",
