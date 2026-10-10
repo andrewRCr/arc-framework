@@ -402,30 +402,16 @@ conclusion selects only conflicted and parent-unmatched paths.
           stdin is forwarded; pre-commit.com's advisory stays silent. Missing-CLI scenarios verify both declaration
           presence outcomes and a successful installation repair; standalone advisory tests use a restricted PATH.
 
-### `[ ]` **5.7 Update upgrades existing generated hook entries — D8**
+### `[x]` **5.7 Update upgrades existing generated hook entries — D8**
 
 - _Goal:_ An existing install gets the entries gate dispatch needs in the same update that brings dispatch, and is told
   about any entry it could not upgrade.
 
-- _Context:_ `arc update` calls no hook integration today; only the commit-msg entries have an in-place upgrade
-  (`integrateLefthook`'s legacy rewrite, husky's `migrateExactHookLine`).
-
-- _Approach:_ update runs its own upgrade step after the file sync, as it calls `configureRoadmapConflictRemedy`
-  (`update.ts`), rather than `integrateHooks`, which adds missing entries at init. It recognizes ARC's entries by their
-  ids (`arc-pre-commit`, `arc-commit-msg`, `arc-pre-push`) at the current hook path and reports any other shape rather
-  than migrating it. It rewrites a configuration through the `yaml.load` and `yaml.dump` round-trip init uses, only when
-  an entry changes; that drops the file's comments, so the summary names each file it rewrote.
-
-    - `UpdateResult` and `buildUpdateSummary` (`update.ts`) carry the report; `update.test.ts`'s summary literals and
-      `hook-integration.test.ts`'s generated-shape fixtures change with the new shapes
-    - Build `test-first` (one behavior at a time):
-        - update rewrites an existing generated lefthook pre-push entry, the pre-commit.com commit, commit-msg, and push
-          entries, and pre-commit.com's hook types to their current shape, names the file, and says to re-run
-          `pre-commit install` when the hook types changed
-        - an up-to-date configuration is not rewritten
-        - an entry it cannot recognize as generated is left alone and reported in the update summary
-        - a configuration it cannot parse is reported, and the rest of the update completes
-        - an install under husky or with no hook manager is unaffected
+- _Outcome:_ `arc update` refreshes recognized Lefthook and pre-commit entries after framework sync, names rewritten
+  YAML files, and reports reinstall instructions or unresolved upgrades. Current configurations retain their bytes;
+  custom command paths and commit-message filters remain untouched and reported. Malformed configurations preserve
+  their bytes while framework updates complete, and repair permits a clean retry; Husky and manager-free installs
+  retain their integration.
 
 ### `[ ]` **5.8 ARC's ROADMAP remedy commit runs no commit gate — D8**
 

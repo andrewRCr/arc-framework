@@ -1157,6 +1157,7 @@ describe("buildUpdateSummary", () => {
     skillWarnings: [],
     migrationWarnings: [],
     pristineStoreError: null,
+    hookUpgrade: { files: [], warnings: [], instructions: [] },
   };
 
   it("shows 'rebuilt' count in summary line", () => {
