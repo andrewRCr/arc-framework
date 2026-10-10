@@ -68,7 +68,7 @@ describe("table migration audit against Git", () => {
     expect(selected).toEqual(first);
   });
 
-  it("refuses an explicit untracked file before reading a baseline", async () => {
+  it("reads an untracked path identically in explicit and automatic selection", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-table-audit-untracked-"));
     await git(root, ["init", "-q", "-b", "main"]);
     await git(root, ["config", "user.email", "test@example.com"]);
@@ -76,16 +76,20 @@ describe("table migration audit against Git", () => {
     await writeFile(join(root, "tracked.md"), "# Tracked\n");
     await git(root, ["add", "tracked.md"]);
     await git(root, ["commit", "-q", "-m", "baseline"]);
-    await writeFile(join(root, "untracked.md"), "# Untracked\n");
-
-    await expect(prepareTableMigrationAudit({
+    const head = await git(root, ["rev-parse", "HEAD"]);
+    await git(root, ["rm", "--cached", "tracked.md"]);
+    const options = {
       root,
-      paths: ["untracked.md"],
       exec: createExecaGitExec(),
       lstat,
       realpath,
-      readBaseline: (ref, path) => readGitBlobBytes(root as string, ref, path),
-      readBytes: (path) => readFile(join(root as string, path)),
-    })).rejects.toMatchObject({ code: "markdown.untracked" });
+      readBaseline: (ref: string, path: string) => readGitBlobBytes(root as string, ref, path),
+      readBytes: (path: string) => readFile(join(root as string, path)),
+    };
+
+    const automatic = await prepareTableMigrationAudit(options);
+    const explicit = await prepareTableMigrationAudit({ ...options, paths: ["tracked.md"] });
+    expect(explicit).toEqual({ head, files: [{ path: "tracked.md", changedRanges: [] }] });
+    expect(explicit).toEqual(automatic);
   });
 });

@@ -595,18 +595,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   Staged certification runs unconditionally, including a clean `HEAD`, while the worktree drift guard retains its
   staged-path enumeration. Native commit candidates with opposite repository indexes exercise both commands.
 
-### `[ ]` **7.2 `format:tables` formats an untracked artifact — D11**
+### `[x]` **7.2 `format:tables` formats an untracked artifact — D11**
 
 - _Goal:_ A new, untracked Markdown artifact formats at the increment boundary like a tracked one, and the drift guard
   no longer fails after it.
 
-    - `migration-audit.ts` shares the validator, so its explicit-path form admits what its no-path form already
-      enumerates from the `worktree` source
-    - Build `test-first` (one behavior at a time):
-        - `validateExplicitMarkdownPaths` (`selection.ts`) admits an untracked path Git's exclude rules allow, through
-          `enumerateTrackedMarkdownPaths`' `worktree` source
-        - an ignored path still refuses, named as ignored rather than untracked
-        - the migration audit given an untracked path reads it as its no-path form does
+- _Outcome:_ Explicit Markdown selection admits untracked files from the existing worktree selector while retaining
+  containment and mutation safeguards. Ignored paths are named in refusals; the formatter writes untracked files
+  without staging them, and explicit migration audits load the same files and evidence as automatic selection.
 
 ### `[ ]` **7.3 The package-sync check reads the exported base and merged-in parents — D11**
 
