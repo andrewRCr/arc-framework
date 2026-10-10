@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "seam-removal-asks",
+  "claimId": "0201734ac9fc5af8d982aa28b5587695",
+  "createdAt": "2026-10-10T15:15:51.172Z",
+  "updatedAt": "2026-10-10T15:15:51.172Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Amend cohort-storage-seam.md § Cross-cohort with storage-projection's settled removal asks: the seam-built removal function and removal check, its two projection slots, the caller split, unlock-if-locked and the missing-folder arm, teardown command lines, primary-safety out",
+  "branch": "chore/seam-removal-asks",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
