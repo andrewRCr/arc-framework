@@ -11,13 +11,14 @@
 - **Design:** `spec-quality-gate-hooks.md`
 - **Task List:** `tasks-quality-gate-hooks.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:206e16aae2b9d9324c7853040197a1408fcf05c3c5fb36bb0e69522b883b46bd`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.10 — First consumer end to end (Phase 7 complete)
-- **Next Task:** Task 8.1 — Complete verification (line ~719)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md` in a fresh session.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
