@@ -474,13 +474,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           requests the forced commit gate over its exact target, preserving delivery's separate reuse and evidence
           contract; the response method invokes the caller's review-fix request.
 
-### `[ ]` **6.2 Briefs, rules, strategies, and references move to the gate model — D1, D10**
+### `[x]` **6.2 Briefs, rules, strategies, and references move to the gate model — D1, D10**
 
 - _Goal:_ The always-loaded and reference surfaces teach the gate model (one vocabulary entry, gates named by event,
   kind as its clause), with every gate-sense passage rewritten by sense and nothing pointing at a tier.
-
-- _Context:_ adopter-facing surfaces state what is, with no transitional framing and no pointer to internal work
-  (`DEV-RULES.PROJECT.md` § Audience Boundaries).
 
     - `[x]` **6.2.a Brief and ARC rules**
         - The brief defines quality gates by event deadline with enforcement and feedback in the same entry.
@@ -497,10 +494,9 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           rules template preserves zero tolerance per event deadline. Generation, extension, and setup guidance use
           check requests and surviving extension examples; this checkout's project-specific gate blocks remain intact.
 
-    - `[ ]` **6.2.d This repository's technical overview**
-        - `TECHNICAL-OVERVIEW.md`: § 2 gains the check declaration as a fourth customization mechanism, its methods
-          bullet drops "quality gate commands", and its extensions bullet drops the unit hook point; § 4 replaces
-          "Tiered approach" with the gate model
+    - `[x]` **6.2.d This repository's technical overview**
+        - The overview includes project check declarations beside settings, methods, and extensions, removes the
+          quality-method and unit-hook examples, and describes event deadlines and fresh verification requests.
 
 ### `[ ]` **6.3 Code identifiers and emitted text drop the tier names — D1, D10**
 
