@@ -187,14 +187,16 @@ Run each review increment (one for a typical errand; a few for an extended one):
    ```text
    <type>(<scope>): <errand summary>
 
-   Decided: <X> over <Y> — because <Z>
+   - <what changed, and why it matters>
+   - <a settled decision: the choice, the alternative it beat, and why>
 
    Context: standalone (<kind>)
    ```
 
-   Record each fork settled as `Decided: X over Y — because Z` in the commit body, each as its own paragraph above
-   the `Context:` trailer. Omit that paragraph when no fork was settled; never put a wrapped decision inside the
-   final trailer block. Partial protection records decisions in the commit only.
+   Record each fork the Errand settled as one body bullet in plain prose: the choice, the alternative it was chosen
+   over, and the reason. Decisions are body content under the `commit-format` convention, so the final trailer block
+   holds only `Context:`. Omit decision bullets when no fork was settled. Partial protection records decisions in
+   the commit only.
 
    See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
@@ -328,8 +330,10 @@ remote base all name the same exact head. Any tracked change continues through t
    [`commit-format` method][commit-format].
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary, followed by each settled fork as `Decided: X over Y — because Z`, plus a one-line Test Plan
-   only when verification is non-obvious. When gated local review ran,
+   one-line Summary; a `## Decisions` section when the Errand settled a fork, one bullet per decision that names the
+   question in an italic descriptor, then gives the choice, the alternative it was chosen over, and the reason in
+   plain prose (`- _Copy timing:_ before the setup script rather than after it, since setup scripts read the copied
+   files.`); and a one-line Test Plan only when verification is non-obvious. When gated local review ran,
    include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
    Follow-Up sections.
 

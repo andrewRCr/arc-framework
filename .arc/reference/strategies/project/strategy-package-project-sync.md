@@ -163,7 +163,7 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 45
+### Configurable files (project sections expected to differ) — 46
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -193,6 +193,7 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
 - `system/methods/design-audit.md`
+- `system/methods/disposition-report.md`
 - `system/methods/frontline-review.md`
 - `system/methods/standard-review.md`
 - `system/methods/implementation-audit.md`
@@ -239,11 +240,11 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
 | Framework      | 103   | Wholesale replaced. No conflicts.                     |
-| Configurable   | 45    | Three-way merge. Conflicts expected in user sections. |
+| Configurable   | 46    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 152. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 153. **Template counterparts:** 11. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

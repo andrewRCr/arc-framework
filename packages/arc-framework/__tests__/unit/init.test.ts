@@ -279,6 +279,7 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
     expect(files).toContain("system/methods/design-audit.md");
+    expect(files).toContain("system/methods/disposition-report.md");
     expect(files).toContain("system/methods/review-chunking.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/source-grounding.md");

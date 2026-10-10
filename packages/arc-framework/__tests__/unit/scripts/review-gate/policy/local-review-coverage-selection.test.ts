@@ -269,8 +269,10 @@ describe("local review coverage selection", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("carries exact Candidate coverage through a mechanically proved later correction", async () => {
-    const predecessor = completeLocalResult();
+  it.each([
+    "fresh-subagent", "fresh-subagent/claude-opus-5-5", "Fresh_Subagent:Claude/Opus",
+  ])("carries exact Candidate coverage by review source with evaluator %s", async (evaluatorIdentity) => {
+    const predecessor = { ...completeLocalResult(), sourceIdentity: evaluatorIdentity };
     const selectedTarget = { ...target(objectId("b")), diffBaseSha: objectId("2") };
     const currentTarget = { ...target(objectId("c")), diffBaseSha: objectId("3") };
     const exec = carriedProofExec();
@@ -280,7 +282,7 @@ describe("local review coverage selection", () => {
       repository: "local/repo-1",
       pullRequest: 42,
       lane: "standard" as const,
-      sourceId: predecessor.sourceIdentity,
+      sourceId: "delegated-agent",
       priorAttemptId: predecessor.producerId,
       priorHead: predecessor.target.headSha,
       currentHead: selectedTarget.headSha,
@@ -332,7 +334,9 @@ describe("local review coverage selection", () => {
     })).resolves.toBe("applicable");
   });
 
-  it("proves contribution for a mixed-case origin repository without a Candidate", async () => {
+  it.each([
+    "fresh-subagent/claude-opus-5-5", "Fresh_Subagent:Claude/Opus",
+  ])("proves mixed-case noncandidate contribution with evaluator %s", async (evaluatorIdentity) => {
     const earlierLineage = {
       kind: "head-bound" as const,
       vehicleKind: "errand" as const,
@@ -345,6 +349,7 @@ describe("local review coverage selection", () => {
     void _currentId;
     const predecessor = {
       ...completeLocalResult(earlierLineage),
+      sourceIdentity: evaluatorIdentity,
       target: createReviewTarget({
         ...priorInput,
         diffBaseSha: objectId("1"), diffBaseTree: objectId("4"),

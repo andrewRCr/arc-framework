@@ -189,6 +189,7 @@ describe("init", () => {
       "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
       "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
+      "disposition-report",
       "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
       "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",

@@ -69,15 +69,16 @@ function renderOpenQuestions(entries: readonly ReportEntry[]): string[] {
   return questions.length === 0 ? [] : ["**Open questions**", ...questions, ""];
 }
 
+/** One paragraph per descriptor field, so each scans on its own line once rendered. */
 function renderSection({ label, item }: ReportEntry): string {
   const title = item.title === undefined ? "" : ` — ${escapeReviewFindingDisplayText(item.title)}`;
-  const lines = [`### ${label}${title}`];
-  if (item.issue !== undefined) lines.push(`**Issue:** ${escapeReviewFindingDisplayText(item.issue)}`);
-  lines.push(
+  const paragraphs = [`### ${label}${title}`];
+  if (item.issue !== undefined) paragraphs.push(`**Issue:** ${escapeReviewFindingDisplayText(item.issue)}`);
+  paragraphs.push(
     `**Action:** ${escapeReviewFindingDisplayText(item.recommendation)}`,
     `**Detail:** ${escapeReviewFindingDisplayText(item.rationale)}`,
   );
-  return lines.join("\n");
+  return paragraphs.join("\n\n");
 }
 
 /** The producer source, then ARC's own verification references, kept distinct on one line. */
@@ -101,16 +102,14 @@ function validateCorrespondence(item: DispositionReportItem, finding: Normalized
   }
 }
 
-/**
- * Render one canonical disposition set against the exact normalized producer findings it covers.
- *
- * @param input - Canonical set and complete producer finding array.
- * @returns One standalone deterministic Markdown report.
- */
-export function renderDispositionReport(input: {
+/** A canonical disposition set and the exact normalized producer findings it covers. */
+interface DispositionReportInput {
   dispositionSet: DispositionSet;
   producerFindings: readonly NormalizedReviewFinding[];
-}): string {
+}
+
+/** Validate exact producer correspondence and label each finding in decision order. */
+function reportEntries(input: DispositionReportInput): { dispositionSet: DispositionSet; entries: ReportEntry[] } {
   const dispositionSet = validateDispositionSet(input.dispositionSet);
   const producerFindings = NormalizedReviewFindingsSchema.parse(input.producerFindings);
   if (dispositionSet.findings.length !== producerFindings.length) {
@@ -128,7 +127,17 @@ export function renderDispositionReport(input: {
     validateCorrespondence(item, finding);
     return { label: `F${index + 1}`, item, finding };
   });
-  const evidence = ["**Evidence**", ...entries.map(renderEvidence)].join("\n");
+  return { dispositionSet, entries };
+}
+
+/**
+ * Render the decision view of one canonical disposition set: the table, open questions, and one section per finding.
+ *
+ * @param input - Canonical set and complete producer finding array.
+ * @returns One standalone deterministic Markdown report, without the evidence block.
+ */
+export function renderDispositionReport(input: DispositionReportInput): string {
+  const { dispositionSet, entries } = reportEntries(input);
   return [
     `**Verification:** ${dispositionSet.proposedVerification}`,
     "",
@@ -136,6 +145,17 @@ export function renderDispositionReport(input: {
     ...entries.map(renderRow),
     "",
     ...renderOpenQuestions(entries),
-    [...entries.map(renderSection), evidence].join("\n\n---\n\n"),
+    entries.map(renderSection).join("\n\n---\n\n"),
   ].join("\n");
+}
+
+/**
+ * Render the evidence behind one canonical disposition set, labelled as its report labels each finding.
+ *
+ * @param input - Canonical set and complete producer finding array.
+ * @returns One deterministic Markdown evidence block: locus, producer source, and ARC verification per finding.
+ */
+export function renderDispositionEvidence(input: DispositionReportInput): string {
+  const { entries } = reportEntries(input);
+  return ["**Evidence**", ...entries.map(renderEvidence)].join("\n");
 }

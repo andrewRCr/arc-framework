@@ -126,6 +126,12 @@ export function selectPendingLocalReplayAttempt<Attempt extends {
   return { attempt: pending[0] ?? null, error: null };
 }
 
+function standardPredecessorSourceId(
+  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
+): string {
+  return predecessor.kind === "hosted" ? predecessor.sourceIdentity : "delegated-agent";
+}
+
 /** Prove a non-delivery predecessor against current contribution and exact Candidate authority. */
 export async function confirmNonDeliveryIncrementalApplicability(input: {
   readonly predecessor: ReviewResult;
@@ -153,7 +159,7 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
     repository: input.repository.toLowerCase(),
     pullRequest: input.pullRequest,
     lane: "standard" as const,
-    sourceId: predecessor.sourceIdentity,
+    sourceId: standardPredecessorSourceId(predecessor),
     priorAttemptId: predecessor.producerId,
     priorHead: predecessor.target.headSha,
     currentHead: currentTarget.headSha,

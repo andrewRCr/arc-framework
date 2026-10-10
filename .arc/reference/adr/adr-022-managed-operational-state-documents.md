@@ -2,10 +2,8 @@
 
 ## Status
 
-Proposed. **Flip trigger:** flips to _Accepted_ at the kickoff of the `storage-seam` work unit, which builds
-the family parsers (2026-09-29 amendment) — "just before implementation," per the ADR lifecycle. That work
-unit carries the flip as an explicit first action; until then the model is decided-in-principle, not yet in
-build.
+Accepted (2026-10-10), where the 2026-09-29 amendment set it: before any `storage-seam` member starts building the
+family parsers — "just before implementation," per the ADR lifecycle.
 
 Builds on [ADR-019][adr-019] (Work Organization Reform — always-present `meta-*`, meta files as the state
 source of truth) and [ADR-020][adr-020] (the derived-vs-mutated split, the invariant floor). It does not
@@ -200,8 +198,8 @@ structured-record source-of-truth model for them.
 - **The reconciled-editable-region parse-back is a new correctness surface.** A malformed region must fail
   loudly and recover, not silently drop content. Mitigated by the round-trip test harness and a robust
   importer/recovery path (the markdown-to-record direction survives as a one-way recovery import).
-- **Notes-synced members depend on transport reliability.** `cross-machine-sync-coherence` addresses a known
-  partial-push gap; any "notes-synced" assignment here depends on it and must not assume it solved.
+- **Notes-synced members depend on transport reliability.** `partial-push-marker` closed a known partial-push
+  gap, and any "notes-synced" assignment here depends on that hardening.
 - **Storage-agnosticism must be enforced**, or the schema layer could re-bake in-repo assumptions (the
   `git log .arc/...` anti-pattern). The new work unit self-checks against `strategy-storage-evolution`.
 
@@ -214,7 +212,7 @@ units. The alignment edits below are the propagation set.
   engine, write primitive, `structural_contract` annotation + manifest wiring, round-trip harness,
   migration). Subsumes the `USER-INBOX` "structured-storage + routed-write" capture and
   `cli-substrate-adoption`'s "Complete-Migration" placeholder for managed-document surfaces. Created in
-  `backlog/planned/`; its kickoff (activation) flips this ADR to _Accepted_ (see Status).
+  `backlog/planned/`.
 - **`configurable-lifecycle-artifacts` (new, provisional)** — captures the out-of-scope concern: lifecycle
   workflows are rigidly coupled to authored-artifact template shapes, with no configurable primitive bounding
   non-negotiable structure vs. swap-in slots. Rough shape only.
@@ -233,8 +231,8 @@ units. The alignment edits below are the propagation set.
   name the record/schema as authority, with `template-meta.md` as its render skeleton.
 - **`cli-substrate-adoption`** — enumerate full managed-document schema coverage (it currently covers four
   surfaces); resolve the schema-home convention; the meta record is its schema, consumed by this model.
-- **`schema-introspection-layer`** — the `arc schema` registry exposes the managed-document schemas; scope
-  which at launch.
+- **`schema-introspection-layer`** — the managed-document schemas publish through the `arc schema` registry as
+  each registers in production.
 - **`lib-layer-type-extraction`** — carve out managed-document types that become `z.infer` from the schema;
   do not re-home them as hand-written types.
 - **`roadmap-tooling`** — `ROADMAP` / `STATUS.PROJECT` is the canonical derived member; its renderer is the
@@ -255,7 +253,7 @@ units. The alignment edits below are the propagation set.
   owner (with `cli-substrate-adoption`) of `arc-config.yml`'s structure-vs-value model — the adjacent archetype
   of this ADR's structural-ownership principle (keys code-owned, values customizable); keep its key-schema
   treatment consistent with the managed-document schemas.
-- **`cross-machine-sync-coherence`** — notes-synced members depend on its transport hardening.
+- **`partial-push-marker`** — notes-synced members depend on its transport hardening.
 - **`arc-backend` / `strategy-storage-evolution`** — the record layer must be forward-compatible with the
   backend tier; self-check against the storage-evolution principles.
 - **`doc-naming-convention`** — owns the file renames (`WORKING-MEMORY → MEMORY.USER`, etc.); this ADR

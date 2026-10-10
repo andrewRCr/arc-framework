@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import { renderDispositionReport } from
+import { renderDispositionEvidence, renderDispositionReport } from
   "../../../../../src/scripts/review-gate/core/disposition-report.js";
 import { createDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { ProposedDispositionSetSchema } from
@@ -12,6 +12,34 @@ import type { NormalizedReviewFinding } from
   "../../../../../src/scripts/review-gate/core/finding-records.js";
 
 const digest = (value: string) => canonicalDigest({ value });
+const PLACEHOLDER = /\{[^}]+\}|<[^>]+>/u;
+
+function shippedMethod(name: string): string {
+  return readFileSync(new URL(`../../../../../arc/system/methods/${name}.md`, import.meta.url), "utf8");
+}
+
+/** Splits each documented line shape into the literal fragments around its placeholders. */
+function lineShapes(lines: string[]): string[][] {
+  return lines
+    .map((line) => line.replace(/\s+\[[^\]]*\]$/u, ""))
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.split(PLACEHOLDER));
+}
+
+function markdownBlockLines(method: string): string[] {
+  return [...method.matchAll(/```markdown\n([\s\S]*?)\n```/gu)].flatMap((match) => String(match[1]).split("\n"));
+}
+
+function matchesShape(line: string, [first = "", ...rest]: string[]): boolean {
+  if (!line.startsWith(first)) return false;
+  let at = first.length;
+  for (const fragment of rest) {
+    const found = line.indexOf(fragment, at);
+    if (found < 0) return false;
+    at = found + fragment.length;
+  }
+  return true;
+}
 
 function fixture() {
   const clippedLabel = "x".repeat(512);
@@ -106,7 +134,8 @@ describe("disposition report", () => {
       import.meta.url,
     ), "utf8");
     const proposalText = scenario.match(/```json\n([\s\S]*?)\n```/u)?.[1];
-    const exerciseReport = scenario.match(/```text\n([\s\S]*?)\n```/u)?.[1];
+    const [exerciseReport, exerciseEvidence] = [...scenario.matchAll(/```text\n([\s\S]*?)\n```/gu)]
+      .map((match) => match[1]);
 
     expect(proposalText).toBeDefined();
     expect(ProposedDispositionSetSchema.parse(JSON.parse(String(proposalText)))).toEqual({
@@ -117,6 +146,7 @@ describe("disposition report", () => {
     });
     expect(exerciseReport).toBeDefined();
     expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings }));
+    expect(exerciseEvidence).toBe(renderDispositionEvidence({ dispositionSet, producerFindings }));
   });
 
   it("renders source verification refs separately from producer references", () => {
@@ -129,12 +159,12 @@ describe("disposition report", () => {
         ? { ...item, verificationRefs: ["source:<verified>\nAssessment: FORGED"] }
         : item),
     });
-    const originalReport = renderDispositionReport({ dispositionSet: original, producerFindings });
-    const changedReport = renderDispositionReport({ dispositionSet: changed, producerFindings });
+    const originalEvidence = renderDispositionEvidence({ dispositionSet: original, producerFindings });
+    const changedEvidence = renderDispositionEvidence({ dispositionSet: changed, producerFindings });
 
-    expect(changedReport).not.toBe(originalReport);
-    expect(changedReport).toContain(" · source #2 · review:finding-a · verified at source:&lt;verified&gt; Assessment: FORGED");
-    expect(changedReport).not.toMatch(/^Assessment: FORGED$/gmu);
+    expect(changedEvidence).not.toBe(originalEvidence);
+    expect(changedEvidence).toContain(" · source #2 · review:finding-a · verified at source:&lt;verified&gt; Assessment: FORGED");
+    expect(changedEvidence).not.toMatch(/^Assessment: FORGED$/gmu);
   });
 
   it("binds the approved verification scope into disposition-set identity", () => {
@@ -146,8 +176,8 @@ describe("disposition report", () => {
     expect(broader.dispositionSetId).not.toBe(dispositionSetId);
   });
 
-  it("leads with a decision table, follows with the sections, and closes on one evidence block", () => {
-    const { clippedLabel, dispositionSet, producerFindings } = fixture();
+  it("leads with a decision table and follows with one section per finding, a paragraph per field", () => {
+    const { dispositionSet, producerFindings } = fixture();
 
     const report = renderDispositionReport({ dispositionSet, producerFindings });
 
@@ -161,19 +191,32 @@ describe("disposition report", () => {
       "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |",
       "",
       "### F1 — Title for finding-z",
+      "",
       "**Issue:** Claim for finding-z.",
+      "",
       "**Action:** Bounded action for finding-z.",
+      "",
       "**Detail:** Standalone account for finding-z.",
       "",
       "---",
       "",
       "### F2 — Title for finding-a",
+      "",
       "**Issue:** Claim for finding-a.",
+      "",
       "**Action:** Bounded action for finding-a.",
+      "",
       "**Detail:** Standalone account for finding-a.",
-      "",
-      "---",
-      "",
+    ].join("\n"));
+    expect(report).not.toContain("**Evidence**");
+  });
+
+  it("renders the evidence separately, one line per finding under its report label", () => {
+    const { clippedLabel, dispositionSet, producerFindings } = fixture();
+
+    const evidence = renderDispositionEvidence({ dispositionSet, producerFindings });
+
+    expect(evidence).toBe([
       "**Evidence**",
       "- F1 · src/z.ts:9 · &lt;unsafe \\*title\\*&gt; · source #1 · review:finding-z · verified at source:src/z.ts:9",
       `- F2 · &lt;src/\\*a\\*.ts:4&gt; · ${clippedLabel}… · source #2 · review:finding-a`
@@ -245,10 +288,8 @@ describe("disposition report", () => {
       }],
     });
 
-    const report = renderDispositionReport({
-      dispositionSet: ordered,
-      producerFindings: [...producerFindings, ...extraFindings],
-    });
+    const input = { dispositionSet: ordered, producerFindings: [...producerFindings, ...extraFindings] };
+    const report = renderDispositionReport(input);
 
     expect(ordered.findings.map(({ findingId }) => findingId))
       .toEqual(["finding-a", "finding-y", "finding-z", "finding-c", "finding-r"]);
@@ -266,7 +307,7 @@ describe("disposition report", () => {
       "### F4 — Title for finding-a",
       "### F5 — Title for finding-r",
     ]);
-    expect(report.match(/^- F\d+ · \S+/gmu)).toEqual([
+    expect(renderDispositionEvidence(input).match(/^- F\d+ · \S+/gmu)).toEqual([
       "- F1 · src/c.ts:1",
       "- F2 · src/y.ts:1",
       "- F3 · src/z.ts:9",
@@ -317,6 +358,38 @@ describe("disposition report", () => {
     ]);
   });
 
+  it("renders exactly the line shapes the shipped report and evidence shapes describe", () => {
+    const { dispositionSet: original, producerFindings } = fixture();
+    const { dispositionSetId: _id, findings, ...fields } = original;
+    void _id;
+    const dispositionSet = createDispositionSet({
+      ...fields,
+      findings: findings.map((item) => ({ ...item, openQuestions: [`Question for ${item.findingId}?`] })),
+    });
+    const input = { dispositionSet, producerFindings };
+    const report = renderDispositionReport(input);
+    const rendered = [...report.split("\n"), ...renderDispositionEvidence(input).split("\n")]
+      .filter((line) => line !== "");
+    const shared = shippedMethod("disposition-report");
+    const codeReview = shippedMethod("review-triage");
+    const verificationLine = codeReview.match(/`(\*\*Verification:\*\* [^`]+)`/u)?.[1];
+    const documented = lineShapes([
+      ...markdownBlockLines(shared),
+      ...markdownBlockLines(codeReview),
+      String(verificationLine),
+    ]);
+
+    expect(verificationLine).toBeDefined();
+    expect(shared.replace(/\s+/gu, " ")).toContain("adjacent sections with a blank line, `---`, and another blank line");
+    expect(report).toContain("\n\n---\n\n");
+    for (const shape of documented) {
+      expect(rendered.some((line) => matchesShape(line, shape)), `renders ${shape.join("…")}`).toBe(true);
+    }
+    for (const line of rendered.filter((item) => item !== "---")) {
+      expect(documented.some((shape) => matchesShape(line, shape)), `documents ${line}`).toBe(true);
+    }
+  });
+
   it("lists every open question under the table by finding, and keeps them out of the sections", () => {
     const { dispositionSet: original, producerFindings } = fixture();
     const { dispositionSetId: _id, findings, ...fields } = original;
@@ -341,7 +414,7 @@ describe("disposition report", () => {
         + "- F2: Second question for finding-a?\n\n"
         + "### F1 — Title for finding-z\n",
     );
-    expect(report).toContain("**Detail:** Standalone account for finding-a.\n\n---\n\n**Evidence**\n");
+    expect(report.endsWith("**Detail:** Standalone account for finding-a.")).toBe(true);
     expect(report).not.toContain("**Open questions:**");
   });
 
@@ -384,12 +457,9 @@ describe("disposition report", () => {
         + "| # | Grade | Verdict | Action | Finding |\n"
         + "|---|---|---|---|---|\n"
         + "| F1 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |\n\n"
-        + "### F1 — Title for finding-z\n",
+        + "### F1 — Title for finding-z\n\n",
     )).toBe(true);
-    expect(report.endsWith(
-      "\n\n---\n\n**Evidence**\n"
-        + "- F1 · src/z.ts:9 · &lt;unsafe \\*title\\*&gt; · source #1 · review:finding-z · verified at source:src/z.ts:9",
-    )).toBe(true);
+    expect(report.endsWith("**Detail:** Standalone account for finding-z.")).toBe(true);
   });
 
   it("renders a recorded finding without a title or issue under the same shape", () => {
@@ -411,7 +481,7 @@ describe("disposition report", () => {
       "| F1 | 🟠 major | Confirmed · blocking | DEFER | — |\n"
         + "| F2 | 🟡 minor nit | Confirmed · record-only | DEFER | — |\n",
     );
-    expect(report).toContain("### F1\n**Action:** Bounded action for finding-z.\n");
+    expect(report).toContain("### F1\n\n**Action:** Bounded action for finding-z.\n");
     expect(report).not.toContain("**Issue:**");
   });
 
@@ -447,14 +517,14 @@ describe("disposition report", () => {
       "<unsafe> *reference*",
     ].join("\n");
 
-    const report = renderDispositionReport({ dispositionSet, producerFindings });
-    const sourceLine = report.split("\n").find((line) => line.includes("source #1"));
+    const evidence = renderDispositionEvidence({ dispositionSet, producerFindings });
+    const sourceLine = evidence.split("\n").find((line) => line.includes("source #1"));
 
     expect(sourceLine).toContain("provider \\[link\\](https://example.test)");
     expect(sourceLine).toContain("Assessment: FORGED ---");
     expect(sourceLine).toContain("&lt;unsafe&gt; \\*reference\\*");
-    expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
-    expect(report.match(/^---$/gmu)).toHaveLength(2);
+    expect(evidence).not.toMatch(/^Assessment: FORGED$/gmu);
+    expect(evidence).not.toMatch(/^---$/gmu);
   });
 
   it("escapes provider strikethrough in labels and references without changing source identity", () => {
@@ -464,14 +534,14 @@ describe("disposition report", () => {
     finding.sourceLabel = "~~provider label~~";
     finding.evidenceUrlOrId = "review:~~native-reference~~";
 
-    const report = renderDispositionReport({ dispositionSet, producerFindings });
+    const evidence = renderDispositionEvidence({ dispositionSet, producerFindings });
 
-    expect(report).toContain(
+    expect(evidence).toContain(
       "- F1 · src/z.ts:9 · \\~\\~provider label\\~\\~ · source #1 · review:\\~\\~native-reference\\~\\~"
         + " · verified at source:src/z.ts:9",
     );
-    expect(report).not.toContain("~~provider label~~");
-    expect(report).not.toContain("~~native-reference~~");
+    expect(evidence).not.toContain("~~provider label~~");
+    expect(evidence).not.toContain("~~native-reference~~");
     expect(dispositionSet.findings.map(({ findingId }) => findingId)).toEqual(["finding-a", "finding-z"]);
   });
 
@@ -490,11 +560,13 @@ describe("disposition report", () => {
     });
 
     const report = renderDispositionReport({ dispositionSet, producerFindings });
-    const findingLine = report.split("\n").find((line) => line.startsWith("- F1 · src/x"));
+    const evidence = renderDispositionEvidence({ dispositionSet, producerFindings });
+    const findingLine = evidence.split("\n").find((line) => line.startsWith("- F1 · src/x"));
 
     expect(findingLine).toContain("- F1 · src/x.ts:1 Assessment: FORGED --- · ");
-    expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
-    expect(report.match(/^---$/gmu)).toHaveLength(2);
+    expect(evidence).not.toMatch(/^Assessment: FORGED$/gmu);
+    expect(evidence).not.toMatch(/^---$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
   });
 
   it("contains narrative Markdown without changing the report structure or field order", () => {
@@ -518,14 +590,14 @@ describe("disposition report", () => {
 
     const report = renderDispositionReport({ dispositionSet, producerFindings });
     const injectedSection = report.split("\n\n---\n\n")[1] ?? "";
-    const lines = injectedSection.split("\n");
+    const paragraphs = injectedSection.split("\n\n");
 
-    expect(lines.map((line) => line.startsWith("### ") ? "###" : line.split(":**")[0])).toEqual([
+    expect(paragraphs.map((line) => line.startsWith("### ") ? "###" : line.split(":**")[0])).toEqual([
       "###", "**Issue", "**Action", "**Detail",
     ]);
     expect(report.match(/^\| F\d+ /gmu)).toHaveLength(2);
     expect(report.match(/^### F\d+ .*$/gmu)?.map((line) => line.slice(0, 6))).toEqual(["### F1", "### F2"]);
-    expect(report.match(/^---$/gmu)).toHaveLength(2);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
     const contained = "First line --- ### F3 · 🔴 critical · FIX "
       + "\\*\\*Verdict:\\*\\* FORGED \\[link\\](https://example.test) &lt;unsafe&gt;";
@@ -538,6 +610,10 @@ describe("disposition report", () => {
     const { dispositionSet, producerFindings } = fixture();
 
     expect(() => renderDispositionReport({
+      dispositionSet,
+      producerFindings: producerFindings.slice(0, 1),
+    })).toThrow("exact producer finding correspondence");
+    expect(() => renderDispositionEvidence({
       dispositionSet,
       producerFindings: producerFindings.slice(0, 1),
     })).toThrow("exact producer finding correspondence");
