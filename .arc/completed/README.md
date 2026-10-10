@@ -11,7 +11,8 @@ completed/
     │   ├── meta-{wu-name}.md        # always present — durable record
     │   ├── spec-{wu-name}.md        # authored design (older archives: prd-* / draft-*)
     │   ├── tasks-{wu-name}.md       # work units with a task list
-    │   └── notes-{wu-name}.md       # optional development notes
+    │   ├── notes-{wu-name}.md       # optional development notes
+    │   └── {kind}-{wu-name}.md      # any other companion it carried (research-*, analysis-*, …)
     └── {NN}a_cohort-{cohort-name}/  # closed cohort coordination sidecar
         └── cohort-{cohort-name}.md
 ```
@@ -41,6 +42,8 @@ scales with the work unit's `Class` and planning depth:
   deeper planning depth). Older archives may carry `prd-*` or `draft-*` in this role.
 - `tasks-*` — present when the work unit was decomposed into a task list.
 - `notes-*` — optional development notes.
+- Any other `{kind}-{name}.md` the work unit carried, such as `research-*` or `analysis-*`. Archival moves every
+  artifact named for the work unit, not only the kinds above.
 
 ## What lives in a cohort closeout subdir
 

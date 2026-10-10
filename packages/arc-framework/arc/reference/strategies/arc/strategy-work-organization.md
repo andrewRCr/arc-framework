@@ -1148,15 +1148,16 @@ concrete GitHub-flavored recipe ships in [`reference/templates/arc/merge-gate/`]
 
 Two lanes, by what the PR touches — classified by artifact **prefix**, not by directory:
 
-- **Auto-merge lane** — per-WU and per-cohort planning grooming: the movable artifacts `draft-*`, `tasks-*`,
-  `meta-*`, `notes-*`, and the `cohort-*` coordination record, under `active/` or `backlog/`. Single-increment
-  grooming with no design authority. Merges automatically once required checks pass; no human review required.
+- **Auto-merge lane** — per-WU and per-cohort planning content: the movable artifacts `draft-*`, `tasks-*`,
+  `meta-*`, `notes-*`, `research-*`, and `analysis-*`, and the `cohort-*` coordination record, under `active/` or
+  `backlog/`, plus the generated `backlog/ROADMAP.md`, so regenerating readiness does not force a planning change
+  onto the reviewed lane. Merges automatically once required checks pass; no human review required.
 - **Reviewed lane** — everything else. Explicitly: **design-authority** artifacts (`spec-*`, `prd-*`); the
   **constitutional** surfaces — rules (`DEV-RULES.*`), ADRs (`reference/adr/**`), strategies
-  (`reference/strategies/**`); the **derived or shared project surfaces** — `ROADMAP` (rendered from metas, so a
-  hand-edit must not silently diverge from its source) and the shared backlog inboxes (a hand-edit to one
-  is reviewed; the between-WUs drain's own disciplined flush is the carve-out below); and all code. Always
-  requires owner review before merge.
+  (`reference/strategies/**`); the **shared project surfaces** — the shared backlog inboxes (a hand-edit to one is
+  reviewed; the between-WUs drain's own disciplined flush is the carve-out below) and a work unit's transition
+  record, which classifies as planning for CI job selection but stays owner-reviewed as authoritative history; any
+  other artifact kind; and all code. Always requires owner review before merge.
 
 **A PR that touches any reviewed-lane path is reviewed-lane as a whole** · `[invariant]` — the lanes never split a
 single PR. Keep grooming PRs path-pure to stay on the auto-merge lane.
