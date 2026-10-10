@@ -80,6 +80,7 @@ const cases = [
   ["src/commands/active/status.ts", 'import "../../lib/git/index.js";', "no-restricted-imports"],
   ["src/handlers/planted.ts", 'import "../lib/active/meta-reader.js";', "arc/store-raw-state"],
   ["src/handlers/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;', "arc/surface-names"],
+  ["src/handlers/planted.ts", 'import { resolveArcPath } from "../lib/layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });', "arc/work-unit-paths"],
 ] as const;
 
 describe("actual architecture table enforcement", () => {
@@ -188,10 +189,12 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/planted.ts", 'import "../active/meta-reader.js";'],
     ["src/lib/work-unit/composed-lifecycle-index.ts", 'import "./lifecycle-index.js";'],
     ["src/lib/layout/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
+    ["src/lib/store/planted.ts", 'import { resolveArcPath } from "../layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
+    ["src/lib/layout/planted.ts", 'import { resolveArcPath } from "./index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
   ])("allows the ratchet's owning boundary in %s: %s", async (path, text) => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
     expect(result?.fatalErrorCount).toBe(0);
-    expect(result?.messages.filter(({ ruleId }) => ["arc/store-raw-state", "arc/surface-names"].includes(ruleId ?? ""))).toEqual([]);
+    expect(result?.messages.filter(({ ruleId }) => ["arc/store-raw-state", "arc/surface-names", "arc/work-unit-paths"].includes(ruleId ?? ""))).toEqual([]);
   });
 
   it.each([

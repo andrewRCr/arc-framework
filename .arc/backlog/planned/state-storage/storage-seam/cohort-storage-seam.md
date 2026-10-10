@@ -150,14 +150,20 @@ Errands land after the contract and before the members:
   `ROADMAP`, `STATUS.USER`, `.arc/active/`, `meta-`) to the layout resolver. Both legs are new rows in the
   architecture-ban table (`eslint.config.js`, composed by `eslint/architecture-config.ts`), beside the module-local
   predicates of `eslint/architecture-imports.ts`, with today's callers recorded in `eslint-suppressions.json` as a
-  floor, as the size gate records its own. New bypasses then fail lint, each member shrinks the floor, and "every reader
-  and writer through the contract" is the floor at zero. The helper set derives from the consumer map. It adds no stored
-  record, and the cohort's pull-forward filter, which governs delivery and review work only, does not apply to it.
+  floor, as the size gate records its own. New bypasses then fail lint, and each member shrinks the floor. At zero the
+  floor proves what its legs count — no helper import, surface name, or work-unit state path outside its owner — and
+  nothing past them: a read through a module no leg names, such as one wrapping a helper or the resolver, stays
+  uncounted. The helper set derives from the consumer map. It adds no stored record, and the cohort's pull-forward
+  filter, which governs delivery and review work only, does not apply to it.
   Shipped 2026-10-10 as the `store-raw-state` and `surface-names` predicates, each reporting under its own rule ID so
   its floor covers only its own violations; `eslint/architecture-imports.ts` lists the helper modules. Two departures
   from the above: all of `lib/store/` may import the helpers, since the contract's shared caller pieces parse meta on
   the store's side by design, and the helper set adds the uncomposed lifecycle index, whose callers build it straight
-  from placement.
+  from placement. A third leg, `work-unit-paths`, followed the same day: it counts layout-resolver calls for work-unit
+  state outside `lib/store/` — work-unit artifacts, containers, and placement roots, cohort documents, and the
+  Candidate, integration-boundary, and transition records — so key 13's resolver calls (§ Soft coordination) carry a
+  floor too. The helper set also adds lineage's Git transition-record enumeration, whose importers otherwise read
+  records with no counted import.
 - **ADR-022 to Accepted**, whose file-as-record amendment ties its flip to the seam's kickoff, since the seam builds
   the family parsers; it takes the reviewed lane. It carries re-pointing ADR-022's retired
   `cross-machine-sync-coherence` references (§ Risks, § Coordination) to `partial-push-marker`. The same slug elsewhere
