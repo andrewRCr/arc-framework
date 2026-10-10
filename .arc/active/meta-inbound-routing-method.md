@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — State the record test as `classify-work-unit`'s canonical floor
+- **Last Completed:** Task 6.5 — Dry-run route-now over four constructed concerns (Phase 6 complete)
+- **Next Task:** Task 7.1 — Complete verification (line ~475 in `tasks-inbound-routing-method.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — land D12's four record questions as boundary test 1's canonical floor
+- **Next Action:** Task 7.1 — load and follow `verify-work-unit.md` in a fresh session
 
 - **PR URL:** [none]
 - **Completed:** [none]
