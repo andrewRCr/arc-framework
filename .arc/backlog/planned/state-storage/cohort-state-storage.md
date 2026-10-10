@@ -27,9 +27,9 @@ Each member's `Depends On` edges are the source of truth. Two orderings are not 
   projection's caller-visible behavior — and may implement once its spec is approved. A `Depends On` edge clears
   only when the dependency ships, so this is recorded here rather than as an edge. Only `storage-seam` needs the
   contract landed.
-- **The seam designs two members at a time.** `storage-seam` decomposed against the contract's consumer map into six
-  members, the subcohort `state-storage/storage-seam`, whose `cohort-storage-seam.md` holds that design order and the
-  members' other coordination. Every other member depends on `seam-record-kinds`, and `storage-cutover` on all six.
+- **The seam's design order.** `storage-seam` decomposed against the contract's consumer map into six members, the
+  subcohort `state-storage/storage-seam`, whose `cohort-storage-seam.md` holds the members' design order and their other
+  coordination. Every other member depends on `seam-record-kinds`, and `storage-cutover` on all six.
 
 After the cutover, deletion passes, documentation, `naming-conventions`, `wu-lifecycle-state-model`'s front half, and
 the follow-ons all run in parallel. The follow-ons are standalone work units, each tagged core or deferred by
