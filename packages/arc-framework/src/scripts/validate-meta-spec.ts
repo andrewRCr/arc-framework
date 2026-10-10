@@ -26,6 +26,7 @@ import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { resolveTaskListPath } from "../commands/active/status.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -276,7 +277,7 @@ function readStagedFile(path: string): string {
   return execFileSync("git", ["show", `:${path}`], {
     cwd: process.cwd(),
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
 }
 
