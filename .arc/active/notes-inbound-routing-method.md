@@ -1,5 +1,18 @@
 # Notes: Inbound Routing Method
 
+## Contents
+
+- Evidence and coordination: [counts](#evidence-counts), [hard-to-place cases](#hard-to-place-cases-from-quality-gate-hooks),
+  [routed coordination](#coordination-already-routed).
+- Replay and amendments: [historical comparisons](#replay-evidence), [A1 revision](#a1--revision-evidence),
+  [A2 calibration](#a2--replay-calibration), [Owner dispositions](#a2--owner-dispositions-and-effective-report),
+  [amended verification](#amended-segment-verification).
+- Routing scenarios: [drain](#drain-scenario-evidence), [route-now](#route-now-classification-only-scenario).
+- Verification: [review record](#verification-review-record); [criteria report](#verification-criteria-report).
+
+Paths under `/tmp/` identify local scratch artifacts used by the recorded runs. The embedded comparisons,
+dispositions, source checks, and scenario traces retain their results for archival reading.
+
 ## Evidence counts
 
 Counted at `c009ab198` (2026-10-07).
@@ -56,7 +69,8 @@ dry runs, each with the rule that now decides it:
 - **Owners came from register rows, not the obvious work unit.** The storage-tied five needed the register's owner
   column, and two diverged: the footer-grammar row is `closed` while its owner `ghost-mode` is still planned, and the
   `active/` layout entry's rows split across `storage-seam`, `storage-projection`, and a retired
-  `active-layout-nesting`. One is likely dismissed at its owner: `hold <other>`, then the owner's `dismiss`.
+  the subsequently retired `active-layout-nesting`. Entry 24's final disposition dismisses the stale-reader premise
+  and retains the pointed recurrence assertion as an Errand with an intentional wait.
 - **Body items left scope too.** The `arc check-gates` audit and the under-wrap prototype were design-body scope items,
   not buffer entries; leaving scope, they needed the same disposition. The cascade door covers them (D9).
 - **Dismissals left residuals.** Two resolved entries left work behind (a missing test, three hard-coded limits): D2
@@ -85,7 +99,12 @@ The consequences for other work units went out at draft close as 16 `USER-INBOX 
 
 The `arc view --for` stale-copy defect found in review is D11's to fix here; no capture remains for it.
 
-## Task 2.2 replay evidence
+## Replay evidence
+
+The first historical-parity comparison failed. A1 corrected own-work timing and passed four contrasting cases;
+the renewed historical comparison still failed. A2 explicitly superseded historical equality, retained both failed
+reports, and supplied Owner calibration for the effective 30-entry report. The amended segment verification closed
+that accepted criterion. The following proposals and status descriptions record those stages in order.
 
 Compared the fixture-confined evaluator's 30-entry report against `quality-gate-hooks`' hand verdicts at
 `2bc91c7a4`. This is a failed scenario, not a clean replay or an implementation approval.
@@ -156,11 +175,11 @@ That limitation alone does not account for the substantive disposition differenc
   infrastructure is itself a floor. The classification is reserved to the Owner; no automatic rewrite of the floor
   or substitution of the evaluator's judgment for the Owner's has been authorized.
 
-Task 2.2 remains open. No method fix, spec amendment, new acceptance criterion, revision parent, or progression into
-Phases 3–6 was made from this failed report. The `amend-design` entry gate is open over the disagreement: a narrowed
-Owner decision is needed to distinguish incomplete implementation/evaluation from a settled statement that must
-change. Preserve the original criterion and this report while settling that decision; corrective work belongs ahead
-of the verifier in a revision parent, followed by a fresh, fixture-confined replay.
+At this first failed comparison, Task 2.2 remained open and no method fix, spec amendment, new acceptance criterion,
+revision parent, or progression into Phases 3–6 had occurred. The disagreement required an Owner decision between
+incomplete implementation/evaluation and a settled statement that needed amendment. A1 and A2 below record the
+subsequent correction, renewed failure, and explicit supersession; the original criterion and this report remain
+preserved.
 
 ### Advisor-assisted mismatch audit
 
@@ -221,10 +240,10 @@ as Owner decisions. Do not add a storage-priority shortcut or rewrite D12 to rep
 answer is superseded by this proposal. If the renewed comparison still conflicts with a settled rule, return with
 that exact conflict for a further Owner decision.
 
-After authorization, capture the amendment before method changes, perform the bounded grounding review, implement the
-revision, and run all 30 cases blind again. Add contrasting checks showing that already-covered cleanup stays with its
-host at both planning times, while an independent all-No concern sharing a file still goes to Errand. Keep historical
-dispositions and this audit out of the new evaluator's inputs; factual evidence is available through the fixture.
+The authorized sequence captured the amendment before method changes, grounded and implemented the revision, and
+replayed all 30 cases blind. Contrasting checks distinguished already-covered cleanup at both planning times from an
+independent all-No concern sharing a file. Historical dispositions and this audit stayed outside the new evaluator's
+inputs. The next two sections preserve the revision and renewed comparison evidence.
 
 ### A1 — Amendment capture and propagation
 
@@ -275,11 +294,11 @@ Primary comparison against the revised method confirmed:
 - **D:** already-wired installation is `dismiss`; still-live ownership reconciliation is the host fold. The method's
   split and still-live check precede that reconciliation.
 
-These four observations satisfy the appended own-work criterion at method scope. They do not pass the original
-30-entry scenario or close A1's revalidation: the independent replay runs next, against a new exact export with the
-revised methodology overlaid. Earlier reports and the hand verdicts are excluded from its input roots.
+These four observations satisfy the appended own-work criterion at method scope. They did not pass the original
+30-entry scenario or close A1's original revalidation. The following renewed replay used a new exact export with the
+revised methodology overlaid, excluding earlier reports and hand verdicts from its input roots.
 
-### Task 2.2 — A1 replay comparison
+### A1 replay comparison
 
 The renewed blind replay is `/tmp/inbound-routing-replay-a1-report.md`, from fresh evaluator
 `/root/blind_replay_a1`. All 30 original entries were assessed; the complete content-read disclosure names 85 inputs
@@ -290,7 +309,8 @@ current source bytes in both copies. The original Replay criterion was checked b
 **Result: the original segment scenario still fails.** Entry 7 now folds by the amended own-work rule, and the four
 contrasts pass, but multiple historical outcomes remain unreproduced. An Owner pair is an unresolved classification,
 not a unique historical verdict recovered. Neither this comparison nor the root's factual corrections turns the blind
-report into a passing result. Task 2.2 and A1's original-scenario revalidation remain open.
+report into a passing result. Task 2.2 and A1's original-scenario revalidation remained open at this stage; A2 below
+records their subsequent supersession and amended revalidation.
 
 | Entry                       | Historical verdict                                   | A1 replay                                                                        | Comparison / primary validation                                                                               |
 | --------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -355,16 +375,16 @@ report into a passing result. Task 2.2 and A1's original-scenario revalidation r
   with `_Shapes:_ Settled inputs — footer policy and absent-state degradation`, pending the same floor decision.
   This is not permission to let a destination override an all-No result.
 
-### Next decision proposal — replay calibration
+### Replay calibration proposal
 
 Recommend keeping D12's record floor and D2's coupling requirement. The updated method passed the approved timing
 contrasts. The remaining report combines evaluator omissions, missing upstream/tool context, different captured-scope
 readings, and Owner-dependent floor decisions. Another blind pass over the same underspecified Owner inputs is not a
 bounded fix for all of those differences, and historical holding labels alone do not establish method defects.
 
-A further **design-arm amendment is proposed, not applied**: retain the original historical-parity criterion and its
-failed evidence, append an explicitly superseding criterion, and adjudicate the comparison rather than modifying the
-floor to force old labels. Proposed replacement behavior:
+A further design-arm amendment was proposed: retain the original historical-parity criterion and its failed evidence,
+append an explicitly superseding criterion, and adjudicate the comparison rather than modifying the floor to force
+old labels. A2 below records its acceptance. Proposed replacement behavior:
 
 > A fixture-confined evaluator covers all 30 historical entries against the named historical tree with the current
 > method, splitting distinct concerns and resolved/live parts. Each proposal names its deciding rule and source
@@ -377,8 +397,9 @@ floor to force old labels. Proposed replacement behavior:
 The disposition proposal for calibration is: accept the already-compatible rows; retain the source corrections for
 17/25 and bounded Errand proposals for 10/11; use 15's validated candidate in its pair; and settle the record floor
 and intentional waiting for the disputed rows (4, 6, 8, 12, 14, 15, 18, 24, 28, 29) against their bounded capture.
-A proposal is not approval: those Owner dispositions and any supersession remain pending. No criterion, Goal, old
-verdict, classification rule, or lifecycle state was changed in response to the second failed replay.
+At this proposal stage, Owner dispositions and supersession had not been approved. No criterion, Goal, old verdict,
+classification rule, or lifecycle state was changed solely from the second failed replay. The following A2 record
+distinguishes the accepted amendment from the later Owner case dispositions.
 
 ### A2 — Replay calibration
 
@@ -411,7 +432,7 @@ The author-run grounding slice and reader/binding checks over this amendment fou
 30-entry report and its disclosed reads witness evaluator coverage; the actual method states pair/Owner authority;
 source corrections name the archived upstream spec, pinned linter, readers, and footer-policy section. The task-audit
 grounding-only read places correction before verification and retains all old Goals. These are author checks, not
-independent review or Owner case dispositions. The case calibration remains open while classification input is pending.
+independent review or Owner case dispositions. Case calibration remained open until the Owner input recorded below.
 
 Capture structure check: `lint:md:descriptors` rejects an old segment-verifier suffix when a replacement verifier
 follows it, regardless of its status marker (`validateSegmentation` in `task-list/segmentation.ts`). The approved
@@ -419,10 +440,11 @@ supersession therefore retires Task 2.2's old role suffix and marks it and its c
 alone carries the active suffix. The original role was `— validate exit criterion at segment scope`; both original
 Goals, completed fixture/evaluator leaves, the failed comparisons, and the old criterion remain preserved.
 
-### A2 — Case proposal and pending Owner input
+### A2 — Case proposals before Owner calibration
 
-The capture is `435e8f8b0`. The remaining source evaluation is complete; classification choices are pending in three
-case groups. No route is executed by this replay, and no case answer is inferred from the criterion approval.
+The capture is `435e8f8b0`. Source evaluation was complete; classification choices awaited Owner input for the three
+case groups below. The following Owner-dispositions section records that input. This replay executed no route and
+inferred no case answer from the criterion approval.
 
 | Group                 | Captured concern                                                                                  | Proposed floor/read                                                                                                                                                                                                | Candidate or intentional wait                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -502,7 +524,7 @@ Host folds name already-covered Selection/Dispatch sections except the separatel
 No proposed home is decided by shared domain, mere existence, or future replacement alone. Metadata/status and
 horizon uncertainty is explicitly confined to carry-out, which the replay never performs.
 
-### Task 2.3 — Amended segment verification
+### Amended segment verification
 
 Checked the effective report against **Replay calibration (A2)** and the amended Phase 2 exit criterion:
 
@@ -523,7 +545,7 @@ There is no open benchmark disagreement: outstanding choices at real routing are
 method's required pair/carry-out boundary, not silently selected. A1 and A2 revalidate through Task 2.3, and the
 CLI-read implementation proceeds with the original classification floor and routing contract intact.
 
-## Task 5.4 drain scenario evidence
+## Drain scenario evidence
 
 Classification-only snapshot: 102 real captures, one scratch-only seed, and 107 concern rows after splitting entries
 43, 67, and 84. The scratch seed supplies the provisional/P3 horizon case; real entries already supply unclear
@@ -963,7 +985,7 @@ initial checker incorrectly demanded offers for targets with no held entries; co
 holding entries” condition, it passed. This was a checker defect, not a routing-scenario failure. The original
 first-check failure remains in the tool record. The source-backed plan satisfies the segment exit criterion.
 
-## Task 6.5 — Route-now classification-only scenario
+## Route-now classification-only scenario
 
 The constructed fixture exercises `arc-inbox` step 1's `fast path` call before any hand-off. It records proposals,
 not live captures or new work commitments. Commitment to place now is an explicit scenario input. No routing
@@ -1079,3 +1101,201 @@ unclear Owner pair before minting. Artifact checks verify four-case coverage, th
 absent proposed slug, live target facts, actual Shapes heading, held-entry count/date, exact horizon text, and the
 unselected four-answer pair. Judgment remains the primary method application recorded above. No segment scenario
 failure or forward design amendment arose.
+
+## Verification review record
+
+The criteria companion is advisory working review, separate from Candidate review lanes. Each fresh reviewer
+received the complete specification, unmarked task list, historical scenario notes, complete change set, and reachable
+tree. The primary verified every finding against source and performed only the approved response set.
+
+- **Pass 1 of 2:** The reviewer reported ordinary bold-continuation truncation and over-width help as minor. Source
+  triage confirmed the archived Purpose failure as major and the help-width E2E failure as minor. Author self-review
+  separately confirmed major stub-writing mechanics outside Binding. The complete three-fix set and Pass 2 were
+  approved. Both method copies were corrected; help was wrapped; ordinary emphasis and next-field regressions were
+  witnessed red then green. Material fixes withheld convergence and the named Pass 2 authorization was consumed.
+- **Pass 2 of 2:** An indented bold phrase ending in a colon still truncated Purpose (reported minor, verified major).
+  Source reproduction returned only `Place work by the`. The approved response distinguished column-zero bare fields
+  from indented emphasis; one new regression failed before correction and all 31 Purpose cases passed afterward.
+  Stop state was cap-exhausted until the explicitly approved over-cap Pass 3 was consumed.
+- **Pass 3 of 2:** Unmatched and escaped literal backticks suppressed sentence termination (reported and verified
+  major). Source probes and the existing Markdown parser distinguished text from inline code. The approved response
+  used actual inline-code source positions; both new cases failed before correction and all 33 Purpose cases passed.
+  Explicitly approved over-cap Pass 4 was consumed after response performance; material fixes withheld convergence.
+- **Pass 4 of 2:** Fenced examples and HTML comments supplied false metadata and selected the wrong layered Design
+  artifact (reported and verified major). Approved response located real bold fields within parsed paragraphs. Three
+  extraction cases and one layered-selection case failed before correction; all 37 Purpose cases then passed.
+  Explicitly approved over-cap Pass 5 was consumed after response performance; material fixes withheld convergence.
+- **Pass 5 of 2:** The reviewer reported minor triple-hyphen continuation truncation. Primary source triage confirmed
+  minor; a separate author check confirmed minor false field boundaries within a wrapped code span. Both are narrow
+  formatting defects; their carrier criterion remained unresolved until correction. The complete two-fix set and
+  closure of the review loop were approved. The response removes redundant raw structural boundaries and protects
+  code-span text with existing parsed positions. All three new cases failed before correction; all 40 Purpose cases
+  then passed. Applied source and tests exactly match the approved proposal. Stop reason: converged with settled
+  minor findings, allowance exhausted; no successor pass was requested or launched.
+
+The last minor response has no fresh successor review. Its bounded source re-read and fail-first regression evidence
+carry the approved response check; complete current quality gates are recorded with the criteria report. No canonical
+producer result, lane receipt, or satisfying hosted-review evidence is created by these reports.
+
+## Verification criteria report
+
+The terminal walk covers the complete work-unit diff and reachable tree, including the approved verification
+repairs. The flat task-list criteria remain the authority; the following loci and normalized-text digests bind
+each disposition without repeating criterion wording. The working-tree delta listed below is the staged subject
+for initial Candidate attestation; subsequent managed Candidate and meta records are ceremony output.
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff:
+    base: 159fdcdeba90a21c9d1bb11cb631d5a46111a6be
+    head: ca7126e2081dfc5dfa48ff5c37d3b9453d67807f
+    additional: approved verification fixes and documentation closeout
+    additional-paths:
+      - .arc/active/notes-inbound-routing-method.md
+      - .arc/active/tasks-inbound-routing-method.md
+      - .arc/system/.internal/manifest.json
+      - .arc/system/methods/route-discovered-work.md
+      - packages/arc-framework/__tests__/unit/status/work-unit-purpose.test.ts
+      - packages/arc-framework/arc/system/methods/route-discovered-work.md
+      - packages/arc-framework/src/cli.ts
+      - packages/arc-framework/src/lib/status/work-unit-purpose.ts
+  reachability:
+    head: ca7126e2081dfc5dfa48ff5c37d3b9453d67807f
+    additional: the current files at the eight paths above
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:48ba2e720ddefd8e76278ba2729d039babe342ace53e37db2b578cfef88e220c
+    evidence: >-
+      A2 in spec-inbound-routing-method.md explicitly supersedes historical parity. Notes preserve both failed
+      comparisons and the Owner-calibrated effective report; no historical equality is claimed.
+    state: "[~]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:0b6142cd4ddb2efb409380c0178d0fa69b07920f9c1307dec7174a90c5d62a7d
+    evidence: >-
+      notes-inbound-routing-method.md, Route-now classification-only scenario: four concerns return a validated
+      hold with Shapes, complete simulated new-stub fields, Errand, and an unresolved Owner pair with four
+      answers. The executable artifact checker passes.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:2ab14ede1c5f01e7ba75ff52536b3369a768150c4030c9e9496590be9404cc1b
+    evidence: >-
+      notes-inbound-routing-method.md, Drain scenario evidence: 107 concern rows from 102 captures and one
+      calibration seed; actual target Shapes/exclusions, exact advisory strings, count/date offers, bounded
+      picked-stub re-triage, and Owner pair retained. No carry-out writes performed.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:32207ac10a0fb37675b00cc1fdaf9153cb3575f65f32f37fc7fd38bb1afe2b7b
+    evidence: >-
+      work-unit-purpose.ts, project-view.ts and project-horizon.ts connect source-bound Design reads to per-slug
+      status and listing facts. Forty focused Purpose cases pass, including twelve regressions witnessed red
+      before their approved repairs. The final 699-test E2E pass covers nullable purpose, owner/state/position,
+      horizons, archive/ref provenance and started-source behavior.
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:2c5ef848fd4fb2921583e34c196e119ed57fb9f0cd95ba1b84f2016ac0e6bf21
+    evidence: >-
+      started-artifacts.ts and shared selection route design/spec render, path and editor through the same
+      registered checkout or local ref. view.e2e.test.ts proves dirty started checkout content and ref-only
+      render/path refusal; QUICK-REFERENCE Artifact Viewing states the source contract.
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:5057d99d863d9af7fea210f98c99719738af3b3d0f035a0da9ab55ad504e4ab1
+    evidence: >-
+      Both route-discovered-work.md copies contain the required neutral gate, homing, doors and vocabulary; all
+      writing mechanics are inside Binding. classify-work-unit is declared/related. Recipe, canonical skills,
+      indexes and manifest resolve the method; inventory totals agree.
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:8b5f33b339cacc13adf4d137f478d2c7c2e5a418d71cdd71636e7e6820d2c312
+    evidence: >-
+      Changed workflows and arc-inbox/arc-errand skills declare and mark direct method calls. run-errand rechecks
+      route-only work in its checkout; Promote Errand maps four answers to floor. Inbox strategies/header carry
+      the specified readings without duplicating the gate.
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:eedf125871e1ea6a48ff249504accc1c820366f7f1a5b8a20bfb67c4e3cee63e
+    evidence: >-
+      classify-work-unit boundary test 1 supplies four record questions on its existing axes. Work-organization
+      strategy points to it at all three loci, retains the maintain matrix and new-stub statement, and explains
+      rename against question 1.
+    state: "[x]"
+  - locus: Success Criteria > 9
+    criterion-digest: sha256:0d8815a59edae435c8576d39ecf9652b55ae6843006b7b7db8c6a97af2d19ba5
+    evidence: >-
+      DEV-RULES.ARC Discovered Work Routing contains the specified invariant verbatim in both copies. Complete
+      diff inspection found no other always-loaded surface edit.
+    state: "[x]"
+  - locus: Success Criteria > 10
+    criterion-digest: sha256:8b06fe8187451a7c97a63b380d5c3f0b8a8f0d8347e25cc38b59441297669114
+    evidence: >-
+      ADR-037 is Accepted and records the record test and retirement. ADR-021/027 retain their standing decisions
+      and append forward-pointer amendments.
+    state: "[x]"
+  - locus: Success Criteria > 11
+    criterion-digest: sha256:f2cf9d750387f49652000365d0d2d76842cdd2fcc93c243bf59cdbaca9bea879
+    evidence: >-
+      Draft, outline, detailed PRD and detailed RFC templates state the first-sentence thesis convention.
+    state: "[x]"
+  - locus: Success Criteria > 12
+    criterion-digest: sha256:6b60c5d9e1e9e609c3460190f4e3f85778b47649bfbbc8e7f720ecdce9960dec
+    evidence: >-
+      Trigger checker passes. Fifteen changed Framework paths and nineteen direct package/project pairs compare
+      identically. check-package-sync.sh was replayed against all thirty first-parent work-unit commits with zero
+      exits and no warnings; the actual eight-path staged verification delta also passes.
+    state: "[x]"
+  - locus: Success Criteria > 13
+    criterion-digest: sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c
+    evidence: >-
+      Final Tier 3 passes Markdown, TypeScript and shell lint; source and test type checks; all three ARC contract
+      checks; full declaration build; aggregate change review; routine tests (17096 passed, 1188 skipped); and
+      local E2E (699 passed). Final documentation and staged Markdown checks are part of this closeout.
+    state: "[x]"
+  - locus: Success Criteria > 14
+    criterion-digest: sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f
+    evidence: >-
+      Complete execution subject has no unresolved criterion or review response. This is verification readiness
+      for Candidate preparation; private review, publication, required host checks and exact-head merge approval
+      remain separate boundaries. Landing follows RELEASE-GATES.md manual singleton bridge, with archive in a
+      separate PR after landing.
+    state: "[x]"
+  - locus: Success Criteria > 15
+    criterion-digest: sha256:c7ecd5728c5bc0eda43e7861cf6d6880b66a63f266473b885c7ed4816de7a332
+    evidence: >-
+      A1 method/callsite change and notes contrast trace distinguish kickoff pull-in, ready-making fold with
+      own-work Shapes, resolved/live split, and independent same-file all-No Errand.
+    state: "[x]"
+  - locus: Success Criteria > 16
+    criterion-digest: sha256:b6e6a549400ef913645561b89d29e2f906112e85267dab08b125788ab26cbb45
+    evidence: >-
+      A2 effective report covers all thirty fixture entries with deciding rules, actual Shapes/exclusions, split
+      concerns/liveness, knowledge-content exclusions, explicit record answers/Owner calibration, and preserved
+      blind failures.
+    state: "[x]"
+summary: 16 criteria; 15 met; 1 superseded by A2; 0 unresolved
+```
+
+### Gate and delivery evidence
+
+The final code subject passed all nine static/build commands: `lint:md`, `lint:ts`, `lint:sh`, `typecheck`,
+`typecheck:test`, `lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`, and `build`. The admitted
+routine lane passed 17,096 tests with 1,188 skipped across 1,145 passing files and one skipped file. The admitted
+E2E lane passed all 699 tests across 70 files. The approved Purpose repairs add twelve regression cases to the
+original 28; every observed failure was witnessed before its repair, and all 40 focused cases pass afterward.
+Documentation-only closeout edits receive fresh Markdown and ARC contract checks; the unchanged code gates carry.
+The final staged Markdown gate and package-sync hook also pass. Historical hook replay tested all thirty
+first-parent work-unit commits with their actual parent and index trees; every exit was zero with no warnings.
+
+The executable started-artifact E2E checks fail if the composed command returns a stale backlog design instead of
+a dirty started checkout or selected local ref. Purpose regressions similarly reject false Markdown fields and
+incorrect sentence boundaries. These are observable behavior checks, rather than repetitions of implementation.
+The route-now and drain artifact checks establish trace structure; classification judgment remains the recorded
+source-grounded method application and explicit Owner calibration. Those scenarios were classification-only:
+no real routing writes, stub minting or Errand allocation ran.
+
+The original failed replay remains visible and is superseded only by A2. Both amendments have completed corrective
+work and retained revalidation evidence. The specification's first-use questions about drain cost, cold-capture
+answerability and live routes remain use questions, resolved by the first actual drain or route-now after landing;
+neither scenario evidence nor this report claims production use. No essential implementation scope is deferred.
+Execution readiness here hands off to Candidate preparation and grants no publication or merge authority.

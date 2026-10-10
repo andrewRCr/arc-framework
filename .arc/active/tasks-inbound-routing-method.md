@@ -166,11 +166,11 @@ hold. Preserve the historical-parity failures as failures. Task 2.3 checks this 
 - _Goal:_ Validate A2's amended exit criterion over the preserved 30-entry blind report, source-correction evidence,
   and explicit Owner dispositions, with no unresolved disagreement or uncertainty.
 
-- **Additional Context:** `notes-inbound-routing-method.md` § Task 2.2 — A1 replay comparison, § A2 — Replay calibration
+- **Additional Context:** `notes-inbound-routing-method.md` § A1 replay comparison, § A2 — Replay calibration
 
 - _Outcome:_ The effective 30-entry report meets A2's criterion: source-backed splits/routes and accepted Owner
   choices, both host exclusions, and four contrasting cases. Original historical parity remains failed and
-  superseded. Evidence: `notes-inbound-routing-method.md` § Task 2.3 — Amended segment verification.
+  superseded. Evidence: `notes-inbound-routing-method.md` § Amended segment verification.
 
 ## **Phase 3:** Purpose and owner in `arc status`
 
@@ -376,7 +376,7 @@ Errand line shows the pair.
 
 - _Outcome:_ The source-backed scratch plan satisfies the segment criterion without routing writes. Its per-concern
   proposals, unresolved Owner pairs, scope checks, offers and bounded re-triage are preserved in
-  `notes-inbound-routing-method.md` § Task 5.4 drain scenario evidence.
+  `notes-inbound-routing-method.md` § Drain scenario evidence.
 
 ## **Phase 6:** The fast path and the Errand doors
 
@@ -472,60 +472,82 @@ Errand-shaped one, and D9's pair with D12's four answers for an unclear one.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript and shell lint; both type checks; ARC contract checks; build and change
+  review; 17,096 routine tests and 699 E2E tests passed, with 1,188 routine tests skipped.
+
+- _Success criteria:_ 16 criteria: 15 met, 1 superseded by A2. The complete criteria evidence and five-pass
+  adversarial response record are in `notes-inbound-routing-method.md` § Verification criteria report.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The blind replay reaches the hand verdicts recorded at `2bc91c7a4` from rules the method states: a split
+- `[~]` The blind replay reaches the hand verdicts recorded at `2bc91c7a4` from rules the method states: a split
   verdict as one outcome per part, a two-option verdict as either option, every disposition naming its outcome and
   deciding test, and test 4 catching the two entries that arrived after the target's out of scope excluded them
+    - **Superseded:** A2 replaces historical parity with the Owner-calibrated replay criterion below. Both failed
+      historical comparisons remain in `notes-inbound-routing-method.md`; no historical equality is claimed.
 
-- `[ ]` The route-now dry run over four constructed concerns returns a home with its `_Shapes:_`, `new-stub` with
+- `[x]` The route-now dry run over four constructed concerns returns a home with its `_Shapes:_`, `new-stub` with
   commitment, priority, `Class`, slug, origin, and dependencies named, `errand`, and the pair with the four answers
 
-- `[ ]` The drain dry run's routing plan carries a `_Shapes:_` naming an existing target section on every
+- `[x]` The drain dry run's routing plan carries a `_Shapes:_` naming an existing target section on every
   `hold <wu>`, no route into a target's exclusions, the horizon advisory on a hold into a provisional or planned P3
   target, a count, oldest date, and re-triage offer per routed-into backlog stub holding entries, a picked stub's
   re-triage within the re-triage door's outcomes, and the pair for an unclear Errand line
 
-- `[ ]` `arc status <slug> --json` reports `purpose` per the first-sentence rule — `null` for a meta-only stub, a
+- `[x]` `arc status <slug> --json` reports `purpose` per the first-sentence rule — `null` for a meta-only stub, a
   `brief` spec, or a missing artifact — and `owner`; each `--project --json` `facts` row carries `purpose`, `owner`,
   the per-slug `state` and `position`, and `horizonAdvisory` (text for a provisional work unit, a planned P3 one, or a
   parked one, `null` otherwise), with an in-flight work unit's purpose read from its selected ref
 
-- `[ ]` From a base-branch checkout, `arc view design --for <slug>` and `arc view spec --for <slug>` read a started
+- `[x]` From a base-branch checkout, `arc view design --for <slug>` and `arc view spec --for <slug>` read a started
   work unit's registered checkout file, uncommitted edits included, or its selected ref when this clone holds its
   branch, never the backlog copy; `--path` names that file or refuses with the work unit and its ref;
   `QUICK-REFERENCE` § Artifact Viewing states it
 
-- `[ ]` `route-discovered-work.md` ships every section the design names, keeps every carry-out rule inside its one
+- `[x]` `route-discovered-work.md` ships every section the design names, keeps every carry-out rule inside its one
   binding section, declares and relates `classify-work-unit`, names no internal work unit, ADR, or storage-program
   context, and resolves in every inventory, with the package-sync strategy's counts matching the recipe
 
-- `[ ]` `drain-inbox.md`, `run-errand.md`, `draft-design.md`, and `create-spec.md` each declare the method, invoke it
+- `[x]` `drain-inbox.md`, `run-errand.md`, `draft-design.md`, and `create-spec.md` each declare the method, invoke it
   at a marked fire-point, and carry their § Ship surface edits; `run-errand.md` also declares `classify-work-unit` and
   re-checks a route-only Errand's route in its own checkout before it writes; `init-work-unit.md`'s Promote Errand path
   maps the four answers to `--floor`; `arc-inbox` and `arc-errand` carry their edits; both inbox strategies and the
   `ATOMIC-INBOX` template's header carry their readings; no consumer restates the gate's tests or the vocabulary
 
-- `[ ]` `classify-work-unit` boundary test 1 carries the four questions on its two axes, and
+- `[x]` `classify-work-unit` boundary test 1 carries the four questions on its two axes, and
   `strategy-work-organization.md` points at it from § The boundary tests, § Work Character, and § Errand Work Class,
   keeps no copy of the old floor or criterion 3, keeps the one-row matrix with the `new-stub` sentence, and reads the
   rename example against question 1
 
-- `[ ]` `DEV-RULES.ARC` § Discovered Work Routing carries the new core-invariant paragraph verbatim, and no other
+- `[x]` `DEV-RULES.ARC` § Discovered Work Routing carries the new core-invariant paragraph verbatim, and no other
   always-loaded surface changes
 
-- `[ ]` The new ADR is `Accepted` and records the record test and the retirement; ADR-021 and ADR-027 each carry a
+- `[x]` The new ADR is `Accepted` and records the record test and the retirement; ADR-021 and ADR-027 each carry a
   forward-pointer amendment and neither is superseded
 
-- `[ ]` The four templates carry the first-sentence convention
+- `[x]` The four templates carry the first-sentence convention
 
-- `[ ]` `lint:arc:triggers` passes, every edited Framework file is identical in both copies, and every commit passes
+- `[x]` `lint:arc:triggers` passes, every edited Framework file is identical in both copies, and every commit passes
   `check-package-sync.sh`
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
+
+- `[x]` **Own-work reconciliation (A1).** A live cleanup already covered by the host's same concern is pulled in without
+  a routing outcome at kickoff/activation and returns `fold <host>` with own-work coverage and its `_Shapes:_` at the
+  ready-making owner's pass. A resolved part is dismissed before reconciliation; an independent all-No concern that
+  shares its file still returns `errand` through the ordered gate.
+
+- `[x]` **Replay calibration (A2; supersedes Replay).** A fixture-confined evaluator covers all 30 entries at `7ea9addfa`
+  against `c009ab198` with the current method, without historical triage or author conclusions. Split distinct concerns
+  and resolved/live parts. Each proposal names its deciding rule and source evidence; each fold/hold names `_Shapes:_`
+  validated against actual target scope and exclusions. An unclear floor returns the Owner pair and all four answers.
+  Both knowledge-content entries are excluded from the host, and the own-work timing/independent-concern contrasts
+  pass. Every historical disagreement, source uncertainty, or omitted candidate has an explicit Owner disposition
+  before closure. Preserve the original failed historical-parity reports; neither a pair nor a primary source
+  correction is recorded as historical equality.

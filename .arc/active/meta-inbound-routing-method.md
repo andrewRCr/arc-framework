@@ -11,13 +11,14 @@
 - **Design:** `spec-inbound-routing-method.md`
 - **Task List:** `tasks-inbound-routing-method.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:526e64488f74c219e7d33866998c3b91439b088adcfda2f2389d7f0ba557f104`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.5 — Dry-run route-now over four constructed concerns (Phase 6 complete)
-- **Next Task:** Task 7.1 — Complete verification (line ~475 in `tasks-inbound-routing-method.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Task 7.1 — load and follow `verify-work-unit.md` in a fresh session
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
