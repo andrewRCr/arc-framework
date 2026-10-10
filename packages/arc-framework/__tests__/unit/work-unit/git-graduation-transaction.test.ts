@@ -176,7 +176,13 @@ describe("prepareGitGraduationTransaction", () => {
     expect(refusal.detail).toContain("Rename a regular file to <kind>-widget.md");
     expect(refusal.detail).toContain(`directly inside ${SOURCE}`);
     expect(refusal.detail).toContain("move this entry out of the directory");
+    expect(refusal.detail).toContain("Commit the repair to the configured base branch");
+    expect(refusal.detail).toContain("push or merge it there when origin is available");
     expect(refusal.detail).toContain("rerun arc start widget");
+    const unchangedSource = await prepareGitGraduationTransaction(dependencies({ forbidWriteTree: true,
+      extraArtifact: { basename: "research.md", head: "f".repeat(40), tree: "9".repeat(40) },
+    }), request);
+    expect(unchangedSource).toMatchObject({ status: "refused", reason: "source-shape", locus: SOURCE });
     const retried = await prepareGitGraduationTransaction(dependencies({ forbidWriteTree: true,
       ...(repair === "rename" ? { extraArtifact: { basename: "notes-widget.md", head: HEAD, tree: TREE } } : {}),
     }), request);

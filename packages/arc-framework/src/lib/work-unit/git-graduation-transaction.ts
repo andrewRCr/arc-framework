@@ -126,7 +126,8 @@ async function readTreeArtifacts(
       || (mode !== "100644" && mode !== "100755")) {
       captureRefusal("source-shape", `Unexpected stored artifact ${path}. `
         + `Rename a regular file to <kind>-${input.slug}.md and place it directly inside ${input.sourceDirectory}, `
-        + `or move this entry out of the directory. Then rerun arc start ${input.slug}.`);
+        + "or move this entry out of the directory. Commit the repair to the configured base branch "
+        + `(and push or merge it there when origin is available), then rerun arc start ${input.slug}.`);
     }
     const bytes = await deps.readBlob(input.sourceRef, path);
     if (bytes === null) captureRefusal("source-shape", `Stored artifact disappeared: ${path}.`);
