@@ -47,6 +47,37 @@ describe("rich build inventory", () => {
     });
   }
 
+  it.each([
+    [true, "mjs"], [false, "mjs"], [true, "cjs"], [false, "cjs"],
+  ] as const)("ignores loader modules during capture with contents=%s and extension=%s", (sourceContents, extension) => {
+    const { root, packageRoot } = makeBuildFixture();
+    roots.push(root);
+    writeBuildFixtureFile(join(packageRoot, "tsup.config.ts"), "export default {};\n");
+    const capture = () => captureBuildInventory(packageRoot, ["."], sourceContents);
+    const before = capture();
+    const transient = join(packageRoot, `tsup.config.bundled_abc123.${extension}`);
+    writeBuildFixtureFile(transient, "export default {};\n");
+    expect(capture()).toEqual(before);
+    rmSync(transient);
+    expect(capture()).toEqual(before);
+  });
+
+  it.each([
+    "dep.bundled_abc123.js", "dep.bundled_ABC123.mjs", "dep.bundled_abcdefghijklmn.mjs",
+  ])("retains the ordinary source sibling %s", (filename) => {
+    const { root, packageRoot } = makeBuildFixture();
+    roots.push(root);
+    writeBuildFixtureFile(join(packageRoot, "src/dep.ts"), "export const marker = 1;\n");
+    const before = captureBuildInventory(packageRoot);
+    const sibling = join(packageRoot, "src", filename);
+    writeBuildFixtureFile(sibling, "export const marker = 2;\n");
+    const current = captureBuildInventory(packageRoot);
+    expect(current.entries).toContainEqual({ path: `packages/cli/src/${filename}`, kind: "file" });
+    expect(current.identity).not.toBe(before.identity);
+    rmSync(sibling);
+    expect(captureBuildInventory(packageRoot)).toEqual(before);
+  });
+
   it("invalidates membership when a resolution-changing JS sibling is added", () => {
     const { root, packageRoot } = makeBuildFixture();
     roots.push(root);
