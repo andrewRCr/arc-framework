@@ -78,13 +78,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
-     - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
-       [quality-gate-commands method][arc-methods-qg]
-       - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
-         use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
        (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
-     - **Second**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
+     - **First**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
        delivery-member checks have completed
        - Update task description to reflect actual work done (not just original plan)
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
@@ -113,10 +109,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
          `notes-{name}.md` for deeper context.
 
-         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests"
-         or "Tier 2 clean" are noise); per-decision rationale already in the commit body or `notes-{name}.md`
-         (link, don't restate); test-batching / sequencing narrative (mention only if deviating from project
-         default); process narration (what was tried, debugging steps, mid-task discoveries); forward planning
+         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests" are noise);
+         per-decision rationale already in the commit body or `notes-{name}.md` (link, don't restate); test-batching /
+         sequencing narrative (mention only if deviating from project default); process narration (what was tried,
+         debugging steps, mid-task discoveries); forward planning
          (belongs in next task entry or Next Action).
 
          **Soft cap:** ~3 lines for atomic subtasks, ~6 lines for parent tasks summarizing rolled-up scope.
@@ -132,7 +128,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
        - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
          § Meta-file timing.
-     - **Third**: Verify the task work before the boundary checks below.
+     - **Second**: Verify the task work before the boundary checks below.
 
      **Segment-verifier scenario (conditional).** A task carrying the `— validate exit criterion at segment scope`
      role suffix closes its segment by running that segment's exit-criterion scenario and recording the outcome as
@@ -146,10 +142,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      The deferral changes only item 4's task-interlock cadence. Delivery-member and work-unit verification methods,
      including any advisory companions they invoke, still fire at their ordinary boundaries.
-     Complete only the specified work — update the task list and run quality gates after each
-     task, but continue to the next without waiting for approval. Leave the task list updated,
-     quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return). Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
+     Complete only the specified work — update the task list and run the quality request after each task's `[x]` and
+     completion note, then continue without waiting for approval. Leave the task list updated, quality gates passing,
+     and changes uncommitted (user decides commit boundaries when they return). Under
+     `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
      safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
      opt-in syntax.
@@ -196,10 +192,9 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      within the phase are complete.
 
     - **First**: Ensure new code has appropriate test coverage for new or modified logic
-    - **Second**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
     - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
       (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
-    - **Third**: Verify completion before reporting (use pre-report checklist below)
+    - **Second**: Verify completion before reporting (use pre-report checklist below)
 
   3. **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
      member's criteria walk after the coherent-unit checks and before completing or reporting the task. Record the
@@ -264,9 +259,13 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      criterion. Use the unresolved member-report branch only when item 3 returns an unresolved `[ ]`. Then stop
      through the shared interlock.
 
+     The quality request is `arc check increment`. For the task carrying the
+     `— validate exit criterion at segment scope` role suffix, use `arc check segment` instead.
+
      **Unresolved member-report branch:** When item 3 returned an unresolved `[ ]`, leave the closing task `[ ]`.
      Preserve the report as boundary evidence, but do not cascade parent completion, run the completion extension,
-     or apply the completion-only checklist. Report the unresolved criteria, evidence span, and verification status,
+     or apply the completion-only checklist. Run the quality request once after recording the preserved report.
+     Report its result with the unresolved criteria and evidence span as the branch's verification status,
      then end with `Member criteria unresolved: <details>. Fix now or amend/defer?`. Do not execute the resolved
      completion branch.
 
@@ -279,6 +278,12 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Quality request**: Run the request once over the final tracked edits, including this completion edit.
+       Report feedback failures; failed enforcement holds the increment and follows the quality-gate-failure prompt
+       below. Re-run after obvious fixes. If the segment request remains red, remove this task's `[x]` and completion
+       note, leave the segment open, and skip the completion extension and completion-only checklist. Whichever answer
+       the failure prompt receives, it does not close the segment; this gate failure uses the ordinary failure path,
+       while a failed verifier scenario still enters `amend-design` as above.
      - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned
        `verification-required`, complete the scoped result, close this task, and invoke its `resumeAction` with only
        that result added as `verification`. Dispatch the returned exact acknowledgment action, re-enter the same
@@ -296,7 +301,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      **Pre-Report Checklist** (verify before generating the completion report):
 
      ```
-     - [ ] Quality checks passed (Tier 1, plus Tier 2 when item 2 applied)
+     - [ ] Quality request completed; enforcement passed and feedback failures reported
      - [ ] Task list file edited and saved
      - [ ] Task marked [x] and description updated to reflect actual work
      - [ ] Member report recorded and Success Criteria unchanged (when item 3 applied)
@@ -419,7 +424,6 @@ updates**. Always update the task list file before reporting completion.
 [arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
-[arc-methods-qg]: ../../methods/quality-gate-commands.md
 [adversarial-review]: ../../methods/adversarial-review.md
 [review-chunking]: ../../methods/review-chunking.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

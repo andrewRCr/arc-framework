@@ -465,21 +465,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
   and `delivery-window-base-movement`. `evidence-applicability-doctrine` reads `DEV-RULES.ARC.md` and changes with Task
   6.2.a; `delivery-workflow`'s `tier1ReuseCriteria` assertion changes with Task 6.3.b.
 
-    - `[ ]` **6.1.a Task loop**
-        - `process-task-loop.template.md`: item 1's Tier 1 step goes, and item 4 requests `arc check increment` once,
-          immediately after its `[x]` and completion note, ahead of the delivery correction acknowledgment and the
-          completion extension, so the checked tree is the committed tree; the pre-report checklist's quality line
-          confirms that request's result rather than making another. Deferred review makes the request
-          after each task's `[x]`, and the completion note's exclusions drop "Tier 2 clean"
-        - Item 4's unresolved member-report branch, which leaves the closing task `[ ]`, makes the same request after
-          recording the preserved report, and reports its result as the branch's verification status
-        - A task carrying the segment-verifier role suffix requests `arc check segment` in place of `increment`, keyed
-          on the task in hand as the verifier's scenario step already is, so no step evaluates a segment's mode. A
-          `segment` result still red once obvious fixes are re-run takes the verifier's `[x]` and completion note back
-          out, and, as on the unresolved member-report branch, the completion extension and the completion-only
-          checklist do not run, so the segment stays open whichever answer the gate-failure prompt gets
-        - Item 2 keeps its triggers, its test-coverage step, and its verification before reporting; only its Tier 2 run
-          goes, since item 4's request covers the increment
+    - `[x]` **6.1.a Task loop**
+        - Final completion edits precede one increment request; verifier tasks substitute the segment request and
+          reopen on persistent enforcement failure before completion hooks. Unresolved member reports request checks
+          after preserving evidence; coherent-unit triggers and delivery acknowledgment order remain intact.
 
     - `[ ]` **6.1.b Errand and supplemental workflows**
         - `run-errand.md`: a pass or approved review fix requests `arc check increment`; a base merge's
