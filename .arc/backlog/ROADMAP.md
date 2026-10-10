@@ -13,17 +13,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
-| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
-| `Planning` | storage-projection              | P1       | andrew | —          | state-storage |
-| `Planning` | storage-ref-backend             | P1       | andrew | —          | state-storage |
-| `Planning` | seam-record-kinds               | P1       | andrew | —          | storage-seam  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
-| `Active`   | quality-gate-hooks              | P3       | andrew | —          | —             |
+| State         | Work unit                       | Priority | Owner  | Depends on                 | Cohort        |
+| ------------- | ------------------------------- | -------- | ------ | -------------------------- | ------------- |
+| `Planning`    | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage |
+| `Planning`    | storage-ref-backend             | P1       | andrew | —                          | state-storage |
+| `Planning`    | seam-record-kinds               | P1       | andrew | —                          | storage-seam  |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                          | —             |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                          | —             |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                          | —             |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                          | —             |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                          | —             |
+| `Integrating` | quality-gate-hooks              | P3       | andrew | —                          | —             |
 
 ## Ready
 
