@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "seam-design-order-wording",
+  "claimId": "75e18a7731b6de5bf12468ef1926c4d5",
+  "createdAt": "2026-10-10T03:40:09.063Z",
+  "updatedAt": "2026-10-10T03:40:09.063Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reword the seam's design-capacity cap in the tracked storage planning docs: keep the design order as the best sequence when attention allows, at the Owner's discretion, with no capacity cap recorded (Owner, 2026-10-09).",
+  "branch": "chore/seam-design-order-wording",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
