@@ -10,3 +10,4 @@ the observed content and repository-local Git variable names. It removes its nes
 
 `hook-manager.ts` initializes committed source inputs through the built CLI, installs real Husky, Lefthook,
 pre-commit.com, or native Git hooks, and supplies actual Git commit results and declared-check execution receipts.
+Commit process overrides stay within each fixture; pre-commit.com's patch cache lives in its disposable Git directory.

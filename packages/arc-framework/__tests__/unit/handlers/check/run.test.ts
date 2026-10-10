@@ -79,6 +79,28 @@ it("keeps a no-op fixer's captured tree without requiring another tree write", a
   });
 });
 
+it("reports an inherited object name as an unknown hook skip", async () => {
+  const { root, io } = await fixture({});
+  io.git = scriptGitExec([
+    { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ failure: { exitCode: 128 } }] },
+    { match: ["write-tree"], responses: [{ stdout: "b".repeat(40), stderr: "" }] },
+  ]).exec;
+  await expect(runDeclaredRequest(root, io, { form: { kind: "pre-commit" }, skip: ["constructor"] }))
+    .resolves.toMatchObject({ kind: "result", exitCode: 0, result: { ignoredSkips: ["constructor"] } });
+});
+
+it("refuses an inherited object name that is not an explicitly declared check", async () => {
+  const { root, io } = await fixture({});
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids: ["constructor"] } }))
+    .resolves.toMatchObject({ kind: "error", exitCode: 2, error: { kind: "refused", message: expect.stringContaining("Unknown check constructor") } });
+});
+
+it("runs an explicitly declared check whose name also occurs on the object prototype", async () => {
+  const { root, io } = await fixture({ constructor: {} });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids: ["constructor"] } }))
+    .resolves.toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ id: "constructor", outcome: "passed" }] } });
+});
+
 const exitCases: Array<{ outcomes: DeclaredCheckResult["outcome"][]; exit: 0 | 1 | 2 }> = [
   { outcomes: [], exit: 0 },
   { outcomes: ["passed", "reused", "skipped", "not selected", "would run"], exit: 0 },

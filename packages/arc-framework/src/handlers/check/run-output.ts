@@ -22,12 +22,14 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
     return `${JSON.stringify(envelope)}\n`;
   }
   if (outcome.kind === "error") return `error: ${outcome.error.message}\n`;
+  const ignored = outcome.result.ignoredSkips?.length
+    ? `ARC_SKIP ignored unknown checks: ${outcome.result.ignoredSkips.join(", ")}\n` : "";
   const verification = outcome.result.verification ?? checkVerification(outcome.result.status, outcome.result.checks);
-  if (outcome.result.status === "none declared") return `none declared\n${verification}\n`;
+  if (outcome.result.status === "none declared") return `${ignored}none declared\n${verification}\n`;
   const failureFirst = [...outcome.result.checks].sort((a, b) =>
     Number(b.outcome === "failed" || b.outcome === "couldn't run") -
     Number(a.outcome === "failed" || a.outcome === "couldn't run"));
-  return `${failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n")}\n${verification}\n`;
+  return `${ignored}${failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n")}\n${verification}\n`;
 }
 
 function renderCheck(check: DeclaredCheckResult, ci: boolean): string {

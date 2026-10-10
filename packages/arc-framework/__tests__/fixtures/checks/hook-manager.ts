@@ -55,7 +55,8 @@ export async function createHookManagerRepository(
     const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     await writeFile(wrapper, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(CLI_PATH)} "$@"\n`);
     await chmod(wrapper, 0o755);
-    const installationOptions = { cwd: root, env: environmentForGitCwd(root), timeout: 30_000 };
+    const installationOptions = { cwd: root,
+      env: { ...environmentForGitCwd(root), PRE_COMMIT_HOME: join(root, ".git/test-pre-commit-cache") }, timeout: 30_000 };
     if (manager === "husky") {
       await symlink(huskyDirectory, join(root, "node_modules/husky"), "junction");
       await execa("npm", ["run", "prepare"], installationOptions);
@@ -70,11 +71,12 @@ export async function createHookManagerRepository(
  * Commit staged fixture inputs through installed hooks, preserving native status.
  * @param root - Prepared fixture repository
  * @param message - Message that Git passes to the installed validation hook
+ * @param environment - Process overrides scoped to the fixture commit
  * @returns Git's exit code and captured hook diagnostics
  */
-export async function commitThroughManager(root: string, message = VALID_MESSAGE): Promise<{ exitCode: number; output: string }> {
+export async function commitThroughManager(root: string, message = VALID_MESSAGE, environment: NodeJS.ProcessEnv = {}): Promise<{ exitCode: number; output: string }> {
   const result = await execa("git", ["commit", "-m", message], {
-    cwd: root, reject: false, timeout: 30_000, env: { ...environmentForGitCwd(root), FORCE_COLOR: undefined, NO_COLOR: "1", LEFTHOOK: undefined, HUSKY: "1" },
+    cwd: root, reject: false, timeout: 30_000, env: { ...environmentForGitCwd(root), FORCE_COLOR: undefined, NO_COLOR: "1", LEFTHOOK: undefined, HUSKY: "1", PRE_COMMIT_HOME: join(root, ".git/test-pre-commit-cache"), ...environment },
   });
   return { exitCode: result.exitCode ?? 2, output: result.stdout + result.stderr };
 }

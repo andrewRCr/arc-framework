@@ -121,6 +121,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
   try {
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     const inheritedIndex = process.env.GIT_INDEX_FILE;
+    const hookSkip = form.kind === "pre-commit" ? process.env.ARC_SKIP?.split(",").map(id => id.trim()).filter(Boolean) : undefined;
     outcome = await runDeclaredRequest(root, {
       platform: process.platform,
       availableParallelism,
@@ -132,7 +133,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: runCheckProcess,
       runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),
-    }, { form, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
+    }, { form, skip: hookSkip, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }

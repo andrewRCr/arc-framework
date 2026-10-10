@@ -5,6 +5,7 @@ import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
+import { findPartiallyStagedChecks } from "../../lib/checks/partial-staging.js";
 import { checkFixesAllowed, refreshFixerContent } from "../../lib/checks/fixers.js";
 import { type TreePathChange, createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
 import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
@@ -41,7 +42,7 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
 export type RunDeclaredChecksResult = {
   kind: "result";
   exitCode: 0 | 1 | 2;
-  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[] };
+  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; verification?: string; ci?: boolean; base?: string; tree?: string; merged?: string[]; ignoredSkips?: string[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string }
   | { kind: "usage"; code: string; message: string } };
 
@@ -120,7 +121,9 @@ export async function runDeclaredRequest(
     error: { kind: "invalid", message: `${declaration.location}: ${declaration.message}` } };
   const ids = request.form.kind === "run" ? request.form.ids : undefined;
   const available = declaration.status === "absent" ? {} : declaration.value.checks;
-  const missing = ids?.find(id => available[id] === undefined);
+  const ignoredSkips = request.form.kind === "pre-commit"
+    ? [...new Set(request.skip ?? [])].filter(id => !Object.hasOwn(available, id)) : [];
+  const missing = ids?.find(id => !Object.hasOwn(available, id));
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
   const entries = selectRequestChecks(available, request.form);
@@ -131,7 +134,9 @@ export async function runDeclaredRequest(
   if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
   const indexViews = createCheckIndexViews(io.git, root, request, resolved.request);
   try {
-    return await executeResolvedRequest(root, io, request, declaration, entries, resolved.request, indexViews);
+    const outcome = await executeResolvedRequest(root, io, request, declaration, entries, resolved.request, indexViews);
+    return outcome.kind === "result" && ignoredSkips.length > 0
+      ? { ...outcome, result: { ...outcome.result, ignoredSkips } } : outcome;
   } finally {
     await indexViews.remove();
     await resolved.request.snapshot?.remove();
@@ -150,6 +155,8 @@ async function executeResolvedRequest(
   }
   coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" ? await stagedWorktreeTree(io.git, root) : tree);
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
+  const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection });
+  if (refusal !== undefined) return { kind: "error", exitCode: 2, error: { kind: "refused", message: refusal } };
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
@@ -181,6 +188,7 @@ async function runRequestedCheck(
   { id, check, root, resolved, selection, kind, definition, indexViews, selectionTree }: { selectionTree: string; indexViews: CheckIndexViews; definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
+  if (isSkippedHookCheck(request, id)) return { id, kind, outcome: "skipped", reason: "ARC_SKIP" };
   let { tree } = resolved;
   let forecast = request.dryRun ? resolveCheckForecast(check, root, [], io.platform) : {};
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
@@ -197,13 +205,44 @@ async function runRequestedCheck(
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
   const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
-    result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: check.mode === "files" && check.widen && selection.widened && request.form.kind !== "run" });
+    result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
   return { ...result, ...forecast };
 }
 
 function usesFormingWorktree(check: CheckDeclaration["checks"][string], request: CheckRequest): boolean {
   return check.fixes && request.form.kind !== "pre-commit" && checkFixesAllowed(request);
+}
+
+function isSkippedHookCheck(request: CheckRequest, id: string): boolean {
+  return request.form.kind === "pre-commit" && request.skip?.includes(id) === true;
+}
+
+function usesWidenedFileRetry(check: CheckDeclaration["checks"][string], selection: CheckSelection, request: CheckRequest): boolean {
+  return check.mode === "files" && check.widen && selection.widened && request.form.kind !== "run";
+}
+
+async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
+  root: string; request: CheckRequest; entries: Array<[string, CheckDeclaration["checks"][string]]>;
+  coordinates: ResolvedCheckRequest; selection: CheckSelection;
+}): Promise<string | undefined> {
+  const { root, request, entries, coordinates: resolved, selection } = context;
+  if (request.form.kind !== "pre-commit") return undefined;
+  const candidates: Array<{ id: string; inputs: string[] }> = [];
+  for (const [id, check] of entries) {
+    if (request.skip?.includes(id)) continue;
+    const selected = selectCheckInputs({ id, check, request, resolved, selection });
+    if (selected.status === "not selected") continue;
+    if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
+      inputs: check.inputs, selectedPaths: selected.paths })).length === 0) continue;
+    candidates.push({ id, inputs: check.inputs });
+  }
+  const affected = await findPartiallyStagedChecks(io, root,
+    { base: resolved.base, tree: resolved.tree, worktree: resolved.worktreeTree ?? resolved.tree }, candidates);
+  if (affected.length === 0) return undefined;
+  const paths = [...new Set(affected.flatMap(check => check.paths))].map(path => JSON.stringify(path)).join(", ");
+  const ids = affected.map(check => check.id).join(",");
+  return `Partially staged inputs: ${paths} (checks: ${ids}). Stage each whole file and retry git commit, or skip these checks for this commit with ARC_SKIP=${ids} git commit ... .`;
 }
 
 async function selectedFilePaths(io: DeclaredCheckDependencies, input: {

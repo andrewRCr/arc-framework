@@ -346,25 +346,20 @@ conclusion selects only conflicted and parent-unmatched paths.
   resolutions and excluding clean incoming content. Native linked-worktree checks prove private metadata lookup;
   malformed or missing active metadata refuses with repair/retry guidance and resumes after repair.
 
-### `[ ]` **5.3 Partially staged inputs refuse, and a person may skip named checks — D8**
+### `[x]` **5.3 Partially staged inputs refuse, and a person may skip named checks — D8**
 
 - _Goal:_ The commit gate never certifies bytes the commit will not carry, and a person can step around named checks
   for one commit through a channel no agent run reaches.
 
-    - `[ ]` **5.3.a Partially staged refusal**
-        - Build `test-first` (one behavior at a time):
-            - a staged path inside a selected check's inputs that also carries unstaged edits refuses with exit 2,
-              naming the paths and both remedies
-            - staging the whole file lets the retried commit through, as does skipping the named checks
-            - other unstaged and untracked files never refuse
-            - under pre-commit.com and lefthook, the refusal sees no unstaged edits
+    - `[x]` **5.3.a Partially staged refusal**
+        - Selected checks refuse staged paths with unstaged edits before execution, naming both whole-file staging
+          and named-skip remedies. Native commits verify retry and preservation of unrelated work; manager stash
+          windows remain compatible, with pre-commit.com's fixture patch cache inside its disposable Git directory.
 
-    - `[ ]` **5.3.b `ARC_SKIP`**
-        - Build `test-first` (one behavior at a time):
-            - the hook forms skip the named checks, report them `skipped`, and never record them
-            - an id the declaration does not declare is reported and ignored
-            - every other request form ignores `ARC_SKIP`
-            - ARC's structural checks are not skippable through it
+    - `[x]` **5.3.b `ARC_SKIP`**
+        - Only hook requests consume named skips, before reuse or execution, without recording passes. Unknown
+          names are reported through own declaration membership; ordinary requests ignore the environment channel,
+          and structural commit validation remains active.
 
 ### `[ ]` **5.4 Commit-hook fixes restage or fail — D7, D8**
 

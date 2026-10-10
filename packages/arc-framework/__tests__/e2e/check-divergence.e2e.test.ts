@@ -15,12 +15,11 @@ afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
 
 it.each([
   { scope: "staged", mode: "project" }, { scope: "staged", mode: "files" },
-  { scope: "hook", mode: "project" }, { scope: "hook", mode: "files" },
-])("runs and labels differing worktree inputs without reusing or recording, $scope $mode", async ({ scope, mode }) => {
+])("runs and labels differing worktree inputs without reusing or recording, $scope $mode", async ({ mode }) => {
   const root = await createDeclaredCheckRepository({ check: { command, gate: "commit", mode, inputs: ["src/**"] } });
   repositories.push(root);
   await git("git", ["add", "src/a.ts"], { cwd: root });
-  const request = scope === "hook" ? ["check", "pre-commit", "--json"] : ["check", "run", "check", "--staged", "--json"];
+  const request = ["check", "run", "check", "--staged", "--json"];
   const before = await runArc(request, root);
   expect(before.exitCode, before.stderr).toBe(0);
   expect(JSON.parse(before.stdout).result.checks[0].outcome).toBe("passed");
