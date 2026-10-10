@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retirement-staged-paths",
+  "claimId": "a237cc0fc083dee452874da39668f12a",
+  "createdAt": "2026-10-10T22:07:51.659Z",
+  "updatedAt": "2026-10-10T22:07:51.659Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name staged paths and the commit-or-clear remedy in direct retirement refusals, and state that multiple retirements serialize through commits.",
+  "branch": "chore/retirement-staged-paths",
+  "origin": "inbox",
+  "originEntry": "Name the staged paths when direct retirement refuses a non-empty index",
+  "originEntrySourceDigest": "sha256:7a61a87e86b44c1a1bc4f7606735984a45777c9c7458dd4e208f08d14711a8f3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
