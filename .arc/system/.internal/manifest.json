@@ -725,7 +725,7 @@
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3dc397b2b232a4b73d14579f469a53b708d60cc3150464c91372b3775b251fd1"
+      "pristine_hash": "df860b5795537dc1e3a87781fd85db7927eac5439f2be128c0b900bfdf62981c"
     },
     "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md": {
       "classification": "Framework",

@@ -447,16 +447,13 @@ Errand-shaped one, and D9's pair with D12's four answers for an unclear one.
         - Route-only Execute re-checks coupling, scope and any new-stub shortlist in its own checkout; changed results
           return to the Owner.
 
-### `[ ]` **6.4 Map the record test's answers to `--floor` in `init-work-unit`'s Promote Errand path — D12**
+### `[x]` **6.4 Map the record test's answers to `--floor` in `init-work-unit`'s Promote Errand path — D12**
 
 - _Goal:_ The Promote Errand path names the floor by the record test's answers — question 1 `scale`, questions 2–4
   `derivation`, `derivation` winning when both flip — as `arc errand promote --floor` takes it.
 
-    - Edit § Promote Errand to Work Unit Path in `work-unit-lifecycle/planning/init-work-unit.md`; its method
-      declarations stay unchanged.
-    - Step 1 names the floor from the answers that flipped, and the stop before promotion shows them as the floor's
-      reason.
-    - The partial-protection sentence starts the work unit at the stage the floor names.
+- _Outcome:_ Promotion derives its floor from the flipped canonical answers, shows them at the Owner stop, and
+  applies the same entry-stage mapping under partial protection.
 
 ### `[ ]` **6.5 Dry-run route-now over four constructed concerns** — validate exit criterion at segment scope
 
