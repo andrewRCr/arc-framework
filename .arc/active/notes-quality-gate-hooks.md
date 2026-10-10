@@ -555,3 +555,266 @@ The hosted end-to-end scenario succeeds at `581a2d159e17b48e84dfe6b36cb0b1520a86
 [the successful dispatched run](https://github.com/andrewRCr/arc-framework/actions/runs/38053408096). Its source
 forecast and validated map feed every scheduled check-running job. The optional Windows/macOS pair is off,
 so the macOS-only entry remains conditional rather than being claimed as executed.
+
+## Terminal verification
+
+The complete work-unit walk covers base `2ab7ca75fda772c729dc8e94435b602f8e77ebb4`,
+HEAD anchor `2d852890aaffdce01fb51cec9f19f3afd919b2c8`, and staged tree
+`dfcfb1590b103af1a584a2dfbfd5e0c44df869a7`. The closing task-list and evidence edits follow this verified source subject.
+
+All 20 immutable criteria are met; none is superseded or unresolved. These are implementer validation results for
+Candidate preparation. They do not satisfy Candidate code review, current hosted admission, or merge authorization.
+
+The forced local merge quality gate ran all 16 selected checks without reuse. Both type checks, all declared local
+linters, formatting, package sync, and the full build passed. Unit tests passed 14,170 cases with 549 skipped;
+integration tests passed 3,234 with 639 skipped; contract tests passed 104. Separate feedback passed 50 related unit
+tests and all 1,003 local E2E tests. The increment passed nine checks and reused two. CI-only E2E, portability and
+macOS portability are explicitly excluded locally; the hosted runs above remain evidence for their historical heads.
+
+The native HEAD correction has fail-first unit and four-manager push coverage. Failed pushes leave the remote tip
+unchanged; repaired retries publish the checked tip, with one execution per event. Detached, tag and other-branch
+exclusions and original source-ref attribution remain covered. Focused verification passed 197 tests in 24 files.
+
+### Criteria evidence
+
+Each ordinal resolves under `tasks-quality-gate-hooks.md` > Success Criteria. Digests identify the immutable
+criterion text independently of checkbox state and Markdown layout. All entries below resolve to met.
+
+#### Criterion 1
+
+- Digest: `sha256:30ee1d12f93b8f665fa427febcb743864899968371953f50e8f235efc98f18da`
+- Evidence: check runner content keys and force bypass; check-increment and check-fixers E2E
+
+#### Criterion 2
+
+- Digest: `sha256:b71ee64ca3aa70476e046b86228ddb7adb4c9382e2af3bb5f556b12417173966`
+- Evidence: selection.ts four widening triggers and deletion filtering; check-selection E2E; actual planning/framework
+  dry-run forecasts; archived-planning selection uses current repository declaration in native increment/segment
+  forecasts; check-project-selection.e2e.test.ts passes both forms without code checks; existing four-trigger widening
+  suite passes.
+
+#### Criterion 3
+
+- Digest: `sha256:2fe64517d7241014abb956efb3096539e0a071511a4955376a9f51be43bec5e4`
+- Evidence: declaration-driven hooks and CI forecast/plumbing; actual CI plumbing integration tests and retired hook
+  chain
+
+#### Criterion 4
+
+- Digest: `sha256:54ed6e61ff58017911114e8cd82b356467b3096ab4f97b8fb16d77a93e8e2f63`
+- Evidence: complete numbered-tier corpus search, delivery identifier rename and shipped arc check fire sites
+
+#### Criterion 5
+
+- Digest: `sha256:5b5ce3aeaf2798e00dd63fdba19a72480c482d14f5b7f980f814d328c29c50cc`
+- Evidence: gates.ts cumulative membership and deadline-only kinds; check-gates E2E interlock matrix
+
+#### Criterion 6
+
+- Digest: `sha256:8bb25339d30e47cfa83e2f21124f0f0e57ea4fbe6835d1252a7aee167f3c74ac`
+- Evidence: runner outcomes/exit precedence and hook-only ARC_SKIP; check-outcomes and check-hook-policy E2E
+
+#### Criterion 7
+
+- Digest: `sha256:88918e37424b9aa0c7b4c524312e9c8df3b9adcb5925a88bee8af017019123a9`
+- Evidence: paired refusal/repair tests in check-outcomes, check-hook-policy, check-pre-commit-hook and check-request
+  E2E
+
+#### Criterion 8
+
+- Digest: `sha256:7cf964af58592541556d75490cb6d292e46843c0d050ac46c074fac816b0ffa3`
+- Evidence: push.ts classifyPushRef maps native HEAD through the captured symbolic checkout branch, preserves original
+  ref attribution and existing state/deletion/detached/tag/other-branch exclusions. Native hook-manager-push
+  failure/repair matrix passes for HEAD and qualified branch spelling under all four managers, once per event.
+  Existing commit dispatch, deletion, commit-message, ref disposition and upgrade suites remain green.
+
+#### Criterion 9
+
+- Digest: `sha256:066146fb3d18beb1dcc4221ea142c4b350909f5237fe93495d37beb5482dec92`
+- Evidence: fixers and commit-fixes source; check-fixers/hook-manager-fixers E2E; native untracked formatter consumer
+  from Task 7.4.e
+
+#### Criterion 10
+
+- Digest: `sha256:1752cd2b3fd3de07c9f3188fa66f0ab3dea34e0e6cb2a9f6a78dec80769f3bc9`
+- Evidence: merge.ts decodes complete native comment records against NUL-delimited tree/parent paths and retains
+  authored combined-diff paths; ambiguous records propagate conservative selection. resolve-request.ts preserves
+  active merge coordinates for named staged retries. selection.ts retains deleted historical conflicts across captured
+  parents while omitting absent files from arguments. Native check-merge, check-base, base-merge-hooks and
+  package-sync tests cover hooks, refusal/repair, all range forms, custom prefixes, multiline ambiguity and deleted
+  conflicts.
+
+#### Criterion 11
+
+- Digest: `sha256:7d2462e976d57ab884b3838f7e63f2ef083625d2838a2291e91fbcb377ae5c52`
+- Evidence: forced verify and convergence workflow calls; runner force bypasses pass lookup; cache access confined to
+  runner
+
+#### Criterion 12
+
+- Digest: `sha256:febd0f61ae2f58370b4ddec6f15a745dace3c8e0e003644c0e97ec9f5baefba8`
+- Evidence: bootstrap snapshots original sources and keeps gates unset; update-checks-bootstrap unit and
+  update-hook-upgrade E2E
+
+#### Criterion 13
+
+- Digest: `sha256:729a6e0fe4ff57da8e367e8db28042d5a053f0a79aeadf839111d32b95496568`
+- Evidence: CI merge --ci forecast and validated placement map; ci-check-plumbing/ci-check-runner integration;
+  recorded hosted run at 581a2d159
+
+#### Criterion 14
+
+- Digest: `sha256:e1c81c769048ef7b66a1bcd79a0e9a68ac29722cd51584840ec45eec960cae23`
+- Evidence: registered strict input schema and generated editor document; schema-declaration E2E accepts actual
+  repository declaration and rejects unknown fields; current generated editor document accepts corrected declaration
+
+#### Criterion 15
+
+- Digest: `sha256:eea14cbf83435a0be0a93ac5a15409d3556bc996e4aa7775d2e5594c38e6c73f`
+- Evidence: worktree-private arc-checks directory and best-effort stores; record unit/integration fault tests;
+  check-report E2E vocabulary/log faults createCheckIndexDirectory falls back to private system temporary storage for
+  indexes when record storage is unavailable; native worktree/staged/hook checks execute twice without reuse, see the
+  exact checked tree, preserve the real index/worktree, and clean temporary indexes.
+- Deviation: On record-directory faults, disposable indexes use private system temporary storage. The reuse record
+  remains worktree-private in arc-checks, outside arc/. This is the approved fallback implementing the storage-fault
+  contract.
+
+#### Criterion 16
+
+- Digest: `sha256:3d7b053e904e2f5b1f0a8af69bcc1d4d3cef2261c54aa25fe40a94bafac1cf93`
+- Evidence: full shipped corpus and recipe inspection: no installed declaration and no stack-tool gate defaults
+
+#### Criterion 17
+
+- Digest: `sha256:8f2c1c2fa58db162a49849ca9c0672c4cf9c166a34075d5ca32eb112238fc8ed`
+- Evidence: notes-quality-gate-hooks fixed 20-commit sample, before and after argv/timings/load limits; 2650.467s
+  before and 701.697s after
+
+#### Criterion 18
+
+- Digest: `sha256:fb149c38162edd7441183d53d032670333480dce4a9e10dc0195baed2a9676f1`
+- Evidence: process.ts sanitizes Git environment; index-view.ts declared index isolation;
+  check-git-environment/check-index/markdown-commit-index E2E
+
+#### Criterion 19
+
+- Digest: `sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c`
+- Evidence: Fresh forced merge request on dfcfb1590b103af1a584a2dfbfd5e0c44df869a7 passed all 16 local checks with
+  zero reuse: both type checks, complete lint/build checks, 14170 unit, 3234 integration and 104 contract tests.
+  Separate local E2E feedback passed 1003 tests. CI-only E2E and portability declarations remain explicit local
+  exclusions.
+
+#### Criterion 20
+
+- Digest: `sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f`
+- Evidence: All implementation criteria and fresh local checks are resolved for Candidate preparation. The advisory
+  loop ended non-converged at Pass 4 of 4, cap-exhausted; its last approved HEAD correction is locally verified but
+  unattacked by a successor. Candidate code review, current hosted admission and exact-head integration authorization
+  remain later obligations.
+
+### Adversarial criteria validation
+
+Four fresh whole-target passes returned seven findings. Every finding was independently confirmed against source
+and native execution, approved for correction, and fixed. The complete set below preserves the reported and verified
+grades, evidence and response. None was deferred or rejected. These passes are advisory criteria validation, not a
+Candidate code-review lane result.
+
+#### Pass 1 of 2
+
+Reviewed tree: `229f0662ac2d6c07a23606d3cc918e15b816140f`.
+
+- Finding: Native Git comment characters can silently exclude resolved merge conflicts
+  Reported critical; verified critical; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/lib/checks/merge.ts:36
+  Evidence: core.commentChar=; produces ;\tfile.txt; built CLI pre-commit exits 0/not selected. Changing only metadata
+  prefixes to # makes the identical failing check execute and exit 1.
+  Response: Implemented and verified by fail-first regressions and passing increment/feedback checks.
+  Approved action: Preserve historical conflict paths under native Git comment settings; add regression coverage of
+  unchanged one-sided conflict resolution.
+
+- Finding: An unavailable disposable record directory prevents index-reading checks from running
+  Reported major; verified major; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/handlers/check/run.ts:132; packages/arc-framework/src/lib/checks/index-view.ts:21
+  Evidence: reads_index=true and a regular file at .git/arc-checks cause built CLI increment exit 2/EEXIST without
+  execution; removing only that file makes the retry pass.
+  Response: Implemented and verified by fail-first regressions and passing increment/feedback checks.
+  Approved action: Keep indexed execution available when disposable record storage is unusable, with private
+  snapshot/index fallback and cleanup; preserve exact checked-tree index semantics and add regression coverage.
+
+- Finding: A merge-conflict failure remedy does not rerun the failed check
+  Reported major; verified major; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/lib/checks/remedies.ts:42;
+  packages/arc-framework/src/lib/checks/resolve-request.ts:98
+  Evidence: With normal # metadata, hook exits 1 for a historical conflict restored to HEAD; its exact named staged
+  retry exits 0/not selected and omits merged parents without content changes.
+  Response: Implemented and verified by fail-first regressions and passing increment/feedback checks.
+
+  Approved action: Preserve merge-conclusion selection, base/tree and incoming-parent context when rerunning the
+  failed check; verify unchanged-content retries execute and retain failure until repaired.
+
+#### Pass 2 of 2
+
+Reviewed tree: `84b0d3fc9e340817724d343af8748736232585ac`.
+
+- Finding: A modify/delete conflict kept deleted escapes the commit gate
+  Reported critical; verified critical; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/lib/checks/selection.ts:58-66
+  Evidence: Native Git HEAD deletion/incoming modification, resolved to deletion: mergePaths retains src/a.ts; a
+  failing project-mode src/** check with cache false is not selected and the hook exits 0.
+  Response: Implemented and verified by fail-first native regressions, 235 focused tests, increment, 27 related unit
+  tests, 997 local E2E tests and all 16 forced local merge checks.
+  Approved action: Project historical conflict reach through all captured merge parents, retaining deleted-path
+  filtering for files-mode arguments. Add fail-first native modify/delete and selection regressions.
+
+- Finding: Archived planning Markdown widens selection to code checks
+  Reported major; verified major; confirmed; approved fix completed.
+  Locus: .arc/system/arc-checks.yml:116,140; packages/arc-framework/src/lib/checks/selection.ts:35-42
+  Evidence: Only .arc/completed/archive/notes.md changes. Every own selection is not selected, widened=true, and
+  increment selects typecheck, typecheck:test, lint:ts:file, lint:sh and test:arc-contracts. Reviewer segment also
+  selects unit/integration checks.
+  Response: Implemented and verified by fail-first native regressions, 235 focused tests, increment, 27 related unit
+  tests, 997 local E2E tests and all 16 forced local merge checks.
+
+  Approved action: Cover archived planning Markdown declaratively with existing Markdown checks, keeping archival
+  formatter/linter policy and code/test exclusions. Add native planning-only selection regressions; preserve all four
+  widening triggers.
+
+#### Pass 3 of 3
+
+Reviewed tree: `47bb8468fe8c8b93b573b3793f36360514d9b707`.
+
+- Finding: Newlines in conflicted pathnames silently bypass merge-conclusion enforcement
+  Reported major; verified critical; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/lib/checks/merge.ts:35-47, readMergeCheckPaths
+  Evidence: Path src/two\nlines.ts is recorded as #\tsrc/two\n# lines.ts. The resolved request has mergePaths
+  [src/two] and staged tree equals HEAD. An uncached failing src/** project guard is not selected and the commit-gate
+  request exits 0. Reviewer also proved an ordinary merge commit succeeds through the enabled shipped hook.
+
+  Approved action: Recover complete native multiline conflict pathnames, retaining the recorded comment prefix;
+  validate path accounting against Git tree paths and conservatively widen when it is ambiguous rather than silently
+  excluding conflicts. Add a native hook refusal/repair regression.
+  Response: Complete native records are decoded against captured tree and parent paths; non-unique records propagate
+  uncertainty to conservative gates and full named staged retries.
+
+#### Pass 4 of 4
+
+Reviewed tree: `4e20c1f9e095c324727fb125a40ff94af5c6cc93`.
+
+- Finding: Pushing the checked-out branch as HEAD bypasses its push gate
+  Reported major; verified critical; confirmed; approved fix completed.
+  Locus: packages/arc-framework/src/lib/checks/push.ts:16-24, classifyPushRef; handlers/check/run-cli.ts:120-122,
+  runPushEvent
+  Evidence: Independent native fixture: HEAD symbolically names refs/heads/feature and the same unchanged tip is
+  pushed both ways. git push origin feature executes the uncached failing src/** guard, exits 1 and creates no remote
+  feature ref. git push origin HEAD reports no worktree, executes no check, exits 0, and creates the remote feature
+  ref at that exact tip.
+  Response: Implemented the approved native HEAD classification correction; fail-first tests and all required local
+  checks pass. No successor adversarial pass ran.
+  Approved action: Resolve symbolic push sources such as HEAD to their canonical branch before checkout ownership
+  classification, retaining original ref attribution and state/deletion/detached/tag/other-branch exclusions. Add
+  native failed-push and repaired-retry coverage using HEAD, plus classification regressions.
+
+The latest result is **Pass 4 of 4**, **non-converged**, stop reason **cap-exhausted**. Its confirmed critical
+HEAD push bypass is fixed and locally verified. That final correction remains unattacked by a successor adversarial
+review. Approval covered the bounded fix; no Pass 5 was authorized or launched. The prior recommendation for one
+additional whole-target pass remains advisory, and the cap establishes no clean or Owner-accepted terminus.

@@ -20,7 +20,9 @@ export function classifyPushRef(update: PushRefUpdate, currentRef?: string | nul
   if (update.localOid !== undefined && /^0+$/u.test(update.localOid)) {
     return { ref: update.localRef, outcome: "skipped", reason: "ref deletion" };
   }
-  if (!update.localRef.startsWith("refs/heads/") || update.localRef !== currentRef) return { ref: update.localRef, outcome: "not selected",
+  // Git preserves HEAD as the source spelling in hook input even when it names the checkout branch.
+  const sourceRef = update.localRef === "HEAD" ? currentRef : update.localRef;
+  if (!sourceRef?.startsWith("refs/heads/") || sourceRef !== currentRef) return { ref: update.localRef, outcome: "not selected",
     reason: "no worktree for this pushed ref in the current checkout" };
   return { ref: update.localRef, outcome: "checked" };
 }

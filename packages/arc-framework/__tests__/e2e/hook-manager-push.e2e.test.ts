@@ -26,21 +26,22 @@ async function declarePushCheck(root: string, exitCode: number): Promise<void> {
   } } }));
 }
 
-it.each(HOOK_MANAGERS)("blocks a failed gate, runs once, and permits a repaired push through %s", async manager => {
+it.each(HOOK_MANAGERS.flatMap(manager => ["refs/heads/feat/native-hooks", "HEAD"].map(ref => ({ manager, ref }))))(
+  "blocks a failed gate, runs once, and permits a repaired push of $ref through $manager", async ({ manager, ref }) => {
   const { root, remote, base } = await publishedRepository(manager);
   await declarePushCheck(root, 1);
   await writeFile(join(root, "src/0.txt"), "changed\n");
   await git(root, ["add", ".arc/system/arc-checks.yml", "src/0.txt"]);
   await git(root, ["commit", "-m", "push input"]);
-  const failed = await pushThroughManager(root);
+  const failed = await pushThroughManager(root, ["origin", ref]);
   expect(failed.exitCode, failed.output).toBe(1);
-  expect(failed.output).toContain("refs/heads/feat/native-hooks");
+  expect(failed.output).toContain(ref);
   expect(await executionReceipt(root)).toBe("executed\n");
   expect(await git(remote, ["rev-parse", "refs/heads/feat/native-hooks"])).toBe(base);
   await declarePushCheck(root, 0);
   await git(root, ["add", ".arc/system/arc-checks.yml"]);
   await git(root, ["commit", "-m", "repair push check"]);
-  const repaired = await pushThroughManager(root);
+  const repaired = await pushThroughManager(root, ["origin", ref]);
   expect(repaired.exitCode, repaired.output).toBe(0);
   expect(await executionReceipt(root)).toBe("executed\nexecuted\n");
   expect(await git(remote, ["rev-parse", "refs/heads/feat/native-hooks"])).toBe(await git(root, ["rev-parse", "HEAD"]));

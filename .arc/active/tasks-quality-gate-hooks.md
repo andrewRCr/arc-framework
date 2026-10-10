@@ -705,6 +705,56 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   feedback requests followed by the ordinary commit hook. `notes-quality-gate-hooks.md` records the comparison,
   per-command times, cold-request and hook-reuse evidence, and the retained sample/load limits.
 
+### `[x]` **7.R Correct verification review gaps**
+
+- _Goal:_ Preserve merge conflict selection and recovery, and degrade disposable-storage faults to indexed execution.
+
+    - `[x]` **7.R.a Preserve historical conflicts under native Git comment settings**
+        - Conflict selection reads Git's recorded comment prefix, retaining resolutions equal to first-parent content.
+
+    - `[x]` **7.R.b Keep indexed checks executable when disposable record storage is unavailable**
+        - Private index allocation falls back to system temporary storage and cleans up without making cache faults a refusal.
+
+    - `[x]` **7.R.c Preserve merge context in a failed check's staged retry**
+        - Staged requests retain conflict selection and incoming parents; the emitted retry runs until the check is repaired.
+
+### `[x]` **7.R2 Close remaining selection gaps**
+
+- _Goal:_ Retain deleted historical conflicts in merge selection and keep archived planning edits out of code checks.
+
+    - `[x]` **7.R2.a Project recorded conflict reach through incoming parents**
+        - Historical conflicts match the captured merge parents; deleted resolutions still gate project checks and
+          leave file arguments empty.
+
+    - `[x]` **7.R2.b Cover archived planning Markdown declaratively**
+        - Markdown declarations cover archived planning paths, selecting only Markdown checks without weakening
+          conservative widening for uncovered paths or changing archival formatting and lint policy.
+
+### `[x]` **7.R3 Preserve multiline conflict-path enforcement**
+
+- _Goal:_ Recover complete native multiline conflict names and widen selection when conflict accounting is ambiguous.
+
+    - `[x]` **7.R3.a Decode complete native conflict records without truncating filenames**
+        - Complete native records match captured tree and parent paths; ambiguous accounting widens selection and
+          named staged retries check every matching file even alongside known authored edits.
+
+    - `[x]` **7.R3.b Enforce multiline conclusions through the native commit hook**
+        - Ordinary merge commits block on failed checks and succeed after repair; multiline arguments stay complete
+          and ambiguous conflict records conservatively select checks beyond known paths.
+
+### `[x]` **7.R4 Gate symbolic pushes of the checked-out branch**
+
+- _Goal:_ Gate the checked-out branch under Git's native HEAD push spelling while preserving ref exclusions and
+  attribution.
+
+    - `[x]` **7.R4.a Resolve HEAD through the captured checkout branch before classification**
+        - Classified HEAD through the captured symbolic checkout branch, retaining source spelling in reports and
+          state, deletion, detached, tag and other-branch exclusions.
+
+    - `[x]` **7.R4.b Enforce HEAD pushes through supported native hook managers**
+        - Extended the native push matrix to cover HEAD under all four hook managers: failed gates block publication,
+          and repaired retries publish the checked tip with one execution per event.
+
 ### `[x]` **7.10 First consumer end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on this repository: commits and pushes through ARC's hooks, a CI run from
@@ -716,53 +766,63 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ All 16 forced local merge checks passed, including both type checks, lint, build, unit, integration
+  and contract tests; related unit and full local E2E feedback passed. CI-only exclusions remain explicit.
+- _Success criteria:_ All 20 met; SC15 carries the approved temporary-index storage deviation. The complete criteria
+  report and seven approved corrective findings are retained in `notes-quality-gate-hooks.md`; adversarial Pass 4 of 4
+  ended non-converged at its cap, with the last fix locally verified and no successor pass.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A commit right after `arc check increment` with nothing else changed executes no check, except a fixer whose
+- `[x]` A commit right after `arc check increment` with nothing else changed executes no check, except a fixer whose
   inputs a later fixer rewrote, and a forced request executes every selected check (SC1)
 
-- `[ ]` Selection runs only what a change reaches, widens on each of the four triggers, and leaves a deletion-only
+- `[x]` Selection runs only what a change reaches, widens on each of the four triggers, and leaves a deletion-only
   `files` change unselected (SC2)
 
-- `[ ]` No check list exists outside the declaration, and removing a check removes it from hooks, steps, and CI (SC3)
+- `[x]` No check list exists outside the declaration, and removing a check removes it from hooks, steps, and CI (SC3)
 
-- `[ ]` The tier names survive only in unrelated senses and the stored `verificationKind` value, and each shipped gate
+- `[x]` The tier names survive only in unrelated senses and the stored `verificationKind` value, and each shipped gate
   step is one `arc check` request (SC4)
 
-- `[ ]` Gate membership and kind hold per request, independent of interlock settings (SC5)
+- `[x]` Gate membership and kind hold per request, independent of interlock settings (SC5)
 
-- `[ ]` Every outcome and exit status is produced as specified, and `ARC_SKIP` is honored only by the hook forms (SC6)
+- `[x]` Every outcome and exit status is produced as specified, and `ARC_SKIP` is honored only by the hook forms (SC6)
 
-- `[ ]` Every ARC refusal has a test of the refusal and of the retry after its remedy (SC7)
+- `[x]` Every ARC refusal has a test of the refusal and of the retry after its remedy (SC7)
 
-- `[ ]` Both gates dispatch once per event under every supported hook manager, with the push gate's ref scoping (SC8)
+- `[x]` Both gates dispatch once per event under every supported hook manager, with the push gate's ref scoping (SC8)
 
-- `[ ]` Fixes apply at the increment boundary and restage or fail at the commit hook per integration (SC9)
+- `[x]` Fixes apply at the increment boundary and restage or fail at the commit hook per integration (SC9)
 
-- `[ ]` Merge conclusions and ranges carrying merges select and export as specified (SC10)
+- `[x]` Merge conclusions and ranges carrying merges select and export as specified (SC10)
 
-- `[ ]` Attestation runs never reuse, and nothing that attests reads the reuse record (SC11)
+- `[x]` Attestation runs never reuse, and nothing that attests reads the reuse record (SC11)
 
-- `[ ]` `arc update` proposes a gate-unset declaration from the retired surfaces without activating a gate (SC12)
+- `[x]` `arc update` proposes a gate-unset declaration from the retired surfaces without activating a gate (SC12)
 
-- `[ ]` This repository's CI runs the merge quality gate from the declaration (SC13)
+- `[x]` This repository's CI runs the merge quality gate from the declaration (SC13)
 
-- `[ ]` The generated editor document accepts this repository's declaration (SC14)
+- `[x]` The generated editor document accepts this repository's declaration (SC14)
 
-- `[ ]` The reuse record lives outside `.git/arc/`, its faults degrade to a run, and CI-facing output carries no ARC
+- `[x]` The reuse record lives outside `.git/arc/`, its faults degrade to a run, and CI-facing output carries no ARC
   vocabulary (SC15)
 
-- `[ ]` Shipped content installs no declared check and names no stack tool as a default (SC16)
+    - **Deviation:** On record-directory faults, disposable indexes use private system temporary storage. The reuse
+      record stays in the worktree-private Git directory, outside `.git/arc/`; native storage-fault checks prove execution
+      and cleanup.
 
-- `[ ]` Per-increment check time is recorded before and after with its method (SC17)
+- `[x]` Shipped content installs no declared check and names no stack tool as a default (SC16)
 
-- `[ ]` A declared check that creates and commits in a fixture repository passes under the commit hook and every
+- `[x]` Per-increment check time is recorded before and after with its method (SC17)
+
+- `[x]` A declared check that creates and commits in a fixture repository passes under the commit hook and every
   request form, and only `reads_index` checks see an index equal to their checked tree (SC18)
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

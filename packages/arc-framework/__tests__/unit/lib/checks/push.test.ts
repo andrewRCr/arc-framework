@@ -35,6 +35,16 @@ it.each(["refs/heads/foreign", "refs/tags/review", "refs/heads/feature"])("selec
     .toMatchObject({ ref, outcome: ref === "refs/heads/feature" ? "checked" : "not selected" });
 });
 
+it("gates a HEAD source through its symbolic checkout branch while retaining ref attribution", () => {
+  expect(classifyPushRef({ localRef: "HEAD", localOid: tip }, "refs/heads/feature"))
+    .toEqual({ ref: "HEAD", outcome: "checked" });
+});
+
+it.each([null, "refs/tags/review"])("leaves a HEAD source unselected outside a branch checkout: %s", currentRef => {
+  expect(classifyPushRef({ localRef: "HEAD", localOid: tip }, currentRef))
+    .toEqual({ ref: "HEAD", outcome: "not selected", reason: "no worktree for this pushed ref in the current checkout" });
+});
+
 it("selects no code ref in a detached checkout", () => {
   expect(classifyPushRef({ localRef: "refs/heads/feature", localOid: tip }, null))
     .toMatchObject({ outcome: "not selected" });
