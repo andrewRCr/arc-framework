@@ -41,6 +41,8 @@ function keys(fields: readonly { key: string }[]): string[] {
   return fields.map(({ key }) => key);
 }
 
+// Keep these cross-checks independent: packaged declarations and consumed source keys must
+// constrain the catalog rather than inherit its membership. The explicit worktree list stays manual.
 describe("ARC configuration inventory", () => {
   it("matches every packaged declaration to one ordered catalog descriptor", async () => {
     const content = await readFile(packagedConfigPath, "utf8");
