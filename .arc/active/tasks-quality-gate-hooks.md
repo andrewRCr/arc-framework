@@ -613,7 +613,7 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   `ARC_CHECK_BASE`. Incoming-parent content and parents whose copies converged are exempted across merge ranges; a
   blind copy still fails at its own commit. Missing bases refuse explicitly, and no-argument staged checks remain.
 
-### `[ ]` **7.4 This repository's declaration replaces the hook chain and gate blocks — D11**
+### `[x]` **7.4 This repository's declaration replaces the hook chain and gate blocks — D11**
 
 - _Goal:_ Every check this repository runs locally or in CI is declared once in `.arc/system/arc-checks.yml`, with
   each configurable element proven, and the hook chain and gate blocks that listed checks are gone.
@@ -637,14 +637,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           its integration suite, and corpus entry; package sync now consumes only exported scope. Removed the
           QUICK-REFERENCE gate blocks and corrected the package-sync strategy's declaration and range guidance.
 
-    - `[ ]` **7.4.e Prove it on this repository**
-        - `arc check gate merge --dry-run` validates the declaration; a commit through ARC's hook runs and reuses the
-          declared checks; a new, untracked Markdown artifact formats at the increment boundary
-        - `arc check gate push --dry-run` over a change to one shipped workflow selects the unit and integration test
-          checks, and over a change only to planning-state Markdown selects no code check
-        - `arc check gate commit --dry-run` over a change only to `packages/arc-framework/src/lib/git/exec.ts`, in the
-          checker's import closure but not in `MARKDOWN_GATE_INPUT_PATHS`, selects `lint:md:staged`
-        - The declaration keeps `commit_fixes: restage`, and no check declares `shell: true` or `widen: false`
+    - `[x]` **7.4.e Prove it on this repository**
+        - Native forecasts validate workflow, planning, and Git-executor selection, and a new untracked artifact
+          formats at the increment boundary. The retired-chain commit reuses selected checks; the declaration
+          retains restaging, native commands, and widening defaults.
 
 ### `[ ]` **7.5 Project rules and strategies name the gates — D10, D11**
 
