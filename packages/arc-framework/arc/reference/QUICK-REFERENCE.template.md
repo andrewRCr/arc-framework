@@ -14,11 +14,11 @@ load on demand when workflow steps reference them.
 
 <!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
 
-| Resource        | Location from Repo Root | Why It Matters            |
-|-----------------|-------------------------|---------------------------|
-| [Resource name] | `[path]`                | [brief explanation]       |
-| [Resource name] | `[path]`                | [brief explanation]       |
-| ARC docs        | `.arc/`                 | Development documentation |
+| Resource         | Location from Repo Root | Why It Matters            |
+| ---------------- | ----------------------- | ------------------------- |
+| \[Resource name] | `[path]`                | \[brief explanation]      |
+| \[Resource name] | `[path]`                | \[brief explanation]      |
+| ARC docs         | `.arc/`                 | Development documentation |
 
 ### Runtime Environment
 
@@ -360,10 +360,10 @@ ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
 Azure DevOps, or another platform, replace these commands with your team's CLI
 equivalents.
 
-| Operation    | Command                                           |
-|--------------|---------------------------------------------------|
-| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
-| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
-| View PR/MR   | `gh pr view --json number,url,state`              |
-| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
-| Create issue | `gh issue create`                                 |
+| Operation    | Command                                      |
+| ------------ | -------------------------------------------- |
+| Create PR/MR | `gh pr create --base {base} --head {branch}` |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`   |
+| View PR/MR   | `gh pr view --json number,url,state`         |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`            |
+| Create issue | `gh issue create`                            |

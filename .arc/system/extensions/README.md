@@ -46,7 +46,7 @@ Sorted by workflow lifecycle order — when each extension fires across a sessio
 answer the question "when should my extension fire?"; lifecycle ordering does.
 
 | Extension                    | Workflow                         | Fires                           | Purpose                                   |
-|------------------------------|----------------------------------|---------------------------------|-------------------------------------------|
+| ---------------------------- | -------------------------------- | ------------------------------- | ----------------------------------------- |
 | post-context-load            | session-init                     | Step 2 → orientation            | Load additional context at session start  |
 | pre-spec-finalization-review | create-spec                      | spec-review → finalization stop | Team review ceremony at spec finalization |
 | post-task-completion         | process-task-loop                | Mark `[x]` → report             | External tracker sync / notifications     |

@@ -35,11 +35,11 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
-| Tier | Name           | When Loaded                          | Content Type                                              |
-| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
-| T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
-| T2   | State          | Session initialization               | Work status, session notes, task overview                 |
-| T3   | Procedural     | On-demand at declared fire-points    | Method defaults/overrides, strategies, detailed workflows |
+| Tier | Name           | When Loaded                       | Content Type                                              |
+| ---- | -------------- | --------------------------------- | --------------------------------------------------------- |
+| T1   | Constitutional | Session initialization            | Principles, identity, constraints, navigation             |
+| T2   | State          | Session initialization            | Work status, session notes, task overview                 |
+| T3   | Procedural     | On-demand at declared fire-points | Method defaults/overrides, strategies, detailed workflows |
 
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
@@ -72,12 +72,12 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content             | State Signal                                              | Promotes When                           |
-| ------------------- | --------------------------------------------------------- | --------------------------------------- |
-| process-task-loop   | `sessionType: execution` with a found task cursor         | Executable task work is active          |
-| verify-work-unit    | `sessionType: execution` with `no-open-task`              | Candidate attestation remains           |
-| prepare-work-unit   | Resolved `sessionType: prepublication`                    | Private Candidate preparation is active |
-| integrate-work-unit | Resolved `sessionType: integration`                       | Public integration is active            |
+| Content             | State Signal                                      | Promotes When                           |
+| ------------------- | ------------------------------------------------- | --------------------------------------- |
+| process-task-loop   | `sessionType: execution` with a found task cursor | Executable task work is active          |
+| verify-work-unit    | `sessionType: execution` with `no-open-task`      | Candidate attestation remains           |
+| prepare-work-unit   | Resolved `sessionType: prepublication`            | Private Candidate preparation is active |
+| integrate-work-unit | Resolved `sessionType: integration`               | Public integration is active            |
 
 Planning and prepublication may retain a task-list pointer without loading execution context. The resolved session
 type plus canonical task cursor selects one lifecycle workflow. Task detail loads only for open-task execution;

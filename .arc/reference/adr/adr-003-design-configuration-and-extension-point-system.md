@@ -262,12 +262,12 @@ throughout ARC documentation.
 The following are candidate locations, to be finalized during WU2 when workflows are updated. Scope is 0–3 per
 workflow document — enough for meaningful customization without cluttering workflow prose.
 
-| Workflow              | Extension Point         | Contract Summary                                    |
-|-----------------------|-------------------------|-----------------------------------------------------|
-| process-task-loop     | `post-task-quality`     | Additional checks after Tier 1, before marking done |
-| process-task-loop     | `post-unit-quality`     | Additional checks after Tier 2 at unit boundaries   |
-| session-init          | `post-context-load`     | Additional context loading after standard docs      |
-| atomic-commit         | `pre-stage-review`      | Additional staging verification before commit       |
+| Workflow          | Extension Point     | Contract Summary                                    |
+| ----------------- | ------------------- | --------------------------------------------------- |
+| process-task-loop | `post-task-quality` | Additional checks after Tier 1, before marking done |
+| process-task-loop | `post-unit-quality` | Additional checks after Tier 2 at unit boundaries   |
+| session-init      | `post-context-load` | Additional context loading after standard docs      |
+| atomic-commit     | `pre-stage-review`  | Additional staging verification before commit       |
 
 These are illustrative, not final. WU2 should evaluate each workflow for natural insertion points and add
 extension points where teams have demonstrated or anticipated customization needs.

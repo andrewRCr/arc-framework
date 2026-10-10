@@ -81,14 +81,14 @@ counts back out of the report.
 
 Worst offenders as of 2026-09-18, for orientation only:
 
-| Lines | Complexity | Unit                                          |
-| ----- | ---------- | --------------------------------------------- |
-| 4377  | 376        | `handlers/delivery-execution.ts:2056`         |
-| 769   | 142        | `handlers/delivery-execution.ts:2663`         |
-| 704   | 201        | `lib/work-unit/verbs/teardown.ts:374`         |
-| 1050  | 46         | `handlers/status.ts:459`                      |
-| 578   | 84         | `scripts/integration/checkpoint.ts:899`       |
-| 498   | 88         | `scripts/integration/merge.ts:576`            |
+| Lines | Complexity | Unit                                    |
+| ----- | ---------- | --------------------------------------- |
+| 4377  | 376        | `handlers/delivery-execution.ts:2056`   |
+| 769   | 142        | `handlers/delivery-execution.ts:2663`   |
+| 704   | 201        | `lib/work-unit/verbs/teardown.ts:374`   |
+| 1050  | 46         | `handlers/status.ts:459`                |
+| 578   | 84         | `scripts/integration/checkpoint.ts:899` |
+| 498   | 88         | `scripts/integration/merge.ts:576`      |
 
 Each reduction is followed by a whole-project lint run and a pruned, committed floor — a per-file run cannot
 detect that a violation is gone.

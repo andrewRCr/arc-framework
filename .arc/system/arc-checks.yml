@@ -1,0 +1,287 @@
+# yaml-language-server: $schema=./.internal/schemas/check-declaration.schema.json
+
+commit_fixes: restage
+checks:
+  format:tables:
+    command:
+      - npm
+      - run
+      - -s
+      - format:tables
+      - --
+    gate: commit
+    inputs:
+      - '*.md'
+      - packages/arc-framework/arc/**/*.md
+      - .arc/active/**/*.md
+      - .arc/backlog/**/*.md
+      - .arc/reference/adr/**/*.md
+      - .arc/reference/strategies/project/**/*.md
+      - .arc/reference/QUICK-REFERENCE.md
+      - .arc/system/rules/DEV-RULES.PROJECT.md
+      - .arc/reference/strategies/STRATEGY-INDEX.md
+      - .arc/reference/briefs/AGENT-BRIEF.PROJECT.md
+      - .arc/system/extensions/post-context-load.md
+      - .arc/system/extensions/post-task-completion.md
+      - .arc/system/extensions/post-work-unit-activate.md
+      - .arc/system/extensions/post-work-unit-archive.md
+      - .arc/system/extensions/pre-activation.md
+      - .arc/system/extensions/pre-commit-review.md
+      - .arc/system/extensions/pre-merge.md
+      - .arc/system/extensions/pre-pr-open.md
+      - .arc/system/extensions/post-pr-open.md
+      - .arc/system/extensions/pre-push-review.md
+      - .arc/system/extensions/pre-spec-finalization-review.md
+      - .arc/system/methods/assess-boundary-fit.md
+      - .arc/system/methods/assess-design-proportionality.md
+      - .arc/system/methods/assess-draft-readiness.md
+      - .arc/system/methods/assess-evidence-applicability.md
+      - .arc/system/methods/adversarial-review.md
+      - .arc/system/methods/classify-work-unit.md
+      - .arc/system/methods/commit-footer.md
+      - .arc/system/methods/commit-format.md
+      - .arc/system/methods/design-audit.md
+      - .arc/system/methods/frontline-review.md
+      - .arc/system/methods/standard-review.md
+      - .arc/system/methods/implementation-audit.md
+      - .arc/system/methods/review-chunking.md
+      - .arc/system/methods/self-review.md
+      - .arc/system/methods/issue-triage.md
+      - .arc/system/methods/resolve-plan-segmentation.md
+      - .arc/system/methods/resolve-planning-depth.md
+      - .arc/system/methods/review-response.md
+      - .arc/system/methods/review-triage.md
+      - .arc/system/methods/session-state.md
+      - .arc/system/methods/source-grounding.md
+      - .arc/system/methods/spec-review.md
+      - .arc/system/methods/task-audit.md
+      - .arc/system/methods/test-first.md
+      - .arc/system/methods/testing-standards.md
+      - .arc/system/methods/validate-criteria.md
+      - .arc/reference/PROJECT-PRD.md
+      - .arc/reference/TECHNICAL-OVERVIEW.md
+      - '!.arc/backlog/ROADMAP.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+      - '!.arc/active/README.md'
+      - '!.arc/backlog/README.md'
+      - '!.arc/reference/adr/README.md'
+      - '!.arc/reference/strategies/project/README.md'
+      - '!.arc/reference/strategies/project/style/README.md'
+    mode: files
+    fixes: true
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync,readdirSync} from 'node:fs';import {join} from 'node:path';import {createHash} from
+          'node:crypto';const hash=createHash('sha256');function walk(dir){for(const entry of
+          readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){const
+          path=join(dir,entry.name);if(entry.isDirectory())walk(path);else
+          if(entry.isFile())hash.update(path).update('\0').update(readFileSync(path));}}walk('packages/arc-framework/src');process.stdout.write(hash.digest('hex'));
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          [".arc/system/.internal/manifest.json","packages/arc-framework/init-recipe.json"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:md:staged:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md:staged
+    gate: commit
+    inputs:
+      - '**/*.md'
+      - '**/.markdownlint*'
+      - packages/arc-framework/src/**
+      - package.json
+      - packages/arc-framework/package.json
+      - package-lock.json
+      - .husky/pre-commit
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+    reads_index: true
+  lint:md:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md
+    gate: push
+    inputs:
+      - '**/*.md'
+      - '**/.markdownlint*'
+      - packages/arc-framework/src/**
+      - package.json
+      - packages/arc-framework/package.json
+      - package-lock.json
+      - .husky/pre-commit
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
+    reads_index: true
+  lint:arc:triggers:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:triggers
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/**/*.md
+      - packages/arc-framework/src/**
+  lint:arc:domain-rules:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:domain-rules
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/rules/**/*.md
+      - packages/arc-framework/src/**
+  lint:arc:section-refs:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:section-refs
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  lint:ts:file:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:ts:file
+      - --
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+    mode: files
+    root: packages/arc-framework
+  typecheck:
+    command:
+      - npm
+      - run
+      - -s
+      - typecheck
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  typecheck:test:
+    command:
+      - npm
+      - run
+      - -s
+      - typecheck:test
+    gate: commit
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  lint:ts:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:ts
+    gate: push
+    inputs:
+      - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/__tests__/**/*.ts
+  lint:sh:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:sh
+    gate: commit
+    inputs:
+      - packages/arc-framework/arc/system/.internal/githooks/**
+      - packages/arc-framework/arc/system/.internal/scripts/*.sh
+      - scripts/**/*.sh
+    runtime_inputs:
+      - - shellcheck
+        - --version
+  check-package-sync:
+    command:
+      - bash
+      - scripts/check-package-sync.sh
+    gate: commit
+    mode: files
+    reads_index: true
+    inputs:
+      - .arc/README.md
+      - .arc/reference/**
+      - .arc/system/**
+      - packages/arc-framework/arc/**
+      - scripts/check-package-sync.sh
+      - '!.arc/system/.internal/**'
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["scripts/check-package-sync.sh",".arc/system/.internal/manifest.json",".arc/system/.internal/scripts/arc-lib.sh"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  build:
+    command:
+      - npm
+      - run
+      - -s
+      - build
+    gate: merge
+    inputs:
+      - packages/arc-framework/src/**
+      - packages/arc-framework/arc/**
+      - packages/arc-framework/init-recipe.json
+      - packages/arc-framework/templates/**
+      - packages/arc-framework/tsup*.ts
+      - packages/arc-framework/build-compiler.config.ts
+global_inputs:
+  - package.json
+  - package-lock.json
+  - packages/arc-framework/package.json
+  - .editorconfig
+  - '**/.markdownlint*'
+  - vitest.config.ts
+  - packages/arc-framework/vitest.config.ts
+  - packages/arc-framework/tsconfig*.json
+  - packages/arc-framework/eslint.config.js
+  - packages/arc-framework/eslint-suppressions.json
+  - packages/arc-framework/eslint/**
+  - packages/arc-framework/tsup*.ts
+  - packages/arc-framework/build-compiler.config.ts
+global_runtime_inputs:
+  - - node
+    - --input-type=module
+    - -e
+    - >-
+      import {readFileSync} from 'node:fs';import {createHash} from
+      'node:crypto';process.stdout.write(createHash('sha256').update(readFileSync('node_modules/.package-lock.json')).digest('hex'));

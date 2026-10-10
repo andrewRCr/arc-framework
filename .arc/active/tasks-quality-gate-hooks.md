@@ -618,18 +618,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 - _Goal:_ Every check this repository runs locally or in CI is declared once in `.arc/system/arc-checks.yml`, with
   each configurable element proven, and the hook chain and gate blocks that listed checks are gone.
 
-    - `[ ]` **7.4.a Code and Markdown checks**
-        - Map the QUICK-REFERENCE gate blocks and `DEV-RULES.PROJECT.md`'s relevance table to inputs and gates
-        - `lint:md:staged` as a `project` check with `reads_index: true` over what triggers it today
-          (`isMarkdownGateTriggerPath`, `MARKDOWN_GATE_INPUT_PATHS`, and the checker's import closure from
-          `resolveIndexedMarkdownCheckerPaths`, declared as `packages/arc-framework/src/**`); `lint:md` with
-          `reads_index: true`; the `lint:arc:*` checks
-        - `lint:ts:file` as a `files` check with `root: packages/arc-framework`; `typecheck` and `typecheck:test` as
-          `project` checks over the TypeScript inputs; `lint:sh` with `shellcheck --version` as a runtime input
-        - `lint:ts` as a `project` check at the push gate, since only a whole-package run reports an unused suppression;
-          `lint:ts:file` stays at the commit gate, so the merge gate runs both over every TypeScript path
-        - `check-package-sync.sh` as a `files` check with `reads_index: true` over both copies; `format:tables` with
-          `fixes: true`; `build`
+    - `[x]` **7.4.a Code and Markdown checks**
+        - Declared Markdown certification and drift checks with index access, ARC audits, targeted TypeScript lint at
+          commit and full lint at push, both type checks, shell lint with its tool-version input, package sync, and
+          build. Table formatting selects writable artifacts and package sources, projecting Framework outputs.
 
     - `[ ]` **7.4.b Test checks**
         - `test:changed` as a gate-less `files` check, requested by id with the local E2E check (Task 7.5): the unit
@@ -651,9 +643,9 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
         - The local E2E check: a gate-less `files` check over the whole E2E tree, support files included, with
           `cache: false`, whose command is a repository script that runs the whole suite whatever paths it receives
 
-    - `[ ]` **7.4.c Global inputs**
-        - The lockfile and tool configuration as global inputs; a global runtime input fingerprinting
-          `node_modules/.package-lock.json`
+    - `[x]` **7.4.c Global inputs**
+        - Lockfiles and tool configuration invalidate all check keys. The installed npm record is fingerprinted by a
+          global runtime input; table formatting also fingerprints its executing sources independently of file inputs.
 
     - `[ ]` **7.4.d Retire the chain and the gate blocks**
         - `.husky/pre-commit` keeps only ARC's hook, and `integration/markdown-staged-hook.test.ts`, which asserts the

@@ -46,12 +46,12 @@ A distinct shape recurs often enough to name separately, because it changes what
 the governing rule is present, correct, and well designed; what fails is that it cannot be reached from where the
 decision is made.
 
-| Rule                 | Its state                                   | Why it does not bite                                |
-| -------------------- | ------------------------------------------- | --------------------------------------------------- |
-| Review pass ceilings | implemented, wired to an approval interlock | the request that reaches them cannot be composed    |
-| Triage severity      | contracted to be verified against source    | the verdict lands where the driver cannot read it   |
-| Review obligation    | typed and routed                            | no verb exposes the router's output                 |
-| Stop discipline      | stated precisely, with worked principles    | stated only in a shipped work unit's archived spec  |
+| Rule                 | Its state                                   | Why it does not bite                               |
+| -------------------- | ------------------------------------------- | -------------------------------------------------- |
+| Review pass ceilings | implemented, wired to an approval interlock | the request that reaches them cannot be composed   |
+| Triage severity      | contracted to be verified against source    | the verdict lands where the driver cannot read it  |
+| Review obligation    | typed and routed                            | no verb exposes the router's output                |
+| Stop discipline      | stated precisely, with worked principles    | stated only in a shipped work unit's archived spec |
 
 None of these is a missing rule, so none is fixed by writing a better one. Each is fixed by making an existing rule
 reachable — a producing verb, a field in the typed record, a statement carried into the workflow the agent loads. That

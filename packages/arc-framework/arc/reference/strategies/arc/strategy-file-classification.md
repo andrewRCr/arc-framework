@@ -83,17 +83,17 @@ you what kind."
 
 ### Prefix patterns
 
-| Prefix      | What It Is               | Created By       | Example                           |
-|-------------|--------------------------|------------------|-----------------------------------|
-| `meta-`     | Work-unit pointer        | Agent            | `meta-api-modernization.md`       |
-| `spec-`     | Work unit spec           | User/agent       | `spec-authentication.md`          |
-| `tasks-`    | Task list                | User/agent       | `tasks-api-modernization.md`      |
-| `draft-`    | Work draft (pre-spec)    | User/agent       | `draft-api-migration.md`          |
-| `notes-`    | Work unit notes          | Agent            | `notes-api-modernization.md`      |
-| `strategy-` | Strategy document        | Framework / user | `strategy-work-organization.md`   |
-| `research-` | Research document        | User/agent       | `research-context-loading.md`     |
-| `adr-`      | Architecture Decision    | User/agent       | `adr-001-define-core-identity.md` |
-| `template-` | Copy-ready template      | Framework / user | `template-spec-detailed-prd.md`   |
+| Prefix      | What It Is            | Created By       | Example                           |
+| ----------- | --------------------- | ---------------- | --------------------------------- |
+| `meta-`     | Work-unit pointer     | Agent            | `meta-api-modernization.md`       |
+| `spec-`     | Work unit spec        | User/agent       | `spec-authentication.md`          |
+| `tasks-`    | Task list             | User/agent       | `tasks-api-modernization.md`      |
+| `draft-`    | Work draft (pre-spec) | User/agent       | `draft-api-migration.md`          |
+| `notes-`    | Work unit notes       | Agent            | `notes-api-modernization.md`      |
+| `strategy-` | Strategy document     | Framework / user | `strategy-work-organization.md`   |
+| `research-` | Research document     | User/agent       | `research-context-loading.md`     |
+| `adr-`      | Architecture Decision | User/agent       | `adr-001-define-core-identity.md` |
+| `template-` | Copy-ready template   | Framework / user | `template-spec-detailed-prd.md`   |
 
 Work unit artifacts (`meta-`, `draft-`, `spec-`, `tasks-`, `notes-`) share a slug
 across files — the slug is the work unit's identity. `meta-authentication.md`,
