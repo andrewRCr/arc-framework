@@ -5,7 +5,7 @@
  * OIDs, real `merge-base` ancestry — by invoking it directly with the git
  * pre-push stdin protocol (`<local_ref> <local_oid> <remote_ref> <remote_oid>`).
  * Asserts the advisory fires on a non-ancestor force-push, stays silent on a
- * fast-forward, and never blocks (always exits 0).
+ * fast-forward, and does not block when no CLI dispatches.
  *
  * Standalone — imports only node builtins, not CLI source.
  */
@@ -13,8 +13,9 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFile, spawn } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -25,6 +26,8 @@ const execFileAsync = promisify(execFile);
 // __tests__/e2e/ → repo root is four levels up.
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const HOOK_PATH = join(REPO_ROOT, ".arc/system/.internal/githooks/pre-push");
+
+let restrictedPath = "";
 
 const ZERO = "0000000000000000000000000000000000000000";
 
@@ -43,7 +46,7 @@ function runHook(
   return new Promise((resolvePromise, reject) => {
     const child = spawn("bash", [HOOK_PATH, ...args], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, PATH: restrictedPath, NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";
@@ -80,6 +83,10 @@ async function commit(dir: string, content: string): Promise<string> {
 let repos: string[] = [];
 
 beforeAll(() => {
+  const executable = process.platform === "win32" ? "git.exe" : "git";
+  const gitDirectory = (process.env.PATH ?? "").split(delimiter).find(path => existsSync(join(path, executable)));
+  if (gitDirectory === undefined) throw new Error("Git executable missing from PATH");
+  restrictedPath = [...new Set([gitDirectory, "/usr/bin", "/bin"])].join(delimiter);
   // The hook must be present in the canonical location for this suite to mean anything.
   expect(HOOK_PATH).toContain(".arc/system/.internal/githooks/pre-push");
 });
@@ -90,7 +97,7 @@ afterEach(async () => {
 });
 
 describe("pre-push force-push advisory hook", () => {
-  it("warns on a non-ancestor force-push and never blocks (exit 0)", async () => {
+  it("warns on a non-ancestor force-push without CLI dispatch", async () => {
     const dir = await makeRepo();
     repos.push(dir);
 
@@ -162,7 +169,7 @@ describe("pre-push force-push advisory hook", () => {
     const result = await new Promise<HookResult>((resolvePromise, reject) => {
       const child = spawn("bash", [HOOK_PATH, "origin", "."], {
         cwd: dir,
-        env: { ...process.env, NO_COLOR: "1" },
+        env: { ...process.env, PATH: restrictedPath, NO_COLOR: "1" },
       });
       let stdout = "";
       let stderr = "";

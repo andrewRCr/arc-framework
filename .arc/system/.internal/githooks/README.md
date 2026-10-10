@@ -101,9 +101,12 @@ delegation intentionally.
 - Modified task lists not staged (maintainer only)
 - Task list staged with completions but sibling meta file not co-staged (maintainer only)
 
-### pre-push — Force-Push Safety
+### pre-push — Push Gate and Force-Push Advisory
 
-**Warnings (never blocks — always exits 0):**
+The hook runs `arc check pre-push` over the pushed ref lines and returns its exit status.
+Declared check failures block the push; state refs and deletions are skipped.
+
+**Advisory warnings:**
 
 - Force-push that rewrites published history: the remote tip being replaced is not an ancestor of the
   commit being pushed, so commits present only on the remote would be dropped. The warning names the
@@ -112,8 +115,7 @@ delegation intentionally.
 
   The hook sees only ref OIDs, not whether a branch is shared, so it warns on every non-ancestor
   overwrite — the append-only concern applies whenever published history is rewritten. The base branch is
-  not special-cased. Advisory only: it never blocks (the one sanctioned rewrite point, integration history
-  cleanup, proceeds unimpeded).
+  not special-cased. The advisory does not block; the declared push gate still applies.
 
 ## Role-Aware Behavior
 
@@ -134,7 +136,7 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 | ----------------------------------- | ------------------- | ---------------------------------------------------------------------- |
 | `hooks.pre_commit`                  | `enabled`           | Disabled: no structural checks or commit gate dispatch                 |
 | `hooks.commit_msg`                  | `enabled`           | Enable/disable commit-msg hook                                         |
-| `hooks.pre_push`                    | `enabled`           | Enable/disable pre-push force-push advisory                            |
+| `hooks.pre_push`                    | `enabled`           | Disabled: no force-push advisory or push gate dispatch                 |
 | `commit.format`                     | `conventional`      | Format validation (`conventional` / `custom` / `any`)                  |
 | `commit.custom_pattern`             | empty               | ECMAScript pattern source used by `commit.format: custom`              |
 | `commit.context_footer`             | `required`          | Footer validation (`required` / `recommended` / `custom` / `disabled`) |

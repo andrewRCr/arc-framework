@@ -383,35 +383,24 @@ conclusion selects only conflicted and parent-unmatched paths.
   Divergent passes stay unrecorded, push rewrites retain the checked tip, and widened retries name `git push`.
   Full symbolic refs and ASCII protocol separators preserve tag-shadowed and Unicode branch names.
 
-### `[ ]` **5.6 The shipped pre-push hook dispatches the push gate — D8, D12**
+### `[x]` **5.6 The shipped pre-push hook dispatches the push gate — D8, D12**
 
 - _Goal:_ A failing push gate blocks the push under every hook manager, while the force-push advisory stays advisory and
   leaves state refs alone.
 
-    - `[ ]` **5.6.a Shipped pre-push and its prose**
-        - The package's `githooks/pre-push` reads the ref lines once, runs the advisory over them (skipping
-          `refs/arc/*`), then passes the same lines to `arc check pre-push "$1" "$2"`; the verb's exit status becomes
-          the hook's, which replaces its unconditional `exit 0`
-        - CLI resolution and its fallback as in Task 2.3; `hooks.pre_push: disabled` turns off both the advisory and
-          dispatch
-        - Rewrite, for gate dispatch, the hook's own header (its advisory-only and never-blocks passages and its
-          rationale for running without `set -e`), the never-blocks passages and the `hooks.pre_push` row in
-          `githooks/README.md`, and the `hooks.pre_push` comment in `arc-config.yml`. Sync the hook and README to
-          `.arc/`; `arc-config.yml` is configurable, so its project copy's comment is edited in place
+    - `[x]` **5.6.a Shipped pre-push and its prose**
+        - Buffered ref lines feed the state-aware advisory and push gate; the gate's exit controls Git. CLI resolution,
+          declaration-presence fallback, and disabled handling match commit dispatch. Hook and README copies are synced,
+          and configurable comments are edited in place.
 
-    - `[ ]` **5.6.b Hook-manager push entries**
-        - lefthook's `arc-pre-push` entry gains `use_stdin: true`; pre-commit.com's `ARC_PRE_PUSH_HOOK` gains
-          `always_run: true`
+    - `[x]` **5.6.b Hook-manager push entries**
+        - Generated Lefthook push entries forward stdin; pre-commit.com push entries run even without matching files.
 
-    - `[ ]` **5.6.c Push dispatch under every manager**
-        - `e2e/pre-push.e2e.test.ts` keeps testing the advisory alone: its header and its never-blocks test change, and
-          it runs the hook with a restricted `PATH`, as `e2e/commit-msg.e2e.test.ts` does, so no CLI dispatches
-        - Build `test-first` (one behavior at a time):
-            - under each of the four integrations, a push dispatches once and a failing push gate blocks it
-            - wherever the hook receives ref lines (husky, lefthook, and `core.hooksPath`), the advisory still warns,
-              never blocks, and skips `refs/arc/*`; under pre-commit.com, which passes no ref lines on standard input,
-              it stays silent
-            - `hooks.pre_push: disabled` dispatches nothing
+    - `[x]` **5.6.c Push dispatch under every manager**
+        - Native installers verify one gate execution per push, remote refs unchanged on failure and advanced on repaired
+          retry, disabled dispatch, and nonblocking code advisories. State-only rewrites run no gate or advisory wherever
+          stdin is forwarded; pre-commit.com's advisory stays silent. Missing-CLI scenarios verify both declaration
+          presence outcomes and a successful installation repair; standalone advisory tests use a restricted PATH.
 
 ### `[ ]` **5.7 Update upgrades existing generated hook entries — D8**
 

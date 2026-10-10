@@ -114,9 +114,9 @@ hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 
 # Pre-push hook.
-#   enabled  - Advisory warning before a force-push that rewrites published
-#              history; never blocks the push (default)
-#   disabled - Skips the force-push advisory
+#   enabled  - Runs declared push checks and warns before a force-push that
+#              rewrites published history; only the checks block (default)
+#   disabled - Skips the push gate and force-push advisory
 hooks.pre_push: enabled
 
 # Task numbering format check in pre-commit hook.

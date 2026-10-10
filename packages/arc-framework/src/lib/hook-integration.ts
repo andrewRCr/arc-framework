@@ -227,7 +227,7 @@ async function integrateLefthook(
     config["pre-push"].commands = {};
   }
   if (!config["pre-push"].commands["arc-pre-push"]) {
-    config["pre-push"].commands["arc-pre-push"] = { run: `${ARC_PRE_PUSH} {1} {2}` };
+    config["pre-push"].commands["arc-pre-push"] = { run: `${ARC_PRE_PUSH} {1} {2}`, use_stdin: true };
     changed = true;
   }
 
@@ -291,6 +291,7 @@ const ARC_PRE_PUSH_HOOK: PreCommitHook = {
   language: "unsupported_script",
   stages: ["pre-push"],
   files: "^$",
+  always_run: true,
 };
 
 async function integratePreCommit(

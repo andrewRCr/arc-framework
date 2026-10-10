@@ -83,6 +83,21 @@ export async function commitThroughManager(root: string, message = VALID_MESSAGE
 }
 
 /**
+ * Push fixture refs through the installed native hooks.
+ * @param root - Prepared fixture repository
+ * @param args - Native push operands and options
+ * @param environment - Process overrides scoped to the fixture push
+ * @returns Git's exit code and captured hook diagnostics
+ */
+export async function pushThroughManager(root: string, args: string[] = ["origin", "refs/heads/feat/native-hooks"], environment: NodeJS.ProcessEnv = {}): Promise<{ exitCode: number; output: string }> {
+  const result = await execa("git", ["push", ...args], {
+    cwd: root, reject: false, timeout: 30_000, env: { ...environmentForGitCwd(root), FORCE_COLOR: undefined,
+      NO_COLOR: "1", LEFTHOOK: undefined, HUSKY: "1", PRE_COMMIT_HOME: join(root, ".git/test-pre-commit-cache"), ...environment },
+  });
+  return { exitCode: result.exitCode ?? 2, output: result.stdout + result.stderr };
+}
+
+/**
  * Read actual declared-check executions; absence means no execution occurred.
  * @param root - Prepared fixture repository
  * @returns Complete execution receipt or an empty string when absent

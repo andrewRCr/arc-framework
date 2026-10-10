@@ -159,6 +159,10 @@ describe("integrateHooks — lefthook", () => {
     expect(output).toContain('.arc/system/.internal/githooks/commit-msg "{1}"');
     expect(output).toContain("arc-pre-push");
     expect(output).toContain(".arc/system/.internal/githooks/pre-push {1} {2}");
+    const generated = yaml.load(output ?? "") as {
+      "pre-push": { commands: Record<string, unknown> };
+    };
+    expect(generated["pre-push"].commands["arc-pre-push"]).toMatchObject({ use_stdin: true });
     // Preserves existing commands
     expect(output).toContain("npm run lint");
   });
@@ -301,6 +305,16 @@ describe("integrateHooks — pre-commit", () => {
       pass_filenames: false, require_serial: true, always_run: true,
     });
 
+  });
+
+  it("runs the push entry even when no filenames match", async () => {
+    const io = makeIO({ "/repo/.pre-commit-config.yaml": "repos: []\n" });
+    await integrateHooks(detection, io.readFile, io.writeFile);
+    const generated = yaml.load(io.written["/repo/.pre-commit-config.yaml"] ?? "") as {
+      repos: { hooks: Record<string, unknown>[] }[];
+    };
+    expect(generated.repos[0]?.hooks.find(hook => hook.id === "arc-pre-push"))
+      .toMatchObject({ always_run: true });
   });
 
   it("passes the commit message file through the generated entry", async () => {
