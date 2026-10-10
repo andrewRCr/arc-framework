@@ -43,8 +43,8 @@ each independently promote a WU to `Heavy`; the last promotes `Heavy → Novel` 
        stay left out: a scope boundary that the Errand's intent line has nowhere to state.
     3. **Costly if wrong (derivation).** Putting a wrong choice right takes more than another Errand, such as
        persisted data to migrate or a contract other work builds on to unwind.
-    4. **The decision outgrows its line (derivation).** A later reader needs alternatives and rationale beyond a
-       couple of lines of `Decided: X over Y — because Z` in the Errand's PR body and commit.
+    4. **The decision outgrows its line (derivation).** A later reader needs alternatives and rationale beyond the
+       one line per decision an Errand records in its PR body and commit.
     - **Any yes** → a **Work Unit**; continue to the two `Heavy` triggers.
     - **Otherwise** → an **Errand**, design discussion included: outside the `Class` model, with no meta or WU
       lifecycle, atomic in character — one indivisible concern in a single session. Commit- and review-pass-count
@@ -53,7 +53,7 @@ each independently promote a WU to `Heavy`; the last promotes `Heavy → Novel` 
       `scale`; questions 2–4 name `derivation`, which wins when both flip. **Not happening now:** no default;
       show both candidates for the Owner's call at the existing placement stop.
     - **Deciding and guarding are separate.** These questions do not ask whether a wrong choice would fail
-      quietly. The `Decided:` line, the reviewed lane for load-bearing infrastructure, and the promote trigger
+      quietly. The decision line, the reviewed lane for load-bearing infrastructure, and the promote trigger
       guard that direction; they do not raise the wrapper floor.
 
 2. **Derivation trigger (→ `Heavy`):** _"Must a real design be authored — concerns, alternatives, tradeoffs
