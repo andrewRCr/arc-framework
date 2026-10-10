@@ -720,18 +720,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           Native lookback regressions reject prior green trees after declaration edits and matching trees whose
           Shared setup check failed or is absent.
 
-### `[ ]` **7.8 Editor completion proven end to end — D2**
+### `[x]` **7.8 Editor completion proven end to end — D2**
 
 - _Goal:_ The declaration type's generated document is proven against this repository's declaration, and that
   declaration opens with the reference an editor follows to the document.
 
-    - This repository's declaration opens with the reference `editorDocumentReference` returns for
-      `.arc/system/arc-checks.yml`
-    - Build `test-first` (one behavior at a time), in the E2E tier, validating with
-      `Ajv2020({ strict: true, allErrors: true })` as `integration/schema-command/editor-documents.test.ts` does:
-        - the document `arc schema install` generates for `check-declaration` accepts this repository's declaration
-        - it flags an unknown key at the top level, in a check, and in `shards`, where the CLI rejects one
-        - this repository's declaration opens with the reference `editorDocumentReference` returns for its path
+- _Outcome:_ Built-CLI schema installation produces a document that accepts the repository declaration and rejects
+  unknown keys at the root, check, and shard boundaries, matching native CLI refusals. The declaration header
+  matches the editor reference resolved for its own path.
 
 ### `[ ]` **7.9 Measure the increment boundary against the baseline — SC17**
 
