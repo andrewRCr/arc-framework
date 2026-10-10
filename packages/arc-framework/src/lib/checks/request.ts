@@ -16,6 +16,7 @@ export interface CheckRequest {
   indexFile?: string;
   baseBranch?: string;
   skip?: string[];
+  hookFixesFail?: boolean;
 }
 /**
  * Derive the declared default scope of a request.

@@ -361,26 +361,16 @@ conclusion selects only conflicted and parent-unmatched paths.
           names are reported through own declaration membership; ordinary requests ignore the environment channel,
           and structural commit validation remains active.
 
-### `[ ]` **5.4 Commit-hook fixes restage or fail — D7, D8**
+### `[x]` **5.4 Commit-hook fixes restage or fail — D7, D8**
 
 - _Goal:_ A fixer's rewrites at the commit hook either land in the commit or fail it, as the declaration says, never
   committing unfixed content silently and never losing a person's set-aside changes.
 
-    - Build `test-first` (one behavior at a time):
-        - `restage` stages a fixer's rewrites of the commit's paths into the index Git hands the hook right after it
-          runs, before its record, the next fix-capable check's turn, and the checked tree's computation, under a plain
-          `git commit` and under `git commit -a`
-        - a fixer's pass at the hook is recorded under the index carrying its restaged rewrite, so a later commit of the
-          unfixed content does not reuse it
-        - with two fixers at the hook, the second looks up over the index carrying the first's restaged rewrite, so a
-          pass it recorded over the earlier content is not reused
-        - a restage that fails fails the hook
-        - `fail` fails the hook when a fixer rewrote a file, leaves the rewrite in the worktree, and records no pass for
-          that fixer: with the rewrite discarded, a later commit of the unfixed content runs it again
-        - `restage` acts as `fail` under pre-commit.com (its `PRE_COMMIT` variable), under lefthook (the hook manager
-          `detectHookManager` reports), and for a path-limited commit's temporary index
-        - under pre-commit.com and lefthook v2.2.1 or later, a fix overlapping set-aside changes leaves those changes
-          restored
+- _Outcome:_ Hook fixers observe rewrites immediately and restage only the original commit's paths into its exact
+  index or `index.lock`, before pass recording and subsequent checks. Outside rewrites stay unstaged and divergent
+  passes remain unrecorded. Declaration `fail`, native `PRE_COMMIT`, detected lefthook, and temporary indexes leave
+  rewrites for staging and retry without a pass; failed restaging blocks with repair guidance. Native conflicting-edit
+  scenarios verify both manager rollbacks preserve set-aside and unrelated work and permit repaired commits.
 
 ### `[ ]` **5.5 A push gates the checked-out branch's pushed range — D8, D12**
 

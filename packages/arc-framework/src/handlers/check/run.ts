@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
 import { findPartiallyStagedChecks } from "../../lib/checks/partial-staging.js";
+import { commitRestageAllowed, restageCommitFixes } from "../../lib/checks/commit-fixes.js";
 import { checkFixesAllowed, refreshFixerContent } from "../../lib/checks/fixers.js";
 import { type TreePathChange, createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
 import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
@@ -203,7 +204,7 @@ async function runRequestedCheck(
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
-  const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
@@ -261,6 +262,7 @@ async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
 }
 
 interface SelectedCheck {
+  selectionTree: string;
   id: string;
   check: CheckDeclaration["checks"][string];
   root: string;
@@ -300,15 +302,39 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
-  const { id, kind, check, root, divergent, coordinates } = selected;
-  const rewritten = check.fixes && request.form.kind !== "pre-commit" ? await refreshFixerContent(io.git, root, coordinates, coordinates.scope.kind !== "staged" || checkFixesAllowed(request)) : [];
-  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes && request.form.kind !== "pre-commit" ? { rewritten } : {}), output: result.output };
+  const { id, kind, check, coordinates } = selected;
+  const { rewritten, reason } = await finishCheckRewrites(selected, io, request);
+  const { divergent } = selected;
+  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
-  if (rewritten.length > 0 && !checkFixesAllowed(request)) return { id, kind, ...details, outcome: "failed", reason: "rewrote files during verification" };
+  if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   if (producedKey !== null) await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
   return { id, kind, ...details, outcome: "passed" };
+}
+
+async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<{ rewritten: string[]; reason?: string }> {
+  const { check, root, coordinates } = selected;
+  if (!check.fixes) return { rewritten: [] };
+  const hook = request.form.kind === "pre-commit";
+  const rewritten = await refreshFixerContent(io.git, root, coordinates,
+    !hook && (coordinates.scope.kind !== "staged" || checkFixesAllowed(request)));
+  if (rewritten.length === 0) return { rewritten };
+  if (!checkFixesAllowed(request)) return { rewritten, reason: "rewrote files during verification" };
+  if (!hook) return { rewritten };
+  const indexFile = await selected.indexViews.get();
+  if (selected.definition.commit_fixes === "fail" || request.hookFixesFail
+    || !await commitRestageAllowed(io.git, root, indexFile)) {
+    return { rewritten, reason: "rewrote files; stage the rewrites and retry git commit" };
+  }
+  try {
+    coordinates.tree = await restageCommitFixes(io, root, { base: coordinates.base, tree: selected.selectionTree, rewritten }, indexFile);
+    selected.divergent = await readCheckDivergence(io.git, root, coordinates.tree, coordinates.worktreeTree ?? coordinates.tree, check.inputs);
+    return { rewritten };
+  } catch (error) {
+    return { rewritten, reason: `Could not restage fixer rewrites: ${String(error)}. Repair the index, stage the rewrites, and retry git commit.` };
+  }
 }
 
 async function executeCheckBatches(io: DeclaredCheckDependencies, input: {

@@ -1,7 +1,8 @@
 /** Commander and process boundary for declared check requests. */
 import { z } from "zod";
 import { execa } from "execa";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { detectHookManager } from "../../lib/hook-manager.js";
 import { resolve } from "node:path";
 import { availableParallelism } from "node:os";
 import { atomicCreateFile, atomicWriteFile } from "../../lib/fs.js";
@@ -122,6 +123,8 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
     const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
     const inheritedIndex = process.env.GIT_INDEX_FILE;
     const hookSkip = form.kind === "pre-commit" ? process.env.ARC_SKIP?.split(",").map(id => id.trim()).filter(Boolean) : undefined;
+    const hookFixesFail = form.kind === "pre-commit"
+      && (process.env.PRE_COMMIT !== undefined || (await detectHookManager(root, access))?.manager === "lefthook");
     outcome = await runDeclaredRequest(root, {
       platform: process.platform,
       availableParallelism,
@@ -133,7 +136,7 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: runCheckProcess,
       runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),
-    }, { form, skip: hookSkip, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
+    }, { form, skip: hookSkip, hookFixesFail, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
