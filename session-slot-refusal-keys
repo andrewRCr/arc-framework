@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "session-slot-refusal-keys",
+  "claimId": "230ea5118af23dd239158742d17fe66e",
+  "createdAt": "2026-10-10T21:38:14.813Z",
+  "updatedAt": "2026-10-10T21:38:14.813Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve root validation issue paths and offending keys in the baseBranchSync and retiredSubdirs session-init slot refusals.",
+  "branch": "chore/session-slot-refusal-keys",
+  "origin": "inbox",
+  "originEntry": "Make the session-init `baseBranchSync` and `retiredSubdirs` slot refusals name the offending key",
+  "originEntrySourceDigest": "sha256:953c13ebf65d00d67e6c5aae8b4ae3bbb5db8884a9f50badfc1f1d0edb00e378",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
