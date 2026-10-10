@@ -151,9 +151,8 @@ An allowed outcome the binding cannot carry waits by its named gap.
 ### Fast-path judgments
 
 Gate before minting. A `new-stub` may not invent commitment, priority, a `Class` estimate from
-[classify-work-unit][classify-work-unit], a legible slug, origin, or dependencies. Carry the first five through
-`arc stub <name> --commitment ... --priority ... --class ... --origin ...`; dependencies have no CLI option and
-go into the minted meta's `Depends On`. Its design carries the concern and opens with a one-sentence Purpose.
+[classify-work-unit][classify-work-unit], a legible slug, origin, or dependencies. Its design carries the concern
+and opens with a one-sentence Purpose. Carry out minting through the binding below.
 
 ### Binding: carrying out outcomes
 
@@ -185,8 +184,11 @@ go into the minted meta's `Depends On`. Its design carries the concern and opens
   refusal. `fold` into the session's own work unit and an `errand` execute directly. Every new capture gets the full
   gate at the drain; pre-routed values are first candidates, and disagreements enter its routing plan.
 - **Cascade vehicles:** `hold <other>` and `new-stub` are pre-routed captures.
-- **Minted design:** write a `draft-*` beside the meta in the minting change, carrying the concern and opening with a
-  one-sentence Purpose. Name it through `arc stub --design`, which records only the reference.
+- **Minted design:** carry slug, commitment, priority, Class, and origin through
+  `arc stub <name> --commitment ... --priority ... --class ... --origin ...`; dependencies have no CLI option and
+  go into the minted meta's `Depends On`. Write a `draft-*` beside the meta in the minting change, carrying the
+  concern and opening with a one-sentence Purpose. Name it through `arc stub --design`, which records only the
+  reference.
 - **Named gap:** nothing carries a route into another person's started work unit. Keep a held entry rewritten in
   place with its decided target, or keep a new concern as the capturer's `_Hold` capture. Name the wait at the door's
   Owner stop. Confirmation there authorizes that wait under both the known-home invariant and its planning-artifact
