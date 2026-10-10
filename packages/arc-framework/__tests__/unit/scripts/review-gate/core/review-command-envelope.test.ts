@@ -188,6 +188,7 @@ const provisionalPassAssessment = {
   configuredMaxPasses: 2,
   proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: true },
   capPosition: "at-ceiling",
+  fixConsequence: { kind: "ceiling-decision" },
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
   summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
@@ -473,10 +474,17 @@ describe("review command envelopes", () => {
     ["a material fix of a minor maximum", {
       proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: true },
     }],
-    ["a ceiling stop without a material fix", {
+    ["a ceiling stop without a ceiling decision", {
       proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
+      fixConsequence: { kind: "lane-closes" },
     }],
     ["a material fix at the ceiling without a stop", { potentialStopReason: null }],
+    ["a material fix that closes the lane", { fixConsequence: { kind: "lane-closes" }, potentialStopReason: null }],
+    ["a next pass at the ceiling", {
+      fixConsequence: { kind: "next-pass", coverage: "complete" },
+      potentialStopReason: null,
+    }],
+    ["a ceiling decision below the ceiling", { admittedLogicalPass: 1, capPosition: "below-ceiling" }],
   ] as const)("rejects a provisional pass assessment carrying %s", (_name, change) => {
     expect(() => RespondEnvelopeSchema.parse({
       ...header("review-respond"),
@@ -486,6 +494,20 @@ describe("review command envelopes", () => {
         provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
       },
     })).toThrow();
+  });
+
+  it("accepts a ceiling decision for a fix that is not material", () => {
+    expect(RespondEnvelopeSchema.parse({
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
+        provisionalPassAssessment: {
+          ...provisionalPassAssessment,
+          proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: false },
+        },
+      },
+    })).toMatchObject({ payload: { provisionalPassAssessment: { potentialStopReason: "cap-exhausted" } } });
   });
 
   it("rejects a ready frontline pass above its declared allowance", () => {
