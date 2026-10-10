@@ -276,6 +276,8 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+      - '!packages/arc-framework/__tests__/integration/**/*.test.ts'
+      - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'
   test:unit:
     command:
       - npm
