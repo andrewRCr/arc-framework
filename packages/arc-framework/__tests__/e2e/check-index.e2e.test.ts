@@ -73,6 +73,36 @@ it("ignores a stranded index from an earlier run", async () => {
   expect(await readFile(join(directory, "index"), "utf8")).toBe("unfinished index\n");
 });
 
+it.each(["worktree", "staged", "hook"])("executes an indexed %s request despite unavailable disposable storage", async scope => {
+  const root = await createDeclaredCheckRepository({ index: {
+    command: [process.execPath, "-e", script], gate: "commit", mode: "files", inputs: ["src/a.ts"], reads_index: true,
+  } });
+  repositories.push(root);
+  if (scope !== "worktree") {
+    await git("git", ["add", "src/a.ts"], { cwd: root });
+    await git("git", ["write-tree"], { cwd: root });
+  }
+  const ownIndex = await readFile(join(root, ".git/index"));
+  const worktree = await readFile(join(root, "src/a.ts"), "utf8");
+  const records = join(root, ".git/arc-checks");
+  await writeFile(records, "unavailable disposable storage\n");
+  const args = scope === "hook" ? ["check", "pre-commit", "--json"]
+    : scope === "staged" ? ["check", "run", "index", "--staged", "--json"] : ["check", "increment", "--json"];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await runArc(args, root);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).result.checks[0]).toMatchObject({ outcome: "passed" });
+    const observed: { tree: string; index: string } = JSON.parse(await readFile(join(root, "receipt.json"), "utf8"));
+    expect(observed.tree).toBe(JSON.parse(result.stdout).result.tree);
+    expect(isAbsolute(observed.index)).toBe(true);
+    if (scope === "hook") expect(observed.index).toBe(join(root, ".git/index"));
+    else await expect(readFile(observed.index)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(records, "utf8")).toBe("unavailable disposable storage\n");
+    expect(await readFile(join(root, ".git/index"))).toEqual(ownIndex);
+    expect(await readFile(join(root, "src/a.ts"), "utf8")).toBe(worktree);
+  }
+});
+
 it("retains worktree stat data in the index it supplies", async () => {
   const inspect = "const fs=require('node:fs');const diff=require('node:child_process').execFileSync('git',['diff-files','--name-only','--','src/a.ts'],{encoding:'utf8'});fs.writeFileSync('receipt.json',JSON.stringify({diff}))";
   const root = await createDeclaredCheckRepository({ index: {

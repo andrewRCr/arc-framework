@@ -1,6 +1,7 @@
 /** Disposable index views for checks that explicitly read indexed content. */
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { GitExec } from "../git/exec.js";
 import { resolveCheckoutGitDir } from "../git/exec.js";
 import type { CheckRequest } from "./request.js";
@@ -10,6 +11,30 @@ import { checkRecordDirectory } from "./record.js";
 /** One private index and its complete cleanup boundary. */
 export interface CheckIndexView { file: string; remove(): Promise<void> }
 
+/** One private scratch directory and its best-effort cleanup boundary. */
+export interface CheckIndexDirectory { directory: string; remove(): Promise<void> }
+
+/**
+ * Allocate index scratch space without making disposable record storage mandatory.
+ * @param git - Git process boundary
+ * @param root - Repository root
+ * @returns Private record-local storage, or system temporary storage when unavailable
+ */
+export async function createCheckIndexDirectory(git: GitExec, root: string): Promise<CheckIndexDirectory> {
+  let directory: string;
+  try {
+    const records = await checkRecordDirectory(git, root);
+    await mkdir(records, { recursive: true });
+    directory = await mkdtemp(join(records, "index-"));
+  } catch {
+    directory = await mkdtemp(join(tmpdir(), "arc-check-index-"));
+  }
+  return { directory, remove: async () => {
+    try { await rm(directory, { recursive: true, force: true }); }
+    catch { /* Disposable scratch cleanup cannot refuse an executed check. */ }
+  } };
+}
+
 /**
  * Build a private index equal to a checked tree without changing the worktree.
  * @param git - Git process boundary
@@ -18,11 +43,9 @@ export interface CheckIndexView { file: string; remove(): Promise<void> }
  * @returns An absolute index path and cleanup operation
  */
 export async function createCheckIndexView(git: GitExec, root: string, tree: string): Promise<CheckIndexView> {
-  const records = await checkRecordDirectory(git, root);
-  await mkdir(records, { recursive: true });
-  const directory = await mkdtemp(join(records, "index-"));
-  const file = join(directory, "index");
-  const remove = async () => { await rm(directory, { recursive: true, force: true }); };
+  const scratch = await createCheckIndexDirectory(git, root);
+  const file = join(scratch.directory, "index");
+  const remove = () => scratch.remove();
   try {
     await git("git", ["read-tree", tree], { cwd: root, indexFile: file });
     return { file, remove };

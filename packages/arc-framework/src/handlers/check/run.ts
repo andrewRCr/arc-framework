@@ -1,8 +1,6 @@
 /** Orchestration for declared repository check requests. */
 import { tmpdir } from "node:os";
 import type { PushRefDisposition } from "../../lib/checks/push.js";
-import { mkdir } from "node:fs/promises";
-import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
@@ -10,7 +8,7 @@ import { findPartiallyStagedChecks } from "../../lib/checks/partial-staging.js";
 import { commitRestageAllowed, restageCommitFixes } from "../../lib/checks/commit-fixes.js";
 import { checkFixesAllowed, refreshFixerContent } from "../../lib/checks/fixers.js";
 import { type TreePathChange, createWorktreeSnapshot, stagedWorktreeTree } from "../../lib/checks/tree.js";
-import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
+import { createCheckIndexDirectory, createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
@@ -129,19 +127,30 @@ export async function runDeclaredRequest(
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
   const entries = selectRequestChecks(available, request.form);
-  const snapshotDirectory = entries.some(([, check]) => check.reads_index) ? await checkRecordDirectory(io.git, root)
-    : entries.some(([, check]) => check.fixes) ? tmpdir() : undefined;
-  if (snapshotDirectory !== undefined) await mkdir(snapshotDirectory, { recursive: true });
-  const resolved = await resolveCheckRequest(io.git, root, request, snapshotDirectory);
-  if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
-  const indexViews = createCheckIndexViews(io.git, root, request, resolved.request);
+  const outcome = await resolveAndRunRequest(root, io, request, declaration, entries);
+  return outcome.kind === "result" && ignoredSkips.length > 0
+    ? { ...outcome, result: { ...outcome.result, ignoredSkips } } : outcome;
+}
+
+async function resolveAndRunRequest(
+  root: string, io: DeclaredCheckDependencies, request: CheckRequest,
+  declaration: Exclude<TypedFileResult<CheckDeclaration>, { status: "invalid" }>,
+  entries: Array<[string, CheckDeclaration["checks"][string]]>,
+): Promise<RunDeclaredChecksResult> {
+  const scratch = entries.some(([, check]) => check.reads_index) ? await createCheckIndexDirectory(io.git, root) : undefined;
+  const snapshotDirectory = scratch?.directory ?? (entries.some(([, check]) => check.fixes) ? tmpdir() : undefined);
   try {
-    const outcome = await executeResolvedRequest(root, io, request, declaration, entries, resolved.request, indexViews);
-    return outcome.kind === "result" && ignoredSkips.length > 0
-      ? { ...outcome, result: { ...outcome.result, ignoredSkips } } : outcome;
+    const resolved = await resolveCheckRequest(io.git, root, request, snapshotDirectory);
+    if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
+    const indexViews = createCheckIndexViews(io.git, root, request, resolved.request);
+    try {
+      return await executeResolvedRequest(root, io, request, declaration, entries, resolved.request, indexViews);
+    } finally {
+      await indexViews.remove();
+      await resolved.request.snapshot?.remove();
+    }
   } finally {
-    await indexViews.remove();
-    await resolved.request.snapshot?.remove();
+    await scratch?.remove();
   }
 }
 
