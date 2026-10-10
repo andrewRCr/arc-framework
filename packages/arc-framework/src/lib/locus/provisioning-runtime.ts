@@ -7,6 +7,7 @@ import {
   type LinkedWorktreeCreationReceipt,
 } from "../git/linked-worktree.js";
 import { setupLinkedWorktree } from "../git/linked-worktree-setup.js";
+import { nodeCopyFileIfAbsent } from "../git/worktree-include.js";
 import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -72,6 +73,8 @@ export function createNodeProvisioningDependencies(
       await setupLinkedWorktree({
         exec: options.exec,
         fs: {
+          pathExists: async (path) => access(path).then(() => true, () => false),
+          copyFileIfAbsent: nodeCopyFileIfAbsent,
           directoryExists: async (path) => access(path).then(() => true, () => false),
           copyDirectory: (source, destination) => cp(source, destination, { recursive: true }),
         },

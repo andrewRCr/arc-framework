@@ -1,12 +1,13 @@
-/** Shared post-create and registered-harness setup for linked worktrees. */
+/** Shared include-file, post-create, and registered-harness setup for linked worktrees. */
 
 import { join } from "node:path";
 
 import type { GitExec } from "./exec.js";
 import { parseRegisteredHarnessDirs } from "./worktree-harness-dirs.js";
+import { copyWorktreeIncludes, type WorktreeIncludeFs } from "./worktree-include.js";
 import { resolvePrimaryWorktreePath } from "./worktree-roster.js";
 
-export interface LinkedWorktreeSetupFs {
+export interface LinkedWorktreeSetupFs extends WorktreeIncludeFs {
   directoryExists(path: string): Promise<boolean>;
   copyDirectory(source: string, destination: string): Promise<void>;
 }
@@ -31,11 +32,20 @@ export interface LinkedWorktreeSetupResult {
 export const POST_CREATE_UNCONFIGURED_NOTICE =
   "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
 
-/** Run project setup and copy only explicitly registered harness directories. */
+/**
+ * Copy `.worktreeinclude` matches, run project setup, then copy registered harness directories.
+ *
+ * Include-file copies land before the post-create script so it can read them.
+ */
 export async function setupLinkedWorktree(
   context: LinkedWorktreeSetupContext,
   options: LinkedWorktreeSetupOptions,
 ): Promise<LinkedWorktreeSetupResult> {
+  const primaryWorktreePath = options.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(context.exec));
+  if (primaryWorktreePath !== null) {
+    await copyWorktreeIncludes(context, primaryWorktreePath, options.worktreePath);
+  }
+
   const postCreateScript = options.postCreateScript?.trim();
   let postCreateNotice: string | undefined;
   if (postCreateScript) {
@@ -52,7 +62,6 @@ export async function setupLinkedWorktree(
 
   const dirs = parseRegisteredHarnessDirs(options.registeredHarnessDirs);
   if (dirs.length > 0) {
-    const primaryWorktreePath = options.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(context.exec));
     if (primaryWorktreePath === null) {
       throw new Error("could not resolve the primary worktree path to copy registered harness dirs");
     }
