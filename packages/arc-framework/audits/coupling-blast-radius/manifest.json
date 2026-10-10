@@ -10,6 +10,7 @@
       ".arc/reference/TECHNICAL-OVERVIEW.md",
       ".arc/reference/briefs/AGENT-BRIEF.PROJECT.md",
       ".arc/reference/strategies/STRATEGY-INDEX.md",
+      ".arc/system/arc-checks.yml",
       ".arc/system/arc-config.yml",
       ".arc/system/extensions/post-pr-open.md",
       ".arc/system/extensions/pre-merge.md",
@@ -41,6 +42,7 @@
       "scripts/check-package-sync.sh",
       "scripts/classify-change.sh",
       "scripts/run-ci-checks.mjs",
+      "scripts/run-local-e2e.mjs",
       "scripts/worktree-post-create.sh"
     ],
     "excluded": [

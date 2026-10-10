@@ -106,6 +106,9 @@ describe("coupling audit repository command", () => {
     });
 
     expect(files.length).toBeGreaterThan(0);
+    expect(files.map(file => file.path)).toEqual(expect.arrayContaining([
+      ".arc/system/arc-checks.yml", "scripts/run-local-e2e.mjs",
+    ]));
   });
 
   it("discovers tracked hidden files and writes identical results", async () => {
