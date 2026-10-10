@@ -455,19 +455,20 @@ Errand-shaped one, and D9's pair with D12's four answers for an unclear one.
 - _Outcome:_ Promotion derives its floor from the flipped canonical answers, shows them at the Owner stop, and
   applies the same entry-stage mapping under partial protection.
 
-### `[ ]` **6.5 Dry-run route-now over four constructed concerns** — validate exit criterion at segment scope
+### `[x]` **6.5 Dry-run route-now over four constructed concerns** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that route-now runs the gate before minting and returns the right outcome for each kind of concern.
 
-    - `[ ]` **6.5.a Construct the four concerns against the live backlog**
-        - One that shapes an existing work unit's decision, one spec-worthy concern with no home, one Errand-shaped
-          concern, and one whose Errand line is unclear.
+    - `[x]` **6.5.a Construct the four concerns against the live backlog**
+        - Built distinct coupled, homeless spec-worthy, Errand and unclear concerns with fresh purpose/status facts,
+          semantic design reads and source-backed boundaries.
 
-    - `[ ]` **6.5.b Run route-now classification-only**
-        - No writes and no Errand opened. The coupled concern routes to its home with its `_Shapes:_` instead of
-          minting a stub; the homeless one returns `new-stub` with commitment, priority, `Class`, slug, origin, and
-          dependencies named; the Errand-shaped one returns `errand`; the unclear one returns the pair with the four
-          answers.
+    - `[x]` **6.5.b Run route-now classification-only**
+        - Recorded the existing-home hold, six-field new-stub proposal, Errand and unselected four-answer Owner pair;
+          no routing write or Errand allocation ran.
+
+- _Outcome:_ The classification-only trace in `notes-inbound-routing-method.md` closes the fast-path scenario,
+  preserving live coupling, scope exclusions, the exact horizon advisory and simulated minting judgments.
 
 ## **Phase 7:** Verification
 

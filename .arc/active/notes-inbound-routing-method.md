@@ -962,3 +962,120 @@ Coverage/heading/horizon/offer/retained-state checks ran against the prepared pl
 initial checker incorrectly demanded offers for targets with no held entries; corrected to the stated “already
 holding entries” condition, it passed. This was a checker defect, not a routing-scenario failure. The original
 first-check failure remains in the tool record. The source-backed plan satisfies the segment exit criterion.
+
+## Task 6.5 — Route-now classification-only scenario
+
+The constructed fixture exercises `arc-inbox` step 1's `fast path` call before any hand-off. It records proposals,
+not live captures or new work commitments. Commitment to place now is an explicit scenario input. No routing
+write, stub mint, target adoption, or Errand allocation ran; the fixture's Owner pair remains unselected.
+The primary classification trace and its supporting artifact checks close this bounded scenario. They are not an
+independent replay or a claim that an Owner confirmed these new routes.
+
+### Inputs and live reads
+
+- Fixture: `/tmp/inbound-route-now-fixture.json`; artifact checker: `/tmp/inbound-route-now-validate.py`.
+- Fresh project purpose rows: `/tmp/inbound-route-now-project.json`, produced by `arc status --project --json`.
+  Read non-shipped purpose rows to shortlist; no `verification-resource-lifecycle` exists among them.
+- Fresh semantic designs and typed individual status: `adopter-markdown-contract`, `review-checkout-lifecycle`,
+  `review-orchestration-right-sizing`, and `delivery-rebuild-continuity`. The two started targets were read through
+  `arc view design --for`, which selected their registered checkouts rather than the base's stale copies.
+- Additional purpose/scope reads for testing neighbors: `test-suite-contention-hardening` and `quality-gate-hooks`.
+- Still-live source facts: `src/lib/test-cost/cli.ts` accepts four named options but its unknown-option diagnostic
+  supplies no accepted-option list; `src/lib/task-list/scanner.ts` rejects numbered checkbox bullets indented less
+  than four spaces. These are inputs to constructed requests, not discoveries being implemented in this work unit.
+- Resource grounding: `src/scripts/review-gate/hosts/local/review-materialization.ts` allocates immutable detached
+  materializations. The new request below is an explicit hypothetical contract for ad hoc ceremony verification
+  resources; it does not assert that every existing resource lacks an owner or absorb the named incumbents' work.
+
+### Coupled concern
+
+**Input:** Define the adopter-facing policy separating parser-required indentation from linter preference across
+managed formats. Hint: `adopter-markdown-contract`.
+
+**Record answers:** (1) No — the request is a policy decision rather than unknown implementation steps; (2) Yes —
+parser invariants must remain distinct from author preference; (3) Yes — a promised formatting contract is relied
+on by project-authored managed files; (4) Yes — alternatives and rationale exceed a short decision line.
+
+**Proposal:** `hold adopter-markdown-contract`. `_Shapes:_ Define ARC's markdown-format contract with adopters
+(out-of-box lint fit)`. Its existing inbound entry explicitly names parser tolerance and the adopter-facing
+contract. That decision passes coupling, and the design carries no exclusion defeating it. The fast path into
+another work unit holds rather than folds. No stub is proposed.
+
+Typed status names `andrew`, provisional, not occupied. The buffer contains one entry, oldest 2026-07-07.
+The caller would use a route-only Errand off the base and re-check before writing. There is no foreign-owner gap.
+The listing-row advisory, shared with the unclear concern's work-unit candidate, is preserved verbatim:
+
+```text
+`adopter-markdown-contract` is provisional (P3); an entry routed here waits for it. Raise its priority or send a separable part now?
+```
+
+### Homeless spec-worthy concern
+
+**Input:** Give ad hoc ceremony-created verification repositories a creator-owned retention, cleanup and
+execution-environment contract. Explicitly exclude frontline, chunk-projection and plan-derived delivery checkout
+implementations, and terminal review-record collection.
+
+**Record answers:** (1) Yes — creator and environment relationships need mapping before the steps can be named;
+(2) Yes — the named exclusions must survive later implementation; (3) Yes — a wrong cleanup/retention authority can
+lose evidence or unsaved work; (4) Yes — ownership, alternatives and cleanup criteria need a durable design record.
+
+**Shortlist, bounded to three:** `review-checkout-lifecycle` owns the frontline ephemeral checkout; its Purpose,
+Success signal and Resolved work-unit boundary do not own the broader requested contract. Its chunk-projection
+exclusion names `chunk-scope-binding`, whose existing implementation is also expressly excluded from this request.
+`review-orchestration-right-sizing`'s terminal-collection entry shapes review records, explicitly excluded here;
+its Scope and Non-goals provide no general verification-repository contract. `delivery-rebuild-continuity`'s Scope
+boundary owns plan-derived candidate and resolution paths, also explicitly excluded. These are neighbors; the
+request names no incumbent decision it changes. No target passes coupling and scope for this contract.
+
+**Proposal:** `new-stub`, with every minting judgment surfaced for an Owner decision:
+
+- Commitment: provisional — retain the future contract without claiming execution commitment.
+- Priority: P2 — proposed ordinary operational improvement, not an immediate failure response.
+- `Class`: Heavy — a composed design and substantial creator mapping; no invention claim.
+- Slug: `verification-resource-lifecycle` — absent from the fresh project facts.
+- Origin: internal — constructed route-now scenario.
+- Dependencies: none proposed — the contract can be designed against existing primitives; no unsatisfied predecessor
+  is asserted. Named adjacent owners remain coordination boundaries, not invented dependency edges.
+- Purpose: Give ad hoc verification repositories a creator-owned retention, cleanup and execution-environment
+  contract.
+
+These are simulated proposal values, not accepted metadata. An actual confirmed route would take a route-only
+Errand, re-check the shortlist and scope in its checkout, then mint the meta and referenced design together.
+
+### Errand-shaped concern
+
+**Input:** Add accepted option names to the existing `Unknown test-cost argument` diagnostic without changing
+parsing or measurement behavior. Deliberately supplied hint: `quality-gate-hooks`.
+
+**Record answers:** (1) No — the parser already contains the accepted list and the diagnostic locus; (2) No — the
+request creates no unexpected exclusion; (3) No — correcting wording takes another bounded change, with no
+persisted format or authority contract to unwind; (4) No — any choice fits a short Decided line.
+
+**Proposal:** `errand`, decided at the record floor before homing. The target hint and infrastructure surface do not
+create a work-unit home. An immediate route would enter `arc-errand`; deferral would remain a home-less Errand
+capture. Neither vehicle ran.
+
+### Unclear Errand line
+
+**Input:** Accept two-space task subtask markers, initially changing only the task scanner. The request leaves
+unresolved whether task-only tolerance deliberately excludes other managed formats or commits a shared formatting
+contract. Hint: `adopter-markdown-contract`.
+
+**Record answers:** (1) No — scanner and segmentation loci are named; (2) Unclear — whether the initial narrow
+scope is a deliberate lasting exclusion is unspecified; (3) Unclear — a bounded parser adjustment is cheap to
+reverse, while an adopter-facing format promise can require more than another Errand to unwind; (4) No — the local
+implementation choice alone fits a short decision line.
+
+**Proposal:** the pair `errand` / `hold adopter-markdown-contract`, with all four answers shown. The work-unit
+candidate carries `_Shapes:_ Define ARC's markdown-format contract with adopters (out-of-box lint fit)` and the
+same verbatim horizon advisory above. Its incumbent parser-required-versus-preference decision passes coupling
+and scope. There is no default and no claimed Owner selection; a real invocation stops before carrying either
+route out.
+
+### Closure
+
+The four distinct inputs produced the required existing-home hold, fully specified new-stub proposal, Errand, and
+unclear Owner pair before minting. Artifact checks verify four-case coverage, the six named minting fields, the
+absent proposed slug, live target facts, actual Shapes heading, held-entry count/date, exact horizon text, and the
+unselected four-answer pair. Judgment remains the primary method application recorded above. No segment scenario
+failure or forward design amendment arose.
