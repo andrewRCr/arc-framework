@@ -17,8 +17,8 @@ it("retains a heavy measurement only after owned setup, teardown, and controller
       { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const events = await readFile(fixture.events, "utf8");
-    expect(events).toContain('"stage":"integration:setup"');
-    expect(events).toContain('"stage":"integration:teardown"');
+    expect(events.match(/"stage":"integration:setup"/gu)).toHaveLength(2);
+    expect(events.match(/"stage":"integration:teardown"/gu)).toHaveLength(2);
     expect(events).toContain('"owned":true');
     expect(events).not.toContain('"owned":false');
     expect(events).toContain("closing-owned:true:false");
@@ -74,13 +74,17 @@ it("native metadata case", () => {
     expect(events).toContain("config:true:true:test");
     const closing = events.split("\n").filter((line) => line.startsWith('{"closingStart":'))
       .map((line) => JSON.parse(line) as { closingStart: number; closingEnd: number });
-    const closingMs = Math.max(...closing.map((event) => event.closingEnd))
-      - Math.min(...closing.map((event) => event.closingStart));
-    expect(closingMs).toBeGreaterThanOrEqual(50);
     const record: unknown = JSON.parse(await readFile(output, "utf8"));
     assertRetainedTestCostRun(record, output);
+    const retainedStart = Date.parse(record.capturedAt);
+    expect(closing.some((event) => event.closingEnd <= retainedStart)).toBe(true);
+    const retainedClosing = closing.filter((event) => event.closingStart >= retainedStart);
+    expect(retainedClosing.length).toBeGreaterThan(0);
+    const closingMs = Math.max(...retainedClosing.map((event) => event.closingEnd))
+      - Math.min(...retainedClosing.map((event) => event.closingStart));
+    expect(closingMs).toBeGreaterThanOrEqual(50);
     expect(record.wallClockMs).toBeGreaterThanOrEqual(closingMs);
-    const lastClosingEnd = Math.max(...closing.map((event) => event.closingEnd));
+    const lastClosingEnd = Math.max(...retainedClosing.map((event) => event.closingEnd));
     expect(Date.parse(record.capturedAt) + record.wallClockMs + (record.admissionWaitMs ?? 0))
       .toBeGreaterThanOrEqual(lastClosingEnd);
     expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", cliSpawnCount: 2 });

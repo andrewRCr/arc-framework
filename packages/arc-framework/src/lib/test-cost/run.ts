@@ -60,7 +60,7 @@ export const DEFAULT_TEST_COST_RUN_DEPENDENCIES: TestCostRunDependencies = {
 };
 
 /**
- * Capture a prepared native run through closing, retaining output only after release.
+ * Warm the same selection in a discarded run, then capture through closing and retain after release.
  * @param input - Package cwd, mode axes, and retained output destination
  * @param dependencies - Native controller, clock, ownership, and persistence boundaries
  * @returns The successful retained record with CPU queue latency separated from elapsed time
@@ -85,17 +85,21 @@ export async function runTestCostMeasurement(
     "--maxWorkers",
     effectiveWorkerSizing,
   ]);
-  const startedAtMs = dependencies.now();
-  const selection = await discoverVitestSelection(filter, options, undefined, dependencies.create);
-  const admitted = await executeVitestSelection(selection,
-    { cwd: input.cwd, packageRoot: input.cwd, env: input.env, tier: projectSetAdmissionTier(input.mode.projectSet) },
-    () => {
-      const captured = captureTestCost(selection.controller.state.getTestModules());
-      if (process.exitCode) throw new Error("Vitest measurement did not complete successfully; no passed run retained");
-      return { captured, elapsedMs: dependencies.now() - startedAtMs };
-    }, dependencies.ownership,
-  );
-  const { captured, elapsedMs } = admitted.result;
+  const executePass = async () => {
+    const startedAtMs = dependencies.now();
+    const selection = await discoverVitestSelection(filter, options, undefined, dependencies.create);
+    const admitted = await executeVitestSelection(selection,
+      { cwd: input.cwd, packageRoot: input.cwd, env: input.env, tier: projectSetAdmissionTier(input.mode.projectSet) },
+      () => {
+        const captured = captureTestCost(selection.controller.state.getTestModules());
+        if (process.exitCode) throw new Error("Vitest measurement did not complete successfully; no passed run retained");
+        return { captured, elapsedMs: dependencies.now() - startedAtMs };
+      }, dependencies.ownership,
+    );
+    return { startedAtMs, ...admitted.result, waitMs: admitted.waitMs };
+  };
+  await executePass();
+  const { startedAtMs, captured, elapsedMs, waitMs } = await executePass();
   const run: RetainedTestCostRun = {
     schemaVersion: 4,
     outcome: "passed",
@@ -103,7 +107,7 @@ export async function runTestCostMeasurement(
     capturedAt: new Date(startedAtMs).toISOString(),
     mode: effectiveMode,
     requestedWorkerSizing,
-    wallClockMs: elapsedMs - (admitted.waitMs ?? 0),
+    wallClockMs: elapsedMs - (waitMs ?? 0),
     summedFileTimeMs: captured.summedFileTimeMs,
     fileCount: captured.files.length,
     testCount: captured.files.reduce((total, file) => total + file.tests.length, 0),
@@ -111,7 +115,7 @@ export async function runTestCostMeasurement(
       (total, file) => total + file.tests.reduce((fileTotal, test) => fileTotal + (test.cliSpawnCount ?? 0), 0),
       0,
     ),
-    ...(admitted.waitMs === undefined ? {} : { admissionWaitMs: admitted.waitMs }),
+    ...(waitMs === undefined ? {} : { admissionWaitMs: waitMs }),
     substrate: summarizeSubstrateShare(captured.files),
     files: captured.files,
   };

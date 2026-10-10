@@ -14,6 +14,7 @@ the durable record.
 ## Contents
 
 - [Schema-v4 metric correction](#schema-v4-metric-correction)
+- [Warm-run measurement practice](#warm-run-measurement-practice)
 - [Method and its limits](#method-and-its-limits)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
@@ -65,6 +66,27 @@ historical and cannot be promoted to schema-v4 evidence. Wall-clock and CI-job o
 arithmetically changed by this metric correction.
 
 ---
+
+## Warm-run measurement practice
+
+Current local captures require one successful discarded warm-up before each retained sample. The
+`benchmark:test-cost` entry runs the same project set with the same resolved worker sizing twice in the same checkout.
+Both controllers complete setup, execution, teardown, and closing; only the second run's timings, files, and test
+counts enter the retained JSON. The retained clock starts after the warm-up releases its ownership, and its CPU
+admission wait remains separate from measured cost. A failed or incomplete warm-up stops before the retained run.
+
+Prepare dependencies and CLI artifacts before collecting a baseline, keep the declared measurement condition stable,
+and collect retained samples in the same complete mode for normalization. Every invocation warms itself;
+exclude warm-up output from normalization and comparison. Warm-up is a procedure for reducing cold-cache effects,
+not proof that every dependency, transform, or filesystem cache is warm.
+
+For measurements at named refs, prepare and warm each ref's checkout separately with the same project set, worker
+sizing, and host conditions. Use that ref's measurement entry to retain its samples. If its entry predates automatic
+warm-up, first complete and discard one equivalent run; exclude that run from the retained sample group. The
+comparison command analyzes retained files and does not prepare or warm refs. Never mix cold and warmed samples in
+one baseline or lever comparison.
+
+The numerical baselines below are historical observations; this procedure does not refresh or relabel them.
 
 ## Method and its limits
 
