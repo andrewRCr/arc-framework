@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-overlap-continuation",
+  "claimId": "f0c640bd34cad7de7ff46aedbdafa988",
+  "createdAt": "2026-10-10T19:09:55.480Z",
+  "updatedAt": "2026-10-10T19:09:55.480Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let an Errand's bounded base-overlap judgment reach the typed base reconcile instead of a terminal stop",
+  "branch": "chore/errand-overlap-continuation",
+  "origin": "inbox",
+  "originEntry": "Give an Errand overlap judgment an executable reconciliation continuation",
+  "originEntrySourceDigest": "sha256:72b220c5f91491d8d7229d56b33d207990b304ba3e766036bc5fe1cb1c9f5450",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
