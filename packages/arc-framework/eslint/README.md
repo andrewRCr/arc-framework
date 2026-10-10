@@ -12,11 +12,11 @@ transition-record enumeration, the Errand record snapshot and transaction, and t
 `surface-names` keeps the literal surface names and path fragments inside the layout resolver. `work-unit-paths` keeps
 layout-resolver calls for work-unit state inside `lib/store/`: work-unit artifacts, containers, and placement roots,
 cohort documents, and the Candidate, integration-boundary, and transition records. A call whose address kind the
-linter cannot read counts, and so does passing the resolver on or loading the layout module dynamically. Their
-existing violations are recorded in `eslint-suppressions.json` as a floor, and rerouting a caller shrinks it toward
-zero. Suppressions are counted per file and rule rather than per site, so each ratchet reports under its own rule ID,
-`arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths`, and a floor never covers a violation of another
-predicate in the same file. A violation that raises a file's recorded count fails lint; one that replaces a fixed
-violation of the same rule in the same file keeps the count and passes unseen, as it does for the size limits recorded
-there. A ratchet counts only the sites it names: a module that wraps a helper or the resolver passes what it reads to
-its own callers uncounted.
+linter cannot read counts, and so does passing the resolver on or loading the layout module by require or a dynamic
+import. Their existing violations are recorded in `eslint-suppressions.json` as a floor, and rerouting a caller
+shrinks it toward zero. Suppressions are counted per file and rule rather than per site, so each ratchet reports
+under its own rule ID, `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths`, and a floor never covers
+a violation of another predicate in the same file. A violation that raises a file's recorded count fails lint; one
+that replaces a fixed violation of the same rule in the same file keeps the count and passes unseen, as it does for
+the size limits recorded there. A ratchet counts only the sites it names: a module that wraps a helper or the
+resolver passes what it reads to its own callers uncounted.

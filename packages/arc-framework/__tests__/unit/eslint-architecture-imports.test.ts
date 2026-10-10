@@ -89,6 +89,7 @@ describe("work-unit path ratchet", () => {
   const named = 'import { resolveArcPath } from "../lib/layout/index.js"; ';
   const namespace = 'import * as layout from "../lib/layout/index.js"; ';
   const unread = "layout address without a literal kind outside the store";
+  const loaded = "layout module loaded by require or dynamic import outside the store";
 
   it.each([
     [`${named}resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });`, "work-unit path work-unit-artifact outside the store"],
@@ -103,7 +104,10 @@ describe("work-unit path ratchet", () => {
     [`${named}export { resolveArcPath };`, "layout resolver passed on outside the store"],
     ['export { resolveArcPath as project } from "../lib/layout/index.js";', "layout resolver re-exported outside the store"],
     ['export * from "../lib/layout/index.js";', "layout resolver re-exported outside the store"],
-    ['const { resolveArcPath } = await import("../lib/layout/index.js");', "layout module loaded dynamically outside the store"],
+    ['const { resolveArcPath } = await import("../lib/layout/index.js");', loaded],
+    ['const { resolveArcPath } = require("../lib/layout/index.js");', loaded],
+    ['import layout = require("../lib/layout/index.js"); void layout;', loaded],
+    ['import { createRequire } from "node:module"; const { resolveArcPath } = createRequire(import.meta.url)("../lib/layout/index.js");', loaded],
   ])("refuses %s", (text, reason) => {
     expect(violations("handlers/outside.ts", text, "work-unit-paths")).toEqual([reason]);
   });
@@ -122,6 +126,9 @@ describe("work-unit path ratchet", () => {
     [`${named}resolveArcPath({ kind: "user-document", identity, document: { kind: "working-memory" } });`],
     [`${named}resolveArcPath({ ...address, kind: "editor-document-root" });`],
     [`${named}type Path = ReturnType<typeof resolveArcPath>;`],
+    ['import type * as layout from "../lib/layout/index.js"; type Path = ReturnType<typeof layout.resolveArcPath>;'],
+    [`${namespace}class Path implements layout.resolveArcPath {}`],
+    ['type Address = import("../lib/layout/index.js").ArcLayoutAddress;'],
     ['import { resolveArcPath } from "./elsewhere.js"; resolveArcPath({ kind: "work-unit-artifact" });'],
     ['function resolveArcPath(address: unknown): unknown { return address; } resolveArcPath({ kind: "work-unit-artifact" });'],
     ['export { LayoutError, type ArcLayoutAddress } from "../lib/layout/index.js";'],

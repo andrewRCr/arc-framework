@@ -444,13 +444,10 @@ function reexportsResolver(declaration: ts.ExportDeclaration): boolean {
 
 function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
   if (within(join(sourceRoot, "lib/store"), resolve(filename))) return [];
-  const layoutModule = (node: ts.Node | undefined): boolean => {
-    const specifier = literal(node);
-    return specifier?.startsWith(".") === true
-      && within(join(sourceRoot, "lib/layout"), resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts")));
-  };
-  const fromLayout = (declaration: ts.Node): boolean =>
-    (ts.isImportDeclaration(declaration) || ts.isExportDeclaration(declaration)) && layoutModule(declaration.moduleSpecifier);
+  const layoutModule = (specifier: string | undefined): boolean => specifier?.startsWith(".") === true
+    && within(join(sourceRoot, "lib/layout"), resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts")));
+  const fromLayout = (declaration: ts.Node): boolean => (ts.isImportDeclaration(declaration) || ts.isExportDeclaration(declaration))
+    && layoutModule(literal(declaration.moduleSpecifier));
   const lookup = syntaxBindingLookup(source);
   // The resolver under any local name: a named import, or a member of a namespace import, of the layout module.
   const isResolver = (expression: ts.Expression): boolean => {
@@ -462,13 +459,19 @@ function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceR
     if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
     const member = ts.isPropertyAccessExpression(expression) ? expression.name.text : literal(expression.argumentExpression);
     const namespace = unparenthesized(expression.expression);
-    const declaration = member === "resolveArcPath" && ts.isIdentifier(namespace) ? lookup(namespace) : undefined;
+    const declaration = member === "resolveArcPath" && ts.isIdentifier(namespace) && isSyntaxValueReference(namespace)
+      ? lookup(namespace) : undefined;
     return declaration !== undefined && ts.isNamespaceImport(declaration) && fromLayout(declaration.parent.parent);
   };
   const isResolverUse = (node: ts.Node): node is ts.Expression => ts.isIdentifier(node)
     ? isSyntaxValueReference(node) && isResolver(node)
     : (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && isResolver(node);
-  const violations: ArchitectureImportViolation[] = [];
+  // A layout module loaded by require or a dynamic import hands out the resolver under bindings the lookup cannot follow.
+  const violations = moduleReferences(source).filter(({ node, specifier }) => !ts.isImportDeclaration(node)
+    && !ts.isExportDeclaration(node) && !typeOnlyReference(node) && layoutModule(specifier))
+    .map(({ node }): ArchitectureImportViolation => ({
+      node, predicate: "work-unit-paths", reason: "layout module loaded by require or dynamic import outside the store",
+    }));
   const report = (use: ts.Expression): void => {
     const call = ts.isCallExpression(use.parent) && use.parent.expression === use ? use.parent : undefined;
     if (call === undefined) {
@@ -487,10 +490,6 @@ function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceR
         violations.push({ node, predicate: "work-unit-paths", reason: "layout resolver re-exported outside the store" });
       }
       return;
-    }
-    // A dynamically loaded layout module hands out the resolver under bindings the lookup cannot follow.
-    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && layoutModule(node.arguments[0])) {
-      violations.push({ node, predicate: "work-unit-paths", reason: "layout module loaded dynamically outside the store" });
     }
     if (isResolverUse(node)) report(node);
     ts.forEachChild(node, visit);
