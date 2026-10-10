@@ -561,11 +561,16 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
         - Native update retains all three authored files, writes the gate-unset proposal with its editor reference,
           reports every source and prose action, and upgrades generated hooks in the same invocation.
 
-### `[ ]` **6.6 Tier-sense inventory exhausted** — validate exit criterion at segment scope
+### `[x]` **6.6 Tier-sense inventory exhausted** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over the whole inventory: the sense search, every shipped gate step, and
   the update over an install carrying the retired surfaces, recorded as the searches and scenario run and their
   results.
+
+- _Outcome:_ Searches of the package corpus and delivery identifiers found only unrelated tier senses; the stored
+  `verificationKind: "tier-3"` and its `arc attest` echo remain unchanged. Manual inspection confirmed the enumerated
+  fire sites each request `arc check`. The retirement case in `update-hook-upgrade.e2e.test.ts` passed on the committed
+  tree: all authored sources preserved, inactive proposal emitted, every source reported, and hooks upgraded.
 
 ## **Phase 7:** This repository as first consumer
 
