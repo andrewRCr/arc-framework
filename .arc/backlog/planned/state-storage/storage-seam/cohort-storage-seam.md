@@ -181,11 +181,13 @@ Errands land after the contract and before the members:
 - **The write check** is shared decision 11, record kinds'; every member whose verbs write a checked kind runs through
   it, and `storage-ref-backend` and `storage-projection` call it from the flip.
 - **The machine-local set.** `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) names the identity's `.internal/` folders
-  and, in the common Git directory, `.notes.lock`, `.machine-id`, and `arc/**`. `quality-gate-hooks`' reuse record
-  falls outside it: each worktree's own Git directory holds it (`.git/arc-checks/`, `.git/worktrees/<name>/arc-checks/`;
+  and, in the common Git directory, `.notes.lock`, `.machine-id`, and `arc/**`. `quality-gate-hooks`' reuse record falls
+  outside it: each worktree's own Git directory holds it (`.git/arc-checks/`, `.git/worktrees/<name>/arc-checks/`;
   `spec-quality-gate-hooks.md` D5), and it is never stored, synced, or projected. The first member to edit the registry
   adds a per-worktree Git-directory root with that pattern. Only tests read the set today, so the entry keeps the
   inventory complete for the projection and backends that will enforce it; it fixes no failure.
+  `.arc/system/.internal/worktree-marker.json` and `pristine.json` are machine-local and unlisted too
+  (`storage-projection`, 2026-10-09).
 - **Session-init slots.** Every slot a member rebuilds gets its full schema, the obligation `cli-session-envelope`
   routed to the cohort tail: `WorkUnitStateResult`, `ErrandStateResult`, `UserSessionInitStatusResult`,
   `userReferenceReconcile`, `DerivedLocusFrame`, `currentWuReconcile`, and `StaleWorktreeSweepResult`. Session-init
@@ -210,30 +212,48 @@ Errands land after the contract and before the members:
 
 ### Cross-cohort
 
-With `storage-projection`, whose draft's § Coordination asks these of the seam (2026-10-09); each is provisional until
-that draft settles, and each names the member whose consumer-map partition holds it:
+With `storage-projection`, whose draft's § Coordination asks these of the seam (2026-10-09, amended after its first
+adversarial pass); each is provisional until that draft settles, and each names the member whose consumer-map partition
+holds it:
 
 - **The write check from write-back and `arc save`.** `storage-projection` runs each kind's write check (§ Shared
   contracts, item 11) with a hand edit as the writer.
 - **Checkout-removal guards.** `storage-projection` builds the persist-or-refuse primitive — persist or refuse, unlock
-  D17's worktree lock, then remove — and the seam moves onto it today's `isWorktreeClean` callers and the register row's
-  two direct `git status` readers: `seam-lifecycle` takes `lib/work-unit/verbs/teardown.ts`,
-  `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`, and `lib/work-unit/lifecycle-guards.ts`; `seam-locus` takes
-  `lib/session-init/stale-worktree-sweep.ts`, `lib/session-init/branch-gone-recovery.ts`,
-  `lib/session-init/lifecycle-residue-sweep.ts`, and `lib/git/worktree-cleanup.ts`, and the readers
+  D17's worktree lock, then remove — and the seam moves onto it the six modules that call `isWorktreeClean`, which
+  `lib/git/worktree-cleanup.ts` defines, and the register row's two direct `git status` readers: `seam-lifecycle` takes
+  `lib/work-unit/verbs/teardown.ts`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`, and
+  `lib/work-unit/lifecycle-guards.ts`; `seam-locus` takes `lib/session-init/stale-worktree-sweep.ts`,
+  `lib/session-init/branch-gone-recovery.ts`, and `lib/session-init/lifecycle-residue-sweep.ts`, and the readers
   `lib/errand/terminal-occupancy.ts` and `lib/locus/primary-safety.ts`.
-- **The user-surfaces shim.** `storage-projection` keeps `lib/user-surfaces.ts`'s resolver as a shim while the members
-  move their own callers off it (19 non-test importers at `1ee4709a3`), and retires it with
-  `lib/user-surface-migration.ts` after the last of them lands.
+- **Moves of a locked checkout.** On Git 2.55 a locked worktree refuses `git worktree move` with no `-f` or one, and
+  `git worktree move -f -f` moves it with its lock and reason intact, so every move of a projected checkout takes that
+  form, whether ARC runs it or prints it for someone else to run. `seam-lifecycle` takes `arc rename`'s: the move
+  `reconcileWorkUnitWorktree` runs, the occupied-move fallback it prints, and the follow-up `handlers/lifecycle.ts`
+  prints when rename runs from inside the worktree. `seam-locus` takes the residue sweep's remedy argv
+  (`projectRenameMoveRemedy`, `lib/session-init/lifecycle-residue-sweep.ts`), which session-init has the agent run as
+  given. The doubled `-f` also lets a move land on a path registered to a missing or locked worktree, an accepted edge.
+  `git worktree prune` skips a locked entry whose folder was deleted by hand, so a sweep that prunes unlocks that entry
+  first; today's only prune, the review gate's local source sweep (`scripts/review-gate/hosts/local/source-sweep.ts`),
+  sits in no member's partition.
+- **The user-surfaces shim.** `lib/user-surfaces.ts`'s resolver and `lib/user-surface-migration.ts` stay as today's arms
+  until `storage-cutover`'s deletion pass (D15): the in-repo implementation imports the resolver
+  (`lib/store/in-repo/personal-paths.ts`), and teardown merges a linked worktree's copy up through the migration until
+  the flip. Each member moves its own callers off the resolver (19 non-test importers at `1ee4709a3`); none waits on
+  `storage-projection`.
 - **Scratch.** The projection creates `.arc/user/<id>/scratch/work-unit/<slug>/`, empty, for the checkout's work unit,
   and `seam-locus` reconciles those folders at session start through `lookup` (D5); the folder naming is the interface.
 - **Machine-local paths and the layout resolver.** The seam maintains `MACHINE_LOCAL_PATHS` and `resolveArcPath` (§ Soft
   coordination); `storage-projection` enforces the first and lays `active/current/` and `active/in-flight/<slug>/` over
-  the second. The projection's own per-worktree folder, `.arc/system/.internal/projection/`, is a constant of its
-  engine, not a `MACHINE_LOCAL_PATHS` entry.
+  the second. It registers its own two entries in the set: its index, under each worktree's own Git directory through
+  the per-worktree Git-directory root (§ Soft coordination), and its aside folder, `.arc/system/.internal/projection/`,
+  likely under a new checkout-relative root.
 - **Ordering.** `active/current/` lands only after `seam-locus` resolves the current work unit from the checkout marker
   plus the store and takes session-init's slot paths and the compaction seed's paths from the layout resolver (D13,
-  § The `active/` layout).
+  § The `active/` layout). D17's lock lands last, inside `storage-projection`'s own work: only after the members have
+  moved every removal of a projected checkout onto the persist-or-refuse primitive and every move takes the `-f -f`
+  form. Until then teardown's plain `git worktree remove` (`reconcile-work-unit-worktree.ts`) and the Errand close's
+  (`lib/errand/terminal-occupancy.ts`) would refuse on every locked worktree, so `storage-projection` leaves those files
+  to the members.
 
 ### Citing the register
 
