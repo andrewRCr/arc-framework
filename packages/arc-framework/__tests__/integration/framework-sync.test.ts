@@ -28,6 +28,7 @@ import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
 import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
 import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
+import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
 import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
@@ -291,5 +292,17 @@ describe("framework sync (self-hosting drift check)", () => {
       const outputPath = resolveTemplateOutputPath(templatePath);
       expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
     }
+  });
+});
+
+
+describe("project check declaration setup", () => {
+  it("starts the authored declaration with the registered editor reference", async () => {
+    const content = await readFile(join(PKG_ARC_DIR, "system/workflows/arc/initial-setup/02_define-project.template.md"), "utf8");
+    const reference = editorDocumentReference("check-declaration", ".arc/system/arc-checks.yml");
+    expect(reference.status).toBe("found");
+    if (reference.status !== "found") return;
+    const declaration = /```yaml\n([\s\S]*?)```/u.exec(content)?.[1];
+    expect(declaration?.split("\n")[0]).toBe(reference.reference);
   });
 });

@@ -517,7 +517,7 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           full convergence remedies name `arc check gate merge --force`.
         - The stored `verificationKind: "tier-3"` value and its attestation echo retain their spelling.
 
-### `[ ]` **6.4 Bootstrap proposes a declaration from existing gate commands — D2**
+### `[x]` **6.4 Bootstrap proposes a declaration from existing gate commands — D2**
 
 - _Goal:_ A project's existing gate commands survive the tier surfaces' retirement as a gate-unset proposed declaration
   on update, and initial setup authors a declaration with the person.
@@ -532,18 +532,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           preserving existing declarations and reporting extracted commands and prose through their summaries.
         - Proposals retain unset gates and the generated editor reference whether retired files are removed or kept.
 
-    - `[ ]` **6.4.c Initial setup authors the declaration**
-        - `02_define-project.template.md`'s Step 4 tier question becomes authoring the declaration with the person,
-          validated with `arc check gate merge --dry-run`; the step's other passages that collect or record per-tier
-          commands go with it, and the rewritten step names no stack tool as a default
-        - Step 5's question "What quality checks must pass before every commit?" asks which checks must pass before
-          each gate's event
-        - The step's declaration opens with its editor reference: the modeline line `editorDocumentReference` returns
-          for `.arc/system/arc-checks.yml`, written into the template, since the step cannot call the function
-        - Build `test-first` (one behavior at a time):
-            - `arc init` installs no declaration
-            - in `integration/framework-sync.test.ts`, the contract suite that reads shipped content, the template's
-              reference line equals the reference `editorDocumentReference` returns for `.arc/system/arc-checks.yml`
+    - `[x]` **6.4.c Initial setup authors the declaration**
+        - Initial setup authors project checks and event deadlines with the person, validates the declaration with
+          `arc check gate merge --dry-run`, and keeps command patterns and standards in their project documents.
+        - The template uses the registered editor reference; native initialization installs no declaration.
 
 ### `[ ]` **6.5 Retire `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` — D10**
 
