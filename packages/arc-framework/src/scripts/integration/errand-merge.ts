@@ -123,12 +123,16 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
     state: z.literal("reconcile-base"),
     nextAction: z.literal("reconcile-base"),
     reason: z.literal("base-reconcile-required"),
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
     state: z.literal("reconcile-regenerable"),
     nextAction: z.literal("reconcile-regenerable"),
     reason: z.literal("regenerable-reconcile-required"),
+    /** What the absorbed base movement leaves for the new head's review to settle, when review does not carry. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
@@ -478,6 +482,7 @@ function reconcileResult(
     approvedTarget: request.approvedTarget,
     lane: request.lane,
     coordinates: { observedTarget: final.target, observedBaseOid: final.baseOid },
+    ...(final.reviewApplicability.verdict === "carries" ? {} : { applicability: final.reviewApplicability }),
     continuation: {
       kind: "remedy",
       remedy: spineRemedy(
@@ -654,22 +659,6 @@ export async function mergeErrand(
       final.baseOid,
     );
   }
-  if (final.reviewApplicability.judgmentRequired) {
-    return applicabilityJudgmentResult(request, final);
-  }
-  if (final.reviewApplicability.verdict === "fresh") {
-    return invalidatedResult(
-      request,
-      "review-applicability-fresh",
-      "The final evidence requires fresh review and exact integration approval.",
-      final.target,
-      final.baseOid,
-      final.reviewApplicability,
-    );
-  }
-  if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
-    return reconcileResult(request, final, final.plan);
-  }
   if (final.plan.state === "blocked") {
     const common = {
       schemaVersion: 1 as const,
@@ -723,7 +712,25 @@ export async function mergeErrand(
       },
     });
   }
-  if (final.plan.state !== "proceed" || final.reviewApplicability.verdict !== "carries") {
+  // Review applicability asks whether this head may merge as reviewed. A reconcile replaces this head, so the
+  // question passes to the reconciled head's own review status rather than stopping the reconcile.
+  if (final.plan.state === "reconcile") {
+    return reconcileResult(request, final, final.plan);
+  }
+  if (final.reviewApplicability.judgmentRequired) {
+    return applicabilityJudgmentResult(request, final);
+  }
+  if (final.reviewApplicability.verdict === "fresh") {
+    return invalidatedResult(
+      request,
+      "review-applicability-fresh",
+      "The final evidence requires fresh review and exact integration approval.",
+      final.target,
+      final.baseOid,
+      final.reviewApplicability,
+    );
+  }
+  if (final.reviewApplicability.verdict !== "carries") {
     throw new Error("The final Errand merge plan did not permit direct merge.");
   }
   try {
@@ -1026,6 +1033,15 @@ export async function mergeErrand(
         ),
       );
     }
+    if (currentnessPlan.plan.state === "reconcile") {
+      return withReheldTarget(
+        request,
+        dependencies,
+        currentnessPlan.target,
+        currentnessPlan.baseOid,
+        reconcileResult(request, currentnessPlan, currentnessPlan.plan),
+      );
+    }
     if (currentnessPlan.reviewApplicability.judgmentRequired) {
       return withReheldTarget(
         request,
@@ -1049,16 +1065,6 @@ export async function mergeErrand(
           currentnessPlan.baseOid,
           currentnessPlan.reviewApplicability,
         ),
-      );
-    }
-    if (currentnessPlan.reviewApplicability.verdict === "carries"
-      && currentnessPlan.plan.state === "reconcile") {
-      return withReheldTarget(
-        request,
-        dependencies,
-        currentnessPlan.target,
-        currentnessPlan.baseOid,
-        reconcileResult(request, currentnessPlan, currentnessPlan.plan),
       );
     }
     return withReheldTarget(
