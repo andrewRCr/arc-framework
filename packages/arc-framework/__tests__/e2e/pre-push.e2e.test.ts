@@ -13,21 +13,19 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 
 const execFileAsync = promisify(execFile);
 
 // __tests__/e2e/ → repo root is four levels up.
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const HOOK_PATH = join(REPO_ROOT, ".arc/system/.internal/githooks/pre-push");
-
-let restrictedPath = "";
 
 const ZERO = "0000000000000000000000000000000000000000";
 
@@ -38,12 +36,13 @@ interface HookResult {
 }
 
 /** Invoke the pre-push hook with a stdin protocol line; capture output + exit. */
-function runHook(
+async function runHook(
   cwd: string,
   stdinLine: string,
   args: string[] = ["origin", "."],
   environment: NodeJS.ProcessEnv = {},
 ): Promise<HookResult> {
+  const restrictedPath = await restrictedGitPath(cwd);
   return new Promise((resolvePromise, reject) => {
     const child = spawn("bash", [HOOK_PATH, ...args], {
       cwd,
@@ -84,10 +83,6 @@ async function commit(dir: string, content: string): Promise<string> {
 let repos: string[] = [];
 
 beforeAll(() => {
-  const executable = process.platform === "win32" ? "git.exe" : "git";
-  const gitDirectory = (process.env.PATH ?? "").split(delimiter).find(path => existsSync(join(path, executable)));
-  if (gitDirectory === undefined) throw new Error("Git executable missing from PATH");
-  restrictedPath = [...new Set([gitDirectory, "/usr/bin", "/bin"])].join(delimiter);
   // The hook must be present in the canonical location for this suite to mean anything.
   expect(HOOK_PATH).toContain(".arc/system/.internal/githooks/pre-push");
 });
@@ -167,6 +162,7 @@ describe("pre-push force-push advisory hook", () => {
       `mkdir -p .arc/system && printf 'hooks.pre_push: disabled\\n' > .arc/system/arc-config.yml`,
     ], { cwd: dir });
 
+    const restrictedPath = await restrictedGitPath(dir);
     const result = await new Promise<HookResult>((resolvePromise, reject) => {
       const child = spawn("bash", [HOOK_PATH, "origin", "."], {
         cwd: dir,

@@ -1,11 +1,11 @@
 /** Pushes dispatch the declared gate through the real native hook managers. */
 import { afterEach, expect, inject, it } from "vitest";
 import { chmod, readFile, unlink, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
-import { existsSync } from "node:fs";
+import { join } from "node:path";
 import yaml from "js-yaml";
 import { HOOK_MANAGERS, createHookManagerRepository, executionReceipt, pushThroughManager, type NativeHookManager } from "../fixtures/checks/hook-manager.js";
 import { cleanupTempDir, git } from "./helpers.js";
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
@@ -113,10 +113,7 @@ it.each(HOOK_MANAGERS.filter(manager => manager !== "pre-commit"))("leaves state
 
 it.each([true, false])("handles a missing CLI with declaration presence %s and permits repair", async declared => {
   const { root, remote, base } = await publishedRepository("core.hooksPath");
-  const executable = process.platform === "win32" ? "git.exe" : "git";
-  const gitDirectory = (process.env.PATH ?? "").split(delimiter).find(path => existsSync(join(path, executable)));
-  if (gitDirectory === undefined) throw new Error("Git executable missing from PATH");
-  const environment = { PATH: [...new Set([gitDirectory, "/usr/bin", "/bin"])].join(delimiter) };
+  const environment = { PATH: await restrictedGitPath(root) };
   const cliPath = join(root, "node_modules/.bin/arc");
   const cli = await readFile(cliPath);
   await unlink(cliPath);

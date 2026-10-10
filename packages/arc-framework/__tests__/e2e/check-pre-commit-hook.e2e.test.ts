@@ -47,7 +47,7 @@ async function fixture(options: { disabled?: boolean; absent?: boolean; missingC
 
 async function commit(cwd: string, executableDirectories: string[] = []): Promise<{ exitCode: number; output: string }> {
   try {
-    const env: NodeJS.ProcessEnv = { ...process.env, PATH: [...executableDirectories, await restrictedGitPath()].join(delimiter), NO_COLOR: "1" };
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: [...executableDirectories, await restrictedGitPath(cwd)].join(delimiter), NO_COLOR: "1" };
     delete env.FORCE_COLOR;
     const result = await exec("git", ["commit", "-m", "changed"], { cwd, env });
     return { exitCode: 0, output: result.stdout + result.stderr };
