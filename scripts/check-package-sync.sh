@@ -1,13 +1,14 @@
 #!/bin/bash
-# Project-specific pre-commit check: package-project sync direction + integrity.
-# Called from .husky/pre-commit AFTER the ARC pre-commit hook.
+# Project-specific package-project sync direction and integrity check.
+# Supplied paths use ARC_CHECK_BASE and ARC_CHECK_MERGED; no paths select the
+# current index changes against HEAD and any pending merge parent.
 #
 # This check is dev-only — it only applies to the ARC framework repo where
 # packages/arc-framework/arc/ (authoritative source) and .arc/ (project instance)
 # coexist. It does NOT ship to adopters via the ARC hook system.
 #
-# Two checks per staged .arc/ file (per manifest classification):
-# 1. Framework files staged without package counterpart → warning (wrong direction)
+# Two checks per selected .arc/ file (per manifest classification):
+# 1. Framework files selected without package counterpart → warning (wrong direction)
 # 2. Configurable files byte-identical to package source → error (blind cp).
 #    Configurable files diverge by design; identical content means project
 #    overrides were silently overwritten (e.g., by `cp pkg/<f> .arc/<f>`).
@@ -27,30 +28,46 @@ if [ ! -f "$manifest_file" ] || [ ! -d "$pkg_arc" ]; then
     exit 0
 fi
 
-staged_arc_files=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^\.arc/(README\.md|reference/|system/)' | \
-    grep -v '\.arc/system/\.internal/' || true)
-
-if [ -z "$staged_arc_files" ]; then
-    exit 0
+if [ "$#" -gt 0 ]; then
+    check_base="${ARC_CHECK_BASE:-}"
+    if [ -z "$check_base" ]; then
+        echo "Error: ARC_CHECK_BASE is required when package-sync paths are supplied." >&2
+        exit 1
+    fi
+    changed_paths=("$@")
+else
+    check_base="HEAD"
+    changed_paths=()
+    while IFS= read -r -d '' changed_path; do
+        changed_paths+=("$changed_path")
+    done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 fi
 
 unsynced_framework=""
 clobbered_configurable=""
-# Merge commits stage content inherited from the incoming parent; a staged blob
-# byte-identical to its MERGE_HEAD version was resolved, not authored, in this
-# commit — exempt it from both checks (e.g., merging in a base where the two
-# copies of a Configurable file deliberately converged).
-merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
-while IFS= read -r arc_file; do
-    [ -z "$arc_file" ] && continue
+merged_parents=()
+if [ "$#" -gt 0 ]; then
+    read -r -a merged_parents <<< "${ARC_CHECK_MERGED:-}"
+else
+    merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
     if [ -n "$merge_head" ]; then
-        staged_blob=$(git show ":$arc_file" 2>/dev/null || true)
-        merge_head_blob=$(git show "MERGE_HEAD:$arc_file" 2>/dev/null || true)
-        if [ -n "$staged_blob" ] && [ "$staged_blob" = "$merge_head_blob" ]; then
-            continue
-        fi
+        merged_parents=("$merge_head")
     fi
+fi
+for arc_file in "${changed_paths[@]}"; do
+    case "$arc_file" in
+        .arc/system/.internal/*) continue ;;
+        .arc/README.md|.arc/reference/*|.arc/system/*) ;;
+        *) continue ;;
+    esac
+    staged_content=$(git rev-parse -q --verify ":$arc_file" 2>/dev/null || true)
+    # A checked blob inherited verbatim from any incoming parent was not authored here.
+    for parent in "${merged_parents[@]}"; do
+        parent_content=$(git rev-parse -q --verify "$parent:$arc_file" 2>/dev/null || true)
+        if [ -n "$staged_content" ] && [ "$staged_content" = "$parent_content" ]; then
+            continue 2
+        fi
+    done
     # Get .arc/-relative path for manifest lookup
     rel_path="${arc_file#.arc/}"
     # Check classification in manifest (simple grep — one entry per file)
@@ -63,36 +80,39 @@ while IFS= read -r arc_file; do
             # so check both the direct path and the .template.md variant.
             pkg_file="$pkg_arc/$rel_path"
             pkg_template="${pkg_file%.md}.template.md"
-            pkg_staged=$(git diff --cached --name-only | grep -F -e "$pkg_file" -e "$pkg_template" || true)
+            pkg_staged=""
+            for changed_path in "${changed_paths[@]}"; do
+                if [ "$changed_path" = "$pkg_file" ] || [ "$changed_path" = "$pkg_template" ]; then
+                    pkg_staged="$changed_path"
+                    break
+                fi
+            done
             if [ -z "$pkg_staged" ]; then
                 unsynced_framework="${unsynced_framework}${arc_file}\n"
             fi
             ;;
         Configurable)
-            # Configurable files diverge by design when project overrides exist.
-            # Blind-cp signature: overrides existed at HEAD (HEAD-.arc/ differed
-            # from HEAD-packages/), and the staged .arc/ is now byte-identical
-            # to the package working tree. Compare HEAD-to-HEAD for the
-            # "overrides existed" check — comparing HEAD-.arc/ against the
-            # package working tree conflates "overrides existed" with "package
-            # was edited in this commit," producing false positives when the
-            # framework author legitimately edits both copies of a file that
-            # had no project-specific override at HEAD.
             pkg_file="$pkg_arc/$rel_path"
-            if [ -f "$pkg_file" ]; then
-                staged_content=$(git show ":$arc_file" 2>/dev/null || true)
-                head_arc=$(git show "HEAD:$arc_file" 2>/dev/null || true)
-                head_pkg=$(git show "HEAD:$pkg_file" 2>/dev/null || true)
-                pkg_content=$(cat "$pkg_file")
-                if [ -n "$staged_content" ] \
-                    && [ "$staged_content" = "$pkg_content" ] \
-                    && [ "$head_arc" != "$head_pkg" ]; then
-                    clobbered_configurable="${clobbered_configurable}${arc_file}\n"
-                fi
+            pkg_content=$(git rev-parse -q --verify ":$pkg_file" 2>/dev/null || true)
+            base_arc=$(git rev-parse -q --verify "$check_base:$arc_file" 2>/dev/null || true)
+            base_pkg=$(git rev-parse -q --verify "$check_base:$pkg_file" 2>/dev/null || true)
+            if [ -n "$staged_content" ] \
+                && [ "$staged_content" = "$pkg_content" ] \
+                && [ "$base_arc" != "$base_pkg" ]; then
+                # No override remains attributable to the base when an incoming
+                # parent's two copies have already converged.
+                for parent in "${merged_parents[@]}"; do
+                    parent_arc=$(git rev-parse -q --verify "$parent:$arc_file" 2>/dev/null || true)
+                    parent_pkg=$(git rev-parse -q --verify "$parent:$pkg_file" 2>/dev/null || true)
+                    if [ -n "$parent_arc" ] && [ "$parent_arc" = "$parent_pkg" ]; then
+                        continue 2
+                    fi
+                done
+                clobbered_configurable="${clobbered_configurable}${arc_file}\n"
             fi
             ;;
     esac
-done <<< "$staged_arc_files"
+done
 
 # Configurable blind-sync — hard error. Surfaced first so it's visible above
 # any Framework warning when both fire on the same commit.

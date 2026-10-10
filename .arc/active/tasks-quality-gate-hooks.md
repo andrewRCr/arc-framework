@@ -604,27 +604,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   containment and mutation safeguards. Ignored paths are named in refusals; the formatter writes untracked files
   without staging them, and explicit migration audits load the same files and evidence as automatic selection.
 
-### `[ ]` **7.3 The package-sync check reads the exported base and merged-in parents — D11**
+### `[x]` **7.3 The package-sync check reads the exported base and merged-in parents — D11**
 
 - _Goal:_ `check-package-sync.sh`, as a `files` check reading the index, still catches a blind copy over any range
   while passing content a merge brought in.
 
-    - The script takes its paths from its arguments rather than `git diff --cached`, reads both copies from the index
-      rather than the package copy from the worktree, and counts a Framework file's package counterpart as changed when
-      it is among the paths it received
-    - Called with no paths, as the `.husky/pre-commit` chain calls it until Task 7.4 retires the chain, it keeps
-      checking the staged paths against `HEAD`
-    - Build `test-first` (one behavior at a time):
-        - it checks the paths it receives, over a range whose checked tree is `HEAD` included
-        - it reads each path's prior content at `ARC_CHECK_BASE` rather than `HEAD`, and both copies' content from the
-          index the verb points it at
-        - content equal to a merged-in parent's (`ARC_CHECK_MERGED`) passes, over one merge's range and over a longer
-          range carrying one
-        - an override a merged-in parent's two copies no longer differ on is not counted
-        - an identical edit of both copies after a base merge dropped their override passes
-        - a blind copy still fails at its own commit
-        - given paths with no `ARC_CHECK_BASE` exported, it fails, naming the missing base
-        - called with no paths, it checks the staged paths against `HEAD` as before
+- _Outcome:_ The sync check consumes supplied paths, both copies from the selected index, and prior overrides at
+  `ARC_CHECK_BASE`. Incoming-parent content and parents whose copies converged are exempted across merge ranges; a
+  blind copy still fails at its own commit. Missing bases refuse explicitly, and no-argument staged checks remain.
 
 ### `[ ]` **7.4 This repository's declaration replaces the hook chain and gate blocks — D11**
 
