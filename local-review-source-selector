@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-review-source-selector",
+  "claimId": "a975edc1675c84cd96d5127e3d9eb3bc",
+  "createdAt": "2026-10-10T16:05:34.435Z",
+  "updatedAt": "2026-10-10T16:05:34.435Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Use the review source identity for local predecessor applicability selectors and pin evaluator identity handling.",
+  "branch": "chore/local-review-source-selector",
+  "origin": "inbox",
+  "originEntry": "Name a local predecessor's review source, not its evaluator, in incremental-applicability selectors",
+  "originEntrySourceDigest": "sha256:f0b09ae1c1b7a3a94c73c9a566bbff61070282f866c29378f8cc3762ce192c40",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
