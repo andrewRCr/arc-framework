@@ -35,11 +35,11 @@ seam-record-kinds        the record kinds every other member writes or reads; sh
 Each member's `Depends On` edges are the source of truth: every other member depends on `seam-record-kinds`, and
 `storage-cutover` depends on all six. These orderings are not edges:
 
-- **Two members in design at once.** At most two members are in drafting or spec creation at a time; when one reaches
-  `generate-tasks`, the next starts. `seam-record-kinds` and `seam-lifecycle` design first; the next slot goes to
-  `seam-locus` when record kinds reaches `generate-tasks`, and the slots after it to `seam-delivery-review` and
-  `seam-decomposition`; `seam-status-roadmap` designs after locus, whose in-flight model it renders (Owner, 2026-10-09).
-  This order is coordination, never a `Depends On` edge, which clears only when its dependency ships.
+- **Design order (Owner, 2026-10-09).** The best sequence when attention allows; the Owner decides when each member
+  starts. `seam-record-kinds` and `seam-lifecycle` design first; `seam-locus` starts when record kinds reaches
+  `generate-tasks`; then `seam-delivery-review` and `seam-decomposition`; `seam-status-roadmap` designs after locus,
+  whose in-flight model it renders. This order is coordination, never a `Depends On` edge, which clears only when its
+  dependency ships.
 - **The safety net.** Anything a member takes from a sibling that the shared decisions left open waits on the provider:
   the consumer drafts once the provider's draft settles it, and its spec is approved only after the provider's spec,
   with a re-read of what it consumes. This is stricter than the parent cohort's design-overlap rule, which holds back

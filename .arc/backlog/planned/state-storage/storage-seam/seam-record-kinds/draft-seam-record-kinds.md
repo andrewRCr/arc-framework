@@ -13,9 +13,9 @@
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, with the
   shared decisions it owns (items 1–8 and 11), from a draft the readiness check found formalization-ready for the cut
   (2026-10-09); what stays open is this member's own detail design.
-- **Next:** draft-design, in the first design pair with `seam-lifecycle` (`cohort-storage-seam.md` § Coordination):
-  re-verify the modules its kinds replace or extend against the current code, then carry the settled decisions into its
-  spec.
+- **Next:** draft-design, first in the seam's design order with `seam-lifecycle` (`cohort-storage-seam.md`
+  § Coordination): re-verify the modules its kinds replace or extend against the current code, then carry the settled
+  decisions into its spec.
 
 **Reading this draft.** `cohort-storage-seam.md` holds the seam's coordination, its scope boundary, and how the
 register's keys are cited. A `§ Shared decisions` item lives in its owner's draft: items 1–8 and 11 in
