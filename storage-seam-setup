@@ -3,7 +3,7 @@
   "slug": "storage-seam-setup",
   "claimId": "ff6e18b801bd1e915c3abf51f56111e4",
   "createdAt": "2026-10-10T13:12:12.273Z",
-  "updatedAt": "2026-10-10T13:12:12.273Z",
+  "updatedAt": "2026-10-10T15:01:00.922Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Land the storage seam setup: an import ratchet holding new code to the storage contract (raw state helpers to lib/store/, surface-name literals to the layout resolver, floored in eslint-suppressions.json), and ADR-022 to Accepted with its retired cross-machine-sync-coherence references re-pointed to partial-push-marker",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Hold new code to the storage contract with an import ratchet, drained to zero by the rerouting",
   "originEntrySourceDigest": "sha256:99a78f45019ebc8acbf3e2eddf92628d6a6e572ac2ea30469230b80cf7d11f5d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/storage-seam-setup",
+    "headSha": "8803450378ea5ffd2ee6bbcc3eff59541691222b"
+  }
 }
