@@ -522,34 +522,15 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
 - _Goal:_ A project's existing gate commands survive the tier surfaces' retirement as a gate-unset proposed declaration
   on update, and initial setup authors a declaration with the person.
 
-    - `[ ]` **6.4.a Extraction**
-        - Sources as they stood before the command wrote anything, all read before `applyChangePlan`:
-          `QUICK-REFERENCE.md` § Quality Gate Commands, which a Configurable merge may rewrite; the
-          `quality-gate-commands` override section when active; and the two extensions' `.actions` when populated.
-          Reconfigure may delete a retired file or drop it from tracking (`applyRemovalDecisions`), so nothing is read
-          after apply
-        - Tier headings match by their `Tier N` token, since heading text varies by project
-        - Build `test-first` (one behavior at a time):
-            - each command line in a tier's fenced `bash` or `sh` block, other than comments and bracketed
-              placeholders, becomes one proposed check with a `shell: true` string command
-            - its gate is unset, with a comment naming the mapped gate (Tier 1 or `post-task-quality` to `commit`,
-              Tier 2 or `post-unit-quality` to `push`, Tier 3 to `merge`) and a comment naming its source
-            - a command found at several tiers is proposed once, mapped to the earliest
-            - an action written as prose is reported as unextractable
+    - `[x]` **6.4.a Extraction**
+        - `bootstrap-extraction.ts` proposes shell commands from tier headings, active method overrides, and
+          populated extension actions, leaving gates unset with mapped-gate and source comments.
+        - Duplicate commands retain every source and the earliest mapped gate; prose is reported for manual authoring.
 
-    - `[ ]` **6.4.b Write and report in `arc update` and `arc reconfigure`**
-        - One function, called from `runUpdate` (`update.ts`) and `runReconfigure` (`reconfigure.ts`) when the change
-          plan's removals (`buildChangePlan`) include a retired surface; each command reports through its own summary
-          (`buildUpdateSummary`, and the result `handleReconfigure` renders in `handlers/init.ts`)
-        - Its tests drive it with a change plan whose removals carry the retired surfaces, since the shipped recipe
-          lists them until Task 6.5.a
-        - Build `test-first` (one behavior at a time):
-            - with no declaration, update writes the proposal and reports every extracted and unextractable source
-            - with a declaration present, it writes nothing and still reports
-            - a reconfigure whose plan retires the surfaces writes the proposal whether the person removes the files or
-              keeps them untracked
-            - no proposed check has a gate, so no hook dispatches it and no gate request selects it
-            - the written proposal opens with the reference `editorDocumentReference` returns for its path
+    - `[x]` **6.4.b Write and report in `arc update` and `arc reconfigure`**
+        - Both commands call `bootstrapRetiredChecks` over original planned removals before applying file changes,
+          preserving existing declarations and reporting extracted commands and prose through their summaries.
+        - Proposals retain unset gates and the generated editor reference whether retired files are removed or kept.
 
     - `[ ]` **6.4.c Initial setup authors the declaration**
         - `02_define-project.template.md`'s Step 4 tier question becomes authoring the declaration with the person,

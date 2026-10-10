@@ -1142,6 +1142,7 @@ describe("update integration — error cases", () => {
 
 describe("buildUpdateSummary", () => {
   const baseResult: UpdateResult = {
+    checkBootstrap: null,
     updated: 0,
     migrated: [],
     conflicts: [],

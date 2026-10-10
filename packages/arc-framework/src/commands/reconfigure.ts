@@ -10,6 +10,7 @@
 
 import { join } from "node:path";
 
+import { bootstrapRetiredChecks, type CheckBootstrapReport } from "../lib/checks/bootstrap.js";
 import type { IOContext } from "./init.js";
 import {
   buildConfigMap,
@@ -89,6 +90,8 @@ export interface DryRunResult {
 
 /** Result from a successful reconfigure run. */
 export interface ReconfigureResult {
+  /** Preserved commands from retired check surfaces. */
+  checkBootstrap: CheckBootstrapReport | null;
   /** Files cleanly updated with re-rendered content. */
   updated: number;
   /** Conflicted file paths requiring manual resolution. */
@@ -201,6 +204,8 @@ export async function runReconfigure(
     };
   }
 
+  const originalRemovals = [...plan.removals];
+
   // Resolve removals interactively if callback provided
   let keptByUser: string[] = [];
   if (plan.removals.length > 0 && options.resolveRemovals) {
@@ -210,6 +215,8 @@ export async function runReconfigure(
     plan.removals = applied.toRemove;
     keptByUser = applied.toKeep.map((r) => r.outputPath);
   }
+
+  const checkBootstrap = await bootstrapRetiredChecks(arcDir, originalRemovals, io);
 
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
@@ -256,6 +263,7 @@ export async function runReconfigure(
   await atomicWriteJson(pristineStorePath, applyResult.newPristineStore);
 
   return {
+    checkBootstrap,
     updated: applyResult.updated,
     conflicts: applyResult.conflicts,
     pristineRebuilt: applyResult.pristineRebuilt,

@@ -13,6 +13,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { writeFile as fsWriteFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
+import { bootstrapRetiredChecks, checkBootstrapSummary, type CheckBootstrapReport } from "../lib/checks/bootstrap.js";
 import type { IOContext } from "./init.js";
 import {
   buildConfigMap,
@@ -103,6 +104,8 @@ export interface UpdateResult {
   pristineStoreError: PristineStoreError;
   /** Rewritten manager configurations and unresolved hook upgrade notices. */
   hookUpgrade: HookUpgradeReport;
+  /** Preserved commands from retired check surfaces. */
+  checkBootstrap: CheckBootstrapReport | null;
 }
 
 interface ConfigMigrationResult {
@@ -388,6 +391,8 @@ export async function runUpdate(
   // Build change plan (pure computation)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
 
+  const checkBootstrap = await bootstrapRetiredChecks(arcDir, plan.removals, io);
+
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
   const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
@@ -469,6 +474,7 @@ export async function runUpdate(
 
   // Compose final result from apply result + update-specific fields
   return {
+    checkBootstrap,
     updated: applyResult.updated,
     migrated: [...migrated],
     conflicts: applyResult.conflicts,
@@ -618,5 +624,6 @@ export function buildUpdateSummary(result: UpdateResult): string {
     }
   }
 
+  lines.push(...checkBootstrapSummary(result.checkBootstrap));
   return lines.join("\n");
 }
