@@ -69,7 +69,7 @@ arithmetically changed by this metric correction.
 
 ## Warm-run measurement practice
 
-Current local captures require one successful discarded warm-up before each retained sample. The
+Current local captures use schema v5 and require one successful discarded warm-up before each retained sample. The
 `benchmark:test-cost` entry runs the same project set with the same resolved worker sizing twice in the same checkout.
 Both controllers complete setup, execution, teardown, and closing; only the second run's timings, files, and test
 counts enter the retained JSON. The retained clock starts after the warm-up releases its ownership, and its CPU
@@ -80,9 +80,14 @@ and collect retained samples in the same complete mode for normalization. Every 
 exclude warm-up output from normalization and comparison. Warm-up is a procedure for reducing cold-cache effects,
 not proof that every dependency, transform, or filesystem cache is warm.
 
+Readers, normalization, and comparison require schema v5. Earlier records do not establish this protocol and must
+be remeasured with a schema-v5 entry; never upgrade them by changing their version field. Schema v5 preserves the
+schema-v4 cost arithmetic and identifies the complete discarded warm-up before each retained sample.
+
 For measurements at named refs, prepare and warm each ref's checkout separately with the same project set, worker
-sizing, and host conditions. Use that ref's measurement entry to retain its samples. If its entry predates automatic
-warm-up, first complete and discard one equivalent run; exclude that run from the retained sample group. The
+sizing, and host conditions. Each ref needs a schema-v5 measurement entry that completes the discarded warm-up
+before retaining each sample. If its entry predates that protocol, apply the same measurement instrumentation to the
+checkout before collecting new samples. A manually discarded run does not make an older record eligible. The
 comparison command analyzes retained files and does not prepare or warm refs. Never mix cold and warmed samples in
 one baseline or lever comparison.
 

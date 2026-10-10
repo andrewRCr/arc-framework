@@ -28,7 +28,7 @@ export interface TestCostRunDependencies {
 }
 
 export interface RetainedTestCostRun {
-  readonly schemaVersion: 4;
+  readonly schemaVersion: 5;
   readonly outcome: "passed";
   readonly unhandledErrorCount: 0;
   readonly requestedWorkerSizing: string;
@@ -101,7 +101,7 @@ export async function runTestCostMeasurement(
   await executePass();
   const { startedAtMs, captured, elapsedMs, waitMs } = await executePass();
   const run: RetainedTestCostRun = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     outcome: "passed",
     unhandledErrorCount: 0,
     capturedAt: new Date(startedAtMs).toISOString(),

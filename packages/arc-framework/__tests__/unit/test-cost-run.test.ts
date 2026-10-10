@@ -58,7 +58,7 @@ describe("runTestCostMeasurement", () => {
   it("discards a complete warm-up and retains only the second controller's costs", async () => {
     const fixture = nativeBoundary();
     const run = await runTestCostMeasurement(input, fixture.dependencies);
-    expect(run).toMatchObject({ schemaVersion: 4, outcome: "passed", unhandledErrorCount: 0,
+    expect(run).toMatchObject({ schemaVersion: 5, outcome: "passed", unhandledErrorCount: 0,
       capturedAt: new Date(1_143).toISOString(), wallClockMs: 143,
       summedFileTimeMs: 70, fileCount: 1, testCount: 1, cliSpawnCount: 0,
       files: [{ path: "cost.test.ts", executionDurationMs: 30 }],

@@ -23,7 +23,7 @@ it("retains a heavy measurement only after owned setup, teardown, and controller
     expect(events).not.toContain('"owned":false');
     expect(events).toContain("closing-owned:true:false");
     const record = JSON.parse(await readFile(output, "utf8"));
-    expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", unhandledErrorCount: 0,
+    expect(record).toMatchObject({ schemaVersion: 5, outcome: "passed", unhandledErrorCount: 0,
       mode: { projectSet: "integration", workerSizing: "1" }, requestedWorkerSizing: "1", fileCount: 1, testCount: 1 });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
@@ -87,7 +87,7 @@ it("native metadata case", () => {
     const lastClosingEnd = Math.max(...retainedClosing.map((event) => event.closingEnd));
     expect(Date.parse(record.capturedAt) + record.wallClockMs + (record.admissionWaitMs ?? 0))
       .toBeGreaterThanOrEqual(lastClosingEnd);
-    expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", cliSpawnCount: 2 });
+    expect(record).toMatchObject({ schemaVersion: 5, outcome: "passed", cliSpawnCount: 2 });
     expect(record.files.flatMap((file) => file.tests).find((test) => test.name === "native metadata case"))
       .toMatchObject({ cliSpawnCount: 2, cliTimeoutMs: 1500, vitestTimeoutMs: 5000 });
     expect(normalizeRetainedTestCostRuns([record]).summary).toMatchObject({ sampleCount: 1, cliSpawnCount: 2 });
