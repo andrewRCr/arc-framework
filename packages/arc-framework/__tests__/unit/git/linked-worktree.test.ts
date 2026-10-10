@@ -233,17 +233,19 @@ describe("setupLinkedWorktree", () => {
     expect(copied).toBe(false);
   });
 
-  it("copies ignored include-file matches before post-create and harness directories", async () => {
+  it("copies matches the new worktree ignores before post-create and harness directories", async () => {
     const events: string[] = [];
     const includeFile = join("/work/repo", ".worktreeinclude");
 
     await setupLinkedWorktree({
-      exec: async (command, args) => {
-        events.push([command, ...args].join(" "));
-        if (args.includes(`--exclude-from=${includeFile}`)) {
+      exec: async (command, args, options) => {
+        events.push(`${options?.cwd ?? "-"}: ${[command, ...args].join(" ")}`);
+        if (args[0] === "ls-files") {
           return { stdout: ".env\0.arc/user/notes.md\0config/local.json\0notes.txt\0" };
         }
-        if (args.includes("--exclude-standard")) return { stdout: ".env\0config/local.json\0" };
+        if (args[0] === "check-ignore" && args.at(-1) === "./notes.txt") {
+          throw makeGitProcessError({ command, args, exitCode: 1, stderr: "" });
+        }
         return { stdout: "" };
       },
       fs: {
@@ -267,12 +269,13 @@ describe("setupLinkedWorktree", () => {
       ? "cmd.exe /d /s /c npm install"
       : "sh -c npm install";
     expect(events).toEqual([
-      `git ls-files --others --ignored -z --exclude-from=${includeFile}`,
-      "git ls-files --others --ignored --exclude-standard -z -- "
-        + ":(literal).env :(literal)config/local.json :(literal)notes.txt",
+      `/work/repo: git ls-files --others --ignored -z --exclude-from=${includeFile}`,
+      "/work/target: git check-ignore -q -- ./.env",
       `copy-file ${join("/work/repo", ".env")} ${join("/work/target", ".env")}`,
+      "/work/target: git check-ignore -q -- ./config/local.json",
       `copy-file ${join("/work/repo", "config/local.json")} ${join("/work/target", "config/local.json")}`,
-      command,
+      "/work/target: git check-ignore -q -- ./notes.txt",
+      `/work/target: ${command}`,
       `copy ${join("/work/repo", ".codex")} ${join("/work/target", ".codex")}`,
     ]);
   });
