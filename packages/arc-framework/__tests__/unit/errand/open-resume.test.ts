@@ -233,6 +233,35 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
       updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
   });
 
+  it.each([
+    ["intent", "maximum length", "x".repeat(4_096)],
+    ["intent", "escape expansion", "\u0001".repeat(1_024)],
+    ["inbox entry", "maximum length", "x".repeat(4_096)],
+    ["inbox entry", "escape expansion", "\u0001".repeat(1_024)],
+  ] as const)("bounds the recorded %s at %s and resumes without the conflicting selector", async (field, _boundary, value) => {
+    const record = parseOrdinaryErrandRecord({ ...makeRecord(), ...(field === "intent" ? { intent: value } : {
+      origin: "inbox", originEntry: value, originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
+    }) });
+    const fixture = resumeFixture(record);
+    const refusal = await fixture.run(field === "intent" ? { intent: "changed" } : { inbox: {
+      title: "Other capture", sourceDigest: `sha256:${"b".repeat(64)}`, executeBound: true,
+    } });
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText.length).toBeLessThanOrEqual(4_096);
+    expect(refusal.recommendedPromptText).toContain(`Recorded ${field}: `);
+    expect(refusal.recommendedPromptText).toContain(JSON.stringify(value.slice(0, 16)).slice(1, -1));
+    expect(refusal.recommendedPromptText).toContain("(truncated)");
+    expect(refusal.recommendedPromptText).toMatch(field === "intent"
+      ? /Rerun without --intent to resume with the recorded intent\.$/u
+      : /Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file to resume with the recorded origin\.$/u);
+    expect(fixture.read()).toEqual({ record, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
+      key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
+    } });
+    expect(fixture.read()).toEqual({ record: { ...record, state: "open", savedHead: null, changeRequest: null,
+      updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
+  });
+
   it.each(["different title", "replacement generation", "description origin"])("names the recorded inbox entry for a %s and resumes without the selector", async (change) => {
     const record = change === "description origin" ? makeRecord() : parseOrdinaryErrandRecord({ ...makeRecord(), origin: "inbox", originEntry: "Fix output capture",
       originEntrySourceDigest: `sha256:${"a".repeat(64)}` });
@@ -244,7 +273,7 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
     expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
     expect(refusal.recommendedPromptText).toContain(change === "description origin"
       ? "Recorded inbox entry: none (description-origin Errand)." : 'Recorded inbox entry: "Fix output capture".');
-    expect(refusal.recommendedPromptText).toContain("Rerun without --from-inbox or --inbox-title-file");
+    expect(refusal.recommendedPromptText).toContain("Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file");
     expect(fixture.read()).toEqual({ record, provisioned: false });
     expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: {
       key: record.slug, claimId: record.claimId, state: "open", originEntry: record.originEntry,
