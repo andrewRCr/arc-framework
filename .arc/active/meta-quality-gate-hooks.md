@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Measure the per-increment check baseline
+- **Last Completed:** Task 7.10 — First consumer end to end (Phase 7 complete)
+- **Next Task:** Task 8.1 — Complete verification (line ~719)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — record SC17's baseline before any change alters what a task runs
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md` in a fresh session.
 
 - **PR URL:** [none]
 - **Completed:** [none]
