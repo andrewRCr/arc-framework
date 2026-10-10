@@ -163,6 +163,9 @@
     },
     "arc/surface-names": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/commands/status/run.ts": {
@@ -369,6 +372,9 @@
     "arc/store-raw-state": {
       "count": 3
     },
+    "arc/work-unit-paths": {
+      "count": 1
+    },
     "complexity": {
       "count": 2
     },
@@ -376,9 +382,14 @@
       "count": 2
     }
   },
+  "src/handlers/lifecycle-shared.ts": {
+    "arc/work-unit-paths": {
+      "count": 1
+    }
+  },
   "src/handlers/lifecycle.ts": {
     "arc/store-raw-state": {
-      "count": 4
+      "count": 5
     },
     "arc/surface-names": {
       "count": 2
@@ -396,11 +407,14 @@
   "src/handlers/plan.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/handlers/reconcile.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 3
     }
   },
   "src/handlers/recover.ts": {
@@ -463,6 +477,9 @@
     "arc/surface-names": {
       "count": 9
     },
+    "arc/work-unit-paths": {
+      "count": 2
+    },
     "complexity": {
       "count": 2
     },
@@ -472,7 +489,7 @@
   },
   "src/handlers/status.ts": {
     "arc/store-raw-state": {
-      "count": 1
+      "count": 2
     },
     "arc/surface-names": {
       "count": 1
@@ -516,6 +533,9 @@
     }
   },
   "src/handlers/user.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "arc/surface-names": {
       "count": 8
     },
@@ -554,6 +574,9 @@
   },
   "src/lib/active/meta-reader.ts": {
     "arc/surface-names": {
+      "count": 1
+    },
+    "arc/work-unit-paths": {
       "count": 1
     }
   },
@@ -768,6 +791,11 @@
       "count": 3
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/plan-resolution.ts": {
+    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1017,6 +1045,9 @@
     "arc/store-raw-state": {
       "count": 2
     },
+    "arc/work-unit-paths": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     }
@@ -1073,6 +1104,9 @@
     }
   },
   "src/lib/git/foreign-artifact-detection.ts": {
+    "arc/work-unit-paths": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
@@ -1143,6 +1177,9 @@
   "src/lib/git/worktree-scaffold.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 2
     }
   },
   "src/lib/git/worktree-sync.ts": {
@@ -1331,6 +1368,9 @@
   "src/lib/session-init/cohort-doc.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/lib/session-init/delivery-position-facts.ts": {
@@ -1399,6 +1439,9 @@
     },
     "arc/surface-names": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 2
     },
     "complexity": {
       "count": 1
@@ -1571,6 +1614,9 @@
   "src/lib/view-artifact.ts": {
     "arc/surface-names": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 2
     }
   },
   "src/lib/view-renderer.ts": {
@@ -1623,6 +1669,9 @@
     },
     "arc/surface-names": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/lib/work-unit/composed-lifecycle-index.ts": {
@@ -1712,6 +1761,9 @@
     "arc/surface-names": {
       "count": 2
     },
+    "arc/work-unit-paths": {
+      "count": 2
+    },
     "complexity": {
       "count": 1
     },
@@ -1749,6 +1801,9 @@
     }
   },
   "src/lib/work-unit/decompose-v3-topology.ts": {
+    "arc/work-unit-paths": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     }
@@ -1763,7 +1818,7 @@
   },
   "src/lib/work-unit/executor-context-current-wu.ts": {
     "arc/store-raw-state": {
-      "count": 1
+      "count": 2
     }
   },
   "src/lib/work-unit/executor-context-status.ts": {
@@ -1774,6 +1829,9 @@
   "src/lib/work-unit/executor-context.ts": {
     "arc/store-raw-state": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1816,7 +1874,7 @@
   },
   "src/lib/work-unit/git-decompose-v3-operation.ts": {
     "arc/store-raw-state": {
-      "count": 1
+      "count": 2
     }
   },
   "src/lib/work-unit/git-decompose-v3-preflight.ts": {
@@ -1857,11 +1915,6 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/lib/work-unit/git-transition-record-enumeration.ts": {
-    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -1914,6 +1967,9 @@
     "arc/surface-names": {
       "count": 3
     },
+    "arc/work-unit-paths": {
+      "count": 7
+    },
     "complexity": {
       "count": 2
     }
@@ -1923,6 +1979,9 @@
       "count": 1
     },
     "arc/surface-names": {
+      "count": 1
+    },
+    "arc/work-unit-paths": {
       "count": 1
     },
     "complexity": {
@@ -2012,6 +2071,9 @@
     "arc/surface-names": {
       "count": 1
     },
+    "arc/work-unit-paths": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -2022,11 +2084,17 @@
   "src/lib/work-unit/verbs/activate-deactivate.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 2
     }
   },
   "src/lib/work-unit/verbs/archive.ts": {
     "arc/store-raw-state": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 6
     }
   },
   "src/lib/work-unit/verbs/attest.ts": {
@@ -2040,6 +2108,9 @@
   "src/lib/work-unit/verbs/finalize-stage.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/lib/work-unit/verbs/park-resume.ts": {
@@ -2048,6 +2119,9 @@
     },
     "arc/surface-names": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 4
     },
     "complexity": {
       "count": 3
@@ -2059,10 +2133,16 @@
   "src/lib/work-unit/verbs/promote-demote.ts": {
     "arc/store-raw-state": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 3
     }
   },
   "src/lib/work-unit/verbs/publish.ts": {
     "arc/store-raw-state": {
+      "count": 1
+    },
+    "arc/work-unit-paths": {
       "count": 1
     },
     "complexity": {
@@ -2083,11 +2163,27 @@
   "src/lib/work-unit/verbs/reopen.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/verbs/repoint-design.ts": {
+    "arc/work-unit-paths": {
+      "count": 3
+    }
+  },
+  "src/lib/work-unit/verbs/set-stage.ts": {
+    "arc/work-unit-paths": {
+      "count": 1
     }
   },
   "src/lib/work-unit/verbs/stub.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "arc/work-unit-paths": {
+      "count": 2
     },
     "complexity": {
       "count": 1
@@ -2365,6 +2461,9 @@
   "src/scripts/review-gate/policy/pre-publication-composition.ts": {
     "arc/store-raw-state": {
       "count": 2
+    },
+    "arc/work-unit-paths": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1

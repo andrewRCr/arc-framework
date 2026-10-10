@@ -12,7 +12,7 @@ const innerSyntax = { selector: 'Identifier[name="innerOnly"]', message: "Inner 
 const rows: ArchitectureBanRow[] = [
   { files: [`src/${TYPESCRIPT_SCOPE}`], paths: ["outer-only"], patterns: ["blocked/**"], syntax: [outerSyntax], predicates: ["neverthrow"] },
   { files: [`src/private/${TYPESCRIPT_SCOPE}`], ignores: ["src/private/allowed.ts"], paths: ["inner-only"], syntax: [innerSyntax], predicates: ["kernel"] },
-  { files: [`src/ratchet/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state", "surface-names"] },
+  { files: [`src/ratchet/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state", "surface-names", "work-unit-paths"] },
 ];
 const plugin = { arc: { rules: Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
   [rule, createArchitectureImportsRule(resolve(packageRoot, "src"), predicates)])) } };
@@ -49,12 +49,14 @@ describe("architecture scope partitions", () => {
       "arc/architecture-imports": [2, ["neverthrow"]],
       "arc/store-raw-state": [2, ["store-raw-state"]],
       "arc/surface-names": [2, ["surface-names"]],
+      "arc/work-unit-paths": [2, ["work-unit-paths"]],
     });
   });
   it.each([
     ["architecture-imports", "store-raw-state"],
     ["store-raw-state", "neverthrow"],
     ["surface-names", "store-raw-state"],
+    ["work-unit-paths", "surface-names"],
   ])("refuses a predicate routed to another rule: arc/%s with %s", async (rule, predicate) => {
     const misrouted = new ESLint({ cwd: packageRoot, overrideConfigFile: true, overrideConfig: [
       { files: [`src/${TYPESCRIPT_SCOPE}`], plugins: plugin, rules: { [`arc/${rule}`]: ["error", [predicate]] } },

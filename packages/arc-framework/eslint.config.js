@@ -45,7 +45,7 @@ const architectureBans = [
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names", "work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
