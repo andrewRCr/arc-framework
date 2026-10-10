@@ -36,6 +36,18 @@ describe("composed architecture configuration", () => {
   });
 
   it.each([
+    ["src/lib/config/status-reader.ts", { "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]] }],
+    ["src/lib/store/in-repo/meta.ts", { "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]] }],
+    ["src/lib/layout/projection.ts", { "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined }],
+  ])("resolves the ratchet rules for %s", async (path, expected) => {
+    const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, path)) as { rules: Record<string, unknown> };
+    expect({
+      "arc/store-raw-state": configuration.rules["arc/store-raw-state"],
+      "arc/surface-names": configuration.rules["arc/surface-names"],
+    }).toEqual(expected);
+  });
+
+  it.each([
     ["src/lib/kernel/canonical/canonical-json.ts", "^zod(?:/.*)?$"],
     ["src/lib/locus/role-derivation.ts", "^(?!\\.\\./git/worktree-roster\\.js$).*"],
     ["src/lib/view-renderer.ts", "/commands/"],
