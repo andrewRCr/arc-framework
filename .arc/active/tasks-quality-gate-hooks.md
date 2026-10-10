@@ -586,30 +586,14 @@ the dry-run list, its setup job failing on a map entry that names an id the dry 
 _Design decisions:_ Tasks 7.1 to 7.3 still run this repository's QUICK-REFERENCE Tier 1 commands at each increment
 boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 
-### `[ ]` **7.1 Markdown gates read the index the verb points them at — D11**
+### `[x]` **7.1 Markdown gates read the index the verb points them at — D11**
 
 - _Goal:_ `lint:md` and `lint:md:staged` read the index the verb hands them, so as `reads_index` checks they certify
   the checked tree at the commit hook, under `git commit -a` included, and at the increment boundary.
 
-- _Context:_ ARC's Git executors drop an inherited `GIT_INDEX_FILE` from any call given a working directory
-  (`environmentForGitCwd`); `GitExecOptions.indexFile` exists, but only `createExecaGitExec` honors it, and
-  `RawGitExec`'s options have no such field.
-
-    - `lint:md:staged` drops its own trigger detection (`runStagedMarkdownGate` over `git diff --cached`), which finds
-      nothing wherever the checked tree is `HEAD`: the push hook, a forced merge request over a clean tree, and CI.
-      The verb's selection over its declared inputs replaces it, so the script certifies the index whenever it runs
-    - `runStagedMarkdownGate` and its unrelated-path test (`unit/markdown/staged-gate.test.ts`) go with the detection;
-      `enumerateStagedMarkdownGatePaths` stays for `lint:md`'s drift guard. Until Task 7.4 retires the
-      `.husky/pre-commit` chain, the chain's `lint:md:staged` certifies the index on every commit
-    - Build `test-first` (one behavior at a time):
-        - `RawGitExec` takes `indexFile` and `createExecaRawGitExec` honors it, so `readGitBlobEntry` reads a given
-          index
-        - `lint:md:staged` passes an inherited `GIT_INDEX_FILE` as `indexFile` and checks that index's content
-        - with the index equal to `HEAD`, a committed Markdown violation fails `lint:md:staged`
-        - `lint:md`'s drift guard (`findStagedMarkdownWorktreeDrift`) compares that index, not the repository's own,
-          with the worktree
-        - with no `GIT_INDEX_FILE` inherited, both read the repository's own index
-        - at the commit hook under `git commit -a`, both read the index Git hands the hook
+- _Outcome:_ Raw Git blob readers honor `indexFile`; both Markdown commands capture and forward the inherited index.
+  Staged certification runs unconditionally, including a clean `HEAD`, while the worktree drift guard retains its
+  staged-path enumeration. Native commit candidates with opposite repository indexes exercise both commands.
 
 ### `[ ]` **7.2 `format:tables` formats an untracked artifact — D11**
 

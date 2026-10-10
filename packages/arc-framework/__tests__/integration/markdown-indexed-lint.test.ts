@@ -9,7 +9,7 @@ import { lint } from "markdownlint/promise";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
-import { readGitBlobBytes } from "../../src/lib/io-context.js";
+import { gitExec, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 import {
   runIndexedMarkdownCertification,
@@ -82,10 +82,51 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
 
 describe("indexed Markdown certification", () => {
+  it.each([true, false])("certifies inherited index content independently of the repository index (invalid=%s)", async invalid => {
+    await stageFixture();
+    await stageExecutingCheckerSources();
+    await gitExec("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
+    const indexFile = join(root, ".git", "checked-index");
+    const options = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], options);
+    await write("README.md", invalid ? "# Repository index valid\n" : "repository trailing \n");
+    await gitExec("git", ["add", "README.md"], { cwd: root });
+    await write("README.md", invalid ? "trailing \n" : "# Checked index valid\n");
+    await gitExec("git", ["add", "README.md"], options);
+    vi.stubEnv("GIT_INDEX_FILE", indexFile);
+    const output: string[] = [];
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
+    try {
+      await expect(runStagedMarkdownCommand(root)).resolves.toBe(invalid ? 1 : 0);
+      if (invalid) expect(output.join("\n")).toContain("README.md:1:9 MD009/no-trailing-spaces");
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
+  it("rejects a committed Markdown violation with a clean index and succeeds after its indexed repair", async () => {
+    await stageFixture();
+    await write("README.md", "trailing \n");
+    await stageExecutingCheckerSources();
+    await execFileAsync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
+    const output: string[] = [];
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
+    try {
+      await expect(runStagedMarkdownCommand(root)).resolves.toBe(1);
+      expect(output.join("\n")).toContain("README.md:1:9 MD009/no-trailing-spaces");
+      await write("README.md", "# Repaired\n");
+      await execFileAsync("git", ["add", "README.md"], { cwd: root });
+      await expect(runStagedMarkdownCommand(root)).resolves.toBe(0);
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
   it("reports an invalid staged blob even when an unstaged worktree fix is valid", async () => {
     await stageFixture();
     await write("README.md", "trailing \n");

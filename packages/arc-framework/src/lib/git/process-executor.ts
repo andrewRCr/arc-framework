@@ -165,9 +165,12 @@ export function createExecaRawGitExec(
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
     const environment = environmentForGitCwd(effectiveCwd);
+    const indexedEnvironment = options.indexFile === undefined
+      ? environment
+      : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
     const objectEnvironment = options.objectAccess === "local-only"
-      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
-      : environment;
+      ? { ...(indexedEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : indexedEnvironment;
     const env = applyNonInteractiveSshEnvironment(
       applyInteractionEnvironment(objectEnvironment, {
         terminalPrompts: "forbidden",

@@ -1,4 +1,4 @@
-/** NUL-safe relevant-change gating for exact-index Markdown certification. */
+/** Relevant Markdown inputs and NUL-safe staged-path enumeration. */
 
 import type { GitExec } from "../git/index.js";
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
@@ -40,31 +40,12 @@ export const MARKDOWN_GATE_INPUT_PATHS = [
 
 const MARKDOWN_GATE_INPUT_SET = new Set<string>(MARKDOWN_GATE_INPUT_PATHS);
 
-/** Result of lightweight staged-path detection. */
-export interface StagedMarkdownGateResult {
-  readonly triggered: boolean;
-  readonly changedPaths: readonly ManagedPath[];
-}
-
-/** Dependencies for running relevant-change detection before certification. */
-export interface RunStagedMarkdownGateOptions {
-  readonly root: string;
-  readonly exec: GitExec;
-  readonly certify: () => Promise<void>;
-  readonly runtimePaths?: ReadonlySet<string>;
-}
-
-/** Whether one changed repository-relative path requires full staged Markdown certification. */
-function isMarkdownGateTriggerPathWithRuntime(rawPath: string, runtimePaths: ReadonlySet<string>): boolean {
-  const path = validateManagedPath(rawPath);
-  if (runtimePaths.has(path) || MARKDOWN_GATE_INPUT_SET.has(path) || isMarkdownConfigurationPath(path)) return true;
-  if (!path.endsWith(".md")) return false;
-  return !isMarkdownPathExcluded(validateMarkdownPath(path));
-}
-
 /** Whether one changed repository-relative path requires full staged Markdown certification. */
 export function isMarkdownGateTriggerPath(rawPath: string): boolean {
-  return isMarkdownGateTriggerPathWithRuntime(rawPath, MARKDOWN_GATE_INPUT_SET);
+  const path = validateManagedPath(rawPath);
+  if (MARKDOWN_GATE_INPUT_SET.has(path) || isMarkdownConfigurationPath(path)) return true;
+  if (!path.endsWith(".md")) return false;
+  return !isMarkdownPathExcluded(validateMarkdownPath(path));
 }
 
 /** Enumerate staged paths without rename compression so both sides of a rename remain visible. */
@@ -75,13 +56,4 @@ export async function enumerateStagedMarkdownGatePaths(root: string, exec: GitEx
     { cwd: root },
   );
   return stdout.split("\0").filter(Boolean).map(validateManagedPath);
-}
-
-/** Exit after lightweight detection for unrelated candidates; otherwise run full certification once. */
-export async function runStagedMarkdownGate(options: RunStagedMarkdownGateOptions): Promise<StagedMarkdownGateResult> {
-  const changedPaths = await enumerateStagedMarkdownGatePaths(options.root, options.exec);
-  const runtimePaths = options.runtimePaths ?? MARKDOWN_GATE_INPUT_SET;
-  const triggered = changedPaths.some((path) => isMarkdownGateTriggerPathWithRuntime(path, runtimePaths));
-  if (triggered) await options.certify();
-  return { triggered, changedPaths };
 }
