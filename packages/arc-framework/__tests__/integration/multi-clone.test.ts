@@ -49,11 +49,8 @@ import {
 import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
-import {
-  reconcileErrandPush,
-  errandsRef,
-  type ErrandRecordIO,
-} from "../../src/lib/errand/index.js";
+import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
+import { errandsRef } from "../../src/lib/errand/ref-tree.js";
 import {
   TransientIdentityRecordV3Schema,
   type TransientIdentityRecord,
