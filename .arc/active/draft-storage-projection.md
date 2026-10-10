@@ -205,6 +205,13 @@ three-way and entry merge (`lib/store/concurrency/`, over `node-diff3`), atomic 
 in `lib/fs.ts`), bounded retry on `EPERM`, `EBUSY`, and `EACCES` (`retryTransientFileSystemRefusal` in
 `lib/kernel/fs-retry.ts`), and locks (`lib/advisory-lock.ts`). The engine is the orchestration over them.
 
+It lives in `lib/store/projection/`, inside the store. Write-back reads each kind's parser and write check from the
+production registration set, `lib/store/kinds/registrations.ts`, which the `store-raw-state` ratchet lists: the ratchet
+passes every file under `lib/store/` and counts any importer outside it (`rawStateViolations`,
+`eslint/architecture-imports.ts`), so write-back outside the store would be a floor entry that never reroutes, and the
+floor could never reach zero (`draft-seam-record-kinds.md` § Where the kinds live). `cli.ts`'s root hooks call the
+engine's entry points, which the ratchet does not list, so they stay uncounted too.
+
 The model is jj's working copy: snapshot at the start of every command, a stat fast path backed by a per-worktree state
 file, and conflicts written into files as markers and parsed back at the next snapshot. The specifics below are grouped
 by concern.
@@ -592,13 +599,23 @@ Disk: `completed/` lands in every worktree, as the tracked copy does today.
 Scopes are disjoint by design: the seam's draft leaves the projection, `arc save`, write-back, and the worktree lock
 here. Five interfaces cross:
 
-1. **Parsers and write checks.** Write-back reads a hand-edited file through its kind's parser, from the kind registry's
-   parser slot (`createKindRegistry` in `lib/store/registry.ts`), skipping and reporting a file that fails to parse
+1. **Parsers and write checks.** Write-back reads a hand-edited file through its kind's parser, from the production
+   registration set both backends register (`lib/store/kinds/registrations.ts`, which is why the engine lives in
+   `lib/store/`, § Engine), skipping and reporting a file that fails to parse
    (D13). It persists the edit only if the kind's write check, registered beside the parser, admits it: write-back and
    `arc save` call the check with a hand edit as the writer, the record's reference, the prior and next parsed records,
    and a read-only view of the store. A change to a field only a verb may set is refused there, not by the parser, which
-   stays content-only — the seam's amendment to D13's mechanism (`draft-storage-seam.md` § Shared decisions, item 11). A
-   refused edit stays in the file and is reported, never blocking the command (D13). The seam's members fill both slots;
+   stays content-only — the seam's amendment to D13's mechanism (`draft-storage-seam.md` § Shared decisions, item 11).
+   Write-back persists under the provenance verb `write-back` and `arc save` under `save`, each with the lifecycle
+   action `edit`; a backend reads those two verbs as a hand edit and any other as itself, so it enforces the authority
+   rules where the write lands, not only through this call (`draft-seam-record-kinds.md` § What a kind registers). The
+   two names are one exported constant, `HAND_EDIT_VERBS`, beside `CallerProvenanceSchema` in `lib/store/links.ts`,
+   which the backends' derivation and write-back both import, landing with the first of them. Every other persist of a
+   hand edit here runs under `write-back` too — the removal function's persist step and its takeover of an aside copy
+   (item 2), even inside `arc teardown` — so no hand edit lands under a verb that reads as itself; the removal check's
+   projection part writes nothing and carries none. Write-back sets the provenance itself, never from the file, so a
+   hand edit cannot name another verb. A refused edit, whether this call or the backend's check at the write refuses
+   it, stays in the file and is reported, never blocking the command (D13). The seam's members fill both slots;
    this work unit consumes them. An empty slot needs no rule here: write-back is a contract `write`, which D5 lets land
    unvalidated, a kind with no rules registers no check, and merge takes a kind's entry shape from its mechanism, not
    its parser. Write-back is dark until the flip, so the gap is the flip's: `storage-cutover`'s rehearsal confirms every
@@ -668,8 +685,8 @@ carries them at draft close.
 
 ### Others
 
-- **`storage-ref-backend`** — the multi-process test lane runs over it; the projection otherwise consumes only the
-  contract.
+- **`storage-ref-backend`** — the multi-process test lane runs over it, and its writer derivation reads
+  `HAND_EDIT_VERBS` (§ `storage-seam`, item 1); the projection otherwise consumes only the contract.
 - **`storage-cutover`** — runs the first full materialization at the flip and the live rehearsal; the flip's workflow
   rewrite names `arc save`.
 - **`config-storage-architecture`** — re-homes the in-flight view setting with the per-developer tier.
@@ -715,6 +732,12 @@ None.
   documentation states; the guard on today's flat layout is dropped, since the flip replaces that layout.
 - **Run each kind's write check from write-back and `arc save`, with a hand edit as the writer** (`USER-INBOX § Work
   Unit`, routed from `storage-seam`, captured 2026-10-09) — integrated: § Coordination, item 1.
+- **Name the provenance verbs write-back and `arc save` persist under** (sent by `seam-record-kinds`' draft-design
+  session, 2026-10-10) — integrated: § Coordination, item 1 names `write-back` and `save`, which a backend reads as a
+  hand edit, and runs the removal function's persist step under `write-back`.
+- **Place write-back inside or outside `lib/store/`, now that the production registration set is ratchet-listed** (sent
+  by `seam-record-kinds`' draft-design session after its pass 2, 2026-10-10) — integrated: the engine lives in
+  `lib/store/projection/` (§ Engine), and § Coordination item 1 reads from `lib/store/kinds/registrations.ts`.
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
