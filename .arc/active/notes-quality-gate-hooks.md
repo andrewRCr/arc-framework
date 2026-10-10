@@ -818,3 +818,60 @@ The latest result is **Pass 4 of 4**, **non-converged**, stop reason **cap-exhau
 HEAD push bypass is fixed and locally verified. That final correction remains unattacked by a successor adversarial
 review. Approval covered the bounded fix; no Pass 5 was authorized or launched. The prior recommendation for one
 additional whole-target pass remains advisory, and the cap establishes no clean or Owner-accepted terminus.
+
+## Review amendments A1 and A2
+
+Standard Candidate pass 1 found that the bootstrap's per-line extraction and the historical cache identity could not
+meet their stated behavior. Both amendments were approved with disposition set
+`sha256:9bbbb49bf1b275b6e1df41a272daa4aad8195da75f36c7c27ab28b97a43df6a0` on 2026-10-10.
+The amendment entry gate selects the design arm at low depth: complete shell strings and independent tree-input matching
+already supply the corrections. No new shell parser, declaration field, or commit-identity cache dependency is needed.
+
+### A1 — Complete shell-block extraction
+
+Superseded D2 Bootstrap Proposal paragraph:
+
+> - **Proposal.** Each command line in those fenced blocks, other than comments and bracketed template placeholders,
+>   becomes one proposed check. Its `command` is the line as a `shell: true` string, which preserves its shell meaning
+>   until a person converts it to an argument list. Its `gate` is left unset, with a comment naming the gate its source
+>   maps to: Tier 1 or `post-task-quality` maps to `commit`, Tier 2 or `post-unit-quality` to `push`, and Tier 3 to
+>   `merge`. A comment also names the source. A command found at several tiers is proposed once, mapped to the earliest
+>   gate.
+
+`consumeFencedLine` and `finishBlock` retain a complete shell fence as one inactive command. Incomplete fences and
+executable blocks mixed with placeholders are carried for manual authoring. SC19 checks this amended obligation;
+SC12's original text and its historical verification remain preserved.
+
+### A2 — Declared historical input identity
+
+Superseded D5 Key paragraph:
+
+> **Key.** Per check: its id; a digest of its resolved declaration entry; a digest of the global inputs' content and the
+> global runtime inputs' output; a digest of its own inputs' content in the checked tree, or for a fix-capable check in
+> the tree at its turn (D7); and its runtime inputs' output. A `files` check's key also takes each path it receives (D2):
+> the changed paths among its inputs or, under a request with no change or when widening selects it, every path among
+> them, each with what it held at the base and, where the change carries merges, at each merged-in parent. Environment
+> variables are not in the key; a check that depends on one names it as a runtime input.
+
+`historicalContent` matches own and global input sets independently at the base and each exported merged parent,
+then hashes their complete content alongside received argument paths. `checkContentKey` changes its development key
+version to invalidate passes admitted by the old divergence guard. SC20 checks historical dependency identity;
+SC1 and SC10 retain their original text. The native package-sync regression joins actual script outcomes to reuse,
+including equal checked trees and received paths with differing unreceived historical counterpart bytes.
+
+### Amendment verification
+
+The primary source replay confirmed the initial terminal-continuation failure: stripping boundary newlines changed
+`printf "<%s>" value` followed by a continuation and blank line from `<value>` to `<value><\>`. The approved complete-text
+correction now retains those newlines. The initial independent report is preserved at
+`/tmp/arc-quality-standard-fix-amendment-grounding.json`; its independent recheck at
+`/tmp/arc-quality-standard-fix-amendment-grounding-recheck.json` is clean within the A1/A2 footprint. Reader independence,
+binding completeness, and bounded propagation withstood; this is amendment grounding, not a standard or adversarial pass.
+
+The CLI boundary suite passed 52 tests; the check library and bootstrap suite passed 169 tests. Native manager exclusions,
+actual historical package-sync reuse including unrelated parent content, and update/reconfigure shell-block retirement
+passed in the 24-test supplementary run. Original-behavior and narrow reconstruction runs retain behavioral red evidence
+in `/tmp/arc-quality-standard-fix-red-unit.log`, `/tmp/arc-quality-standard-fix-red-e2e.log`,
+`/tmp/arc-quality-standard-fix-red-remaining.log`, `/tmp/arc-quality-standard-fix-terminal-newline-red.log`, and
+`/tmp/arc-quality-standard-fix-final-red.log`. The first native merge reconstruction exposed a missing fixture link
+validator; the corrected fixture then failed on the expected indexed-content mismatch and passed after restoration.

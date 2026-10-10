@@ -823,6 +823,12 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 - `[x]` A declared check that creates and commits in a fixture repository passes under the commit hook and every
   request form, and only `reads_index` checks see an index equal to their checked tree (SC18)
 
+- `[x]` Bootstrap preserves complete shell-block text and state in one inactive proposal, or reports unsafe/incomplete
+  material for manual authoring (SC19, A1)
+
+- `[x]` A `files` check cannot reuse a pass when declared historical input content changes, even with equal checked bytes
+  and received paths; changes outside declared inputs alone do not invalidate its key (SC20, A2)
+
 - `[x]` All quality gates pass (tests, linting, type checking)
 
 - `[x]` Ready for integration

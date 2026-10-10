@@ -26,11 +26,12 @@ export async function commitRestageAllowed(git: GitExec, root: string, indexFile
  * @returns Tree carrying the restaged output
  */
 export async function restageCommitFixes(io: TreeMatchIO, root: string,
-  content: { base?: string; tree: string; rewritten: string[] }, indexFile: string): Promise<string> {
+  content: { base?: string; tree: string; rewritten: string[]; mergePaths?: string[]; mergePathsUnresolved?: true }, indexFile: string): Promise<string> {
+  if (content.mergePathsUnresolved) throw new Error("Could not resolve the merge's original paths; repair merge metadata and retry git commit.");
   const change = content.base === undefined ? await matchTreeInputs(io, root, content.tree)
     : await readTreeChange(io.git, root, content.base, content.tree);
   if (change.status === "unresolved") throw new Error("Could not resolve the commit's paths; retry git commit.");
-  const carried = new Set(change.paths.map(path => path.path));
+  const carried = new Set([...change.paths.map(path => path.path), ...(content.mergePaths ?? [])]);
   const paths = content.rewritten.filter(path => carried.has(path));
   if (paths.length > 0) await io.git("git", ["add", "-A", "--", ...paths.map(path => `:(literal)${path}`)], {
     cwd: root, indexFile, clearPathspecEnvironment: true,

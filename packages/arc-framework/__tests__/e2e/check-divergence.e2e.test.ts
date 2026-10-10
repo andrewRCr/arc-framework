@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
-import { runArc } from "./helpers.js";
+import { runArc, runArcWithStdin } from "./helpers.js";
 
 const repositories: string[] = [];
 const git = promisify(execFile);
@@ -64,4 +64,39 @@ it("ignores excluded worktree files in the divergence comparison", async () => {
   expect(JSON.parse(first.stdout).result.checks[0].divergent).toBeUndefined();
   const second = await runArc(request, root);
   expect(JSON.parse(second.stdout).result.checks[0].outcome).toBe("reused");
+});
+
+
+it.each(["staged", "pushed"])("withholds reuse and publication for divergent global inputs at %s content", async scope => {
+  const root = await createDeclaredCheckRepository({ check: {
+    command: [process.execPath, "-e", "process.exit(require('node:fs').readFileSync('docs/b.md','utf8')==='good\\n'?0:1)"],
+    gate: "push", inputs: ["src/**", "!docs/**"],
+  } }, { global_inputs: ["docs/**", "!docs/excluded.md"] });
+  repositories.push(root);
+  await writeFile(join(root, "docs/b.md"), "bad\n");
+  await git("git", ["add", "src/a.ts", "docs/b.md"], { cwd: root });
+  const base = (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  if (scope === "pushed") await git("git", ["commit", "-m", "pushed inputs"], { cwd: root });
+  const tip = (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  const branch = (await git("git", ["symbolic-ref", "HEAD"], { cwd: root })).stdout.trim();
+  const run = () => scope === "staged" ? runArc(["check", "run", "check", "--staged", "--json"], root)
+    : runArcWithStdin(["check", "pre-push", "origin", ".", "--json"], root, `${branch} ${tip} ${branch} ${base}\n`);
+  await writeFile(join(root, "docs/b.md"), "good\n");
+  const divergent = await run();
+  expect(divergent.exitCode, divergent.stdout + divergent.stderr).toBe(0);
+  expect(JSON.parse(divergent.stdout).result.checks[0]).toMatchObject({ outcome: "passed", divergent: ["docs/b.md"] });
+  await writeFile(join(root, "docs/b.md"), "bad\n");
+  const checked = await run();
+  expect(checked.exitCode, checked.stdout + checked.stderr).toBe(1);
+  expect(JSON.parse(checked.stdout).result.checks[0].outcome).toBe("failed");
+  await writeFile(join(root, "docs/b.md"), "good\n");
+  await git("git", ["add", "docs/b.md"], { cwd: root });
+  if (scope === "staged") {
+    expect((await run()).exitCode).toBe(0);
+    expect(JSON.parse((await run()).stdout).result.checks[0].outcome).toBe("reused");
+    await writeFile(join(root, "docs/b.md"), "bad\n");
+    const prior = await run();
+    expect(prior.exitCode, prior.stdout + prior.stderr).toBe(1);
+    expect(JSON.parse(prior.stdout).result.checks[0]).toMatchObject({ outcome: "failed", divergent: ["docs/b.md"] });
+  }
 });

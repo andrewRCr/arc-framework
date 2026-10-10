@@ -129,3 +129,25 @@ it("selects named paths by Git inputs and widens a named global path", async () 
   expect(global.exitCode, global.stderr).toBe(0);
   expect(JSON.parse(global.stdout).result.checks).toMatchObject([{ id: "project", outcome: "passed" }]);
 });
+
+
+it.each(["./src/a.ts", "src/", "."])("keeps accepted path scope %s equivalent to canonical input reach", async path => {
+  const root = await createDeclaredCheckRepository({ check: { command: [process.execPath, "-e", "process.exit(17)"],
+    gate: "commit", inputs: ["src/**"] } });
+  repositories.push(root);
+  const result = await runArc(["check", "gate", "commit", "--paths", path, "--json"], root);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+  expect(JSON.parse(result.stdout).result.checks[0].outcome).toBe("failed");
+});
+
+it("refuses an outside path scope and accepts the repaired relative scope", async () => {
+  const root = await createDeclaredCheckRepository({ check: { command: [process.execPath, "-e", ""],
+    gate: "commit", inputs: ["src/**"] } });
+  repositories.push(root);
+  const refused = await runArc(["check", "gate", "commit", "--paths", "../src/a.ts", "--json"], root);
+  expect(refused.exitCode, refused.stdout + refused.stderr).toBe(2);
+  expect(JSON.parse(refused.stdout).error.message).toContain("repository-relative path inside this checkout");
+  const repaired = await runArc(["check", "gate", "commit", "--paths", "src/a.ts", "--json"], root);
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0].outcome).toBe("passed");
+});

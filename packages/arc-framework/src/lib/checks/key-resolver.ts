@@ -38,22 +38,25 @@ export async function resolveCheckKey(io: CheckKeyIO, context: CheckKeyContext):
   ]);
   if (globalRuntime === null || runtime === null) return null;
   const base = check.mode === "files" && context.base !== undefined
-    ? await receivedContent(io, context, context.base) : undefined;
+    ? await historicalContent(io, context, context.base) : undefined;
   if (base === null) return null;
   const merged = check.mode === "files"
-    ? await Promise.all((context.merged ?? []).map(parent => receivedContent(io, context, parent))) : [];
+    ? await Promise.all((context.merged ?? []).map(parent => historicalContent(io, context, parent))) : [];
   if (!merged.every(content => content !== null)) return null;
   return checkContentKey({ id, declaration: check, inputs: inputs.paths, globalInputs: global.paths, globalRuntime, runtime,
     ...(check.mode === "files" ? { paths, base, merged } : {}) });
 }
-async function receivedContent(io: CheckKeyIO, context: CheckKeyContext, coordinate: string): Promise<CheckPathContent[] | null> {
-  const matching = await inputContent(io, context.root, coordinate, context.check.inputs);
-  if (matching.status !== "known") return null;
-  const entries = new Map(matching.paths.map(entry => [entry.path, entry]));
-  return context.paths.map(path => {
-    const entry = entries.get(path);
-    return { path, content: entry === undefined ? null : { mode: entry.newMode, blob: entry.newBlob } };
-  });
+async function historicalContent(io: CheckKeyIO, context: CheckKeyContext, coordinate: string): Promise<CheckPathContent[] | null> {
+  const groups = await Promise.all([context.check.inputs, context.definition.global_inputs]
+    .map(inputs => inputContent(io, context.root, coordinate, inputs)));
+  if (groups.some(group => group.status !== "known")) return null;
+  const entries = new Map<string, CheckPathContent>(context.paths.map(path => [path, { path, content: null }]));
+  for (const group of groups) {
+    if (group.status !== "known") return null;
+    for (const entry of group.paths) entries.set(entry.path,
+      { path: entry.path, content: { mode: entry.newMode, blob: entry.newBlob } });
+  }
+  return [...entries.values()].sort((first, second) => first.path < second.path ? -1 : first.path > second.path ? 1 : 0);
 }
 
 async function inputContent(io: CheckKeyIO, root: string, tree: string, inputs: string[]): Promise<TreeChange> {

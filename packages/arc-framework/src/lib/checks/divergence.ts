@@ -9,14 +9,16 @@ import { selectChangedInputs } from "./matching.js";
  * @param tree - Checked tree
  * @param worktree - Snapshot of staged-worktree content
  * @param inputs - Declared Git glob inputs
+ * @param globalInputs - Independently matched shared Git glob inputs
  * @returns Differing input paths, refusing an unavailable comparison
  */
-export async function readCheckDivergence(git: GitExec, root: string, tree: string, worktree: string, inputs: readonly string[]): Promise<string[]> {
+export async function readCheckDivergence(git: GitExec, root: string, tree: string, worktree: string, inputs: readonly string[], globalInputs: readonly string[] = []): Promise<string[]> {
   if (tree === worktree) return [];
   try {
-    const change = await selectChangedInputs(git, root, tree, worktree, inputs);
-    if (change.status === "unresolved") throw new Error("Unavailable tree comparison");
-    return change.status === "selected" ? change.paths.map(path => path.path) : [];
+    const changes = await Promise.all([inputs, globalInputs].filter(group => group.length > 0)
+      .map(group => selectChangedInputs(git, root, tree, worktree, group)));
+    if (changes.some(change => change.status === "unresolved")) throw new Error("Unavailable tree comparison");
+    return [...new Set(changes.flatMap(change => change.status === "selected" ? change.paths.map(path => path.path) : []))];
   } catch (cause) {
     throw new Error("Could not compare checked content with the worktree; retry the check request.", { cause });
   }

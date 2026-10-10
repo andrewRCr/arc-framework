@@ -60,8 +60,8 @@ export async function runCiCheckStep(options: CiCheckStep): Promise<number> {
   let exitCode = 0;
   for (const check of options.forecast.checks) {
     const destinations = options.plumbing[check.id];
-    const selected = options.step === "default" ? destinations === undefined
-      : destinations?.some(destination => destination.job === options.job && destination.step === options.step);
+    const selected = (options.step === "default" && destinations === undefined)
+      || destinations?.some(destination => destination.job === options.job && destination.step === options.step);
     if (!selected) continue;
     const shard = options.shard;
     const batches = shard === undefined || check.shards === undefined ? check.batches

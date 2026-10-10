@@ -104,3 +104,15 @@ it("fails when a fix-capable verification rewrites tracked content", async () =>
   expect(await runCiCheckStep({ ...setup, declaration, forecast, step: "default" })).toBe(1);
   expect(await readFile(join(setup.root, "probe.mjs"), "utf8")).toBe("rewritten\n");
 });
+
+
+it("executes an explicitly mapped default-step check and propagates its failure", async () => {
+  const setup = await fixture();
+  const declaration = CheckDeclarationSchema.parse({ checks: {
+    broken: { command: [process.execPath, "-e", "process.exit(17)"] },
+  } });
+  const forecast = { ...setup.forecast, checks: [{ id: "broken",
+    ...resolveCheckForecast(declaration.checks.broken!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...setup, declaration, forecast,
+    plumbing: { broken: [{ job: "unit", step: "default" }] }, step: "default" })).toBe(1);
+});

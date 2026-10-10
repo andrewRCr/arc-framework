@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { CheckDeclaration } from "./declaration.js";
 import type { TreePathChange } from "./tree.js";
 
-/** Content of a received path at a before-change coordinate, including absence. */
+/** Declared historical input content, including absent received paths. */
 export interface CheckPathContent { path: string; content: { mode: string; blob: string } | null }
 
 /** Resolved content participating in a check's execution identity. */
@@ -27,6 +27,7 @@ export interface CheckKeyInput {
 export function checkContentKey(input: CheckKeyInput): string {
   const inputs = digestEntries(input.inputs);
   return createHash("sha256").update(JSON.stringify({
+    version: 2,
     id: input.id,
     declaration: input.declaration,
     inputs,

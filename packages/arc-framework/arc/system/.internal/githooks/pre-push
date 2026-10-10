@@ -34,6 +34,37 @@ remote_name="${1:-}"
 remote_url="${2:-}"
 ref_lines=$(cat)
 
+# Prove excluded events before requiring a CLI. Unknown or malformed input
+# continues to the CLI's validation and declaration-present refusal.
+excluded_push_event() {
+    local lines="$ref_lines" local_ref local_oid remote_ref remote_oid extra
+    if [ -z "$lines" ] && [ -n "${PRE_COMMIT_LOCAL_BRANCH:-}" ]; then
+        if [ -n "${PRE_COMMIT_FROM_REF:-}${PRE_COMMIT_TO_REF:-}" ]; then
+            [[ "${PRE_COMMIT_FROM_REF:-}" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+            [[ "${PRE_COMMIT_TO_REF:-}" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        fi
+        case "${PRE_COMMIT_LOCAL_BRANCH}:${PRE_COMMIT_REMOTE_BRANCH:-}" in
+            refs/arc/*:*|*:refs/arc/*) return 0 ;;
+        esac
+        [[ "${PRE_COMMIT_TO_REF:-}" =~ ^(0{40}|0{64})$ ]] && return 0
+        return 1
+    fi
+    while read -r local_ref local_oid remote_ref remote_oid extra; do
+        [ -z "$local_ref$local_oid$remote_ref$remote_oid$extra" ] && continue
+        [ -n "$local_ref" ] && [ -n "$remote_ref" ] && [ -z "$extra" ] || return 1
+        [[ "$local_oid" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        [[ "$remote_oid" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]] || return 1
+        case "$local_ref:$remote_ref" in
+            refs/arc/*:*|*:refs/arc/*) continue ;;
+        esac
+        [[ "$local_oid" =~ ^(0{40}|0{64})$ ]] || return 1
+    done <<< "$lines"
+    return 0
+}
+if excluded_push_event; then
+    exit 0
+fi
+
 # stdin carries one line per ref being pushed:
 #   <local_ref> <local_oid> <remote_ref> <remote_oid>
 while read -r local_ref local_oid remote_ref remote_oid; do

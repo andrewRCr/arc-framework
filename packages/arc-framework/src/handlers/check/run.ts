@@ -166,7 +166,7 @@ async function executeResolvedRequest(
   }
   coordinates.worktreeTree = coordinates.snapshot?.tree ?? (coordinates.scope.kind === "staged" || request.form.kind === "pre-push" ? await stagedWorktreeTree(io.git, root) : tree);
   const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
-  const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection });
+  const refusal = await partiallyStagedRefusal(io, { root, request, entries, coordinates, selection, globalInputs: declaration.value.global_inputs });
   if (refusal !== undefined) return { kind: "error", exitCode: 2, error: { kind: "refused", message: refusal } };
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
@@ -213,7 +213,7 @@ async function runRequestedCheck(
   if (usesFormingWorktree(check, request)) {
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
-  const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs);
+  const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs, definition.global_inputs);
   const result = await executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
@@ -235,7 +235,7 @@ function usesWidenedFileRetry(check: CheckDeclaration["checks"][string], selecti
 
 async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   root: string; request: CheckRequest; entries: Array<[string, CheckDeclaration["checks"][string]]>;
-  coordinates: ResolvedCheckRequest; selection: CheckSelection;
+  coordinates: ResolvedCheckRequest; selection: CheckSelection; globalInputs: string[];
 }): Promise<string | undefined> {
   const { root, request, entries, coordinates: resolved, selection } = context;
   if (request.form.kind !== "pre-commit") return undefined;
@@ -247,12 +247,14 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
     if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
       inputs: check.inputs, selectedPaths: selected.paths })).length === 0) continue;
     candidates.push({ id, inputs: check.inputs });
+    if (context.globalInputs.length > 0) candidates.push({ id, inputs: context.globalInputs });
   }
   const affected = await findPartiallyStagedChecks(io, root,
-    { base: resolved.base, tree: resolved.tree, worktree: resolved.worktreeTree ?? resolved.tree }, candidates);
+    { base: resolved.base, tree: resolved.tree, worktree: resolved.worktreeTree ?? resolved.tree,
+      mergePaths: resolved.mergePaths, mergePathsUnresolved: resolved.mergePathsUnresolved }, candidates);
   if (affected.length === 0) return undefined;
   const paths = [...new Set(affected.flatMap(check => check.paths))].map(path => JSON.stringify(path)).join(", ");
-  const ids = affected.map(check => check.id).join(",");
+  const ids = [...new Set(affected.map(check => check.id))].join(",");
   return `Partially staged inputs: ${paths} (checks: ${ids}). Stage each whole file and retry git commit, or skip these checks for this commit with ARC_SKIP=${ids} git commit ... .`;
 }
 
@@ -339,8 +341,9 @@ async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDep
     return { rewritten, reason: "rewrote files; stage the rewrites and retry git commit" };
   }
   try {
-    coordinates.tree = await restageCommitFixes(io, root, { base: coordinates.base, tree: selected.selectionTree, rewritten }, indexFile);
-    selected.divergent = await readCheckDivergence(io.git, root, coordinates.tree, coordinates.worktreeTree ?? coordinates.tree, check.inputs);
+    coordinates.tree = await restageCommitFixes(io, root, { base: coordinates.base, tree: selected.selectionTree, rewritten,
+      mergePaths: coordinates.mergePaths, mergePathsUnresolved: coordinates.mergePathsUnresolved }, indexFile);
+    selected.divergent = await readCheckDivergence(io.git, root, coordinates.tree, coordinates.worktreeTree ?? coordinates.tree, check.inputs, selected.definition.global_inputs);
     return { rewritten };
   } catch (error) {
     return { rewritten, reason: `Could not restage fixer rewrites: ${String(error)}. Repair the index, stage the rewrites, and retry git commit.` };

@@ -68,7 +68,7 @@ async function namedPathChange(io: TreeMatchIO, root: string, resolved: Resolved
         newMode: "000000", newBlob: "0".repeat(path.newBlob.length) });
     }
   }
-  return { status: "known", paths: [...paths.values()].filter(path => names.some(name => path.path === name || (!exact && path.path.startsWith(`${name}/`)))) };
+  return { status: "known", paths: [...paths.values()].filter(path => names.some(name => path.path === name || (!exact && (name === "." || path.path.startsWith(`${name}/`))))) };
 }
 
 

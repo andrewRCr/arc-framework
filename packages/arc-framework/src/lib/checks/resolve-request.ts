@@ -1,5 +1,6 @@
 /** Resolve checked trees and base coordinates before executing repository checks. */
 import type { GitExec } from "../git/exec.js";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
 import { readCheckMergedParents } from "./merged.js";
@@ -66,10 +67,22 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest, 
  * @returns Coordinates or a refusal naming the explicit input and safe retry
  */
 export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest, snapshotDirectory?: string): Promise<CheckRequestResolution> {
-  const scope = requestScope(request);
+  const normalized = normalizePathScope(root, requestScope(request));
+  if (normalized.status === "refused") return normalized;
+  const { scope } = normalized;
   const headResolution = await resolveRequestHead(git, root, request);
   if (headResolution.status === "refused") return headResolution;
   const { head } = headResolution;
+  const baseResolution = await resolveRequestBase(git, root, request, scope, head);
+  if (baseResolution.status === "refused") return baseResolution;
+  const { base } = baseResolution;
+  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
+  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
+  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+}
+
+async function resolveRequestBase(git: GitExec, root: string, request: CheckRequest, scope: CheckScope,
+  head: string | undefined): Promise<{ status: "resolved"; base?: string } | { status: "refused"; message: string }> {
   let base: string | undefined;
   if (scope.kind === "range" && scope.base !== undefined) {
     base = await revision(git, root, scope.base);
@@ -79,9 +92,21 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   } else {
     base = head;
   }
-  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
-  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
-  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+  return { status: "resolved", base };
+}
+
+function normalizePathScope(root: string, scope: CheckScope): { status: "resolved"; scope: CheckScope }
+  | { status: "refused"; message: string } {
+  if (scope.kind !== "paths") return { status: "resolved", scope };
+  const paths: string[] = [];
+  for (const path of scope.paths) {
+    const normalized = relative(root, resolve(root, path));
+    if (path.includes("\0") || isAbsolute(path) || normalized === ".." || normalized.startsWith(`..${sep}`)) {
+      return { status: "refused", message: `Unsupported path ${JSON.stringify(path)}; name a repository-relative path inside this checkout and retry.` };
+    }
+    paths.push(normalized.split(sep).join("/") || ".");
+  }
+  return { status: "resolved", scope: { kind: "paths", paths: [...new Set(paths)] } };
 }
 
 async function resolveRequestHead(git: GitExec, root: string, request: CheckRequest): Promise<

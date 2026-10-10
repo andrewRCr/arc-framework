@@ -242,3 +242,31 @@ it.each(["MERGE_HEAD", "MERGE_MSG"].flatMap(name => ["hook", "staged"].map(form 
   expect(repaired.exitCode, repaired.stderr).toBe(0);
   expect(JSON.parse(repaired.stdout).result).toMatchObject({ base: head, merged: [parent] });
 }, 60_000);
+
+
+it("refuses unstaged historical conflict content and concludes after staging the repair", async () => {
+  const { root, head } = await fixture();
+  await writeFile(join(root, "src/a.ts"), "unstaged repair\n");
+  await installDeclaredCommitHook(root);
+  await expect(git(root, ["commit", "--no-edit"])).rejects.toMatchObject({ code: 1 });
+  expect(await git(root, ["rev-parse", "HEAD"])).toBe(head);
+  const refused = await runArc(["check", "pre-commit", "--json"], root);
+  expect(refused.exitCode, refused.stdout + refused.stderr).toBe(2);
+  expect(JSON.parse(refused.stdout).error.message).toContain("src/a.ts");
+  await git(root, ["add", "src/a.ts"]);
+  await git(root, ["commit", "--no-edit"]);
+  expect(await git(root, ["show", "HEAD:src/a.ts"])).toBe("unstaged repair");
+}, 60_000);
+
+it("commits and restages a historical conflict fix into the native hook index", async () => {
+  const { root } = await fixture();
+  const path = join(root, ".arc/system/arc-checks.yml");
+  await writeFile(path, JSON.stringify({ checks: { fixer: { command: [process.execPath, "-e",
+    "require('node:fs').writeFileSync('src/a.ts','formatted\\n')"], gate: "commit", inputs: ["src/a.ts"], fixes: true } } }));
+  await git(root, ["add", path]);
+  await installDeclaredCommitHook(root);
+  await git(root, ["commit", "--no-edit"]);
+  expect(await git(root, ["show", "HEAD:src/a.ts"])).toBe("formatted");
+  expect(await git(root, ["show", ":src/a.ts"])).toBe("formatted");
+  expect(await readFile(join(root, "src/a.ts"), "utf8")).toBe("formatted\n");
+}, 60_000);

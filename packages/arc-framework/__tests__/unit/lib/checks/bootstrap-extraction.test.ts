@@ -12,12 +12,12 @@ const actions = (name: string, body: string) => `---\nname: ${name}\ndescription
 describe("check proposal extraction", () => {
   it("preserves each shell command, tier mapping, and source without assigning gates", () => {
     const result = extractCheckProposal({ quickReference: quick([
-      "### Incremental — Tier 1 (per-task)", fenced("# explanation\n[commands here]\nnpm run lint && echo ready\nnpm run types", "sh"),
+      "### Incremental — Tier 1 (per-task)", fenced("# explanation\nnpm run lint && echo ready\nnpm run types", "sh"),
       "### Integration — Tier 2", fenced("npm test"), "### Release — Tier 3", fenced("npm run build"),
     ].join("\n")) });
     expect(result.commands.map(({ command, mappedGate }) => [command, mappedGate])).toEqual([
-      ["npm run lint && echo ready", "commit"], ["npm run types", "commit"],
-      ["npm test", "push"], ["npm run build", "merge"],
+      ["# explanation\nnpm run lint && echo ready\nnpm run types\n", "commit"],
+      ["npm test\n", "push"], ["npm run build\n", "merge"],
     ]);
     const declaration = CheckDeclarationSchema.parse(yaml.load(result.proposal));
     expect(Object.values(declaration.checks).map(({ command, shell, gate }) => ({ command, shell, gate })))
@@ -34,11 +34,11 @@ describe("check proposal extraction", () => {
       postUnit: actions("post-unit-quality", fenced("npm run integration")),
     });
     expect(result.commands).toEqual([
-      { command: "npm test", mappedGate: "commit", sources: [
+      { command: "npm test\n", mappedGate: "commit", sources: [
         ".arc/reference/QUICK-REFERENCE.md", ".arc/system/methods/quality-gate-commands.md",
         ".arc/system/extensions/post-task-quality.md",
       ] },
-      { command: "npm run integration", mappedGate: "push", sources: [".arc/system/extensions/post-unit-quality.md"] },
+      { command: "npm run integration\n", mappedGate: "push", sources: [".arc/system/extensions/post-unit-quality.md"] },
     ]);
   });
 
@@ -52,4 +52,30 @@ describe("check proposal extraction", () => {
     expect(result.unextractable).toEqual([{ source: ".arc/system/extensions/post-task-quality.md",
       text: "Run the security scanner and inspect its findings." }]);
   });
+});
+
+
+it("preserves continued and stateful shell blocks as one inactive executable command", () => {
+  const body = "# retain shell context\ncd nested\nexport MODE=strict\nnpm run lint \\\n  -- --strict";
+  const result = extractCheckProposal({ postTask: actions("post-task-quality", fenced(body)) });
+  expect(result.commands).toEqual([{ command: body + "\n", mappedGate: "commit",
+    sources: [".arc/system/extensions/post-task-quality.md"] }]);
+  expect(result.unextractable).toEqual([]);
+  const declaration = CheckDeclarationSchema.parse(yaml.load(result.proposal));
+  expect(declaration.checks["imported-1"]).toMatchObject({ command: body + "\n", shell: true });
+  expect(declaration.checks["imported-1"]?.gate).toBeUndefined();
+});
+
+it("reports incomplete shell fences for manual authoring", () => {
+  const result = extractCheckProposal({ postTask: actions("post-task-quality", "```bash\ncd nested\nnpm test") });
+  expect(result.commands).toEqual([]);
+  expect(result.unextractable).toEqual([{ source: ".arc/system/extensions/post-task-quality.md",
+    text: "cd nested\nnpm test\n" }]);
+});
+
+
+it("preserves trailing blank lines after a shell continuation", () => {
+  const body = "printf '<%s>' value \\\n\n";
+  const result = extractCheckProposal({ postTask: actions("post-task-quality", fenced(body)) });
+  expect(result.commands[0]?.command).toBe(body + "\n");
 });

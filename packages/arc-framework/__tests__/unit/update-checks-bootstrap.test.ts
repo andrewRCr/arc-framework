@@ -70,7 +70,7 @@ describe("check bootstrap on retirement", () => {
     if (reference.status === "found") expect(content.split("\n")[0]).toBe(reference.reference);
     const declaration = CheckDeclarationSchema.parse(yaml.load(content));
     expect(Object.values(declaration.checks).map(entry => entry.command)).toEqual([
-      "npm run lint", "npm run build", "npm run security", "npm test",
+      "npm run lint\n", "npm run build\n", "npm run security\n", "npm test\n",
     ]);
     for (const gate of ["commit", "push", "merge"] as const) expect(selectRequestChecks(declaration.checks, { kind: "gate", gate })).toEqual([]);
     const summary = buildUpdateSummary(result);
@@ -100,10 +100,10 @@ describe("check bootstrap on retirement", () => {
     if (content === null || "dryRun" in result) return;
     const declaration = CheckDeclarationSchema.parse(yaml.load(content));
     expect(Object.values(declaration.checks).map(entry => entry.command)).toEqual([
-      "npm run lint", "npm run build", "npm run security", "npm test",
+      "npm run lint\n", "npm run build\n", "npm run security\n", "npm test\n",
     ]);
     expect(result.checkBootstrap?.commands.map(entry => entry.command)).toEqual([
-      "npm run lint", "npm run build", "npm run security", "npm test",
+      "npm run lint\n", "npm run build\n", "npm run security\n", "npm test\n",
     ]);
     expect(result.checkBootstrap?.unextractable).toContainEqual({ source: ".arc/system/extensions/post-task-quality.md",
       text: "Inspect the security dashboard." });
@@ -113,4 +113,20 @@ describe("check bootstrap on retirement", () => {
     for (const path of retired) expect(manifest.files[path]).toBeUndefined();
   });
 
+});
+
+
+it.each(["update", "reconfigure"])("preserves a stateful shell block during %s retirement", async operation => {
+  const fixture = await setup();
+  const body = "cd nested\nexport MODE=strict\nnpm test";
+  const source = `.arc/${retired[1]}`;
+  await writeFile(join(fixture.cwd, source), `## post-task-quality.actions\n${fenced(body)}\n`);
+  if (operation === "update") await runUpdate(fixture);
+  else await runReconfigure({ ...fixture, newInstallConfig: fixture.manifest.install_config,
+    resolveRemovals: async removals => removals.map(removal => ({ ...removal, action: "keep" as const })),
+  });
+  const value = CheckDeclarationSchema.parse(yaml.load(await readFile(join(fixture.cwd, ".arc/system/arc-checks.yml"), "utf8")));
+  expect(Object.values(value.checks).filter(entry => entry.command === body + "\n")).toHaveLength(1);
+  expect(Object.values(value.checks).some(entry => entry.command === "cd nested")).toBe(false);
+  for (const gate of ["commit", "push", "merge"] as const) expect(selectRequestChecks(value.checks, { kind: "gate", gate })).toEqual([]);
 });

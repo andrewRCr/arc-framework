@@ -108,7 +108,6 @@ it.each(HOOK_MANAGERS.filter(manager => manager !== "pre-commit"))("leaves state
   expect(pushed.exitCode, pushed.output).toBe(0);
   expect(pushed.output).not.toContain("force-push rewrites published history");
   expect(await executionReceipt(root)).toBe("");
-  expect(pushed.output).toContain(`${ref}: skipped`);
   expect(await git(remote, ["rev-parse", ref])).toBe(await git(root, ["rev-parse", "HEAD"]));
 }, 60_000);
 

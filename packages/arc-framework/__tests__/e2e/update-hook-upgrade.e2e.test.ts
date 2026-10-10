@@ -147,7 +147,7 @@ it("preserves retired check sources and proposes inactive checks while upgrading
   if (reference.status === "found") expect(content.split("\n")[0]).toBe(reference.reference);
   const declaration = CheckDeclarationSchema.parse(yaml.load(content));
   expect(Object.values(declaration.checks).map(check => check.command)).toEqual([
-    "npm run lint", "npm run build", "npm run security", "npm test",
+    "npm run lint\n", "npm run build\n", "npm run security\n", "npm test\n",
   ]);
   for (const check of Object.values(declaration.checks)) {
     expect(check.gate).toBeUndefined();

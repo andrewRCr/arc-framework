@@ -38,3 +38,16 @@ it("finds partially staged additions before the first commit", async () => {
     { tree, worktree }, [{ id: "content", inputs: ["src/**"] }]))
     .resolves.toEqual([{ id: "content", paths: ["src/added.ts"] }]);
 });
+
+
+it("retains historical conflicts equal to the first parent at the staging boundary", async () => {
+  const { exec } = scriptGitExec([
+    { match: { prefix: ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", base, tree] },
+      responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", tree, worktree] },
+      responses: [{ stdout: raw("src/conflicted.ts") + raw("src/outside.ts"), stderr: "" }] },
+  ]);
+  await expect(findPartiallyStagedChecks({ git: exec, gitInput: async () => "f".repeat(40) }, "/repository",
+    { base, tree, worktree, mergePaths: ["src/conflicted.ts"] }, [{ id: "content", inputs: ["src/**"] }]))
+    .resolves.toEqual([{ id: "content", paths: ["src/conflicted.ts"] }]);
+});

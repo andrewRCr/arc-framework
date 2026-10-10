@@ -14,7 +14,7 @@ export interface PartiallyStagedCheck { id: string; paths: string[] }
  * @returns Only checks containing partially staged paths
  */
 export async function findPartiallyStagedChecks(
-  io: TreeMatchIO, root: string, content: { base?: string; tree: string; worktree: string },
+  io: TreeMatchIO, root: string, content: { base?: string; tree: string; worktree: string; mergePaths?: string[]; mergePathsUnresolved?: true },
   checks: Array<{ id: string; inputs: string[] }>,
 ): Promise<PartiallyStagedCheck[]> {
   if (content.tree === content.worktree) return [];
@@ -23,9 +23,10 @@ export async function findPartiallyStagedChecks(
     const staged = content.base === undefined ? await matchTreeInputs(io, root, content.tree, inputs)
       : await selectChangedInputs(io.git, root, content.base, content.tree, inputs);
     if (staged.status === "unresolved") throw new Error(`Could not resolve staged inputs for ${id}; retry git commit.`);
-    if (staged.status === "not selected") continue;
     const unstaged = new Set(await readCheckDivergence(io.git, root, content.tree, content.worktree, inputs));
-    const paths = staged.paths.map(path => path.path).filter(path => unstaged.has(path));
+    const carried = content.mergePathsUnresolved ? [...unstaged]
+      : [...(staged.status === "not selected" ? [] : staged.paths.map(path => path.path)), ...(content.mergePaths ?? [])];
+    const paths = [...new Set(carried.filter(path => unstaged.has(path)))];
     if (paths.length > 0) affected.push({ id, paths });
   }
   return affected;

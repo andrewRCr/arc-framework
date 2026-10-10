@@ -51,3 +51,20 @@ it("refuses unavailable commit paths and can restage after the Git read is repai
   readable = true;
   await expect(run()).resolves.toBe(produced);
 });
+
+
+it("restages historical conflict rewrites equal to HEAD while excluding unrelated writes", async () => {
+  let indexed = tree;
+  const git: GitExec = async (_command, args, options) => {
+    if (args[0] === "diff") return { stdout: "" };
+    if (options?.indexFile !== own) throw new Error("Wrong index ownership");
+    if (args[0] === "add") {
+      if (args.includes(":(literal)src/outside.ts")) indexed = "0".repeat(40);
+      else if (args.includes(":(literal)src/[a]*.ts")) indexed = produced;
+    }
+    return { stdout: indexed };
+  };
+  await expect(restageCommitFixes({ git, gitInput: async () => "f".repeat(40) }, root,
+    { base, tree, mergePaths: ["src/[a]*.ts"], rewritten: ["src/[a]*.ts", "src/outside.ts"] }, own))
+    .resolves.toBe(produced);
+});

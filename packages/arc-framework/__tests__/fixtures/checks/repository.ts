@@ -35,7 +35,7 @@ export async function installDeclaredCommitHook(cwd: string): Promise<void> {
   const source = resolve(import.meta.dirname, "../../../arc/system/.internal");
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "hooks.pre_commit: enabled\npm.mode: none\n");
   await appendFile(join(cwd, ".gitignore"), "node_modules/\n");
-  for (const path of ["githooks/pre-commit", "scripts/arc-lib.sh"]) {
+  for (const path of ["githooks/pre-commit", "scripts/arc-lib.sh", "scripts/validate-links.sh"]) {
     const target = join(cwd, ".arc/system/.internal", path);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(join(source, path), target);

@@ -47,3 +47,28 @@ it.each(["base", "parent"])("distinguishes absent received paths at the %s from 
   expect(absent).toMatch(/^[0-9a-f]{64}$/u);
   expect(absent).not.toBe(existing);
 });
+
+
+it.each([base, parent])("hashes unreceived own and global input content at %s", async coordinate => {
+  const declared = CheckDeclarationSchema.parse({ global_inputs: ["docs/b.md"], checks: {
+    files: { command: ["check"], mode: "files", inputs: ["src/**"] },
+  } });
+  const keyContext = { ...context, definition: declared, check: declared.checks.files! };
+  const key = async (counterpart: string, global: string) => {
+    const io = boundary();
+    const original = io.git;
+    io.git = async (command, args, options) => {
+      const result = await original(command, args, options);
+      if (args[6] !== coordinate) return result;
+      const path = args.includes(":(glob)docs/b.md") ? "docs/b.md" : "src/counterpart.ts";
+      const blob = path === "docs/b.md" ? global : counterpart;
+      return { stdout: result.stdout.replaceAll("e".repeat(40), path === "docs/b.md" ? blob.repeat(40) : "e".repeat(40))
+        + (path === "docs/b.md" ? "" : `:000000 100644 ${"0".repeat(40)} ${blob.repeat(40)} A\0${path}\0`) };
+    };
+    return resolveCheckKey(io, keyContext);
+  };
+  const initial = await key("f", "e");
+  expect(await key("a", "e")).not.toBe(initial);
+  expect(await key("f", "b")).not.toBe(initial);
+  expect(await key("f", "e")).toBe(initial);
+});

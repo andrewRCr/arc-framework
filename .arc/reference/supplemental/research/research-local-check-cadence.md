@@ -22,9 +22,11 @@ alone.
   stage assignment, and skip controls, and the same declaration runs in CI (`pre-commit run --all-files`).
 - **Auto-fix restaging is split.** lint-staged and lefthook (`stage_fixed`) restage fixed files; pre-commit.com and
   Overcommit fail and make the author re-add. Neither side is the idiom, so it is a configuration value.
-- **Reuse keys on content plus command, records passes only, and is never attestation.** Nx, Turborepo, Gradle,
-  Bazel, `git test`, and git-branchless all key on hashed inputs (or the tree) plus the command or config. Failures
-  are re-run, and a hit replays stored output. Every tool frames the cache as an execution shortcut.
+- **Reuse keys on content plus command; failure reuse is split.** Nx, Turborepo, Gradle, Bazel, `git test`, and
+  git-branchless key on hashed inputs (or the tree) plus the command or config. `git test` and git-branchless retain
+  failed results; Bazel's default `auto` reruns failures, while `yes` may reuse them. A hit skips execution and can replay
+  output. These caches are execution shortcuts; ARC deliberately chooses pass-only reuse rather than following a
+  universal failure policy.
 - **Change-based selection fails closed.** Global files (lockfile, config) or an unresolvable change base widen
   the selection to everything.
 - **Agent practice converges on "verify before done" with scoped checks.** Fast checks after edits, a heavier check
@@ -74,8 +76,6 @@ Near-universal (strong — tool documentation, except where marked):
   through `inputs`). Gradle hashes task type, classpath, declared inputs, and the Gradle and plugin versions.
   git-branchless caches on "the command and the tree ID"; Haggerty's `git test` records results "by the tree that
   was tested, not the commit," so results survive message edits and squashes.
-- **Pass-only reuse.** Gradle and Bazel never cache failures, and testmon re-runs last-failed tests (strong); the
-  Bazel detail is partly from secondary sources (medium). Nx and Turborepo documentation is silent on failures (gap).
 - **A hit skips execution and replays stored output** (Nx, Turborepo).
 - **Undeclared inputs are the central hazard.** Gradle: undeclared inputs cause incorrect hits. Bazel: environment
   leakage, and tools outside the workspace are untracked. Turborepo requires environment variables to be declared.
@@ -86,6 +86,12 @@ Near-universal (strong — tool documentation, except where marked):
 
 Split:
 
+- **Failure reuse.** [`git test`](https://github.com/mhagger/git-test) records pass and fail results by tree and normally
+  reuses prior results. [git-branchless](https://github.com/arxanas/git-branchless/wiki/Command:-git-test) caches the exit
+  code and output by command/tree identity, including failures. [Bazel's `cache_test_results` modes][bazel-cache] distinguish
+  default `auto`, which reruns failed tests, from `yes`, which may reuse failures. Gradle's pass-only behavior and testmon's
+  rerunning of last-failed tests therefore do not establish a universal rule. Nx and Turborepo documentation is silent
+  on failures (gap).
 - **Change base.** Working tree (Jest `--onlyChanged`) versus a ref range (Jest `--changedSince`, Nx base / head,
   Turborepo `--affected` defaulting to `main...HEAD`). Nx recommends the last successful main commit as the base — a
   last-known-good anchor rather than the branch tip.
@@ -200,3 +206,5 @@ Agent-era verification:
 - <https://lilting.ch/en/articles/gemini-cli-hooks-research> (secondary)
 - <https://knightli.com/2026/07/10/claude-code-hooks-auto-run-tests/> (secondary)
 - <https://dev.to/ohugonnot/claude-code-hooks-real-examples-posttooluse-stop-pretooluse-620> (secondary)
+
+[bazel-cache]: https://bazel.build/versions/7.4.0/docs/user-manual#cache_test_resultsyesnoauto

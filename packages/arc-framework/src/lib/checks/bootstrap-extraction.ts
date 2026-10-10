@@ -62,6 +62,7 @@ interface ExtractionState {
   gate: CheckGate | undefined;
   tierDepth: number | undefined;
   fence: Fence | undefined;
+  block: string[];
   commands: ExtractedLine[];
   prose: string[];
 }
@@ -77,14 +78,21 @@ function meaningful(line: string): boolean {
     && !/^\[[^\]]+\]:/u.test(line);
 }
 function consumeFencedLine(state: ExtractionState, line: string, fence: Fence): void {
-  if (closingFence(line, fence)) { state.fence = undefined; return; }
-  const trimmed = line.trim();
-  if (!meaningful(trimmed)) return;
-  if (fence.shell && state.gate !== undefined) state.commands.push({ command: trimmed, mappedGate: state.gate });
-  else state.prose.push(trimmed);
+  if (!closingFence(line, fence)) { state.block.push(line); return; }
+  finishBlock(state, fence);
+  state.fence = undefined;
+}
+function finishBlock(state: ExtractionState, fence: Fence, complete = true): void {
+  const lines = state.block;
+  state.block = [];
+  if (!lines.some(line => meaningful(line.trim()))) return;
+  const command = lines.join("\n") + (complete ? "\n" : "");
+  if (complete && fence.shell && state.gate !== undefined && !lines.some(line => placeholder(line.trim()))) {
+    state.commands.push({ command, mappedGate: state.gate });
+  } else state.prose.push(command);
 }
 function extractLines(content: string, defaultGate?: CheckGate): { commands: ExtractedLine[]; prose: string[] } {
-  const state: ExtractionState = { gate: defaultGate, tierDepth: undefined, fence: undefined, commands: [], prose: [] };
+  const state: ExtractionState = { gate: defaultGate, tierDepth: undefined, fence: undefined, block: [], commands: [], prose: [] };
   for (const line of content.split(/\r?\n/u)) {
     if (state.fence !== undefined) { consumeFencedLine(state, line, state.fence); continue; }
     state.fence = openingFence(line);
@@ -94,6 +102,7 @@ function extractLines(content: string, defaultGate?: CheckGate): { commands: Ext
     const trimmed = line.trim();
     if (meaningful(trimmed)) state.prose.push(trimmed);
   }
+  if (state.fence !== undefined) finishBlock(state, state.fence, false);
   return { commands: state.commands, prose: state.prose };
 }
 function activeOverride(content: string): boolean {

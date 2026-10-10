@@ -392,12 +392,13 @@ declaration's path. This work covers the generated document for the declaration 
     - the fenced `bash` and `sh` blocks under `QUICK-REFERENCE.md` § Quality Gate Commands' tier headings;
     - the `quality-gate-commands` method's override section, when its override is active;
     - the `post-task-quality` and `post-unit-quality` extensions' `.actions` sections, when populated.
-- **Proposal.** Each command line in those fenced blocks, other than comments and bracketed template placeholders,
-  becomes one proposed check. Its `command` is the line as a `shell: true` string, which preserves its shell meaning
-  until a person converts it to an argument list. Its `gate` is left unset, with a comment naming the gate its source
-  maps to: Tier 1 or `post-task-quality` maps to `commit`, Tier 2 or `post-unit-quality` to `push`, and Tier 3 to
-  `merge`. A comment also names the source. A command found at several tiers is proposed once, mapped to the earliest
-  gate.
+- **Proposal (A1).** Each complete executable fenced shell block becomes one proposed check, with its full text
+  retained as a `shell: true` command. Continuations, comments, indentation, and shell state remain in the same command;
+  extraction adds no shell flags. Pure comments and template placeholders produce no check. Incomplete fences and blocks
+  mixing executable content with template placeholders are reported for manual authoring, rather than split into
+  fragments. Its `gate` is left unset, with a comment naming the gate its source maps to: Tier 1 or `post-task-quality`
+  maps to `commit`, Tier 2 or `post-unit-quality` to `push`, and Tier 3 to `merge`. A comment also names the source.
+  Identical complete commands found at several tiers are proposed once, mapped to the earliest gate.
 - **Writes.** The bootstrap writes `.arc/system/arc-checks.yml` only when no declaration exists. Either way, it reports
   every extracted command with its source and every source it could not extract (an action written as prose), for a
   person to carry by hand.
@@ -579,10 +580,12 @@ disposable.
 
 **Key.** Per check: its id; a digest of its resolved declaration entry; a digest of the global inputs' content and the
 global runtime inputs' output; a digest of its own inputs' content in the checked tree, or for a fix-capable check in
-the tree at its turn (D7); and its runtime inputs' output. A `files` check's key also takes each path it receives (D2):
-the changed paths among its inputs or, under a request with no change or when widening selects it, every path among
-them, each with what it held at the base and, where the change carries merges, at each merged-in parent. Environment
-variables are not in the key; a check that depends on one names it as a runtime input.
+the tree at its turn (D7); and its runtime inputs' output. A `files` check's key also takes its received argument
+paths (D2), separately from historical content (A2). At the base and each exported merged-in parent, it includes every
+path matching its own or global inputs, with mode and blob identity; absent received paths remain explicit. Own and
+global patterns match independently, so exclusions in one cannot erase the other's inputs. Historical content outside
+these declared sets does not affect the key; commit identity alone does not affect it. An unavailable historical read
+disables reuse. Environment variables are not in the key; a check that depends on one names it as a runtime input.
 
 **What is recorded.** Only passes. A failure, a check that could not run, a skipped check, and a check with
 `cache: false` always run again. A hit replays the stored summary. A fault reading or writing the record degrades to a
@@ -756,10 +759,11 @@ hook's. Both hooks stay on the existing `hooks.pre_commit` and `hooks.pre_push` 
 enabled, it dispatches, and a gate with no declared checks reports `none declared` and exits 0.
 
 **CLI resolution** follows `githooks/commit-msg`: the repository-local `node_modules/.bin/arc`, then a global `arc`.
-When neither resolves, the hook fails with the same installation guidance `commit-msg` prints if
-`.arc/system/arc-checks.yml` exists, and exits 0 otherwise. The presence test is only this fallback; when the CLI
-resolves, it locates the declaration through the configuration layer (D2). Under an install profile that keeps the
-declaration elsewhere, an unresolvable CLI skips dispatch, a residual CI covers.
+The pre-push hook first excludes a known empty, state-only, or deletion-only event, including the equivalent
+pre-commit.com environment. For any remaining event, when neither CLI resolves, the hook fails with the same installation
+guidance `commit-msg` prints if `.arc/system/arc-checks.yml` exists, and exits 0 otherwise. The presence test is only this
+fallback; when the CLI resolves, it locates the declaration through the configuration layer (D2). Under an install
+profile that keeps the declaration elsewhere, an unresolvable CLI skips dispatch, a residual CI covers.
 
 **Push scope.**
 
@@ -1325,6 +1329,11 @@ remains the authority. CI runs the merge quality gate over the whole tree by def
   its checked tree, and this repository's index readers (D11) read that index at the commit hook, including under
   `git commit -a`, and at the increment boundary.
 
+- **SC19 — Shell extraction (A1).** Bootstrap preserves complete shell-block text and state in one inactive proposal,
+  or reports unsafe/incomplete material for manual authoring.
+- **SC20 — Historical reuse (A2).** A `files` check cannot reuse a pass when declared historical input content changes,
+  even if checked bytes and received paths are equal; changes outside declared inputs alone do not invalidate its key.
+
 ## Open Questions
 
 No settle-able design decision remains. Module layout, the record's file format, the failure-tail length, bootstrap id
@@ -1332,6 +1341,9 @@ derivation, and argument-batch sizing are implementation details bounded by the 
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-10 — design: preserve shell blocks. _Supersedes:_ D2 Bootstrap, Proposal paragraph.
+  _Trigger:_ STANDARD-PASS-1-F06 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A2** — 2026-10-10 — design: bind historical inputs. _Supersedes:_ D5 Key, historical-content sentences.
+  _Trigger:_ STANDARD-PASS-1-F09 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
