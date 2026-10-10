@@ -376,14 +376,18 @@ function validateResumeContinuity(
 ): string | null {
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
-    return "Resume cannot change the Errand intent.";
+    return `Resume cannot change the Errand intent. Recorded intent: ${JSON.stringify(record.intent)}. `
+      + "Rerun without --intent to resume with the recorded intent.";
   }
   if (originEntry !== null && (
     record.origin !== "inbox"
     || record.originEntry !== originEntry
     || record.originEntrySourceDigest !== originEntrySourceDigest
   )) {
-    return "Resume cannot change the originating inbox entry.";
+    const recordedEntry = record.origin === "inbox"
+      ? JSON.stringify(record.originEntry) : "none (description-origin Errand)";
+    return `Resume cannot change the originating inbox entry. Recorded inbox entry: ${recordedEntry}. `
+      + "Rerun without --from-inbox or --inbox-title-file to resume with the recorded origin.";
   }
   return null;
 }
