@@ -660,15 +660,27 @@ function withoutRecommendation(value: Record<string, unknown>): Record<string, u
   );
 }
 
+function forwardRootIssues(issues: readonly z.core.$ZodIssue[], context: z.RefinementCtx): void {
+  for (const issue of issues) {
+    context.addIssue({ ...issue });
+    // Envelope diagnostics render top-level issues, so expose union details there too.
+    if (issue.code === "invalid_union") {
+      for (const branchIssues of issue.errors) forwardRootIssues(branchIssues, context);
+    }
+  }
+}
+
 /** Full base-sync authority composed with recommendation routing fields. */
-export const SessionInitBaseBranchSyncValueViewSchema = RecommendationValueViewSchema.refine((value) => {
-  return BaseBranchSnapshotAnalysisResultSchema.safeParse(withoutRecommendation(value)).success;
-}, "invalid base-branch-sync value");
+export const SessionInitBaseBranchSyncValueViewSchema = RecommendationValueViewSchema.superRefine((value, context) => {
+  const result = BaseBranchSnapshotAnalysisResultSchema.safeParse(withoutRecommendation(value));
+  if (!result.success) forwardRootIssues(result.error.issues, context);
+});
 
 /** Full retired-subdirectory authority composed with recommendation routing fields. */
-export const SessionInitRetiredSubdirsValueViewSchema = RecommendationValueViewSchema.refine((value) => {
-  return RetiredSubdirDetectionResultSchema.safeParse(withoutRecommendation(value)).success;
-}, "invalid retired-subdirectory value");
+export const SessionInitRetiredSubdirsValueViewSchema = RecommendationValueViewSchema.superRefine((value, context) => {
+  const result = RetiredSubdirDetectionResultSchema.safeParse(withoutRecommendation(value));
+  if (!result.success) forwardRootIssues(result.error.issues, context);
+});
 
 /** Complete identity record shared by session envelope roots. */
 export const StatusIdentitySchema = z.strictObject({
