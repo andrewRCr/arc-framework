@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-seam`
+- **Depends On:** `seam-locus`
 
 - **Origin:** [internal]
 - **Design:** `draft-errand-launchpads.md`
