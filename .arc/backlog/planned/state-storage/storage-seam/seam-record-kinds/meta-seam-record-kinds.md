@@ -1,4 +1,4 @@
-# Metadata: seam-record-kinds
+# Metadata: Seam Record Kinds
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
 
-- **Origin:** `[internal] — the state-storage re-cut (2026-09-28)`
+- **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
 - **Design:** `draft-seam-record-kinds.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
