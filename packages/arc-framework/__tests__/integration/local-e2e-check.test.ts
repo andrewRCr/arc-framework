@@ -21,7 +21,7 @@ it("runs the complete E2E suite when supplied only one changed test path", async
     const result = await execa(process.execPath, ["--import", "tsx", "scripts/run-local-e2e.mjs",
       "packages/arc-framework/__tests__/e2e/runtime.test.mjs"], {
       cwd: fixture.root, reject: false, timeout: 30_000,
-      env: { FORCE_COLOR: undefined, VITEST_MAX_WORKERS: undefined },
+      env: { FORCE_COLOR: undefined, VITEST_MAX_WORKERS: undefined, ARC_E2E_SKIP_BUILD: undefined },
     });
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("SECOND-E2E-RAN");
