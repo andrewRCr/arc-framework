@@ -4,11 +4,11 @@ import type { Rule } from "eslint";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 // Native ESLint loads source TypeScript; production imports keep emitted .js paths.
-const { syntaxBindingLookup } = await import(new URL("../src/lib/syntax-bindings.ts", import.meta.url).href) as
-  typeof import("../src/lib/syntax-bindings.js");
+const { isSyntaxValueReference, syntaxBindingLookup } = await import(
+  new URL("../src/lib/syntax-bindings.ts", import.meta.url).href) as typeof import("../src/lib/syntax-bindings.js");
 
 /** Predicates whose existing violations are recorded as a suppression floor that rerouting drains to zero. */
-const RATCHET_PREDICATES = ["store-raw-state", "surface-names"] as const;
+const RATCHET_PREDICATES = ["store-raw-state", "surface-names", "work-unit-paths"] as const;
 
 /** Predicate IDs accepted by the native configuration schema. */
 export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
@@ -52,6 +52,7 @@ const RAW_STATE_MODULES = [
   "lib/errand/ref-tree.ts",
   "lib/work-unit/candidate-record-store.ts",
   "lib/work-unit/transition-record-store.ts",
+  "lib/work-unit/git-transition-record-enumeration.ts",
   "lib/errand/identity-snapshot.ts",
   "lib/errand/identity-transaction.ts",
   "lib/user-sync/inbox-writer.ts",
@@ -62,6 +63,15 @@ const RAW_STATE_MODULES = [
  * prefix leaves aside a whole kebab-case code such as `meta-read-failed`, which names no file.
  */
 const SURFACE_NAME = /USER-INBOX|ATOMIC-INBOX|ROADMAP|STATUS\.USER|\.arc\/active\/|(?:^|[/^])meta-(?![a-z0-9]+(?:-[a-z0-9]+)*$)/u;
+
+/**
+ * Layout address kinds naming work-unit state: the records a work item or cohort owns, and the containers and placement
+ * roots that hold them. System, configuration, project-document, and personal addresses stay outside the ratchet.
+ */
+const WORK_UNIT_ADDRESS_KINDS: ReadonlySet<string> = new Set([
+  "work-unit-artifact", "work-unit-container", "placement-root", "cohort-document",
+  "candidate-record", "integration-boundary-record", "transition-record",
+]);
 
 /** A source reference violating an enabled architecture predicate. */
 export interface ArchitectureImportViolation {
@@ -404,6 +414,104 @@ function surfaceNameViolations(source: ts.SourceFile): ArchitectureImportViolati
   return violations;
 }
 
+function stripped(expression: ts.Expression): ts.Expression {
+  while (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression)) {
+    expression = expression.expression;
+  }
+  return expression;
+}
+
+/** Read a layout address's literal kind, or nothing when the address carries none the linter can read. */
+function addressKind(address: ts.Expression | undefined): string | undefined {
+  const value = address === undefined ? undefined : stripped(address);
+  if (value === undefined || !ts.isObjectLiteralExpression(value)) return undefined;
+  // Later properties replace earlier ones; an opaque spread may replace the kind.
+  for (let index = value.properties.length - 1; index >= 0; index--) {
+    const property = value.properties[index];
+    if (property === undefined) continue;
+    if (ts.isSpreadAssignment(property)) return undefined;
+    if (literalPropertyName(property.name) !== "kind") continue;
+    return ts.isPropertyAssignment(property) ? literal(stripped(property.initializer)) : undefined;
+  }
+  return undefined;
+}
+
+function reexportsResolver(declaration: ts.ExportDeclaration): boolean {
+  const names = declaration.exportClause;
+  return names === undefined || ts.isNamespaceExport(names)
+    || names.elements.some((entry) => !entry.isTypeOnly && (entry.propertyName ?? entry.name).text === "resolveArcPath");
+}
+
+function workUnitPathViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
+  if (within(join(sourceRoot, "lib/store"), resolve(filename))) return [];
+  const layoutModule = (specifier: string | undefined): boolean => specifier?.startsWith(".") === true
+    && within(join(sourceRoot, "lib/layout"), resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts")));
+  const fromLayout = (declaration: ts.Node): boolean => (ts.isImportDeclaration(declaration) || ts.isExportDeclaration(declaration))
+    && layoutModule(literal(declaration.moduleSpecifier));
+  const lookup = syntaxBindingLookup(source);
+  const isLayoutNamespace = (identifier: ts.Identifier): boolean => {
+    const declaration = isSyntaxValueReference(identifier) ? lookup(identifier) : undefined;
+    return declaration !== undefined && ts.isNamespaceImport(declaration) && fromLayout(declaration.parent.parent);
+  };
+  // A namespace read by a literal member name stays traceable; any other value use hands the resolver on with it.
+  const isNamespacePassedOn = (identifier: ts.Identifier): boolean => {
+    if (!isLayoutNamespace(identifier)) return false;
+    let use: ts.Node = identifier;
+    while (ts.isParenthesizedExpression(use.parent)) use = use.parent;
+    const access = use.parent;
+    return !(ts.isPropertyAccessExpression(access) && access.expression === use)
+      && !(ts.isElementAccessExpression(access) && access.expression === use && literal(access.argumentExpression) !== undefined);
+  };
+  // The resolver under any local name: a named import, or a member of a namespace import, of the layout module.
+  const isResolver = (expression: ts.Expression): boolean => {
+    if (ts.isIdentifier(expression)) {
+      const declaration = lookup(expression);
+      return declaration !== undefined && ts.isImportSpecifier(declaration)
+        && (declaration.propertyName ?? declaration.name).text === "resolveArcPath" && fromLayout(declaration.parent.parent.parent);
+    }
+    if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
+    const member = ts.isPropertyAccessExpression(expression) ? expression.name.text : literal(expression.argumentExpression);
+    const namespace = unparenthesized(expression.expression);
+    return member === "resolveArcPath" && ts.isIdentifier(namespace) && isLayoutNamespace(namespace);
+  };
+  const isResolverUse = (node: ts.Node): node is ts.Expression => ts.isIdentifier(node)
+    ? isSyntaxValueReference(node) && isResolver(node)
+    : (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && isResolver(node);
+  // A layout module loaded by require or a dynamic import hands out the resolver under bindings the lookup cannot follow.
+  const violations = moduleReferences(source).filter(({ node, specifier }) => !ts.isImportDeclaration(node)
+    && !ts.isExportDeclaration(node) && !typeOnlyReference(node) && layoutModule(specifier))
+    .map(({ node }): ArchitectureImportViolation => ({
+      node, predicate: "work-unit-paths", reason: "layout module loaded by require or dynamic import outside the store",
+    }));
+  const report = (use: ts.Expression): void => {
+    const call = ts.isCallExpression(use.parent) && use.parent.expression === use ? use.parent : undefined;
+    if (call === undefined) {
+      violations.push({ node: use, predicate: "work-unit-paths", reason: "layout resolver passed on outside the store" });
+      return;
+    }
+    const kind = addressKind(call.arguments[0]);
+    if (kind !== undefined && !WORK_UNIT_ADDRESS_KINDS.has(kind)) return;
+    violations.push({ node: call, predicate: "work-unit-paths", reason: kind === undefined
+      ? "layout address without a literal kind outside the store" : `work-unit path ${kind} outside the store` });
+  };
+  const visit = (node: ts.Node): void => {
+    // A re-export's names belong to the other module, never to a local binding.
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined) {
+      if (!node.isTypeOnly && fromLayout(node) && reexportsResolver(node)) {
+        violations.push({ node, predicate: "work-unit-paths", reason: "layout resolver re-exported outside the store" });
+      }
+      return;
+    }
+    if (ts.isIdentifier(node) && isNamespacePassedOn(node)) {
+      violations.push({ node, predicate: "work-unit-paths", reason: "layout namespace passed on outside the store" });
+    }
+    if (isResolverUse(node)) report(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return violations;
+}
+
 function configuredIdentityViolations(source: ts.SourceFile): ArchitectureImportViolation[] {
   const violations: ArchitectureImportViolation[] = [];
   const orderedLiterals = (nodes: readonly ts.Node[]): (string | undefined)[] =>
@@ -495,6 +603,7 @@ export function findArchitectureImportViolations(
   if (predicates.includes("configured-identity")) violations.push(...configuredIdentityViolations(source));
   if (predicates.includes("store-raw-state")) violations.push(...rawStateViolations(source, filename, sourceRoot));
   if (predicates.includes("surface-names")) violations.push(...surfaceNameViolations(source));
+  if (predicates.includes("work-unit-paths")) violations.push(...workUnitPathViolations(source, filename, sourceRoot));
   return violations;
 }
 

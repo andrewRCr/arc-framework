@@ -3,6 +3,7 @@
 Act as a fresh reader at the proposal boundary. Read these files directly:
 
 - `packages/arc-framework/arc/system/methods/review-triage.md`
+- `packages/arc-framework/arc/system/methods/disposition-report.md`
 - `packages/arc-framework/arc/system/methods/review-response.md`
 - `packages/arc-framework/__tests__/fixtures/review-triage/producer-report/scenario.md`
 

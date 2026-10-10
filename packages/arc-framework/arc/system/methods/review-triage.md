@@ -1,6 +1,11 @@
 ---
 name: review-triage
 description: Source-verified severity and disposition contract for review findings
+arc:
+  methods:
+    - disposition-report
+related:
+  - disposition-report
 override-active: false
 ---
 
@@ -68,9 +73,9 @@ For a producer-backed set, include the caller's effective severity-gating policy
 `targeted | focused | full` — and the complete author-owned judgments. The scope is a recommendation until the
 approver accepts the immutable set; it does not itself skip or narrow any verification. Return that request to the
 governing caller. The command resolves the durable producer, applies the input policy to each finding's canonical
-`gating`, constructs the set, and returns `payload.proposal` with `payload.dispositionReportText`. The returned
-`payload.proposal` does not repeat the input-only `severityGatingPolicy`; its exact canonical finding gates and
-`policyVersion` are part of the approval binding.
+`gating`, constructs the set, and returns `payload.proposal` with `payload.dispositionReportText` and
+`payload.dispositionEvidenceText`. The returned `payload.proposal` does not repeat the input-only
+`severityGatingPolicy`; its exact canonical finding gates and `policyVersion` are part of the approval binding.
 
 Author each finding's narrative so the report stands without the raw review:
 
@@ -80,54 +85,36 @@ Author each finding's narrative so the report stands without the raw review:
 - `rationale` — the source check and consequence behind the verdict.
 - `openQuestions` — what remains for the approver, when anything does.
 
-Emit that returned report verbatim unless a configured `review-triage` override replaces or extends presentation.
-Show it as text in your reply to the approver — never a file path, link, or summary in its place — because approval
-binds to the report the approver read. It is layered for the decision: a table the approver decides from, with every
-open question beneath it; one section per finding for drill-down; and one closing block of evidence. Its fixed shape
-is:
+The command renders `payload.dispositionReportText` and `payload.dispositionEvidenceText` in the
+[disposition-report][disposition-report] shape. Emit the report verbatim unless a configured `disposition-report`
+override replaces or extends presentation. Show it as text in your reply to the approver — never a file path, link, or
+summary in its place — because approval binds to the report the approver read. Emit the evidence text verbatim when
+the approver asks for it; its references are part of the canonical set the approval binds, and once approved the
+durable disposition record holds them. A code-review report adds three things to the shared shape:
+
+- a leading `**Verification:** <targeted | focused | full>` line naming the proposed scope;
+- each finding's gating after its verdict — `<verdict> · <blocking or record-only>` — and `nit` after a `minor` grade
+  that carries one;
+- the producer source on each evidence line, between the locus and ARC's own verification references:
 
 ```markdown
-**Verification:** <targeted | focused | full>
-
-| # | Grade | Verdict | Action | Finding |
-|---|---|---|---|---|
-| F{ordinal} | <ARC grade, or —> | <verdict> · <blocking or record-only> | <FIX, DEFER, or REJECT> | <title> |
-
-**Open questions**                                       [only when any finding carries one]
-- F{ordinal}: <question>
-
-### F{ordinal} — <title>
-**Issue:** <the reviewer's claim>
-**Action:** <proposed action and boundaries>
-**Detail:** <source check and consequence>
-
----
-
-**Evidence**
 - F{ordinal} · <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference> · verified at <ARC source-verification references>
 ```
 
-Every set gets the table, one row per finding. Grade is ARC's verified grade, shown with its symbol — `🔴 critical`,
-`🟠 major`, or `🟡 minor`, plus `nit` when present — or `—` when the finding is not supported. Verdict is `Confirmed`
-or `Not supported`; a not-supported verdict always names the reviewer's grade (`reviewer graded <severity>`), and a
-confirmed one names it only when it differs from ARC's. Action is the disposition; the section carries the full
-proposed action. Separate adjacent sections, and the last section from the evidence block, with a blank line, `---`,
-and another blank line. The evidence line keeps the producer source distinct from ARC's own verification references.
-
-The command orders findings for the decision — blocking before record-only, then by ARC grade, most severe first, with
-a nit after other minor findings and unsupported findings last — and keeps canonical order among equals. It assigns
-report-local `F` labels in that order while retaining producer-native labels, capture ordinals, and references. It
-escapes only the characters that would otherwise open inline Markdown, plus `|` in a table cell.
+The command orders findings blocking before record-only, then by ARC grade, with a nit after other minor findings and
+unsupported findings last, keeping canonical order among equals. It retains producer-native labels, capture ordinals,
+and references beside the report-local `F` labels, and escapes only the characters that would otherwise open inline
+Markdown, plus `|` in a table cell.
 
 For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
-report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, and confirmed-finding
-signal — and states where review stands; it is provisional until verified response and coverage resolve the next
+report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, confirmed-finding signal,
+and what approving a `FIX` does: the head moves, and the line names the pass the fixed head then needs with its
+expected coverage, or says the lane closes, another pass needs a ceiling decision, or review status at that head
+decides. It states where review stands and is provisional until verified response and coverage resolve the next
 action. Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal
-and cost. Every decision the approver is asked to make carries that recommendation. When the set includes a fix, the
-recommendation also covers the pass the fix will trigger: the fix moves the head, and the routed standard obligation
-then runs another pass there unless this one reached the ceiling. Name that pass — its number and the coverage
-expected for it, complete or incremental — as spend the approver may decline. A decline leaves the
-disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
+and cost. Every decision the approver is asked to make carries that recommendation. When the pass line says a fix
+triggers another pass, the recommendation also covers that pass, as spend the approver may decline. A decline leaves
+the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
 Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
 dispatched. Keep disposition approval separate from next-pass authorization. A disposition approval alone never grants
 a pass above the ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and
@@ -139,12 +126,11 @@ scope, complete dispositions, approving actor, and approval time. Conversational
 Any changed finding, judgment, scope, disposition, narrative, target, or newly surfaced mismatch requires a new
 proposal and approval. A partial approval may never be widened, and no path may apply an individual fix early.
 
-Author self-review remains a non-producer path. Identify its standalone report as author self-review and follow the
-same per-finding order with report-local `F` labels and separators: the issue, ARC's verdict and severity, the action,
-the detail, open questions, then locus and verification evidence. Omit rather than fabricate a provider grade, native
-label, producer ordinal, source receipt, or producer-bound identity. Preserve an initial/revised author grade
-distinction when one exists without implying a separate evaluator. Its governing caller obtains complete-set approval
-directly and does not invoke the response command.
+Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
+the [disposition-report][disposition-report] shape, giving each verdict its gating as the command does. Omit rather than
+fabricate a provider grade, native label, producer ordinal, source receipt, or producer-bound identity. Preserve an
+initial/revised author grade distinction when one exists without implying a separate evaluator. Its governing caller
+obtains complete-set approval directly and does not invoke the response command.
 
 After approval, `review-response` performs the selected author leaf. Preserve every approved fate in the
 audience-visible record supplied by the caller. For a producer-backed fix commit, its body records
@@ -155,6 +141,7 @@ context footer from `self-review`; its report-local labels do not create a produ
 
 ---
 
+[disposition-report]: disposition-report.md
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md

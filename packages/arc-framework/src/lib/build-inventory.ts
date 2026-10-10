@@ -104,7 +104,9 @@ function walkDirectory(state: InventoryState, path: string, ancestors: ReadonlyS
 }
 
 function isSourceCandidate(path: string): boolean {
-  return /\.(?:[cm]?[jt]sx?|json)$/u.test(path);
+  // bundle-require emits .mjs/.cjs siblings with a base36 id truncated to 13 characters.
+  const loaderOutput = /\.bundled_[a-z0-9]{0,13}\.[mc]js$/u.test(path);
+  return !loaderOutput && /\.(?:[cm]?[jt]sx?|json)$/u.test(path);
 }
 
 function isArtifactDirectory(state: InventoryState, path: string, name: string): boolean {

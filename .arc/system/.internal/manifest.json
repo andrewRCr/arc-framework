@@ -412,6 +412,11 @@
       "layer": "core",
       "pristine_hash": "38b3972558222d4ec14a0efad2420eab11b413bb0d2b252cc7c7c41c1a0ce3b8"
     },
+    "system/methods/disposition-report.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "955dc4f0d1aa7acfb4a06f59d6a141188ad92751282ff4860c2c9d2668094db7"
+    },
     "system/methods/frontline-review.md": {
       "classification": "Configurable",
       "layer": "core",

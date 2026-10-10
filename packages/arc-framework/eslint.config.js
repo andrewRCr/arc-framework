@@ -45,7 +45,7 @@ const architectureBans = [
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names", "work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
@@ -199,6 +199,10 @@ export default tseslint.config(
   },
   ...composeArchitectureBans(architectureBans),
   {
-    ignores: ["dist/", "eslint.config.js"],
+    ignores: ["dist/", "eslint.config.js",
+      // bundle-require uses a lowercase base36 token truncated to 13 characters, including an empty token.
+      ...Array.from({ length: 14 }, (_, length) =>
+        `**/*.bundled_${"[a-z0-9]".repeat(length)}.{mjs,cjs}`),
+    ],
   },
 );
