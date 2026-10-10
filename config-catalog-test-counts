@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "config-catalog-test-counts",
+  "claimId": "9dbee114a198c81186f2370b404914e3",
+  "createdAt": "2026-10-10T12:50:45.058Z",
+  "updatedAt": "2026-10-10T12:50:45.058Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Derive configuration test totals from their expected inventories while preserving independent omission-catching assertions.",
+  "branch": "chore/config-catalog-test-counts",
+  "origin": "inbox",
+  "originEntry": "Decide which config-catalog assertions stay hand-maintained",
+  "originEntrySourceDigest": "sha256:7816753782883d1a7d554e736d6d1d780831d0e8aeba8be24b855c3d74eb8999",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
