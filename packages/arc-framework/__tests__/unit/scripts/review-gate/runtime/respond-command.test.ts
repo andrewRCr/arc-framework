@@ -1370,6 +1370,11 @@ describe("review response command", () => {
       severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
         + "needs standard pass 2 of 2, with complete coverage." },
+    { name: "a coderabbit-pr Errand review's fix once that source is removed",
+      build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete" },
+      text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
+        + "needs standard pass 2 of 2, with complete coverage." },
     { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
@@ -1386,36 +1391,39 @@ describe("review response command", () => {
       severity: "major" as const, consequence: { kind: "ceiling-decision" },
       text: "Frontline pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
         + "head, and another pass needs a ceiling decision." },
-  ])("states what approving $name does to the lane", async ({ build, severity, consequence, text }) => {
-    const { records, deps, source } = build();
-    deps.readConfiguredLanePolicy = async () => ({ sources: ["delegated-agent"], maxPasses: 2 });
-    const response = await respondToReviewCommand({
-      schemaVersion: 1,
-      source,
-      proposal: {
-        proposedVerification: "focused",
-        severityGatingPolicy: { minorGating: "record-only" },
-        findings: [{
-          findingId: records.finding.findingId,
-          sourceVerification: "verified",
-          verificationRefs: ["source:src/index.ts:7"],
-          verifiedSeverity: severity,
-          disposition: "fix",
-          title: "Finding title",
-          issue: "The reviewer's claim.",
-          rationale: "The source supports a fix.",
-          recommendation: "Apply the fix.",
-          openQuestions: [],
-        }],
-      },
-    }, deps);
-    if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
-    expect(response.payload.provisionalPassAssessment).toMatchObject({
-      fixConsequence: consequence,
-      potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
-    });
-    expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
-  });
+  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], ...row })))(
+    "states what approving $name does to the lane",
+    async ({ build, configuredSources, severity, consequence, text }) => {
+      const { records, deps, source } = build();
+      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses: 2 });
+      const response = await respondToReviewCommand({
+        schemaVersion: 1,
+        source,
+        proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: [{
+            findingId: records.finding.findingId,
+            sourceVerification: "verified",
+            verificationRefs: ["source:src/index.ts:7"],
+            verifiedSeverity: severity,
+            disposition: "fix",
+            title: "Finding title",
+            issue: "The reviewer's claim.",
+            rationale: "The source supports a fix.",
+            recommendation: "Apply the fix.",
+            openQuestions: [],
+          }],
+        },
+      }, deps);
+      if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
+      expect(response.payload.provisionalPassAssessment).toMatchObject({
+        fixConsequence: consequence,
+        potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
+      });
+      expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+    },
+  );
 
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");

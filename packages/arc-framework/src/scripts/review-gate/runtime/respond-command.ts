@@ -1738,12 +1738,17 @@ async function withdrawConditionalResponseAuthority(
 }
 
 /**
- * The coverage an Errand's next standard pass expects: only the fix where the reviewing source can cover a proven fix
- * range alone, otherwise everything.
+ * The coverage an Errand's next standard pass expects: only the fix where the reviewing source runs that pass and can
+ * cover a proven fix range alone, otherwise everything.
  */
 function errandNextPassCoverage(
   result: Exclude<ReviewResult, { kind: "frontline" }>,
+  configuredSources: readonly string[],
 ): "complete" | "incremental-when-proven" {
+  const reviewingSource = result.kind === "hosted" ? result.sourceIdentity : "delegated-agent";
+  // The next pass keeps the reviewing source only while it stays configured; any other reports complete coverage,
+  // which every source admits.
+  if (!configuredSources.includes(reviewingSource)) return "complete";
   if (result.kind === "attested-local") return "incremental-when-proven";
   const provider = HostedProviderIdSchema.safeParse(result.sourceIdentity);
   return provider.success && hostedProviderReviewsIncrementally(provider.data)
@@ -1756,6 +1761,7 @@ function errandNextPassCoverage(
 function projectFixConsequence(input: {
   proposal: ProposedDispositionSet;
   result: ReviewResult;
+  configuredSources: readonly string[];
   materialFix: boolean;
   belowCeiling: boolean;
 }): ProvisionalFixConsequence {
@@ -1768,7 +1774,7 @@ function projectFixConsequence(input: {
   const errand = result.kind !== "frontline" && lineage.kind === "head-bound" && lineage.vehicleKind === "errand";
   if (input.materialFix || errand) {
     if (!input.belowCeiling) return { kind: "ceiling-decision" };
-    const coverage = errand ? errandNextPassCoverage(result) : null;
+    const coverage = errand ? errandNextPassCoverage(result, input.configuredSources) : null;
     return { kind: "next-pass", coverage };
   }
   return result.kind === "frontline" || lineage.kind === "delivery-member"
@@ -1805,6 +1811,7 @@ function projectProvisionalPassAssessment(input: {
   result: ReviewResult;
   admittedLogicalPass: number;
   configuredMaxPasses: number;
+  configuredSources: readonly string[];
 }): z.infer<typeof ProvisionalPassAssessmentSchema> {
   const severityRank = { minor: 1, major: 2, critical: 3 } as const;
   let confirmedFindingCount = 0;
@@ -1826,6 +1833,7 @@ function projectProvisionalPassAssessment(input: {
   const fixConsequence = projectFixConsequence({
     proposal: input.proposal,
     result: input.result,
+    configuredSources: input.configuredSources,
     materialFix,
     belowCeiling: capPosition === "below-ceiling",
   });
@@ -1916,18 +1924,17 @@ async function prepareResponseProposal(
     }
     const proposal = prepareDispositionProposal(request, source);
     const lane = source.result.kind === "frontline" ? "frontline" : "standard";
+    const configured = await dependencies.readConfiguredLanePolicy(lane);
     // Frontline follow-up reads the pass and ceiling its outcome recorded, not the configuration current now.
     const passPosition = source.result.kind === "frontline"
       ? { admittedLogicalPass: source.result.outcome.pass, configuredMaxPasses: source.result.outcome.maxPasses }
-      : {
-          admittedLogicalPass: source.result.admission.logicalPass,
-          configuredMaxPasses: (await dependencies.readConfiguredLanePolicy(lane)).maxPasses,
-        };
+      : { admittedLogicalPass: source.result.admission.logicalPass, configuredMaxPasses: configured.maxPasses };
     const provisionalPassAssessment = projectProvisionalPassAssessment({
       proposal,
       result: source.result,
       lane,
       ...passPosition,
+      configuredSources: configured.sources,
     });
     const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
     return RespondEnvelopeSchema.parse({
