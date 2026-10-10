@@ -430,6 +430,11 @@ The runner's requests are sequential; no additional check run was started by thi
 | 19     | 37.046         | 15.876            | 18.611           | 1.358        | 35.846        |
 | 20     | 36.265         | 15.675            | 18.295           | 1.283        | 35.254        |
 
+The baseline's seven broad `npm test` requests total 1575.668s. The 20 ordinary commit hooks total 352.699s
+before and 27.814s after. For the same 12 samples running related unit tests, the median changes from 18.733s to
+18.681s. These observations support selection and hook reuse as the main sources of savings; they do not assign
+a causal percentage to ambient load, which was not controlled.
+
 The machine-readable observations and all warm/timed logs are retained in `/tmp/arc-quality-after-results/`; the
 baseline remains in `/tmp/arc-quality-baseline-repaired-results/`. Each JSON sample names its original commit, full
 path set, actual argv, elapsed time, exit status, and log. Tables round seconds to three decimals; totals use the
@@ -489,9 +494,64 @@ direction (2026-10-07), following the landing rule the storage program sets for 
 
 The first local replay used the source CLI's merge-gate CI forecast and the mapped `lint-typecheck` steps, with
 `CI=1`, from the implementation checkout. Both checks covered their complete forecast path sets. Wall times include
-runner startup; hosted Actions timing evidence remains pending for the first CI run.
+runner startup; the hosted measurements below come from Actions step timestamps.
 
 | Check          | Native step wall time | Batches |
 | -------------- | --------------------- | ------- |
 | `lint:ts`      | 47.110s               | 1       |
 | `lint:ts:file` | 60.047s               | 7       |
+
+### Hosted verification
+
+The first dispatched run, at `5fbbf1c50c1e8baf7e5e62738c539159bfe25db5`, published the source-generated
+19-check forecast and passed its plumbing validation. Its `Lint & Typecheck` job passed in 310s. Actions step
+start/end timestamps have one-second resolution and include invocation startup:
+
+| Check          | Mapped step        | Hosted step time | Shared job time | Batches |
+| -------------- | ------------------ | ---------------- | --------------- | ------- |
+| `lint:ts`      | `typescript`       | 75s              | 310s            | 1       |
+| `lint:ts:file` | `typescript-files` | 97s              | 310s            | 7       |
+
+Both checks run in the same job; its duration is shared, not two independent job measurements. The first run's
+integration shard 1 failed because `local-e2e-check.test.ts` inherited the parent's `ARC_E2E_SKIP_BUILD=1` in a fresh
+fixture without qualified output. Clearing that setting for the fixture child preserves the production build
+contract. The focused native test failed before and passed after this correction with the parent setting retained.
+The correction is committed at `33948f1c68915c85250e7356f147f4c2076893c2`.
+
+[First hosted run](https://github.com/andrewRCr/arc-framework/actions/runs/38051560096).
+
+The second run, at `33948f1c6`, passed the repaired fixture and every other job except integration shard 3. Its
+indexed-Markdown repair test timed out at the default 30s; that same two-certification test had passed in 27.979s
+in the first run. The sibling native certifications also rose from 11.629/12.594s to 15.028/16.822s. The test has
+no 30s performance assertion, so `581a2d159e17b48e84dfe6b36cb0b1520a86c70b` gives that case a named 60s timeout
+and preserves every certification, diagnostic, and repair assertion. All 13 focused indexed-Markdown tests pass.
+[Second hosted run](https://github.com/andrewRCr/arc-framework/actions/runs/38052517661).
+
+The completed run at `581a2d159e17b48e84dfe6b36cb0b1520a86c70b` succeeds: setup, build, lint/typecheck,
+both unit shards, all four integration and E2E shards, Linux portability, and duration merging pass. The repaired
+indexed-Markdown case completes in 28.737s. The optional portability pair is disabled; the PR-only `ci-ok` and
+`merge-ok` mirrors do not execute on a dispatch. All failed attempts remain visible in their original runs.
+[Successful hosted run](https://github.com/andrewRCr/arc-framework/actions/runs/38053408096).
+
+## First-consumer scenarios
+
+The disposable consumer clone starts at `96e5992290c47dfe9af5106316915da6e91ff77d`. It runs the actual source
+CLI's CI merge forecast and the production setup validation command. A valid map exits zero; adding
+`unlisted-probe` mapped to `lint-typecheck/default-checks` exits one with
+`CI map names an unlisted check: unlisted-probe`; byte-for-byte restoration of the map exits zero again.
+
+After a neutral README edit and a native increment request, ordinary `git commit` succeeds through ARC's commit
+hook at `b3d77e8e1dc508d6d0c539a03b6aa703edccdd55`. Ordinary `git push` to the disposable bare remote succeeds
+through ARC's push hook, with all 15 declared push checks passing or reusing their results. The local and remote
+branch heads match and the consumer clone is clean. The primary feature branch also pushes successfully to GitHub
+at `5fbbf1c50`, `33948f1c6`, and `581a2d159`, through its native pre-push hook.
+
+The scenario report and command logs remain in `/tmp/arc-quality-consumer-scenarios.json` and the
+`/tmp/arc-quality-consumer-*.log` files. The real hosted forecast artifact is retained in
+`/tmp/arc-quality-hosted-final-forecast/.arc-check-forecast.json` and names all 19 merge-gate checks, including the
+OS-conditional macOS check; the optional portability pair remains disabled for the dispatched runs.
+
+The hosted end-to-end scenario succeeds at `581a2d159e17b48e84dfe6b36cb0b1520a86c70b` in
+[the successful dispatched run](https://github.com/andrewRCr/arc-framework/actions/runs/38053408096). Its source
+forecast and validated map feed every scheduled check-running job. The optional Windows/macOS pair is off,
+so the macOS-only entry remains conditional rather than being claimed as executed.

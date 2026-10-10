@@ -651,54 +651,21 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   feedback request. CONTRIBUTING uses the same deadline rule and delegates setup validation to the declaration;
   copied tiers, relevance tables, and measured-command pointers are gone.
 
-### `[ ]` **7.6 CI jobs come from the declaration's dry-run list — D9, D11**
+### `[x]` **7.6 CI jobs come from the declaration's dry-run list — D9, D11**
 
 - _Goal:_ This repository's CI runs the merge quality gate from the declaration, each check at the steps its id maps to
   or at the default step, with every per-check difference on the step that runs it, so no check is CI-only or
   local-only by omission.
-
-- _Context:_ re-ground against the CI layout on the base branch before editing. These read `ci.yml` and change with it:
-  `classify-change.test.ts`, which asserts that the `setup` job only prepares and derives heavy names from job
-  conditions; `review-gate-workflows` and `duration-layout-workflow`; and `helpers/ci-build-fixture.ts`, which finds the
-  build and its upload in `setup`, with `ci-build-transfer` and `ci-build-recovery`, which use it.
-  `parseWorkflowE2EShards` (`test-cost/shards.ts`) keeps reading the E2E shard count from the matrix literal for
-  `deriveEffectiveE2EShards` (`shard-run.ts`, called by `measure-e2e-shards.ts`), since the literal stays, held to the
-  declared count (Task 7.6.a).
 
     - `[x]` **7.6.a Setup job and the step map**
         - Setup forecasts from source on every nonduplicate run and validates mapped ids, steps, and literal shard
           matrices before publishing its artifact. Forecast output is created outside the checkout; a native
           producer test proves its checked tree remains available in a clean consumer clone.
 
-    - `[ ]` **7.6.b Check and shard jobs**
-        - Each mapped step runs, through one repository script beside `classify-change.sh`, run from source as the dry
-          run is, the artifact's entries the map assigns to it, one shard's where its job has a shard matrix, resolving
-          each working directory, relative to the repository root, against its own checkout and spawning as the verb
-          does (Task 4.1.c's Windows handling): their invocations run natively, exporting the base, checked tree, and
-          merged-in parents, and a fix-capable check that leaves the tree changed fails (`git diff --exit-code`)
-        - The default step, in `lint-typecheck`, which runs on every push and pull-request run the duplicate-push skip
-          leaves, light and heavy alike, runs every entry the map does not name
-        - Each job running a check depends on the setup job, whose artifact it reads; `portability-cross-platform`,
-          which needs neither `classify` nor `setup` today, gains that dependency
-        - Shard plumbing stays outside the declaration, on the shard jobs and their steps: the duration-file
-          environment, artifact steps, the build preflight and `ARC_E2E_SKIP_BUILD`, the E2E jobs' Python setup for the
-          hook-manager tests (Task 5.1.a), and the unit shards' reporter arguments. `typecheck:test`'s `NODE_OPTIONS`
-          stays on its own step
-        - A new `build` job, under the condition `setup` carries today (heavy, dispatched, and scheduled runs), runs the
-          `build` check at the step the map names and uploads the `dist` artifact. The jobs that download it depend on
-          it through `needs:`; `lint-typecheck`, which downloads it only on heavy runs, also runs when it is skipped, as
-          it does for `setup` today. `ci_ok`'s `needs:` and `HEAVY_CHECK_NAMES` gain it (Task 7.7.a), and
-          `portability-cross-platform`'s legs keep their own install and build
-        - Checkouts are shallow by default, so the job running `check-package-sync.sh` fetches the history its merge
-          base needs
-        - The first run records the `lint:ts` and `lint:ts:file` job times in the notes file, since the merge gate runs
-          both over every TypeScript path
-        - Build `test-first` (one behavior at a time), over the script:
-            - a step runs exactly the entries the map assigns to it, and only the given shard's batches
-            - the default step runs every entry the map does not name
-            - an entry listed with a relative working directory runs from the script's own checkout
-            - each invocation receives the base, checked tree, and merged-in parents the list carries
-            - a fix-capable check that leaves the tree changed fails
+    - `[x]` **7.6.b Check and shard jobs**
+        - Mapped and default steps execute forecast entries and shard batches natively with checked-tree coordinates,
+          index certification, and fixer containment. Jobs retain build transfer and per-step environments;
+          `notes-quality-gate-hooks.md` records the successful hosted run and both first-run lint timings.
 
     - `[x]` **7.6.c Run conditions as plumbing**
         - Workflow steps retain light/heavy checks, reviewed-lane suites, dispatched and scheduled runs, duplicate
@@ -738,10 +705,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
   feedback requests followed by the ordinary commit hook. `notes-quality-gate-hooks.md` records the comparison,
   per-command times, cold-request and hook-reuse evidence, and the retained sample/load limits.
 
-### `[ ]` **7.10 First consumer end to end** — validate exit criterion at segment scope
+### `[x]` **7.10 First consumer end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on this repository: commits and pushes through ARC's hooks, a CI run from
   the dry-run list, and the setup job's refusal on an unlisted id, recorded as the scenarios run and their results.
+
+- _Outcome:_ Native commit and push consumers pass, and the production setup validator proves valid-map,
+  unlisted-id refusal, and repaired-map success. The hosted run from the 19-check forecast succeeds at `581a2d159`;
+  `notes-quality-gate-hooks.md` retains exact heads, scenario results, conditional exclusions, and hosted timings.
 
 ## **Phase 8:** Verification
 
