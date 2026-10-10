@@ -126,6 +126,9 @@ The branch and worktree are **not** torn down here — that physical reap is the
 in Step 4. (Firing the teardown in-verb tripped the clean guard on the verb's own staged removal and, in-place,
 targeted the un-removable primary worktree.) `arc abandon` stages but does not commit.
 
+When several retirements share a checkout, commit each completed transition before invoking the next one. Direct
+retirement requires an empty index; commit unrelated staged changes or clear them from the index before retrying.
+
 ### 3) Commit the abandonment
 
 `arc teardown` reaps from a **clean** worktree (it refuses a dirty tree and never force-removes uncommitted
