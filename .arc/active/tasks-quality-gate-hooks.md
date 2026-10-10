@@ -642,17 +642,14 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
           formats at the increment boundary. The retired-chain commit reuses selected checks; the declaration
           retains restaging, native commands, and widening defaults.
 
-### `[ ]` **7.5 Project rules and strategies name the gates — D10, D11**
+### `[x]` **7.5 Project rules and strategies name the gates — D10, D11**
 
 - _Goal:_ This repository's rules state zero tolerance per gate and its one by-id feedback request, leaving selection,
   reuse, and the re-run rule to the verb and its fire sites.
 
-    - `DEV-RULES.PROJECT.md` § Quality Gates: the zero-tolerance policy holds per gate at its deadline; the tiered line
-      and § Selecting what to run shrink to it, keeping one increment-boundary request by id, of the local E2E check and
-      `test:changed` over `--changed`, beside `arc check increment`
-    - `strategy-testing-methodology.md` § Integration with Quality Gates is rewritten to the gate model
-    - The root `CONTRIBUTING.md`'s § Quality Standards states the rule per gate rather than before any commit
-    - `DEV-RULES.PROJECT.md`'s pointer to QUICK-REFERENCE § Quality Gate Commands for commands and measured cost goes
+- _Outcome:_ Project rules and testing guidance enforce declared deadlines and one combined related-unit/local-E2E
+  feedback request. CONTRIBUTING uses the same deadline rule and delegates setup validation to the declaration;
+  copied tiers, relevance tables, and measured-command pointers are gone.
 
 ### `[ ]` **7.6 CI jobs come from the declaration's dry-run list — D9, D11**
 
