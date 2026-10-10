@@ -1,5 +1,7 @@
 /** Read a work unit's design thesis from the same source as its metadata. */
 
+import { fromMarkdown } from "mdast-util-from-markdown";
+
 import type { GitBlobEntry } from "../io-context.js";
 import { dirname, join, posix } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
@@ -143,15 +145,14 @@ export async function resolveWorkUnitPurposes(
 export function extractWorkUnitPurpose(content: string): string | null {
   const field = purposeField(content);
   if (field === null || field === "" || field === "—") return null;
-  let codeDelimiter = 0;
+  const codeEnds = codeSpanEnds(field);
   for (let index = 0; index < field.length; index += 1) {
-    if (field[index] === "`") {
-      const start = index;
-      while (field[index + 1] === "`") index += 1;
-      const length = index - start + 1;
-      if (codeDelimiter === 0) codeDelimiter = length;
-      else if (codeDelimiter === length) codeDelimiter = 0;
-    } else if (codeDelimiter === 0 && /[.?!]/u.test(field[index] ?? "")
+    const codeEnd = codeEnds.get(index);
+    if (codeEnd !== undefined) {
+      index = codeEnd - 1;
+      continue;
+    }
+    if (/[.?!]/u.test(field[index] ?? "")
       && (index + 1 === field.length || /\s/u.test(field[index + 1] ?? ""))) {
       return field.slice(0, index + 1);
     }
@@ -159,15 +160,60 @@ export function extractWorkUnitPurpose(content: string): string | null {
   return field;
 }
 
+type MarkdownNode = ReturnType<typeof fromMarkdown> | ReturnType<typeof fromMarkdown>["children"][number];
+
+/** Preserve source offsets so sentence extraction retains the field's Markdown. */
+function codeSpanEnds(field: string): Map<number, number> {
+  const prefix = "Purpose: ";
+  const ends = new Map<number, number>();
+  const visit = (node: MarkdownNode): void => {
+    if (node.type === "inlineCode") {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      if (start !== undefined && end !== undefined) ends.set(start - prefix.length, end - prefix.length);
+    }
+    if ("children" in node) for (const child of node.children) visit(child);
+  };
+  visit(fromMarkdown(prefix + field));
+  return ends;
+}
+
 /** Null distinguishes an absent field from a present, empty field. */
 function purposeField(content: string): string | null {
-  const lines = content.split(/\r?\n/u);
-  const start = lines.findIndex((line) => /^(?:- )?\*\*Purpose:\*\*/u.test(line));
-  if (start < 0) return null;
-  const values = [(lines[start] ?? "").replace(/^(?:- )?\*\*Purpose:\*\*\s*/u, "")];
-  for (const line of lines.slice(start + 1)) {
-    if (/^\s*$|^\s*(?:#{1,6} |[-*] |\*\*|---)/u.test(line)) break;
+  const paragraph = purposeParagraph(content);
+  if (paragraph === null) return null;
+  const lines = paragraph.split(/\r?\n/u);
+  const values = [(lines[0] ?? "").replace(/^\*\*Purpose:\*\*\s*/u, "")];
+  const codeSpans = codeSpanEnds(paragraph);
+  let lineStart = 0;
+  for (const line of lines.slice(1)) {
+    lineStart = paragraph.indexOf("\n", lineStart) + 1;
+    const insideCode = [...codeSpans].some(([start, end]) => start <= lineStart && lineStart < end);
+    if (!insideCode && /^\*\*[^*]+:\*\*/u.test(line)) break;
     values.push(line.trim());
   }
   return values.join(" ").replace(/\s+/gu, " ").trim();
+}
+
+/** Locate a real field inside a paragraph rather than in code or HTML. */
+function purposeParagraph(content: string): string | null {
+  const visit = (node: MarkdownNode, paragraphEnd?: number): string | null => {
+    const end = node.type === "paragraph" ? node.position?.end.offset : paragraphEnd;
+    if (node.type === "strong" && end !== undefined) {
+      const start = node.position?.start.offset;
+      if (start !== undefined && content.startsWith("**Purpose:**", start)) {
+        const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+        const prefix = content.slice(lineStart, start);
+        if (prefix === "" || prefix === "- ") return content.slice(start, end);
+      }
+    }
+    if ("children" in node) {
+      for (const child of node.children) {
+        const field = visit(child, end);
+        if (field !== null) return field;
+      }
+    }
+    return null;
+  };
+  return visit(fromMarkdown(content));
 }
