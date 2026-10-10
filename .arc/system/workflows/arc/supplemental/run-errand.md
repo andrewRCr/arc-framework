@@ -6,6 +6,7 @@ arc:
     - assess-evidence-applicability
     - assess-parallel-fit
     - classify-review-risk
+    - commit-format
     - commit-footer
     - frontline-review
     - standard-review
@@ -284,8 +285,8 @@ remote base all name the same exact head. Any tracked change continues through t
    - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
-   Author the PR title as an ordinary Conventional Commits subject (`type(scope): description`); reuse the single
-   commit's subject or describe the dominant change.
+   Title the PR with the single commit's subject, or compose a subject for the dominant change by the
+   [`commit-format` method][commit-format].
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
    one-line Summary plus a one-line Test Plan only when verification is non-obvious. When gated local review ran,
@@ -669,6 +670,7 @@ idempotent and may return the next file-ordered execute-bound offer.
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
+[commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
