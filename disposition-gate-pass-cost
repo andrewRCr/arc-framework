@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "disposition-gate-pass-cost",
+  "claimId": "5bfea0688ac10e558275abf84bd2f57c",
+  "createdAt": "2026-10-10T16:22:55.267Z",
+  "updatedAt": "2026-10-10T16:22:55.267Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the review pass a FIX triggers in the CLI pass assessment and disposition report",
+  "branch": "chore/disposition-gate-pass-cost",
+  "origin": "inbox",
+  "originEntry": "Show at the disposition gate that fixing a finding moves the head and costs a review pass",
+  "originEntrySourceDigest": "sha256:66b44b89cd0ffec7f161501d2fc18cbf3494ef29cd9b6cf9254c800feb054733",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
