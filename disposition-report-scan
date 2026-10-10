@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "disposition-report-scan",
+  "claimId": "5c3a4517438a64bd9e4890c277c33fe2",
+  "createdAt": "2026-10-10T15:15:13.116Z",
+  "updatedAt": "2026-10-10T15:15:13.116Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Present review disposition reports for scanning: one line per descriptor field, evidence kept in the record and shown on request, one shape shared with adversarial review",
+  "branch": "chore/disposition-report-scan",
+  "origin": "inbox",
+  "originEntry": "Present review dispositions for scanning, with the evidence kept in the record",
+  "originEntrySourceDigest": "sha256:6fb6b2738b63d5dc0f2bb57e6816aa53ba400a3dee534cafe64d412b64898f21",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
