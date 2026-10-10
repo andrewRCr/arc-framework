@@ -3,14 +3,20 @@
   "slug": "seam-projection-asks",
   "claimId": "e015cc8b15a134970cd721436d082750",
   "createdAt": "2026-10-10T03:49:51.789Z",
-  "updatedAt": "2026-10-10T03:49:51.789Z",
+  "updatedAt": "2026-10-10T04:31:44.089Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Amend cohort-storage-seam.md § Cross-cohort with storage-projection's four Owner-approved changes to its asks of the seam (adversarial pass 1): the removal-guard caller list, the worktree lock's move sites and landing order, the projection's machine-local paths, and the user-surfaces shim's retirement at storage-cutover's deletion pass.",
   "branch": "chore/seam-projection-asks",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/seam-projection-asks",
+    "headSha": "2a1336e7925f616e84f1f8b5acac0e2f09149e25"
+  }
 }
