@@ -55,6 +55,31 @@ it("reruns an ordinary failure by id over its resolved range without CI", async 
   expect(report.checks[0].remedy).toBe(`arc check run check --range ${report.base}`);
 });
 
+it.each(["--force", "--unknown-option"])("retains the failed path %s through the native retry parser", async name => {
+  const root = await createDeclaredCheckRepository({ check: {
+    mode: "files", cache: false, inputs: ["src/**", name], command: [process.execPath, "-e",
+      "const fs=require('node:fs');const paths=process.argv.slice(1);console.log(JSON.stringify(paths));process.exit(paths.some(p=>fs.readFileSync(p,'utf8')==='bad')?1:0)", "--"],
+  } });
+  repositories.push(root);
+  await writeFile(join(root, name), "bad");
+  const failed = await runArc(["check", "run", "check", "--paths", "src/a.ts", `./${name}`, "--json"], root);
+  expect(failed.exitCode, failed.stderr).toBe(1);
+  const remedy = JSON.parse(failed.stdout).result.checks[0].remedy as string;
+  const argv = [...remedy.split(" ").slice(1), "--json"];
+  const retry = await runArc(argv, root);
+  expect(retry.stderr).not.toContain("unknown option");
+  expect(retry.exitCode, retry.stderr).toBe(1);
+  const report = JSON.parse(retry.stdout).result;
+  expect(JSON.parse(report.checks[0].output).sort()).toEqual(["src/a.ts", name].sort());
+  expect(report.base).toBe(JSON.parse(failed.stdout).result.base);
+  await writeFile(join(root, name), "repaired");
+  const repaired = await runArc(argv, root);
+  expect(repaired.exitCode, repaired.stderr).toBe(0);
+  const result = JSON.parse(repaired.stdout).result.checks[0];
+  expect(result.outcome).toBe("passed");
+  expect(JSON.parse(result.output)).toEqual(expect.arrayContaining(["src/a.ts", name]));
+});
+
 it("retries a widened file check through its original request including CI", async () => {
   const root = await createDeclaredCheckRepository({ check: {
     gate: "commit", mode: "files", inputs: ["src/**"], command: [process.execPath, "-e", "process.exit(1)"],

@@ -7,7 +7,7 @@ function scopeArguments(scope: CheckScope, base?: string): string[] {
     const from = base ?? scope.base;
     return ["--range", ...(from === undefined ? [] : [from])];
   }
-  if (scope.kind === "paths") return ["--paths", ...scope.paths];
+  if (scope.kind === "paths") return ["--paths", ...scope.paths.map(path => path.startsWith("-") ? `./${path}` : path)];
   return [`--${scope.kind}`];
 }
 
