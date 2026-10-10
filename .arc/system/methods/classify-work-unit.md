@@ -10,10 +10,10 @@ override-active: false
 
 > - **Workflow:** [init-work-unit.md][init-work-unit], [activate-work-unit.md][activate-work-unit],
 >   [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks]
+>   [generate-tasks.md][generate-tasks], [run-errand.md][run-errand]
 > - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — promotion into
 >   `backlog/planned/` (the forcing point), `init` as the WU enters active planning, `activate` at the
->   pre-implementation settle, and the planning stages.
+>   pre-implementation settle, the planning stages, and an Errand’s Launch classification or promote trigger.
 >
 > - **Contract:** Given a work unit, return its `Class` — `Light` / `Heavy` / `Novel`, or `[TBD]` when its
 >   weight is genuinely not yet knowable — by applying the boundary tests, never resolving below the floor the
@@ -127,3 +127,4 @@ holds, ratchet _up_ to a newly realized floor, or correct an unsubstantiated est
 [create-spec]: ../workflows/arc/create-spec.md
 [generate-tasks]: ../workflows/arc/generate-tasks.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
+[run-errand]: ../workflows/arc/supplemental/run-errand.md

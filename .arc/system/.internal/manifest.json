@@ -390,7 +390,7 @@
     "system/methods/classify-work-unit.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "13133fd92ea60c7fd7d7f76ea7742dbf4307854aae044f4183836effc77be4a4"
+      "pristine_hash": "a2ab3a97ecb4d6d2ca559e3ea81a90883592d9853bf5daf94bf1a901cb73e810"
     },
     "system/methods/commit-footer.md": {
       "classification": "Configurable",
@@ -685,7 +685,7 @@
     "system/workflows/arc/supplemental/run-errand.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "889e036c4f566dc779d363567ab08a44f858d2bbb1bfc855690cb152a9bd8fcd"
+      "pristine_hash": "7ae9d9b1bc84c454adfddc6242bde4d39084ed37c400a47f85109a5d58b37996"
     },
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
@@ -780,7 +780,7 @@
     "system/methods/route-discovered-work.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "1f5f01c1cd8f5a1c2a61b3ec088b7927d536f2607ae0c023ef9f0baa659dae50"
+      "pristine_hash": "e3c27e99e5055c48d55186cfcdeb3e2696e963f441d1eb9e126b350c02e558cc"
     }
   }
 }

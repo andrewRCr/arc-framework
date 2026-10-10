@@ -411,69 +411,41 @@ Errand-shaped one, and D9's pair with D12's four answers for an unclear one.
     - `[x]` **6.1.e Give no Errand-class capture a home in step 5**
         - Every Errand capture has no work-unit home and takes the drain’s homeless-atomic route.
 
-### `[ ]` **6.2 Enter `arc-errand`'s route shape only after the gate — D7, D8**
+### `[x]` **6.2 Enter `arc-errand`'s route shape only after the gate — D7, D8**
 
 - _Goal:_ `arc-errand`'s route shape writes only backlog stubs, only after the gate — route-now's, or, when invoked
   directly, its own, run before the Errand opens — and only once `run-errand`'s pre-write re-check in the Errand's
   checkout still gives the result the Owner confirmed.
 
-    - `[ ]` **6.2.a Gate the route shape in step 1**
-        - The route bullet's destination, "an existing backlog stub or draft", becomes an entry in a backlog stub or a
-          minted stub, never a started work unit's draft, written as the method's binding section says.
-        - Invoked directly, the route shape runs a YAML callsite of `route-discovered-work` with the fast-path door
-          before the Errand opens, with a marked fire-point, and the Owner sees its result there; a result other than
-          a now-route goes to `arc-inbox`'s route-now hand-off with the outcome the Owner confirmed, and the hand-off
-          carries it without running the gate again.
-        - The route bullet says the write follows `run-errand`'s pre-write re-check (Task 6.3.e).
-        - The method's blockquote `When:` line names the route shape's gate on a direct invocation.
+    - `[x]` **6.2.a Gate the route shape in step 1**
+        - The direct route shape confirms the fast-path result before opening and writes only a backlog entry or
+          minted stub after the pre-write re-check. Other results return as confirmed hand-offs.
 
-    - `[ ]` **6.2.b Classify a route-only Errand by its routing change in step 2**
-        - Step 2's account of Launch says a route-only Errand is classified by its routing change — writing an entry
-          or minting a stub — not by the concern it carries.
+    - `[x]` **6.2.b Classify a route-only Errand by its routing change in step 2**
+        - Launch classifies the routing change independently of its carried concern.
 
-### `[ ]` **6.3 Route, re-check, record Decided lines, and promote in `run-errand` — D7, D8, D9, D12**
+### `[x]` **6.3 Route, re-check, record Decided lines, and promote in `run-errand` — D7, D8, D9, D12**
 
 - _Goal:_ An Errand routes a concern it discovers through the method's Errand route-to-home door, re-checks a
   route-only Errand's route in its own checkout before it writes, records each fork it settles as a `Decided:` line,
   shows the record test's answers at Launch only when one is yes, and promotes the moment an answer flips.
 
-- _Note:_ A `Decided:` line inside the commit's final paragraph breaks the trailer block when it wraps:
-  `parseTrailerBlock` (`src/lib/commit-check/parser.ts`) then rejects the paragraph, and no `Context:` trailer is
-  found.
+    - `[x]` **6.3.a Declare both methods and invoke the route-to-home door**
+        - The Errand route-to-home call and proposal carry discovered concerns through the shared binding and capture
+          shape.
 
-    - `[ ]` **6.3.a Declare both methods and invoke the route-to-home door**
-        - `supplemental/run-errand.md` declares `route-discovered-work` and `classify-work-unit` in `arc.methods`.
-        - In Execute, beside the promote primer, a concern the Errand discovers runs a YAML callsite with the Errand
-          route-to-home door, with a marked fire-point. The Errand's proposal before it routes shows the outcome, its
-          `_Shapes:_`, the pair where the result carries one, the horizon advisory of a coupled target that carries
-          one, and any wait the binding names.
-        - Its routes are carried out as the method's binding section says, each capture built with `arc-inbox`'s
-          entry shape: `hold <wu>` and `new-stub` become pre-routed captures; `errand` waits as a `§ Errand` capture
-          unless the Owner runs it as its own Errand; `capture` is a capture with its home undecided; `dismiss` writes
-          nothing.
-        - The method's blockquote `Workflow:` line gains `run-errand.md`, and so does `classify-work-unit`'s, whose
-          `When:` line gains the Errand's Launch classification and promote trigger.
+    - `[x]` **6.3.b Add the `Decided:` line to the commit and the lean PR body**
+        - Settled forks use Decided paragraphs above the commit trailer and after the lean PR Summary.
 
-    - `[ ]` **6.3.b Add the `Decided:` line to the commit and the lean PR body**
-        - Each fork the Errand settles is recorded as `Decided: X over Y — because Z` in the lean errand PR body, after
-          its Summary, and in the commit body as its own paragraph above the `Context:` trailer; the commit template
-          shows that paragraph. A partial-protection Errand has only the commit.
+    - `[x]` **6.3.c Show the four answers at Launch when one is yes**
+        - Launch applies the record test to its own change and shows four answers only when one is Yes.
 
-    - `[ ]` **6.3.c Show the four answers at Launch when one is yes**
-        - Launch step 1 shows the record test's four answers only when one is yes, for the Owner's call, and
-          classifies a route-only Errand by its routing change, not the concern it carries.
-        - An in-step `classify-work-unit` link marks the fire-point.
+    - `[x]` **6.3.d Make the promote primer the record test's trigger**
+        - The promote primer fires the moment a canonical record answer flips Yes.
 
-    - `[ ]` **6.3.d Make the promote primer the record test's trigger**
-        - Execute's promote primer fires the moment any answer flips, leaving the floor to the Promote Errand path it
-          already defers to; the two-floor summaries stay.
-        - An in-step `classify-work-unit` link marks the fire-point.
-
-    - `[ ]` **6.3.e Re-check a route-only Errand's route before it writes**
-        - For a route-only Errand, Execute runs a YAML callsite of `route-discovered-work` with the fast-path door in
-          the Errand's checkout before the write, with a marked fire-point: the coupling and scope tests, and for
-          `new-stub` the shortlist, against the base's current copies. A changed result returns to the Owner.
-        - The method's blockquote `When:` line names this pre-write re-check.
+    - `[x]` **6.3.e Re-check a route-only Errand's route before it writes**
+        - Route-only Execute re-checks coupling, scope and any new-stub shortlist in its own checkout; changed results
+          return to the Owner.
 
 ### `[ ]` **6.4 Map the record test's answers to `--floor` in `init-work-unit`'s Promote Errand path — D12**
 
