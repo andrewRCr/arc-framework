@@ -710,15 +710,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
 - _Goal:_ The verified-tree lookback only ever reads a job list that was checked, and editing the declaration runs the
   heavy jobs.
 
-    - `[ ]` **7.7.a `HEAVY_CHECK_NAMES` names the workflow's heavy jobs**
-        - `classify-change.sh`'s list names every job a heavy reviewed-lane pull-request run runs, one per job or shard
-          leg, plus the setup job (`Shared setup` today), whose pass a lookback match needs. It stays kept in the
-          script, since its classify job runs before setup and without the CLI; its names are job names, which no
-          declaration change touches
-        - `workflowHeavyCheckNames`' contract test (`classify-change.test.ts`) keeps holding it equal to the workflow's
-          heavy-conditioned jobs and their matrix legs, now counting the setup job, which runs on every run; its
-          assertion that setup only prepares admits the dry run and the map validation
-        - Each name is the check-run name GitHub reports: a job's `name:` with any matrix value substituted
+    - `[x]` **7.7.a `HEAVY_CHECK_NAMES` names the workflow's heavy jobs**
+        - The classifier and lookback fixtures include Shared setup and Build alongside every heavy job and shard
+          display name. The workflow reader counts setup without a heavy condition and limits it to installation,
+          base preparation, source forecasting, plumbing validation, and duration/artifact preparation.
 
     - `[ ]` **7.7.b Declaration in the code surface**
         - `CODE_SURFACE_GLOBS` (`change-facts.ts`) gains `.arc/system/arc-checks.yml`, which `GENUINE_DOCS_GLOBS`'s

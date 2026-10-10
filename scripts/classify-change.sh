@@ -39,6 +39,8 @@ readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
 # compare this list and the check-run fixtures with the workflow: a stale name
 # defeats reuse, while an omitted new leg could wrongly skip verification.
 readonly HEAVY_CHECK_NAMES=(
+  "Shared setup"
+  "Build"
   "Lint & Typecheck"
   "Unit Tests (1)"
   "Unit Tests (2)"
