@@ -19,7 +19,8 @@ it.each(["test:unit", "test:changed", "test:portability:macos"])(
         { cwd: fixture.root });
       await writeFile(test, 'import { it } from "vitest"; it.skip("changed unfinished native case", () => {});');
     }
-    const result = await execa("npm", ["run", "-s", command, "--", "rename.test.mjs"],
+    const operand = command === "test:changed" ? "__tests__/unit/rename.test.mjs" : "rename.test.mjs";
+    const result = await execa("npm", ["run", "-s", command, "--", operand],
       { cwd: fixture.root, reject: false, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("No test cases completed");

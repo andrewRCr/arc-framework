@@ -35,11 +35,11 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
-| Tier | Name           | When Loaded                          | Content Type                                              |
-| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
-| T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
-| T2   | State          | Session initialization               | Work status, session notes, task overview                 |
-| T3   | Procedural     | On-demand at declared fire-points    | Method defaults/overrides, strategies, detailed workflows |
+| Tier | Name           | When Loaded                       | Content Type                                              |
+| ---- | -------------- | --------------------------------- | --------------------------------------------------------- |
+| T1   | Constitutional | Session initialization            | Principles, identity, constraints, navigation             |
+| T2   | State          | Session initialization            | Work status, session notes, task overview                 |
+| T3   | Procedural     | On-demand at declared fire-points | Method defaults/overrides, strategies, detailed workflows |
 
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
@@ -65,19 +65,19 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
 - Workflow documents (prepare-commits, prepare-work-unit, integrate-work-unit)
-- arc-extensions steps (post-task-quality, pre-merge, etc.)
+- arc-extensions steps (post-task-completion, pre-merge, etc.)
 
 ### State-Conditional Promotion
 
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content             | State Signal                                              | Promotes When                           |
-| ------------------- | --------------------------------------------------------- | --------------------------------------- |
-| process-task-loop   | `sessionType: execution` with a found task cursor         | Executable task work is active          |
-| verify-work-unit    | `sessionType: execution` with `no-open-task`              | Candidate attestation remains           |
-| prepare-work-unit   | Resolved `sessionType: prepublication`                    | Private Candidate preparation is active |
-| integrate-work-unit | Resolved `sessionType: integration`                       | Public integration is active            |
+| Content             | State Signal                                      | Promotes When                           |
+| ------------------- | ------------------------------------------------- | --------------------------------------- |
+| process-task-loop   | `sessionType: execution` with a found task cursor | Executable task work is active          |
+| verify-work-unit    | `sessionType: execution` with `no-open-task`      | Candidate attestation remains           |
+| prepare-work-unit   | Resolved `sessionType: prepublication`            | Private Candidate preparation is active |
+| integrate-work-unit | Resolved `sessionType: integration`               | Public integration is active            |
 
 Planning and prepublication may retain a task-list pointer without loading execution context. The resolved session
 type plus canonical task cursor selects one lifecycle workflow. Task detail loads only for open-task execution;
@@ -394,7 +394,6 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | Method                        | Trigger Workflow             | Session Applicability                                |
 | ----------------------------- | ---------------------------- | ---------------------------------------------------- |
 | issue-triage                  | process-task-loop            | Universal — every task execution session             |
-| quality-gate-commands         | process-task-loop            | Universal — every task execution session             |
 | test-first                    | process-task-loop            | Conditional — tasks with test-first marker           |
 | commit-format                 | prepare-commits              | User-triggered commit events                         |
 | commit-footer                 | prepare-commits              | User-triggered commit events                         |
@@ -498,8 +497,8 @@ state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is speci
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
 For ARC, integration means merge-to-base; downstream production deployment is outside ARC's scope.
 
-**Quality-gate failures hold regardless of mode.** Approval releases the work, not the gate. A failed
-quality gate engages the interlock until the failure is resolved.
+**Enforcement failures hold regardless of mode.** Approval releases the work, not the quality gate. Failed
+enforcement engages the interlock until the failure is resolved; feedback failures remain part of the report.
 
 ### Orthogonal Ceremony
 
@@ -635,7 +634,7 @@ the boundary. Classify failures by the state they leave behind before choosing a
 | Mode | Category  | Trigger                                                        | Recovery path                                                              |
 | ---- | --------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
-| 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
+| 2    | Bad state | Push or merge quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
 | 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |
 | 4    | Transit   | Partial multi-commit or multi-push cascade                     | Preserve landed work, surface exact partial state, retry remaining transit |
 | 5    | Process   | Agent/session crash mid-cascade                                | Run crash-recovery scan; prompt continue or rollback                       |
@@ -661,7 +660,7 @@ is non-obvious, staged content spans multiple concerns, or the hook failure impl
 choice, stop and report that commit-on-task-approval fell back to manual-with-prompt. Ask whether
 to investigate, revise staging, or defer the commit.
 
-**Mode 2 — quality gate fails after an auto-released commit.** Detection: Tier 1/Tier 2 gates fail
+**Mode 2 — quality gate fails after an auto-released commit.** Detection: the push or merge quality gate fails
 after a commit produced by commit-on-task-approval. Do not continue to the next task. If the fix is
 obvious and local, apply a follow-up fix commit under the same task context. If reverting the
 auto-released commit is the proposed remedy, present a cascade-undo plan first: identify commits to

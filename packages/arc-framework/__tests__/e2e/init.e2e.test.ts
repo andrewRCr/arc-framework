@@ -108,6 +108,7 @@ describe("init", () => {
 
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "system", "arc-checks.yml"))).toBe(false);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
 
@@ -189,13 +190,13 @@ describe("init", () => {
       "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "disposition-report",
-      "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+      "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
       "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
     const extensionNames = [
-      "post-context-load", "post-task-completion", "post-task-quality",
-      "post-unit-quality", "post-work-unit-activate",
+      "post-context-load", "post-task-completion",
+      "post-work-unit-activate",
       "post-work-unit-archive", "pre-activation", "pre-commit-review",
       "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
     ];

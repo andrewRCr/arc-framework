@@ -56,15 +56,17 @@ const GIT_CONFIG_RETRY_DELAYS_MS = [10, 25, 50, 100] as const;
  * and join need this.
  *
  * @param options - Git integration options with injectable I/O
+ * @returns Native hook-manager installation instructions
  */
 export async function configureGitIntegration(
   options: GitIntegrationOptions,
-): Promise<void> {
+): Promise<string[]> {
   const { cwd, exec, readFile, writeFile, access, enableRoadmapConflictRemedy = false } = options;
 
   const hookManager = await detectHookManager(cwd, access);
+  let messages: string[] = [];
   if (hookManager) {
-    await integrateHooks(hookManager, readFile, writeFile);
+    messages = await integrateHooks(hookManager, readFile, writeFile);
   } else {
     await exec("git", ["config", "core.hooksPath", ARC_GIT_HOOKS_DIR]);
   }
@@ -73,6 +75,7 @@ export async function configureGitIntegration(
     { cwd, exec, readFile, writeFile },
     enableRoadmapConflictRemedy,
   );
+  return messages;
 }
 
 /**

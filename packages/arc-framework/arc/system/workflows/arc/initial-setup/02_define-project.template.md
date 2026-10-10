@@ -72,21 +72,33 @@ friction points.
 Keep it concise — this is loaded every session, not a comprehensive reference.
 PROJECT-PRD and TECHNICAL-OVERVIEW carry the detail.
 
-### Step 4: Define QUICK-REFERENCE
+### Step 4: Define QUICK-REFERENCE and the check declaration
 
-Command patterns and environment context for your project — loaded every session. This is
-where the agent finds correct commands for linting, testing, building, and quality gates.
+QUICK-REFERENCE records command patterns and environment context: platform tools, runtime requirements, and paths.
 
 **Template**: [QUICK-REFERENCE.md][quick-ref] → goes in `reference/`
 
 **Think through**:
 
-- What commands does the agent run most often? (lint, test, build, type-check)
+- What command patterns does the agent need for everyday operations?
 - What runtime environment is required? (containers, services, tool versions)
-- What are the quality gate commands at each tier?
 
-QUICK-REFERENCE and DEV-RULES.PROJECT (next step) are coupled — quality gate _standards_
-are defined in DEV-RULES.PROJECT, quality gate _commands_ are defined here.
+Author `.arc/system/arc-checks.yml` with the person from the project's existing checks. Define each command and its real
+inputs, and assign the earliest event it must pass before: `commit`, `push`, or `merge`. Leave a check's gate unset when
+it should run only by id. Keep executable checks in this declaration and their standards in DEV-RULES.PROJECT.
+
+Start the declaration with its editor reference:
+
+```yaml
+# yaml-language-server: $schema=./.internal/schemas/check-declaration.schema.json
+checks: {}
+```
+
+Validate the authored declaration and inspect its selected checks before continuing:
+
+```bash
+arc check gate merge --dry-run
+```
 
 ### Step 5: Define DEV-RULES.PROJECT
 
@@ -104,7 +116,7 @@ rules, and any project-specific protocols.
 
 **Think through**:
 
-- What quality checks must pass before every commit?
+- Which checks must pass before each gate's event — commit, push, and merge?
 - What testing strategies will provide confidence?
 - What architecture rules are specific to this project?
 - Where do deferred issues go? (Capture Routing section)
@@ -139,11 +151,16 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 - **AGENT-BRIEF.PROJECT** — when the project's scope, stack, or friction points change. Stale
   content here directly degrades every session's starting context.
-- **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
-  commands here mean the agent fails quality gates or uses outdated tooling.
+- **QUICK-REFERENCE** — when command patterns, paths, or environment requirements change. Keep operational
+  instructions aligned with the tools the project uses.
 - **DEV-RULES.PROJECT** — when quality gates change (new tooling, retired checks, adjusted
   thresholds) or when team process evolves. Stale gates produce false confidence or false
   failures.
+
+**Check declaration — keep executable checks current:**
+
+Update `.arc/system/arc-checks.yml` when check commands, inputs, or deadlines change, and validate it with
+`arc check gate merge --dry-run`.
 
 **Reference documents — keep honest:**
 

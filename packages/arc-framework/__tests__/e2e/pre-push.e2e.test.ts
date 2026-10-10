@@ -5,20 +5,21 @@
  * OIDs, real `merge-base` ancestry — by invoking it directly with the git
  * pre-push stdin protocol (`<local_ref> <local_oid> <remote_ref> <remote_oid>`).
  * Asserts the advisory fires on a non-ancestor force-push, stays silent on a
- * fast-forward, and never blocks (always exits 0).
+ * fast-forward, and does not block when no CLI dispatches.
  *
  * Standalone — imports only node builtins, not CLI source.
  */
 
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,15 +36,17 @@ interface HookResult {
 }
 
 /** Invoke the pre-push hook with a stdin protocol line; capture output + exit. */
-function runHook(
+async function runHook(
   cwd: string,
   stdinLine: string,
   args: string[] = ["origin", "."],
+  environment: NodeJS.ProcessEnv = {},
 ): Promise<HookResult> {
+  const restrictedPath = await restrictedGitPath(cwd);
   return new Promise((resolvePromise, reject) => {
     const child = spawn("bash", [HOOK_PATH, ...args], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, ...environment, PATH: restrictedPath, NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";
@@ -90,7 +93,7 @@ afterEach(async () => {
 });
 
 describe("pre-push force-push advisory hook", () => {
-  it("warns on a non-ancestor force-push and never blocks (exit 0)", async () => {
+  it("warns on a non-ancestor force-push without CLI dispatch", async () => {
     const dir = await makeRepo();
     repos.push(dir);
 
@@ -159,10 +162,11 @@ describe("pre-push force-push advisory hook", () => {
       `mkdir -p .arc/system && printf 'hooks.pre_push: disabled\\n' > .arc/system/arc-config.yml`,
     ], { cwd: dir });
 
+    const restrictedPath = await restrictedGitPath(dir);
     const result = await new Promise<HookResult>((resolvePromise, reject) => {
       const child = spawn("bash", [HOOK_PATH, "origin", "."], {
         cwd: dir,
-        env: { ...process.env, NO_COLOR: "1" },
+        env: { ...process.env, PATH: restrictedPath, NO_COLOR: "1" },
       });
       let stdout = "";
       let stderr = "";
@@ -177,4 +181,33 @@ describe("pre-push force-push advisory hook", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
   });
+});
+
+
+it.each(["state", "deletion", "empty"])("permits a %s event with a declaration and no CLI", async kind => {
+  const root = await makeRepo();
+  repos.push(root);
+  const tip = await commit(root, "base");
+  await mkdir(join(root, ".arc/system"), { recursive: true });
+  await writeFile(join(root, ".arc/system/arc-checks.yml"), "checks: {}\n");
+  const line = kind === "state" ? `refs/arc/state ${tip} refs/arc/state ${ZERO}\n`
+    : kind === "deletion" ? `(delete) ${ZERO} refs/heads/old ${tip}\n` : "";
+  const result = await runHook(root, line);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const mixed = await runHook(root, line + `refs/heads/feature ${tip} refs/heads/feature ${ZERO}\n`);
+  expect(mixed.exitCode, mixed.stdout + mixed.stderr).toBe(1);
+  expect(mixed.stderr).toContain("ARC CLI could not be resolved");
+});
+
+
+it.each(["state", "deletion"])("permits a native pre-commit.com %s event with no CLI", async kind => {
+  const root = await makeRepo();
+  repos.push(root);
+  const tip = await commit(root, "base");
+  await mkdir(join(root, ".arc/system"), { recursive: true });
+  await writeFile(join(root, ".arc/system/arc-checks.yml"), "checks: {}\n");
+  const environment = { PRE_COMMIT_LOCAL_BRANCH: kind === "state" ? "refs/arc/state" : "refs/heads/feature",
+    PRE_COMMIT_FROM_REF: tip, PRE_COMMIT_TO_REF: kind === "state" ? tip : ZERO };
+  const result = await runHook(root, "", ["origin", "."], environment);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
 });

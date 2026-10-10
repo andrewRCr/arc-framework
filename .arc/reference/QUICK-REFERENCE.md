@@ -7,17 +7,17 @@ Command patterns and environment context for the ARC framework.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands`,
 `npm Publishing` — load on demand when workflow steps reference them.
 
 ### Critical Path Reference
 
-| Resource           | Location from Repo Root          | Why It Matters                        |
-| ------------------ | -------------------------------- | ------------------------------------- |
-| Template documents | `.arc/reference/`                | Template/example content for adopters |
-| Active work        | `.arc/active/`                   | Current feature work                  |
-| CLI package        | `packages/arc-framework/`        | `@arc-framework/cli` npm package      |
-| Quality gates      | `npm run -s lint:md`, `npm test` | Zero-tolerance checks                 |
+| Resource           | Location from Repo Root   | Why It Matters                        |
+| ------------------ | ------------------------- | ------------------------------------- |
+| Template documents | `.arc/reference/`         | Template/example content for adopters |
+| Active work        | `.arc/active/`            | Current feature work                  |
+| CLI package        | `packages/arc-framework/` | `@arc-framework/cli` npm package      |
+| Quality gates      | `arc check`               | Declared checks at their deadlines    |
 
 **Working Directory Note**: Hybrid project — `.arc/` docs + `packages/arc-framework/` CLI. All
 commands run from repository root; npm workspaces delegates to the package automatically.
@@ -28,7 +28,7 @@ commands run from repository root; npm workspaces delegates to the package autom
 locally via tsup.
 
 **Quality Tools**: `markdownlint-cli2`, TypeScript, Vitest, tsup, Git. Commands live in
-§ Command Patterns and § Quality Gate Commands below.
+§ Command Patterns below; the check declaration assigns their gate deadlines.
 
 ---
 
@@ -194,112 +194,6 @@ set `ARC_E2E_SKIP_BUILD=1`. Skip-build revalidates matching inputs, installation
 and required files under artifact ownership; it never generates. Repair unavailable installation evidence with
 `npm ci`, then run preparation or `npm run build:fast` before retrying. Direct native Vitest setup may prepare only
 when controller evidence is absent; that convenience owns generation alone and does not pin an unmanaged run.
-
----
-
-## Quality Gate Commands
-
-The project's quality gates and the commands that run them. **Which** of them a given change has to run is
-DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions), which also carries the standards each
-gate enforces; the tier model itself is the [Quality Gates Strategy][quality-gates].
-
-**Parity with CI.** The gate set below tracks the required workflow in `.github/workflows/ci.yml`. The
-`lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
-that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
-
-### The gates
-
-Zero violations or errors on each. Commands, config, and tooling:
-
-- **Markdown lint** — `lint:md` over the worktree; `lint:md:staged` certifies the index and is authoritative at
-  pre-commit. Config `.markdownlint-cli2.jsonc`.
-- **Code lint** — `lint:ts` for the whole package, `lint:ts:file` for named paths; config
-  `packages/arc-framework/eslint.config.js` (typescript-eslint recommended-type-checked, plus size and
-  complexity limits baselined in `eslint-suppressions.json` — see DEV-RULES.PROJECT § Size and complexity
-  baseline). `lint:sh` requires a system-installed `shellcheck` on developer machines.
-- **Type checking** — `typecheck` for source (`packages/arc-framework/tsconfig.json`, strict, excludes
-  `__tests__`), `typecheck:test` for tests (`tsconfig.test.json`), or `typecheck:all` for both.
-- **Tests** — `npm test` for the routine unit + integration lane, `test:changed` for affected unit tests, and
-  `test:full` for an explicit whole-project run. Vitest, config `packages/arc-framework/vitest.config.ts`.
-- **Build** — `build`. Tooling is tsup, emitting ESM output, declarations, and an injected shebang.
-- **ARC contract checks** — `lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`. Corpus-wide by
-  design and required in CI.
-
-Invocation detail for the Markdown gates — `lint:md:staged`, `lint:md:fix:file`, `format:tables`, the `--no-globs`
-rule, and the MD060 caveat — stays in § Markdown Linting above rather than being restated here.
-
-### Incremental — Tier 1 (per-task)
-
-**Always targeted** — pass the paths the task actually changed. A single-file TypeScript task runs in seconds,
-not a minute.
-
-```bash
-# Markdown — per changed file
-npm run -s lint:md:file -- "path/to/file.md"
-
-# ARC contract checks — run when any `.arc/**` methodology artifact changed
-# (~0.7s combined; required in CI, so skipping them here only defers the failure)
-npm run -s lint:arc:triggers
-npm run -s lint:arc:domain-rules
-npm run -s lint:arc:section-refs
-
-# TypeScript lint — repository-relative files, directories, or quoted globs
-# (`npm run lint:ts -- <path>` appends to the full set rather than narrowing it. Run eslint by hand only
-# from the package directory: the size/complexity baseline is keyed to that working directory.)
-npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts
-
-# Affected unit tests — resolves committed and uncommitted changes against main...HEAD
-# Empty selection is a non-passing outcome
-npm run -s test:changed
-
-# Framework-contract tests — fast subset for two-copy sync / extension / review-gate changes
-npm run -s test:arc-contracts
-
-# Types — whole-program, not narrowable; run when TypeScript changed
-npm run typecheck:all
-
-# Shell — fixed hook/script set; run when a hook or script changed
-npm run lint:sh
-```
-
-### Integration — Tier 2 (coherent unit)
-
-Full-project scope. The relevance condition still applies — a unit that touched no TypeScript skips the code
-checks.
-
-```bash
-npm run -s lint:md
-npm run -s lint:arc:triggers
-npm run -s lint:arc:domain-rules
-npm run -s lint:arc:section-refs
-npm run lint:ts
-npm run lint:sh
-npm run typecheck
-npm run typecheck:test
-npm test
-```
-
-### Complete Gate — Tier 3 (per-phase / pre-PR)
-
-Tier 2 plus build verification and a change review. Complete every command in the project-designated gate. In this
-repo `build` is the only added build/test command; change review remains a separate mandatory Tier 3 activity. The
-command sets have nearly converged. That convergence is an input to the eventual tier-model rework rather than a
-license to substitute one tier for the other.
-
-```bash
-# 1-9: the Tier 2 block above (the complete project-designated local set), then:
-
-# 10. Build verification
-npm run build
-
-# 11. Change review
-git status
-git --no-pager diff --stat
-```
-
-`npm test` runs the routine unit + integration lane. `npm run test:full` is the explicit local whole-project
-command; required CI remains authoritative for E2E and portability enforcement before merge. Runtime preparation
-does not replace the full `npm run build` declaration gate or either type check.
 
 ---
 
@@ -576,13 +470,13 @@ ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
 Azure DevOps, or another platform, replace these commands with your team's CLI
 equivalents.
 
-| Operation    | Command                                           |
-|--------------|---------------------------------------------------|
-| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
-| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
-| View PR/MR   | `gh pr view --json number,url,state`              |
-| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
-| Create issue | `gh issue create`                                 |
+| Operation    | Command                                      |
+| ------------ | -------------------------------------------- |
+| Create PR/MR | `gh pr create --base {base} --head {branch}` |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`   |
+| View PR/MR   | `gh pr view --json number,url,state`         |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`            |
+| Create issue | `gh issue create`                            |
 
 ---
 
@@ -601,6 +495,5 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 
-[quality-gates]: strategies/arc/strategy-quality-gates.md
 [session-ops]: strategies/arc/strategy-session-operations.md
 [dev-rules-arc]: ../system/rules/DEV-RULES.ARC.md

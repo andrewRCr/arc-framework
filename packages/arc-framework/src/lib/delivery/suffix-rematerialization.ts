@@ -58,7 +58,7 @@ export interface DeliverySuffixRematerializedResult {
   readonly nextAction: "verify-review-fix";
   readonly verification: {
     readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
+    readonly commitGateRequired: true;
   };
 }
 
@@ -331,7 +331,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
             ?? contributionVerdicts
               .filter((verdict) => verdict.contribution === "changed")
               .map((verdict) => verdict.deliverableId),
-          tier1Required: true,
+          commitGateRequired: true,
         },
       };
     }

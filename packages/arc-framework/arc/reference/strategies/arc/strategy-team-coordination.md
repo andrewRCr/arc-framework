@@ -46,7 +46,7 @@ How standard ARC workflows adapt when team mode is active. Detailed conventions 
 in subsequent sections and referenced documents.
 
 | Aspect              | Solo (default)           | Team mode                                       |
-|---------------------|--------------------------|-------------------------------------------------|
+| ------------------- | ------------------------ | ----------------------------------------------- |
 | Session notes       | `user/{identity}/`       | `user/{identity}/` (same structure)             |
 | Work status         | `active/meta-{name}.md`  | `active/meta-{name}.md` (one per WU)            |
 | ATOMIC-INBOX.md (1) | `user/{identity}/`       | `user/{identity}/` (same structure)             |
@@ -259,7 +259,7 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 **assignment and status layer** while ARC task lists serve as the **execution layer**:
 
 | Concern               | External Tracker             | ARC Task List                        |
-|-----------------------|------------------------------|--------------------------------------|
+| --------------------- | ---------------------------- | ------------------------------------ |
 | Task assignment       | Primary (who owns what)      | WU-level via meta `**Owner:**` field |
 | Status tracking       | Primary (board view, sprint) | Checkbox state for agent context     |
 | Implementation detail | Not tracked                  | Subtasks, acceptance criteria, notes |

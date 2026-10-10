@@ -605,6 +605,41 @@ if [ -n "$foreign_write_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK[declared-commit-gate]: Declared commit checks
+# ============================================================================
+if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+    echo "error: ARC commit gate could not resolve the Git repository root." >&2
+    errors=$((errors + 1))
+else
+    local_arc="$repo_root/node_modules/.bin/arc"
+    gate_cli=""
+    if [ -x "$local_arc" ]; then
+        gate_cli="$local_arc"
+    elif command -v arc >/dev/null 2>&1; then
+        gate_cli="arc"
+    fi
+
+    if [ -n "$gate_cli" ]; then
+        if ! "$gate_cli" check pre-commit; then
+            errors=$((errors + 1))
+        fi
+    elif [ -f "$repo_root/.arc/system/arc-checks.yml" ]; then
+        cat >&2 <<EOF
+error: ARC commit gate is enabled, but the ARC CLI could not be resolved.
+
+Expected repository-local executable:
+  $local_arc
+
+Install @arc-framework/cli in this repository, or install it globally and make
+the global arc executable available in non-interactive shells. GUI Git clients
+and IDE-integrated commits often use a restricted PATH; version manager shims
+must also be initialized for that environment.
+EOF
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

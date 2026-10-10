@@ -198,19 +198,16 @@ be unwieldy inline.
 
 ## Integration with Quality Gates
 
-Testing fits into the tiered quality gate system from DEV-RULES.PROJECT:
+The declaration in `.arc/system/arc-checks.yml` assigns each check its commit, push, or merge deadline. A failed
+enforcement check holds that gate; feedback results are reported and resolved under DEV-RULES.ARC § Quality gate failure.
 
-- **Tier 1 (per-task):** Run affected unit tests — `npm run test:changed`
-- **Tier 2 (coherent unit):** Run the routine unit + integration lane — `npm test`
-- **Tier 3 (per-phase / pre-PR):** Complete the project-designated local gate, including the routine lane, build,
-  and both type checks. Use `npm run test:full` only for an explicit whole-project local run; required CI enforces
-  E2E and portability before merge.
-
-See [QUICK-REFERENCE][quick-ref] for the exact commands at each tier.
+At each increment boundary, run `arc check increment` and the single by-id feedback request recorded in
+[DEV-RULES.PROJECT][dev-rules-project]. The verb owns selection, reuse, and re-run decisions. Required CI enforces
+the declared merge checks, including E2E and portability; local E2E feedback runs the complete suite when selected.
 
 ---
 
 [test-first]: ../../../system/methods/test-first.md
 [testing-standards]: ../../../system/methods/testing-standards.md
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
-[quick-ref]: ../../QUICK-REFERENCE.md
+[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md

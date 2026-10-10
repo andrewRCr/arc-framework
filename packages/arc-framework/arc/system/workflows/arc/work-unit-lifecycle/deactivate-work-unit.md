@@ -20,10 +20,10 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 ## Case Matrix
 
-|                        | No task work executed                       | Some task work executed           |
-| ---------------------- | ------------------------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
-| **Merged to base**     | **Case C** — see § Case C below             | **Case D** → integrate or clean   |
+|                        | No task work executed                    | Some task work executed         |
+| ---------------------- | ---------------------------------------- | ------------------------------- |
+| **Not merged to base** | **Case A** — this workflow (or A-delete) | **Case B** — see § Case B below |
+| **Merged to base**     | **Case C** — see § Case C below          | **Case D** → integrate or clean |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 

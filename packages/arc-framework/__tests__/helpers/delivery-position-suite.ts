@@ -1673,7 +1673,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         memberDeliverableIds: [selectedDeliverableId],
-        tier1Required: true,
+        commitGateRequired: true,
       },
     });
 
@@ -1690,7 +1690,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         target: continuation.verification.target,
-        tier1ReuseCriteria: {
+        commitGateReuseCriteria: {
           kind: "exact-tree",
           targetTree: continuation.verification.target.tree,
           requiredResult: "passed",
@@ -1787,12 +1787,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       verification: {
         applicability: "full",
         target: reboundContinuation.verification.target,
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "rerun",
           targetTree: reboundContinuation.verification.target.tree,
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       },
     };
     const boundaryPath = join(
@@ -2190,7 +2190,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       currentHead: correctionHead,
       currentTree: correctionTree,
       applicability: "full",
-      verificationEvidenceRefs: ["criteria://member-3", "gates://tier-3"],
+      verificationEvidenceRefs: ["criteria://member-3", "gates://commit"],
       verifiedAt: "2026-09-03T12:00:00.000Z",
     });
     if (advanced.status === "refused") throw new Error(advanced.reason);
@@ -3385,7 +3385,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       command: "delivery review-fix continue",
       status: "verification-required",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-authoring-rebind", resultStatus: "rebound" },
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
@@ -3430,7 +3430,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       command: "delivery review-fix continue",
       status: "verification-required",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-authoring-rebind", resultStatus: "rebound" },
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
@@ -3477,13 +3477,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       verification: {
         applicability: "full",
         target: supersedingVerificationStop.verification.target,
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
           targetTree: supersedingVerificationStop.verification.target.tree,
           coveredInputs: "unchanged",
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       },
     } as const;
     const candidatePath = join(
@@ -3508,7 +3508,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:55:00.000Z",
       applicability: "full",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       implementationChanged:
         pendingBaseline.target.subject.subjectDigest !== pendingCurrentTarget.subject.subjectDigest,
     });
@@ -3550,7 +3550,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:57:00.000Z",
       applicability: "full",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
+      verificationEvidenceRefs: ["criteria://member-1", "gates://commit"],
       implementationChanged: false,
     });
     await writeFile(candidatePath, `${JSON.stringify({
@@ -4695,7 +4695,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       status: "applied",
       selectedDeliverableId,
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       acknowledgementInput: {
         planId: fixture.plan.planId,
         selectedDeliverableId,
@@ -4840,7 +4840,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         memberDeliverableIds: [selectedDeliverableId],
-        tier1Required: true,
+        commitGateRequired: true,
       },
     });
     const state = await fixture.states.read(fixture.plan.planId);

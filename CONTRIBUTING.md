@@ -12,15 +12,10 @@ it is not bundled as an npm dependency.
 1. Fork and clone the repository
 2. Install dependencies: `npm install`
 3. Join as a contributor: `npx arc join`
-4. Verify your setup — all checks should pass on a clean checkout:
+4. Verify your setup — run the declared local merge checks on a clean checkout:
 
 ```bash
-npm run -s lint:md
-npm run lint:ts
-npm run lint:sh
-npm run typecheck
-npm run test:full
-npm run build
+npx arc check gate merge
 ```
 
 ## Development Workflow
@@ -59,9 +54,10 @@ addresses.
 
 ## Quality Standards
 
-Quality gates are zero-tolerance — all checks must pass before any commit. The pre-commit
-hook runs automatically. See the [full contributing guide][contributing-docs] for the
-complete check reference, PR guidelines, and what to know about the project structure.
+Quality gates are zero-tolerance: each check must pass at its declared commit, push, or merge deadline. The Git
+hooks run the relevant declared checks automatically. Checks and deadlines live in
+[the check declaration][check-declaration]; use `npx arc check` for selection, results, and measured costs. See the
+[full contributing guide][contributing-docs] for PR guidelines and project structure.
 
 ## Areas to Contribute
 
@@ -78,5 +74,6 @@ Full guide: [Contributing to ARC][contributing-docs] | [Report a bug][issues] |
 ---
 
 [contributing-docs]: https://andrewrcr.github.io/arc-framework/contributing/
+[check-declaration]: .arc/system/arc-checks.yml
 [issues]: https://github.com/andrewRCr/arc-framework/issues
 [discussions]: https://github.com/andrewRCr/arc-framework/discussions

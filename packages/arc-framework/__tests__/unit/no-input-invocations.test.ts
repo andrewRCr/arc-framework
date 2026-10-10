@@ -30,12 +30,12 @@ describe("distinct no-input invocations", () => {
   });
 
   it.each(["win32", "darwin"] as const)("folds all piped signals on %s", (platform) => {
-    expect(NO_INPUT_MATRIX.flatMap((item) => selectNoInputInvocations(item, platform))).toHaveLength(76);
+    expect(NO_INPUT_MATRIX.flatMap((item) => selectNoInputInvocations(item, platform))).toHaveLength(83);
   });
 
   it("reconciles all Linux matrix entries into the distinct transport groups", () => {
     const lengths = NO_INPUT_MATRIX.map((item) => selectNoInputInvocations(item, "linux").length);
     expect([lengths.filter((n) => n === 1).length, lengths.filter((n) => n === 2).length,
-      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([43, 6, 27, 136]);
+      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([50, 6, 27, 143]);
   });
 });

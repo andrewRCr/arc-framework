@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
+import { gitExec } from "../../src/lib/io-context.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 import { runWorktreeMarkdownlint } from "../../src/lib/markdown/worktree-lint.js";
 import {
@@ -39,6 +40,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -125,6 +127,27 @@ describe("Markdown lint composition", () => {
 });
 
 describe("staged Markdown worktree alignment", () => {
+  it.each([true, false])("compares the worktree with the inherited index (drift=%s)", async drift => {
+    await gitExec("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"], { cwd: root });
+    const indexFile = join(root, ".git", "checked-index");
+    const options = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], options);
+    const worktree = "# Guide\n\nWorktree content.\n";
+    const other = "# Guide\n\nDifferent indexed content.\n";
+    await write("docs/guide.md", drift ? worktree : other);
+    await gitExec("git", ["add", "docs/guide.md"], { cwd: root });
+    await write("docs/guide.md", drift ? other : worktree);
+    await gitExec("git", ["add", "docs/guide.md"], options);
+    await write("docs/guide.md", worktree);
+    vi.stubEnv("GIT_INDEX_FILE", indexFile);
+    const messages: string[] = [];
+
+    const result = await enforceStagedMarkdownWorktreeAlignment(root, message => { messages.push(message); });
+    expect(result).toBe(drift ? 1 : 0);
+    if (drift) expect(messages.join("\n")).toContain("docs/guide.md");
+    else expect(messages).toEqual([]);
+  });
+
   it("fails closed when a staged Markdown path still differs in the worktree", async () => {
     await execFileAsync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "init"], {
       cwd: root,

@@ -24,7 +24,7 @@ This strategy owns:
 - the post-landing hand-back to delivery closeout and work-unit teardown.
 
 It does not decide which concerns become work units, how several work units run concurrently, what review obligations
-exist or how findings clear, or which quality-gate tier applies. Those belong respectively to [Work Organization],
+exist or how findings clear, or where project checks belong. Those belong respectively to [Work Organization],
 [Concurrent Work], the review contracts, and [Quality Gates].
 
 ## Publication Boundary

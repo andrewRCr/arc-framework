@@ -214,7 +214,15 @@ describe("base merge composition", () => {
         return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");
       }
       if (args[0] === "diff" && args.includes("--quiet")) return ok();
+      if (args[0] === "merge" && args[1] === "--abort") {
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
       if (args[0] === "commit") {
+        if (args.join(" ") !== "commit --no-edit --no-verify") {
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "commit gate failed" });
+        }
         state.head = oid("d");
         state.clean = true;
         state.merging = false;

@@ -184,22 +184,19 @@ jobs:
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
-  # Shared full build for heavy runs. Consumers restore the installation and dist,
-  # then qualify or repair CLI and metafile output in their own execution context.
-  # Light / schedule / duplicate-push runs skip this job entirely.
+  # Forecast and duration input shared by every check job.
   setup:
     name: Shared setup
     permissions:
       contents: read
       actions: write # upload-artifact under workflow-level contents-only defaults
     needs: classify
-    # Heavy-weight runs plus workflow_dispatch (manual full suite, matches
-    # pre-shared-setup integration/e2e/portability triggers).
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
+        fetch-depth: 0
         persist-credentials: false
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
@@ -214,12 +211,22 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
-    - run: npm run build
-    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+    - name: Resolve local base branch
+      run: git show-ref --verify --quiet refs/heads/main || git branch main origin/main
+    - name: Forecast merge checks
+      id: forecast
+      run: |
+        node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"
+        mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json
+    - name: Validate check plumbing
+      run: node --import tsx scripts/run-ci-checks.mjs validate
+    - name: Upload check forecast
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
-        name: arc-framework-dist
-        path: packages/arc-framework/dist/
-        retention-days: 1
+        name: arc-check-forecast
+        path: .arc-check-forecast.json
+        include-hidden-files: true
+        if-no-files-found: error
 
     - name: Restore duration cache
       id: duration-cache
@@ -238,17 +245,13 @@ jobs:
         include-hidden-files: true
         if-no-files-found: error
 
-  lint-typecheck:
-    name: Lint & Typecheck
+  build:
+    name: Build
     permissions:
       contents: read
-      actions: read # download-artifact of shared dist
+      actions: write
     needs: [classify, setup]
-    # Run after classification on every push and PR lane. The documentation /
-    # ARC-doc linters always run; code checks additionally gate on weight
-    # (fail-safe: run unless explicitly light). setup is optional: light runs
-    # skip it and keep a local npm ci; heavy runs restore its cache + dist.
-    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.setup.result == 'success' || needs.setup.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -267,39 +270,98 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
-    # Documentation / ARC-doc linters - relevant to docs and code alike; always run.
-    - run: npm run lint:arc:triggers
-    - run: npm run lint:arc:domain-rules
-    - run: npm run lint:arc:section-refs
-    - run: npm run -s lint:md
-    - if: ${{ needs.classify.outputs.weight == 'light' }}
-      run: npm run test:arc-contracts
-    # Code checks - only when the change touches code (weight != light). Prefer the
-    # shared dist artifact when setup produced it; fall back to a local build only
-    # if setup was skipped (should not happen on heavy weight).
-    - if: ${{ needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: build
+      run: node --import tsx scripts/run-ci-checks.mjs run build build
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist/
+        retention-days: 1
+
+  lint-typecheck:
+    name: Lint & Typecheck
+    permissions:
+      contents: read
+      actions: read # download-artifact of shared dist
+    needs: [classify, setup, build]
+    # Documentation and default checks run on light and heavy push/PR runs.
+    # The shared build is optional when the classifier selected light weight.
+    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: format-tables
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck format-tables
+    - id: markdown-staged
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown-staged
+    - id: arc-triggers
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-triggers
+    - id: arc-domain-rules
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-domain-rules
+    - id: arc-section-refs
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-section-refs
+    - id: markdown
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown
+    - id: package-sync
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck package-sync
+    - id: default
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck default
+    - id: arc-contracts
+      if: ${{ needs.classify.outputs.weight == 'light' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts
+    - if: ${{ needs.classify.outputs.weight != 'light' && needs.build.result == 'success' }}
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
-    - if: ${{ needs.classify.outputs.weight != 'light' && needs.setup.result != 'success' }}
-      run: npm run build
     - id: runtime-preflight
       if: ${{ needs.classify.outputs.weight != 'light' }}
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - if: ${{ needs.classify.outputs.weight != 'light' }}
-      run: npm run lint:ts
-    - if: ${{ needs.classify.outputs.weight != 'light' }}
-      run: npm run lint:sh
-    - if: ${{ needs.classify.outputs.weight != 'light' }}
-      run: npm run typecheck
-    # Cold test typechecking reaches Node's 2 GiB ARM64 heap limit; scope extra headroom to this step.
-    - if: ${{ needs.classify.outputs.weight != 'light' }}
+    - id: typescript-files
+      if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typescript-files
+    - id: typescript
+      if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typescript
+    - id: shell
+      if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck shell
+    - id: typecheck
+      if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typecheck
+    - id: typecheck-tests
+      if: ${{ needs.classify.outputs.weight != 'light' }}
       env:
         NODE_OPTIONS: --max-old-space-size=3072
-      run: npm run typecheck:test
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typecheck-tests
 
   unit:
     name: Unit Tests (${{ matrix.shard }})
@@ -332,6 +394,11 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
     - name: Download duration input
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -340,8 +407,9 @@ jobs:
     - name: Clear native test results
       run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
     - name: Run balanced shard
+      id: test
       run: >-
-        npm run test:unit -- --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=github-actions --reporter=json
+        node --import tsx scripts/run-ci-checks.mjs run unit test --shard ${{ matrix.shard }} -- --reporter=default --reporter=github-actions --reporter=json
         --outputFile=unit-test-report.json
       env:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/unit.json
@@ -371,8 +439,8 @@ jobs:
     permissions:
       contents: read
       actions: write # download runtime and upload writer durations
-    needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    needs: [classify, setup, build]
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -402,6 +470,11 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
     - name: Download duration input
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -414,7 +487,8 @@ jobs:
     - name: Clear native test results
       run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
     - name: Run balanced shard
-      run: npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      id: test
+      run: node --import tsx scripts/run-ci-checks.mjs run integration test --shard ${{ matrix.shard }}
       env:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
         ARC_E2E_SKIP_BUILD: '1'
@@ -437,8 +511,8 @@ jobs:
     permissions:
       contents: read
       actions: write # download runtime and upload writer durations
-    needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    needs: [classify, setup, build]
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -467,11 +541,19 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
     - name: Download duration input
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: '3.x'
     - id: runtime-preflight
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
@@ -479,7 +561,8 @@ jobs:
     - name: Clear native test results
       run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
     - name: Run balanced shard
-      run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      id: test
+      run: node --import tsx scripts/run-ci-checks.mjs run e2e test --shard ${{ matrix.shard }}
       env:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/e2e.json
         ARC_E2E_SKIP_BUILD: '1'
@@ -546,8 +629,8 @@ jobs:
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
-    needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    needs: [classify, setup, build]
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -570,28 +653,34 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
     - id: runtime-preflight
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - run: npm run test:portability
+    - id: test
+      run: node --import tsx scripts/run-ci-checks.mjs run portability test
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
-  # Schedule-only plus explicit dispatch opt-in: hosted Windows/macOS minutes
-  # bill at multipliers, so PR events never fire this matrix. Independent of
-  # classify — it consumes no classify output and does its own build, so it
-  # neither needs classify nor should be gated on its result.
+  # Schedule and explicit dispatch opt-in retain native install/build per OS.
+  # Setup supplies the shared invocation forecast.
   portability-cross-platform:
     name: Portability targeted
     permissions:
       contents: read
+      actions: read
+    needs: setup
     # The Linux fleet capacity policy does not constrain hosted Windows/macOS.
     env:
       VITEST_MAX_WORKERS: ''
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule' }}
+    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -606,23 +695,31 @@ jobs:
         node-version: 'lts/*'
         cache: 'npm'
     - run: npm ci
-    - run: npm run build
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: build
+      run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform build
     - id: runtime-preflight
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - run: npm run test:portability
+    - id: test
+      run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test
       env:
         ARC_E2E_SKIP_BUILD: '1'
-    - if: ${{ runner.os == 'macOS' }}
-      run: npm run test:portability:macos
+    - id: macos
+      if: ${{ runner.os == 'macOS' }}
+      run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
   ci_ok:
     name: ci-ok
     permissions: {}
-    needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
+    needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:

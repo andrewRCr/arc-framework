@@ -94,11 +94,11 @@ describe("packaged delivery workflow", () => {
     );
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
-    const tierTwoRun = packaged.indexOf("complete Tier 2 command set");
-    const gateResults = packaged.indexOf("gateResults", tierTwoRun);
+    const pushGateRun = packaged.indexOf("arc check gate push --all");
+    const gateResults = packaged.indexOf("gateResults", pushGateRun);
     const eligibilityClose = packaged.indexOf("arc delivery eligibility close", gateResults);
-    expect(tierTwoRun).toBeGreaterThan(-1);
-    expect(tierTwoRun).toBeLessThan(gateResults);
+    expect(pushGateRun).toBeGreaterThan(-1);
+    expect(pushGateRun).toBeLessThan(gateResults);
     expect(gateResults).toBeLessThan(eligibilityClose);
     expect(eligibilityClose).toBeLessThan(packaged.indexOf("arc delivery publish"));
     expect(materializeSection.indexOf("terminalPresentation")).toBeLessThan(
@@ -223,7 +223,8 @@ describe("packaged delivery workflow", () => {
       /applied \/ verify-review-fix[\s\S]*rematerialized \/ verify-review-fix[\s\S]*rebound \/ verify-review-fix[\s\S]*same exact verification\s+continuation/iu,
     );
     expect(correctionTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
-    expect(correctionTail).toMatch(/tier1ReuseCriteria[\s\S]*existing passed result[\s\S]*targetTree/iu);
+    expect(correctionTail).toContain("arc check gate commit --all --force");
+    expect(correctionTail).toMatch(/commitGateReuseCriteria[\s\S]*existing passed result[\s\S]*targetTree/iu);
     expect(correctionTail).toMatch(/one resubmission shape[\s\S]*resumeAction[\s\S]*verificationResult/iu);
     expect(correctionTail).toMatch(/derivedFrom[\s\S]*open task[\s\S]*pending approved\s+review response/iu);
     expect(correctionTail).toMatch(/same finding-disposition approval/iu);

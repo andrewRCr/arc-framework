@@ -20,11 +20,11 @@ it("enables task locations for line filters while preserving an explicit overrid
 const tiers = [
   ["full", []],
   ["unit", ["--project", "unit", "--project", "unit-mocks"]],
-  ["changed", ["--changed=main", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
+  ["changed", ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
   ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
   ["integration", ["--project", "integration"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
-    "pr-open-extensions", "review-gate-workflows"]],
+    "pr-open-extensions", "review-gate-workflows", "ci-check-plumbing"]],
   ["e2e", ["--project", "e2e"]],
   ["e2e-focused", ["--project", "e2e"]],
   ["portability-macos", ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"]],
