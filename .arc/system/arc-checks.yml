@@ -37,7 +37,9 @@ checks:
       - .arc/system/methods/assess-draft-readiness.md
       - .arc/system/methods/assess-evidence-applicability.md
       - .arc/system/methods/adversarial-review.md
+      - .arc/system/methods/classify-review-risk.md
       - .arc/system/methods/classify-work-unit.md
+      - .arc/system/methods/route-discovered-work.md
       - .arc/system/methods/commit-footer.md
       - .arc/system/methods/commit-format.md
       - .arc/system/methods/design-audit.md
