@@ -3,7 +3,7 @@
   "slug": "layout-read-ratchet",
   "claimId": "167c0028c8d744738b5fdd5f74f0ad2f",
   "createdAt": "2026-10-10T17:57:08.495Z",
-  "updatedAt": "2026-10-10T17:57:08.495Z",
+  "updatedAt": "2026-10-10T19:03:50.713Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Count work-unit-kind layout-resolver calls outside the store in a third import ratchet with today's callers as its floor, list lineage's Git transition-record enumeration as a raw state helper, and correct the storage-seam cohort's floor-at-zero claim to name what each leg counts",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Count work-unit state reads made through the layout resolver in the import ratchet",
   "originEntrySourceDigest": "sha256:27a5b0cf6e77a146f72c5e0ffdf4c511d7b8555ca672c7a51b376f6bb9e0cefb",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/layout-read-ratchet",
+    "headSha": "d2e378b30f7276c8aa4ad69b526c2878d70807a7"
+  }
 }
