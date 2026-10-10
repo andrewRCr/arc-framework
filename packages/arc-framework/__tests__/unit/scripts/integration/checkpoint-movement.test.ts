@@ -64,16 +64,26 @@ describe("checkpoint movement plan", () => {
     })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
 
-  it("keeps disjoint clean movement unavailable when the host test merge remains stale", () => {
+  it("lets disjoint clean movement proceed when only the host test merge lags the base", () => {
     for (const integrationEvidenceComplete of [true, false]) {
       expect(plan({
         integrationEvidenceComplete,
         admission: {
           state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
-          detail: "Observation expired; retry exact admission.",
+          detail: "The test merge covers an earlier base.",
         },
-      })).toEqual({ state: "blocked", reason: "host-pending", detail: "Observation expired; retry exact admission." });
+      })).toEqual({ state: "proceed" });
     }
+  });
+
+  it("keeps a substantive conflict blocked when the host test merge lags the base", () => {
+    expect(plan({
+      feasibility: { state: "substantive-conflict", ...coordinates, paths: ["src/x.ts"] },
+      admission: {
+        state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
+        detail: "The test merge covers an earlier base.",
+      },
+    })).toMatchObject({ state: "blocked", reason: "conflict", paths: ["src/x.ts"] });
   });
 
   it.each(["overlap", "regenerable-conflict"] as const)(

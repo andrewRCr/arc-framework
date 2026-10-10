@@ -66,7 +66,7 @@ describe("GitHub merge-observation port", () => {
     });
   });
 
-  it("distinguishes a stale test-merge base for an exact head that lacks the requested base", async () => {
+  it("reports a stale test-merge base at once for an exact head that lacks the requested base", async () => {
     let reads = 0;
     const port = createPort({
       run: async (args) => {
@@ -86,74 +86,9 @@ describe("GitHub merge-observation port", () => {
       state: "unresolved",
       condition: "stale-base-test-merge",
       evidenceRef: `github:test-merge:${oid("c")}`,
-      detail: expect.stringMatching(/three-read observation limit.*Retry/u),
+      detail: expect.stringContaining(`base ${oid("d")}`),
     });
-    expect(reads).toBe(3);
-  });
-
-  it.each([
-    ["current test merge", {}, "mergeable", undefined],
-    ["different pull request", { number: 43 }, "unresolved", undefined],
-    ["unavailable policy", {}, "unresolved", undefined],
-    ["head movement", { head: { sha: oid("e") } }, "refused", "head-moved"],
-    ["base retarget", { base: { ref: "release" } }, "refused", "base-ref-mismatch"],
-    ["host conflict", { mergeable: false }, "refused", "not-mergeable"],
-    ["strict policy", {}, "base-currentness-required", undefined],
-    ["pending computation", { mergeable: null, merge_commit_sha: null }, "unresolved", undefined],
-    ["unavailable commit", {}, "unresolved", undefined],
-  ] as const)("reobserves %s after a stale test merge without inheriting stale authority",
-    async (label, overrides, state, condition) => {
-      let reads = 0;
-      const port = createPort({
-        run: async (args) => {
-          const endpoint = args.at(-1) ?? "";
-          if (endpoint.endsWith("/pulls/42")) {
-            reads += 1;
-            return output(pull(reads === 1 ? {} : { merge_commit_sha: oid("f"), ...overrides }));
-          }
-          if (endpoint.endsWith("/branches/main")) {
-            if (label === "unavailable policy" && reads > 1) throw new Error("Policy unavailable.");
-            return output({ protection: null });
-          }
-          if (endpoint.includes("/rules/branches/main")) return output([[...(label === "strict policy" && reads > 1
-            ? [{ type: "required_status_checks", parameters: {
-                required_status_checks: [], strict_required_status_checks_policy: true,
-              } }] : [])]]);
-          if (endpoint.endsWith(`/commits/${oid("c")}`)) {
-            return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
-          }
-          if (endpoint.endsWith(`/commits/${oid("f")}`)) {
-            if (label === "unavailable commit") throw new Error("Host unavailable.");
-            return output({ parents: [{ sha: coordinates.base }, { sha: coordinates.head }] });
-          }
-          throw new Error(`unexpected endpoint: ${endpoint}`);
-        },
-      });
-      const result = await port.observe(coordinates, { baseContained: false });
-      expect(result).toMatchObject({ ...coordinates, state });
-      if (condition === undefined) expect(result).not.toHaveProperty("condition");
-      else expect(result).toHaveProperty("condition", condition);
-      if (state === "mergeable") expect(result).toHaveProperty("evidenceRef", `github:test-merge:${oid("f")}`);
-    },
-  );
-
-  it("honors cancellation between stale test-merge reads", async () => {
-    const controller = new AbortController();
-    const port = createPort({
-      run: async (args) => {
-        const endpoint = args.at(-1) ?? "";
-        if (endpoint.endsWith("/pulls/42")) return output(pull());
-        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
-        if (endpoint.includes("/rules/branches/main")) return output([[]]);
-        if (endpoint.includes("/commits/")) {
-          controller.abort(new DOMException("stop", "AbortError"));
-          return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
-        }
-        throw new Error(`unexpected endpoint: ${endpoint}`);
-      },
-    });
-    await expect(port.observe(coordinates, { baseContained: false, signal: controller.signal }))
-      .rejects.toMatchObject({ name: "AbortError" });
+    expect(reads).toBe(1);
   });
 
   it.each([

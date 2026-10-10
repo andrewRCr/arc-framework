@@ -95,7 +95,9 @@ head and plan, and the merge verb revalidates them before acting. A changed head
 composition rather than inheriting the prior authorization.
 
 Disjoint protected-base movement proceeds without a reconcile commit when Git feasibility is exact and the configured
-host policy admits the current head into the named target. Overlapping movement enters one typed base reconcile and
+host policy admits the current head into the named target. A host test merge that covers the exact head on an earlier
+base still admits that head: exact Git feasibility already answers the conflict question the host has yet to
+recompute, so integration does not wait for it. Overlapping movement enters one typed base reconcile and
 then a fresh checkpoint and approval. Complete exact-coordinate evidence may offer local repair before final host
 admission when Git proves only generated conflicts and the host reports non-mergeability, or when the host test merge
 covers the exact head but a stale base, and the head lacks the requested current base. Repair grants no merge authority:
