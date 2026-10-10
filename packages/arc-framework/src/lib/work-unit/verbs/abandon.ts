@@ -273,7 +273,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   if (snapshot.status === "refused") {
     return {
       status: "rejected",
-      reason: `Cannot record abandon evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
+      reason: `Cannot record abandon evidence: ${snapshot.diagnostic ?? describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
   }
 

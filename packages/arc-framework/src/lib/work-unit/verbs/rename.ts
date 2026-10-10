@@ -190,7 +190,7 @@ async function runTrackedRename(
 
   const snapshot = await ctx.retirement.authority.readSnapshot(source.scope);
   if (snapshot.status === "refused") {
-    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.reason}` };
+    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.diagnostic ?? snapshot.reason}` };
   }
 
   let readinessAdvisory: string | undefined;
