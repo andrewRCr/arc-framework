@@ -3,7 +3,7 @@
   "slug": "errand-resume-intent-remedy",
   "claimId": "6660d5acaa3be5dcd6c930c6db07f5e2",
   "createdAt": "2026-10-10T18:42:35.019Z",
-  "updatedAt": "2026-10-10T18:42:35.019Z",
+  "updatedAt": "2026-10-10T20:50:04.860Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the Errand resume refusal for a changed intent name its fix",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the Errand resume refusal for a changed intent name its fix",
   "originEntrySourceDigest": "sha256:3de7dfdf657643fd3e033ad559b8732c7a2dfc7b29629680d48373cf19ef6d3a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-resume-intent-remedy",
+    "headSha": "226c03e40eea148665b22d6466f04844899ef6a9"
+  }
 }
