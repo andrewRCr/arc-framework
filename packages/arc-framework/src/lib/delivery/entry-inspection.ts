@@ -300,12 +300,12 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
       target: z.strictObject({
         head: DeliveryGitObjectIdSchema,
         tree: DeliveryGitObjectIdSchema,
       }),
-      tier1ReuseCriteria: z.strictObject({
+      commitGateReuseCriteria: z.strictObject({
         kind: z.literal("exact-tree"),
         targetTree: DeliveryGitObjectIdSchema,
         requiredResult: z.literal("passed"),

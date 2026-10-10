@@ -742,7 +742,7 @@ continuation. Invoke [`validate-criteria`][validate-criteria] at member scope on
 conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
 arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind
 `arc check gate commit --all --force` to `verification.target` in its own checkout. Rerun by default. Reuse is
-admissible only under `tier1ReuseCriteria` when an existing passed result names exactly `targetTree` and every covered
+admissible only under `commitGateReuseCriteria` when an existing passed result names exactly `targetTree` and every covered
 input is unchanged; inconclusive evidence reruns the commit gate.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to

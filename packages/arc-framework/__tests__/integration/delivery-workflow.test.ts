@@ -224,7 +224,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(correctionTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
     expect(correctionTail).toContain("arc check gate commit --all --force");
-    expect(correctionTail).toMatch(/tier1ReuseCriteria[\s\S]*existing passed result[\s\S]*targetTree/iu);
+    expect(correctionTail).toMatch(/commitGateReuseCriteria[\s\S]*existing passed result[\s\S]*targetTree/iu);
     expect(correctionTail).toMatch(/one resubmission shape[\s\S]*resumeAction[\s\S]*verificationResult/iu);
     expect(correctionTail).toMatch(/derivedFrom[\s\S]*open task[\s\S]*pending approved\s+review response/iu);
     expect(correctionTail).toMatch(/same finding-disposition approval/iu);

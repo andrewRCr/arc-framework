@@ -503,21 +503,14 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
 - _Goal:_ No code identifier or emitted string names a tier, apart from the stored `verificationKind: "tier-3"` value
   and its `arc attest` echo.
 
-    - `[ ]` **6.3.a Confirm no delivery record exists**
-        - Look for records under the Git directory's `arc/delivery`, `arc/delivery-gates`, and
-          `arc/delivery-resolutions`; if one exists, stop for direction before renaming
+    - `[x]` **6.3.a Confirm no delivery record exists**
+        - No files are present under `arc/delivery`, `arc/delivery-gates`, or `arc/delivery-resolutions` in either
+          this worktree's Git directory or the shared Git common directory used by the delivery stores.
 
-    - `[ ]` **6.3.b Rename delivery's identifiers**
-        - `tier1Required` (11 sites), `tier1ReuseCriteria` (4), `ReviewFixTier1VerificationSchema` (2), and the `tier1`
-          field (5) across `delivery-execution.ts` and `lib/delivery/`'s `landing.ts`, `entry-inspection.ts`,
-          `review-fix-verification.ts`, `review-fix.ts`, `review-fix-continuation.ts`, and
-          `suffix-rematerialization.ts`, with their tests, `helpers/delivery-position-suite.ts`, and
-          `deliver-stack.md`'s field reference; the tests include `unit/delivery/suffix-reconciliation.test.ts`,
-          `e2e/delivery-terminal-recovery.e2e.test.ts`, and `integration/delivery-workflow.test.ts`
-        - Targets follow the translation (a review fix's Tier 1 is its commit gate): `commitGateRequired`,
-          `commitGateReuseCriteria`, `ReviewFixCommitGateVerificationSchema`, and `commitGate`
-        - The `gates://tier-N` evidence strings in the delivery fixtures (`delivery-position-suite.ts`, `review-fix`,
-          `review-fix-continuation`, `delivery-execution`, and `candidate-attestation`) name the gate they stand for
+    - `[x]` **6.3.b Rename delivery's identifiers**
+        - Delivery schemas, producers, consumers, fixtures, and `deliver-stack.md` use `commitGateRequired`,
+          `commitGateReuseCriteria`, `ReviewFixCommitGateVerificationSchema`, and `commitGate` without aliases.
+        - Delivery correction fixtures name their verification evidence `gates://commit`.
 
     - `[ ]` **6.3.c Emitted text and comments**
         - `entry-inspection.ts`'s "Tier 1 checks" names the commit gate; `eligibility.ts`'s "Tier 2 outcome" comment

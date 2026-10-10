@@ -745,7 +745,7 @@ describe("Candidate lineage currentness", () => {
       applicability: "focused",
       verificationEvidenceRefs: [
         "criteria://delivery/member-1",
-        "gates://tier-1/current-top",
+        "gates://commit/current-top",
       ],
       implementationChanged: true,
     });
