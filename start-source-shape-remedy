@@ -3,7 +3,7 @@
   "slug": "start-source-shape-remedy",
   "claimId": "84154f80298a2a374b53163bd6a9b0f6",
   "createdAt": "2026-10-10T20:51:50.764Z",
-  "updatedAt": "2026-10-10T20:51:50.764Z",
+  "updatedAt": "2026-10-10T21:37:20.671Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the start source-shape refusal name the artifact naming or move-out repair and verify successful retry.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the start command's source-shape refusal name its fix",
   "originEntrySourceDigest": "sha256:d7226e655d4d35f2432b591a116b76e609885fc57fb3da2618d4593c02b8dc7c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/start-source-shape-remedy",
+    "headSha": "d9f02c22810031417b99b3e6e00af42ff505bbeb"
+  }
 }
