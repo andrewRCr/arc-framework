@@ -3,8 +3,8 @@
 The response should establish that:
 
 - the report is explicitly author self-review and uses only a report-local `F1` label;
-- it includes the complete claim, locus, source-verification evidence, confirmed ARC `major` judgment, blocking fix
-  action, and the absence of open questions;
+- it includes the complete claim, confirmed ARC `major` judgment, blocking fix action, and the absence of open
+  questions, and offers the locus and source-verification evidence when the approver asks;
 - it omits rather than fabricates producer identity, reviewer grade, native label, ordinal, receipt, or producer-bound
   identity;
 - complete-set approval is still required before mutation; and

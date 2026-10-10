@@ -38,27 +38,29 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section. Methods not listed here are independent.
 
-| Method                        | Related Methods                                                          | Coupling                                   |
-| ----------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| adversarial-review            | validate-criteria, source-grounding, assess-design-proportionality       | Criteria walk and fresh-context companion  |
-| source-grounding              | spec-review, task-audit, adversarial-review                              | Shared behavior and propagation check      |
-| spec-review                   | source-grounding                                                         | Spec coherence and claim grounding         |
-| task-audit                    | source-grounding                                                         | Task grounding floor and category analysis |
-| commit-format                 | commit-footer                                                            | Both govern the commit message             |
-| commit-footer                 | commit-format                                                            | Both govern the commit message             |
-| frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage | Advisory review mechanism, scope, and lens |
-| standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage | Satisfying standard, mechanism, and lens   |
-| review-chunking               | frontline-review, standard-review                                        | Bounded review-scope consumers             |
-| self-review                   | review-triage                                                            | Uses review-triage for findings            |
-| review-response               | review-triage                                                            | Consumes approved finding dispositions     |
-| assess-boundary-fit           | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
-| classify-work-unit            | route-discovered-work, assess-boundary-fit                               | Wrapper floor and upper boundary           |
-| route-discovered-work         | classify-work-unit                                                       | Disposition applies the wrapper floor      |
-| assess-design-proportionality | design-audit, adversarial-review                                         | Material proportionality and broader fit   |
-| design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
-| testing-standards             | test-first                                                               | Planning/execution seam split              |
-| test-first                    | testing-standards                                                        | Planning/execution seam split              |
-| validate-criteria             | adversarial-review                                                       | Criteria walk and fresh-context companion  |
+| Method                        | Related Methods                                                                        | Coupling                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| adversarial-review            | validate-criteria, source-grounding, assess-design-proportionality, disposition-report | Criteria walk, fresh-context companion, report shape |
+| source-grounding              | spec-review, task-audit, adversarial-review                                            | Shared behavior and propagation check                |
+| spec-review                   | source-grounding                                                                       | Spec coherence and claim grounding                   |
+| task-audit                    | source-grounding                                                                       | Task grounding floor and category analysis           |
+| commit-format                 | commit-footer                                                                          | Both govern the commit message                       |
+| commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
+| frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
+| standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
+| review-chunking               | frontline-review, standard-review                                                      | Bounded review-scope consumers                       |
+| self-review                   | review-triage                                                                          | Uses review-triage for findings                      |
+| review-response               | review-triage                                                                          | Consumes approved finding dispositions               |
+| review-triage                 | disposition-report                                                                     | Renders code-review findings in its shape            |
+| disposition-report            | review-triage, adversarial-review                                                      | Shared finding-set presentation                      |
+| assess-boundary-fit           | classify-work-unit                                                                     | Upper/lower WU-boundary tests                        |
+| classify-work-unit            | route-discovered-work, assess-boundary-fit                                             | Wrapper floor and upper boundary                     |
+| route-discovered-work         | classify-work-unit                                                                     | Disposition applies the wrapper floor                |
+| assess-design-proportionality | design-audit, adversarial-review                                                       | Material proportionality and broader fit             |
+| design-audit                  | assess-design-proportionality                                                          | Broader fit and material proportionality             |
+| testing-standards             | test-first                                                                             | Planning/execution seam split                        |
+| test-first                    | testing-standards                                                                      | Planning/execution seam split                        |
+| validate-criteria             | adversarial-review                                                                     | Criteria walk and fresh-context companion            |
 
 ---
 

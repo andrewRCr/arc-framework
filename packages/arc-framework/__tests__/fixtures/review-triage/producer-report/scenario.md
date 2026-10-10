@@ -74,12 +74,17 @@ The command's `payload.dispositionReportText` is exactly these renderer-produced
 - F1: Should the reviewer clarify the cited execution path?
 
 ### F1 — Failing path at the cited branch
+
 **Issue:** The reviewer alleges the branch at this locus enters a failing execution path.
+
 **Action:** Reject the finding without changing code.
+
 **Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.
+```
 
----
+Its `payload.dispositionEvidenceText`, held back from the report and shown when the approver asks, is exactly:
 
+```text
 **Evidence**
 - F1 · src/index.ts:7 · N-7 · source #1 · review:finding-1 · verified at source:src/index.ts:7
 ```

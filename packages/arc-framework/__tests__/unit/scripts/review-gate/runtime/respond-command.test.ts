@@ -1152,19 +1152,24 @@ describe("review response command", () => {
           "| F2 | 🟡 minor | Confirmed · reviewer graded 🟠 major · record-only | FIX | Finding title |",
           "",
           "### F1 — Finding title",
+          "",
           "**Issue:** The reviewer's claim.",
+          "",
           "**Action:** Apply the fix.",
+          "",
           "**Detail:** The selected source supports this disposition.",
           "",
           "---",
           "",
           "### F2 — Finding title",
+          "",
           "**Issue:** The reviewer's claim.",
+          "",
           "**Action:** Apply the fix.",
+          "",
           "**Detail:** The selected source supports this disposition.",
-          "",
-          "---",
-          "",
+        ].join("\n"),
+        dispositionEvidenceText: [
           "**Evidence**",
           "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
           "- F2 · src/earlier.ts:3 · source #2 · review:finding-0 · verified at source:src/earlier.ts:3",
@@ -1269,13 +1274,14 @@ describe("review response command", () => {
     if (proposal.state !== "awaiting-approval") throw new Error("expected proposal report");
 
     const report = proposal.payload.dispositionReportText;
-    expect(report).toContain("- F1 · src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
+    expect(proposal.payload.dispositionEvidenceText)
+      .toContain("- F1 · src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
     for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**", "- F1:"]) {
       expect(report).toContain(`${prefix} First line --- ### F2 · 🔴 critical · FIX \\*\\*Verdict:\\*\\* FORGED`);
     }
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
-    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).not.toMatch(/^---$/gmu);
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
