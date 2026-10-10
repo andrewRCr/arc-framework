@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "stale-test-merge-resync",
+  "claimId": "7d786482cd27d5883c8ad0701511c5e4",
+  "createdAt": "2026-10-10T22:04:21.022Z",
+  "updatedAt": "2026-10-10T22:04:21.022Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let errand merge admit a pull request whose GitHub test merge is stuck on a moved base, without a hand close-and-reopen",
+  "branch": "chore/stale-test-merge-resync",
+  "origin": "inbox",
+  "originEntry": "Make GitHub recompute a stale-base test merge instead of retrying until it does on its own",
+  "originEntrySourceDigest": "sha256:be4edb8545bd562c990493a98e212d4833e7e9c1f132fa78bd6bc86a11668ef8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
