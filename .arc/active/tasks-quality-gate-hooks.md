@@ -449,21 +449,10 @@ _Design decisions:_ From Task 6.1 until Task 7.4 lands this repository's declara
 `none declared` here, so each increment boundary in that span also runs this repository's QUICK-REFERENCE Tier 1
 commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
 
-### `[ ]` **6.1 Workflow and method gate steps name the verb — D6**
+### `[x]` **6.1 Workflow and method gate steps name the verb — D6**
 
 - _Goal:_ Every shipped gate step is one `arc check` request from the fire-site translation, so no workflow or method
   names a tier or a command list.
-
-- _Context:_ `self-review.md` and `review-response.md` are methods; the rest are workflows. Each edit lands in the
-  package source and syncs to `.arc/`. The retired surfaces' frontmatter declarations and extension markers stay for
-  Task 6.5, which removes them with their files. A link definition goes in the batch that removes its last use, since
-  Markdown lint rejects an unused one (MD053).
-
-- _Note:_ each integration test that asserts gate-step wording changes in the batch that rewrites its workflow:
-  `delivery-workflow`, `prepublication-workflow` (its `[quality-gate-commands method]` literals included),
-  `review-gate-workflows`, `pr-open-extensions`, `delivery-rebuild-base-movement`, `integration-reconcile-workflow`,
-  and `delivery-window-base-movement`. `evidence-applicability-doctrine` reads `DEV-RULES.ARC.md` and changes with Task
-  6.2.a; `delivery-workflow`'s `tier1ReuseCriteria` assertion changes with Task 6.3.b.
 
     - `[x]` **6.1.a Task loop**
         - Final completion edits precede one increment request; verifier tasks substitute the segment request and
@@ -480,10 +469,10 @@ commands. The `.husky/pre-commit` chain keeps enforcing at commit throughout.
           the action's scope while preserving attestation arguments. Lifecycle corrections request the commit gate,
           completion content requests increment checks, and merged bases request new-head checks before checkpointing.
 
-    - `[ ]` **6.1.d Delivery and review**
-        - `deliver-stack.md`: a review fix's `verification.target` requests `arc check gate commit --all --force` and a
-          delivery member `arc check gate push --all`, each in its own checkout; its field name moves in Task 6.3
-        - `review-response.md`'s `ready-to-fix` verification names its caller's review-fix request
+    - `[x]` **6.1.d Delivery and review**
+        - Each materialized member requests the push gate over all paths in its checkout. Review-fix verification
+          requests the forced commit gate over its exact target, preserving delivery's separate reuse and evidence
+          contract; the response method invokes the caller's review-fix request.
 
 ### `[ ]` **6.2 Briefs, rules, strategies, and references move to the gate model — D1, D10**
 

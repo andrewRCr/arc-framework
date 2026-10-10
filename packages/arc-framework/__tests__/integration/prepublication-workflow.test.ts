@@ -120,13 +120,13 @@ describe("prepublication workflow boundary", () => {
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);
-      const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
+      const pushChecks = delivery.indexOf("arc check gate push --all", locate);
       expect(materializedScale).toBeGreaterThan(locate);
-      expect(materializedScale).toBeLessThan(tierTwo);
+      expect(materializedScale).toBeLessThan(pushChecks);
       expect(delivery).toContain("    - review-chunking");
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("materialized member scale recheck"));
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("No Tier 2 command starts"));
-      expect(delivery.slice(locate, tierTwo))
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("materialized member scale recheck"));
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("No member push-gate request starts"));
+      expect(delivery.slice(locate, pushChecks))
         .toMatch(softWrappedProse("whole-target choice closes the attention disposition"));
 
       for (const [workflow, carrierCommand] of [
