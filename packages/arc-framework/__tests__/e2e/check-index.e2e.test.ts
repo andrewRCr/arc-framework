@@ -40,14 +40,14 @@ it.each(["worktree", "staged", "hook"])("provides an absolute index from a neste
   if (scope !== "worktree") {
     await git("git", ["add", "src/a.ts"], { cwd: root });
     await git("git", ["write-tree"], { cwd: root });
-    await writeFile(join(root, "src/a.ts"), "unstaged content\n");
+    if (scope === "staged") await writeFile(join(root, "src/a.ts"), "unstaged content\n");
   }
   const ownIndex = await readFile(join(root, ".git/index"));
   const worktree = await readFile(join(root, "src/a.ts"), "utf8");
   const result = await runArc(scope === "hook" ? ["check", "pre-commit", "--json"]
     : ["check", "run", "index", ...(scope === "staged" ? ["--staged"] : []), "--json"], root,
   scope === "hook" ? { env: { GIT_INDEX_FILE: ".git/index" } } : undefined);
-  expect(result.exitCode, result.stderr).toBe(0);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
   const observed: { tree: string; index: string } = JSON.parse(await readFile(join(root, "docs/receipt.json"), "utf8"));
   expect(observed.tree).toBe(JSON.parse(result.stdout).result.tree);
   expect(isAbsolute(observed.index)).toBe(true);

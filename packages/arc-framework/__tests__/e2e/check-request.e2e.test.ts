@@ -113,7 +113,10 @@ it("reports a CI flag on a hook form as a usage error with exit 2", async () => 
   const root = await fixture();
   const refused = await runArc(["check", "pre-commit", "--ci", "--json"], root);
   expect(refused.exitCode, refused.stderr).toBe(2);
-  expect(refused.stderr).toContain("--ci");
+  expect(JSON.parse(refused.stdout)).toMatchObject({ schemaVersion: 1, error: {
+    kind: "usage", message: expect.stringContaining("--ci"),
+  } });
+  expect(refused.stderr).toBe("");
   await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
 });
 

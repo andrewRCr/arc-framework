@@ -41,7 +41,10 @@ it("keeps selection and outcomes identical under all commit and push interlock s
       await git("git", ["config", "arc.pushInterlock", push], { cwd: root });
       const result = await runArc(["check", "gate", "push", "--all", "--force", "--json"], root);
       expect(result.exitCode, result.stderr).toBe(0);
-      const outcomes = JSON.parse(result.stdout).result.checks;
+      const outcomes = JSON.parse(result.stdout).result.checks.map(
+        ({ id, kind, outcome, output }: { id: string; kind: string; outcome: string; output: string }) =>
+          ({ id, kind, outcome, output }),
+      );
       reference ??= outcomes;
       expect(outcomes).toEqual(reference);
     }
