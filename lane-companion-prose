@@ -3,7 +3,7 @@
   "slug": "lane-companion-prose",
   "claimId": "66c42d4cae6fa43e5704b8d593120396",
   "createdAt": "2026-10-10T21:05:49.127Z",
-  "updatedAt": "2026-10-10T21:05:49.127Z",
+  "updatedAt": "2026-10-10T21:58:27.416Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Bring shipped prose that lists lanes and companion kinds, and the meta-reference pattern default, in line with the code",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Bring shipped prose that lists lanes and companion kinds in line with the code",
   "originEntrySourceDigest": "sha256:370ee35c10d0aec91647ee0346f33c7aa3cac9284d1f00a35d1979216ab9db7e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/lane-companion-prose",
+    "headSha": "dbbd6be50147934b244d1b74304a5388a684777d"
+  }
 }
