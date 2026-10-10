@@ -959,11 +959,6 @@
       "count": 2
     }
   },
-  "src/lib/errand/index.ts": {
-    "arc/store-raw-state": {
-      "count": 3
-    }
-  },
   "src/lib/errand/leave-runtime.ts": {
     "arc/store-raw-state": {
       "count": 1
