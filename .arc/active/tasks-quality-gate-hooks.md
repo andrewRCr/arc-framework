@@ -422,10 +422,16 @@ conclusion selects only conflicted and parent-unmatched paths.
   regenerated merges retain their exact parents and return `merged / run-quality-gates`; neither dispatches the
   commit gate, while `new-head` subsequently runs and reports a failing declared check on each resulting head.
 
-### `[ ]` **5.9 Gates dispatch under every hook manager** — validate exit criterion at segment scope
+### `[x]` **5.9 Gates dispatch under every hook manager** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds under all four integrations through the built CLI and ARC's shipped
   hooks, recorded as the scenarios run and their results.
+
+- _Outcome:_ Built-CLI native scenarios dispatch commit and push gates once across all four installed integrations,
+  including deletion-only commits and failure/repair pushes naming the gated ref. Ref selection excludes state refs
+  and deletions and reports other refs without a checkout; partial-staging and fixer scenarios preserve their
+  integration-specific behavior. Merge selection includes conflicts and parent-unmatched resolution edits while
+  excluding clean incoming content; both base-merge paths conclude before new-head enforcement.
 
 ## **Phase 6:** Fire sites, vocabulary, and retirement
 
