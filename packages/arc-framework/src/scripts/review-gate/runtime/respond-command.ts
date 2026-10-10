@@ -38,7 +38,7 @@ import {
   proposeDispositionSet,
   validateDispositionState,
 } from "../core/dispositions.js";
-import { renderDispositionReport } from "../core/disposition-report.js";
+import { renderDispositionEvidence, renderDispositionReport } from "../core/disposition-report.js";
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
@@ -1847,6 +1847,7 @@ async function prepareResponseProposal(
       admittedLogicalPass: source.result.admission.logicalPass,
       configuredMaxPasses: configured.maxPasses,
     });
+    const reportInput = { dispositionSet: proposal.dispositionSet, producerFindings: source.findings };
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -1857,10 +1858,8 @@ async function prepareResponseProposal(
         operationId: source.operationId,
         proposal,
         ...(supersession === undefined ? {} : { supersession }),
-        dispositionReportText: renderDispositionReport({
-          dispositionSet: proposal.dispositionSet,
-          producerFindings: source.findings,
-        }),
+        dispositionReportText: renderDispositionReport(reportInput),
+        dispositionEvidenceText: renderDispositionEvidence(reportInput),
         provisionalPassAssessment,
       },
     });

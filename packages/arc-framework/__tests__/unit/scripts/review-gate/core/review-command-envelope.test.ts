@@ -180,6 +180,7 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
   }],
 }));
 const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
+const dispositionEvidenceText = "Evidence\n- F1 · src/index.ts:7 · verified at source:src/index.ts:7";
 const provisionalPassAssessment = {
   status: "provisional",
   lane: "standard",
@@ -326,7 +327,7 @@ describe("review command envelopes", () => {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
-        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
         provisionalPassAssessment,
       },
     }],
@@ -481,7 +482,7 @@ describe("review command envelopes", () => {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
       payload: {
-        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText, dispositionEvidenceText,
         provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
       },
     })).toThrow();

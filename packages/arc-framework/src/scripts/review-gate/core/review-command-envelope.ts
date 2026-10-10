@@ -709,6 +709,7 @@ export const RespondEnvelopeSchema = z.union([
         expectedFixPaths: z.array(z.string().trim().min(1)),
       }).optional(),
       dispositionReportText: z.string().trim().min(1),
+      dispositionEvidenceText: z.string().trim().min(1),
       provisionalPassAssessment: ProvisionalPassAssessmentSchema,
     }),
   ),

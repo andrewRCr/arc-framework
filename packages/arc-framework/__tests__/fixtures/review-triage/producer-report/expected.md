@@ -6,8 +6,9 @@ The assessment should establish that:
   `REJECT` action, and title, with the open question directly beneath it as the one thing asked of the approver;
 - the finding's section gives a standalone account below the table: its heading names the finding, and the reviewer's
   issue is stated before the full action and the detail behind the verdict;
-- the trailing evidence line preserves the native label, capture ordinal, source reference, and report-local finding
-  label without conflating them, and keeps ARC's verification reference distinct from the producer source;
+- the separate evidence text, offered on request rather than shown in the report, preserves the native label, capture
+  ordinal, source reference, and report-local finding label without conflating them, and keeps ARC's verification
+  reference distinct from the producer source;
 - ARC's unsupported verdict appears separately from the reviewer's reported `major` grade;
 - rejection remains in the complete set as record-only, with a complete rationale, action, and open question;
 - the accompanying typed proposal supplies the canonical disposition-set identity, exact target, producer result,
