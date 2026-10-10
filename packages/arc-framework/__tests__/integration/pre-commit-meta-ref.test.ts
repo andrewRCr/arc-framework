@@ -96,9 +96,9 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
   it("exempts quoted Git name-status scores without hiding a same-line planning ID", async () => {
     const root = await freshRepo();
     const renameScore = ["R", "100"].join("");
-    const copyScore = ["C", "075"].join("");
+    const singleQuotedRenameScore = ["R", "075"].join("");
     const requirement = ["R", "12"].join("");
-    const scores = `export const scores = ["${renameScore}", '${copyScore}'];`;
+    const scores = `export const scores = ["${renameScore}", '${singleQuotedRenameScore}'];`;
     await writeRepoFile(root, "src/domain.ts", `${scores}\n`);
     await git(root, ["add", "src/domain.ts"]);
 
