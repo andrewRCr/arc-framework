@@ -1406,10 +1406,12 @@ program
   .option("--for <slug>", "Select a work unit's registered checkout or a ref this clone holds")
   .addHelpText("after", [
     "",
-    "Bare selection: tasks -> spec -> draft -> meta. Ordinary view renders the selected copy.",
-    "--for reads a started work unit's registered checkout, including uncommitted edits;",
-    "otherwise it renders its selected ref. It reads only refs this clone already holds.",
-    "Without a registered checkout, --path and --editor refuse; use rendering to read it.",
+    "Bare selection: tasks -> spec -> draft -> meta.",
+    "Ordinary view renders the selected copy.",
+    "--for reads a started work unit's registered checkout, including uncommitted",
+    "edits; otherwise it renders its selected ref. It reads only refs this clone",
+    "already holds. Without a registered checkout, --path and --editor refuse;",
+    "use rendering to read it.",
     "Editor handoff:",
     "  --editor / -e opens the same real absolute file as --path.",
     "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",
