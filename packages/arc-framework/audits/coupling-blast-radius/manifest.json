@@ -38,7 +38,6 @@
       "package-lock.json",
       "package.json",
       "scripts/check-package-sync.sh",
-      "scripts/check-ts-quality.sh",
       "scripts/classify-change.sh",
       "scripts/worktree-post-create.sh"
     ],

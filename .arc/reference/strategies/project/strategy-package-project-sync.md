@@ -94,16 +94,16 @@ they contain no conditional blocks. `init-recipe.json` is authoritative for temp
 
 ### Pre-commit hook (automated)
 
-`scripts/check-package-sync.sh` runs via `.husky/pre-commit` after the ARC hook. Two checks,
-each scoped by `manifest.json` classification:
+`scripts/check-package-sync.sh` is declared at the commit gate and dispatched by ARC's hook. Its supplied paths,
+checked index, exported base, and merged-in parents define the content range. Two checks use `manifest.json`
+classification:
 
-1. **Framework wrong-direction** (warning): a Framework file is staged in `.arc/` without its
-   package-source counterpart also staged.
-2. **Configurable blind-`cp`** (error, blocks commit): a Configurable file is staged
-   byte-identical to its package-source counterpart after diverging at HEAD. This is the
-   `cp pkg/<f> .arc/<f>` signature — staged content matches package, but HEAD content didn't,
-   so the commit just wiped project-specific overrides. Files already byte-identical at HEAD
-   (project inherits the template default for that file) don't trigger.
+1. **Framework wrong-direction** (warning): a Framework file is selected in `.arc/` without its
+   package-source counterpart also selected.
+2. **Configurable blind-`cp`** (error, blocks commit): a Configurable file in the checked index is
+   byte-identical to its package-source counterpart after diverging at the exported base. Files already identical
+   at that base do not trigger. Content inherited from a merged-in parent is accepted, and an override that an
+   incoming parent's two copies already removed is not attributed to the base.
 
 **What it catches:**
 
@@ -126,10 +126,9 @@ package source. Points here for the full architecture.
 
 ### Hook separation pattern
 
-Dev-only checks live in the husky layer (`.husky/pre-commit` → `scripts/*.sh`), not in the
-ARC pre-commit hook (`.arc/system/.internal/githooks/pre-commit`). The ARC hook is a Framework file
-shipped to adopters — only universal checks belong there. This supersedes the prior
-`.arc-internal/` dual-hook approach from WU2.
+Project checks live in repository scripts and `.arc/system/arc-checks.yml`. Husky delegates to ARC's pre-commit hook,
+whose universal dispatcher reads that declaration. The project-specific check implementations remain outside the
+Framework hook shipped to adopters.
 
 ## Documentation Architecture
 

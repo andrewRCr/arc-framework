@@ -69,23 +69,18 @@ beforeEach(async () => {
 afterEach(async () => { await cleanupTempDir(root); });
 
 describe("package sync check", () => {
-  it("requires the exported base when paths are supplied", async () => {
-    const result = await check([instance]);
+  it.each([{ paths: [] }, { paths: [instance] }])("requires the exported base for supplied scope $paths", async ({ paths }) => {
+    const result = await check(paths);
     expect(result.exitCode, result.output).toBe(1);
     expect(result.output).toContain("ARC_CHECK_BASE is required");
   });
 
-  it("keeps no-argument staged checks against HEAD and succeeds after an indexed repair", async () => {
+  it("leaves staged paths unselected when the supplied scope is empty", async () => {
     await write(instance, "# Framework defaults\n");
     await git(["add", instance]);
-    const failed = await check([]);
-    expect(failed.exitCode, failed.output).toBe(1);
-    expect(failed.output).toContain(instance);
-
-    await write(instance, "# Project overrides\n");
-    await git(["add", instance]);
-    const repaired = await check([]);
-    expect(repaired.exitCode, repaired.output).toBe(0);
+    const result = await check([], { base });
+    expect(result.exitCode, result.output).toBe(0);
+    expect(result.output).not.toContain(instance);
   });
 
   it.each([false, true])("accepts a merged-in parent's content over the requested range (longer=%s)", async longer => {

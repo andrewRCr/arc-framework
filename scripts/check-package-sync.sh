@@ -1,7 +1,7 @@
 #!/bin/bash
 # Project-specific package-project sync direction and integrity check.
-# Supplied paths use ARC_CHECK_BASE and ARC_CHECK_MERGED; no paths select the
-# current index changes against HEAD and any pending merge parent.
+# Supplied paths use ARC_CHECK_BASE and ARC_CHECK_MERGED, and content comes
+# from the checked index. An empty supplied scope selects no paths.
 #
 # This check is dev-only — it only applies to the ARC framework repo where
 # packages/arc-framework/arc/ (authoritative source) and .arc/ (project instance)
@@ -28,32 +28,17 @@ if [ ! -f "$manifest_file" ] || [ ! -d "$pkg_arc" ]; then
     exit 0
 fi
 
-if [ "$#" -gt 0 ]; then
-    check_base="${ARC_CHECK_BASE:-}"
-    if [ -z "$check_base" ]; then
-        echo "Error: ARC_CHECK_BASE is required when package-sync paths are supplied." >&2
-        exit 1
-    fi
-    changed_paths=("$@")
-else
-    check_base="HEAD"
-    changed_paths=()
-    while IFS= read -r -d '' changed_path; do
-        changed_paths+=("$changed_path")
-    done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+check_base="${ARC_CHECK_BASE:-}"
+if [ -z "$check_base" ]; then
+    echo "Error: ARC_CHECK_BASE is required for package-sync checks." >&2
+    exit 1
 fi
+changed_paths=("$@")
 
 unsynced_framework=""
 clobbered_configurable=""
 merged_parents=()
-if [ "$#" -gt 0 ]; then
-    read -r -a merged_parents <<< "${ARC_CHECK_MERGED:-}"
-else
-    merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
-    if [ -n "$merge_head" ]; then
-        merged_parents=("$merge_head")
-    fi
-fi
+read -r -a merged_parents <<< "${ARC_CHECK_MERGED:-}"
 for arc_file in "${changed_paths[@]}"; do
     case "$arc_file" in
         .arc/system/.internal/*) continue ;;

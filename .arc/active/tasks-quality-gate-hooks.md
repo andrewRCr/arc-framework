@@ -632,14 +632,10 @@ boundary; from Task 7.4 on, `arc check increment` runs the declaration.
         - Lockfiles and tool configuration invalidate all check keys. The installed npm record is fingerprinted by a
           global runtime input; table formatting also fingerprints its executing sources independently of file inputs.
 
-    - `[ ]` **7.4.d Retire the chain and the gate blocks**
-        - `.husky/pre-commit` keeps only ARC's hook, and `integration/markdown-staged-hook.test.ts`, which asserts the
-          chain, changes with it
-        - `scripts/check-ts-quality.sh` goes, with `integration/focused-lint-staged.test.ts`, which runs it, and its
-          entry in `audits/coupling-blast-radius/manifest.json`'s `repoRootDelta`
-        - `check-package-sync.sh`'s no-argument staged form goes with the chain, leaving only the paths the verb passes
-        - This repository's QUICK-REFERENCE § Quality Gate Commands goes, with its entry in the on-demand section list
-          and § Environment & Path Context's pointer to it, its measured costs now recorded by the verb
+    - `[x]` **7.4.d Retire the chain and the gate blocks**
+        - Husky now delegates only to ARC and preserves its exit status. Removed the staged TypeScript wrapper,
+          its integration suite, and corpus entry; package sync now consumes only exported scope. Removed the
+          QUICK-REFERENCE gate blocks and corrected the package-sync strategy's declaration and range guidance.
 
     - `[ ]` **7.4.e Prove it on this repository**
         - `arc check gate merge --dry-run` validates the declaration; a commit through ARC's hook runs and reuses the
