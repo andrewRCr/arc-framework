@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reconcile-applicability-route",
+  "claimId": "f67489662ed0970e51e716b21ce0adfb",
+  "createdAt": "2026-10-11T01:05:10.298Z",
+  "updatedAt": "2026-10-11T01:05:10.298Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route a work unit's review through the Errand applicability path after an overlapping base reconcile, and judge applicability per hunk",
+  "branch": "chore/reconcile-applicability-route",
+  "origin": "inbox",
+  "originEntry": "Route a work unit's review through the Errand's applicability path after an overlapping base reconcile",
+  "originEntrySourceDigest": "sha256:0658001244666eb1b242dafaedca6a3b134569ab22b2574ea35cb8621b39a118",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
