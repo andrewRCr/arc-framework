@@ -238,7 +238,7 @@ grows.
           session-init, delivery-position, and session-envelope compatibility. Both pass with changes confined to
           the named setter corrections.
 
-### `[ ]` **2.6 The flat-bullet fallback retires — § 5.1, § 11.2**
+### `[x]` **2.6 The flat-bullet fallback retires — § 5.1, § 11.2**
 
 - _Goal:_ `parseMetaRecord` refuses a meta without an H1 or a core table, the in-repo creation admission refuses one,
   the advisory readers still degrade on a bad meta without throwing, and every tracked meta parses to its base fields.
@@ -254,11 +254,10 @@ grows.
           Marker consumers locally supply Markdown metadata without changing shared JSON conformance fixtures, and
           archive resolution uses a valid PR-less meta. Legacy-core cases assert refusal and comments describe tables.
 
-    - `[ ]` **2.6.c Confirm every tracked meta parses to its base fields**
-        - Listing `work-item/meta` through the in-repo implementation over this repository returns `complete` with no
-          diagnostics, and every meta's parsed fields equal, on today's keys, what `parseMetaRecord` returns at the
-          merged base.
-        - The full suite passes (`npm test`, then `npm run -s test:e2e`).
+    - `[x]` **2.6.c Confirm every tracked meta parses to its base fields**
+        - The in-repo listing is complete with no diagnostics across all 259 tracked metas. Registered fields and
+          the current parser agree; on identical bytes, today's keys equal the merged-base parser's values. The five
+          converted archives also preserve their original base values. The full suite and E2E lane pass.
 
 ## **Phase 3:** The lineage record's final shape
 
