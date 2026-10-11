@@ -138,6 +138,21 @@ export async function atomicCreateFile(targetPath: string, content: string): Pro
   await nodeAtomicCreateFile(targetPath, content);
 }
 
+/** Filesystem access refusals that name a remediable environment condition. */
+export type FilesystemAccessFault = "read-only-filesystem" | "permission-denied";
+
+/**
+ * Classify a filesystem error as a recognized access refusal.
+ * @param error - Value thrown by a filesystem operation
+ * @returns The refusal it represents, or `undefined` for any other failure
+ */
+export function classifyFilesystemAccessFault(error: unknown): FilesystemAccessFault | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  if (code === "EROFS") return "read-only-filesystem";
+  if (code === "EACCES" || code === "EPERM") return "permission-denied";
+  return undefined;
+}
+
 /**
  * Normalize a path to use forward slashes regardless of platform.
  *
