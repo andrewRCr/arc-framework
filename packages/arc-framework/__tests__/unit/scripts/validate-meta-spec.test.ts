@@ -443,6 +443,13 @@ describe("validateLifecycleFields — core-block table form", () => {
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(false);
   });
+
+  it("reports the missing core-table parse failure", () => {
+    const content = "# Metadata: Foo\n\n- **State:** Active\n- **Design:** [none]\n\n---\n";
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader({ [META_PATH_FIXTURE]: content }));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((message) => message.includes("missing core-block table"))).toBe(true);
+  });
 });
 
 describe("validateCohort — two-segment path cap", () => {

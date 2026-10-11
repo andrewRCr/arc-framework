@@ -233,21 +233,23 @@ export interface ParsedMetaFields {
 }
 
 /**
- * Parse the six session-init-relevant fields from a meta-file body.
+ * Parse the session-init-relevant fields from a meta-file body.
  *
  * Thin projection over {@link parseMetaRecord} — the single reader every meta
  * consumer routes through — selecting the subset the probe runners need. Core
- * fields (`State`, `Branch`) come from the core-block table when present and the
- * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
+ * fields (`State`, `Branch`) come from the required core-block table after the
+ * H1; the rest come from their bullets. Token
  * fields (`State`, `Branch`, `Task List`, `Current Workflow`) come back bare
  * (backticks stripped);
  * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
  * spans and all. Bracket sentinels are preserved; a field whose marker is
  * absent comes back `null`.
  *
- * Throws when the meta carries a structurally malformed core-block table — see
- * {@link parseMetaRecord}. Callers scanning untrusted files (e.g.
- * {@link parseCandidate}) catch and downgrade to a warning.
+ * Callers scanning untrusted files (e.g. {@link parseCandidate}) catch parse
+ * failures and downgrade them to a warning.
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns The projected fields used by session initialization.
+ * @throws When the H1 or core table is missing, or the table is malformed.
  */
 export function parseMetaFile(content: string): ParsedMetaFields {
   const record = parseMetaProjectionRecord(content);
@@ -376,7 +378,7 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  * composes the bare field value (a single filename, or a comma-joined layered
  * list); this primitive renders it per the `identifier-list` value class (each
  * element backticked, `[none]` left bare) so the written form matches
- * {@link renderMetaFile}, and does not otherwise parse or merge. Inherits
+ * {@link renderMetaFile}. Inherits
  * the field writer's anchor check, inserting an absent bullet in field order.
  *
  * @param content - The meta file's raw markdown.
@@ -547,8 +549,8 @@ export function setMetaBulletFields(
 /**
  * Recover the structured field record from a meta projection — the single
  * reader every meta consumer routes through. Core-block fields come from the
- * hoisted table when present (keyed by header label, column-order tolerant) and
- * the legacy flat-bullet scan otherwise; the rest come from their bullets.
+ * required table after its H1 (keyed by header label, column-order tolerant);
+ * the rest come from their bullets.
  * Sharing {@link META_FIELDS} makes this the inverse of {@link renderMetaFile}.
  *
  * Backtick stripping is `valueClass`-aware: token fields (`enum` / `identifier`)
@@ -558,14 +560,17 @@ export function setMetaBulletFields(
  * document. Bracket sentinels stay verbatim (`[none]` / `[internal]` / `[TBD]`
  * stay distinct, and distinct from a marker-absent `null`). A structurally
  * malformed core-block table throws (see {@link parseCoreTable}).
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns Every managed field in its parsed projection form.
+ * @throws When the H1 or core table is missing, or the table is malformed.
  */
 export function parseMetaProjectionRecord(content: string): MetaProjectionRecord {
-  const section = extractMetadataSection(content) ?? "";
+  const section = extractMetadataSection(content);
   const table = parseCoreTable(section);
+  if (table === null) throw new Error("Cannot parse metadata: missing core-block table after H1.");
   const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
-    const fromTable = table && field.name in table ? table[field.name] : undefined;
-    const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
+    const raw = field.render === "core-table" ? table[field.name] ?? null : extractField(section, field.name);
     // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
     // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
     // keeps its code spans. (Core table values arrive pre-stripped and are all
@@ -586,6 +591,9 @@ export function parseMetaProjectionRecord(content: string): MetaProjectionRecord
  * Recover the tolerant storage-independent adapter record from a meta projection.
  * Display sentinels normalize at this boundary; invalid closed-domain tokens stay
  * visible so callers can degrade one field without discarding independent evidence.
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns Semantic parsed fields, with display sentinels normalized to absence.
+ * @throws When the H1 or core table is missing, or the core table is malformed.
  */
 export function parseMetaRecord(content: string): ParsedMetaRecord {
   const projection = parseMetaProjectionRecord(content);
@@ -656,13 +664,12 @@ function stripAutolink(value: string): string {
  * Extract the H1-bounded preamble body — from immediately after the first
  * `# ...` H1 through the first content `## ...` H2 (or end-of-file). The
  * `extractField` regex underneath is shape-agnostic, so prose between H1
- * and the field bullets does not interfere. Returns `null` when no H1 is
- * present.
+ * and the field bullets does not interfere. Missing H1 content is refused.
  */
-function extractMetadataSection(content: string): string | null {
+function extractMetadataSection(content: string): string {
   const h1Re = /^# .*$/m;
   const h1Match = h1Re.exec(content);
-  if (!h1Match) return null;
+  if (!h1Match) throw new Error("Cannot parse metadata: missing metadata H1 heading.");
   const afterH1 = content.slice(h1Match.index + h1Match[0].length);
   const nextH2Match = /^## /m.exec(afterH1);
   return nextH2Match

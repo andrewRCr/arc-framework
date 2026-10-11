@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/base-drift/current-adapters.js";
 import type { BaseDriftCommitInput, IntegrationEvent } from "../../../src/lib/git/base-drift-types.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 const BASE = "b".repeat(40);
 const COMMIT = "c".repeat(40);
@@ -119,7 +120,7 @@ describe("completed-meta integration resolver", () => {
       if (args[0] === "diff-tree") return { stdout: `A\0${PR_LESS_META_PATH}\0` };
       if (args[0] === "show" && args[1] === `${BASE}:${META_PATH}`) return { stdout: meta(7) };
       if (args[0] === "show" && args[1] === `${COMMIT}:${PR_LESS_META_PATH}`) {
-        return { stdout: "# Work Unit\n" };
+        return { stdout: makeMetaFixture("prless", { state: "Shipped" }) };
       }
       throw new Error(`unexpected: ${args.join(" ")}`);
     };

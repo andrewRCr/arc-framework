@@ -163,8 +163,8 @@ function normalizeValue(raw: string): string | null {
 /**
  * Recover the core-block fields from the single-row markdown table, keyed by
  * header label so column order is tolerated. Returns `null` when the section
- * carries no table at all — the caller falls back to the legacy flat-bullet
- * scan, so pre-migration metas stay readable. A table that is *present but
+ * carries no recognizable core table — the metadata parser refuses that
+ * absence. A table that is *present but
  * malformed* inside the core block (a separator row without an adjacent
  * header/value row, or a column-count mismatch across the three rows) throws:
  * structural drift fails loud, never silent-null. Narrative tables below the

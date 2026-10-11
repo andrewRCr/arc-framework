@@ -387,7 +387,7 @@ describe("parseMetaFile — happy path", () => {
 
 describe("parseMetaFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseMetaFile("# Metadata: fixture\n\nJust prose.\n");
+    const parsed = parseMetaFile(metaFileBody({ extra: "Just prose." }));
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -412,39 +412,32 @@ describe("parseMetaFile — missing fields", () => {
     expect(parsed.state).toBe("Active");
   });
 
-  it("returns null for every field when no H1 is present", () => {
+  it("refuses metadata when no H1 is present", () => {
     const content = "- **Branch:** main\n- **State:** Active\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.branch).toBeNull();
-    expect(parsed.state).toBeNull();
+    expect(() => parseMetaFile(content)).toThrow(/missing.*H1/iu);
   });
 
   it("does not parse fields from below a content `## ` heading", () => {
-    const content = "# Metadata: fixture\n\n## Active Work\n\n- **State:** Active\n";
+    const content = metaFileBody({ extra: "## Active Work\n\n- **State:** Active" });
     const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
   });
 });
 
 describe("parseMetaFile — formatting tolerance", () => {
-  it("parses the bare `**Field:** value` form without a list bullet", () => {
+  it("refuses bare core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n**State:** Active\n**Branch:** main\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.state).toBe("Active");
-    expect(parsed.branch).toBe("main");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
-  it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
+  it("refuses quoted core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.state).toBe("Active");
-    expect(parsed.branch).toBe("feature/x");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
-  it("takes the first match when a field is repeated (stable behavior)", () => {
+  it("refuses repeated core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n- **Branch:** first\n- **Branch:** second\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.branch).toBe("first");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
   it("handles `[none]` Task List value verbatim", () => {
@@ -560,24 +553,13 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     expect(parsed.branch).toBe("plan/foo");
   });
 
-  it("returns all-null when no H1 is present", () => {
-    const parsed = parseMetaFile("just some prose with **Branch:** decoy in it\n");
-    expect(parsed.state).toBeNull();
-    expect(parsed.branch).toBeNull();
-    expect(parsed.nextTask).toBeNull();
-    expect(parsed.taskList).toBeNull();
-    expect(parsed.nextAction).toBeNull();
+  it("refuses prose with no H1", () => {
+    expect(() => parseMetaFile("just some prose with **Branch:** decoy in it\n"))
+      .toThrow(/missing.*H1/iu);
   });
 
   it("returns all-null when the H1-bounded preamble carries no field markers", () => {
-    const content = [
-      "# Metadata: foo",
-      "",
-      "Just narrative prose — no field markers yet.",
-      "",
-      "## Notes",
-      "",
-    ].join("\n");
+    const content = metaFileBody({ extra: "Just narrative prose — no field markers yet.\n\n## Notes\n" });
     const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
@@ -1154,7 +1136,7 @@ describe("parseMetaProjectionRecord — core-block table", () => {
     expect(record.Branch).toBe("feat/bar");
   });
 
-  it("recovers core fields from a legacy flat-bullet block when no table is present", () => {
+  it("refuses a legacy flat-bullet block when no table is present", () => {
     const content = [
       "# Metadata: foo",
       "",
@@ -1165,11 +1147,7 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "- **Cohort:** core/sub",
       "",
     ].join("\n");
-    const record = parseMetaProjectionRecord(content);
-    expect(record.State).toBe("Active");
-    expect(record.Branch).toBe("feat/bar");
-    expect(record.Priority).toBe("P1");
-    expect(record.Cohort).toBe("core/sub");
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/missing core-block table/iu);
   });
 });
 
@@ -1332,7 +1310,7 @@ describe("Class field — value-set semantics", () => {
     expect(parseMetaProjectionRecord(content).Class).toBeNull();
   });
 
-  it("parses an absent Class to null in a legacy flat-bullet meta", () => {
+  it("refuses a legacy flat-bullet meta rather than treating Class as absent", () => {
     const content = [
       "# Metadata: foo",
       "",
@@ -1340,7 +1318,7 @@ describe("Class field — value-set semantics", () => {
       "- **Owner:** andrew",
       "",
     ].join("\n");
-    expect(parseMetaProjectionRecord(content).Class).toBeNull();
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/missing core-block table/iu);
   });
 });
 

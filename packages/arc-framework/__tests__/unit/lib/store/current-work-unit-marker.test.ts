@@ -9,11 +9,24 @@ import { writeWorktreeOwnershipMarker, writeWorktreeMarker, readWorktreeMarker, 
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+
+function metaReferenceFixture() {
+  const reference = createReferenceFixture({}, { "work-item/meta": { parser: (content) => {
+    try { return { success: true as const, data: parseMetaRecord(content) }; }
+    catch (error) { return { success: false as const, error: String(error) }; }
+  } } });
+  const content = reference.content;
+  reference.content = (record, variant = "valid") => record.kind === "work-item/meta" && variant !== "invalid"
+    ? makeMetaFixture(record.owner.name, { nextAction: variant }) : content(record, variant);
+  return reference;
+}
 
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-current-claim-"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
-  const reference = createReferenceFixture();
+  const reference = metaReferenceFixture();
   const record = await seed(reference, reference.reference("work-item/meta"));
   const marker = async () => writeWorktreeOwnershipMarker(cwd, { createdByArc: true,
     createdFor: { kind: "work-unit", name: record.reference.owner.name }, spawningIdentity: "andrew", now: 0 });
@@ -73,7 +86,7 @@ describe("current work-unit marker fallback", () => {
 
   it("finds no current candidate for a missing claim and resolves once its actual record arrives", async () => {
     const h = await fixture();
-    const reference = createReferenceFixture();
+    const reference = metaReferenceFixture();
     await reference.produce("not-found:name");
     await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, spawningIdentity: "andrew", now: 0,
       createdFor: { kind: "work-unit", name: reference.reference("work-item/meta", "missing").owner.name } });
@@ -86,7 +99,7 @@ describe("current work-unit marker fallback", () => {
   it("warns on genuine claim ambiguity produced by the named hook and resolves after its repair", async () => {
     const h = await fixture();
     await h.marker();
-    const reference = createReferenceFixture();
+    const reference = metaReferenceFixture();
     await reference.produce("ambiguous-match");
     const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
     expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("more than one record")] });
@@ -97,7 +110,7 @@ describe("current work-unit marker fallback", () => {
   it("warns on a primary's planted identity mismatch and resolves after its repair", async () => {
     const h = await fixture();
     await h.marker();
-    const reference = createReferenceFixture();
+    const reference = metaReferenceFixture();
     await reference.produce("identity-mismatch");
     const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
     expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("identity")] });
@@ -108,7 +121,7 @@ describe("current work-unit marker fallback", () => {
   it("warns when the primary's identity fault arrives after a successful claim lookup", async () => {
     const h = await fixture();
     await h.marker();
-    const reference = createReferenceFixture();
+    const reference = metaReferenceFixture();
     await reference.produce("identity-mismatch");
     await reference.repair("identity-mismatch");
     const lookup = reference.store.lookup.bind(reference.store);

@@ -248,20 +248,11 @@ grows.
           candidates and ready-mine's malformed planned metas use it without parsing empty bytes, preserving their
           advisory outcomes and the existing raw-state import counts.
 
-    - `[ ]` **2.6.b Retire the fallback**
-        - `parseMetaProjectionRecord` no longer scans bullets when `parseCoreTable` finds no core table: a meta without
-          one fails to parse with its own message naming the missing core table, as a malformed table already fails,
-          and one with no H1 fails too (`extractMetadataSection`).
-        - The in-repo creation admission (`creationMeta`, `lib/store/in-repo/write-admission.ts`) already turns a
-          parser throw into `record-malformed`, so it refuses such a meta with no change of its own.
-        - The fallback's own tests in `__tests__/unit/active/meta-reader.test.ts` assert the refusal, and the comments
-          describing it (`parseMetaFile`, `parseCoreTable`, `parseMetaRecord`, and `validateLifecycleFields` in
-          `scripts/validate-meta-spec.ts`) state what the parser reads.
-        - Build `test-first` (one behavior at a time):
-            - a meta with no core table fails to parse with the missing-table message
-            - a meta with no H1 fails to parse
-            - creating such a meta through the in-repo implementation refuses with `record-malformed`
-            - the pre-commit lifecycle check reports the missing-table message for such a meta
+    - `[x]` **2.6.b Retire the fallback**
+        - The parser refuses a missing H1 or core table; empty cells and advisory degradation remain readable.
+          Creation admission rejects without writing bytes and accepts repair; pre-commit reports the parser message.
+          Marker consumers locally supply Markdown metadata without changing shared JSON conformance fixtures, and
+          archive resolution uses a valid PR-less meta. Legacy-core cases assert refusal and comments describe tables.
 
     - `[ ]` **2.6.c Confirm every tracked meta parses to its base fields**
         - Listing `work-item/meta` through the in-repo implementation over this repository returns `complete` with no
