@@ -10,6 +10,15 @@ describe("production kind registrations", () => {
     const parsed = registry["work-item/meta"].parser?.(makeMetaFixture("example", { owner: "andrew" }));
     expect(parsed).toMatchObject({ success: true, data: { state: "Active", owner: "andrew" } });
   });
+  it("declares the parsed state-version handoff anchor", () => {
+    const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+    expect(registry["work-item/meta"].anchorFields).toEqual(["stateAtHandoff"]);
+    const content = makeMetaFixture("example", { owner: "andrew" })
+      .replace("\n---", "\n- **State at Handoff:** `state-version`\n\n---");
+    expect(registry["work-item/meta"].parser?.(content)).toMatchObject({
+      success: true, data: { stateAtHandoff: "state-version" },
+    });
+  });
   it("reports a malformed core table as a content parse failure", () => {
     const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
     const malformed = makeMetaFixture("example", { owner: "andrew" }).replace(/\| `Active`.*\n/u, "| `Active` |\n");

@@ -149,48 +149,26 @@ grows.
         - All three ratchet baselines retain their merged-base totals and per-file counts. `META_PREFIX` remains with
           the filesystem reader, and the moved modules introduce no surface-name literal.
 
-### `[ ]` **2.2 The meta schemas carry the handoff fields, sections, and state-version anchor — § 2.1, § 5.2, § 5.5**
+### `[x]` **2.2 The meta schemas carry the handoff fields, sections, and state-version anchor — § 2.1, § 5.2, § 5.5**
 
 - _Goal:_ `parseMetaRecord` returns the three handoff bullets and the three sections on new keys, both meta schemas
   admit them together, and a meta without them renders and parses exactly as today.
 
-    - `[ ]` **2.2.a Add the keys to both schemas, the label map, and the validation surface**
-        - `ParsedMetaRecordSchema` and `MetaRecordSchema` (`lib/active/meta-schema.ts`) gain `stateAtHandoff`
-          (`StateVersionSchema`, imported from `lib/store/identity.ts`, which imports nothing that reaches back),
-          `commitAtHandoff` (non-empty string), `sessionType`, `sessionContext`, `completionNotes`, and
-          `releaseNotesEntry` together; the tolerant schema holds any `sessionType` text and the durable schema only
-          `planning` or `execution`.
-        - Every new key defaults when absent in both schemas — `null`, or `[]` for the two section lists — as
-          `promotionReceipt` defaults in the tolerant schema, so `renderMetaFile`'s defaults and every record literal
-          parse unchanged; a section body is any string, empty included.
-        - `META_FIELD_KEYS` gains the three bullets' labels and keys, and `MetaProjectionRecordSchema` admits the three
-          labels, defaulting to `null` as `Promotion Receipt` does.
-        - The registered `meta-record` validation surface (`lib/validation-surfaces/registry.ts`) changes in place;
-          its acceptance-parity test (`__tests__/unit/validation-surfaces/projection-fidelity.test.ts`) gains a record
-          with the new keys and one with an unrecognized `sessionType`.
+    - `[x]` **2.2.a Add the keys to both schemas, the label map, and the validation surface**
+        - Both semantic schemas default the six handoff and section keys; the tolerant session type keeps authored
+          text and the durable type admits planning or execution. Empty section bodies remain valid strings.
+        - The projection defaults the three handoff labels. Their descriptors keep the label map aligned, and the
+          validation-surface corpus covers complete handoff records and the durable refusal of unknown session types.
 
-    - `[ ]` **2.2.b Parse the handoff bullets and the sections**
-        - The `handoff` group — `State at Handoff`, `Commit at Handoff`, `Session Type` — joins `META_FIELDS` after
-          `Next Action`, each omitted when absent; the two anchors render as identifiers (backticked), and
-          `Session Type` as an enum, parsed lowercased when it is `planning` or `execution` in any case, otherwise as
-          written.
-        - A section body runs from the line after its heading to the next level-two heading, the closing `---` of a
-          field block it sits inside, or the end of the file, trimmed; each occurrence yields its own body, inside the
-          block or after it. The sections are read over the whole content, since the field region
-          (`extractMetadataSection`) ends at the first level-two heading.
-        - Build `test-first` (one behavior at a time):
-            - each bullet parses to its value, and to `null` when absent
-            - `Session Type` parses lowercased when recognized in any case, and as written otherwise
-            - the durable schema rejects an unrecognized `Session Type`
-            - `Session Context` parses to its body, and to `null` when absent
-            - repeated `Completion Notes` and `Release Notes Entry` sections parse in file order, inside the field
-              block and after it, and to empty lists when absent
-            - an empty section parses to an empty body
-            - a meta written without the new fields renders byte-identical to today's renderer, parses with the new
-              keys at their defaults, and passes `toMetaRecord`
+    - `[x]` **2.2.b Parse the handoff bullets and the sections**
+        - The handoff group renders after Next Action and omits absent values. The parser lowercases recognized session
+          types and preserves other authored text for the durable schema's refusal.
+        - Shared line reading returns trimmed section bodies in file order, including empty bodies; sections inside the
+          field block stop at its closing rule. Existing full-layout bytes remain unchanged without handoff values.
 
-    - `[ ]` **2.2.c Declare the meta's anchor field**
-        - The meta's registration declares `anchorFields: ["stateAtHandoff"]`.
+    - `[x]` **2.2.c Declare the meta's anchor field**
+        - The registration installs `stateAtHandoff` as its sole anchor, checked against the parser's branded
+          state-version output type and exposed through the production registry.
 
 ### `[ ]` **2.3 One typed writer per meta field and section — § 5.4, § 5.5, § 5.6**
 

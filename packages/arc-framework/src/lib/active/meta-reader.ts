@@ -33,7 +33,8 @@ import {
 } from "../store/kinds/meta/projection.js";
 export * from "../store/kinds/meta/projection.js";
 import {
-  locateMetaCoreTable, bulletMarkerRe, FIELD_MARKER_RE, extractField, parseCoreTable, stripInlineCode,
+  locateMetaCoreTable,
+  readMetaSectionBodies, bulletMarkerRe, FIELD_MARKER_RE, extractField, parseCoreTable, stripInlineCode,
 } from "../store/kinds/meta/line-reading.js";
 export { locateMetaCoreTable, stripInlineCode, type MetaCoreTableLocation } from "../store/kinds/meta/line-reading.js";
 
@@ -730,6 +731,12 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     nextTask: nullableProjectionValue(projection["Next Task"]),
     blockers: nullableProjectionValue(projection.Blockers),
     nextAction: nullableProjectionValue(projection["Next Action"]),
+    stateAtHandoff: nullableProjectionValue(projection["State at Handoff"]),
+    commitAtHandoff: nullableProjectionValue(projection["Commit at Handoff"]),
+    sessionType: normalizeSessionType(nullableProjectionValue(projection["Session Type"])),
+    sessionContext: readMetaSectionBodies(content, "Session Context")[0] ?? null,
+    completionNotes: readMetaSectionBodies(content, "Completion Notes"),
+    releaseNotesEntry: readMetaSectionBodies(content, "Release Notes Entry"),
     prUrl: nullableProjectionValue(projection["PR URL"]),
     completed: nullableProjectionValue(projection.Completed),
   });
@@ -739,6 +746,11 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
 export function toMetaRecord(record: ParsedMetaRecord): MetaRecord | null {
   const parsed = MetaRecordSchema.safeParse(record);
   return parsed.success ? parsed.data : null;
+}
+
+function normalizeSessionType(value: string | null): string | null {
+  const lowered = value?.toLowerCase();
+  return lowered === "planning" || lowered === "execution" ? lowered : value;
 }
 
 function nullableProjectionValue(value: string | null): string | null {

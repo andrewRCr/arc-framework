@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import { StateVersionSchema } from "../store/identity.js";
+
 import {
   PrioritySchema,
   CanonicalDigestSchema,
@@ -49,6 +51,9 @@ export const META_FIELD_KEYS = [
   { name: "Next Task", key: "nextTask" },
   { name: "Blockers", key: "blockers" },
   { name: "Next Action", key: "nextAction" },
+  { name: "State at Handoff", key: "stateAtHandoff" },
+  { name: "Commit at Handoff", key: "commitAtHandoff" },
+  { name: "Session Type", key: "sessionType" },
   { name: "PR URL", key: "prUrl" },
   { name: "Completed", key: "completed" },
 ] as const;
@@ -72,6 +77,9 @@ const metaProjectionShape = Object.fromEntries(
 export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape).extend({
   "Promotion Receipt": ProjectionValueSchema.optional().default(null),
   Candidate: ProjectionValueSchema.optional().default(null),
+  "State at Handoff": ProjectionValueSchema.default(null),
+  "Commit at Handoff": ProjectionValueSchema.default(null),
+  "Session Type": ProjectionValueSchema.default(null),
 });
 
 const ParsedStringSchema = SemanticStringSchema.nullable();
@@ -98,6 +106,12 @@ export const ParsedMetaRecordSchema = z.strictObject({
   nextAction: ParsedStringSchema,
   prUrl: ParsedStringSchema,
   completed: ParsedStringSchema,
+  stateAtHandoff: StateVersionSchema.nullable().default(null),
+  commitAtHandoff: z.string().min(1).nullable().default(null),
+  sessionType: z.string().nullable().default(null),
+  sessionContext: z.string().nullable().default(null),
+  completionNotes: z.array(z.string()).default([]),
+  releaseNotesEntry: z.array(z.string()).default([]),
 });
 
 /** Complete durable semantic record independent of its Markdown projection. */
@@ -122,6 +136,12 @@ export const MetaRecordSchema = z.strictObject({
   nextAction: SemanticStringSchema.nullable(),
   prUrl: SemanticStringSchema.nullable(),
   completed: SemanticStringSchema.nullable(),
+  stateAtHandoff: StateVersionSchema.nullable().default(null),
+  commitAtHandoff: z.string().min(1).nullable().default(null),
+  sessionType: z.enum(["planning", "execution"]).nullable().default(null),
+  sessionContext: z.string().nullable().default(null),
+  completionNotes: z.array(z.string()).default([]),
+  releaseNotesEntry: z.array(z.string()).default([]),
 });
 
 export type MetaWorkClass = z.infer<typeof MetaWorkClassSchema>;

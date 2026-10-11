@@ -257,3 +257,30 @@ export function extractField(content: string, label: string): string | null {
 export function stripInlineCode(value: string): string {
   return value.replace(/`([^`]+)`/g, "$1");
 }
+
+/**
+ * Read each occurrence of a metadata section over the whole document.
+ * A section inside the managed field block ends at its closing rule; elsewhere
+ * a rule is prose. Level-two headings delimit bodies even inside code fences.
+ * @param content - Complete metadata Markdown.
+ * @param heading - Exact level-two heading text without its marker.
+ * @returns Trimmed bodies in file order, including empty present bodies.
+ */
+export function readMetaSectionBodies(content: string, heading: string): string[] {
+  const lines = content.split(/\r?\n/u);
+  const h1 = lines.findIndex((line) => /^# /u.test(line));
+  const closing = lines.findIndex((line, index) => index > h1 && line.trim() === "---");
+  const bodies: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] !== `## ${heading}`) continue;
+    const insideFieldBlock = h1 >= 0 && index > h1 && index < closing;
+    const body: string[] = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line === undefined || /^## /u.test(line) || (insideFieldBlock && cursor === closing)) break;
+      body.push(line);
+    }
+    bodies.push(body.join("\n").trim());
+  }
+  return bodies;
+}

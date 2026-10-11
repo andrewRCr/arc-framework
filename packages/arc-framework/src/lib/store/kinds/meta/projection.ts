@@ -87,6 +87,12 @@ export const META_FIELDS = [
   { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Blockers", key: "blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Action", key: "nextAction", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
+  { name: "State at Handoff", key: "stateAtHandoff", default: "[none]", group: "handoff",
+    render: "bullet", valueClass: "identifier", omitWhenAbsent: true },
+  { name: "Commit at Handoff", key: "commitAtHandoff", default: "[none]", group: "handoff",
+    render: "bullet", valueClass: "identifier", omitWhenAbsent: true },
+  { name: "Session Type", key: "sessionType", default: "[none]", group: "handoff",
+    render: "bullet", valueClass: "enum", omitWhenAbsent: true },
   { name: "PR URL", key: "prUrl", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
   { name: "Completed", key: "completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
@@ -365,6 +371,9 @@ export function renderMetaFile(
     "Next Task": renderNullable(record.nextTask),
     Blockers: renderNullable(record.blockers),
     "Next Action": record.nextAction ?? "—",
+    "State at Handoff": renderNullable(record.stateAtHandoff),
+    "Commit at Handoff": renderNullable(record.commitAtHandoff),
+    "Session Type": renderNullable(record.sessionType),
     "PR URL": renderNullable(record.prUrl),
     Completed: renderNullable(record.completed),
   });
