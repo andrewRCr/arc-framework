@@ -1488,7 +1488,8 @@ export async function checkpointIntegration(
           ],
           recommendedActionText: shippedDelivery
             ? "Refresh the recognized shipped delivery boundary, then rerun checkpoint."
-            : "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
+            : "Refresh the recognized Candidate boundary, then commit a publication it keeps or settle ordinary "
+              + "pre-publication review, and rerun checkpoint.",
         },
       });
     }

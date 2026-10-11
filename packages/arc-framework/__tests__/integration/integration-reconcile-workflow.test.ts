@@ -67,6 +67,7 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("payload.attestArgv");
     expect(step).toContain("payload.recommendedActionText");
     expect(step).toMatch(/ordinary\s+pre-publication/u);
+    expect(step).toMatch(/resume-pre-publication[\s\S]*`publication-pending` or `hosted-review-pending` locus keeps\s+publication[\s\S]*shared publication-boundary\s+commit/u);
     expect(step).toContain("arc publish {name} --json");
     expect(step).toMatch(/already-open Step 2 review[\s\S]*restart this step/iu);
   });
@@ -126,7 +127,8 @@ describe("integration current-WU reconcile workflow", () => {
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
-    expect(flatStep).toContain("Clearance never carries across the overlapping base-merge arm");
+    expect(flatStep).toContain("No checkpoint approval carries across the overlapping base-merge arm");
+    expect(flatStep).toContain("review carries across it only as the typed applicability result decides");
     for (const invariant of [
       "Advisory receipts are not merge authority.",
       "The integration interlock is the sole merge authority.",
