@@ -26,7 +26,7 @@ refusal's shape. A check awaits, so the reference backend runs its writes, batch
 shared state, and a racing write never lands between another's version check and its commit; a sync, which commits to
 the remote state too, holds that state's queue only while it compares and publishes.
 
-### `[ ]` **1.1 A kind registration fills its kind's parser, check, and anchor slots — § 2.1, § 2.3, § 3.1**
+### `[x]` **1.1 A kind registration fills its kind's parser, check, and anchor slots — § 2.1, § 2.3, § 3.1**
 
 - _Goal:_ A kind's registration — its parser, write check, and anchor declaration — installs into an isolated registry
   through `createKindRegistry`, and a kind with no registration keeps empty slots.
@@ -42,10 +42,8 @@ the remote state too, holds that state's queue only while it compares and publis
         - Converted the in-repo and reference fixture's parser callers; registry tests cover isolation, duplicate
           rejection, and anchor types, and the store README describes all three slots.
 
-    - `[ ]` **1.1.c Add the per-worktree Git-directory root to the machine-local set**
-        - `MACHINE_LOCAL_PATHS` gains `{ root: "git-worktree", pattern: "arc-checks/**" }`, the worktree's own Git
-          directory: `.git/` for the main worktree, `.git/worktrees/<name>/` for a linked one.
-        - The registry tests cover the new root.
+    - `[x]` **1.1.c Add the per-worktree Git-directory root to the machine-local set**
+        - Added the `git-worktree` root with `arc-checks/**` and verified its presence in the registry tests.
 
 ### `[ ]` **1.2 In-repo meta reads and listings decode through the production registration set — § 1.2, § 2.2, § 11.1**
 

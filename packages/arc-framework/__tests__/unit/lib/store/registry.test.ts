@@ -116,6 +116,7 @@ describe("role-based storage registry", () => {
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/.internal/**" });
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/*/.internal/**" });
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-common", pattern: "arc/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-checks/**" });
     expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
   });
   it("keeps presentation filenames out of the production store core", () => {
