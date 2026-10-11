@@ -29,6 +29,7 @@ import {
 } from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import { WorkUnitStateSchema } from "../kernel/index.js";
+import { writePreformattedMetaBullet } from "../store/kinds/meta/preformatted-writer.js";
 import {
   writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
 } from "../store/kinds/meta/writers.js";
@@ -350,13 +351,12 @@ export function setMetaClass(content: string, value: string): string {
  * `Current Workflow` — the named primitive every workflow-pointer write routes
  * through. The `stage` is rendered per the `identifier` value class (backticked,
  * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
- * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
- * `Current Workflow` bullet throws (structural drift, not a no-op).
+ * the field writer's anchor check, inserting an absent bullet in field order.
  *
  * @param content - The meta file's raw markdown.
  * @param stage - The planning-stage basename to write (e.g. `create-spec`), or `[none]` to clear.
  * @returns The rewritten markdown.
- * @throws When the meta carries no `Current Workflow` bullet.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaCurrentWorkflow(content: string, stage: string): string {
   return setMetaBulletFields(content, { "Current Workflow": formatValue(stage, "identifier") });
@@ -376,13 +376,12 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  * list); this primitive renders it per the `identifier-list` value class (each
  * element backticked, `[none]` left bare) so the written form matches
  * {@link renderMetaFile}, and does not otherwise parse or merge. Inherits
- * {@link setMetaBulletFields}'s fail-loud contract: a meta without the `Design`
- * bullet throws (structural drift, not a no-op).
+ * the field writer's anchor check, inserting an absent bullet in field order.
  *
  * @param content - The meta file's raw markdown.
  * @param value - The composed `Design` value (e.g. `spec-demo.md`, `spec-a.md, spec-b.md`), or `[none]`.
  * @returns The rewritten markdown.
- * @throws When the meta carries no `Design` bullet.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
@@ -596,14 +595,14 @@ export function normalizeMetaCoreTable(content: string): string {
  *
  * The field-value boundary mirrors {@link extractField}: continuations run until
  * a blank line, the next field marker, a heading, a `---` rule, or
- * end-of-section. A targeted field whose marker is absent throws — a managed
- * meta always carries the bullet, so a miss is structural drift, not a silent
- * no-op (matching {@link setMetaState}'s fail-loud contract).
+ * end-of-section. An absent bullet inserts in field order. Preformatted tokens
+ * recover their semantic values before writing; identifier lists wrap at the
+ * bullet width, and a cleared Next Action renders an em dash.
  *
  * @param content - The meta file's raw markdown.
  * @param updates - Field→new-value map; only the named fields are rewritten.
  * @returns The rewritten markdown.
- * @throws When a targeted field's bullet marker is not found.
+ * @throws When anchors are missing, a core field is targeted, or Promotion Receipt is targeted.
  */
 export function setMetaBulletFields(
   content: string,
@@ -612,45 +611,11 @@ export function setMetaBulletFields(
   if (Object.prototype.hasOwnProperty.call(updates, "Promotion Receipt")) {
     throw new Error("Cannot set meta field: `Promotion Receipt` is immutable after initial rendering.");
   }
-  let lines = content.split("\n");
+  locateMetaFieldBlock(content);
   for (const [name, value] of Object.entries(updates)) {
-    lines = replaceBulletField(lines, name, value);
+    content = writePreformattedMetaBullet(content, name as MetaFieldName, value);
   }
-  return lines.join("\n");
-}
-
-/**
- * Replace the `- **<name>:**` bullet's value (plus its continuation lines) with
- * `value`, returning the rewritten line array. Preserves the line's exact label
- * prefix (indent + `**name:**`) and re-wraps a multi-line value as indented
- * continuations.
- */
-function replaceBulletField(lines: string[], name: string, value: string): string[] {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const labelRe = new RegExp(`^([ \\t>*+-]*\\*\\*${escaped}:\\*\\*)[ \\t]*(.*)$`);
-
-  const start = lines.findIndex((line) => labelRe.test(line));
-  if (start === -1) {
-    throw new Error(`Cannot set meta field: \`${name}\` bullet not found.`);
-  }
-  const prefix = labelRe.exec(lines[start] ?? "")?.[1] ?? "";
-
-  // Continuation span: indented, non-boundary lines wrapping the same bullet.
-  let end = start + 1;
-  for (; end < lines.length; end++) {
-    const line = lines[end] ?? "";
-    if (line.trim() === "") break; // blank → field / group boundary
-    if (FIELD_MARKER_RE.test(line)) break; // next field bullet
-    if (/^#{1,6} /.test(line)) break; // heading
-    if (line.trim() === "---") break; // trailing rule
-    if (!/^\s/.test(line)) break; // continuations are indented under the bullet
-  }
-
-  const [first = "", ...rest] = value.split("\n");
-  const replacement = [first === "" ? prefix : `${prefix} ${first}`];
-  for (const continuation of rest) replacement.push(`  ${continuation}`);
-
-  return [...lines.slice(0, start), ...replacement, ...lines.slice(end)];
+  return content;
 }
 
 /**

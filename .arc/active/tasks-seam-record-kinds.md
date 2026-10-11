@@ -230,20 +230,10 @@ grows.
           and core setters and normalization refuse a missing H1. Normalization keeps authored cell tokens intact.
           Existing setter cases remain unchanged, including CRLF title bytes and managed-heading refusal.
 
-    - `[ ]` **2.5.b Delegate the bullet setters, with the wrapping, insertion, and `Next Action` corrections**
-        - `setMetaBulletFields`, `setMetaCurrentWorkflow`, and `setMetaDesign` call the bullet writers: an identifier
-          list wraps where they write one line today, and an absent bullet inserts where each throws today, so their
-          throw tests (`__tests__/unit/active/meta-reader.test.ts`) assert the insertion.
-        - `setMetaBulletFields` still refuses any `Promotion Receipt` update before delegating, and its existing
-          refusal test passes unchanged.
-        - A cleared `Next Action` renders `—` where the deactivate, reopen, and archive resets
-          (`lib/work-unit/lifecycle-transitions.ts`) and `arc attest`'s Shipped orientation
-          (`lib/work-unit/verbs/attest.ts`) write `[none]` today; both read as null, and those callers' tests take the
-          new bytes.
-        - Build `test-first` (one behavior at a time):
-            - a long `Depends On` and a two-entry `Design` wrap at the bullet width
-            - an absent bullet inserts in field order, through each of the three setters
-            - a cleared `Next Action` renders `—`
+    - `[x]` **2.5.b Delegate the bullet setters, with the wrapping, insertion, and `Next Action` corrections**
+        - Generic, workflow, and design setters adapt preformatted values to typed bullet writers, wrapping lists and
+          inserting absent fields in order. Generic Promotion Receipt updates remain refused before delegation.
+          Deactivate, reopen, archive, and Shipped attestation render their cleared Next Action as `—`.
 
     - `[ ]` **2.5.c Fix `reconcileMetaFields`' section deletion, and stop the candidate and finalize backfills**
         - `reconcileMetaFields` inserts only the missing lines and never re-renders a present one, so a section between

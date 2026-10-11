@@ -1713,11 +1713,12 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     expect(setMetaBulletFields(META, {})).toBe(META);
   });
 
-  it("throws when a targeted field's bullet is absent (fail-loud, not silent)", () => {
+  it("inserts an absent targeted bullet in field order", () => {
     const noNextTask = META.replace("- **Next Task:** `Task 3.1 — the executor (line ~150)`\n", "");
-    expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
-      /Next Task.*not found/i,
-    );
+    const written = setMetaBulletFields(noNextTask, { "Next Task": "[none]" });
+    expect(written).toContain("- **Next Task:** [none]\n");
+    expect(written.indexOf("**Last Completed:**")).toBeLessThan(written.indexOf("**Next Task:**"));
+    expect(written.indexOf("**Next Task:**")).toBeLessThan(written.indexOf("**Blockers:**"));
   });
 });
 
@@ -1988,9 +1989,12 @@ describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", 
     expect(tail(written)).toBe(tail(META));
   });
 
-  it("throws when the meta carries no Current Workflow bullet (fail-loud)", () => {
+  it("inserts an absent Current Workflow bullet in field order", () => {
     const noField = META.replace("- **Current Workflow:** `draft-design`\n", "");
-    expect(() => setMetaCurrentWorkflow(noField, "create-spec")).toThrow(/Current Workflow.*not found/i);
+    const written = setMetaCurrentWorkflow(noField, "create-spec");
+    expect(written).toContain("- **Current Workflow:** `create-spec`\n");
+    expect(written.indexOf("**Task List:**")).toBeLessThan(written.indexOf("**Current Workflow:**"));
+    expect(written.indexOf("**Current Workflow:**")).toBeLessThan(written.indexOf("**Next Action:**"));
   });
 });
 
@@ -2042,9 +2046,11 @@ describe("setMetaDesign — in-place Design bullet rewrite", () => {
     expect(tail(written)).toBe(tail(META));
   });
 
-  it("throws when the meta carries no Design bullet (fail-loud)", () => {
+  it("inserts an absent Design bullet in field order", () => {
     const noField = META.replace("- **Design:** `draft-demo-wu.md`\n", "");
-    expect(() => setMetaDesign(noField, "spec-demo-wu.md")).toThrow(/Design.*not found/i);
+    const written = setMetaDesign(noField, "spec-demo-wu.md");
+    expect(written).toContain("- **Design:** `spec-demo-wu.md`\n");
+    expect(written.indexOf("**Design:**")).toBeLessThan(written.indexOf("**Current Workflow:**"));
   });
 });
 
