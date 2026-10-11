@@ -600,50 +600,61 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
   record, and cohort document, converting any arrival in an old form (§ 12); landing proposes the working-memory entry
   naming the old-code symptoms and their remedy (spec § Cross-cutting Considerations, Migration and rollout).
 
+- _Verification:_ Thirteen criteria are met at merged base `930101bff`; the public field schemas and A4/A5 legacy
+  setter corrections are verified. Adversarial Pass 2 of 2 closes with its minor sentinel finding resolved by A5.
+  Integration readiness remains open pending review-fix commits and the remaining terminal verification ceremony.
+
 ---
 
 ## Success Criteria
 
-- `[ ]` Listing `work-item/meta`, `work-item/task-list`, `work-item/draft`, `work-item/spec`, `work-item/companion`,
+- `[x]` Listing `work-item/meta`, `work-item/task-list`, `work-item/draft`, `work-item/spec`, `work-item/companion`,
   `lineage/transition`, and `cohort/document` through the in-repo implementation over this repository returns
   `complete` with no diagnostics, and every meta's parsed fields equal, on today's keys, what `parseMetaRecord`
   returns at the merged base.
 
-- `[ ]` Each rule in the spec's rule catalog has unit cases refusing its breaking write and admitting its valid
+- `[x]` Each rule in the spec's rule catalog has unit cases refusing its breaking write and admitting its valid
   counterpart, over stub views.
 
-- `[ ]` In the conformance suite, the reference fixture refuses a registered check's breaking write with
+- `[x]` In the conformance suite, the reference fixture refuses a registered check's breaking write with
   `record-malformed` naming the first rule broken and the first record breaking it and counting the other broken pairs,
   presents a verb in `HAND_EDIT_VERBS` as a hand edit and any other verb as itself, and checks a batch against its other
   writes and the state it found; the in-repo fixture declares no write checks; and every existing suite item passes over
   both fixtures unchanged.
 
-- `[ ]` For each meta writer, content outside the field it writes is byte-identical before and after, a section inside
+- `[x]` For each meta writer, content outside the field it writes is byte-identical before and after, a section inside
   the field block survives every writer and `reconcileMetaFields`, and today's setters produce today's bytes everywhere
   the spec's named corrections do not apply.
 
-- `[ ]` Every tracked lineage record parses as schema version 2 and round-trips byte-identical through the kind's
+- `[x]` Every tracked lineage record parses as schema version 2 and round-trips byte-identical through the kind's
   writer, and the live transition-record test and every reader's tests pass on the new shape.
 
-- `[ ]` Decomposition's topology and destination checks admit a cohort document whose `Parent` is omitted, `[none]`, or
+- `[x]` Decomposition's topology and destination checks admit a cohort document whose `Parent` is omitted, `[none]`, or
   a backticked slug agreeing with its path, and refuse one that disagrees; the scaffold's output passes its own
   topology check and parses; and a document written from the shipped template, in package source and the project copy,
   parses once its `Parent` placeholder holds a slug.
 
-- `[ ]` A meta written without the new session-context fields renders byte-identical to today's renderer, parses with
+- `[x]` A meta written without the new session-context fields renders byte-identical to today's renderer, parses with
   the new keys at their defaults, and passes `toMetaRecord`.
 
-- `[ ]` The cohort consistency check's existing tests pass with condition (c) computing through the member-section
+- `[x]` The cohort consistency check's existing tests pass with condition (c) computing through the member-section
   report.
 
-- `[ ]` At landing, `eslint-suppressions.json` records no more `store-raw-state`, `surface-names`, or `work-unit-paths`
+- `[x]` At landing, `eslint-suppressions.json` records no more `store-raw-state`, `surface-names`, or `work-unit-paths`
   violations, in total or per file, than at the final merged base, and `npm run -s lint:ts` passes with no suppression
   added.
 
-- `[ ]` Native lint refuses `meta-reader.ts` statically importing or re-exporting a check or registration and admits
+- `[x]` Native lint refuses `meta-reader.ts` statically importing or re-exporting a check or registration and admits
   its helper entry points; their runtime closure reaches no `meta-reader.ts`, check, registration, or backend, and the checks'
   runtime closure reaches no `meta-reader.ts`, production registration, or backend (A1).
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[x]` The workflow, design, Candidate, finalize, and generic bullet setters update their named fields on anchored
+  CRLF metadata, with each untouched byte preserved and no bare LF introduced (A4).
+
+- `[x]` Clearing Candidate with `[none]` through its named or generic setter removes its line; clearing Branch with
+  `—` writes `[none]`. The parsed values remain null, and bytes outside the targeted Candidate line or core table,
+  including internal sections and line endings, survive (A5).

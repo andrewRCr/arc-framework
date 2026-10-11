@@ -7,7 +7,7 @@ import {
   reconcileMetaFields, setMetaCandidate, setMetaFinalizeFields,
   emptyParsedMetaRecord,
 } from "../../../src/lib/active/meta-reader.js";
-import { ParsedMetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
+import { MetaCandidateIdSchema, ParsedMetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 const setters = [
@@ -131,5 +131,60 @@ describe("legacy bullet setter rendering", () => {
     ["design", (content: string) => setMetaDesign(content, "spec-example.md")],
   ] as const)("%s refuses an unanchored field block", (_name, set) => {
     expect(() => set(makeMetaFixture("example").replace(/\n---\n$/u, "\n"))).toThrow(/closing.*---/iu);
+  });
+});
+
+describe("legacy CRLF bullet edits", () => {
+  const candidateId = MetaCandidateIdSchema.parse(`sha256:${"d".repeat(64)}`);
+  const original = makeMetaFixture("example", { candidateId })
+    .replace("\n---\n", "\n## Session Context\n\nKeep `authored` context.\n\n---\n")
+    .replace(/\n/gu, "\r\n");
+  const nextCandidate = `sha256:${"e".repeat(64)}`;
+
+  it.each([
+    ["workflow", (content: string) => setMetaCurrentWorkflow(content, "create-spec"),
+      [["- **Current Workflow:** [none]", "- **Current Workflow:** `create-spec`"]]],
+    ["design", (content: string) => setMetaDesign(content, "spec-example.md"),
+      [["- **Design:** [none]", "- **Design:** `spec-example.md`"]]],
+    ["Candidate", (content: string) => setMetaCandidate(content, nextCandidate),
+      [[`- **Candidate:** \`${candidateId}\``, `- **Candidate:** \`${nextCandidate}\``]]],
+    ["finalize", (content: string) => setMetaFinalizeFields(content, {
+      prUrl: "https://example.com/pr/1", completed: "2026-10-11",
+    }), [["- **PR URL:** [none]", "- **PR URL:** <https://example.com/pr/1>"],
+      ["- **Completed:** [none]", "- **Completed:** 2026-10-11"]]],
+    ["generic", (content: string) => setMetaBulletFields(content, { "Next Action": "Continue." }),
+      [["- **Next Action:** —", "- **Next Action:** Continue."]]],
+  ] as const)("%s updates only its fields without changing line endings", (_name, set, replacements) => {
+    let expected = original;
+    for (const [before, after] of replacements) expected = expected.replace(`${before}\r\n`, `${after}\r\n`);
+    expect(expected).not.toBe(original);
+    const result = set(original);
+    expect(result).toBe(expected);
+    expect(result.replace(/\r\n/gu, "")).not.toContain("\n");
+  });
+});
+
+describe("legacy canonical clear forms", () => {
+  const candidateId = MetaCandidateIdSchema.parse(`sha256:${"f".repeat(64)}`);
+  const context = "\n## Session Context\n\nKeep `authored` context.\n\n---\n";
+  const original = makeMetaFixture("example", { candidateId, branch: "feat/example" })
+    .replace("\n---\n", context);
+  const expectedBranch = makeMetaFixture("example", { candidateId, branch: null })
+    .replace("\n---\n", context);
+
+  it.each([
+    ["Candidate", (content: string) => setMetaCandidate(content, "[none]"),
+      original.replace(`- **Candidate:** \`${candidateId}\`\n`, ""), "candidateId"],
+    ["generic Candidate", (content: string) => setMetaBulletFields(content, { Candidate: "[none]" }),
+      original.replace(`- **Candidate:** \`${candidateId}\`\n`, ""), "candidateId"],
+    ["Branch", (content: string) => setMetaBranch(content, "—"), expectedBranch, "branch"],
+  ] as const)("%s clears its value while preserving LF and CRLF content", (_name, clear, expected, key) => {
+    expect(expected).not.toBe(original);
+    for (const ending of ["\n", "\r\n"]) {
+      const result = clear(original.replaceAll("\n", ending));
+      expect(result).toBe(expected.replaceAll("\n", ending));
+      expect(parseMetaRecord(result)[key]).toBeNull();
+      if (ending === "\r\n") expect(result.replaceAll(ending, "")).not.toContain("\n");
+    }
   });
 });

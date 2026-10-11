@@ -83,6 +83,12 @@ invents its own and they disagree. This change builds those, and runs them nowhe
 6. **Every tracked record parses** under the new parsers, the few that do not converted in this change (§ 12).
 7. **No import-ratchet floor grows** (§ 1.2).
 
+Amended 2026-10-11 (A4) — Goal 5's allowed corrections also include the legacy bullet setters admitting anchored
+CRLF metadata and preserving its line endings, as § 5.6 defines.
+
+Amended 2026-10-11 (A5) — Goal 5's allowed corrections also include the legacy Candidate clear setters removing the
+optional Candidate line and `setMetaBranch` canonicalizing an em-dash clear to `[none]` (§ 5.6).
+
 ## Non-Goals
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -693,6 +699,18 @@ The meta kind's writers are pure transforms over content a verb read through the
   (`lib/work-unit/lifecycle-transitions.ts`) and `arc attest`'s Shipped orientation (`lib/work-unit/verbs/attest.ts`)
   write `[none]`, both reading as null; and a throw on an unanchored meta, which `reconcileMetaFields` returns unchanged
   and other setters write today.
+- **CRLF bullet edits (A4).** `setMetaCurrentWorkflow`, `setMetaDesign`, `setMetaCandidate`, `setMetaFinalizeFields`,
+  and `setMetaBulletFields` admit an anchored meta whose existing field lines end in CRLF. Their delegation to
+  `writePreformattedMetaBullet` and the typed bullet writers preserves each unchanged byte and emits the written
+  lines with CRLF. This is an allowed correction to the prior setters' refusal of existing CRLF bullets and their
+  mixed-ending Candidate insertion. LF output continues to match the prior setters outside the other named
+  corrections; no compatibility reader or alias preserves the prior CRLF failure.
+- **Legacy clear forms (A5).** `setMetaCandidate(content, "[none]")` and
+  `setMetaBulletFields(content, { Candidate: "[none]" })` remove an existing optional Candidate line, as
+  `writeMetaCandidate(content, null)` does. `setMetaBranch(content, "—")` writes `[none]`, as
+  `writeMetaBranch(content, null)` does. These are allowed corrections to the prior setters' retained Candidate
+  sentinel line and em-dash Branch cell. The parsed values remain null; content outside the Candidate line or the
+  Branch writer's core table remains byte-identical, including internal sections and line endings.
 
 ### 6. The task-list kind
 
@@ -1244,6 +1262,11 @@ refused at persist with the rule's identifier, condition, and remedy.
     importing or re-exporting a check or registration while admitting its helper entry points; those helpers' runtime
     closure reaches no `meta-reader.ts`, check, registration, or backend, and the checks' runtime closure reaches no
     `meta-reader.ts`, production registration, or backend.
+12. **Legacy bullet setters preserve CRLF (A4).** The workflow, design, Candidate, finalize, and generic bullet setters
+    update their named fields on anchored CRLF metadata, with each untouched byte preserved and no bare LF introduced.
+13. **Legacy clear setters use canonical null forms (A5).** Clearing Candidate with `[none]` through its named or
+    generic setter removes its line; clearing Branch with `—` writes `[none]`. The parsed values remain null, and
+    bytes outside the targeted Candidate line or core table, including internal sections and line endings, survive.
 
 ## Open Questions
 
@@ -1262,5 +1285,11 @@ completed placement (§ 8.2).
 
 - **A3** — 2026-10-11 — task: propagate the five-helper import boundary into composed configuration coverage.
   _Supersedes:_ none. _Trigger:_ 6.5 segment. _Work:_ 6.R2. _Revalidated:_ 6.5.
+
+- **A4** — 2026-10-11 — design: admit CRLF metadata through the legacy bullet setters while preserving its bytes.
+  _Supersedes:_ Goal 5 and § 5.6's correction list. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A5** — 2026-10-11 — design: permit canonical null forms through legacy Candidate and Branch clear setters.
+  _Supersedes:_ Goal 5 and § 5.6's correction list. _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
