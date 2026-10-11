@@ -469,16 +469,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           admitting an own former name. Prior primary identity establishes rename independently of parsed fields;
           unavailable identity observations refuse with a retry remedy rather than proving absence.
 
-    - `[ ]` **6.1.b Build `work-item.slug-edges`**
-        - Refuses a creation or rename giving a work item a slug that a non-archived work unit's `Depends On` named, in
-          `before`, for another record, when that edge still names it in `after`; its condition names the work units
-          and edges, and its remedy is § 5.3's.
-        - Build `test-first` (one behavior at a time):
-            - an edge left naming a completed work unit's reused slug refuses
-            - an edge the batch settled admits
-            - an edge in an archived record admits
-            - an edge naming a retired origin's slug, with no disposition, refuses
-            - a rename onto a slug the renamed item depends on admits once its own edge is settled
+    - `[x]` **6.1.b Build `work-item.slug-edges`**
+        - The shared rule proves the prior primary or retired origin, then compares non-archived dependencies in both
+          views. It names surviving edges and the reconcile, resume, stub-edit, or alternate-slug remedy; batch-settled,
+          removed, and archived dependents admit. Incomplete enumeration or reads remain explicit refusals.
 
     - `[ ]` **6.1.c Register the Errand record's check**
         - `lib/store/kinds/errand-record/`'s registration carries a check alone, running both shared rules; the Errand

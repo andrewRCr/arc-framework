@@ -42,7 +42,8 @@ export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLook
         && (owner === undefined || sameOwner(record.reference.owner, owner))
         && (filter?.locations === undefined || (record.placement !== undefined && filter.locations.includes(record.placement.kind === "backlog"
           ? record.placement.commitment : record.placement.kind))));
-      return { status: "ok", result: { status: "complete", records: selected, diagnostics: [], missed: false } };
+      return { status: "ok", result: selected.length === 0 ? { status: "absent" }
+        : { status: "complete", records: selected, diagnostics: [], missed: false } };
     },
     lookup: async (input) => {
       if (input.kind !== "slug" && input.kind !== "lineage") throw new Error(`Unexpected rule lookup: ${input.kind}`);

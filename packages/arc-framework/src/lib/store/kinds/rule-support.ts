@@ -27,3 +27,19 @@ export async function observeRecord(view: StoreView, reference: RecordReference)
 export function brokenRule(rule: string, condition: string, remedy: string): BrokenRule {
   return { rule, condition, remedy: { text: remedy } };
 }
+
+/** Enumerate only when every selected entry is available for a content rule.
+ * @param view - One side of the proposed batch.
+ * @param input - Logical family and optional role selection.
+ * @returns Every selected record, or explicit incomplete evidence.
+ */
+export async function observeRecords(view: StoreView, input: import("../read.js").ListInput): Promise<RuleObservation<readonly StoreRecord[]>> {
+  const result = await view.list(input);
+  if (result.status === "refused") return { status: "unavailable", condition: result.refusal.condition };
+  const listing = result.result;
+  if (listing.status === "absent") return { status: "known", value: [] };
+  if (listing.status === "unreadable") return { status: "unavailable", condition: listing.condition };
+  return listing.missed || listing.diagnostics.length > 0
+    ? { status: "unavailable", condition: "The selected family has unreadable or malformed entries." }
+    : { status: "known", value: listing.records };
+}
