@@ -173,14 +173,16 @@ Each kind takes a folder under `lib/store/kinds/`, beside one module for the pro
   line-level reading the writers share with the parser — the core table's cells, a bullet's extent — sits in one module
   of the kind folder that joins `RAW_STATE_MODULES` beside the registration module, so it stays counted outside the
   store.
-- **Two boundary rows narrow** (`eslint.config.js`). The row keeping `meta-reader.ts`' store delegate dynamic bans any
-  static import whose path holds `/store/`, so that importing the meta parsers closes no backend cycle; it admits the
-  meta kind folder's modules other than the registration module, the folder's only importer of `meta-reader.ts`, and
-  bans every other store import as today. The folder's other modules import nothing at runtime from `meta-reader.ts` or
-  from `lib/store/` outside the folder, so the cycle stays closed. The row reserving `parseIdentifierList` calls to
-  `meta-reader.ts` and `scripts/validate-meta-spec.ts` exempts the folder too, which `formatValue` and the bullet
-  renderer join. The rows' cases (`__tests__/integration/eslint-architecture-rows.test.ts`) keep the refused store
-  import, add a refused import of the registration module, and admit an import of another kind module.
+- **Two boundary rows narrow (A1)** (`eslint.config.js`). The row keeping `meta-reader.ts`' store delegate dynamic
+  admits static imports and re-exports only of the existing meta helper entry points: `writers.ts`, `projection.ts`,
+  `empty-record.ts`, `line-reading.ts`, and `preformatted-writer.ts`. It refuses every other store module, including
+  registration and checks. Those helpers and their runtime dependency closure must not reach `meta-reader.ts`, kind
+  registrations, write checks, or backend modules. Meta write checks form a separate dependency branch reached by the
+  registration; they may import shared work-item rules and pure store identity helpers and read through the supplied
+  views. Their runtime dependency closure must not reach `meta-reader.ts`, production registrations, or a backend.
+  The row reserving `parseIdentifierList` calls to `meta-reader.ts` and `scripts/validate-meta-spec.ts` exempts the
+  folder too, which `formatValue` and the bullet renderer join. The native architecture cases cover refused check
+  imports and re-exports as well as the allowed helper entry points.
 - **The floor never grows.** No production module outside `lib/store/` imports a registration module, and no rerouted
   reader of the lineage record adds an import of a listed module, so every ratchet rule's recorded count at landing is
   at most its count at the merged base (Success Criteria).
@@ -1238,6 +1240,10 @@ refused at persist with the rule's identifier, condition, and remedy.
    124 files, 173 across 76, and 57 across 30 at `a64688b03` — and `npm run -s lint:ts` passes with no suppression
    added.
 10. **The quality gates pass** at every gate the project declares.
+11. **The meta parser/writer and check branches stay separate (A1).** Native lint refuses `meta-reader.ts` statically
+    importing or re-exporting a check or registration while admitting its helper entry points; those helpers' runtime
+    closure reaches no `meta-reader.ts`, check, registration, or backend, and the checks' runtime closure reaches no
+    `meta-reader.ts`, production registration, or backend.
 
 ## Open Questions
 
@@ -1248,6 +1254,7 @@ completed placement (§ 8.2).
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-11 — design: isolate meta checks from the parser/writer dependency branch.
+  _Supersedes:_ § 1.2 runtime boundary. _Trigger:_ 6.2 must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
 
 ---

@@ -178,4 +178,22 @@ among them, so each still meets its own table error; and `format-plan.test.ts`' 
 `benchmarks/session-envelope-validation.ts`. A file the base branch gains before landing is found by the same runs at
 the final base merge, as the spec's § 12 converts arriving records.
 
+## A1 — Meta runtime boundary
+
+Superseded § 1.2 statement:
+
+> The folder's other modules import nothing at runtime from `meta-reader.ts` or from `lib/store/` outside the folder,
+> so the cycle stays closed.
+
+`parseMetaRecord` and the setters share `meta-reader.ts`, whose imports and re-exports reach the helper entry points;
+their static runtime closure is the branch that must stay closed. The required shared slug rules make a blanket ban on
+every other meta module's pure store imports too broad. Checks reached only through registration can import those rules
+without a back-edge to the parser. `architectureBans` currently admits every meta module except registration, so A1
+limits its exception to the helper entry points and covers re-exports. The clarification changes no stored fields or
+check input.
+
+The amendment grounding and task audit ran at author scope over this boundary and the adjacent registration and rule
+requirements. The source import edges and native row support the five helper entry points; runtime closure is checked
+by the corrective task and again once the meta check exists.
+
 ---

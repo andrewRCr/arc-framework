@@ -478,6 +478,15 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
         - Its check-only production registration composes both shared rules and returns both violations when a write
           breaks both. The registration joins the raw-state boundary, with its outside-store import refused.
 
+### `[ ]` **6.R Keep the meta parser/writer and check branches separate — § 1.2 (A1)**
+
+- _Goal:_ A1's runtime boundary admits the meta reader's existing helper entry points and refuses static check and
+  registration imports and re-exports, with the helpers and checks retaining separate runtime dependency closures.
+
+    - Narrow the native lint row to `writers`, `projection`, `empty-record`, `line-reading`, and `preformatted-writer`.
+    - Build `test-first`: native lint refuses check imports and check or registration re-exports, and admits the helper
+      entry points. Probe the helper dependency closure; re-probe the check closure when the meta check is registered.
+
 ### `[ ]` **6.2 The meta's check — § 3.3, § 3.6, § 4, § 5.3, § 5.4**
 
 - _Goal:_ The meta's registration carries a check running its nine rules and the two shared slug rules, each rule
@@ -658,6 +667,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - `[ ]` At landing, `eslint-suppressions.json` records no more `store-raw-state`, `surface-names`, or `work-unit-paths`
   violations, in total or per file, than at the final merged base, and `npm run -s lint:ts` passes with no suppression
   added.
+
+- `[ ]` Native lint refuses `meta-reader.ts` statically importing or re-exporting a check or registration and admits
+  its helper entry points; their runtime closure reaches no `meta-reader.ts`, check, registration, or backend, and the checks'
+  runtime closure reaches no `meta-reader.ts`, production registration, or backend (A1).
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
