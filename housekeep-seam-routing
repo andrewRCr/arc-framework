@@ -3,14 +3,20 @@
   "slug": "housekeep-seam-routing",
   "claimId": "f3d1633554a21612d700dd2d6e1731b6",
   "createdAt": "2026-10-11T22:02:35.557Z",
-  "updatedAt": "2026-10-11T22:02:35.557Z",
+  "updatedAt": "2026-10-11T22:09:40.523Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route five USER-INBOX captures into the seam-lifecycle and seam-locus drafts before those work units start",
   "branch": "chore/housekeep-seam-routing",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-seam-routing",
+    "headSha": "27a1b327705c73fc908606ec385ade5bfed68832"
+  }
 }
