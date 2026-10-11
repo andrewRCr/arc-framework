@@ -419,45 +419,30 @@ document conversion that must change with it.
 - _Outcome:_ The public report owns the unchanged member-section reader. Condition (c) supplies the union of live
   and staged members and preserves its diagnostic wording and document order.
 
-### `[ ]` **5.3 Decomposition's checks and scaffold read the parsed `Parent`; the cohort forms convert — § 8.4, § 12**
+### `[x]` **5.3 Decomposition's checks and scaffold read the parsed `Parent`; the cohort forms convert — § 8.4, § 12**
 
 - _Goal:_ Decomposition's topology and destination checks compare the parsed `parent` with the document's path, the
   shipped template carries the backticked placeholder, the scaffold writes the backticked form through the creation
   writer, and `cohort-storage-seam.md` converts — all landing together.
 
-- _Note:_ The subtasks are one increment, reviewed and committed at this parent: checks reading the parser refuse the
-  scaffold's bare output until the scaffold writes through the creation writer.
+    - `[x]` **5.3.a Compare the parsed `parent` in both checks**
+        - Both checks retain their heading and refusal behavior while comparing the parser's Parent value; malformed
+          Parent claims carry no evidence, and mismatches carry the expected and parsed slug or null. The nested
+          destination fixture carries the backticked parent.
 
-    - `[ ]` **5.3.a Compare the parsed `parent` in both checks**
-        - `structurallyMatches` (`decompose-v3-topology.ts`) and `validateCohortDocumentClaim`
-          (`git-decompose-v3-destination-validation.ts`) read `parent` through the cohort parser: `null` for a
-          top-level cohort, the parent's slug for a subcohort. Each keeps its heading check and its refusal,
-          `wrong-structural-identity` and `topology-claim`.
-        - The destination check keeps reading `Purpose` through `cohortDocumentFacts` as today; only its `Parent` lines
-          give way to the parsed `parent`.
-        - A mismatched parent's `topology-claim` evidence carries the expected and parsed parent, each a slug or
-          `null`; a document failing to parse refuses with no evidence, as a malformed topology claim does today.
-        - The destination check's subcohort fixture (`git-decompose-v3-finish.test.ts`) takes the backticked form.
-        - Build `test-first` (one behavior at a time):
-            - each check admits a top-level document with the line omitted and with `[none]`
-            - each check admits a subcohort document with a backticked parent agreeing with its path
-            - each check refuses a parent disagreeing with the path, and a document failing to parse
+    - `[x]` **5.3.b Carry the backticked placeholder in the shipped template**
+        - The package template and project copy carry the backticked placeholder, with the existing guidance preserved
+          in its own placeholder after Parent. Both filled copies parse to the supplied parent slug.
 
-    - `[ ]` **5.3.b Carry the backticked placeholder in the shipped template**
-        - `template-cohort.md`, edited in package source and synced to the project copy, takes the line
-          `` **Parent:** `{parent-cohort-name}` ``; its guidance — a subcohort's line only, omitted for a top-level
-          cohort, and a convenience pointer derivable from the `Cohort` path — moves to a guidance placeholder of its
-          own after the line.
-        - A document written from the template parses once its placeholder holds a slug, in both copies.
+    - `[x]` **5.3.c Scaffold through the creation writer**
+        - The scaffold decodes UTF-8, delegates content to the creation writer, and encodes its result; null preserves
+          the invalid-template refusal. Top-level and nested output parse and pass the topology check.
 
-    - `[ ]` **5.3.c Scaffold through the creation writer**
-        - `renderV3IncompleteCohort` calls the creation writer with the cohort path, `—`, and no member sections, so a
-          subcohort's document carries the backticked `Parent`; a `null` keeps the `invalid-cohort-template` refusal.
-        - Build `test-first` (one behavior at a time):
-            - the scaffold's output passes its own topology check and parses, for a top-level cohort and a subcohort
+    - `[x]` **5.3.d Convert `cohort-storage-seam.md`'s bare `Parent`**
+        - The committed Parent line is backticked and parses as `state-storage`.
 
-    - `[ ]` **5.3.d Convert `cohort-storage-seam.md`'s bare `Parent`**
-        - The line takes the backticked form, as a committed edit; verified by its `parent` parsing as `state-storage`.
+- _Outcome:_ The scaffold, checks, templates, and tracked cohort agree on one Parent interpretation, including omitted
+  and `[none]` top-level forms; destination Purpose validation retains its existing condition.
 
 ## **Phase 6:** The rule catalog
 
