@@ -17,11 +17,14 @@ import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
 import { selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
-import type { CheckPassStore } from "../../lib/checks/record.js";
+import type { CheckPassStore, CheckPassWrite } from "../../lib/checks/record.js";
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
+
+/** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
+export type DeclaredCheckRecord = CheckPassWrite | { status: "not-recordable" };
 
 /** One check's externally observable result. */
 export interface DeclaredCheckResult extends Partial<CheckForecast> {
@@ -36,6 +39,7 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   costMs?: number;
   lastCostMs?: number;
   remedy?: string;
+  record?: DeclaredCheckRecord;
 }
 
 /** Typed result retained independently of output formatting. */
@@ -322,8 +326,9 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
-  if (producedKey !== null) await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
-  return { id, kind, ...details, outcome: "passed" };
+  const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
+    : await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
+  return { id, kind, ...details, outcome: "passed", record };
 }
 
 async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<{ rewritten: string[]; reason?: string }> {

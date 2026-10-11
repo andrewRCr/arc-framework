@@ -66,3 +66,27 @@ it("shows a forecast's last measured cost without presenting it as a new executi
   expect(result).toContain("lint: would run");
   expect(result).toContain("last run: 10 ms");
 });
+
+it("warns once per record directory when passes could not be recorded for later gates", () => {
+  const unavailable = { status: "unavailable", cause: "read-only-filesystem", directory: "/repo/.git/arc-checks" } as const;
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [
+      { id: "lint", kind: "enforcement", outcome: "passed", record: unavailable },
+      { id: "test", kind: "enforcement", outcome: "passed", record: unavailable },
+      { id: "types", kind: "enforcement", outcome: "passed", record: { status: "recorded" } },
+      { id: "format", kind: "enforcement", outcome: "passed", record: { status: "not-recordable" } },
+    ],
+  } }, false);
+  const lines = result.trimEnd().split("\n");
+  expect(lines.filter(line => line.startsWith("warning:"))).toEqual([
+    "warning: could not record passes in /repo/.git/arc-checks (read-only filesystem); later gates will run lint, test again",
+  ]);
+  expect(lines.at(-1)).toBe("Checks: lint passed; test passed; types passed; format passed.");
+});
+
+it("warns without naming a directory when the record directory never resolved", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "lint", kind: "enforcement", outcome: "passed", record: { status: "unavailable", cause: "other" } }],
+  } }, false);
+  expect(result).toContain("warning: could not record passes; later gates will run lint again\n");
+});

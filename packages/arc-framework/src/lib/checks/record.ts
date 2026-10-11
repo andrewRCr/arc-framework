@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import type { GitExec } from "../git/exec.js";
 import { resolveCheckoutGitDir } from "../git/exec.js";
+import { classifyFilesystemAccessFault, type FilesystemAccessFault } from "../fs.js";
 import { z } from "zod";
 
 const CheckPassKeySchema = z.string().regex(/^[0-9a-f]{64}$/u);
@@ -25,10 +26,15 @@ export interface CheckPassStoreIO {
   createFile(path: string, content: string): Promise<void>;
 }
 
+/** Whether a pass is available for later gates to reuse; `directory` is named once it resolved. */
+export type CheckPassWrite =
+  | { status: "recorded" }
+  | { status: "unavailable"; cause: FilesystemAccessFault | "other"; directory?: string };
+
 /** Best-effort pass lookup and create-only publication. */
 export interface CheckPassStore {
   get(key: string, id: string): Promise<CheckPassRecord | null>;
-  put(record: CheckPassRecord): Promise<void>;
+  put(record: CheckPassRecord): Promise<CheckPassWrite>;
 }
 
 /**
@@ -37,28 +43,35 @@ export interface CheckPassStore {
  * @returns A pass store whose faults never authorize a hit or refuse execution
  */
 export function createCheckPassStore(io: CheckPassStoreIO): CheckPassStore {
-  return {
-    get: async (key, id) => {
-      if (!CheckPassKeySchema.safeParse(key).success) return null;
-      try {
-        const directory = await io.directory();
-        const parsed = CheckPassRecordSchema.safeParse(JSON.parse(await io.readFile(join(directory, `${key}.json`))));
-        return parsed.success && parsed.data.key === key && parsed.data.id === id ? parsed.data : null;
-      } catch {
-        return null;
-      }
-    },
-    put: async (record) => {
-      const parsed = CheckPassRecordSchema.safeParse(record);
-      if (!parsed.success) return;
-      try {
-        const directory = await io.directory();
-        await io.createFile(join(directory, `${parsed.data.key}.json`), `${JSON.stringify(parsed.data)}\n`);
-      } catch {
-        // A disposable execution shortcut never refuses the caller's run.
-      }
-    },
+  const get = async (key: string, id: string): Promise<CheckPassRecord | null> => {
+    if (!CheckPassKeySchema.safeParse(key).success) return null;
+    try {
+      const directory = await io.directory();
+      const parsed = CheckPassRecordSchema.safeParse(JSON.parse(await io.readFile(join(directory, `${key}.json`))));
+      return parsed.success && parsed.data.key === key && parsed.data.id === id ? parsed.data : null;
+    } catch {
+      return null;
+    }
   };
+  const put = async (record: CheckPassRecord): Promise<CheckPassWrite> => {
+    const parsed = CheckPassRecordSchema.safeParse(record);
+    if (!parsed.success) return { status: "unavailable", cause: "other" };
+    let directory: string;
+    try {
+      directory = await io.directory();
+    } catch {
+      return { status: "unavailable", cause: "other" };
+    }
+    try {
+      await io.createFile(join(directory, `${parsed.data.key}.json`), `${JSON.stringify(parsed.data)}\n`);
+      return { status: "recorded" };
+    } catch (error) {
+      // An earlier writer's pass under the same key serves later gates equally; an occupied path alone does not.
+      if (await get(parsed.data.key, parsed.data.id) !== null) return { status: "recorded" };
+      return { status: "unavailable", cause: classifyFilesystemAccessFault(error) ?? "other", directory };
+    }
+  };
+  return { get, put };
 }
 
 /**

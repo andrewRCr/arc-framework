@@ -151,6 +151,49 @@ it("reuses a segment pass over the same range at the push boundary", async () =>
   expect(await readFile(join(root, "receipt.json"), "utf8")).toBe("executed\n");
 });
 
+it("reuses a new-head pass over the same range at the push boundary", async () => {
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", inputs: ["src/**"],
+    command: [process.execPath, "-e", "require('node:fs').appendFileSync('receipt.json','executed\\n')"] } });
+  roots.push(root);
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["add", "src/a.ts"]);
+  await git(root, ["commit", "-m", "tip"]);
+  const tip = await git(root, ["rev-parse", "HEAD"]);
+  const branch = await git(root, ["symbolic-ref", "HEAD"]);
+  const newHead = await runArc(["check", "new-head", "--from", base], root);
+  expect(newHead.exitCode, newHead.stderr).toBe(0);
+  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).not.toContain("warning:");
+  const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
+    `${branch} ${tip} ${branch} ${base}\n`);
+  expect(push.exitCode, push.stderr).toBe(0);
+  expect(JSON.parse(push.stdout).result.checks[0].outcome).toBe("reused");
+  expect(await readFile(join(root, "receipt.json"), "utf8")).toBe("executed\n");
+});
+
+it("passes with a warning when its record directory is blocked, and later gates run the check again", async () => {
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", inputs: ["src/**"],
+    command: [process.execPath, "-e", "require('node:fs').appendFileSync('receipt.json','executed\\n')"] } });
+  roots.push(root);
+  const directory = join(await git(root, ["rev-parse", "--absolute-git-dir"]), "arc-checks");
+  await writeFile(directory, "not a directory\n");
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["add", "src/a.ts"]);
+  await git(root, ["commit", "-m", "tip"]);
+  const tip = await git(root, ["rev-parse", "HEAD"]);
+  const branch = await git(root, ["symbolic-ref", "HEAD"]);
+  const newHead = await runArc(["check", "new-head", "--from", base], root);
+  expect(newHead.exitCode, newHead.stderr).toBe(0);
+  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain(`warning: could not record passes in ${directory}; later gates will run content again`);
+  const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
+    `${branch} ${tip} ${branch} ${base}\n`);
+  expect(push.exitCode, push.stderr).toBe(0);
+  expect(JSON.parse(push.stdout).result.checks[0]).toMatchObject({ outcome: "passed",
+    record: { status: "unavailable", cause: "other", directory } });
+  expect(await readFile(join(root, "receipt.json"), "utf8")).toBe("executed\nexecuted\n");
+});
+
 it("checks nothing when Git supplies no ref lines", async () => {
   const root = await createDeclaredCheckRepository({ content: { gate: "push", inputs: ["src/**"],
     command: [process.execPath, "capture.cjs"] } });

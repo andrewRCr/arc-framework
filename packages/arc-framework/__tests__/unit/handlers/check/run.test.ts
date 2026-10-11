@@ -36,7 +36,7 @@ async function fixture(checks: Record<string, { fixes?: boolean }>, failSecondTr
   let active = 0;
   const io: DeclaredCheckDependencies & { availableParallelism: () => number } = {
     platform: "linux", availableParallelism: () => 2, git, gitInput: async () => "c".repeat(40),
-    passes: { get: async () => null, put: async () => undefined },
+    passes: { get: async () => null, put: async () => ({ status: "recorded" }) },
     readDeclaration: async () => ({ status: "valid", location: ".arc/system/arc-checks.yml", value: definition }),
     runtime: async () => ({ exitCode: 0, stdout: "" }),
     execute: async command => {
@@ -77,6 +77,17 @@ it("keeps a no-op fixer's captured tree without requiring another tree write", a
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
     kind: "result", exitCode: 0, result: { checks: [{ id: "format", outcome: "passed" }] },
   });
+});
+
+it("reports an uncached pass as not recordable rather than recorded", async () => {
+  const { root, io, ids } = await fixture({ lint: {} });
+  const put = io.passes.put;
+  let published = 0;
+  io.passes = { ...io.passes, put: async record => { published++; return put(record); } };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ id: "lint", outcome: "passed", record: { status: "not-recordable" } }] },
+  });
+  expect(published).toBe(0);
 });
 
 it("reports an inherited object name as an unknown hook skip", async () => {

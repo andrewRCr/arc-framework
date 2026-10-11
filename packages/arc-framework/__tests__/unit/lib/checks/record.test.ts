@@ -22,14 +22,14 @@ function pass(output = "stored summary"): CheckPassRecord {
 it("publishes a successful execution and reads its stored summary", async () => {
   const { store } = await fixture();
   const record = pass();
-  await store.put(record);
+  await expect(store.put(record)).resolves.toEqual({ status: "recorded" });
   expect(await store.get(record.key, record.id)).toEqual(record);
 });
 
 it("does not publish a failed execution", async () => {
   const { directory, store } = await fixture();
   const failed = { ...pass(), outcome: "failed" } as unknown as CheckPassRecord;
-  await store.put(failed);
+  await expect(store.put(failed)).resolves.toEqual({ status: "unavailable", cause: "other" });
   await expect(readFile(join(directory, `${failed.key}.json`), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 });
 
@@ -37,18 +37,40 @@ it("keeps one complete entry when two writers publish the same key", async () =>
   const { store } = await fixture();
   const first = pass("first summary");
   const second = pass("second summary");
-  await expect(Promise.all([store.put(first), store.put(second)])).resolves.toEqual([undefined, undefined]);
+  await expect(Promise.all([store.put(first), store.put(second)]))
+    .resolves.toEqual([{ status: "recorded" }, { status: "recorded" }]);
   const published = await store.get(first.key, first.id);
   expect([first, second]).toContainEqual(published);
-  await store.put(pass("replacement"));
+  await expect(store.put(pass("replacement"))).resolves.toEqual({ status: "recorded" });
   expect(await store.get(first.key, first.id)).toEqual(published);
 });
 
-it("treats an unwritable record as an unavailable shortcut", async () => {
-  const { io } = await fixture();
-  const store = createCheckPassStore({ ...io, createFile: async () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); } });
-  await expect(store.put(pass())).resolves.toBeUndefined();
+it.each([
+  { code: "EROFS", cause: "read-only-filesystem" },
+  { code: "EACCES", cause: "permission-denied" },
+  { code: "EPERM", cause: "permission-denied" },
+  { code: "ENOSPC", cause: "other" },
+])("reports an unwritable record ($code) as unavailable in its directory", async ({ code, cause }) => {
+  const { directory, io } = await fixture();
+  const store = createCheckPassStore({ ...io, createFile: async () => { throw Object.assign(new Error("refused"), { code }); } });
+  await expect(store.put(pass())).resolves.toEqual({ status: "unavailable", cause, directory });
   expect(await store.get(pass().key, "lint")).toBeNull();
+});
+
+it("counts an occupied path as recorded only when a readable pass sits there", async () => {
+  const { directory, io } = await fixture();
+  const occupied = Object.assign(new Error("occupied"), { code: "EEXIST" });
+  const store = createCheckPassStore({ ...io, createFile: async () => { throw occupied; } });
+  // An existing name is not proof of a pass: the record directory itself may be blocked by a file.
+  await expect(store.put(pass())).resolves.toEqual({ status: "unavailable", cause: "other", directory });
+  await writeFile(join(directory, `${pass().key}.json`), `${JSON.stringify(pass("earlier writer"))}\n`);
+  await expect(store.put(pass())).resolves.toEqual({ status: "recorded" });
+});
+
+it("reports an unresolvable record directory without naming one", async () => {
+  const { io } = await fixture();
+  const store = createCheckPassStore({ ...io, directory: async () => { throw new Error("no git dir"); } });
+  await expect(store.put(pass())).resolves.toEqual({ status: "unavailable", cause: "other" });
 });
 
 it("treats an unreadable record as an unavailable shortcut", async () => {

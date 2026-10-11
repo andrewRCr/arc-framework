@@ -31,7 +31,22 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
   const failureFirst = [...outcome.result.checks].sort((a, b) =>
     Number(b.outcome === "failed" || b.outcome === "couldn't run") -
     Number(a.outcome === "failed" || a.outcome === "couldn't run"));
-  return `${ignored}${failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n")}\n${verification}\n`;
+  const checks = failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n");
+  return `${ignored}${checks}\n${renderRecordWarnings(outcome.result.checks)}${verification}\n`;
+}
+
+const RECORD_FAULT_TEXT = { "read-only-filesystem": " (read-only filesystem)", "permission-denied": " (permission denied)", other: "" };
+
+function renderRecordWarnings(checks: readonly DeclaredCheckResult[]): string {
+  const unrecorded = new Map<string, string[]>();
+  for (const check of checks) {
+    if (check.record?.status !== "unavailable") continue;
+    const { cause, directory } = check.record;
+    const location = `${directory === undefined ? "" : ` in ${directory}`}${RECORD_FAULT_TEXT[cause]}`;
+    unrecorded.set(location, [...unrecorded.get(location) ?? [], check.id]);
+  }
+  return [...unrecorded].map(([location, ids]) =>
+    `warning: could not record passes${location}; later gates will run ${ids.join(", ")} again\n`).join("");
 }
 
 function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
