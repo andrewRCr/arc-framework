@@ -543,12 +543,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           region bytes or markers. Verb writes and unmarked provisional edits admit; a failed prior scanner leaves
           marker authority silent while a readable marked region remains protected.
 
-    - `[ ]` **6.3.c Build the completed-task integrity rules**
-        - `task-list.completed-identifier`: a task completed in the prior version has no task line in the next.
-        - `task-list.completed-goal`: a task completed in the prior version changes or loses its `_Goal:_`.
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - restructuring open tasks and future phases admits
+    - `[x]` **6.3.c Build the completed-task integrity rules**
+        - Completed identifier occurrences and their own Goals remain bound for every writer. Goal comparisons use
+          delivery-compatible whitespace normalization and task-local descriptor scopes, including subtasks and
+          repeated identifiers. A failed proposed scanner reports unavailable retention evidence without claiming loss.
 
     - `[ ]` **6.3.d Build the shape rules and register the check**
         - `task-list.descriptor`: an added or changed root descriptor cluster breaking `validateTaskDescriptorSpacing`

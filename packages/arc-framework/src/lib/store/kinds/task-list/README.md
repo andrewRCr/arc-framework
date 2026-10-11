@@ -20,3 +20,8 @@ unmatched prior lines and explicit scan availability for rules that compare mark
 protects exact marked delivery-plan bytes, including the markers, while leaving the unmarked provisional section
 editable. A prior structural scan failure removes marker comparison authority; readable managed-region bytes remain
 protected independently of task-line syntax.
+
+`integrity-rules.ts` retains completed identifier occurrences and their own Goals for every writer. `goal-reading.ts`
+uses the existing descriptor grammar for parent Goals and each subtask's bounded, dedented body, keyed by physical
+line to keep repeated identifiers separate. Goal text follows the delivery inventory's whitespace normalization;
+failed proposed scans report unavailable retention evidence rather than claiming an unchanged target disappeared.
