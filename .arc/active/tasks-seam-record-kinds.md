@@ -374,7 +374,7 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
           the existing replacement-locus refusals. Delivery validates and renders the plan before calling it; entry
           inspection imports the sentinels from the kind. Existing renderer coverage retains its behavior.
 
-### `[ ]` **4.2 Drafts, specs, and companions share one Purpose reader — § 9**
+### `[x]` **4.2 Drafts, specs, and companions share one Purpose reader — § 9**
 
 - _Goal:_ One Purpose reader is the registered parser of the draft, spec, and companion kinds and the reader status's
   purpose read calls, reading the first `**Purpose:**` field as § 9 states and never refusing.
@@ -384,15 +384,10 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
           kind. Empty, placeholder, and absent fields stay distinct; status and design selection call the shared reader
           while retaining their existing presentation. The reader's own tests pin paragraph boundaries and exclusions.
 
-    - `[ ]` **4.2.b Register the Purpose reader for the three kinds**
-        - The design folder's registration module builds the `work-item/draft`, `work-item/spec`, and
-          `work-item/companion` registrations through `defineKindRegistration`, each parser returning `{ purpose }`
-          and never failing, and joins `RAW_STATE_MODULES`; the three join `registrations.ts`, and notes register
-          nothing.
-        - Build `test-first` (one behavior at a time):
-            - each kind's parser returns the content's `purpose`, and succeeds with `null` on content without one
-            - a draft, a spec, and a companion read and listed through the in-repo fixture's store carry `purpose`,
-              and notes carry no fields
+    - `[x]` **4.2.b Register the Purpose reader for the three kinds**
+        - Draft, spec, and companion registrations all admit content and expose the shared nullable raw Purpose.
+          Production reads and listings return that full value; notes remain content without fields. Registration
+          stays behind the store's raw-state boundary while the pure reader remains public.
 
 ## **Phase 5:** The cohort document and decomposition's checks
 

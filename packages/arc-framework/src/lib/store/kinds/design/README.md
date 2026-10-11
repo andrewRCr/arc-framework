@@ -6,3 +6,6 @@ Continuation lines join through the paragraph's end or the next bold field. The 
 
 The reader serves draft, spec, and companion content. Status applies its own empty-value and opening-sentence
 presentation; `codeSpanEnds` preserves inline code while it finds sentence boundaries.
+
+`registration.ts` installs one always-admitting parser for each of `work-item/draft`, `work-item/spec`, and
+`work-item/companion`, exposing `{ purpose }`. Notes remain unparsed content.
