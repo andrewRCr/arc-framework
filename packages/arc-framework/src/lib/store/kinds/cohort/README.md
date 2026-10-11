@@ -4,6 +4,9 @@
 omitted or contains `[none]`; otherwise exactly one backticked slug is required. Duplicate or invalid Parent lines
 return a structured refusal. Purpose preserves empty and placeholder values.
 
+`ParsedCohortDocumentSchema` narrows a stored record's untyped fields to its nullable Purpose and Parent, preserving
+the slug validation. `ParsedCohortDocument` is inferred from that schema.
+
 `registration.ts` installs that parser and all three integrity rules, retaining parse refusals in store listings.
 The public index exposes pure content operations; callers obtain stored documents through the store.
 

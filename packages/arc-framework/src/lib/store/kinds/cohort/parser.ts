@@ -1,9 +1,16 @@
 /** Structured decoding of cohort Purpose and authoritative Parent fields. */
+import { z } from "zod";
 import { SlugSchema, type Slug } from "../../../kernel/index.js";
 import { readDesignPurpose } from "../design/index.js";
 
+/** Runtime narrowing for a cohort document's decoded fields. */
+export const ParsedCohortDocumentSchema = z.strictObject({
+  purpose: z.string().nullable(),
+  parent: SlugSchema.nullable(),
+});
+
 /** Parsed prose and nesting identity from a cohort document. */
-export interface ParsedCohortDocument { readonly purpose: string | null; readonly parent: Slug | null }
+export type ParsedCohortDocument = Readonly<z.infer<typeof ParsedCohortDocumentSchema>>;
 /** Content fields or a diagnostic-preserving structural refusal. */
 export type CohortDocumentParseResult = { success: true; data: ParsedCohortDocument } | { success: false; error: string };
 

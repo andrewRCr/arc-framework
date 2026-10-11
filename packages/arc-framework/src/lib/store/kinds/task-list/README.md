@@ -3,6 +3,9 @@
 `parseTaskListRecord` reads the header's Design filename above the first phase heading. Content decoding always
 succeeds, including archived lists whose task lines do not satisfy the current structural scanner.
 
+`ParsedTaskListRecordSchema` narrows a stored record's untyped fields to its nullable Design reference;
+`ParsedTaskListRecord` is inferred from that schema.
+
 `registration.ts` installs that parser and the complete six-rule check for `work-item/task-list`. The public index
 exposes the pure content API;
 `lib/task-list/` supplies structural scans, cursors, and other derived views over the returned record content.

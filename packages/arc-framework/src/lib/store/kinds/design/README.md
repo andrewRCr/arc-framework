@@ -9,3 +9,6 @@ presentation; `codeSpanEnds` preserves inline code while it finds sentence bound
 
 `registration.ts` installs one always-admitting parser for each of `work-item/draft`, `work-item/spec`, and
 `work-item/companion`, exposing `{ purpose }`. Notes remain unparsed content.
+
+`ParsedDesignRecordSchema` narrows a stored record's untyped fields to the shared nullable Purpose shape, without
+reparsing content. `ParsedDesignRecord` is inferred from that schema.
