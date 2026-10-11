@@ -190,7 +190,8 @@ must match the current Candidate and carries the ordered sources and exact oblig
   owed. Invoke `integrationBoundary.nextAction.command`; after it settles and the exact PR is open, re-enter the
   singleton status route above.
 
-Every other boundary action stops. Dispatch only on `nextAction` from the status result.
+Every other boundary action stops. Dispatch only on `nextAction` from the status result; `continue-pre-publication`
+carries the boundary's own pre-publication `action`, so handle it as that boundary action, never as a review request.
 
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized

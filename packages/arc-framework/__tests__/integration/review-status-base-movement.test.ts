@@ -30,14 +30,19 @@ import { readCandidateRecordVersioned, writeCandidateRecord } from
   "../../src/lib/work-unit/candidate-record-store.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { readSubmissionBoundaryVersioned } from
+import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from
   "../../src/lib/work-unit/submission-boundary-store.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
 import { stageSingletonPublicationResponse } from
   "../../src/scripts/review-gate/runtime/singleton-publication-response.js";
-import { createStandardReviewReservation } from
-  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  createRunConvergenceVerificationAction,
+  createStandardReviewReservation,
+  parseIntegrationBoundaryLocus,
+  projectCandidateFixResumeBoundary,
+  type IntegrationBoundaryLocus,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
@@ -271,16 +276,49 @@ async function statusThroughPort(
 }
 
 describe("review status before the work unit publishes", () => {
-  it("reports review outstanding while the Candidate's self-review has not run", async () => {
-    const fixture = await singletonUnderReview();
-    expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary)
-      .toMatchObject({ locus: "candidate-review-pending", reservation: null });
+  /** Move the attested self-review boundary to a later pre-publication point of the same Candidate. */
+  const prePublicationPoints: readonly [string, (stored: IntegrationBoundaryLocus, head: string) => IntegrationBoundaryLocus][] = [
+    ["self-review", (stored) => stored],
+    ["review fix", (stored) => projectCandidateFixResumeBoundary({
+      workUnit: WORK_UNIT,
+      candidateId: stored.candidateId,
+      candidateSubjectDigest: stored.candidateSubjectDigest ?? "",
+    })],
+    ["convergence verification", (stored, head) => parseIntegrationBoundaryLocus({
+      ...stored,
+      locus: "candidate-convergence-verification-pending",
+      nextAction: createRunConvergenceVerificationAction(WORK_UNIT, "focused", {
+        reviewedHead: head,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication ${WORK_UNIT}`,
+          interactionText: "Continue pre-publication review.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      }),
+      policy: null,
+      reservation: null,
+    })],
+  ];
 
-    // Nothing was reserved for hosted review, because nothing has reached publication to reserve it.
+  it.each(prePublicationPoints)("names the boundary's own continuation while its %s is outstanding", async (
+    _point,
+    advance,
+  ) => {
+    const fixture = await singletonUnderReview();
+    const stored = await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT);
+    if (stored.boundary === null) throw new Error("missing attested boundary");
+    expect(stored.boundary).toMatchObject({ locus: "candidate-review-pending", reservation: null });
+    const boundary = advance(stored.boundary, fixture.headSha);
+    await writeSubmissionBoundary(fixture.root, boundary, stored.version);
+
+    // Nothing was reserved for hosted review, because nothing has reached publication to reserve it, and what
+    // is owed is the boundary's own next step rather than a fresh review pass.
     expect(await statusThroughPort(fixture)).toMatchObject({
       state: "review-required",
-      nextAction: "run-review",
-      routedObligation: { state: "review-required" },
+      nextAction: "continue-pre-publication",
+      action: boundary.nextAction,
+      routedObligation: { state: "review-required", prePublicationAction: boundary.nextAction },
     });
   });
 

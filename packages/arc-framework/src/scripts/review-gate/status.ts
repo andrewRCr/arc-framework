@@ -62,6 +62,11 @@ import {
 } from "./policy/delivery-review-terminus.js";
 import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 import {
+  ContinuePrePublicationActionSchema,
+  RunConvergenceVerificationActionSchema,
+  RunSelfReviewActionSchema,
+} from "./policy/integration-boundary-locus.js";
+import {
   ReviewCoverageSelectionActionSchema,
   selectReviewCoverageChoice,
   type ReviewCoverageSelectionAction,
@@ -263,10 +268,22 @@ const RoutedReviewCoverageRequiredSchema = z.strictObject({
   coverageSelectionAction: ReviewCoverageSelectionActionSchema,
 });
 
+/** The next step a Candidate's own boundary names while its pre-publication review is outstanding. */
+const PrePublicationContinuationSchema = z.discriminatedUnion("kind", [
+  RunSelfReviewActionSchema,
+  ContinuePrePublicationActionSchema,
+  RunConvergenceVerificationActionSchema,
+]);
+
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.enum(["settled", "review-required", "blocked"]),
     detail: z.string().min(1),
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    prePublicationAction: PrePublicationContinuationSchema,
   }),
   RoutedReviewCoverageUnsupportedSchema,
   RoutedReviewCoverageRequiredSchema,
@@ -987,6 +1004,12 @@ const ReviewStatusRunReviewSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("run-review"),
 });
+const ReviewStatusPrePublicationSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("continue-pre-publication"),
+  action: PrePublicationContinuationSchema,
+});
 const ReviewStatusHostedRequestSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -1124,6 +1147,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusMemberDischargedSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
+  | z.infer<typeof ReviewStatusPrePublicationSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
   | z.infer<typeof ReviewStatusLocalPrepareSchema>
@@ -1144,6 +1168,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusSettledSchema,
   ReviewStatusMemberDischargedSchema,
   ReviewStatusRunReviewSchema,
+  ReviewStatusPrePublicationSchema,
   ReviewStatusHostedRequestSchema,
   ReviewStatusHostedAwaitSchema,
   ReviewStatusLocalPrepareSchema,
@@ -1548,6 +1573,14 @@ export async function resolveReviewStatus(
     };
   }
   if (base.routedObligation.state === "review-required") {
+    if ("prePublicationAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "continue-pre-publication",
+        action: base.routedObligation.prePublicationAction,
+      };
+    }
     if ("responsePlan" in base.routedObligation) {
       return {
         ...base,
