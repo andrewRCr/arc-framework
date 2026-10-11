@@ -20,3 +20,7 @@ rules judge that repair whole. These modules form a separate dependency branch f
 `reference-rules.ts` resolves newly introduced dependency edges, own Design filenames and paired-spec companions, and
 changed full-path cohort membership through the proposed store view. Cohort membership reads its named document,
 so an unrelated malformed cohort does not block an edit.
+
+`lifecycle-rules.ts` checks the state/workflow/design tuple on active placement entry or relevant field changes.
+Preparation checks the projected own task-list filename and the resulting cursor when its fields change; stored stale
+values stay readable, and unavailable placement or task-list observations retain an explicit retry remedy.

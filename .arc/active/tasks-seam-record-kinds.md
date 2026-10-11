@@ -518,14 +518,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           own draft/spec names and stored paired-spec companions, with a changed-list limit of two. Cohort reads only
           the named document, parses Parent, requires its full open path, and ignores unrelated malformed documents.
 
-    - `[ ]` **6.2.c Build the lifecycle-consistency rules**
-        - `meta.stage`: a write leaving a work unit in flight, moving it in flight or changing `State`,
-          `Current Workflow`, or `Design`, that leaves the three inconsistent (`checkCurrentWorkflowConsistency`).
-        - `meta.prepare-tasks`: `validateCurrentWorkflow`'s condition, requiring the work unit's own task list read in
-          `after`, with no open task and passing the cursor's scan (`resolveTaskListCursor`).
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - `[none]` and `[none associated]` name no task list
+    - `[x]` **6.2.c Build the lifecycle-consistency rules**
+        - Stage reuses the pure tuple validator on active entry or changed State, Workflow, or Design. Preparation
+          requires the projected own task-list filename and an `after` cursor with no open task; both no-list sentinels
+          refuse. Unchanged stale fields admit, while unavailable placement or task-list evidence remains a refusal.
 
     - `[ ]` **6.2.d Build `meta.inbound-held` and register the check**
         - `meta.inbound-held`: a write moving a work unit to `Integrating` or to the archive while its inbound list,
