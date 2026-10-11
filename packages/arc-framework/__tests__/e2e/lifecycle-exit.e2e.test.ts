@@ -738,11 +738,12 @@ describe("lifecycle exit choreography (CLI seam)", () => {
           candidateBranch: string;
         };
         transitionRecord: {
-          schemaVersion: 1;
-          origin: string;
+          schemaVersion: 2;
+          origin: { name: string };
           kind: "decompose";
-          successors: string[];
-          edges: unknown[];
+          successors: { name: string }[];
+          incoming: unknown[];
+          outgoing: { prerequisite: { name: string }; members: { name: string }[] }[];
         };
       };
     };
@@ -756,11 +757,12 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       },
     });
     expect(staged.operation.transitionRecord).toEqual({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["blocked-leaf", "selected-leaf", "unselected-leaf"],
-      edges: [],
+      successors: [{ name: "blocked-leaf" }, { name: "selected-leaf" }, { name: "unselected-leaf" }],
+      incoming: [],
+      outgoing: [],
     });
     const candidateWorktree = staged.operation.occupation.path;
     worktrees.push(candidateWorktree);

@@ -294,72 +294,47 @@ written.
           validates after ordering, and round-trips without mutating input. The registration is raw-state protected
           and remains outside the production list until the caller migration.
 
-### `[ ]` **3.2 Producers, the store, and every reader take the final shape with the records — § 7.3–§ 7.5, § 11, § 12**
+### `[x]` **3.2 Producers, the store, and every reader take the final shape with the records — § 7.3–§ 7.5, § 11, § 12**
 
 - _Goal:_ Every module and test on the enumerated surface produces and reads schema version 2, the 14 tracked records
   are version 2, and `lib/work-unit/transition-record.ts` is gone, landing as one commit with every gate green.
 
-- _Note:_ The subtasks are one increment, reviewed and committed at this parent: no state between them compiles and
-  passes. Run them in one session where the surface allows; a handoff before they close leaves the work uncommitted.
+    - `[x]` **3.2.a Move the producers**
+        - Producers build version-2 references, incoming dispositions, and cut-map outgoing evidence. Base advancement
+          uses the kind writer; existing destinations remain outside the new-member successor list.
 
-- _Context:_ `rename` stays in the kind until the flip, so rename's readers keep reading rename records (§ 7.5). From
-  this commit until landing, this checkout reads the base's version 1 records with the new codec, so session start
-  surfaces that the user-reference reconcile cannot establish the base's authority (§ 12); that is expected. Delivery's
-  plan resolution reads them too, so while any delivery plan is stored, this checkout's pre-publication reservation
-  (`selectPrePublicationReservationTarget`) cannot resolve until landing; none is stored today.
+    - `[x]` **3.2.b Move the store's write path**
+        - The store validates through the lineage parser, binds origin.name to the requested key, and persists canonical
+          bytes through the kind writer.
 
-    - `[ ]` **3.2.a Move the producers**
-        - `createDecomposeTransitionRecord` (`decompose-transition-record.ts`) derives `outgoing` from the cut map's
-          outgoing dispositions (`authoring.outgoingDispositions`, by edge against `machine.outgoingEdges`), each
-          prerequisite with the destinations taking it, and builds `incoming` from today's edges.
-        - Base advancement (`git-decompose-transition-base-advancement.ts`) serializes through the kind's writer;
-          `terminal-transition-record-writer.ts`, `verbs/abandon.ts`, and `verbs/rename.ts` build version 2 records.
-        - The Producers batch's tests move with them, `decompose-transition-record.test.ts` gaining a case for
-          `outgoing` across a heterogeneous cut naming an existing work unit.
+    - `[x]` **3.2.c Register the kind, and move the store's reads and lookup**
+        - Production reads use the lineage registration, narrow own-key evidence with its schema, and preserve identity
+          mismatch refusals; rename lookup follows successor.name. Store fixtures now emit version 2.
 
-    - `[ ]` **3.2.b Move the store's write path**
-        - `writeContent` (`lib/store/in-repo/write-codec.ts`) validates a lineage record through the kind's parser in
-          place of `TransitionRecordSchema`, binds its own key through `origin.name`, and serializes it through the
-          kind's writer; `write-stores.ts` and `transition-record-store.ts` store the new shape.
+    - `[x]` **3.2.d Move the enumeration and the disposition query**
+        - Enumeration groups version-2 records by origin.name, and the disposition query projects incoming references
+          into its existing string-valued consumer API.
 
-    - `[ ]` **3.2.c Register the kind, and move the store's reads and lookup**
-        - The lineage registration joins `registrations.ts`, and `decodeTrackedContent`'s lineage branch
-          (`lib/store/in-repo/read-codec.ts`) goes: the registered parser decodes the record, and the decode narrows
-          its output with the kind's schema to read own-key evidence from `origin.name`, as the Candidate and
-          integration-boundary branches read theirs, so `identity-mismatch` holds.
-        - `lookupTracked`'s rename walk and lineage lookup (`lib/store/in-repo/lookup.ts`) parse through the kind's
-          parser and read `successors[0].name` and `origin.name`.
-        - The Store batch's tests and fixtures move with them, the in-repo fixture and recovery helpers seeding
-          version 2 records.
+    - `[x]` **3.2.e Move the reconcilers, decomposition's operation, and the ROADMAP assert**
+        - Reference reconciliation, decomposition release paths, and the status assertion read the new reference shape
+          while preserving their derived results and path behavior.
 
-    - `[ ]` **3.2.d Move the enumeration and the disposition query**
-        - `transition-record-enumeration.ts` and `transition-disposition-query.ts` parse and read version 2,
-          `incoming` for today's `edges`; the Query batch's tests move with them.
+    - `[x]` **3.2.f Confirm the derived-type consumers and move the delivery and lifecycle tests**
+        - Derived-type consumers retain their existing contracts; delivery, lifecycle, and reconcile fixtures use
+          version-2 records throughout integration and end-to-end coverage.
 
-    - `[ ]` **3.2.e Move the reconcilers, decomposition's operation, and the ROADMAP assert**
-        - `reference-reconcile.ts`, `decompose-v3-operation.ts`, and `roadmap-regeneration-assert.ts` read version 2;
-          the Reconcilers, Decomposition, and Status batches' tests move with them.
+    - `[x]` **3.2.g Convert the 14 records, move the live test, and remove the old codec**
+        - All 14 records were parsed before and after conversion with their existing lineage facts conserved; outgoing
+          history derives from the two cuts, with no prerequisite inherited by a member. The live test checks exact
+          canonical round-trips. The old codec and every importer are removed; its tests live under the kind.
 
-    - `[ ]` **3.2.f Confirm the derived-type consumers and move the delivery and lifecycle tests**
-        - The consumers listed in `notes-seam-record-kinds.md` § Lineage surface compile and pass unchanged, or join
-          the batch of the module whose derived type changed.
-        - The Delivery, lifecycle batch's integration and end-to-end tests build version 2 records.
+    - `[x]` **3.2.h Run the gates over the whole switch**
+        - Whole-project lint, both type checks, and the complete test and end-to-end suites cover the switch; the
+          suppression record remains byte-identical to the merged base.
 
-    - `[ ]` **3.2.g Convert the 14 records, move the live test, and remove the old codec**
-        - Each record under `.arc/system/.internal/transitions/` takes the new shape through the kind's writer, its
-          references carrying names and no UID.
-        - `outgoing` for the two decomposition records derives from each origin's `Depends On` immediately before its
-          cut, read from history: `chunked-delivery`'s `review-chunking`, which no member took, and `storage-seam`'s
-          two prerequisites.
-        - Verified by parsing before and after: origin, kind, successors, and edges read as `incoming` are unchanged;
-          no verification script ships.
-        - `live-transition-records.test.ts` parses every tracked record through the kind's parser and round-trips it
-          byte-identical through the kind's writer.
-        - `lib/work-unit/transition-record.ts` is deleted, no importer left.
-
-    - `[ ]` **3.2.h Run the gates over the whole switch**
-        - `npm run -s lint:ts` with no ratchet count grown, both type checks, `npm test`, and `npm run -s test:e2e` for
-          the end-to-end batches pass before the commit.
+- _Outcome:_ The codec, all producers and readers, and the tracked records change together without a version-1
+  compatibility reader. Until landing, the base's version-1 records cannot establish user-reference or stored-delivery
+  authority in this checkout; no delivery plan is stored.
 
 ### `[ ]` **3.3 Every producer and reader is on the final shape** — validate exit criterion at segment scope
 

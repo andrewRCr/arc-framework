@@ -1,6 +1,7 @@
 /** Lazy field decoding for the tracked kinds with existing record schemas. */
 import type { InRepoContext } from "./context.js";
 import type { KindId } from "../catalog.js";
+import { LineageRecordSchema } from "../kinds/lineage/index.js";
 
 /** A parser's independent fields, own-key evidence, or explicit rejecting rule. */
 export interface TrackedDecodedContent { fields?: unknown; key?: string; error?: string }
@@ -14,7 +15,14 @@ export async function decodeTrackedContent(context: InRepoContext, kind: KindId,
   const parser = context.registry[kind].parser;
   if (parser !== null) {
     const parsed = parser(content);
-    return parsed.success ? { fields: parsed.data } : { error: parsed.error };
+    if (!parsed.success) return { error: parsed.error };
+    if (kind === "lineage/transition") {
+      const fields = LineageRecordSchema.safeParse(parsed.data);
+      return fields.success ? { fields: fields.data, key: fields.data.origin.name } : {
+        error: fields.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "),
+      };
+    }
+    return { fields: parsed.data };
   }
   try {
     if (kind === "review/candidate") {
@@ -26,11 +34,6 @@ export async function decodeTrackedContent(context: InRepoContext, kind: KindId,
       const [codec] = await Promise.all([import("../../../scripts/review-gate/policy/integration-boundary-locus.js"), import("../../work-unit/submission-boundary-store.js")]);
       const fields = codec.parseIntegrationBoundaryLocus(JSON.parse(content) as unknown);
       return { fields, key: fields.workUnit };
-    }
-    if (kind === "lineage/transition") {
-      const [codec] = await Promise.all([import("../../work-unit/transition-record.js"), import("../../work-unit/transition-record-store.js")]);
-      const fields = codec.parseTransitionRecord(content);
-      return fields === null ? { error: "TransitionRecordSchema rejects the record" } : { fields, key: fields.origin };
     }
     return {};
   } catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }

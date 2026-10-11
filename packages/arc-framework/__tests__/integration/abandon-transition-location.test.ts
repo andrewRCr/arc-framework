@@ -88,11 +88,11 @@ async function createRepository(options: {
   await writeFile(join(root, roadmapPath), "");
   await mkdir(join(root, ".arc/system/.internal/transitions"), { recursive: true });
   await writeFile(join(root, transitionPath), JSON.stringify({
-    schemaVersion: 1,
-    origin: "sample",
+    schemaVersion: 2,
+    origin: { name: "sample" },
     kind: "abandon",
     successors: [],
-    edges: [],
+    incoming: [],
   }));
   if (options.extraResultPath !== undefined) {
     await mkdir(join(root, options.extraResultPath, ".."), { recursive: true });
@@ -435,11 +435,11 @@ describe("structural abandon transition location", () => {
     await writeFile(join(repo.root, roadmapPath), "# second result\n");
     await mkdir(join(repo.root, ".arc/system/.internal/transitions"), { recursive: true });
     await writeFile(join(repo.root, transitionPath), JSON.stringify({
-      schemaVersion: 1,
-      origin: "sample",
+      schemaVersion: 2,
+      origin: { name: "sample" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     }));
     await execCommit(repo, "second abandon");
     await repo.exec("git", ["checkout", branch]);

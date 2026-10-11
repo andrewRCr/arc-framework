@@ -212,11 +212,11 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
       ].join("\n"),
     );
     await writeFile(join(transitions, "origin.json"), `${JSON.stringify({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["successor"],
-      edges: [],
+      successors: [{ name: "successor" }],
+      incoming: [],
     })}\n`);
     await git(harness.primary, ["add", "--all"]);
     await git(harness.primary, ["commit", "-m", "fixture"]);

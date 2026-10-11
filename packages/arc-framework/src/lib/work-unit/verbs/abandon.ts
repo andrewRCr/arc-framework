@@ -60,7 +60,7 @@ import {
 } from "../retirement-lifecycle-result.js";
 import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
 import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 import { validFromStates } from "./dispatch.js";
 
@@ -304,13 +304,13 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const transitionRecord: TransitionRecord = {
-    schemaVersion: 1,
-    origin: name,
+  const transitionRecord: LineageRecord = LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name },
     kind: "abandon",
     successors: [],
-    edges: [],
-  };
+    incoming: [],
+  });
   const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
   if (transitionRecorded.status !== "recorded") {
     const rollback = await retirement.rollbackRefusedCommit(source);

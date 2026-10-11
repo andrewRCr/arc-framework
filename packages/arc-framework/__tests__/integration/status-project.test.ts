@@ -501,11 +501,12 @@ describe("arc status --project", () => {
       await writeFile(
         join(repo, resolveTransitionRecordRelativePath(slug)),
         `${JSON.stringify({
-          schemaVersion: 1,
-          origin: slug,
+          schemaVersion: 2,
+          origin: { name: slug },
           kind: "decompose",
-          successors: [`${slug}-successor`],
-          edges: [],
+          successors: [{ name: `${slug}-successor` }],
+          incoming: [],
+          outgoing: [],
         })}\n`,
       );
     }

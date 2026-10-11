@@ -4,41 +4,38 @@ import {
   validateTransitionRecordEnumeration,
   type TransitionRecordEnumerationEntry,
 } from "../../../src/lib/work-unit/transition-record-enumeration.js";
-import {
-  serializeTransitionRecord,
-  type TransitionRecord,
-} from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { queryTransitionDisposition } from "../../../src/lib/work-unit/transition-disposition-query.js";
 
 const encoder = new TextEncoder();
 
-function record(origin: string): TransitionRecord {
-  return { schemaVersion: 1, origin, kind: "abandon", successors: [], edges: [] };
+function record(origin: string): LineageRecord {
+  return LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "abandon", successors: [], incoming: [] });
 }
 
 function entry(
   filename: string,
-  candidate: TransitionRecord,
+  candidate: LineageRecord,
   overrides: Partial<TransitionRecordEnumerationEntry> = {},
 ): TransitionRecordEnumerationEntry {
   return {
     filename,
     mode: "100644",
     type: "blob",
-    content: encoder.encode(serializeTransitionRecord(candidate)),
+    content: encoder.encode(writeLineageRecord(candidate)),
     ...overrides,
   };
 }
 
 describe("transition record namespace enumeration", () => {
   it("groups by authoritative content origin despite mismatched valid filenames", () => {
-    const alpha: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "alpha",
+    const alpha: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "alpha" },
       kind: "rename",
-      successors: ["alpha-successor"],
-      edges: [],
-    };
+      successors: [{ name: "alpha-successor" }],
+      incoming: [],
+    });
     const beta = record("beta");
 
     const enumeration = validateTransitionRecordEnumeration([
@@ -81,7 +78,7 @@ describe("transition record namespace enumeration", () => {
     { label: "invalid JSON", overrides: { content: encoder.encode("{") } },
     {
       label: "unknown version",
-      overrides: { content: encoder.encode(JSON.stringify({ ...record("origin"), schemaVersion: 2 })) },
+      overrides: { content: encoder.encode(JSON.stringify({ ...record("origin"), schemaVersion: 1 })) },
     },
     {
       label: "invalid shape",
@@ -91,14 +88,15 @@ describe("transition record namespace enumeration", () => {
       label: "duplicate dependents",
       overrides: {
         content: encoder.encode(JSON.stringify({
-          schemaVersion: 1,
-          origin: "origin",
+          schemaVersion: 2,
+          origin: { name: "origin" },
           kind: "decompose",
-          successors: ["successor"],
-          edges: [
-            { dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["successor"] } },
-            { dependent: "consumer", disposition: { kind: "drop", reason: "retired" } },
+          successors: [{ name: "successor" }],
+          incoming: [
+            { dependent: { name: "consumer" }, disposition: { kind: "replace", replacementTargets: [{ name: "successor" }] } },
+            { dependent: { name: "consumer" }, disposition: { kind: "drop", reason: "retired" } },
           ],
+          outgoing: [],
         })),
       },
     },

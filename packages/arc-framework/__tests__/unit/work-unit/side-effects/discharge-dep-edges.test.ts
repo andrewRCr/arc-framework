@@ -1,3 +1,4 @@
+import { LineageRecordSchema } from "../../../../src/lib/store/kinds/lineage/index.js";
 /**
  * Unit tests for the `discharge-dep-edges` side-effect — the write half of
  * dep-edge discharge, fired at `activate`.
@@ -68,13 +69,13 @@ function renameEnumeration(
     status: "valid",
     groups: [{
       origin: retiredSubject,
-      records: [{
-        schemaVersion: 1,
-        origin: retiredSubject,
+      records: [LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: retiredSubject },
         kind: "rename",
-        successors: [targetSlug],
-        edges: [],
-      }],
+        successors: [{ name: targetSlug }],
+        incoming: [],
+      })],
     }],
   };
 }

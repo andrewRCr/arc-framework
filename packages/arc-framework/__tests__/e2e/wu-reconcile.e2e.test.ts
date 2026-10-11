@@ -57,11 +57,11 @@ describe("arc wu reconcile", () => {
     transitionRelativePath = join(".arc", "system", ".internal", "transitions", "origin.json");
     transitionPath = join(repo, transitionRelativePath);
     transitionContent = canonicalize({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["successor"],
-      edges: [],
+      successors: [{ name: "successor" }],
+      incoming: [],
     });
     await writeFile(transitionPath, transitionContent, "utf8");
     await git(repo, ["add", "--all"]);

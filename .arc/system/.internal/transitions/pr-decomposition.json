@@ -1,1 +1,1 @@
-{"edges":[],"kind":"rename","origin":"pr-decomposition","schemaVersion":1,"successors":["review-chunking"]}
+{"incoming":[],"kind":"rename","origin":{"name":"pr-decomposition"},"schemaVersion":2,"successors":[{"name":"review-chunking"}]}

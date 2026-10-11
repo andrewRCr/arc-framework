@@ -131,11 +131,11 @@ describe("arc delivery", () => {
     const transitions = join(repository, ".arc", "system", ".internal", "transitions");
     await mkdir(transitions, { recursive: true });
     await writeFile(join(transitions, `${plan.workUnitId}.json`), `${JSON.stringify({
-      schemaVersion: 1,
-      origin: plan.workUnitId,
+      schemaVersion: 2,
+      origin: { name: plan.workUnitId },
       kind: "rename",
-      successors: [closeoutWorkUnitId],
-      edges: [],
+      successors: [{ name: closeoutWorkUnitId }],
+      incoming: [],
     })}\n`);
     await git(repository, ["add", "-A"]);
     await git(repository, ["commit", "-m", "record closeout rename"]);

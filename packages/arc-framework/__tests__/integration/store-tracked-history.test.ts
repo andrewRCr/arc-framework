@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences, StateVersionSchema } from "../../src/lib/store/identity.js";
 import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
-import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { testStorePorts } from "../helpers/store/in-repo-ports.js";
@@ -176,7 +176,7 @@ describe("tracked state and history", () => {
     const from = await repo.commit("empty baseline");
     const content = makeMetaFixture("example", { branch: "main" });
     const notes = "temporary notes\n";
-    const transition = serializeTransitionRecord({ schemaVersion: 1, origin: "retired", kind: "abandon", successors: [], edges: [] });
+    const transition = writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "retired" }, kind: "abandon", successors: [], incoming: [] }));
     const records = [
       { name: "meta", reference: reference(), content, path: ".arc/active/meta-example.md" },
       { name: "notes", reference: recordReferences["work-item/notes"](reference().owner), content: notes, path: ".arc/active/notes-example.md" },
@@ -234,7 +234,7 @@ describe("tracked state and history", () => {
     await repo.put(".arc/active/meta-example.md", makeMetaFixture("example"));
     const from = await repo.commit("baseline");
     const notes = "new notes\n";
-    const transition = serializeTransitionRecord({ schemaVersion: 1, origin: "retired", kind: "abandon", successors: [], edges: [] });
+    const transition = writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "retired" }, kind: "abandon", successors: [], incoming: [] }));
     await repo.put(".arc/active/notes-example.md", notes);
     await repo.put(".arc/system/.internal/transitions/retired.json", transition);
     const to = await repo.commit("add tracked records");

@@ -8,7 +8,7 @@ import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import { ArcError } from "../../src/lib/kernel/errors.js";
-import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { CanonicalDigestSchema } from "../../src/lib/kernel/schema/vocabulary.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createStandardReviewReservation, projectPublicationBoundary, parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -42,7 +42,7 @@ describe("canonical tracked writer inputs", () => {
       const reference = h.reference(kind);
       const make = (name: string) => kind === "review/candidate" ? candidateFixture(name)
         : kind === "review/integration-boundary" ? boundaryFixture(name)
-          : { schemaVersion: 1, origin: name, kind: "abandon", successors: [], edges: [] };
+          : { schemaVersion: 2, origin: { name: name }, kind: "abandon", successors: [], incoming: [] };
       const address = kind === "review/candidate" ? { kind: "candidate-record" as const, slug: reference.owner.name }
         : kind === "review/integration-boundary" ? { kind: "integration-boundary-record" as const, slug: reference.owner.name }
           : { kind: "transition-record" as const, origin: reference.owner.name };
@@ -58,7 +58,7 @@ describe("canonical tracked writer inputs", () => {
       const bytes = await readFile(ownPath, "utf8");
       expect(landed.version).toBe(trackedDigest(bytes));
       if (kind === "review/integration-boundary") expect(bytes).toBe(canonicalize(parseIntegrationBoundaryLocus(valid)));
-      if (kind === "lineage/transition") expect(bytes).toBe(serializeTransitionRecord({ schemaVersion: 1, origin: "example", kind: "abandon", successors: [], edges: [] }));
+      if (kind === "lineage/transition") expect(bytes).toBe(writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "example" }, kind: "abandon", successors: [], incoming: [] })));
     });
   }
 
@@ -77,7 +77,7 @@ describe("canonical tracked writer inputs", () => {
   it("admits one racing transition creation, refuses the other by reference, and permits rollback then recreation", async () => {
     const h = await trackedWriteFixture();
     const reference = h.reference("lineage/transition");
-    const content = JSON.stringify({ schemaVersion: 1, origin: "example", kind: "abandon", successors: [], edges: [] });
+    const content = JSON.stringify({ schemaVersion: 2, origin: { name: "example" }, kind: "abandon", successors: [], incoming: [] });
     const input = { action: "put" as const, reference, content, expected: null, provenance };
     const results = await Promise.all([h.store.write(input), h.store.write(input)]);
     expect(results.filter((result) => result.status === "ok")).toHaveLength(1);
@@ -95,8 +95,8 @@ describe("canonical tracked writer inputs", () => {
   it("preserves another writer's winning transition when exclusive creation loses after preflight", async () => {
     const h = await trackedWriteFixture();
     const reference = h.reference("lineage/transition");
-    const content = serializeTransitionRecord({ schemaVersion: 1, origin: "example", kind: "abandon", successors: [], edges: [] });
-    const winning = serializeTransitionRecord({ schemaVersion: 1, origin: "example", kind: "rename", successors: ["next"], edges: [] });
+    const content = writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "example" }, kind: "abandon", successors: [], incoming: [] }));
+    const winning = writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "example" }, kind: "rename", successors: [{ name: "next" }], incoming: [] }));
     const path = join(h.root, resolveArcPath({ kind: "transition-record", origin: reference.owner.name }));
     const original = h.ports.fs.exclusiveCreate;
     h.ports.fs.exclusiveCreate = async (target, bytes) => {
@@ -136,7 +136,7 @@ describe("canonical tracked writer inputs", () => {
     const comparisonRoot = join(h.root, "comparison");
     await mkdir(comparisonRoot);
     const candidate = candidateFixture();
-    const transition = { schemaVersion: 1 as const, origin: "example", kind: "abandon" as const, successors: [], edges: [] };
+    const transition = LineageRecordSchema.parse({ schemaVersion: 2 as const, origin: { name: "example" }, kind: "abandon" as const, successors: [], incoming: [] });
     await writeCandidateRecord(comparisonRoot, "example", candidate, null);
     await writeTransitionRecord(comparisonRoot, transition);
     for (const [kind, content, address] of [
@@ -206,7 +206,7 @@ describe("canonical tracked writer inputs", () => {
       const path = join(h.root, resolveArcPath(address));
       expect(await exists(path)).toBe(false);
       const content = JSON.stringify(kind === "review/integration-boundary" ? boundaryFixture()
-        : { schemaVersion: 1, origin: "example", kind: "abandon", successors: [], edges: [] });
+        : { schemaVersion: 2, origin: { name: "example" }, kind: "abandon", successors: [], incoming: [] });
       const written = success(await h.store.write({ ...input, content, expected: null }));
       expect(success(await h.store.read({ reference }))).toMatchObject({ version: written.version });
     });
