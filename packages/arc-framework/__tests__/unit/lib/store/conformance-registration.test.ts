@@ -5,7 +5,7 @@ import { registerStoreConformanceSuite, validateConformanceRegistration } from "
 
 function registration(patch: Record<string, unknown> = {}): ConformanceRegistration {
   const declarations: FixtureDeclarations = {
-    families: ["personal", "work-item"], substrates: ["records", "personal"], mergesConcurrentWrites: true,
+    families: ["personal", "work-item"], substrates: ["records", "personal"], mergesConcurrentWrites: true, runsWriteChecks: true,
     stateOffBranch: true, liveListingStateVersion: true,
     syncFamilies: ["personal", "work-item"], identitySyncFamilies: ["personal", "work-item"],
     entryShapes: {}, familyExclusions: {}, refusalExclusions: {}, rejectingContentUnavailable: {},
@@ -27,7 +27,7 @@ describe("conformance registration exclusions", () => {
       .toThrow(/Invalid conformance registration:.*unserved/);
   });
 
-  it.each([0,17,"bogus"])("refuses an unknown suite item %s", (item) => {
+  it.each([0,18,"bogus"])("refuses an unknown suite item %s", (item) => {
     expect(() => validateConformanceRegistration(registration({familyExclusions:{personal:{items:{[item]:"Unavailable"}}}})))
       .toThrow(/Invalid conformance registration:.*item/);
   });
@@ -86,4 +86,9 @@ it("accepts an exclusion after its missing reason is supplied", () => {
   expect(() => validateConformanceRegistration(invalid)).toThrow("reason");
   invalid.declarations.familyExclusions.personal = {items:{5:"This backend has no cross-substrate batch"}};
   expect(() => validateConformanceRegistration(invalid)).not.toThrow();
+});
+
+it.each([undefined, "true", 1])("refuses a non-boolean write-check declaration: %j", (runsWriteChecks) => {
+  expect(() => validateConformanceRegistration(registration({ runsWriteChecks })))
+    .toThrow(/Invalid conformance registration:.*runsWriteChecks/);
 });

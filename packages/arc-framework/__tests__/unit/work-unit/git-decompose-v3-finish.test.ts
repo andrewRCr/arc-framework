@@ -79,7 +79,7 @@ function atCapAuthorityFixture() {
   const actualBlock = expectedBlock.replace("- `member`", "- `other`");
   const cohortPreamble = [
     "# Cohort: `group`",
-    "**Parent:** outer",
+    "**Parent:** `outer`",
     "**Purpose:** Coordinate the decomposed members.",
     "",
   ].join("\n");
@@ -313,4 +313,46 @@ describe("validateV3ExtractionDestinationStates", () => {
       locus: destinationPath,
     });
   });
+});
+
+
+function cohortClaim(cohort: string, parentLine: string) {
+  const fixture = atCapAuthorityFixture();
+  fixture.plan.mutations.splice(1, 1);
+  fixture.authority.completedMap.authoring.placement = cohort.includes("/")
+    ? { kind: "subcohort", cohort } : { kind: "cohort", cohort };
+  const leaf = cohort.split("/").at(-1)!;
+  const path = `.arc/backlog/planned/${cohort}/cohort-${leaf}.md`;
+  fixture.tree[path] = {
+    kind: "object", objectKind: "blob", mode: "100644",
+    bytes: encoder.encode(`# Cohort: \`${leaf}\`\n${parentLine}\n**Purpose:** Shared.\n`),
+  };
+  if (cohort.includes("/")) fixture.tree[".arc/backlog/planned/outer/cohort-outer.md"] = {
+    kind: "object", objectKind: "blob", mode: "100644",
+    bytes: encoder.encode("# Cohort: `outer`\n**Parent:** [none]\n**Purpose:** Shared.\n"),
+  };
+  return { result: validateV3ExtractionDestinationStates(fixture.plan, fixture.tree, fixture.authority), path };
+}
+
+describe("parsed cohort destination claims", () => {
+  it.each(["", "**Parent:** [none]"])("admits top-level Parent form %j", (parent) => {
+    expect(cohortClaim("group", parent).result.status).toBe("proven");
+  });
+  it("admits a matching quoted nested parent", () => {
+    expect(cohortClaim("outer/group", "**Parent:** `outer`").result.status).toBe("proven");
+  });
+  it.each([
+    ["group", "**Parent:** `other`", null, "other"],
+    ["outer/group", "**Parent:** [none]", "outer", null],
+    ["outer/group", "**Parent:** `other`", "outer", "other"],
+  ])("reports scalar mismatched Parent evidence for %s %s", (cohort, parent, expected, actual) => {
+    const { result, path } = cohortClaim(cohort, parent);
+    expect(result).toEqual({ status: "refused", reason: "topology-claim", locus: path, evidence: { expected, actual } });
+  });
+  it.each(["**Parent:** other", "**Parent:** [none]\n**Parent:** [none]"])(
+    "refuses malformed Parent without comparison evidence: %s", (parent) => {
+      const { result, path } = cohortClaim("group", parent);
+      expect(result).toEqual({ status: "refused", reason: "topology-claim", locus: path });
+    },
+  );
 });

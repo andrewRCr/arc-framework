@@ -59,15 +59,23 @@ function buildMemFs(
   };
 }
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and optional `Cohort` / `Depends On`. */
+/** Minimal valid meta — core table with `State` and optional `Cohort` / `Depends On`. */
 function meta(state: string, cohort?: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (cohort !== undefined) lines.push(`- **Cohort:** ${cohort}`);
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const cwd = "/repo";

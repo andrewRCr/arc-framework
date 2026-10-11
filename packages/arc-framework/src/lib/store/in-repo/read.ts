@@ -28,7 +28,7 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
     : undefined);
   if (unit && placement === undefined) return refuse({ code: "record-malformed", class: "recoverable", reference: input.reference,
     rule: "placement", condition: `The layout cannot place ${path}`, remedy: { text: `Move ${path} to a valid lifecycle surface, then retry.` } });
-  const decoded = await decodeTrackedContent(input.reference.kind, content);
+  const decoded = await decodeTrackedContent(context, input.reference.kind, content);
   checkStoredKey(input.reference, decoded.key);
   return { reference: input.reference, content,
     version: RecordVersionSchema.parse(digestBytes(Buffer.from(content))),

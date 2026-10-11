@@ -1,4 +1,4 @@
-/** Single backend-neutral registration of all sixteen storage contract conformance items. */
+/** Single backend-neutral registration of all seventeen storage contract conformance items. */
 
 import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
@@ -11,6 +11,7 @@ import { registerMergeAssertions } from "./suite-merges.js";
 import { registerFormatAssertions, registerListingAssertions } from "./suite-listings.js";
 import { registerLookupAssertions } from "./suite-lookup.js";
 import { registerCoverageAssertions, registerCrossSubstrateAssertions, registerRecoveryAssertions } from "./suite-recovery.js";
+import { registerWriteCheckAssertions } from "./suite-write-checks.js";
 import { registerSyncAssertions } from "./suite-sync.js";
 
 /** Every contract item has one registration body, so the item map cannot silently omit one. */
@@ -31,6 +32,7 @@ export const conformanceItems: Record<SuiteItem, { name: string; register(contex
   14: { name: "recovery-complete refusals", register: registerRecoveryAssertions },
   15: { name: "capability report", register: registerCapabilityAssertions },
   16: { name: "sync outcomes and reconciliation", register: registerSyncAssertions },
+  17: { name: "registered write checks", register: registerWriteCheckAssertions },
 };
 
 /** Register one describe per numbered item and named tests/skips from the fixture declarations.
@@ -62,7 +64,7 @@ export function validateConformanceRegistration(registration: ConformanceRegistr
   validateNames(declarations.syncFamilies,"syncFamilies",new Set(declarations.families));
   validateNames(declarations.identitySyncFamilies,"identitySyncFamilies",new Set(declarations.syncFamilies));
   validateNames(declarations.substrates,"substrates",undefined,false);
-  for (const field of ["mergesConcurrentWrites","stateOffBranch","liveListingStateVersion"] as const) {
+  for (const field of ["mergesConcurrentWrites","runsWriteChecks","stateOffBranch","liveListingStateVersion"] as const) {
     if (typeof declarations[field] !== "boolean") declarationError(`${field} must declare a boolean`);
   }
   validateEntryShapes(registration);

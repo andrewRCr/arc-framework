@@ -1,11 +1,38 @@
 import { describe, expect, it } from "vitest";
 
 import { createDecomposeTransitionRecord } from "../../../src/lib/work-unit/decompose-transition-record.js";
-import type { V3DecomposeCutMap } from "../../../src/lib/work-unit/decompose-v3-schema.js";
-import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { parseV3DecomposeCutMap, v3OutgoingEdgeId, v3PreflightId, type V3DecomposeCutMap } from "../../../src/lib/work-unit/decompose-v3-schema.js";
+import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 describe("decompose transition record projection", () => {
+  it("records outgoing targets including an existing destination, and retains dropped prerequisites", () => {
+    const map = v3DecompositionEvidenceFixture().preparation.facts.completedMap;
+    map.authoring.shape = "heterogeneous";
+    map.authoring.destinations.push({
+      kind: "existing-home", destinationId: "existing", target: { kind: "work-unit", slug: "existing-home" },
+    });
+    map.authoring.destinations.sort((left, right) => Buffer.compare(Buffer.from(left.destinationId), Buffer.from(right.destinationId)));
+    map.machine.outgoingEdges = ["foundation-a", "foundation-b"].map((prerequisite) => ({
+      prerequisite, edgeId: v3OutgoingEdgeId({ prerequisite }),
+    }));
+    map.machine.preflightId = v3PreflightId({
+      source: map.machine.source, resultBase: map.machine.resultBase, planningProfile: map.machine.planningProfile,
+      sourceUnits: map.machine.sourceUnits, incomingEdges: map.machine.incomingEdges, outgoingEdges: map.machine.outgoingEdges,
+    });
+    map.authoring.outgoingDispositions = map.machine.outgoingEdges.map(({ edgeId }, index) => ({
+      edgeId, disposition: index === 0
+        ? { kind: "targets", targets: ["existing-home", "member-b"] }
+        : { kind: "drop", reason: "No destination needs it" },
+    }));
+    expect(parseV3DecomposeCutMap(map)).not.toBeNull();
+    expect(createDecomposeTransitionRecord(map)).toMatchObject({
+      outgoing: [
+        { prerequisite: { name: "foundation-a" }, members: [{ name: "existing-home" }, { name: "member-b" }] },
+        { prerequisite: { name: "foundation-b" }, members: [] },
+      ],
+    });
+  });
   it("projects only origin, new successors, and dependent-keyed authored dispositions", () => {
     const map = v3DecompositionEvidenceFixture().preparation.facts.completedMap;
     map.authoring.externalEdges = [{ from: "member-a", to: "foundation" }];
@@ -13,16 +40,17 @@ describe("decompose transition record projection", () => {
     const record = createDecomposeTransitionRecord(map);
 
     expect(record).toEqual({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["member-a", "member-b"],
-      edges: [{
-        dependent: "consumer",
-        disposition: { kind: "replace", replacementTargets: ["member-a"] },
+      successors: [{ name: "member-a" }, { name: "member-b" }],
+      incoming: [{
+        dependent: { name: "consumer" },
+        disposition: { kind: "replace", replacementTargets: [{ name: "member-a" }] },
       }],
+      outgoing: [],
     });
-    expect(record === null ? "" : serializeTransitionRecord(record)).not.toMatch(
+    expect(record === null ? "" : writeLineageRecord(record)).not.toMatch(
       /receipt|preparation|finalized|digest|publication|continuation/iu,
     );
   });

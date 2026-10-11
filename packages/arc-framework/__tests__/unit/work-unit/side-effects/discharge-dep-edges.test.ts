@@ -1,3 +1,4 @@
+import { LineageRecordSchema } from "../../../../src/lib/store/kinds/lineage/index.js";
 /**
  * Unit tests for the `discharge-dep-edges` side-effect — the write half of
  * dep-edge discharge, fired at `activate`.
@@ -34,14 +35,22 @@ function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: strin
   return makeMetaFixture("x", { state, dependsOn });
 }
 
-/** Retain the legacy projection independently for the carved current-WU apply cases. */
+/** Keep independently authored projection values for the carved current-WU apply cases. */
 function legacyMeta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const DEPENDENT_PATH = ".arc/active/meta-dependent.md";
@@ -60,13 +69,13 @@ function renameEnumeration(
     status: "valid",
     groups: [{
       origin: retiredSubject,
-      records: [{
-        schemaVersion: 1,
-        origin: retiredSubject,
+      records: [LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: retiredSubject },
         kind: "rename",
-        successors: [targetSlug],
-        edges: [],
-      }],
+        successors: [{ name: targetSlug }],
+        incoming: [],
+      })],
     }],
   };
 }

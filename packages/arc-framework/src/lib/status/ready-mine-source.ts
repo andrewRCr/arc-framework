@@ -22,7 +22,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { emptyParsedMetaRecord, parseMetaRecord } from "../active/meta-reader.js";
 import {
   buildLifecycleIndex,
   collectLifecycleMetaFiles,
@@ -67,7 +67,7 @@ async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit | null> {
   try {
     record = parseMetaRecord(content);
   } catch {
-    record = parseMetaRecord("");
+    record = emptyParsedMetaRecord();
   }
   const { owner, cohort, workClass, priority } = record;
   return {

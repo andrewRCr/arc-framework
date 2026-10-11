@@ -3,7 +3,7 @@
 > _Identity and coordination record for this cohort. Membership is **derived** from each member's `Cohort`
 > field — recorded here only as shared coordination, never as a roster or status table._
 
-**Parent:** state-storage
+**Parent:** `state-storage`
 
 **Purpose:** Route every ARC reader and writer of operational and planning state through the storage contract, running
 on its in-repo implementation over today's substrates, so the ref backend later replaces that implementation with

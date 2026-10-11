@@ -18,8 +18,12 @@ its history. Listings filter the actual role. Batch guards reject duplicate prim
 still require the requested destination kind. UID-less interim records remain kind-qualified.
 
 The family registry describes scope, ref ownership, retention, sync, and install assignment. Each kind adds its
-writer rule, merge mechanism, projection, and independent parser slot. Parser registration returns an isolated
-registry. Logical placement and code links travel beside record content, without projected paths.
+writer rule, merge mechanism, projection, and independent parser, write-check, and anchor slots. A kind
+registration installs those declarations into an isolated registry. Logical placement and code links travel beside
+record content, without projected paths.
+
+The `kinds/` folders own each record kind's parsed fields, writers, and write rules. Their registration modules
+compose the production set used by storage backends.
 
 Landing and task commit captures carry their own repository, SHA and optional patch ID. Commit lookup filters those
 captures by repository and prefers exact SHA matches; it needs no branch or change-request link. Task captures

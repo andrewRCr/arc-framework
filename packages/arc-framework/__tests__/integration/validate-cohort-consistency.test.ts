@@ -61,7 +61,10 @@ function metaFixture(cohort: string, state = "Planning"): string {
   return [
     `# Metadata: widget`,
     "",
-    `- **State:** ${state}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
     `- **Cohort:** ${cohort}`,
     "",
     "---",

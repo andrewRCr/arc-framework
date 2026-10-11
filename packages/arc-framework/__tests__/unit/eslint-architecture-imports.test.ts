@@ -29,7 +29,53 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it("keeps Errand registration behind the store boundary", () => {
+    expect(violations("handlers/outside.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "../lib/store/kinds/errand-record/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/errand-record/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "./errand-record/registration.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps cohort registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { COHORT_REGISTRATION } from "../lib/store/kinds/cohort/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/cohort/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { COHORT_REGISTRATION } from "./cohort/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseCohortDocument } from "../lib/store/kinds/cohort/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps design registration behind the store while exposing the pure Purpose reader", () => {
+    expect(violations("handlers/outside.ts",
+      'import { DESIGN_REGISTRATIONS } from "../lib/store/kinds/design/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/design/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { DESIGN_REGISTRATIONS } from "./design/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { readDesignPurpose } from "../lib/store/kinds/design/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps task-list registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { TASK_LIST_REGISTRATION } from "../lib/store/kinds/task-list/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/task-list/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { TASK_LIST_REGISTRATION } from "./task-list/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseTaskListRecord } from "../lib/store/kinds/task-list/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps lineage registration behind the store while exposing its pure codec", () => {
+    expect(violations("handlers/outside.ts",
+      'import { LINEAGE_REGISTRATION } from "../lib/store/kinds/lineage/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/lineage/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { LINEAGE_REGISTRATION } from "./lineage/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseLineageRecord, writeLineageRecord } from "../lib/store/kinds/lineage/index.js";', "store-raw-state")).toEqual([]);
+  });
   it.each([
+    ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
+    ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
+    ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
@@ -49,6 +95,8 @@ describe("raw state helper ratchet", () => {
     ["handlers/outside.ts", 'export { type MetaRecord } from "../lib/active/meta-reader.js";'],
     ["handlers/outside.ts", 'type Reader = import("../lib/active/meta-reader.js").MetaRecord;'],
     ["handlers/outside.ts", 'import "../lib/active/meta-schema.js";'],
+    ["lib/store/in-repo/context.ts", 'import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";'],
+    ["lib/store/kinds/registrations.ts", 'import { META_REGISTRATION } from "./meta/registration.js";'],
     ["lib/store/current-work-unit.ts", 'import { parseMetaFile } from "../active/meta-reader.js";'],
     ["lib/store/in-repo/meta.ts", 'import { buildComposedLifecycleIndex } from "../../work-unit/composed-lifecycle-index.js";'],
     ["lib/work-unit/composed-lifecycle-index.ts", 'import { buildLifecycleIndex } from "./lifecycle-index.js";'],

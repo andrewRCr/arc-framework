@@ -38,7 +38,21 @@ function meta(root: string, key = "demo") {
     kind: "read" as const,
     name: `meta-${key}.md`,
     path: `${root}/.arc/active/meta-${key}.md`,
-    text: `# Metadata: ${key}\n\n- **State:** \`Active\`\n- **Owner:** \`andrew\`\n- **Branch:** \`feat/${key}\`\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Continue\n`,
+    text: [
+      `# Metadata: ${key}`,
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      `| \`Active\` | \`andrew\` | \`feat/${key}\` | — | — |`,
+      "",
+      "- **Cohort:** [none]",
+      `- **Task List:** \`tasks-${key}.md\``,
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Continue",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   };
 }
 
@@ -48,7 +62,21 @@ function archivedMeta(root: string, key = "demo") {
     kind: "read" as const,
     name: `meta-${key}.md`,
     path: `${archiveRoot}/meta-${key}.md`,
-    text: `# Metadata: ${key}\n\n- **State:** \`Shipped\`\n- **Owner:** \`andrew\`\n- **Branch:** [none]\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Complete post-merge cleanup\n`,
+    text: [
+      `# Metadata: ${key}`,
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Shipped` | `andrew` | [none] | — | — |",
+      "",
+      "- **Cohort:** [none]",
+      `- **Task List:** \`tasks-${key}.md\``,
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Complete post-merge cleanup",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   };
 }
 

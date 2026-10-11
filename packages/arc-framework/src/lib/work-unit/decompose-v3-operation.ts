@@ -617,11 +617,11 @@ export async function executeV3DecomposeOperation(
     transitionRecord,
     stagedPaths: [
       ...prepared.mutatedPaths,
-      resolveTransitionRecordRelativePath(transitionRecord.origin),
+      resolveTransitionRecordRelativePath(transitionRecord.origin.name),
     ],
     releasePaths: [
       ...prepared.authorablePaths,
-      resolveTransitionRecordRelativePath(transitionRecord.origin),
+      resolveTransitionRecordRelativePath(transitionRecord.origin.name),
     ],
   };
 }

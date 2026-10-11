@@ -334,9 +334,10 @@ async function writeUserReferenceStatusFixture(
   const lines: string[] = [
     `# Metadata: ${stem}`,
     "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    `- **Branch:** ${category}/${stem}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| Active | test-user | ${category}/${stem} | — | — |`,
+    "",
   ];
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
@@ -345,6 +346,7 @@ async function writeUserReferenceStatusFixture(
   lines.push("- **Current Workflow:** [none]");
   lines.push("- **Last Completed:** [none]");
   lines.push(`- **Next Action:** ${fields.nextAction}`);
+  lines.push("", "---", "");
   await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
 
@@ -1670,7 +1672,16 @@ describe("session-init E2E — current detached husk advisory", () => {
       const completedDir = join(repo, ".arc", "completed", "2026-q3", "shipped-widget");
       const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
       await mkdir(completedDir, { recursive: true });
-      await writeFile(join(repo, completedPath), "# Metadata: shipped-widget\n");
+      await writeFile(join(repo, completedPath), [
+        "# Metadata: shipped-widget",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Shipped | — | — | — | — |",
+        "",
+        "---",
+        "",
+      ].join("\n"));
       await git(repo, ["add", completedPath]);
       await git(repo, ["commit", "-m", "record shipped widget"]);
       await git(repo, ["push", "-u", "origin", "main"]);

@@ -141,16 +141,21 @@ function fixture() {
   const taskListPath = `${cwd}/.arc/active/tasks-demo.md`;
   const cohortDocPath = `${cwd}/.arc/backlog/planned/release/core/cohort-core.md`;
   const files = new Map([
-    [metaPath, `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Current Workflow:** [none]
-- **Next Action:** Continue
-`],
+    [metaPath, [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      "- **Current Workflow:** [none]",
+      "- **Next Action:** Continue",
+      "",
+      "---",
+      "",
+    ].join("\n")],
     [taskListPath, "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
     [cohortDocPath, "# Cohort\n"],
   ]);
@@ -199,17 +204,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const reservation = createStandardReviewReservation({
       candidateId,
       sourceId: "codex-pr",
@@ -272,17 +282,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId,
@@ -318,17 +333,22 @@ describe("checkout subject active-extension seam", () => {
   it("projects open corrective work without leaving the integration session", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId: candidate.candidateId,
@@ -381,17 +401,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId,
@@ -436,17 +461,22 @@ describe("checkout subject active-extension seam", () => {
   it("keeps pending delivery correction verification in the integration continuation", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId: candidate.candidateId,
@@ -498,17 +528,22 @@ describe("checkout subject active-extension seam", () => {
   it("keeps Candidate continuation renewal in the integration workflow", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId: candidate.candidateId,
@@ -548,17 +583,22 @@ describe("checkout subject active-extension seam", () => {
   it("refuses integration projection when delivery correction evidence is incoherent", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId: candidate.candidateId,
@@ -601,17 +641,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const mismatched = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId,
@@ -648,17 +693,22 @@ describe("checkout subject active-extension seam", () => {
     resolverInputs.length = 0;
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Integrating\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Integrating` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const changedSubjectBoundary = projectCandidateReviewBoundary({
       workUnit: "demo",
       candidateId: candidate.candidateId,
@@ -703,17 +753,22 @@ describe("checkout subject active-extension seam", () => {
   it("keeps Active prepublication strict while Candidate applicability awaits authority", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
@@ -736,17 +791,22 @@ describe("checkout subject active-extension seam", () => {
   it("returns the exact re-root recovery remedy for a deliberately changed Candidate", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
@@ -775,17 +835,22 @@ describe("checkout subject active-extension seam", () => {
   it("recovers Active prepublication at the pending Candidate fix before re-root", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
@@ -836,17 +901,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
@@ -880,17 +950,22 @@ describe("checkout subject active-extension seam", () => {
     const projector = vi.fn(async () => {
       throw new Error("execution recovery must not project Candidate authority");
     });
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`process-task-loop\`
-- **Next Action:** Continue reopened work
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `process-task-loop`",
+      "- **Next Action:** Continue reopened work",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
@@ -950,17 +1025,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const boundary = ownerAcceptedPublishBoundary({ slug: "demo", candidateId, subjectDigest });
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
@@ -989,17 +1069,22 @@ describe("checkout subject active-extension seam", () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const stale = ownerAcceptedPublishBoundary({
       slug: "demo",
       candidateId,
@@ -1035,17 +1120,22 @@ describe("checkout subject active-extension seam", () => {
   it("reports an unreadable Candidate record under this build's schema at the record path", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
 
@@ -1072,17 +1162,22 @@ describe("checkout subject active-extension seam", () => {
   it("classifies a foreign Candidate record unreadable by this build as schema skew", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`${candidate.candidateId}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
 
@@ -1111,17 +1206,22 @@ describe("checkout subject active-extension seam", () => {
   it("reports a genuine Candidate id mismatch distinctly", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
-    const meta = `# Metadata: demo
-
-- **State:** \`Active\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`sha256:${"f".repeat(64)}\`
-- **Current Workflow:** \`prepare-work-unit\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active` | `andrew` | `feat/demo` | — | — |",
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      `- **Candidate:** \`sha256:${"f".repeat(64)}\``,
+      "- **Current Workflow:** `prepare-work-unit`",
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
@@ -1145,17 +1245,22 @@ describe("checkout subject active-extension seam", () => {
     ["Integrating", "integrate-work-unit"],
   ])("degrades malformed Candidate metadata in %s instead of throwing", async (state, workflow) => {
     const { options, files } = fixture();
-    const meta = `# Metadata: demo
-
-- **State:** \`${state}\`
-- **Owner:** \`andrew\`
-- **Branch:** \`feat/demo\`
-- **Cohort:** \`release/core\`
-- **Task List:** \`tasks-demo.md\`
-- **Candidate:** \`not-a-candidate\`
-- **Current Workflow:** \`${workflow}\`
-- **Next Action:** stale narrative
-`;
+    const meta = [
+      "# Metadata: demo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      `| \`${state}\` | \`andrew\` | \`feat/demo\` | — | — |`,
+      "",
+      "- **Cohort:** `release/core`",
+      "- **Task List:** `tasks-demo.md`",
+      "- **Candidate:** `not-a-candidate`",
+      `- **Current Workflow:** \`${workflow}\``,
+      "- **Next Action:** stale narrative",
+      "",
+      "---",
+      "",
+    ].join("\n");
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
 
     await expect(projectCheckoutSubjectMeta({

@@ -116,13 +116,13 @@ export function enumerateTransitionReferenceTransitions(
     const record = group.records[0];
     if (record === undefined) return { status: "conflict", reason: "namespace-corrupt" };
     if (record.kind === "rename") {
-      const targetSlug = record.successors[0];
-      if (targetSlug === undefined) return { status: "conflict", reason: "namespace-corrupt" };
-      transitions.push({ subject: record.origin, outcome: { kind: "rename", targetSlug } });
+      const target = record.successors[0];
+      if (target === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+      transitions.push({ subject: record.origin.name, outcome: { kind: "rename", targetSlug: target.name } });
     } else if (record.kind === "abandon") {
-      transitions.push({ subject: record.origin, outcome: { kind: "removed" } });
+      transitions.push({ subject: record.origin.name, outcome: { kind: "removed" } });
     } else {
-      transitions.push({ subject: record.origin, outcome: { kind: "decompose" } });
+      transitions.push({ subject: record.origin.name, outcome: { kind: "decompose" } });
     }
   }
   return { status: "valid", transitions };

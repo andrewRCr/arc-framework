@@ -102,8 +102,11 @@ async function createActiveFixture(metaName?: string): Promise<string> {
       [
         `# Metadata: ${metaName}`,
         "",
-        "- **State:** Active",
-        `- **Branch:** feat/${metaName}`,
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| Active | — | feat/${metaName} | — | — |`,
+        "",
+        "---",
         "",
       ].join("\n"),
     );

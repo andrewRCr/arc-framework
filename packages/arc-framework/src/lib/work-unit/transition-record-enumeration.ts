@@ -1,9 +1,9 @@
 /** Validate and group one complete transition-record namespace snapshot. */
 
 import {
-  parseTransitionRecord,
-  type TransitionRecord,
-} from "./transition-record.js";
+  parseLineageRecord,
+  type LineageRecord,
+} from "../store/kinds/lineage/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -20,7 +20,7 @@ export interface TransitionRecordEnumerationEntry {
 /** All transition records whose content names the same origin. */
 export interface TransitionRecordOriginGroup {
   origin: string;
-  records: readonly TransitionRecord[];
+  records: readonly LineageRecord[];
 }
 
 /** Complete namespace result before an origin-specific projection. */
@@ -32,7 +32,7 @@ export type TransitionRecordEnumerationResult =
 export function validateTransitionRecordEnumeration(
   entries: readonly TransitionRecordEnumerationEntry[],
 ): TransitionRecordEnumerationResult {
-  const recordsByOrigin = new Map<string, TransitionRecord[]>();
+  const recordsByOrigin = new Map<string, LineageRecord[]>();
   const orderedEntries = [...entries].sort((left, right) =>
     compareUtf8(left.filename, right.filename)
     || Buffer.compare(Buffer.from(left.content), Buffer.from(right.content)));
@@ -50,13 +50,13 @@ export function validateTransitionRecordEnumeration(
     } catch {
       return { status: "namespace-corrupt", filename: entry.filename };
     }
-    const record = parseTransitionRecord(content);
+    const record = parseLineageRecord(content);
     if (record === null) {
       return { status: "namespace-corrupt", filename: entry.filename };
     }
-    const records = recordsByOrigin.get(record.origin) ?? [];
+    const records = recordsByOrigin.get(record.origin.name) ?? [];
     records.push(record);
-    recordsByOrigin.set(record.origin, records);
+    recordsByOrigin.set(record.origin.name, records);
   }
   return {
     status: "valid",

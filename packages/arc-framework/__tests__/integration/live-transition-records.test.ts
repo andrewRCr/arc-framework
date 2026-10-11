@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { enumerateTransitionReferenceTransitions } from "../../src/lib/work-unit/reference-reconcile.js";
 import { validateTransitionRecordEnumeration } from "../../src/lib/work-unit/transition-record-enumeration.js";
-import { parseTransitionRecord, serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { parseLineageRecord, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import {
   TRANSITION_RECORD_NAMESPACE,
   resolveTransitionRecordRelativePath,
@@ -30,12 +30,12 @@ describe("live transition records", () => {
     expect(records.length).toBeGreaterThan(0);
     for (const { filename, content } of records) {
       const text = content.toString("utf8");
-      const record = parseTransitionRecord(text);
+      const record = parseLineageRecord(text);
       expect(record, filename).not.toBeNull();
       if (record === null) continue;
-      expect(resolveTransitionRecordRelativePath(record.origin), filename)
+      expect(resolveTransitionRecordRelativePath(record.origin.name), filename)
         .toBe(`${TRANSITION_RECORD_NAMESPACE}/${filename}`);
-      expect(serializeTransitionRecord(record), filename).toBe(text);
+      expect(writeLineageRecord(record), filename).toBe(text);
     }
   });
 

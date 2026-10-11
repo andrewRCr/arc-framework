@@ -37,7 +37,7 @@ import {
   type GitV3RepositoryPlanResult,
 } from "./git-decompose-v3-repository-plan.js";
 import { readGitV3DecomposeTreeSnapshot } from "./git-decompose-v3-preflight.js";
-import { serializeTransitionRecord } from "./transition-record.js";
+import { writeLineageRecord } from "../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 export interface GitDecomposeTransitionBaseAdvancementDependencies
@@ -774,8 +774,8 @@ export async function advanceGitDecomposeTransitionBase(
   }
   const record = createDecomposeTransitionRecord(map);
   if (record === null) return { status: "refused", reason: "transition-record-projection-invalid" };
-  const recordPath = resolveTransitionRecordRelativePath(record.origin);
-  const recordBytes = new TextEncoder().encode(serializeTransitionRecord(record));
+  const recordPath = resolveTransitionRecordRelativePath(record.origin.name);
+  const recordBytes = new TextEncoder().encode(writeLineageRecord(record));
   const compose = dependencies.composePlan ?? (async (baseRef, completedMap) =>
     await composeGitV3RepositoryPlan(dependencies, baseRef, completedMap));
   let currentIncomingEdges: V3DecomposeCutMap["machine"]["incomingEdges"];

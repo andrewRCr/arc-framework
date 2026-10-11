@@ -93,11 +93,11 @@ describe("arc delivery transfer", () => {
     const transitions = join(source, ".arc", "system", ".internal", "transitions");
     await mkdir(transitions, { recursive: true });
     await writeFile(join(transitions, "delivery-plan-record.json"), `${JSON.stringify({
-      schemaVersion: 1,
-      origin: "delivery-plan-record",
+      schemaVersion: 2,
+      origin: { name: "delivery-plan-record" },
       kind: "rename",
-      successors: [renamedWorkUnitId],
-      edges: [],
+      successors: [{ name: renamedWorkUnitId }],
+      incoming: [],
     })}\n`);
     await git(source, ["add", "-A"]);
     await git(source, ["commit", "-m", "record work unit rename"]);

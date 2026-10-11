@@ -5,7 +5,7 @@ import { ArcLayoutAddressSchema, resolveArcPath } from "../../../src/lib/layout/
 import { resolveCandidateRecordRelativePath } from "../../../src/lib/work-unit/candidate-record-store.js";
 import { resolveSubmissionBoundaryPath } from "../../../src/lib/work-unit/submission-boundary-store.js";
 import { resolveTransitionRecordRelativePath, writeTransitionRecord, type TransitionRecordFs } from "../../../src/lib/work-unit/transition-record-store.js";
-import { serializeTransitionRecord, type TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { join } from "node:path";
 
 const slug = (name: string) => SlugSchema.parse(name);
@@ -20,17 +20,18 @@ describe("internal record addresses", () => {
   });
 
   it.each(["decompose", "rename", "abandon"] as const)("resolves the actual persisted %s transition at its origin", async (kind) => {
-    const record: TransitionRecord = { schemaVersion: 1, origin: "retired-origin", kind,
-      successors: kind === "rename" ? ["renamed"] : kind === "decompose" ? ["child-one", "child-two"] : [],
-      edges: kind === "decompose" ? [{ dependent: "dependent", disposition: { kind: "replace", replacementTargets: ["child-one"]}},
-        { dependent: "other", disposition: { kind: "drop", reason: "No remaining prerequisite"}}] : []};
+    const record: LineageRecord = LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "retired-origin" }, kind,
+      successors: (kind === "rename" ? ["renamed"] : kind === "decompose" ? ["child-one", "child-two"] : []).map((name) => ({ name })),
+      incoming: kind === "decompose" ? [{ dependent: { name: "dependent" }, disposition: { kind: "replace", replacementTargets: [{ name: "child-one" }]}},
+        { dependent: { name: "other" }, disposition: { kind: "drop", reason: "No remaining prerequisite"}}] : [],
+      ...(kind === "decompose" ? { outgoing: [] } : {}) });
     const files = new Map<string, string>();
     const fs: TransitionRecordFs = { lstat: async() => ({ isDirectory: () => true, isSymbolicLink: () => false}),
       mkdir: async() => undefined, writeFile: async (path, content) => {files.set(path, content);}};
     await writeTransitionRecord("/repo", record, fs);
-    const projected = resolveArcPath({ kind: "transition-record", origin: slug(record.origin)});
-    expect(projected).toBe(resolveTransitionRecordRelativePath(record.origin));
-    expect(files.get(join("/repo", projected))).toBe(serializeTransitionRecord(record));
+    const projected = resolveArcPath({ kind: "transition-record", origin: slug(record.origin.name)});
+    expect(projected).toBe(resolveTransitionRecordRelativePath(record.origin.name));
+    expect(files.get(join("/repo", projected))).toBe(writeLineageRecord(record));
   });
 });
 

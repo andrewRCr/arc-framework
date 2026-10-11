@@ -11,10 +11,7 @@ import {
   enumerateGitTransitionRecords,
   queryGitTransitionDisposition,
 } from "../../../src/lib/work-unit/git-transition-record-enumeration.js";
-import {
-  serializeTransitionRecord,
-  type TransitionRecord,
-} from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { TRANSITION_RECORD_NAMESPACE } from "../../../src/lib/work-unit/transition-record-store.js";
 
 const encoder = new TextEncoder();
@@ -31,20 +28,20 @@ function treeLine(oid: string, filename: string): Uint8Array {
 function selectedRefExec(): RawGitExec {
   const selectedOid = "a".repeat(40);
   const otherOid = "b".repeat(40);
-  const selected = serializeTransitionRecord({
-    schemaVersion: 1,
-    origin: "selected",
+  const selected = writeLineageRecord(LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: "selected" },
     kind: "abandon",
     successors: [],
-    edges: [],
-  });
-  const other = serializeTransitionRecord({
-    schemaVersion: 1,
-    origin: "other",
+    incoming: [],
+  }));
+  const other = writeLineageRecord(LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: "other" },
     kind: "abandon",
     successors: [],
-    edges: [],
-  });
+    incoming: [],
+  }));
   return async (args) => {
     if (args[0] === "ls-tree") {
       return {
@@ -63,12 +60,12 @@ function selectedRefExec(): RawGitExec {
   };
 }
 
-function singleRecordExec(candidate: TransitionRecord): RawGitExec {
+function singleRecordExec(candidate: LineageRecord): RawGitExec {
   const oid = "e".repeat(40);
   return async (args) => {
-    if (args[0] === "ls-tree") return { stdout: treeLine(oid, `${candidate.origin}.json`) };
+    if (args[0] === "ls-tree") return { stdout: treeLine(oid, `${candidate.origin.name}.json`) };
     if (args[0] === "cat-file" && args[2] === oid) {
-      return { stdout: encoder.encode(serializeTransitionRecord(candidate)) };
+      return { stdout: encoder.encode(writeLineageRecord(candidate)) };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
   };
@@ -84,11 +81,11 @@ describe("Git transition record enumeration", () => {
       groups: [{
         origin: "selected",
         records: [{
-          schemaVersion: 1,
-          origin: "selected",
+          schemaVersion: 2,
+          origin: { name: "selected" },
           kind: "abandon",
           successors: [],
-          edges: [],
+          incoming: [],
         }],
       }],
     });
@@ -97,13 +94,13 @@ describe("Git transition record enumeration", () => {
   it("ignores unreachable malformed bytes but poisons the selected tree", async () => {
     const validOid = "c".repeat(40);
     const malformedOid = "d".repeat(40);
-    const valid = serializeTransitionRecord({
-      schemaVersion: 1,
-      origin: "reachable",
+    const valid = writeLineageRecord(LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "reachable" },
       kind: "abandon",
       successors: [],
-      edges: [],
-    });
+      incoming: [],
+    }));
     const exec: RawGitExec = async (args) => {
       if (args[0] === "ls-tree") {
         return {
@@ -137,8 +134,8 @@ describe("Git transition record enumeration", () => {
     const recordDir = join(root, TRANSITION_RECORD_NAMESPACE);
     await mkdir(recordDir, { recursive: true });
     const prefix = encoder.encode(
-      '{"schemaVersion":1,"origin":"bad","kind":"decompose","successors":[],"edges":['
-      + '{"dependent":"consumer","disposition":{"kind":"drop","reason":"',
+      '{"schemaVersion":2,"origin":{"name":"bad"},"kind":"decompose","successors":[{"name":"successor"}],"outgoing":[],"incoming":['
+      + '{"dependent":{"name":"consumer"},"disposition":{"kind":"drop","reason":"',
     );
     const suffix = encoder.encode('"}}]}\n');
     await writeFile(join(recordDir, "bad.json"), Uint8Array.from([...prefix, 0xc3, 0x28, ...suffix]));
@@ -161,13 +158,14 @@ describe("Git transition record enumeration", () => {
   });
 
   it("consults authored dependent edges rather than successor membership", async () => {
-    const exec = singleRecordExec({
-      schemaVersion: 1,
-      origin: "origin",
+    const exec = singleRecordExec(LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["consumer"],
-      edges: [{ dependent: "authored", disposition: { kind: "drop", reason: "retired" } }],
-    });
+      successors: [{ name: "consumer" }],
+      incoming: [{ dependent: { name: "authored" }, disposition: { kind: "drop", reason: "retired" } }],
+      outgoing: [],
+    }));
 
     await expect(queryGitTransitionDisposition(
       exec,

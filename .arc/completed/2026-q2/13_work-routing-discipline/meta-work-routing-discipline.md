@@ -1,8 +1,8 @@
 # Metadata: Work-Routing Discipline
 
-- **State:** Shipped
-- **Owner:** andrew
-- **Branch:** `feat/work-routing-discipline`
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Shipped` | `andrew`  | `feat/work-routing-discipline` | —         | —            |
 
 - **Origin:** [internal]
 - **Design:** `spec-work-routing-discipline.md`

@@ -24,11 +24,8 @@ import {
 } from "./schema.js";
 import type { DeliveryTerminalDeltaClassification } from "./lifecycle-contribution.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
-import {
-  DELIVERY_PLAN_END_SENTINEL,
-  DELIVERY_PLAN_START_SENTINEL,
-  renderDeliveryPlanSection,
-} from "./task-list-render.js";
+import { renderDeliveryPlanSection } from "./task-list-render.js";
+import { DELIVERY_PLAN_END_SENTINEL, DELIVERY_PLAN_START_SENTINEL } from "../store/kinds/task-list/index.js";
 import type {
   DeliveryChangeRequestV1,
   DeliveryMemberCoordinatesV1,

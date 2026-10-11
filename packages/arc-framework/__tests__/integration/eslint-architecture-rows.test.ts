@@ -54,6 +54,7 @@ const cases = [
   ["src/lib/config/status-reader.ts", 'parseMetaProjectionRecord("record");', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'parseIdentifierList("identifiers");', "no-restricted-syntax"],
   ["src/lib/active/meta-reader.ts", 'import type { Store } from "../store/create.js";', "no-restricted-syntax"],
+  ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/registration.js";', "no-restricted-syntax"],
   ["src/lib/errand/promote.ts", 'type Projection = MetaProjectionOverrides;', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'const DEFAULTS = {}; void DEFAULTS;', "no-restricted-syntax"],
   ["src/lib/locus/role-derivation.ts", 'import "../user/index.js";', "no-restricted-imports"],
@@ -166,6 +167,8 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/in-repo/write-admission.ts", 'parseMetaProjectionRecord("record");'],
     ["src/scripts/validate-meta-spec.ts", 'parseIdentifierList("names");'],
     ["src/lib/active/meta-reader.ts", 'void import("../store/create.js");'],
+    ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/projection.js";'],
+    ["src/lib/store/kinds/meta/projection.ts", 'parseIdentifierList("names");'],
     ["src/lib/errand/promote.ts", 'const example = "MetaProjectionOverrides renderMetaProjectionFile"; void example;'],
     ["src/lib/config/status-reader.ts", 'const DEFAULTS_REFERENCE = {}; void DEFAULTS_REFERENCE;'],
     ["src/lib/locus/role-derivation.ts", 'import "../git/worktree-roster.js";'],
@@ -216,4 +219,26 @@ describe("actual architecture table enforcement", () => {
     expect(result?.messages.some(({ ruleId }) => ruleId === "no-restricted-syntax")).toBe(true);
   });
 
+});
+
+describe("meta check boundary", () => {
+  it.each([
+    'import { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export * from "../store/kinds/meta/registration.js";',
+  ])("refuses a static check or registration edge: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId, message }) => ruleId === "no-restricted-syntax"
+      && message === "Keep the store delegate dynamic")).toBe(true);
+  });
+  it.each(["writers", "projection", "empty-record", "line-reading", "preformatted-writer"])(
+    "admits the helper entry point %s", async (name) => {
+      for (const text of [`import "../store/kinds/meta/${name}.js";`, `export * from "../store/kinds/meta/${name}.js";`]) {
+        const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+        expect(result?.fatalErrorCount).toBe(0);
+        expect(result?.messages.filter(({ ruleId }) => ruleId === "no-restricted-syntax")).toEqual([]);
+      }
+    },
+  );
 });

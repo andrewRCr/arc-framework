@@ -101,7 +101,10 @@ describe("composed architecture configuration", () => {
   it.each([
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseMetaProjectionRecord"]'],
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseIdentifierList"]'],
-    ["src/lib/active/meta-reader.ts", 'ImportDeclaration[source.value=/\\/store\\//]'],
+    [
+      "src/lib/active/meta-reader.ts",
+      'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])',
+    ],
     ["src/lib/errand/promote.ts", 'Identifier[name=/^(MetaProjectionOverrides|renderMetaProjectionFile)$/]'],
     ["src/lib/config/status-reader.ts", 'VariableDeclaration[kind="const"] > VariableDeclarator[id.name="DEFAULTS"]'],
     ["src/lib/view-renderer.ts", 'MemberExpression[object.name="process"][computed=false]'],

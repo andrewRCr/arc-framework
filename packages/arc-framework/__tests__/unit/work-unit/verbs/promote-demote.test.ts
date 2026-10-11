@@ -42,7 +42,7 @@ interface MetaSpec {
   state: string;
   /** The meta's recorded `Class`; defaults to `Novel` (a realized value). */
   cls?: string;
-  /** Model a legacy flat-field meta whose Class field is absent. */
+  /** Model an unset Class cell in the metadata core table. */
   omitClass?: boolean;
   /** The meta's declared cohort; destination projection never infers this from `subdir`. */
   cohort?: string;
@@ -79,10 +79,9 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
     const filename = `meta-${meta.slug}.md`;
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false, isFile: () => true });
     const coreFields = meta.omitClass === true
-      ? `- **State:** \`${meta.state}\`\n` +
-        `- **Owner:** \`andrew\`\n` +
-        `- **Branch:** \`[none]\`\n` +
-        `- **Priority:** \`P1\``
+      ? `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+        `| --------- | --------- | ---------- | --------- | ------------ |\n` +
+        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | — | \`P1\` |`
       : `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |`;

@@ -22,7 +22,10 @@ function meta(currentWorkflow: string): string {
   return [
     "# Metadata: Example",
     "",
-    "- **State:** Active",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| Active | — | — | — | — |",
+    "",
     "- **Design:** `spec-example.md`",
     "- **Task List:** `tasks-example.md`",
     `- **Current Workflow:** ${currentWorkflow}`,

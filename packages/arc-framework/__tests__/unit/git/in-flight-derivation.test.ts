@@ -97,15 +97,15 @@ function metaContent(
   return [
     "# Metadata: x",
     "",
-    `- **State:** ${fields.state ?? "Active"}`,
-    `- **Owner:** ${fields.owner ?? "andrew"}`,
-    `- **Branch:** ${fields.branch ?? "__BRANCH__"}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? "Active"} | ${fields.owner ?? "andrew"} | ${fields.branch ?? "__BRANCH__"} | ` +
+      `${fields.class ?? ""} | ${fields.priority ?? "[none]"} |`,
+    "",
     `- **Design:** ${fields.design ?? "[none]"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
-    // Class line is omitted unless provided — exercises the field-absent path.
-    ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
-    `- **Priority:** ${fields.priority ?? "[none]"}`,
+
     "",
     "---",
   ].join("\n");

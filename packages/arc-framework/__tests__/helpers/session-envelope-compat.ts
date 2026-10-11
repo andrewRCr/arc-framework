@@ -15,7 +15,7 @@ import {
   runArcNoTty,
 } from "../e2e/helpers.js";
 import { makeMetaFixture } from "./meta-fixture.js";
-import { parseMetaRecord, setMetaBulletFields, setMetaCurrentWorkflow } from
+import { parseMetaRecord, setMetaState, setMetaCurrentWorkflow } from
   "../../src/lib/active/meta-reader.js";
 
 // Placeholders are path-shaped rather than angle-bracket tokens because normalized
@@ -83,12 +83,16 @@ const META = (name: string, fields: {
   return [
   `# Metadata: ${name}`,
   "",
-  `- **State:** ${record.state}`,
-  `- **Owner:** ${record.owner}`,
-  `- **Branch:** ${record.branch}`,
-  `- **Class:** ${record.workClass}`,
+  "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+  "| --------- | --------- | ---------- | --------- | ------------ |",
+  `| ${record.state} | ${record.owner} | ${record.branch} | ${record.workClass} | — |`,
+  "",
   `- **Cohort:** ${record.cohort ?? "[none]"}`,
   "- **Depends On:** [none]",
+  "",
+  "- **Origin:** —",
+  "- **Design:** [none]",
+  "- **Review Rubric:** [none]",
   `- **Task List:** ${record.taskList ?? "[none]"}`,
   "- **Candidate:** [none]",
   record.currentWorkflow === "integrate-work-unit"
@@ -99,11 +103,16 @@ const META = (name: string, fields: {
   "- **Blockers:** [none]",
   `- **Next Action:** ${record.nextAction}`,
   "",
+  "- **PR URL:** [none]",
+  "- **Completed:** [none]",
+  "",
+  "---",
+  "",
   ].join("\n");
 };
 
-// The captured envelope predates the core table. Project the builder's validated fields
-// into its legacy flat layout so the compatibility golden keeps the same wire evidence.
+// Keep the captured envelope's semantic fields in an anchored metadata block.
+// Default-valued bullets prevent the legacy attestation reconcile from backfilling it.
 
 const TASKS = [
   "# Task List: Envelope Fixture",
@@ -245,7 +254,7 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
   await writeFile(
     metaPath,
     setMetaCurrentWorkflow(
-      setMetaBulletFields(attestedMeta, { State: "Integrating" }),
+      setMetaState(attestedMeta, "Integrating"),
       "integrate-work-unit",
     ),
   );

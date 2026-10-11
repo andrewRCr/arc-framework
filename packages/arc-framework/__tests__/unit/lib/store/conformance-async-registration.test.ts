@@ -30,7 +30,7 @@ describe("served-family subset with asynchronous creation", () => {
 describe("entry persistence independent of stale-base merging", () => {
   registerMergeAssertions({ item: 3, registration: {
     declarations: { ...referenceDeclarations, families: ["project-inbox"], mergesConcurrentWrites: false },
-    create: createReferenceFixture,
+    create: (registryOverrides) => createReferenceFixture(undefined, registryOverrides),
   } });
 });
 

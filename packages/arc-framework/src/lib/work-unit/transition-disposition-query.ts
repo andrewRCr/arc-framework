@@ -40,16 +40,18 @@ export function queryTransitionDisposition(
   const record = group.records[0];
   if (record === undefined) return { status: "namespace-corrupt" };
   if (record.kind === "rename") {
-    const targetSlug = record.successors[0];
-    return targetSlug === undefined
+    const target = record.successors[0];
+    return target === undefined
       ? { status: "namespace-corrupt" }
-      : { status: "unique", disposition: { kind: "retarget", targetSlug } };
+      : { status: "unique", disposition: { kind: "retarget", targetSlug: target.name } };
   }
   if (record.kind === "abandon") {
     return { status: "unique", disposition: { kind: "abandoned" } };
   }
-  const edge = record.edges.find(({ dependent }) => dependent === input.dependentSlug);
+  const edge = record.incoming.find(({ dependent }) => dependent.name === input.dependentSlug);
   return edge === undefined
     ? { status: "unmapped-dependent" }
-    : { status: "unique", disposition: edge.disposition };
+    : { status: "unique", disposition: edge.disposition.kind === "drop" ? edge.disposition : {
+      kind: "replace", replacementTargets: edge.disposition.replacementTargets.map(({ name }) => name),
+    } };
 }

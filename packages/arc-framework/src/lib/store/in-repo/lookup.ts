@@ -6,7 +6,7 @@ import { SlugSchema } from "../../kernel/index.js";
 import { flatActiveMeta, selectMeta } from "./meta.js";
 import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
-import { parseTransitionRecord, type TransitionRecord } from "../../work-unit/transition-record.js";
+import { parseLineageRecord, type LineageRecord } from "../kinds/lineage/index.js";
 import { parseCommitMessage } from "../../commit-check/parser.js";
 import { expandTaskReference, isTaskNonReferenceContext, parseTaskReference, type ParsedTaskReference } from "../../commit-check/task-reference.js";
 import { scanTaskListStructure } from "../../task-list/scanner.js";
@@ -114,7 +114,7 @@ async function lookupSlug(context: InRepoContext, initial: string, input: Lookup
     if (retired?.kind === "rename") {
       const successor = retired.successors[0];
       if (successor === undefined) throw new Error("A validated rename has no successor");
-      slug = successor; continue;
+      slug = successor.name; continue;
     }
     break;
   }
@@ -126,15 +126,15 @@ async function lookupSlug(context: InRepoContext, initial: string, input: Lookup
   return candidate;
 }
 
-async function transition(context: InRepoContext, slug: string): Promise<TransitionRecord | null> {
+async function transition(context: InRepoContext, slug: string): Promise<LineageRecord | null> {
   const reference = recordReferences["lineage/transition"](owner(slug));
   const content = await readFileAt(context, await recordPath(context, reference));
   if (content === null) return null;
-  const record = parseTransitionRecord(content);
-  if (record === null) return refuse({ code: "record-malformed", class: "recoverable", reference, rule: "TransitionRecord",
+  const record = parseLineageRecord(content);
+  if (record === null) return refuse({ code: "record-malformed", class: "recoverable", reference, rule: "LineageRecord",
     condition: "The origin transition is malformed.", remedy: { text: "Repair its transition record, then retry lookup." } });
-  if (record.origin !== slug) return refuse({ code: "identity-mismatch", class: "recoverable", expected: reference,
-    actual: recordReferences["lineage/transition"](owner(record.origin)), condition: "The transition content names another origin.",
+  if (record.origin.name !== slug) return refuse({ code: "identity-mismatch", class: "recoverable", expected: reference,
+    actual: recordReferences["lineage/transition"](owner(record.origin.name)), condition: "The transition content names another origin.",
     remedy: { text: "Restore the transition matching the named origin, then retry lookup." } });
   return record;
 }

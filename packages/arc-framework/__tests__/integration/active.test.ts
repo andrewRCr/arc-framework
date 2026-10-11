@@ -124,8 +124,10 @@ function statusBody(fields: {
   const lines: string[] = [
     "# Metadata: fixture",
     "",
-    `- **State:** ${fields.state}`,
-    `- **Branch:** ${fields.branch}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state} | — | ${fields.branch} | — | — |`,
+    "",
   ];
   if (fields.design !== undefined) lines.push(`- **Design:** ${fields.design}`);
   if (fields.currentWorkflow !== undefined) {
@@ -135,6 +137,7 @@ function statusBody(fields: {
   if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
+  lines.push("", "---", "");
   return lines.join("\n");
 }
 

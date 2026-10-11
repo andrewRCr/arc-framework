@@ -20,7 +20,8 @@ import {
   type SideEffectHandler,
   type TransitionInputs,
 } from "../../../src/lib/work-unit/lifecycle-executor.js";
-import type { MetaFieldName } from "../../../src/lib/active/meta-reader.js";
+import { setMetaBulletFields, type MetaFieldName } from "../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { buildFootgunGuards } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
@@ -779,6 +780,27 @@ describe("executeTransition — side-effects after encoding", () => {
 // ---------------------------------------------------------------------------
 
 describe("executeTransition — soft-field disposition", () => {
+  it.each(["deactivate", "reopen", "archive"] as const)(
+    "%s renders its cleared directive as an em dash", async (verb) => {
+      const meta = verb === "reopen" ? INTEGRATING_META : ACTIVE_META;
+      const { ctx } = buildSpies({ metas: [meta] });
+      let content = makeMetaFixture("demo", { nextAction: "Continue." });
+      ctx.writeSoftFields = async (_path, updates) => { content = setMetaBulletFields(content, updates); };
+      const inputs: TransitionInputs = verb === "deactivate"
+        ? { branchOp: { mutation: "rename", branch: "feat/demo", toBranch: "plan/demo" } }
+        : verb === "archive"
+          ? {
+            toDir: ".arc/completed/2026-q2/01_demo",
+            branchOp: { mutation: "delete", branch: "feat/demo" },
+            worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+          }
+          : { prMerged: false, softFields: { nextTask: "[none]" } };
+      const result = await executeTransition(ctx, { verb, slug: "demo", inputs });
+      expect(result.status).toBe("ok");
+      expect(content).toContain("- **Next Action:** —\n");
+    },
+  );
+
   it("writes reset constants and supplied input values, leaves the rest", async () => {
     // submit: nextTask reset [none]; nextAction + lastCompleted input; blockers leave.
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });

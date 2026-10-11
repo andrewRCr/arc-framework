@@ -1,1 +1,1 @@
-{"edges":[],"kind":"decompose","origin":"chunked-delivery","schemaVersion":1,"successors":["delivery-integration-target","delivery-plan-record","delivery-review-cardinality","delivery-stack-topology"]}
+{"incoming":[],"kind":"decompose","origin":{"name":"chunked-delivery"},"outgoing":[{"members":[],"prerequisite":{"name":"review-chunking"}}],"schemaVersion":2,"successors":[{"name":"delivery-integration-target"},{"name":"delivery-plan-record"},{"name":"delivery-review-cardinality"},{"name":"delivery-stack-topology"}]}

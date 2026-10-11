@@ -9,6 +9,7 @@ export * from "./conflict.js";
 export * from "./refusal.js";
 export * from "./read.js";
 export * from "./write.js";
+export * from "./write-check.js";
 export * from "./sync.js";
 export * from "./contract.js";
 export * from "./registry.js";

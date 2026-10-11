@@ -7,6 +7,8 @@ import { LookupInputSchema } from "./lookup.js";
 
 /** Human remedy, and executable arguments when one command advances. */
 export const RemedySchema = z.strictObject({ text: z.string().trim().min(1), argv: z.array(z.string()).min(1).optional() });
+/** A human correction, optionally accompanied by executable arguments. */
+export type Remedy = z.infer<typeof RemedySchema>;
 /** Recoverable and terminal reasons for an unsupported interim operation. */
 export const UNSUPPORTED_CASES = {
   "cross-substrate-batch": "recoverable",
