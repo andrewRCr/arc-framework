@@ -1,8 +1,8 @@
 # Metadata: Seam Record Kinds
 
-| **State**  | **Owner** | **Branch**               | **Class** | **Priority** |
-| ---------- | --------- | ------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/seam-record-kinds` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
+| --------- | --------- | ------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/seam-record-kinds` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-seam-record-kinds.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — A kind registration fills its kind's parser, check, and anchor slots
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — declare the write check's contract types (Task 1.1.a), then take registrations in createKindRegistration
 
 - **PR URL:** [none]
 - **Completed:** [none]
