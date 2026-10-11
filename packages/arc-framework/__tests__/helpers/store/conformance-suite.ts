@@ -62,7 +62,7 @@ export function validateConformanceRegistration(registration: ConformanceRegistr
   validateNames(declarations.syncFamilies,"syncFamilies",new Set(declarations.families));
   validateNames(declarations.identitySyncFamilies,"identitySyncFamilies",new Set(declarations.syncFamilies));
   validateNames(declarations.substrates,"substrates",undefined,false);
-  for (const field of ["mergesConcurrentWrites","stateOffBranch","liveListingStateVersion"] as const) {
+  for (const field of ["mergesConcurrentWrites","runsWriteChecks","stateOffBranch","liveListingStateVersion"] as const) {
     if (typeof declarations[field] !== "boolean") declarationError(`${field} must declare a boolean`);
   }
   validateEntryShapes(registration);

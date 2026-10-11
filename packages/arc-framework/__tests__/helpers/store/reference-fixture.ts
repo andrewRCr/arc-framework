@@ -27,7 +27,7 @@ const conflictParser: RecordParser = (content) => {
 
 /** Reference serves every role; named exclusions are only interim backend-specific cases. */
 export const referenceDeclarations: FixtureDeclarations = {
-  families: FAMILY_IDS, mergesConcurrentWrites: true, substrates: ["memory"], stateOffBranch: true,
+  families: FAMILY_IDS, mergesConcurrentWrites: true, runsWriteChecks: true, substrates: ["memory"], stateOffBranch: true,
   liveListingStateVersion: true,
   syncFamilies: FAMILY_IDS,
   identitySyncFamilies: FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
@@ -135,10 +135,10 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
     remoteState(state, message) {
       remote.condition = state;
       if (message !== undefined) remote.message = message;
-      remote.beforePublish = state === "contended" ? () => {
+      remote.beforePublish = state === "contended" ? async () => {
         const reference = fixture.reference("project-registry/counter", "contention");
         const prior = remote.state.records.get(recordKey(canonicalReference(remote.state, reference)));
-        const result = writeReference(remoteWriter.context, { action: "put", reference,
+        const result = await writeReference(remoteWriter.context, { action: "put", reference,
           content: JSON.stringify({ value: ++contentionWrites }), expected: prior?.version ?? null,
           provenance: { verb: "reserve", lifecycleAction: "reserve" } });
         if (result.status !== "ok") throw new Error("The contending remote writer could not advance its record");
@@ -155,4 +155,4 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
 }
 
 /** Static fixture registration consumed by the shared conformance suite. */
-export const referenceRegistration: ConformanceRegistration = { declarations: referenceDeclarations, create: createReferenceFixture };
+export const referenceRegistration: ConformanceRegistration = { declarations: referenceDeclarations, create: (registryOverrides) => createReferenceFixture(undefined, registryOverrides) };

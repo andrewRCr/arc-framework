@@ -90,36 +90,14 @@ the remote state too, holds that state's queue only while it compares and publis
   state with the whole write or batch applied, before committing, and the conformance suite proves it for every fixture
   declaring write checks.
 
-    - `[ ]` **1.4.a Declare write checks in the fixture contract and take a registry override**
-        - `FixtureDeclarations` (`__tests__/helpers/store/fixture-contract.ts`) gains `runsWriteChecks`;
-          `validateConformanceRegistration` requires the boolean beside `mergesConcurrentWrites`, and every declarations
-          literal sets it: the reference and in-repo fixtures, and `conformance-registration.test.ts`.
-        - `ConformanceRegistration.create` takes an optional registry override, the shape `createReferenceFixture`
-          takes as `registryOverrides`; the reference registration passes it to that parameter, not as `entryShapes`,
-          its first, and the in-repo fixture ignores it.
-        - The reference fixture declares write checks; the in-repo fixture declares none.
+    - `[x]` **1.4.a Declare write checks in the fixture contract and take a registry override**
+        - Fixture declarations require `runsWriteChecks`; the reference declares it and the in-repo fixture declines it.
+          Registrations accept an optional definition override, passed to the reference fixture's registry parameter.
 
-    - `[ ]` **1.4.b Run the registered checks in the reference backend's write and batch paths**
-        - `writeReference` and `batchReference` (`__tests__/helpers/store/write.ts`) become async. After every write
-          lands on the prepared copy — merged where stale, placement validated, identities indexed — and before it
-          commits to the shared state, each written record's registered check runs with its reference, `prior` from the
-          state as found, `next` with the content as it will be stored, and the derived writer (Task 1.3.a).
-        - `before` is `read`, `list`, and `lookup` over the state as found, and `after` the same over the prepared copy
-          (`readReference`, `listReference`, `lookupReference`); broken rules refuse through the composition (Task
-          1.3.b).
-        - The reference backend runs `write`, `batch`, and `sync` one at a time over each shared state. The queue is
-          held per state, since `reopen()` builds a second backend over the same state, and outside `MemoryState`,
-          which `structuredClone` copies.
-        - `syncReference` (`__tests__/helpers/store/sync.ts`) holds its own state's queue for its whole run. It awaits
-          `beforePublish`, typed `() => void | Promise<void>`, before taking any hold on the remote state, then takes
-          the remote state's queue only for its compare-and-publish, which awaits nothing; it takes the local queue
-          before the remote one, never the reverse. A remote write thus commits before the compare, which sees the
-          remote move, or after the publish, against the published state. `sync` runs no check.
-        - Every hook writing the remote state awaits its write: the reference fixture's contention hook, and the two in
-          `__tests__/unit/lib/store/reference-archive-publication.test.ts` ("allocates against the replacement remote
-          state on a successful CAS retry", "recomputes after remote movement and leaves local state untouched after
-          exhausted retries"), which return the write they discard today.
-        - Item 2's `stale-writer` race, every other existing suite item, and the reference backend's unit tests pass.
+    - `[x]` **1.4.b Run the registered checks in the reference backend's write and batch paths**
+        - Async writes and batches check prepared stored content and both complete views before publishing, composing
+          refusals through the shared helper. A queue per shared state also serializes reopened stores and sync.
+          Remote publication holds its queue only for comparison and publication, after awaiting the hook.
 
     - `[ ]` **1.4.c Add the write-check suite item**
         - Item 17 in `conformanceItems` (`__tests__/helpers/store/conformance-suite.ts`), with `SuiteItem` gaining it,

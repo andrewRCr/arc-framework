@@ -1,7 +1,7 @@
 /** Backend-neutral hooks and named exclusions used by the sixteen-item conformance suite. */
 
 import type {
-  FamilyId, KindId, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
+  FamilyId, KindId, KindDefinition, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
   UnsupportedCase, WriteInput, WriteResult, EntryConfig, StoreRecord, WritePlacement,
 } from "../../../src/lib/store/index.js";
 
@@ -25,6 +25,7 @@ export interface FamilyExclusions {
 export interface FixtureDeclarations {
   families: readonly FamilyId[];
   mergesConcurrentWrites: boolean;
+  runsWriteChecks: boolean;
   substrates: readonly string[];
   stateOffBranch: boolean;
   liveListingStateVersion: boolean;
@@ -67,5 +68,5 @@ export interface ConformanceFixture {
 /** Registration pairs static declarations with a fresh isolated fixture for each assertion. */
 export interface ConformanceRegistration {
   declarations: FixtureDeclarations;
-  create(): ConformanceFixture | Promise<ConformanceFixture>;
+  create(registryOverrides?: Partial<Record<KindId, Partial<KindDefinition>>>): ConformanceFixture | Promise<ConformanceFixture>;
 }
