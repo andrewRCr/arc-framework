@@ -52,6 +52,7 @@ import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "./policy/hosted-reservation-discharge.js";
+import type { IntegrationBoundaryLocus } from "./policy/integration-boundary-locus.js";
 import {
   resolveChangeRequest,
   type ChangeRequestCandidate,
@@ -92,6 +93,12 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
+
+/** Loci a Candidate reaches only once pre-publication review settles, so an absent reservation owes nothing. */
+const UNRESERVED_SETTLED_LOCI: ReadonlySet<IntegrationBoundaryLocus["locus"]> = new Set([
+  "candidate-publish-ready",
+  "publication-pending",
+]);
 
 /**
  * Carry one overlap analysis across into the observation the review status records.
@@ -504,10 +511,13 @@ export async function readRoutedObligation(
     }
     // A carried reservation is not itself an unsettled obligation — nothing clears it, so reading it
     // that way reports every hosted-first work unit as forever mid-review. What settles it is the
-    // reserved source's own verdict on the lane.
+    // reserved source's own verdict on the lane. An absent one settles only once pre-publication review
+    // has; before that point the Candidate's own review is still outstanding.
     const { reservation } = boundary;
     if (reservation === null) {
-      return { state: "settled", detail: "No hosted review was reserved across publication." };
+      return UNRESERVED_SETTLED_LOCI.has(boundary.locus)
+        ? { state: "settled", detail: "No hosted review was reserved across publication." }
+        : { state: "review-required", detail: "The Candidate's pre-publication review is not settled." };
     }
     const readDischarge = createHostedReservationDischargeReader({
       cwd,
