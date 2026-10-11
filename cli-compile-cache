@@ -3,7 +3,7 @@
   "slug": "cli-compile-cache",
   "claimId": "0397fe6f0eb9b4c9464400f0516255c4",
   "createdAt": "2026-10-11T14:21:07.465Z",
-  "updatedAt": "2026-10-11T14:21:07.465Z",
+  "updatedAt": "2026-10-11T18:03:16.936Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Enable Node's on-disk compile cache before the CLI bundle loads, so every command, and every CLI spawn in the end-to-end tests, starts faster; splitting the bundle per command stays out of scope",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Enable Node's compile cache for the CLI",
   "originEntrySourceDigest": "sha256:8f466c5012f531f1b164ef709f6dbf3781f59065cdada59e3de8661e01627798",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/cli-compile-cache",
+    "headSha": "1a10f6c9d8a156debbc31e62728b42487397fef8"
+  }
 }
