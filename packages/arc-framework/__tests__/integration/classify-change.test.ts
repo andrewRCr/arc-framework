@@ -1428,6 +1428,11 @@ describe("CI verified-tree record", () => {
     expect(record.if).toContain("needs.classify.outputs.weight == 'heavy'");
   });
 
+  it("records only for a same-repository pull request, since a fork's run cannot save", async () => {
+    const record = jobOf(parseWorkflow(await readWorkflow()), "record-verified-tree");
+    expect(record.if).toContain("github.event.pull_request.head.repo.full_name == github.repository");
+  });
+
   const verificationSteps = [
     ["node", "run: node scripts/verify.mjs"],
     ["npx", "run: npx verify-tool"],

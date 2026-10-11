@@ -784,12 +784,14 @@ jobs:
   # tested, so a later run of the same pull request that tests an identical tree
   # can run light. Only a heavy run records: a light run tested nothing. The save
   # is advisory, so this job stays out of ci-ok's needs and a failed or duplicate
-  # save never reddens the required check.
+  # save never reddens the required check. A pull request from a fork runs with
+  # read-only cache access, where a save writes nothing, so only a same-repository
+  # pull request records; a fork's pull request runs heavy on every push.
   record-verified-tree:
     name: Record verified tree
     permissions: {}
     needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Write verified-tree marker
