@@ -482,6 +482,28 @@
     - _Captured during:_ the review of PR #836 against `review-signal-convergence` and `evidence-applicability`,
       2026-10-08.
 
+### `[ ]` **Let a minor-only fix close an Errand's standard lane outside `full-final` routes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Carry proportionate review evidence and pass accounting across approved review fixes" —
+  whether a fix's severity decides that its head needs another standard pass.
+
+- _Observation:_ an Errand's fixed head always needs another standard pass, whatever the fixed finding's severity: the
+  lane filters attempts by head, so the fix head has none and `readUnreviewedErrandHead` requires review
+  (`status-errand.ts:713-742, 858-873`), as the evidence-applicability reducer's rule "review clearance over
+  `approved-fix` returns `fresh`" records. Delivery members already discharge a minor-only fix through contribution
+  applicability (`policy/hosted-reservation-discharge.ts:520-526`), frontline follows up only after a material fix
+  (`policy/frontline-follow-up.ts:64-70`), and planning review converges when only minors are fixed. The Errand rule
+  makes recording a minor free and fixing it cost a metered pass, an incentive to leave minors unfixed (PR #836).
+
+- _Approach:_ close the lane when the approved set fixes no confirmed `critical` or `major` finding, except under
+  `retrigger: full-final`, where `classify-review-risk` promises a complete re-review after any fix. Record it as a
+  forward amendment of the reducer rule, and keep an Owner-named additional pass available for an unreviewed fix diff.
+
+- _Captured during:_ `disposition-gate-pass-cost` Errand design discussion, 2026-10-10.
+
 ### `[ ]` **Stop letting an omitted activity flag silently deactivate a configured review lane**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
@@ -506,6 +528,28 @@
   to prose. A default that disables a configured-active lane is the inverse of fail-closed.
 
 - _Captured during:_ the `delivery-request-identity` errand, 2026-09-18.
+
+### `[ ]` **Fire author self-review in an Errand when routing requires it, or exempt the Errand vehicle**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Stop letting an omitted activity flag silently deactivate a configured review lane" —
+  how activity keeps author self-review `required` (`applyAssuranceAndActivity`), and which workflow discharges
+  the obligation it routes. This entry is the Errand vehicle's case.
+
+- _Observation:_ Errand review routing returns `authorSelfReview: required` for a `sensitive` change whenever the
+  project's `self-review` method is active (`applyAssuranceAndActivity` in `routing.ts` keeps the decision while
+  `activity.selfReview` is true), but `run-errand` neither declares `self-review` nor marks a fire-point for it, so the
+  obligation is never discharged and nothing reports the gap. PR #845 routed `sensitive` with self-review `required`,
+  ran frontline and hosted standard review, and merged through `arc errand merge` with no author self-review and no
+  refusal. `prepare-work-unit` is the working model: it fires the method and reports `--self-review settled`.
+
+- _Approach:_ decide which side is wrong. Either `run-errand` fires `self-review` when the routed obligation asks for
+  it, or Errand routing exempts author self-review for the vehicle and records why. Either way, the routed obligation
+  and what the workflow does should agree.
+
+- _Captured during:_ `review-risk-criteria` Errand (PR #845), 2026-10-09.
 
 ### `[ ]` **Make a `recommended` standard-review obligation stop for an Owner decision, not spend like `required`**
 
@@ -567,6 +611,25 @@
   rewriting, so whichever ships second should read the other.
 
 - _Captured during:_ the `publish-errand-merge-skeleton` errand, PR #655, 2026-09-19.
+
+### `[ ]` **Make a `recommended` standard obligation non-blocking, or stop documenting it as one**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Make a `recommended` standard-review obligation stop for an Owner decision, not spend
+  like `required`" — the same gap seen from the gate's enforcement; settle the two together.
+
+- _Observation:_ `classify-review-risk` says a `recommended` standard pass "runs by default but does not block merge
+  when it does not complete", but the live policy path treats it like `required`: the driver special-cases only
+  `exempt` (`policy/review-policy-driver.ts:723-724`), and `arc review status` carries no obligation field
+  (`status.ts:266-270`). Non-blocking logic exists only in `core/requirements.ts:109` and `core/verdict.ts:71`,
+  reached through `runtime/reduce-command.ts`, which hard-codes `full-final` (`:94`).
+
+- _Approach:_ decide which is right. Either implement the non-blocking behavior for an incomplete `recommended`
+  pass at the merge gate, or correct the method and the routing table's description to what the gate enforces.
+
+- _Captured during:_ `disposition-gate-pass-cost` Errand mapping, 2026-10-10.
 
 ### `[ ]` **Carry private correction coverage across a Candidate re-root**
 

@@ -72,8 +72,13 @@
       delivery request title whose scope ARC's commit-check would reject if a merge mode promoted the title into
       a commit subject. Inert under merge-commit strategy; it is exactly the merge-title question this entry owns.
 
+- _Also (routed from `USER-INBOX § Work Unit`, housekeep drain 2026-10-11):_ PR #850 made `run-errand` § Ship a second
+  surface that states a PR title rule, beside `template-pull-request.md` § PR Title Format. It now titles an Errand PR
+  with its commit's subject, which settles no policy, so whatever this entry decides per merge strategy lands on both
+  surfaces. Captured during the `license-installed-content` Errand (PR #851), 2026-10-09.
+
 - _Files:_ `.arc/backlog/planned/doc-conventions/pull-request-surface-policy/draft-pull-request-surface-policy.md`,
-  `template-pull-request.md` § PR Title Format, `integrate-work-unit.md:150`.
+  `template-pull-request.md` § PR Title Format, `run-errand.md` § Ship (PR creation), `integrate-work-unit.md:150`.
 
 - _Scope:_ policy only. `delivery-request-identity` settled the stacked-member title shape provisionally under the
   capture's interim boundary (retain the conventional portion); this entry owns whether that portion should exist.

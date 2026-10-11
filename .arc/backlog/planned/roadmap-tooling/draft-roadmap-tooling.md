@@ -241,6 +241,26 @@
   collapse — `SAP, DM, +4` — optionally paired with a plain list section below the table for overflowed rows.
   Unbounded inline lists are unsolvable under the 120-char budget by naming alone; boundedness is the rule.
 
+### `[ ]` **Weigh joining a direction cohort with `goal-aware-direction`, designed together after the cutover**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Dependencies and Sequencing (placement and timing), read with its held entry "§ Unknowns
+  'Direction's home' resolved by `goal-aware-direction` + two render consequences".
+
+- _Observation:_ `goal-aware-direction`'s grooming (2026-10-11) kept it one work unit with a `Depends On:
+  storage-cutover` edge, and predicted a cut into the vector primitive and `next-work-recommender`, placed as a cohort
+  (its draft's § Scope and decomposition seams). The Owner leans strongly toward `roadmap-tooling` joining that
+  cohort: its horizon render consumes targets and its readiness view is the recommender's base, so the three design
+  together. The recommender reads priority, cohort, and `Depends On` through `resolveProjectReadinessComposition`
+  (`lib/status/project-view.ts`), since the `arc status --project --json` fact rows carry none of them.
+
+- _Approach:_ at this work unit's next grooming, decide whether it joins that cohort at `goal-aware-direction`'s
+  post-cutover cut, and which of its own pieces — the render standard, the ROADMAP-truncation fix — still run on
+  their own timing before then.
+
+- _Captured during:_ `goal-aware-direction` grooming, 2026-10-11.
+
 ### `[ ]` **Make the render standard's output idempotent under `markdown-table-formatter`**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `roadmap-renderer-slice` errand, Pass 1

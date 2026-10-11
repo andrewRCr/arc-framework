@@ -100,6 +100,21 @@
 
 - _Captured during:_ `storage-seam` draft-design, shared decision 2, 2026-10-09.
 
+### `[ ]` **Correct the identity entry's premise: the owner falls back to the slugified Git `user.name`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the entry "Keep a person's identity slug unique and stable across machines".
+
+- _Observation:_ that entry takes the owner from `arc.identity` alone and calls Git `user.name` no candidate. The
+  contract resolves identity as `arc.identity` or, when that is unset, the slugified Git `user.name` (`resolveIdentity`,
+  `lib/git/identity.ts`), and the seam stores that slug as the owner (`spec-seam-record-kinds.md` § 4). The fallback
+  makes one person's slug differing between machines likelier. An email stays excluded.
+
+- _Approach:_ correct the entry's premise, and weigh the fallback when deciding split-identity detection.
+
+- _Captured during:_ `storage-seam` draft close, 2026-10-09.
+
 ---
 
 ### `[ ]` **Short identity (`arc.identity.short`) for rendered surfaces**
@@ -127,6 +142,46 @@
 - _Approach:_ Add the designation to § Coordination — `state-storage`, beside the `.local/` tier: which configuration
   tier holds it (per clone, so likely `.local/`), and how `arc init` and the fork prompt write it. Settle it before
   `storage-ref-backend` builds the designation.
+
+### `[ ]` **Keep the state remote's designation in Git config, outside the move of `arc.*` preferences into files**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its inbound entry "Decide where the state remote's per-clone designation lives".
+
+- _Observation:_ `storage-ref-backend` settles that entry's question. The designation is a fact about Git's remotes and
+  must never sync, so it stays in Git config, outside this work unit's move of the `arc.*` preferences into files; the
+  ref backend builds it and reads it before sync reaches a remote (`draft-storage-ref-backend.md` § Decisions,
+  Ownership and Layouts and remotes).
+
+- _Approach:_ record the answer at that entry, and leave the designation out of the move.
+
+- _Drain note (2026-10-11):_ this settles the held entry above against its lean (`.local/`); integrate it as
+  that entry's answer.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Let a person designate where their own personal state publishes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Decide where the state remote's per-clone designation lives" — a designation per
+  scope extends the per-clone one, and this work unit owns user-scope configuration.
+
+- _Observation:_ on the ref backend's default layout, identity-scope refs — `USER-INBOX`, `WORKING-MEMORY`, scratch,
+  claims, the Errand queue — publish with project state, since D14 designates one state remote per clone. A team member
+  therefore cannot keep their personal state off the team's remote. The principled form is a designation per scope:
+  the project's remote is the project's call, and the person's — the code remote by default, a remote of their own, or
+  none — is theirs. The hard part is privacy: kept in the code repository's refs, personal refs share a transaction
+  with project refs but a mirror push still publishes them; in a separate Git directory they are private, but a batch
+  across both cannot commit atomically. The backend composes its push set by scope, so the designation lands
+  additively (`draft-storage-ref-backend.md` § Decisions, The version model).
+
+- _Approach:_ a deferred follow-on, provisional, likely in the `configuration` cohort beside
+  `config-storage-architecture`, which owns user-scope configuration; its tripwire is a person asking to keep personal
+  state off a shared remote.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
 ## Problem / Motivation
 
