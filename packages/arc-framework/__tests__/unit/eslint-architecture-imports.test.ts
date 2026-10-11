@@ -29,6 +29,15 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it("keeps task-list registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { TASK_LIST_REGISTRATION } from "../lib/store/kinds/task-list/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/task-list/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { TASK_LIST_REGISTRATION } from "./task-list/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseTaskListRecord } from "../lib/store/kinds/task-list/index.js";', "store-raw-state")).toEqual([]);
+  });
   it("keeps lineage registration behind the store while exposing its pure codec", () => {
     expect(violations("handlers/outside.ts",
       'import { LINEAGE_REGISTRATION } from "../lib/store/kinds/lineage/registration.js";', "store-raw-state"))

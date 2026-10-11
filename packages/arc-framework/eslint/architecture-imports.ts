@@ -48,6 +48,7 @@ const RAW_STATE_MODULES = [
   "lib/store/kinds/registrations.ts",
   "lib/store/kinds/meta/registration.ts",
   "lib/store/kinds/lineage/registration.ts",
+  "lib/store/kinds/task-list/registration.ts",
   "lib/store/kinds/meta/line-reading.ts",
   "lib/active/meta-reader.ts",
   "lib/work-unit/lifecycle-index.ts",

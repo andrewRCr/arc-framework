@@ -362,17 +362,10 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
 - _Context:_ `lib/task-list/` stays the kind's public parsing library: the cursor (`resolveTaskListCursor`) and the
   other derived views stay where they are, and readers run them over the content a read returns.
 
-    - `[ ]` **4.1.a Register the task-list parser**
-        - `{ design: string | null }`: the filename in the header's `- **Design:**` bullet above the first phase
-          heading, backticks stripped, or `null` when absent; the parser never refuses.
-        - The kind's registration module builds its registration through `defineKindRegistration` and joins
-          `RAW_STATE_MODULES`, as the meta's does; the registration joins `registrations.ts`.
-        - Build `test-first` (one behavior at a time):
-            - the header's `Design` parses with its backticks stripped
-            - a `Design` line below the first phase heading is not read
-            - a list with no `Design` parses to `null`
-            - a list today's scanner rejects still parses
-            - a task list read and listed through the in-repo fixture's store carries its parsed `design`
+    - `[x]` **4.1.a Register the task-list parser**
+        - The production parser reads the header's Design reference above the first phase and always admits content,
+          including scanner-refused archived lists. Tracked reads and listings carry the parsed design; registration
+          stays behind the raw-state boundary while the pure parser is public.
 
     - `[ ]` **4.1.b Write the marker writer**
         - Sets `[x]` or `[~]` on one task line named by its identifier — a parent heading or a subtask bullet — found
