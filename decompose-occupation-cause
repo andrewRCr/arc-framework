@@ -3,7 +3,7 @@
   "slug": "decompose-occupation-cause",
   "claimId": "19a85c45ca96741cf6490d62ec20488e",
   "createdAt": "2026-10-10T23:09:12.001Z",
-  "updatedAt": "2026-10-10T23:09:12.001Z",
+  "updatedAt": "2026-10-11T00:22:59.900Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Preserve and render concrete causes when decompose preparation catches occupation or post-occupation revalidation failures, with repaired retries.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep the cause when decompose turns an occupation failure into `occupation-failed`",
   "originEntrySourceDigest": "sha256:89526e4a00319a9a843fed5ac2ad35b31b0376486cc916d35a0820c815324972",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/decompose-occupation-cause",
+    "headSha": "601320a9722d2ae17accc9eb476af4809b5932a7"
+  }
 }
