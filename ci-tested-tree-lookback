@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "ci-tested-tree-lookback",
+  "claimId": "ddeb32558bac967f421ce88436a773ff",
+  "createdAt": "2026-10-11T00:14:21.654Z",
+  "updatedAt": "2026-10-11T00:14:21.654Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make CI's verified-tree lookback match the tree a pull-request run actually tested",
+  "branch": "chore/ci-tested-tree-lookback",
+  "origin": "inbox",
+  "originEntry": "Make CI's verified-tree lookback match the tree a pull-request run actually tested",
+  "originEntrySourceDigest": "sha256:0993cbd71623895071227b6c8e9be91481b60c4179c31c7a03dd7f2b5e68fa57",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
