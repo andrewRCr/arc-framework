@@ -478,14 +478,13 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
         - Its check-only production registration composes both shared rules and returns both violations when a write
           breaks both. The registration joins the raw-state boundary, with its outside-store import refused.
 
-### `[ ]` **6.R Keep the meta parser/writer and check branches separate — § 1.2 (A1)**
+### `[x]` **6.R Keep the meta parser/writer and check branches separate — § 1.2 (A1)**
 
 - _Goal:_ A1's runtime boundary admits the meta reader's existing helper entry points and refuses static check and
   registration imports and re-exports, with the helpers and checks retaining separate runtime dependency closures.
 
-    - Narrow the native lint row to `writers`, `projection`, `empty-record`, `line-reading`, and `preformatted-writer`.
-    - Build `test-first`: native lint refuses check imports and check or registration re-exports, and admits the helper
-      entry points. Probe the helper dependency closure; re-probe the check closure when the meta check is registered.
+- _Outcome:_ Native lint permits only the five helper entry points for static store imports and re-exports. The helper
+  closure and the shared-rule closure contain no parser, registration, or backend back-edge.
 
 ### `[ ]` **6.2 The meta's check — § 3.3, § 3.6, § 4, § 5.3, § 5.4**
 
@@ -536,6 +535,7 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
         - `meta.inbound-held`: a write moving a work unit to `Integrating` or to the archive while its inbound list,
           read through `after` and split by the given entry grammar, holds an entry; no grammar admits.
         - The meta's registration carries the check, running the nine rules and the shared slug rules.
+        - Confirm the registered check's runtime closure reaches no meta parser, production registration, or backend.
         - Build `test-first` (one behavior at a time):
             - under a stub grammar, an entry held at `Integrating` and at archive refuses
             - an empty or missing inbound list admits

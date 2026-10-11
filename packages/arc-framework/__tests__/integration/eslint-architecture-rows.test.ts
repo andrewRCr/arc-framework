@@ -220,3 +220,25 @@ describe("actual architecture table enforcement", () => {
   });
 
 });
+
+describe("meta check boundary", () => {
+  it.each([
+    'import { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export * from "../store/kinds/meta/registration.js";',
+  ])("refuses a static check or registration edge: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId, message }) => ruleId === "no-restricted-syntax"
+      && message === "Keep the store delegate dynamic")).toBe(true);
+  });
+  it.each(["writers", "projection", "empty-record", "line-reading", "preformatted-writer"])(
+    "admits the helper entry point %s", async (name) => {
+      for (const text of [`import "../store/kinds/meta/${name}.js";`, `export * from "../store/kinds/meta/${name}.js";`]) {
+        const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+        expect(result?.fatalErrorCount).toBe(0);
+        expect(result?.messages.filter(({ ruleId }) => ruleId === "no-restricted-syntax")).toEqual([]);
+      }
+    },
+  );
+});

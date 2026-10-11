@@ -1255,6 +1255,6 @@ completed placement (§ 8.2).
 ## Amendments
 
 - **A1** — 2026-10-11 — design: isolate meta checks from the parser/writer dependency branch.
-  _Supersedes:_ § 1.2 runtime boundary. _Trigger:_ 6.2 must-stop. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
+  _Supersedes:_ § 1.2 runtime boundary. _Trigger:_ 6.2 must-stop. _Work:_ 6.R. _Revalidated:_ 6.R.
 
 ---
