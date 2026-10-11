@@ -70,32 +70,19 @@ the remote state too, holds that state's queue only while it compares and publis
         - An integration registration substitution exercises acceptance and rejection through the fixture's public
           store, alongside the unchanged tracked-read and lifecycle-index cases.
 
-### `[ ]` **1.3 A check's broken rules compose one refusal under the derived writer — § 3.2, § 3.4**
+### `[x]` **1.3 A check's broken rules compose one refusal under the derived writer — § 3.2, § 3.4**
 
 - _Goal:_ Given a write's provenance and every record's broken rules in write order, a backend that runs checks derives
   the writer and composes the one `record-malformed` refusal § 3.4 specifies, from one module every such backend uses.
 
-    - `[ ]` **1.3.a Export `HAND_EDIT_VERBS` and derive the writer from provenance**
-        - `HAND_EDIT_VERBS = ["write-back", "save"]` exported from `lib/store/links.ts` beside
-          `CallerProvenanceSchema`.
-        - A derivation in `lib/store/write-check.ts` from caller provenance to the check's writer: a verb in
-          `HAND_EDIT_VERBS` reads as a hand edit, any other as itself; no provenance field is added.
-        - Build `test-first` (one behavior at a time):
-            - `write-back` and `save` derive a hand edit
-            - any other verb, `sync` included, derives itself
+    - `[x]` **1.3.a Export `HAND_EDIT_VERBS` and derive the writer from provenance**
+        - Exported the two hand-edit persistence verbs beside provenance and added `deriveWriteCheckWriter`.
+          Unit cases distinguish them from ordinary verbs, sync, and names merely sharing a prefix.
 
-    - `[ ]` **1.3.b Compose the refusal from every record's broken rules**
-        - In `lib/store/write-check.ts`. Input: each written record's reference with the rules its check returned, in
-          the batch's write order.
-        - Output: `record-malformed` naming as its `rule` the first broken rule in identifier order (UTF-8 byte order)
-          and as its `reference` the first record in write order breaking it, with that rule's condition and remedy;
-          the condition states how many other (record, rule) pairs the write breaks. An empty result admits.
-        - Build `test-first` (one behavior at a time):
-            - one record breaking one rule refuses with that rule, record, condition, and remedy
-            - several rules choose the first in byte order, not check order
-            - several records choose the first in write order breaking the chosen rule
-            - the condition counts every other (record, rule) pair
-            - no broken rule admits
+    - `[x]` **1.3.b Compose the refusal from every record's broken rules**
+        - Added `composeWriteCheckRefusal`: chooses the first rule in UTF-8 byte order and its first breaking record
+          in write order, preserving the condition and remedy and counting all other record/rule pairs.
+        - Unit cases cover ordering, tied records, counts, single violations, and admission with no broken rules.
 
 ### `[ ]` **1.4 The reference backend refuses a registered check's breaking write and batch — § 3.4, § 3.5, § 11.3**
 
