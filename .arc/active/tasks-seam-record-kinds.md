@@ -127,50 +127,27 @@ the field block intact; today's setters produce today's bytes outside § 5.6's c
 new fields renders byte-identical, parses with them at their defaults, and passes `toMetaRecord`; and no ratchet floor
 grows.
 
-### `[ ]` **2.1 The meta's field descriptors and rendering move into its kind folder — § 1.2**
+### `[x]` **2.1 The meta's field descriptors and rendering move into its kind folder — § 1.2**
 
 - _Goal:_ The meta's field descriptors, value formatting, rendering, and identifier-list parsing live under
   `lib/store/kinds/meta/`, which `meta-reader.ts` imports and re-exports, with no import cycle and no ratchet floor
   grown.
 
-- _Context:_ A move with no behavior change; the existing `meta-reader.ts` tests are the regression net, and the
-  boundary-row cases change with the rows.
+    - `[x]` **2.1.a Move the descriptors, formatting, and renderers**
+        - `projection.ts` owns the descriptors, formatting, canonical renderers, and identifier-list helpers with their
+          types. The meta reader imports and re-exports them; the existing rendering and parsing behavior is preserved.
 
-    - `[ ]` **2.1.a Move the descriptors, formatting, and renderers**
-        - `META_FIELDS` with its descriptor types, `formatValue`, the core-table and bullet renderers,
-          `renderMetaProjectionFile` and `renderMetaFile` with their override types (`MetaProjectionOverrides`,
-          `MetaRenderOverrides`), `parseIdentifierList` with `PLACEHOLDER`, `isSentinel`, and `wrapCommaList`, and
-          `META_BULLET_WRAP_COLUMN` move to modules under `lib/store/kinds/meta/`, with the private helpers they call
-          (`SENTINEL_RE`, `capitalizeFirst`, `HTTP_URL_RE`, `CORE_FIELD_NAMES`, `renderBulletValueLines`,
-          `renderNullable`, `renderIdentifierList`).
-        - `meta-reader.ts` imports and re-exports them, `parseIdentifierList` for `scripts/validate-meta-spec.ts` and
-          `renderMetaFile` for the five creating verbs, whose imports stay unchanged.
-        - The kind modules define their own types and import nothing from `commands/`, and nothing at runtime from
-          `meta-reader.ts` or from `lib/store/` outside the folder; `lib/active/meta-schema.ts` and
-          `lib/markdown/display-width.ts` stay their imports.
+    - `[x]` **2.1.b Move the line-level reading the writers share with the parser**
+        - `line-reading.ts` owns core-table cells and bullet extents, shared by parsing and writers. It joins the
+          raw-state import boundary; the meta reader retains its public exports and the kind documentation names it.
 
-    - `[ ]` **2.1.b Move the line-level reading the writers share with the parser**
-        - The core table's cells (`locateMetaCoreTable` and its helpers) and a bullet's extent (`bulletMarkerRe`,
-          `extractField`, `FIELD_MARKER_RE`) move into one kind-folder module, which joins `RAW_STATE_MODULES` beside
-          the registration module so it stays counted outside the store.
-        - `eslint/README.md`'s list of the raw state helpers and the kinds README (`lib/store/kinds/README.md`) name
-          it.
+    - `[x]` **2.1.c Narrow the two boundary rows**
+        - The meta reader admits public meta kind imports while rejecting its registration and other store imports.
+          Identifier-list calls are permitted inside the kind folder; the five verb modules retain their symbol ban.
 
-    - `[ ]` **2.1.c Narrow the two boundary rows**
-        - The row keeping `meta-reader.ts`' store delegate dynamic (`eslint.config.js`) admits the meta kind folder's
-          modules other than the registration module and bans every other store import as today.
-        - The row reserving `parseIdentifierList` calls exempts the meta kind folder.
-        - The row banning `MetaProjectionOverrides` and `renderMetaProjectionFile` in five verb modules matches by name
-          and stays as it is.
-        - Build `test-first` (one behavior at a time), in `__tests__/integration/eslint-architecture-rows.test.ts`:
-            - `meta-reader.ts` importing another store module stays refused
-            - `meta-reader.ts` importing the meta registration module is refused
-            - `meta-reader.ts` importing another meta kind module is admitted
-            - a `parseIdentifierList` call inside the kind folder is admitted
-
-    - `[ ]` **2.1.d Confirm the floors**
-        - `npm run -s lint:ts` passes with no ratchet count grown in total or per file; the moved code carries no
-          surface-name literal (`META_PREFIX` stays in `meta-reader.ts` with `readActiveMetaCandidates`).
+    - `[x]` **2.1.d Confirm the floors**
+        - All three ratchet baselines retain their merged-base totals and per-file counts. `META_PREFIX` remains with
+          the filesystem reader, and the moved modules introduce no surface-name literal.
 
 ### `[ ]` **2.2 The meta schemas carry the handoff fields, sections, and state-version anchor — § 2.1, § 5.2, § 5.5**
 

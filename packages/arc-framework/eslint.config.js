@@ -57,12 +57,17 @@ const architectureBans = [
   },
   {
     files: [`src/${TYPESCRIPT_SCOPE}`],
-    ignores: [src("lib/active/meta-reader.ts"), src("scripts/validate-meta-spec.ts")],
+    ignores: [src("lib/active/meta-reader.ts"), src("scripts/validate-meta-spec.ts"), subtree("lib/store/kinds/meta")],
     syntax: [{ selector: 'CallExpression[callee.name="parseIdentifierList"]', message: "Read identifier lists through their owner" }],
   },
   {
     files: [src("lib/active/meta-reader.ts")],
-    syntax: [{ selector: 'ImportDeclaration[source.value=/\\/store\\//]', message: "Keep the store delegate dynamic" }],
+    syntax: [
+      { selector: 'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\//])',
+        message: "Keep the store delegate dynamic" },
+      { selector: 'ImportDeclaration[source.value=/\\/store\\/kinds\\/meta\\/registration\\.js$/]',
+        message: "Keep the store delegate dynamic" },
+    ],
   },
   {
     files: ["lib/errand/promote.ts", "lib/git/worktree-scaffold.ts", "lib/work-unit/pointer-record.ts",

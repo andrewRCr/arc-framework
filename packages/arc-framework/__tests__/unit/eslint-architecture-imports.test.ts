@@ -32,6 +32,7 @@ describe("raw state helper ratchet", () => {
   it.each([
     ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
+    ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
