@@ -464,15 +464,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - _Goal:_ `work-item.former-slug` and `work-item.slug-edges` refuse a creation or rename taking a slug they guard, from
   `lib/store/kinds/work-item/`, and the Errand record registers a check running both.
 
-    - `[ ]` **6.1.a Build `work-item.former-slug`**
-        - Refuses a creation or rename giving a work item a slug that `before` resolves to another record, by UID,
-          whose current name differs: that record's former slug. In `after` the written record holds the slug itself,
-          so `lookup` there no longer resolves it to its earlier holder alone.
-        - Build `test-first` (one behavior at a time):
-            - a creation taking another record's former slug refuses
-            - a rename taking one refuses
-            - a record renamed back onto its own former slug admits
-            - a creation taking an unused slug admits
+    - `[x]` **6.1.a Build `work-item.former-slug`**
+        - The pure rule resolves acquired names against `before`, protecting another generation's former slug while
+          admitting an own former name. Prior primary identity establishes rename independently of parsed fields;
+          unavailable identity observations refuse with a retry remedy rather than proving absence.
 
     - `[ ]` **6.1.b Build `work-item.slug-edges`**
         - Refuses a creation or rename giving a work item a slug that a non-archived work unit's `Depends On` named, in

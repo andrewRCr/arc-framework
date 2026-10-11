@@ -19,3 +19,6 @@ Registration modules remain behind the store's raw-state import boundary; schema
 offset reader used by status's sentence presentation.
 
 `cohort/` exposes Purpose and the authoritative Parent slug, with structural refusals retained by its registration.
+
+`work-item/` contains the slug acquisition and former-name rules shared by primary record kinds.
+`rule-support.ts` preserves available, absent, and unavailable read evidence for content checks.
