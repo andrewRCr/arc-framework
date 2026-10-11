@@ -1,6 +1,7 @@
 # Roadmap: Project Status
 
 > **Generated from meta files — re-render at ceremony boundaries.**
+> Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,16 +13,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on                 | Cohort        |
-| ------------- | ------------------------------- | -------- | ------ | -------------------------- | ------------- |
-| `Planning`    | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage |
-| `Planning`    | storage-ref-backend             | P1       | andrew | seam-record-kinds          | state-storage |
-| `Integrating` | seam-record-kinds               | P1       | andrew | —                          | storage-seam  |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                          | —             |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                          | —             |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                          | —             |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                          | —             |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                          | —             |
+| State      | Work unit                       | Priority | Owner  | Depends on                 | Cohort        |
+| ---------- | ------------------------------- | -------- | ------ | -------------------------- | ------------- |
+| `Planning` | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage |
+| `Planning` | storage-ref-backend             | P1       | andrew | —                          | state-storage |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                          | —             |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                          | —             |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                          | —             |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                          | —             |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                          | —             |
 
 ## Ready
 
@@ -33,6 +33,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
+| seam-decomposition                  | P1       | andrew | —          | storage-seam               |
+| seam-delivery-review                | P1       | andrew | —          | storage-seam               |
+| seam-lifecycle                      | P1       | andrew | —          | storage-seam               |
+| seam-locus                          | P1       | andrew | —          | storage-seam               |
+| seam-status-roadmap                 | P1       | andrew | —          | storage-seam               |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
@@ -100,47 +105,42 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
-| review-activity-contracts     | P1       | andrew | review-source-authority       | review-protocol-alignment  |
-| seam-decomposition            | P1       | andrew | seam-record-kinds             | storage-seam               |
-| seam-delivery-review          | P1       | andrew | seam-record-kinds             | storage-seam               |
-| seam-lifecycle                | P1       | andrew | seam-record-kinds             | storage-seam               |
-| seam-locus                    | P1       | andrew | seam-record-kinds             | storage-seam               |
-| seam-status-roadmap           | P1       | andrew | seam-record-kinds             | storage-seam               |
-| unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
-| documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows          | agent-context-optimization |
-| workflow-template-loads       | P3       | andrew | composable-workflows          | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh             | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine | —                          |
+| Work unit                     | Priority | Owner  | Depends on                                                                                                                         | Cohort                     |
+| ----------------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| review-activity-contracts     | P1       | andrew | review-source-authority                                                                                                            | review-protocol-alignment  |
+| storage-cutover               | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, seam-lifecycle, seam-locus, seam-status-roadmap | state-storage              |
+| roadmap-tooling               | P1       | andrew | seam-status-roadmap                                                                                                                | —                          |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                                                                                  | approval-flow-refinement   |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                                               | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | composable-workflows                                                                                                               | agent-context-optimization |
+| workflow-template-loads       | P3       | andrew | composable-workflows                                                                                                               | principle-anchored-core    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                                                  | release-readiness          |
+| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                                                                                                      | —                          |
+| errand-launchpads             | P3       | andrew | seam-locus                                                                                                                         | —                          |
 
 ### Depth 2
 
-| Work unit                | Priority | Owner  | Depends on                                                                                                                                            | Cohort                    |
-| ------------------------ | -------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                                                             | review-protocol-alignment |
-| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-decomposition, seam-delivery-review, seam-lifecycle, seam-locus, seam-record-kinds, seam-status-roadmap | state-storage             |
-| roadmap-tooling          | P1       | andrew | seam-status-roadmap                                                                                                                                   | —                         |
-| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                                                                    | release-readiness         |
-| errand-launchpads        | P3       | andrew | seam-locus                                                                                                                                            | —                         |
+| Work unit                       | Priority | Owner  | Depends on                | Cohort                    |
+| ------------------------------- | -------- | ------ | ------------------------- | ------------------------- |
+| review-request-contracts        | P1       | andrew | review-activity-contracts | review-protocol-alignment |
+| delivery-correction-convergence | P1       | andrew | storage-cutover           | —                         |
+| delivery-observe-attest         | P1       | andrew | storage-cutover           | —                         |
+| wu-lifecycle-state-model        | P1       | andrew | storage-cutover           | —                         |
+| naming-conventions              | P2       | andrew | storage-cutover           | doc-conventions           |
+| errand-promotion-concurrency    | P2       | andrew | storage-cutover           | —                         |
+| framework-core-from-package     | P2       | andrew | storage-cutover           | —                         |
+| ghost-mode                      | P2       | andrew | storage-cutover           | —                         |
+| goal-aware-direction            | P2       | andrew | storage-cutover           | —                         |
+| history-policy                  | P2       | andrew | storage-cutover           | —                         |
+| operational-state-docs          | P2       | andrew | storage-cutover           | —                         |
+| wu5-public-release              | P3       | andrew | docs-content-sweep        | release-readiness         |
+| shared-inbox-model              | P3       | andrew | storage-cutover           | —                         |
 
 ### Depth 3
 
-| Work unit                       | Priority | Owner  | Depends on               | Cohort           |
-| ------------------------------- | -------- | ------ | ------------------------ | ---------------- |
-| delivery-correction-convergence | P1       | andrew | storage-cutover          | —                |
-| delivery-observe-attest         | P1       | andrew | storage-cutover          | —                |
-| wu-lifecycle-state-model        | P1       | andrew | storage-cutover          | —                |
-| delivery-review-cardinality     | P2       | andrew | review-request-contracts | chunked-delivery |
-| naming-conventions              | P2       | andrew | storage-cutover          | doc-conventions  |
-| errand-promotion-concurrency    | P2       | andrew | storage-cutover          | —                |
-| framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
-| ghost-mode                      | P2       | andrew | storage-cutover          | —                |
-| goal-aware-direction            | P2       | andrew | storage-cutover          | —                |
-| history-policy                  | P2       | andrew | storage-cutover          | —                |
-| operational-state-docs          | P2       | andrew | storage-cutover          | —                |
-| shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
+| Work unit                   | Priority | Owner  | Depends on               | Cohort           |
+| --------------------------- | -------- | ------ | ------------------------ | ---------------- |
+| delivery-review-cardinality | P2       | andrew | review-request-contracts | chunked-delivery |
 
 ---
 
