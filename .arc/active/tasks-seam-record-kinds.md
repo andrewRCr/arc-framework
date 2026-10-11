@@ -336,10 +336,15 @@ written.
   compatibility reader. Until landing, the base's version-1 records cannot establish user-reference or stored-delivery
   authority in this checkout; no delivery plan is stored.
 
-### `[ ]` **3.3 Every producer and reader is on the final shape** — validate exit criterion at segment scope
+### `[x]` **3.3 Every producer and reader is on the final shape** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion is shown against the enumerated surface — every listed module and test on
   version 2, the live test green, and `lint:ts` floors unchanged — with the scenario and its result recorded.
+
+- _Outcome:_ The scenario exhausted the 14 production modules and 31 fixture files, with no legacy codec or importer
+  remaining, then exercised producer output, store codecs and lookup, live-record enumeration, and dependent queries.
+  All 14 records preserve their parsed lineage facts and round-trip byte-identically; the suppression record is
+  unchanged from the merged base, and the complete switch's unit, integration, and end-to-end coverage passes.
 
 ## **Phase 4:** The task-list, draft, spec, and companion kinds
 
