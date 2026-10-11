@@ -709,7 +709,7 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("reconciles a substantive overlap the host would merge, leaving its review residual for the new head", async () => {
+  it("reconciles a substantive overlap the host would merge, carrying its review to the new head", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => composeErrandFinalPlan({
       target: approvedTarget,
@@ -725,16 +725,11 @@ describe("Errand merge operation", () => {
       admission: directPlan().observation.admission,
     });
 
-    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+    const result = await mergeErrand(request, value);
+    expect(result).toMatchObject({
       state: "reconcile-base",
       nextAction: "reconcile-base",
       detail: expect.stringContaining("overlapping"),
-      applicability: {
-        verdict: "supplemental",
-        residual: ["eslint.config.js"],
-        reason: "bounded-overlap",
-        judgmentRequired: true,
-      },
       continuation: {
         kind: "remedy",
         remedy: {
@@ -746,6 +741,8 @@ describe("Errand merge operation", () => {
         },
       },
     });
+    // The merge combines both sides without a conflict, so no review residual passes to the reconciled head.
+    expect(result).not.toHaveProperty("applicability");
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 

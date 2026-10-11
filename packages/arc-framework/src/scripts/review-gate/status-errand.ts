@@ -9,7 +9,7 @@ import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js
 import { analyzeRevisionOverlap, resolveSoleMergeBase } from "../../lib/git/base-overlap.js";
 import type { GitExec, RawGitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
-import { resolveIdentity } from "../../lib/git/index.js";
+import { observeGitMergeFeasibility, resolveIdentity } from "../../lib/git/index.js";
 import { canonicalize } from "../../lib/kernel/index.js";
 import type { ReviewResultReader } from "./core/ports.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
@@ -51,7 +51,7 @@ import type { StandardReviewObligationProjection } from "./policy/standard-revie
 import { HostedErrandCorrectionError } from "./runtime/review-policy-remedy.js";
 import type { RoutedReviewObligation } from "./status.js";
 import {
-  BaseMovementObservationSchema, composeEvidenceDelta, reduceEvidenceApplicability,
+  BaseMovementObservationSchema, classifyPathTreatment, composeEvidenceDelta, reduceEvidenceApplicability,
   type BaseMovementObservation,
 } from "../../lib/evidence-applicability/index.js";
 
@@ -527,8 +527,9 @@ async function resolveErrandLaneAtHead(input: {
  * Carry a settled earlier head's standard review onto a head that reconciled it with its base.
  *
  * Every fact must hold: the earlier head's lane converged; the current head reapplies that reviewed contribution
- * unchanged over its own diff base; and neither the base movement the reconcile absorbed nor any movement since
- * overlaps the reviewed paths. The earlier result keeps its own head; only this status reports the carry.
+ * unchanged over its own diff base; the base movement the reconcile absorbed either avoids the reviewed paths or
+ * merges with the reviewed change without a substantive conflict; and no movement since overlaps the reviewed
+ * paths. The earlier result keeps its own head; only this status reports the carry.
  *
  * @returns A settled obligation naming the carried head and proof, or null when any fact is unproved.
  */
@@ -589,6 +590,10 @@ async function readCarriedErrandReview(input: {
       repository: target.repository, changeRequest: pullRequest, base: diffBase.mergeBase, head: priorHead,
     },
     overlap: absorbed.overlap,
+    merge: await observeGitMergeFeasibility({
+      exec: input.rawExec, base: diffBase.mergeBase, head: priorHead,
+      classify: (path) => classifyPathTreatment(path),
+    }),
   });
   const context = { target, pullRequest };
   if (!await reviewCoversCurrentBase(exec, result.target, diffBase.mergeBase, input.currentBaseRef,
@@ -606,7 +611,7 @@ async function readCarriedErrandReview(input: {
   return policy.state !== "pass-complete" ? null : {
     state: "settled",
     detail: `The standard review of ${priorHead} carries to this head by ${contribution.proof}: it reapplies `
-      + "that reviewed change, and no base movement overlaps it.",
+      + "that reviewed change, and no base movement conflicts with it.",
   };
 }
 
