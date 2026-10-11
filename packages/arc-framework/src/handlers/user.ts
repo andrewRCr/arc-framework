@@ -383,6 +383,8 @@ export async function handleUserClose(wuName: string): Promise<void> {
   p.outro("Done.");
 }
 
+export { handleUserInboxList, type UserInboxListCommandOptions } from "./user-inbox-list.js";
+
 /** Options for the `arc user inbox-remove` subcommand. */
 export interface UserInboxRemoveOptions {
   /** UTF-8 file containing the capture's inner bold title, or `-` for stdin. */
