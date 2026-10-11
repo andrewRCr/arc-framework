@@ -8,3 +8,7 @@ succeeds, including archived lists whose task lines do not satisfy the current s
 
 `writeTaskMarker` completes or defers exactly one scanned task by identifier, preserving all other bytes. It refuses
 malformed lists, missing or ambiguous identifiers, and edits that leave the task structure invalid.
+
+`spliceDeliveryPlanSection` replaces one marked region, or one provisional unmarked Delivery Plan section, with
+already-rendered text. Its sentinels and replacement-locus refusals belong to the kind; plan validation and rendering
+remain with delivery.

@@ -353,14 +353,11 @@ parsed fields.
 
 _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, writers, and check settled.
 
-### `[ ]` **4.1 The task-list kind: parser, marker writer, and delivery-plan splice — § 6.1–§ 6.5**
+### `[x]` **4.1 The task-list kind: parser, marker writer, and delivery-plan splice — § 6.1–§ 6.5**
 
 - _Goal:_ The task list registers a parser that reads its header's `Design` and refuses nothing a stored list holds,
   and exports the close verb's marker writer and the delivery plan's splice, which delivery's renderer calls, each
   changing only its own lines.
-
-- _Context:_ `lib/task-list/` stays the kind's public parsing library: the cursor (`resolveTaskListCursor`) and the
-  other derived views stay where they are, and readers run them over the content a read returns.
 
     - `[x]` **4.1.a Register the task-list parser**
         - The production parser reads the header's Design reference above the first phase and always admits content,
@@ -372,25 +369,10 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
           line endings and a missing final newline. Fenced and delivery-plan examples are excluded; malformed inputs,
           missing or duplicate identifiers, and scanner-invalid results throw.
 
-    - `[ ]` **4.1.c Move the delivery-plan splice into the kind**
-        - The region logic of `replaceDeliveryPlanSection` (`lib/delivery/task-list-render.ts`) moves into the kind
-          folder as the splice, with the two marker constants (`DELIVERY_PLAN_START_SENTINEL`,
-          `DELIVERY_PLAN_END_SENTINEL`), which `task-list-render.ts`, `lib/delivery/entry-inspection.ts`, and
-          `__tests__/unit/delivery/entry-inspection.test.ts` import from there.
-        - Given a list and a rendered section, the splice replaces the content between the `arc:delivery-plan`
-          markers, or, in a list with none, the one unmarked `## Delivery Plan` section up to the next section or phase
-          heading, and returns today's result: the new content, or a refusal naming `replacement-locus-missing`,
-          `replacement-locus-duplicate`, or `replacement-locus-malformed`.
-        - `replaceDeliveryPlanSection` keeps validating the plan and rendering it (`renderDeliveryPlanSection`), then
-          calls the splice; `task-list-render.test.ts` and `delivery-task-list-render.test.ts` pass unchanged.
-        - Build `test-first` (one behavior at a time):
-            - a marked region is replaced, the bytes before its start marker and after the blank lines following its
-              end marker unchanged
-            - an unmarked `## Delivery Plan` section is replaced up to the next section or phase heading
-            - a list with neither refuses `replacement-locus-missing`, and two unmarked sections
-              `replacement-locus-duplicate`
-            - an unpaired marker, and an unmarked section in a list the scanner rejects, refuse
-              `replacement-locus-malformed`
+    - `[x]` **4.1.c Move the delivery-plan splice into the kind**
+        - spliceDeliveryPlanSection owns marked and provisional section replacement, exact sentinel constants, and
+          the existing replacement-locus refusals. Delivery validates and renders the plan before calling it; entry
+          inspection imports the sentinels from the kind. Existing renderer coverage retains its behavior.
 
 ### `[ ]` **4.2 Drafts, specs, and companions share one Purpose reader — § 9**
 
