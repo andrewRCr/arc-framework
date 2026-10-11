@@ -495,19 +495,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
   imports from `scripts/` or `commands/` (§ 1.2), and `scripts/validate-meta-spec.ts` keeps its validators as they
   are.
 
-    - `[ ]` **6.2.a Build the authority and shape rules**
-        - `meta.verb-owned-field`: a hand edit creating or removing a meta, or changing `State`, `Class`, or
-          `Current Workflow`.
-        - `meta.field-block`: the field block's shape (`validateMetaFieldBlockShape`), an unset or invalid parsed
-          `State` (`WorkUnitStateSchema`), a missing `Design` line, and a second `State`, `Design`, or `Cohort` bullet,
-          counted through the kind folder's line-level module — today's `validateSpec`, `validateLifecycleFields`, and
-          `validateCohort` conditions.
-        - `meta.durable-fields`: a new or changed field the durable schema rejects, or an `Owner` that is no identity
-          slug (`SlugSchema`).
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - the authority rule is silent for a verb writer
-            - an unparseable prior admits the integrity and authority rules' fields and still runs the shape rules
+    - `[x]` **6.2.a Build the authority and shape rules**
+        - Authority protects meta creation/removal and changed State, Class, or Current Workflow. Shape rules compare
+          field-block facts and changed durable values through the existing schemas; Owner also requires an identity
+          slug. An unparseable prior admits field authority while both shape rules judge the repair whole.
 
     - `[ ]` **6.2.b Build the reference rules**
         - `meta.depends-on`: a new or changed edge resolving in `after` to no record, or — a live record first — to

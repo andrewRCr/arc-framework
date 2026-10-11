@@ -11,3 +11,8 @@
 `registration.ts` installs the tolerant meta parser and declares its state-version handoff anchor. Parsed and durable
 field schemas live in `lib/active/meta-schema.ts`; the filesystem reader and parser expose their public API through
 `lib/active/meta-reader.ts`.
+
+`authority-rules.ts` guards hand edits of record lifecycle and verb-owned fields. `shape-rules.ts` judges new field-block
+problems and changed durable values, including the identity-slug Owner. `check-support.ts` narrows field versions while
+preserving creation versus an unparseable prior: field authority admits without readable prior values, and shape
+rules judge that repair whole. These modules form a separate dependency branch from the parser and writers.
