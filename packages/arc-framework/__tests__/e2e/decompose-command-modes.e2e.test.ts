@@ -18,6 +18,7 @@ import {
   runArcNoTty,
   type RunResult,
 } from "./helpers.js";
+import { decodeV3DecomposeCutMap } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
@@ -599,18 +600,25 @@ describe("arc decompose command modes", () => {
       }
       const invalid = JSON.parse(validBytes) as { authoring: { shape: string } };
       invalid.authoring.shape = "bogus";
-      await writeFile(cutMapPath, `${canonicalize(invalid)}\n`);
-      const before = await repositorySnapshot(repo);
-      const result = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
-      const refusal = parseSingleDecomposeRefusal(result);
-      expect(refusal).toMatchObject({
-        status: "refused", reason: "map:invalid-structure", locus: "authoring.shape",
-        message: expect.stringContaining("Invalid option"),
-        remedy: { argv: ["arc", "decompose", "origin", mode, cutMapPath] },
-      });
-      expect(refusal.remedy.text).toContain(refusal.message);
-      expect(refusal.remedy.text).toContain("authoring.shape");
-      expect(await repositorySnapshot(repo)).toEqual(before);
+      const rootExtra = { ...JSON.parse(validBytes) as Record<string, unknown>, extra: true };
+      for (const [value, locus] of [
+        [null, cutMapPath], [[], cutMapPath], [rootExtra, cutMapPath], [invalid, "authoring.shape"],
+      ] as const) {
+        const decoded = decodeV3DecomposeCutMap(value);
+        if (decoded.status !== "rejected") throw new Error("invalid fixture");
+        await writeFile(cutMapPath, `${canonicalize(value)}\n`);
+        const before = await repositorySnapshot(repo);
+        const result = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
+        const refusal = parseSingleDecomposeRefusal(result);
+        expect(refusal).toMatchObject({
+          status: "refused", reason: "map:invalid-structure", locus,
+          message: decoded.issue.message,
+          remedy: { argv: ["arc", "decompose", "origin", mode, cutMapPath] },
+        });
+        expect(refusal.remedy.text).toContain(refusal.message);
+        expect(refusal.remedy.text).toContain(locus);
+        expect(await repositorySnapshot(repo)).toEqual(before);
+      }
 
       await writeFile(cutMapPath, validBytes);
       const retried = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });

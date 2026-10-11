@@ -59,7 +59,7 @@ function decodeCanonicalMap(
     const decoded = decodeV3DecomposeCutMap(parsed);
     if (decoded.status === "rejected") return {
       status: "stale", reason: `map:${decoded.issue.code}`,
-      locus: decoded.issue.path, message: decoded.issue.message,
+      locus: decoded.issue.path || cutMapPath, message: decoded.issue.message,
     };
     return text === `${canonicalize(decoded.value)}\n`
       ? { map: decoded.value }

@@ -147,7 +147,7 @@ async function readAdvanceBaseMap(
   const decoded = decodeV3DecomposeCutMap(completedMap);
   if (decoded.status === "rejected") return {
     status: "refused", reason: `map:${decoded.issue.code}`,
-    locus: decoded.issue.path, message: decoded.issue.message,
+    locus: decoded.issue.path || cutMapPath, message: decoded.issue.message,
   };
   if (decoded.value.machine.source.origin !== origin) return {
     status: "refused", reason: "map:origin", locus: "machine.source.origin",

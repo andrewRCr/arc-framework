@@ -122,6 +122,29 @@ describe("v3 decomposition execution preflight", () => {
     });
   });
 
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["unknown root key", { ...v3DecompositionEvidenceFixture().preparation.facts.completedMap, extra: true }],
+  ])("uses the map filename for a root-level %s decoder refusal", async (_label, invalid) => {
+    const decoded = decodeV3DecomposeCutMap(invalid);
+    if (decoded.status !== "rejected") throw new Error("invalid fixture");
+    expect(decoded.issue.path).toBe("");
+    const resolvePreflight = vi.fn();
+    const result = await revalidateV3DecomposeExecutionPreflight({
+      readCutMap: async () => new TextEncoder().encode(`${canonicalize(invalid)}\n`),
+      resolvePreflight,
+    }, "origin", "map.json");
+
+    expect(result).toEqual({
+      status: "stale",
+      reason: `map:${decoded.issue.code}`,
+      locus: "map.json",
+      message: decoded.issue.message,
+    });
+    expect(resolvePreflight).not.toHaveBeenCalled();
+  });
+
   it("returns the deterministic first exact machine mismatch without a partial binding", async () => {
     const map = v3DecompositionEvidenceFixture().preparation.facts.completedMap;
     const changed = currentPreflight();
