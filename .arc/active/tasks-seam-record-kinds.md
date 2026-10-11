@@ -367,18 +367,10 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
           including scanner-refused archived lists. Tracked reads and listings carry the parsed design; registration
           stays behind the raw-state boundary while the pure parser is public.
 
-    - `[ ]` **4.1.b Write the marker writer**
-        - Sets `[x]` or `[~]` on one task line named by its identifier — a parent heading or a subtask bullet — found
-          among `scanTaskListStructure`'s task lines, so a fenced example and the delivery-plan region are never
-          touched, and changes nothing else.
-        - Throws when the scanner rejects the list, when the identifier names no task line or more than one, or when
-          the result fails the scanner, as a parent completed above an open subtask does.
-        - Build `test-first` (one behavior at a time):
-            - only the named line's marker changes, on a parent and on a subtask
-            - a task-shaped line inside a fenced block is not matched
-            - an identifier naming no task line, or two, throws
-            - a list the scanner rejects throws
-            - completing a parent above an open subtask throws
+    - `[x]` **4.1.b Write the marker writer**
+        - writeTaskMarker changes one uniquely identified scanner task's marker and no other bytes, preserving mixed
+          line endings and a missing final newline. Fenced and delivery-plan examples are excluded; malformed inputs,
+          missing or duplicate identifiers, and scanner-invalid results throw.
 
     - `[ ]` **4.1.c Move the delivery-plan splice into the kind**
         - The region logic of `replaceDeliveryPlanSection` (`lib/delivery/task-list-render.ts`) moves into the kind
