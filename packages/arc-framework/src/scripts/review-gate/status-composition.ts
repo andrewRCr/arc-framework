@@ -52,6 +52,7 @@ import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "./policy/hosted-reservation-discharge.js";
+import type { IntegrationBoundaryLocus } from "./policy/integration-boundary-locus.js";
 import {
   resolveChangeRequest,
   type ChangeRequestCandidate,
@@ -92,6 +93,35 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
+
+/**
+ * Read what a publication boundary that reserved no hosted review still owes.
+ *
+ * Only the loci a Candidate reaches once pre-publication review settles owe nothing. Before that point the
+ * boundary's own next step is what is owed, so it is returned unchanged rather than as a fresh review pass.
+ *
+ * @param boundary - The current boundary, carrying no hosted-review reservation.
+ * @returns The settled obligation, the outstanding one carrying the boundary's continuation, or a block for a
+ *   locus that cannot exist without a reservation.
+ */
+function readUnreservedObligation(boundary: IntegrationBoundaryLocus): RoutedReviewObligation {
+  switch (boundary.locus) {
+    case "candidate-publish-ready":
+    case "publication-pending":
+      return { state: "settled", detail: "No hosted review was reserved across publication." };
+    case "candidate-review-pending":
+    case "candidate-fix-pending":
+    case "candidate-convergence-verification-pending":
+      return {
+        state: "review-required",
+        detail: "The Candidate's pre-publication review is not settled.",
+        prePublicationAction: boundary.nextAction,
+      };
+    case "hosted-review-pending":
+    case "delivery-status-required":
+      return { state: "blocked", detail: "The publication boundary lacks the hosted review reservation it requires." };
+  }
+}
 
 /**
  * Carry one overlap analysis across into the observation the review status records.
@@ -506,9 +536,7 @@ export async function readRoutedObligation(
     // that way reports every hosted-first work unit as forever mid-review. What settles it is the
     // reserved source's own verdict on the lane.
     const { reservation } = boundary;
-    if (reservation === null) {
-      return { state: "settled", detail: "No hosted review was reserved across publication." };
-    }
+    if (reservation === null) return readUnreservedObligation(boundary);
     const readDischarge = createHostedReservationDischargeReader({
       cwd,
       exec,

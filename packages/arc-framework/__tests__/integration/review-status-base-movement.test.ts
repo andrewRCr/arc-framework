@@ -30,14 +30,19 @@ import { readCandidateRecordVersioned, writeCandidateRecord } from
   "../../src/lib/work-unit/candidate-record-store.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { readSubmissionBoundaryVersioned } from
+import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from
   "../../src/lib/work-unit/submission-boundary-store.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
 import { stageSingletonPublicationResponse } from
   "../../src/scripts/review-gate/runtime/singleton-publication-response.js";
-import { createStandardReviewReservation } from
-  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  createRunConvergenceVerificationAction,
+  createStandardReviewReservation,
+  parseIntegrationBoundaryLocus,
+  projectCandidateFixResumeBoundary,
+  type IntegrationBoundaryLocus,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
@@ -156,7 +161,7 @@ async function installHost(root: string): Promise<string> {
 }
 
 /**
- * A singleton work unit whose publication reserved no hosted review, published to a host-shaped origin.
+ * A singleton work unit attested on a host-shaped origin, with its pre-publication review still to run.
  *
  * The branch is an ordinary work-unit branch, so the routed obligation resolves without consulting any
  * delivery plan — which is what keeps the moved-base arm reachable instead of a conjunction deciding first.
@@ -201,6 +206,27 @@ async function singletonUnderReview(
   });
   expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
 
+  return { root, headSha: await git(root, ["rev-parse", "HEAD"]), bin: await installHost(root) };
+}
+
+/** The same work unit once its self-review settles and it publishes with no hosted review reserved. */
+async function publishedSingleton(
+  arrange?: (root: string) => Promise<void>,
+): Promise<{ root: string; headSha: string; bin: string }> {
+  const { root } = await singletonUnderReview(arrange);
+  const reviewed = await runHandlerAt(root, async () => {
+    await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
+  });
+  expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
+  const published = await runHandlerAt(root, async () => {
+    await handlePublish(WORK_UNIT, {
+      json: true, lastCompleted: "verification", action: "push and open the PR",
+    }, machineContext());
+  });
+  expect(published.exitCode, published.stdout + published.stderr).toBe(0);
+  await git(root, ["add", "-A"]);
+  await git(root, ["commit", "-m", "publish unreserved singleton"]);
+  await git(root, ["push", "origin", HEAD_REF]);
   return { root, headSha: await git(root, ["rev-parse", "HEAD"]), bin: await installHost(root) };
 }
 
@@ -249,9 +275,73 @@ async function statusThroughPort(
   ));
 }
 
+describe("review status before the work unit publishes", () => {
+  /** Move the attested self-review boundary to a later pre-publication point of the same Candidate. */
+  const prePublicationPoints: readonly [string, (stored: IntegrationBoundaryLocus, head: string) => IntegrationBoundaryLocus][] = [
+    ["self-review", (stored) => stored],
+    ["review fix", (stored) => projectCandidateFixResumeBoundary({
+      workUnit: WORK_UNIT,
+      candidateId: stored.candidateId,
+      candidateSubjectDigest: stored.candidateSubjectDigest ?? "",
+    })],
+    ["convergence verification", (stored, head) => parseIntegrationBoundaryLocus({
+      ...stored,
+      locus: "candidate-convergence-verification-pending",
+      nextAction: createRunConvergenceVerificationAction(WORK_UNIT, "focused", {
+        reviewedHead: head,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication ${WORK_UNIT}`,
+          interactionText: "Continue pre-publication review.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      }),
+      policy: null,
+      reservation: null,
+    })],
+  ];
+
+  it.each(prePublicationPoints)("names the boundary's own continuation while its %s is outstanding", async (
+    _point,
+    advance,
+  ) => {
+    const fixture = await singletonUnderReview();
+    const stored = await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT);
+    if (stored.boundary === null) throw new Error("missing attested boundary");
+    expect(stored.boundary).toMatchObject({ locus: "candidate-review-pending", reservation: null });
+    const boundary = advance(stored.boundary, fixture.headSha);
+    await writeSubmissionBoundary(fixture.root, boundary, stored.version);
+
+    // Nothing was reserved for hosted review, because nothing has reached publication to reserve it, and what
+    // is owed is the boundary's own next step rather than a fresh review pass.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "review-required",
+      nextAction: "continue-pre-publication",
+      action: boundary.nextAction,
+      routedObligation: { state: "review-required", prePublicationAction: boundary.nextAction },
+    });
+  });
+
+  it("settles once pre-publication review has, with only publication left", async () => {
+    const fixture = await singletonUnderReview();
+    const reviewed = await runHandlerAt(fixture.root, async () => {
+      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
+    });
+    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
+    expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary)
+      .toMatchObject({ locus: "candidate-publish-ready", reservation: null });
+
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      routedObligation: { state: "settled" },
+    });
+  });
+});
+
 describe("review status over a base advanced under the work unit", () => {
   it("settles after an advance sharing no path with the branch", async () => {
-    const fixture = await singletonUnderReview();
+    const fixture = await publishedSingleton();
     await advanceBase({ cwd: fixture.root, paths: movementPaths("disjoint", WORK_UNIT).base });
 
     const status = await statusThroughPort(fixture);
@@ -276,22 +366,9 @@ describe("review status over a base advanced under the work unit", () => {
 
 describe("singleton hosted review after publication", () => {
   it("retains the public next action through unreserved convergence and retry", async () => {
-    const fixture = await singletonUnderReview();
-    const reviewed = await runHandlerAt(fixture.root, async () => {
-      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
-    });
-    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
-    const published = await runHandlerAt(fixture.root, async () => {
-      await handlePublish(WORK_UNIT, {
-        json: true, lastCompleted: "verification", action: "push and open the PR",
-      }, machineContext());
-    });
-    expect(published.exitCode, published.stdout + published.stderr).toBe(0);
+    const fixture = await publishedSingleton();
     expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary)
       .toMatchObject({ locus: "publication-pending", reservation: null });
-    await git(fixture.root, ["add", "-A"]);
-    await git(fixture.root, ["commit", "-m", "publish unreserved singleton"]);
-    await git(fixture.root, ["push", "origin", HEAD_REF]);
     const exec = makeGitExec(fixture.root);
     const oldTarget = await collectCandidateSubjectTarget({
       cwd: fixture.root, name: WORK_UNIT, baseBranch: "main", exec,
@@ -350,7 +427,7 @@ describe("singleton hosted review after publication", () => {
     const sharedLines = Array.from({ length: 12 }, (_, line) => `export const entry${String(line)} = ${String(line)};`);
     const shared = (...edits: readonly number[]) => `${sharedLines
       .map((entry, line) => edits.includes(line) ? `${entry} // edited` : entry).join("\n")}\n`;
-    const fixture = await singletonUnderReview(async (root) => {
+    const fixture = await publishedSingleton(async (root) => {
       await advanceBase({ cwd: root, paths: [sharedPath], contents: { [sharedPath]: shared() }, landing: "merge" });
       await git(root, ["merge", "--no-edit", "origin/main"]);
       await writeFile(join(root, sharedPath), shared(1));
@@ -359,25 +436,10 @@ describe("singleton hosted review after publication", () => {
       await git(root, ["commit", "-m", "edit one shared entry"]);
       await git(root, ["push", "origin", HEAD_REF]);
     });
-    const reviewed = await runHandlerAt(fixture.root, async () => {
-      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
-    });
-    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
-    const published = await runHandlerAt(fixture.root, async () => {
-      await handlePublish(WORK_UNIT, {
-        json: true, lastCompleted: "verification", action: "push and open the PR",
-      }, machineContext());
-    });
-    expect(published.exitCode, published.stdout + published.stderr).toBe(0);
-    await git(fixture.root, ["add", "-A"]);
-    await git(fixture.root, ["commit", "-m", "publish unreserved singleton"]);
-    await git(fixture.root, ["push", "origin", HEAD_REF]);
     const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
     expect(before).toMatchObject({ locus: "publication-pending", reservation: null });
     if (before === null) throw new Error("missing published boundary");
 
-    fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
-    fixture.bin = await installHost(fixture.root);
     await advanceBase({
       cwd: fixture.root, paths: [sharedPath], contents: { [sharedPath]: shared(10) }, landing: "merge", generation: 1,
     });
@@ -895,7 +957,7 @@ describe("singleton hosted review after publication", () => {
 
 describe("review status when the base read goes unavailable under it", () => {
   it("blocks on the unavailable base revision, and settles once the read is restored", async () => {
-    const fixture = await singletonUnderReview();
+    const fixture = await publishedSingleton();
 
     const blocked = await statusThroughPort(fixture, (exec) => withUnavailableBaseRead(exec));
 
@@ -934,7 +996,7 @@ describe("review status over a history leaving two merge bases", () => {
   }
 
   it("reports the settled state the ambiguous reading is measured against", async () => {
-    const fixture = await singletonUnderReview();
+    const fixture = await publishedSingleton();
 
     expect(await statusThroughPort(fixture)).toMatchObject({
       state: "settled",
