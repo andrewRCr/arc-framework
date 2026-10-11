@@ -1257,4 +1257,7 @@ completed placement (§ 8.2).
 - **A1** — 2026-10-11 — design: isolate meta checks from the parser/writer dependency branch.
   _Supersedes:_ § 1.2 runtime boundary. _Trigger:_ 6.2 must-stop. _Work:_ 6.R. _Revalidated:_ 6.R.
 
+- **A2** — 2026-10-11 — task: check removed and created primary kinds on a role replacement.
+  _Supersedes:_ none. _Trigger:_ 6.2 must-stop. _Work:_ 1.R. _Revalidated:_ pending → 6.5.
+
 ---

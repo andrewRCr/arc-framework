@@ -28,3 +28,7 @@ transient entry reconciliation, both merged notes manifests, and publication of 
 The import guard scans production source for references to this directory. After `npm run build`, the build guard checks
 the raw bundle metafile and every output's input attribution. Planted import and metafile fixtures prove both guards
 reject a test-backend dependency.
+
+Registered write checks receive versions of their own kind. A primary role replacement runs the removed kind's
+check without a next version and the created kind's check without a prior version, over the same before and after
+views. Both rule sets contribute to the deterministic refusal before any prepared state is published.

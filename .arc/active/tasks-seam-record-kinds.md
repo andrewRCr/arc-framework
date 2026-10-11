@@ -99,10 +99,21 @@ the remote state too, holds that state's queue only while it compares and publis
           refusals through the shared helper. A queue per shared state also serializes reopened stores and sync.
           Remote publication holds its queue only for comparison and publication, after awaiting the hook.
 
+        - _Amended in:_ 1.R (A2)
+
     - `[x]` **1.4.c Add the write-check suite item**
         - Item 17 installs isolated checks and proves deterministic refusals, provenance-derived authority, complete
           batch views, and merged stale-write content. Fixtures without checks report reasoned skips; suite declarations
           and documentation now name seventeen items.
+
+### `[x]` **1.R Check both kind boundaries on a primary role replacement — § 3.1, § 3.5, § 4 (A2)**
+
+- _Goal:_ A primary role replacement runs the removed kind's check with no next version and the created kind's check
+  with no prior version, retaining the same UID and whole-batch views; a hand edit cannot bypass either boundary.
+
+- _Outcome:_ `checkPreparedWrites` treats a primary role replacement as removal and creation for kind-local checks,
+  retaining both complete views and composing both violations. Refusals preserve state and a verb retry admits;
+  same-kind updates and the reference conformance cases retain their existing behavior.
 
 ### `[x]` **1.5 Registered reads and checked writes hold end to end** — validate exit criterion at segment scope
 
@@ -112,6 +123,8 @@ the remote state too, holds that state's queue only while it compares and publis
 - _Outcome:_ Both conformance fixtures and every `store-*.test.ts` integration file passed the exit scenario:
   item 17 checks and refusal composition ran over the reference backend, the in-repo fixture reported its no-check
   skips, and registered meta reads and listings preserved their fields.
+
+- _Amended in:_ 1.R (A2)
 
 ## **Phase 2:** The meta kind's schema and writers
 

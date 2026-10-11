@@ -197,3 +197,17 @@ requirements. The source import edges and native row support the five helper ent
 by the corrective task and again once the meta check exists.
 
 ---
+
+## A2 — Primary kind boundaries
+
+`checkPreparedWrites` selects only the destination reference's check and finds both stored versions through
+`recordKey`, which deliberately gives UID-bearing meta and Errand references one primary key. A promotion therefore
+supplies Errand fields as a meta prior, and the reverse never runs the removed meta's check. The design holds:
+§ 3.1 supplies no prior on a kind's creation and no next on removal, § 3.5 requires every registered check, and § 4
+preserves the UID across promotion. Task 1.R completes that derivation by checking both kind boundaries with the same
+before and after views, without changing `WriteCheckInput` or the primary identity contract.
+
+Author grounding traced `checkPreparedWrites`, `recordKey`, `land`, and both public write paths. The footprint
+is the reference check dispatcher and its unit cases; production rules and the in-repo no-check arm are unchanged.
+Task 1.4.b and its segment evidence point forward to the correction; Phase 6's catalog and whole-suite scenario cover
+its integration. Reader independence and binding completeness hold over the unchanged affected contract.
