@@ -269,6 +269,36 @@ async function reviewedErrand(
   return { root, base, target, paths, status, publish, reconcile };
 }
 
+/** Publish one base-side edit to an existing file, leaving the checkout untouched. */
+async function advanceBaseFile(root: string, path: string, content: string): Promise<string> {
+  return (await advanceBase({ cwd: root, paths: [path], contents: { [path]: content }, message: "edit the base side" }))
+    .head;
+}
+
+const baselinePath = "lint-baseline.json";
+const baselineLines = Array.from({ length: 12 }, (_, line) => `entry ${String(line)}`);
+
+/** The seeded baseline file, with each named line edited by the named side. */
+function editBaseline(...edits: readonly (readonly [line: number, side: string])[]): string {
+  return `${baselineLines.map((entry, index) => {
+    const side = edits.find(([line]) => line === index)?.[1];
+    return side === undefined ? entry : `${entry} removed by ${side}`;
+  }).join("\n")}\n`;
+}
+
+/** A reviewed Errand whose branch edits one line of the seeded baseline file. */
+async function reviewedBaselineEdit() {
+  return reviewedErrand("hosted", "disjoint", {
+    seed: { [baselinePath]: editBaseline() },
+    arrange: async (root) => {
+      await writeFile(join(root, baselinePath), editBaseline([1, "branch"]));
+      await git(root, ["add", "--", baselinePath]);
+      await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove a branch-side baseline entry"]);
+      return undefined;
+    },
+  });
+}
+
 describe("Errand review currency across base movement", () => {
   it.each([
     ["hosted", "disjoint"], ["local", "disjoint"],
@@ -292,6 +322,19 @@ describe("Errand review currency across base movement", () => {
       routedObligation: { state: "review-required" },
       baseMovement: { overlap: { status: "available", substantivePaths: fixture.paths.base } },
     });
+  });
+
+  it("keeps review settled when the base edits other lines of a reviewed file", async () => {
+    const fixture = await reviewedBaselineEdit();
+    const advanced = await advanceBaseFile(fixture.root, baselinePath, editBaseline([10, "base"]));
+    const status = await fixture.status();
+    expect(status, JSON.stringify(status)).toMatchObject({
+      routedObligation: { state: "settled" },
+      currentBaseOid: advanced,
+      movement: "overlapping",
+      baseMovement: { overlap: { substantivePaths: [baselinePath] }, merge: { state: "clean" } },
+    });
+    expect(status).not.toMatchObject({ state: "base-moved" });
   });
 
   it("refuses to carry review when overlap cannot be read", async () => {
@@ -354,46 +397,6 @@ async function standardProgress(root: string, headSha: string) {
   return readLaneProgress(new LocalReviewOperationStateStore(publisher), {
     lane: "standard", repositoryId: await resolveRepositoryIdentity(publisher), headSha,
     lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
-  });
-}
-
-/** Publish one base-side edit to an existing file through a scratch worktree, leaving the checkout untouched. */
-async function advanceBaseFile(root: string, path: string, content: string): Promise<string> {
-  const scratch = join(root, ".arc-fixture", "base-edit");
-  await git(root, ["fetch", "origin", "main"]);
-  await git(root, ["worktree", "add", "--detach", scratch, "refs/remotes/origin/main"]);
-  try {
-    await writeFile(join(scratch, path), content);
-    await git(scratch, ["add", "--", path]);
-    await git(scratch, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "edit the base side"]);
-    await git(scratch, ["push", "origin", "HEAD:refs/heads/main"]);
-    return await git(scratch, ["rev-parse", "HEAD"]);
-  } finally {
-    await git(root, ["worktree", "remove", "--force", scratch]);
-  }
-}
-
-const baselinePath = "lint-baseline.json";
-const baselineLines = Array.from({ length: 12 }, (_, line) => `entry ${String(line)}`);
-
-/** The seeded baseline file, with each named line edited by the named side. */
-function editBaseline(...edits: readonly (readonly [line: number, side: string])[]): string {
-  return `${baselineLines.map((entry, index) => {
-    const side = edits.find(([line]) => line === index)?.[1];
-    return side === undefined ? entry : `${entry} removed by ${side}`;
-  }).join("\n")}\n`;
-}
-
-/** A reviewed Errand whose branch edits one line of the seeded baseline file. */
-async function reviewedBaselineEdit() {
-  return reviewedErrand("hosted", "disjoint", {
-    seed: { [baselinePath]: editBaseline() },
-    arrange: async (root) => {
-      await writeFile(join(root, baselinePath), editBaseline([1, "branch"]));
-      await git(root, ["add", "--", baselinePath]);
-      await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove a branch-side baseline entry"]);
-      return undefined;
-    },
   });
 }
 
@@ -483,6 +486,16 @@ describe("Errand review carry across an approved base merge", () => {
     const reconciled = await fixture.reconcile();
     expect(await fixture.status(undefined, reconciled)).toMatchObject({
       routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("judges base movement since the merge that edits other lines of the reviewed file", async () => {
+    const fixture = await reviewedBaselineEdit();
+    await advanceBaseFile(fixture.root, baselinePath, editBaseline([10, "base"]));
+    const reconciled = await fixture.reconcile();
+    const later = await advanceBaseFile(fixture.root, baselinePath, editBaseline([6, "later base"], [10, "base"]));
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state: "settled" }, currentBaseOid: later,
     });
   });
 

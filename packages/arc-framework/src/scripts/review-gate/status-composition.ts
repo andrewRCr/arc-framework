@@ -3,10 +3,15 @@
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
 import type { DeliveryHostPort } from "../../lib/delivery/host.js";
-import { BaseMovementObservationSchema, type BaseMovementObservation, type EvidenceOverlapObservation } from
-  "../../lib/evidence-applicability/index.js";
+import {
+  BaseMovementObservationSchema,
+  classifyPathTreatment,
+  type BaseMovementObservation,
+  type EvidenceOverlapObservation,
+} from "../../lib/evidence-applicability/index.js";
 import { analyzeRevisionOverlap, type RevisionOverlapResult } from "../../lib/git/base-overlap.js";
 import type { GitExec, RawGitExec } from "../../lib/git/exec.js";
+import { observeGitMergeFeasibility } from "../../lib/git/merge-feasibility.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
@@ -119,9 +124,19 @@ function normalizeBaseOverlapObservation(overlap: RevisionOverlapResult): Eviden
   }
 }
 
+/**
+ * Observe where the current base stands against the exact reviewed head.
+ *
+ * Whether the two merge cleanly is read only when they overlap on reviewable paths, the one shape where that
+ * decides whether review carries; every other shape is decided by the overlap alone.
+ *
+ * @param input - Repository, Git boundaries, exact reviewed head, change request, and resolved review subject.
+ * @returns The current base, whether the head contains it, and the movement between them.
+ */
 export async function readBasePosition(input: {
   cwd: string;
   exec: GitExec;
+  rawExec: RawGitExec;
   headSha: string;
   repository: string;
   changeRequest: number;
@@ -183,14 +198,16 @@ export async function readBasePosition(input: {
       );
     }
   }
+  const treatmentContext = input.subject.status === "resolved"
+    ? workUnitPathTreatmentContext(input.subject.workUnitId)
+    : {};
   const overlap = await analyzeRevisionOverlap({
     exec: input.exec,
     leftRevision: input.headSha,
     rightRevision: currentBaseOid,
-    treatmentContext: input.subject.status === "resolved"
-      ? workUnitPathTreatmentContext(input.subject.workUnitId)
-      : {},
+    treatmentContext,
   });
+  const overlapping = overlap.status === "available" && overlap.overlap.substantivePaths.length > 0;
   return {
     currentBaseOid,
     baseContained,
@@ -202,6 +219,16 @@ export async function readBasePosition(input: {
         head: input.headSha,
       },
       overlap: normalizeBaseOverlapObservation(overlap),
+      ...(overlapping
+        ? {
+            merge: await observeGitMergeFeasibility({
+              exec: input.rawExec,
+              base: currentBaseOid,
+              head: input.headSha,
+              classify: (path) => classifyPathTreatment(path, treatmentContext),
+            }),
+          }
+        : {}),
     }),
     ...(overlap.status === "available" ? {} : { baseMovementDetail: overlap.detail }),
   };
@@ -813,6 +840,7 @@ export function createReviewStatusPort(
         const base = await readBasePosition({
           cwd: input.cwd,
           exec: input.exec,
+          rawExec,
           headSha: target.headSha,
           repository: target.repository,
           changeRequest: resolution.candidate.number,

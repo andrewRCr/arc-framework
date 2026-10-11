@@ -439,18 +439,16 @@ export async function handleAttest(
           && existingBoundary.candidateId === publication.candidateId
           && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
         const convergenceResume = convergenceResumeAfterAttest(existingBoundary, publication, boundaryMatches);
-        const ownerTerminusContinuation = recoverAttestedOwnerTerminusBoundary({
+        const attested = {
           stored: existingBoundary,
           workUnit: publication.name,
           candidateId: publication.candidateId,
           candidateSubjectDigest: publication.candidateSubjectDigest,
           repairCurrent: publication.repairCurrent,
-        });
+        };
+        const ownerTerminusContinuation = recoverAttestedOwnerTerminusBoundary(attested);
         const singletonPublication = recoverAttestedSingletonPublicationBoundary({
-          stored: existingBoundary,
-          workUnit: publication.name,
-          candidateId: publication.candidateId,
-          candidateSubjectDigest: publication.candidateSubjectDigest,
+          ...attested,
           integrating: priorMeta.state === "Integrating",
         });
         const locus = deliveryLocus ?? ownerTerminusContinuation ?? convergenceResume

@@ -556,8 +556,12 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
 /**
  * Recover exact singleton publication progress after attestation in the public lifecycle.
  *
- * @param input - Stored boundary, exact Candidate coordinates, and the observed integration lifecycle.
- * @returns The unchanged public boundary, or null when existing publication authority cannot carry.
+ * A subject the attestation recognized as the current Candidate's carries publication with it: the movement
+ * is one the Candidate already accounts for, such as a base merge that combined cleanly with it.
+ *
+ * @param input - Stored boundary, exact Candidate coordinates, the observed integration lifecycle, and whether
+ *   the attestation recognized the current subject as the same Candidate.
+ * @returns The public boundary bound to the current subject, or null when publication authority cannot carry.
  */
 export function recoverAttestedSingletonPublicationBoundary(input: {
   stored: IntegrationBoundaryLocus | null;
@@ -565,16 +569,20 @@ export function recoverAttestedSingletonPublicationBoundary(input: {
   candidateId: string;
   candidateSubjectDigest: string;
   integrating: boolean;
+  repairCurrent: boolean;
 }): IntegrationBoundaryLocus | null {
   const stored = input.stored;
   if (!input.integrating
     || stored === null
     || stored.workUnit !== input.workUnit
     || stored.candidateId !== input.candidateId
-    || stored.candidateSubjectDigest !== input.candidateSubjectDigest
+    || (stored.candidateSubjectDigest !== input.candidateSubjectDigest && !input.repairCurrent)
     || (stored.locus !== "publication-pending" && stored.locus !== "hosted-review-pending")
     || stored.reservation?.target.kind === "delivery") return null;
-  return IntegrationBoundaryLocusSchema.parse(stored);
+  return IntegrationBoundaryLocusSchema.parse({
+    ...stored,
+    candidateSubjectDigest: CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest),
+  });
 }
 
 /**

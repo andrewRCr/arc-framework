@@ -204,6 +204,18 @@ async function singletonUnderReview(
   return { root, headSha: await git(root, ["rev-parse", "HEAD"]), bin: await installHost(root) };
 }
 
+/** Archive manually and record Completion Notes, so the final checkpoint reads past the lifecycle. */
+async function completeLifecycleArtifacts(root: string): Promise<void> {
+  const configPath = join(root, ".arc", "system", "arc-config.yml");
+  const config = await readFile(configPath, "utf8");
+  await writeFile(configPath, config.replace(/^archive\.cadence:.*$/mu, "archive.cadence: manual"));
+  const metaPath = join(root, ".arc", "active", `meta-${WORK_UNIT}.md`);
+  await writeFile(metaPath, [
+    await readFile(metaPath, "utf8"), "## Completion Notes", "",
+    "Delivered the example implementation and completed verification.", "",
+  ].join("\n"));
+}
+
 /** Run one handler with the stub host reachable, as a session invoking it from this repository would. */
 async function withHost<T>(bin: string, run: () => Promise<T>): Promise<T> {
   const previous = process.env.PATH;
@@ -333,6 +345,74 @@ describe("singleton hosted review after publication", () => {
     expect(await statusThroughPort(fixture)).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
   });
 
+  it("keeps review and publication across a base advance that merges cleanly with the Candidate", async () => {
+    const sharedPath = "src/shared.ts";
+    const sharedLines = Array.from({ length: 12 }, (_, line) => `export const entry${String(line)} = ${String(line)};`);
+    const shared = (...edits: readonly number[]) => `${sharedLines
+      .map((entry, line) => edits.includes(line) ? `${entry} // edited` : entry).join("\n")}\n`;
+    const fixture = await singletonUnderReview(async (root) => {
+      await advanceBase({ cwd: root, paths: [sharedPath], contents: { [sharedPath]: shared() }, landing: "merge" });
+      await git(root, ["merge", "--no-edit", "origin/main"]);
+      await writeFile(join(root, sharedPath), shared(1));
+      await completeLifecycleArtifacts(root);
+      await git(root, ["add", "-A"]);
+      await git(root, ["commit", "-m", "edit one shared entry"]);
+      await git(root, ["push", "origin", HEAD_REF]);
+    });
+    const reviewed = await runHandlerAt(fixture.root, async () => {
+      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
+    });
+    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
+    const published = await runHandlerAt(fixture.root, async () => {
+      await handlePublish(WORK_UNIT, {
+        json: true, lastCompleted: "verification", action: "push and open the PR",
+      }, machineContext());
+    });
+    expect(published.exitCode, published.stdout + published.stderr).toBe(0);
+    await git(fixture.root, ["add", "-A"]);
+    await git(fixture.root, ["commit", "-m", "publish unreserved singleton"]);
+    await git(fixture.root, ["push", "origin", HEAD_REF]);
+    const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+    expect(before).toMatchObject({ locus: "publication-pending", reservation: null });
+    if (before === null) throw new Error("missing published boundary");
+
+    fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+    fixture.bin = await installHost(fixture.root);
+    await advanceBase({
+      cwd: fixture.root, paths: [sharedPath], contents: { [sharedPath]: shared(10) }, landing: "merge", generation: 1,
+    });
+    // The base edited other lines of a file the branch changed, so the advance merges cleanly and review holds.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "settled", movement: "overlapping", baseMovement: { merge: { state: "clean" } },
+    });
+    // Both sides edited the shared file, so the Candidate subject moves; the merge combines the edits cleanly.
+    await git(fixture.root, ["merge", "--no-edit", "origin/main"]);
+    expect(await readFile(join(fixture.root, sharedPath), "utf8")).toBe(shared(1, 10));
+    const repaired = await runHandlerAt(fixture.root, async () => {
+      await handleAttest(WORK_UNIT, { json: true }, machineContext());
+    });
+    expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+
+    const after = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+    expect(after?.candidateSubjectDigest).not.toBe(before.candidateSubjectDigest);
+    expect(after).toEqual({ ...before, candidateSubjectDigest: after?.candidateSubjectDigest });
+    expect(JSON.parse(repaired.stdout)).toMatchObject({ locus: after });
+    const metaPath = join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`);
+    expect(parseMetaRecord(await readFile(metaPath, "utf8")))
+      .toMatchObject({ state: "Integrating", nextAction: before.nextAction.interactionText });
+
+    await git(fixture.root, ["add", "-A"]);
+    await git(fixture.root, ["commit", "-m", "carry publication across the base merge"]);
+    await git(fixture.root, ["push", "origin", HEAD_REF]);
+    fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+    fixture.bin = await installHost(fixture.root);
+    const checkpoint = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+      await handleIntegrationCheckpoint(WORK_UNIT, {}, machineContext());
+    }));
+    expect(checkpoint.exitCode, checkpoint.stdout + checkpoint.stderr).toBe(0);
+    expect(JSON.parse(checkpoint.stdout), checkpoint.stdout).toMatchObject({ state: "ready" });
+  });
+
   it.each([
     [undefined, "focused"],
     ["codex-pr", "focused"],
@@ -340,14 +420,7 @@ describe("singleton hosted review after publication", () => {
     ["coderabbit-pr", "focused"],
   ] as const)("retains source %s with verification scope %s", async (sourceId, convergenceScope) => {
     const fixture = await singletonUnderReview(sourceId === "codex-pr" ? async (root) => {
-      const configPath = join(root, ".arc", "system", "arc-config.yml");
-      const config = await readFile(configPath, "utf8");
-      await writeFile(configPath, config.replace(/^archive\.cadence:.*$/mu, "archive.cadence: manual"));
-      const metaPath = join(root, ".arc", "active", `meta-${WORK_UNIT}.md`);
-      await writeFile(metaPath, [
-        await readFile(metaPath, "utf8"), "## Completion Notes", "",
-        "Delivered the example implementation and completed verification.", "",
-      ].join("\n"));
+      await completeLifecycleArtifacts(root);
       await git(root, ["add", "-A"]);
       await git(root, ["commit", "-m", "complete singleton lifecycle artifacts"]);
     } : undefined);
