@@ -29,6 +29,15 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it("keeps lineage registration behind the store while exposing its pure codec", () => {
+    expect(violations("handlers/outside.ts",
+      'import { LINEAGE_REGISTRATION } from "../lib/store/kinds/lineage/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/lineage/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { LINEAGE_REGISTRATION } from "./lineage/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseLineageRecord, writeLineageRecord } from "../lib/store/kinds/lineage/index.js";', "store-raw-state")).toEqual([]);
+  });
   it.each([
     ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],

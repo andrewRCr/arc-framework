@@ -277,7 +277,7 @@ record's type and bytes pass from producers through the store and the enumeratio
 and passes alone: the kind lands first, and Task 3.2's batches land together as one commit. No reader of version 1 is
 written.
 
-### `[ ]` **3.1 The lineage kind's final shape, parser, and canonical writer — § 7.1, § 7.2**
+### `[x]` **3.1 The lineage kind's final shape, parser, and canonical writer — § 7.1, § 7.2**
 
 - _Goal:_ `lib/store/kinds/lineage/` defines schema version 2 with its invariants, a parser refusing what the schema
   rejects, one create-only writer whose output round-trips byte-identical, and the kind's registration, ahead of any
@@ -288,21 +288,11 @@ written.
           dependents and prerequisites, ordered reference lists, and decomposition-only outgoing evidence are
           enforced; outgoing members may name existing destinations outside the successor list.
 
-    - `[ ]` **3.1.b Build the parser, the writer, and the registration module**
-        - The parser decodes the JSON and refuses a record the schema rejects, as `parseTransitionRecord` does; a public
-          pure function in the kind folder.
-        - The writer renders canonical JSON (`canonicalize`), ordering `successors`, `incoming` by dependent,
-          `outgoing` by prerequisite, and every reference list by name in UTF-8 byte order.
-        - The kind's registration module builds its registration through `defineKindRegistration`, joins
-          `RAW_STATE_MODULES` as the meta's does, and stays out of `registrations.ts` until Task 3.2.c, since a
-          registered parser decodes ahead of `decodeTrackedContent`'s lineage branch; the parse and write functions
-          stay unlisted (§ 1.2).
-        - Build `test-first` (one behavior at a time):
-            - each invariant refuses its breaking record and admits its valid counterpart
-            - `outgoing` refuses on a rename or abandonment and admits on a decomposition, empty included
-            - the writer orders every list and round-trips byte-identical
-            - `schemaVersion` 1 is refused
-            - the registration's parser returns the record, and a failure carrying the schema's issues
+    - `[x]` **3.1.b Build the parser, the writer, and the registration module**
+        - Public parsing refuses invalid JSON or schema input with null; the registration preserves issue paths.
+          Canonical creation sorts every copied reference list and outer incoming/outgoing list by UTF-8 name bytes,
+          validates after ordering, and round-trips without mutating input. The registration is raw-state protected
+          and remains outside the production list until the caller migration.
 
 ### `[ ]` **3.2 Producers, the store, and every reader take the final shape with the records — § 7.3–§ 7.5, § 11, § 12**
 
