@@ -3,8 +3,8 @@
  *
  * Provides CLI invocation and temp repo setup for end-to-end tests. These
  * helpers are intentionally standalone — they import only from node builtins,
- * not from the CLI source. E2E tests exercise the built artifact (`dist/cli.js`),
- * not source modules.
+ * not from the CLI source. E2E tests exercise the built artifact through the
+ * package's published entry point (`bin/arc.js`), not source modules.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -135,7 +135,7 @@ export async function git(cwd: string, args: string[]): Promise<string> {
 /**
  * Invoke the built CLI as a subprocess.
  *
- * Spawns `node dist/cli.js ...args` in the given working directory. Captures
+ * Spawns `node bin/arc.js ...args` in the given working directory. Captures
  * stdout, stderr, and exit code. Disables optional update checks and sets
  * `NO_COLOR=1` so the test contract is offline and free of ANSI escapes.
  *

@@ -1,7 +1,6 @@
 # Roadmap: Project Status
 
 > **Generated from meta files — re-render at ceremony boundaries.**
-> Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -52,7 +51,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
 | frictionless-capture                | P2       | andrew | —          | —                          |
-| goal-aware-direction                | P2       | andrew | —          | —                          |
 | graduation-cleanup                  | P2       | andrew | —          | —                          |
 | in-process-cli-harness              | P2       | andrew | —          | —                          |
 | knowledge-architecture              | P2       | andrew | —          | —                          |
@@ -139,6 +137,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | errand-promotion-concurrency    | P2       | andrew | storage-cutover          | —                |
 | framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
 | ghost-mode                      | P2       | andrew | storage-cutover          | —                |
+| goal-aware-direction            | P2       | andrew | storage-cutover          | —                |
 | history-policy                  | P2       | andrew | storage-cutover          | —                |
 | operational-state-docs          | P2       | andrew | storage-cutover          | —                |
 | shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
