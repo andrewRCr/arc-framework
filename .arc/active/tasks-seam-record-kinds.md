@@ -50,9 +50,6 @@ the remote state too, holds that state's queue only while it compares and publis
 - _Goal:_ The in-repo implementation builds its registry from the one production registration set and decodes every
   meta it reads or lists through the registered parser, returning today's fields.
 
-- _Note:_ What decodes through the registry before Phase 3, and what parses meta content outside reads and listings,
-  is in `notes-seam-record-kinds.md` § Interim decode, Phases 1–3.
-
     - `[x]` **1.2.a Create the kind folders, the meta's registration module, and the production set**
         - Created the meta registration around today's parser and `PRODUCTION_REGISTRATIONS`, with the meta alone.
         - Added the kinds README and the store's pointer to the kind-owned parser, writer, and rule interfaces.
@@ -591,18 +588,20 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Every Success Criterion below is verified at the final merged base, with the quality gates green at every
   declared gate.
 
-- _Note:_ Any base merge after verification re-runs the every-kind listing and parses every tracked meta, lineage
-  record, and cohort document, converting any arrival in an old form (§ 12); landing proposes the working-memory entry
-  naming the old-code symptoms and their remedy (spec § Cross-cutting Considerations, Migration and rollout).
+- _Quality gates:_ The forced local merge gate passed: Markdown and code lint, both type checks, full build, unit and
+  integration tests, and ARC contracts. Related unit and local E2E feedback passed. CI-only E2E and Linux/macOS
+  portability remain due at their declared CI deadlines.
 
-- _Verification:_ Thirteen criteria are met at merged base `930101bff`; the public field schemas and A4/A5 legacy
-  setter corrections are verified. Adversarial Pass 2 of 2 closes with its minor sentinel finding resolved by A5.
-  Integration readiness remains open pending review-fix commits and the remaining terminal verification ceremony.
+- _Success criteria:_ All 14 criteria met against merged base `930101bff` and committed tree `c5309639d`. Every-kind
+  listing and tracked-record checks passed after the merge commit. Public field schemas and the A4/A5 setter corrections
+  have fail-first coverage. Adversarial Pass 1's major schema gap is fixed; Pass 2 of 2 converged with its minor legacy
+  sentinel finding resolved by A5. Any later base merge repeats the every-kind and tracked-record checks (§ 12);
+  landing proposes the working-memory entry naming old-code symptoms and their remedy (spec § Migration and rollout).
 
 ---
 
@@ -650,7 +649,7 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 - `[x]` The workflow, design, Candidate, finalize, and generic bullet setters update their named fields on anchored
   CRLF metadata, with each untouched byte preserved and no bare LF introduced (A4).

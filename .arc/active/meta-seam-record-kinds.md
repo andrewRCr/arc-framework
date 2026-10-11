@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-record-kinds.md`
 - **Task List:** `tasks-seam-record-kinds.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:0f7ce9ec6fe0b7e123f68d91dd2ea8c260668860b5e3b5233eb9597c02d0a604`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.5 — Every registered kind is settled
-- **Next Task:** Task 7.1 — Complete verification (line ~594 in `tasks-seam-record-kinds.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` for final work-unit verification.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

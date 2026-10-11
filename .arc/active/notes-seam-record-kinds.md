@@ -1,7 +1,15 @@
 # Notes: Seam Record Kinds
 
-Implementation companion to `spec-seam-record-kinds.md` and `tasks-seam-record-kinds.md`: enumerations, batch plans,
-and edge cases too large for the task bodies.
+Implementation companion to `spec-seam-record-kinds.md` and `tasks-seam-record-kinds.md`: migration inventories,
+registry boundaries, and interface grounding. The inventories preserve the baseline used to complete the conversions.
+
+## Contents
+
+- [Lineage surface](#lineage-surface)
+- [Registry adoption sequence](#registry-adoption-sequence)
+- [Meta fixture conversion inventory](#meta-fixture-conversion-inventory)
+- [Meta runtime boundary](#a1--meta-runtime-boundary)
+- [Primary kind boundaries](#a2--primary-kind-boundaries)
 
 ---
 
@@ -84,7 +92,11 @@ Any that has to change joins the batch of the module whose derived type changed.
 `__tests__/unit/lib/store/concurrency/rank.test.ts` and `src/lib/store/concurrency/rank.ts` match the text sweep on an
 unrelated `successors` and are outside the surface.
 
-## Interim decode, Phases 1–3
+## Registry adoption sequence
+
+The production set now registers all seven parsed kinds. Tracked reads and listings use those registrations;
+`decodeTrackedContent` retains only its Candidate and integration-boundary codecs. The sequence below records the
+adoption boundary used during implementation.
 
 From Phase 1, in-repo reads and listings decode a tracked record through its registered parser, but only the meta is
 registered then. `decodeTrackedContent`'s lineage branch stays until Phase 3 registers the lineage kind (Task 3.2.c),
@@ -96,7 +108,10 @@ the lifecycle index re-parses a record whose `fields` its schema rejects (`lib/s
 current-work-unit resolver checks that a claimed meta parses (`parseMetaFile`, `lib/store/current-work-unit.ts`).
 Neither is an in-repo decode, so Task 1.2.d leaves both untouched.
 
-## Meta fixtures to convert
+## Meta fixture conversion inventory
+
+The listed fixtures were converted alongside retirement of the flat-bullet fallback and admission of anchored metadata.
+The inventories below retain the failing-case counts and discovery methods from the baseline investigation.
 
 Task 2.4.b's surface: every test that fails once the setters throw on an unanchored meta or the flat-bullet fallback
 is gone. Derived at `a731316ce` by two runs of the unit and integration suites in a disposable clone. The first had
