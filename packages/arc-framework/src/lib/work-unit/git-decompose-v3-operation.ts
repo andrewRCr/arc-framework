@@ -95,6 +95,7 @@ const V3StageRefusalFields = {
   status: z.literal("refused"),
   reason: z.string().min(1).refine((reason) => reason !== "unexpected-error"),
   locus: z.string().min(1).optional(),
+  message: z.string().min(1).optional(),
   evidence: V3DecomposeRefusalEvidenceSchema.optional(),
   report: V3DecomposeResultReportSchema.optional(),
   recovery: V3DecomposeOperationRecoverySchema,
@@ -553,6 +554,7 @@ type CommandRefusalStage =
 
 interface CommandRefusalFacts {
   reason: string;
+  message?: string;
   stage?: CommandRefusalStage;
   locus?: string;
   evidence?: V3DecomposeRefusalEvidence;
@@ -607,6 +609,7 @@ function composeDecomposeCommandRefusal(
     stage: facts.stage ?? "repository-plan",
     reason: facts.reason,
     ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+    ...(facts.message === undefined ? {} : { message: facts.message }),
     ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
     ...(facts.report === undefined ? {} : { report: facts.report }),
     recovery: facts.recovery ?? { kind: "none" as const },
@@ -617,6 +620,7 @@ function composeDecomposeCommandRefusal(
       invocation,
       reason: refusal.reason,
       ...(refusal.locus === undefined ? {} : { locus: refusal.locus }),
+      ...(refusal.message === undefined ? {} : { message: refusal.message }),
       recovery: refusal.recovery,
     }),
   });
@@ -642,6 +646,7 @@ function composeExtractionCommandRefusal(
     stage: facts.stage ?? "repository-plan",
     reason: facts.reason,
     ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+    ...(facts.message === undefined ? {} : { message: facts.message }),
     ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
     ...(facts.report === undefined ? {} : { report: facts.report }),
     recovery: facts.recovery ?? { kind: "none" as const },
@@ -652,6 +657,7 @@ function composeExtractionCommandRefusal(
       invocation,
       reason: refusal.reason,
       ...(refusal.locus === undefined ? {} : { locus: refusal.locus }),
+      ...(refusal.message === undefined ? {} : { message: refusal.message }),
       recovery: refusal.recovery,
     }),
   });
@@ -705,6 +711,7 @@ export async function executeGitV3DecomposeCommand(
     return composeDecomposeCommandRefusal(input, cutMapPath, {
       reason: revalidated.reason,
       locus: revalidated.locus,
+      ...(revalidated.message === undefined ? {} : { message: revalidated.message }),
       ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
       ...(revalidated.reason === "unexpected-error" ? {} : {
         stage: "repository-plan" as const,
@@ -750,6 +757,7 @@ export async function executeGitV3ExtractionCommand(
     return composeExtractionCommandRefusal(input, cutMapPath, {
       reason: revalidated.reason,
       locus: revalidated.locus,
+      ...(revalidated.message === undefined ? {} : { message: revalidated.message }),
       ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
       ...(revalidated.reason === "unexpected-error" ? {} : {
         stage: "repository-plan" as const,

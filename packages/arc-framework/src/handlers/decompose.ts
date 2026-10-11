@@ -20,11 +20,12 @@ import {
   V3DecomposeCoreRefusalSchema,
   v3DecomposeRemedy,
   type V3DecomposeInvocation,
+  type V3DecomposeCoreRefusal,
 } from "../lib/work-unit/decompose-v3-refusal.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
-import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
+import { decodeV3DecomposeCutMap, type V3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
 import {
   DECOMPOSE_MODE_KEYS,
   decomposeOptionSelected,
@@ -132,6 +133,27 @@ export interface DecomposeOptions {
   apply?: string;
   /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
+}
+
+async function readAdvanceBaseMap(
+  cwd: string, origin: string, cutMapPath: string,
+): Promise<{ status: "ready"; map: V3DecomposeCutMap } | Omit<V3DecomposeCoreRefusal, "remedy">> {
+  let completedMap: unknown;
+  try {
+    completedMap = JSON.parse(await readFile(resolve(cwd, cutMapPath), "utf8"));
+  } catch {
+    return { status: "refused", reason: "map:invalid", locus: cutMapPath };
+  }
+  const decoded = decodeV3DecomposeCutMap(completedMap);
+  if (decoded.status === "rejected") return {
+    status: "refused", reason: `map:${decoded.issue.code}`,
+    locus: decoded.issue.path, message: decoded.issue.message,
+  };
+  if (decoded.value.machine.source.origin !== origin) return {
+    status: "refused", reason: "map:origin", locus: "machine.source.origin",
+    evidence: { expected: origin, actual: decoded.value.machine.source.origin },
+  };
+  return { status: "ready", map: decoded.value };
 }
 
 /**
@@ -262,27 +284,21 @@ export async function handleDecompose(
       return;
     }
     if (parsed.data.advanceBase !== undefined) {
-      let completedMap: unknown;
-      try {
-        completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
-      } catch {
-        completedMap = null;
-      }
-      const decoded = decodeV3DecomposeCutMap(completedMap);
-      const result = decoded.status === "accepted"
-        && decoded.value.machine.source.origin === parsed.data.origin
+      const decoded = await readAdvanceBaseMap(cwd, parsed.data.origin, parsed.data.advanceBase);
+      const result = decoded.status === "ready"
         ? await advanceGitDecomposeTransitionBase(repository, {
             protection,
             baseBranch: settings["branch.base"],
-            completedMap: decoded.value,
+            completedMap: decoded.map,
           })
-        : { status: "refused" as const, reason: "map:invalid" };
+        : decoded;
       if (result.status === "refused") {
         emitV3DecomposeRefusal({
           ...result,
           remedy: v3DecomposeRemedy({
             invocation,
             reason: result.reason,
+            ...("message" in result && typeof result.message === "string" ? { message: result.message } : {}),
             ...(result.locus === undefined ? {} : { locus: result.locus }),
           }),
         }, "advance-base");
