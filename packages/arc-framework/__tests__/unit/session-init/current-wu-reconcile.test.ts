@@ -10,7 +10,18 @@ import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecyc
 const META_PATH = ".arc/active/meta-dependent.md";
 
 function meta(dependsOn: string): string {
-  return `# Metadata: dependent\n\n- **State:** Active\n- **Depends On:** ${dependsOn}\n`;
+  return [
+    "# Metadata: dependent",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| Active | — | — | — | — |",
+    "",
+    `- **Depends On:** ${dependsOn}`,
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 describe("runCurrentWuReconcileSessionProbe", () => {
@@ -19,7 +30,17 @@ describe("runCurrentWuReconcileSessionProbe", () => {
     const result = await runCurrentWuReconcileSessionProbe({
       index: buildLifecycleIndexFromMetas([
         { path: META_PATH, content: meta("`retired`") },
-        { path: ".arc/active/meta-successor.md", content: "# Metadata: successor\n\n- **State:** Active\n" },
+        { path: ".arc/active/meta-successor.md", content: [
+          "# Metadata: successor",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Active | — | — | — | — |",
+          "",
+          "",
+          "---",
+          "",
+        ].join("\n") },
       ]),
       queryDisposition: () => Promise.resolve({
         status: "unique",

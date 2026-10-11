@@ -23,9 +23,10 @@ const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 const META = [
   "# Metadata: x",
   "",
-  "- **State:** __STATE__",
-  "- **Owner:** andrew",
-  "- **Branch:** __BRANCH__",
+  "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+  "| --------- | --------- | ---------- | --------- | ------------ |",
+  "| __STATE__ | andrew | __BRANCH__ | — | — |",
+  "",
   "- **Design:** spec-x.md",
   "",
   "---",

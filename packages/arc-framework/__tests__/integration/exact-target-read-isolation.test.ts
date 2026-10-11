@@ -183,13 +183,33 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
     await mkdir(transitions, { recursive: true });
     await writeFile(
       join(harness.primary, ".arc", "active", "meta-dependent.md"),
-      "# Metadata: dependent\n\n- **State:** Active\n- **Owner:** test-user\n"
-        + "- **Branch:** `main`\n- **Depends On:** `origin`\n",
+      [
+        "# Metadata: dependent",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active | test-user | `main` | — | — |",
+        "",
+        "- **Depends On:** `origin`",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await writeFile(
       join(planned, "meta-successor.md"),
-      "# Metadata: successor\n\n- **State:** Planning\n- **Owner:** test-user\n"
-        + "- **Branch:** [none]\n- **Depends On:** [none]\n",
+      [
+        "# Metadata: successor",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Planning | test-user | [none] | — | — |",
+        "",
+        "- **Depends On:** [none]",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await writeFile(join(transitions, "origin.json"), `${JSON.stringify({
       schemaVersion: 1,
