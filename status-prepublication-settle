@@ -3,7 +3,7 @@
   "slug": "status-prepublication-settle",
   "claimId": "0e49f1b1392be82d0762fdc90d23d698",
   "createdAt": "2026-10-11T02:42:00.005Z",
-  "updatedAt": "2026-10-11T02:42:00.005Z",
+  "updatedAt": "2026-10-11T03:30:45.002Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Stop work-unit review status reporting settled while the Candidate's pre-publication review is outstanding",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop work-unit review status reporting `settled` while the Candidate is still pre-publication",
   "originEntrySourceDigest": "sha256:fb4bd97daa07e233ed39f3f0e06eef9e2918ffd40f9ae1ef310cae4f20d51ab7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/status-prepublication-settle",
+    "headSha": "2df8bce27082f35c8974c373e982a46eaac2d35c"
+  }
 }
