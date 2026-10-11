@@ -213,17 +213,10 @@ grows.
         - The compatibility fixture uses the core State setter, and its attestation fixtures carry default-valued
           bullets so the legacy reconcile leaves their Candidate bullet intact.
 
-### `[ ]` **2.5 Today's setters delegate to the writers, with the named corrections — § 5.6**
+### `[x]` **2.5 Today's setters delegate to the writers, with the named corrections — § 5.6**
 
 - _Goal:_ Today's eleven setters keep their signatures and delegate to the writers, producing today's bytes and
   failures everywhere except § 5.6's named corrections, each of which a test states.
-
-- _Context:_ The setters stay exported for the verbs not yet moved onto the store (`setMetaState`, `setMetaBranch`,
-  `setMetaTitle`, `setMetaClass`, `setMetaCurrentWorkflow`, `setMetaDesign`, `setMetaCandidate`,
-  `setMetaFinalizeFields`, `setMetaBulletFields`, `reconcileMetaFields`, `normalizeMetaCoreTable`). Each parses a
-  preformatted value back to its semantic form where the writer takes one; every calling module passes the canonical
-  form (`formatValue`, `renderEdgeList`, or a narrative as written), so the bytes change only where a correction
-  applies.
 
     - `[x]` **2.5.a Delegate the core-table and title setters**
         - Core and managed-title setters delegate to typed writers; every setter refuses a missing closing rule,
@@ -240,14 +233,10 @@ grows.
           omitted optional fields are not reported as backfilled. Candidate writes only its bullet, and finalize
           writes only PR URL and Completed in field order, including a partial group before an internal section.
 
-    - `[ ]` **2.5.d Run every setter caller's tests**
-        - The ten calling modules' tests pass, outside the corrections above, with no byte change (`npm test`):
-          `handlers/lifecycle-delivery-review.ts`, `lib/markdown/format-plan.ts`, and, under `lib/work-unit/`,
-          `decompose-sweep.ts`, `decompose-v3-repository-plan.ts`, `executor-context.ts`,
-          `mutators/rewrite-renamed-meta.ts`, `mutators/set-phase.ts`, `rename-reference-sweep.ts`,
-          `side-effects/discharge-dep-edges.ts`, and `validated-graduation-transaction.ts`.
-        - The end-to-end suites that build metas through the setters (`session-init.e2e.test.ts`,
-          `delivery-position.e2e.test.ts`, `session-envelope-compat.e2e.test.ts`) pass (`npm run -s test:e2e`).
+    - `[x]` **2.5.d Run every setter caller's tests**
+        - The complete unit/integration lane covers all ten calling modules, and the full end-to-end tier covers
+          session-init, delivery-position, and session-envelope compatibility. Both pass with changes confined to
+          the named setter corrections.
 
 ### `[ ]` **2.6 The flat-bullet fallback retires — § 5.1, § 11.2**
 
