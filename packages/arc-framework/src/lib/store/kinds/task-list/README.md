@@ -3,7 +3,8 @@
 `parseTaskListRecord` reads the header's Design filename above the first phase heading. Content decoding always
 succeeds, including archived lists whose task lines do not satisfy the current structural scanner.
 
-`registration.ts` installs that parser for `work-item/task-list`. The public index exposes the pure content API;
+`registration.ts` installs that parser and the complete six-rule check for `work-item/task-list`. The public index
+exposes the pure content API;
 `lib/task-list/` supplies structural scans, cursors, and other derived views over the returned record content.
 
 `writeTaskMarker` completes or defers exactly one scanned task by identifier, preserving all other bytes. It refuses
@@ -25,3 +26,7 @@ protected independently of task-line syntax.
 uses the existing descriptor grammar for parent Goals and each subtask's bounded, dedented body, keyed by physical
 line to keep repeated identifiers separate. Goal text follows the delivery inventory's whitespace normalization;
 failed proposed scans report unavailable retention evidence rather than claiming an unchanged target disappeared.
+
+`shape-rules.ts` checks only added or changed root descriptor clusters and newly introduced segmentation diagnostics.
+Cluster comparisons follow paired parent lines and include separators; diagnostic identity ignores physical line
+shifts and matches scanner failures by code alone. `check.ts` collects all six rules without stopping at the first.

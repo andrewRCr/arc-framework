@@ -528,7 +528,7 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
   with no parser, production-registration, or backend back-edge. Existing pre-commit validators remain unchanged;
   the kind rules restate their conditions over the write's changed fields and proposed records.
 
-### `[ ]` **6.3 The task list's check — § 3.3, § 3.6, § 6.3, § 6.4, § 6.5**
+### `[x]` **6.3 The task list's check — § 3.3, § 3.6, § 6.3, § 6.4, § 6.5**
 
 - _Goal:_ The task list's registration carries a check running its six rules over task lines paired by identifier
   between the prior and next versions.
@@ -548,20 +548,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           delivery-compatible whitespace normalization and task-local descriptor scopes, including subtasks and
           repeated identifiers. A failed proposed scanner reports unavailable retention evidence without claiming loss.
 
-    - `[ ]` **6.3.d Build the shape rules and register the check**
-        - `task-list.descriptor`: an added or changed root descriptor cluster breaking `validateTaskDescriptorSpacing`
-          (`lib/markdown/descriptor-spacing.ts`); a cluster pairs with the cluster under its parent's paired task line
-          (Task 6.3.a) and is changed when its lines differ (`scanTaskDescriptorExtents`).
-        - `task-list.segmentation`: a diagnostic of the next version's `scanTaskListSegmentation` that the prior's did
-          not report, matched by `code` and message less its `path:line` prefix, and a `task-list-malformed` by `code`
-          alone.
-        - The task list's registration carries the check.
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - a broken descriptor cluster left unchanged admits an unrelated write
-            - a line shift above an existing segmentation diagnostic admits
-            - a numeric third-level identifier refuses as a new `task-list-malformed`
-            - the registered check returns every rule a write breaks, two at once included
+    - `[x]` **6.3.d Build the shape rules and register the check**
+        - Changed root descriptor clusters include separator bytes and pair through their parent task occurrences.
+          Newly introduced segmentation diagnostics compare without source-line shifts; scanner failures match by code.
+          The production registration collects all six rules, including simultaneous violations and legacy repairs.
 
 ### `[ ]` **6.4 The lineage and cohort checks — § 3.6, § 8.2**
 
