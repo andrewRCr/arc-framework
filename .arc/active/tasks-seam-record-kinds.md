@@ -104,10 +104,14 @@ the remote state too, holds that state's queue only while it compares and publis
           batch views, and merged stale-write content. Fixtures without checks report reasoned skips; suite declarations
           and documentation now name seventeen items.
 
-### `[ ]` **1.5 Registered reads and checked writes hold end to end** — validate exit criterion at segment scope
+### `[x]` **1.5 Registered reads and checked writes hold end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion is shown by running the conformance suite over both fixtures and the in-repo
   store tests, with the scenario and its result recorded.
+
+- _Outcome:_ Both conformance fixtures and every `store-*.test.ts` integration file passed the exit scenario:
+  item 17 checks and refusal composition ran over the reference backend, the in-repo fixture reported its no-check
+  skips, and registered meta reads and listings preserved their fields.
 
 ## **Phase 2:** The meta kind's schema and writers
 
