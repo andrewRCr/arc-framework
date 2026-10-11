@@ -1,7 +1,7 @@
 /**
  * Subprocess CLI invocation helper for end-to-end purity tests.
  *
- * Spawns `node dist/cli.js <args>` via `child_process.spawn` with `stdio: "pipe"`,
+ * Spawns `node bin/arc.js <args>` via `child_process.spawn` with `stdio: "pipe"`,
  * collects stdout and stderr buffers separately, and returns
  * `{ stdout, stderr, exitCode }`. Pipe stdio (not a PTY) is the point —
  * subprocess tests assert the CLI's stdout contract under the same non-TTY

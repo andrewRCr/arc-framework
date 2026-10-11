@@ -4,7 +4,7 @@
   "description": "CLI tool for installing, updating, and managing ARC framework files",
   "type": "module",
   "bin": {
-    "arc": "dist/cli.js"
+    "arc": "bin/arc.js"
   },
   "scripts": {
     "build": "node --import tsx src/scripts/run-build.ts full",
@@ -74,6 +74,7 @@
     "vitest": "^4.1.8"
   },
   "files": [
+    "bin",
     "dist",
     "arc",
     "templates",
