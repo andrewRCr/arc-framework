@@ -1260,4 +1260,7 @@ completed placement (§ 8.2).
 - **A2** — 2026-10-11 — task: check removed and created primary kinds on a role replacement.
   _Supersedes:_ none. _Trigger:_ 6.2 must-stop. _Work:_ 1.R. _Revalidated:_ pending → 6.5.
 
+- **A3** — 2026-10-11 — task: propagate the five-helper import boundary into composed configuration coverage.
+  _Supersedes:_ none. _Trigger:_ 6.5 segment. _Work:_ 6.R2. _Revalidated:_ pending → 6.5.
+
 ---

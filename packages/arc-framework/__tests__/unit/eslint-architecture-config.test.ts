@@ -103,7 +103,7 @@ describe("composed architecture configuration", () => {
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseIdentifierList"]'],
     [
       "src/lib/active/meta-reader.ts",
-      'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\//])',
+      'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])',
     ],
     ["src/lib/errand/promote.ts", 'Identifier[name=/^(MetaProjectionOverrides|renderMetaProjectionFile)$/]'],
     ["src/lib/config/status-reader.ts", 'VariableDeclaration[kind="const"] > VariableDeclarator[id.name="DEFAULTS"]'],

@@ -568,6 +568,14 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           observations to enforce one-level nesting and full member paths. Retirement waits for open members and
           subcohorts, including batch archives; incomplete evidence refuses under its own rule. All three are registered.
 
+### `[x]` **6.R2 Align composed architecture coverage with the helper boundary — § 1.2 (A3)**
+
+- _Goal:_ The composed architecture-config regression observes A1's five-helper static import boundary, closing A3
+  while retaining the existing allowed and refused import cases.
+
+- _Outcome:_ `eslint-architecture-config.test.ts` expects the five-helper selector already emitted by the production
+  configuration. Composed configuration and native import/re-export cases agree, with no enforcement change.
+
 ### `[ ]` **6.5 Every registered kind is settled** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion is shown — the task list, draft, spec, companion, and cohort document listed over
