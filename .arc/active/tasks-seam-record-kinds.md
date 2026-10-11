@@ -533,9 +533,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - _Goal:_ The task list's registration carries a check running its six rules over task lines paired by identifier
   between the prior and next versions.
 
-    - `[ ]` **6.3.a Pair task lines across versions**
-        - Task lines are `scanTaskListStructure`'s items, paired by identifier, a repeated identifier pairing in file
-          order; a line with no prior counterpart is added; a prior failing the scanner pairs no line.
+    - `[x]` **6.3.a Pair task lines across versions**
+        - `pairTaskLines` pairs scanner items by identifier using file-order queues, preserving source order for
+          unmatched prior lines. Titles and parent/subtask roles do not affect pairing; a failed scan supplies no
+          lines, with its readability retained for the rules.
 
     - `[ ]` **6.3.b Build the authority rules**
         - `task-list.close`: a hand edit giving a line `[x]` or `[~]` its prior counterpart lacked — an added line or a

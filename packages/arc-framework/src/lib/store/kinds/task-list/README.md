@@ -12,3 +12,6 @@ malformed lists, missing or ambiguous identifiers, and edits that leave the task
 `spliceDeliveryPlanSection` replaces one marked region, or one provisional unmarked Delivery Plan section, with
 already-rendered text. Its sentinels and replacement-locus refusals belong to the kind; plan validation and rendering
 remain with delivery.
+
+`line-pairing.ts` pairs scanned task items by identifier, including repeated identifiers in source order. It retains
+unmatched prior lines and explicit scan availability for rules that compare markers, completed intent, and shape.
