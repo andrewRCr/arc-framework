@@ -576,14 +576,18 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - _Outcome:_ `eslint-architecture-config.test.ts` expects the five-helper selector already emitted by the production
   configuration. Composed configuration and native import/re-export cases agree, with no enforcement change.
 
-### `[ ]` **6.5 Every registered kind is settled** — validate exit criterion at segment scope
+### `[x]` **6.5 Every registered kind is settled** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion is shown — the task list, draft, spec, companion, and cohort document listed over
   this repository through the in-repo implementation with no diagnostics, decomposition's two checks admitting every
   planned cohort document at its path, each kind with rules registering its check, and `npm test` passing — with the
   scenario and its result recorded.
 
-- _Note:_ The listing and the checks over the repository's documents run as a probe; no verification script ships.
+- _Outcome:_ `createStore` returned complete task-list, draft, spec, companion, and cohort listings with no diagnostics.
+  All 13 planned cohort documents passed `structurallyMatches` and `validateCohortDocumentClaim` at their paths;
+  both scaffold Parent forms matched, with authored Purpose required for terminal admission. All five checked kinds
+  register the catalog's 21 rules. The covering `npm test` run passed after 6.R2's composed-selector correction,
+  revalidating A2 and A3. The repository probe remained ephemeral.
 
 ## **Phase 7:** Verification
 
