@@ -623,16 +623,20 @@ here. Five interfaces cross:
 
    **The `after` view** is this work unit's to build, in `lib/store/projection/`; the seam ships none (the spec's
    § 3.1). `before` is the backend as write-back finds it. `after` answers `read` and `list` for the written record from
-   the pending write and everything else from `before`, and its `lookup` is `before`'s, since no write-back write
-   changes what lookup resolves: write-back writes content alone — never a reference, placement, former slug, or link —
-   removes nothing, creates no primary record (a new stub mints through `arc stub`, § Files the store does not know),
-   and edits no machine kind whose parsed fields lookup reads, an Errand record or a claim (`lookupReference`,
-   `__tests__/helpers/store/lookup.ts`). A view resolving differently would admit a write the backend then refuses, so a
-   conformance case holds it there: for each hand-editable kind, over each backend that runs checks, the `after` view
-   built before a write answers `read`, `list`, and `lookup` as the backend does once the write lands. Each edited file
-   persists as its own `write`, so `after` is the store plus that one write and one refused edit blocks no other —
-   `arc save`'s "at once" (D13) means in one command, not one batch, which D3 makes all-or-none; a refusal another
-   file's pending edit would cure clears at the next command, once that edit has landed.
+   the pending write and everything else from `before`, and its `lookup` is `before`'s for every kind but `commit`.
+   Write-back writes content alone — never a reference, placement, former slug, or link — removes nothing, creates no
+   primary record (a new stub mints through `arc stub`, § Files the store does not know), and writes no machine kind,
+   among them the Errand records, claims, and transition records whose fields lookup reads (`lookupReference`,
+   `__tests__/helpers/store/lookup.ts`; `lookupTracked`, `lib/store/in-repo/lookup.ts`). A commit lookup is the
+   exception: its `taskIds` expand the commit's task range against the work unit's task list (`lookupCommit`), which a
+   hand edit changes. No rule looks up a commit, so `after` throws on one as a defect rather than answer from `before`:
+   any later rule that looks one up fails its tests instead of reading stale task IDs. A view resolving differently
+   would admit a write the backend then refuses, so a conformance case holds it there: for each hand-editable kind, over
+   each backend that runs checks, the `after` view built before a write answers `read`, `list`, and the slug, lineage,
+   claim, and ref lookups as the backend does once the write lands. Each edited file persists as its own `write`, so
+   `after` is the store plus that one write and one refused edit blocks no other — `arc save`'s "at once" (D13) means in
+   one command, not one batch, which D3 makes all-or-none; a refusal another file's pending edit would cure clears at
+   the next command, once that edit has landed.
 
    Write-back persists under the provenance verb `write-back` and `arc save` under `save`, each with the lifecycle
    action `edit`; a backend reads those two verbs as a hand edit and any other as itself, so it enforces the authority
@@ -770,6 +774,9 @@ None.
   integrated: § Coordination item 1 passes `before` and `after` views and builds `after` itself, passes an unparseable
   stored version as `prior` with no fields, checks the merged content rather than the file, imports `HAND_EDIT_VERBS`
   from `seam-record-kinds`, and cites `spec-seam-record-kinds.md` in place of its draft.
+- **Scope the `after` view's conformance case around commit lookups** (sent by `seam-record-kinds`' generate-tasks
+  session, 2026-10-10) — integrated: § Coordination item 1's `after` view throws on a commit lookup, whose `taskIds` a
+  task-list hand edit changes and which no rule makes, and its conformance case covers the other lookup kinds.
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
