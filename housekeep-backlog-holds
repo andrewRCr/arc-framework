@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-backlog-holds",
+  "claimId": "985f0dd6611631b6e14ffb684191d11d",
+  "createdAt": "2026-10-11T23:00:43.125Z",
+  "updatedAt": "2026-10-11T23:00:43.125Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the 2026-10-11 housekeep drain's work-unit captures into their backlog drafts",
+  "branch": "chore/housekeep-backlog-holds",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
