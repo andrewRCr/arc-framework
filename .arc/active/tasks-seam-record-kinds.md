@@ -411,20 +411,13 @@ document conversion that must change with it.
           drift or a noncanonical path returns null. The exact Members heading rewrite and its cases now live under
           the kind; the reference planner imports that public helper.
 
-### `[ ]` **5.2 The member-section report carries condition (c) — § 8.5**
+### `[x]` **5.2 The member-section report carries condition (c) — § 8.5**
 
 - _Goal:_ A public pure function reports each member section naming no member, and the cohort consistency check's
   condition (c) computes through it with its diagnostics unchanged.
 
-    - Input: a cohort document's content and the cohort's member slugs; output: each level-three heading under
-      `## Members` holding a backticked slug that names no member, in document order.
-    - `memberSlugs` moves from `lib/active/cohort-consistency.ts` into the kind folder as the report's section reader,
-      and `checkCohortConsistency` computes condition (c) through the report, its live and staged members together.
-    - Build `test-first` (one behavior at a time):
-        - a section naming a member is not reported
-        - a section naming no member is reported
-        - a heading outside `## Members` is ignored
-        - the consistency check's existing tests pass unchanged
+- _Outcome:_ The public report owns the unchanged member-section reader. Condition (c) supplies the union of live
+  and staged members and preserves its diagnostic wording and document order.
 
 ### `[ ]` **5.3 Decomposition's checks and scaffold read the parsed `Parent`; the cohort forms convert — § 8.4, § 12**
 

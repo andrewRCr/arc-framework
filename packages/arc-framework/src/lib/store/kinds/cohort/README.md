@@ -13,3 +13,6 @@ forms retain the same identity. Missing template landmarks or a noncanonical coh
 and their supplied order are preserved.
 
 `rewriteCohortMemberHeading` renames only an exact member heading within Members, preserving all other lines.
+
+`reportOrphanCohortMemberSections` returns member headings whose slugs are absent from the supplied membership,
+in document order. It supports advisory consistency diagnostics rather than refusing a document write.
