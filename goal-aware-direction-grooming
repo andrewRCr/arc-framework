@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "goal-aware-direction-grooming",
+  "claimId": "edfbc83d0d4a0f10d38a7f1ebae6e8fc",
+  "createdAt": "2026-10-11T19:05:35.962Z",
+  "updatedAt": "2026-10-11T19:05:35.962Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Groom goal-aware-direction's draft: separate the target-free recommender and its capacity mode from the vector primitive, or lay forward seams for that split",
+  "branch": "chore/goal-aware-direction-grooming",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
