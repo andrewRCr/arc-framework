@@ -197,29 +197,21 @@ grows.
         - Every content writer requires the H1 and closing rule before inspecting its own field. Core-table writes
           operate inside those anchors, and an absent field never masks a missing-anchor error.
 
-### `[ ]` **2.4 Every bullet-form meta and unanchored test fixture takes the core table — § 5.1, § 5.6, § 12**
+### `[x]` **2.4 Every bullet-form meta and unanchored test fixture takes the core table — § 5.1, § 5.6, § 12**
 
 - _Goal:_ No tracked meta and no test fixture builds a meta in the bullet form or with no H1, and no fixture hands a
   setter one with no closing `---`, so neither the setters' throw on an unanchored meta nor the fallback's retirement
   changes any test's outcome but the tests of those behaviors.
 
-- _Note:_ Convert first: the setters throw on an unanchored meta once they delegate (Task 2.5), and the deciding
-  lifecycle inventory (`requireCompleteInventory`, `lib/store/lifecycle-storage.ts`) refuses while any meta fails to
-  parse. The fixture surface is in `notes-seam-record-kinds.md` § Meta fixtures to convert.
-
     - `[x]` **2.4.a Convert the five archived bullet-form metas**
         - The five archived metas use the core table. Parsing each before and after returns the same complete field
           record; absent historical Class and Priority values render as `—` and remain semantic nulls.
 
-    - `[ ]` **2.4.b Convert the test fixtures, batch by batch**
-        - Each fixture the notes list takes whichever it lacks of an H1, the core table, and a closing `---`, in the
-          batches the notes group them by; a whole-meta fixture renders through `renderMetaFile` or carries the table
-          literally, as its file's other fixtures do.
-        - The four `normalizeMetaCoreTable` cases asserting a missing, malformed, unrecognized, or duplicated table gain
-          only the closing `---`, so each still meets its own table error.
-        - A test of the fallback itself stays as it is until Task 2.6.b turns it into a refusal case.
-        - Each batch's tests pass before and after its conversion under today's setters and fallback
-          (`npm run -s test:file` over the batch, `npm run -s test:e2e` for the end-to-end batch).
+    - `[x]` **2.4.b Convert the test fixtures, batch by batch**
+        - Ordinary fixtures carry the H1, core table, and closing rule; fallback and malformed-table cases retain
+          their intended shapes. The E2E guard probe also found review-chunking's H1-only delivery fixtures.
+        - The compatibility fixture uses the core State setter, and its attestation fixtures carry default-valued
+          bullets so the legacy reconcile leaves their Candidate bullet intact.
 
 ### `[ ]` **2.5 Today's setters delegate to the writers, with the named corrections — § 5.6**
 

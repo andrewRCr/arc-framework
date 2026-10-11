@@ -43,6 +43,8 @@ describe("status <slug>", () => {
         "",
         "- **Depends On:** `shipped-dep`",
         "",
+        "---",
+        "",
       ].join("\n"),
     );
     await writeFile(
@@ -50,8 +52,13 @@ describe("status <slug>", () => {
       [
         "# Metadata: shipped-dep",
         "",
-        "- **State:** Shipped",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Shipped | — | — | — | — |",
+        "",
         "- **Depends On:** [none]",
+        "",
+        "---",
         "",
       ].join("\n"),
     );
@@ -138,7 +145,17 @@ describe("status <slug>", () => {
     await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
     await writeFile(
       join(tmpDir, ".arc", "backlog", "planned", `meta-${slug}.md`),
-      [`# Metadata: ${slug}`, "", "- **State:** Planning", "- **Branch:** [none]", ""].join("\n"),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Planning | — | [none] | — | — |",
+        "",
+        "",
+        "---",
+        "",
+      ].join("\n"),
     );
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "scaffold status query"], { cwd: tmpDir });
@@ -192,14 +209,28 @@ describe("status <slug>", () => {
       [
         `# Metadata: ${slug}`,
         "",
-        "- **State:** Active",
-        `- **Branch:** ${branch}`,
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| Active | — | ${branch} | — | — |`,
+        "",
+        "- **Cohort:** [none]",
+        "- **Depends On:** [none]",
+        "",
+        "- **Origin:** —",
+        "- **Design:** [none]",
         `- **Task List:** \`tasks-${slug}.md\``,
+        "- **Review Rubric:** [none]",
         "- **Candidate:** [none]",
         "- **Current Workflow:** prepare-work-unit",
         "- **Last Completed:** [none]",
         "- **Next Task:** [none]",
+        "- **Blockers:** [none]",
         "- **Next Action:** prepare publication",
+        "",
+        "- **PR URL:** [none]",
+        "- **Completed:** [none]",
+        "",
+        "---",
         "",
       ].join("\n"),
     );
