@@ -56,6 +56,24 @@
 - _Additional evidence captured during:_ `recover-integration-context-across-staged-archive-sweep` Errand,
   PR #588, 2026-09-10.
 
+### `[ ]` **Right-size CPU admission for artifact-only ARC contracts**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-10-11).
+
+- _Shapes:_ § Direction, the coordination layer — which lanes take heavy-test admission; this entry is its
+  artifact-only case.
+
+- _Observation:_ Artifact-only contracts wait minutes for heavy-test admission: the 101-case ARC contract check ran
+  in 1.39 seconds after waiting over three minutes; the focused 10-case framework-sync check ran in 0.752 seconds
+  after waiting over five minutes behind unrelated runtime lanes.
+
+- _Approach:_ Give the existing artifact-only ARC contract set proportional CPU admission, retaining eligibility,
+  artifact ownership, and completed-case safeguards. Keep this bounded to the existing contract set and its subsets.
+
+- _Scope:_ Preserve admission for runtime-heavy lanes and quality outcomes; avoid generic test-tier machinery.
+
+- _Captured during:_ `inbound-routing-method` implementation.
+
 ---
 
 ## Evidence

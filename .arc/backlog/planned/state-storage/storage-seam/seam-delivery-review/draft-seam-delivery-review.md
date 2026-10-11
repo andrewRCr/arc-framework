@@ -7,6 +7,181 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Offer an Errand the work-unit review-applicability selection once the seam stores its review records**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its Errand review records, and the Candidate review-applicability selection it carries for work units.
+
+- _Observation:_ after a base reconcile absorbs overlapping base movement, Errand review status carries the earlier
+  review to the new head only when no movement overlaps the reviewed paths (`readCarriedErrandReview` in
+  `status-errand.ts`); otherwise it asks for another review pass, or for the Owner's review stop once the pass
+  ceiling is spent. A work unit facing the same bounded residual gets a typed covered-or-review-required selection
+  (`ReviewApplicabilitySelectionOffer`, `resolveReviewApplicability`) recorded on its Candidate record. Errands
+  cannot take that selection before the seam, since the program's pull-forward filter admits no stored record or
+  record shape. `errand-overlap-continuation` made the reconcile reachable and left this decision as the remaining
+  divergence.
+
+- _Approach:_ once Errand review records live in the store, offer Errands the same selection from the same producer,
+  bound to the same selector, projection, and residual digests, rather than a parallel Errand mechanism;
+  `review-required` keeps the ordinary next-pass path.
+
+- _Drain note (2026-10-11):_ since `808c8181e`, an Errand's review carries across base movement that merges
+  without a substantive conflict, even where both sides edit a file; the selection asked for here now covers only
+  movement that conflicts.
+
+- _Captured during:_ Errand `errand-overlap-continuation`, 2026-10-10.
+
+### `[ ]` **Compose `arc errand merge` and the work-unit integration checkpoint through one terminal sequence**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Delivery and review records — the Candidate review-applicability selection this member carries for
+  work units, which the two terminal sequences call in different orders. A weak fit: the capture also names
+  `delivery-rebuild-continuity`; re-route at this member's planning if the terminal sequence reads as its.
+
+- _Observation:_ both terminal paths use the shared movement planner (`composeCheckpointMovementPlan`) and
+  applicability reducer (`reduceEvidenceApplicability`), but each sequences them itself, in `errand-merge.ts` and
+  `checkpoint.ts`. That is how the Errand path came to judge review applicability before reconciling while the
+  work-unit checkpoint reconciled first, a divergence `errand-overlap-continuation` closed by hand. Nothing keeps the
+  two orders from drifting again.
+
+- _Approach:_ extract one terminal sequence (blocked plan, then reconcile, then review applicability for a direct
+  merge), with each vehicle supplying its own gates: delivery's residual containment and the Candidate selection for
+  a work unit, the base-movement reduction for an Errand.
+
+- _Scope:_ delivery machinery, so the program's pull-forward filter holds it behind the seam as a work unit;
+  candidate homes are `seam-delivery-review` and `delivery-rebuild-continuity`.
+
+- _Captured during:_ Errand `errand-overlap-continuation`, 2026-10-10.
+
+### `[ ]` **Let a frontline admission that never ran be withdrawn or superseded**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Delivery and review records — Errand frontline skip. That item records an accepted skip keyed by the
+  review subject's lineage; declining an admission whose run never started is that skip, and a superseded one is
+  the same record's other arm.
+
+- _Observation:_ an Errand's frontline progress is keyed to its claim, not its head: `laneProgressOperationId`
+  (`review-gate/lane-progress.ts`) hashes `laneSubjectOwner`, which drops `headSha` from a `head-bound` lineage
+  (`review-gate/core/lane-admission.ts`). `resolveFrontlineCommandWithinLock` (`policy/frontline-command.ts`) resumes
+  any pending admission it finds through `resumePendingFrontlineAdmission` without comparing that admission's target to
+  the request's. So once the head moves past a resolved-but-unrun admission, every resolve returns the stale admission
+  as `ready / run-frontline`, and `arc review frontline run -` at the current head refuses it with a bare
+  `invalid-input` "frontline ready admission is unavailable" (`runtime/frontline-run-command.ts:118`). Neither names a
+  way out. The only exit is running the stale admission against its own old head, which closes the Errand's opening
+  frontline phase: harmless for a word-identical rewrap, wrong for a substantive change, since later heads then skip
+  frontline.
+
+- _Observation (2026-10-11):_ the same trap holds at an unchanged head, and for a work unit. `frontline resolve`
+  writes the admission itself, as a `pending` lane attempt (`recordLaneAttempt`, `policy/frontline-command.ts:197`),
+  before any run. The pending check (`:355`) returns ahead of `resolveFrontlineSelection`, so the request's
+  `invocation` is never read and `{ mode: "skip" }` cannot decline an admission once made. In `seam-record-kinds`, an
+  agent resolved frontline although chunking resolution had tripped the thresholds, and its run never started. A
+  work unit's pre-publication keeps routing to frontline while that lane is unsettled
+  (`policy/pre-publication-procedure.ts:190`), so the only way out was deleting the review record by hand. That
+  worked, but nothing checked that the lane's remaining records stayed consistent. An Errand's status and merge never
+  read frontline, so there the trap costs a stuck lane rather than a blocked landing.
+
+- _Observation (2026-10-11, unverified):_ a run that started and died may not have a reachable retry either. The
+  replay refuses with `uncertain-provider-execution` and asks for a new request carrying `retryOfOperationId`, but
+  that retry needs a fresh admission at a higher `retryGeneration`, and resolve keeps returning the old pending one.
+
+- _Approach:_ withdraw or supersede an admission only when its run provably never started, meaning no operation state
+  is published under its `operationId`. Do it through the ordinary resolve: an explicit `skip` at the same head
+  withdraws it, and a different target supersedes it and admits fresh, or refuses with a typed reason whose remedy
+  names that choice. Never delete or rewrite a run that started; that keeps its Owner-decided retry, which should be
+  confirmed reachable. Give the run refusal a typed reason that tells a stale target from a missing admission. No
+  general review-record cancel or cleanup verb: review records are evidence. Related: "Make a refused frontline
+  retry name its remedy" above covers the `operator-repair` retry path, not a pending admission. CLI source —
+  reviewed lane.
+
+- _Routed:_ held in `§ Errand` until 2026-10-11: the fix needs a record-lifecycle decision, which the storage
+  program's pull-forward filter keeps out of Errands, and the seam has since started. Routed here by Owner direction.
+
+- _Captured during:_ Errand `re-review-spend-decline`, 2026-10-01, after a rewrap commit landed between frontline
+  resolve and run; extended 2026-10-11 from the `seam-record-kinds` hand removal.
+
+### `[ ]` **Census the review gate's decision records before their field schemas are designed**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Delivery and review records — Open, the review records' field schemas (D5); and its Coordination
+  item on the Owner-accepted terminus's durable form with `review-protocol-alignment` and `review-source-authority`.
+
+- _Observation:_ the review gate has about ten separate shapes for a decision about an exact review subject:
+  `ReviewCeilingOverrideSchema`, `ReviewAdditionalPassAuthorizationSchema`, `ConditionalPassAuthorizationSchema`,
+  `FixAuthorizationFieldsSchema`, `DispositionApprovalSchema`, `OwnerAcceptedReviewTerminusSchema`, the
+  `DeliveryReviewTerminusAcceptance*` set, `FrontlineInvocationOverrideSchema`, and
+  `CandidateResponseConfirmationActionSchema`. The Owner-directed review stop has no record at all. They have
+  drifted:
+    - the ceiling override and the additional-pass authorization carry nearly the same fields (target, lane, pass
+      count, next pass);
+    - only some record who decided (`authorizedBy`, `acceptedBy`);
+    - only the conditional-pass authorization has a lifecycle (pending, bound, consumed, invalidated);
+    - each sets its own reach: one call, one head, or everything after.
+
+  The Owner-accepted terminus defects in `WORKING-MEMORY` are this drift. Two pending captures would add two more
+  shapes: a whole-change review acknowledgment and the withdrawal of an unrun frontline admission.
+  `core/schema-inventory.ts` lists durable records by identity rather than role, and most of these shapes are request
+  inputs, so nothing shows them as one family.
+
+- _Approach:_ before this member settles the review records' field schemas, census every decision shape. For each,
+  record the subject it binds, who decided, its reach, its lifecycle, where it is stored (or that it is not), and
+  its consumers. Then decide whether they share an envelope (subject binding, decided-by, reach, lifecycle) with
+  kind-specific payloads; differences with a real reason stay separate. The census is read-only, so it can run ahead
+  of this member's draft-design as preparation. It is also the first register for the by-kind mechanism register
+  capture below.
+
+- _Evidence:_ schema names and a handful of field lists compared on 2026-10-11; not every consumer path traced.
+
+- _Captured during:_ the `cli-compile-cache` Errand's close, discussing a `seam-record-kinds` frontline report,
+  2026-10-11.
+
+### `[ ]` **Keep a by-kind register of recurring mechanisms, and have the proportionality check read it**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Delivery and review records, **Open** — the review records' field schemas (D5), on whose census
+  this entry's timing proves the register first. Generalizing it into `assess-design-proportionality` stays
+  open, and re-routes if this member's design does not use the register.
+
+- _Observation:_ `assess-design-proportionality`'s `missed-composition` finding asks which current primitive
+  supplies a need. But its `substrate-referents` input is optional, and otherwise existing substrate is discovered
+  "narrowly from the problem and candidate". Same-kind mechanisms spread across modules under different names do not
+  surface from one work unit's problem, so each design passes honestly and a family grows one shape at a time. The
+  review gate's decision records are the worked example: about ten shapes (census capture above). The
+  storage-coupling register in `cohort-state-storage.md` shows what works instead: every mechanism of one kind
+  enumerated with an owner and a fate, under the rule that a mechanism with no row is a gap.
+
+- _Approach:_ a small register per recurring kind, read by `assess-design-proportionality` as its substrate
+  referents. Candidate kinds: decision and authorization records, typed stops and their retries, exact-subject
+  bindings, recovery routes. A design that adds a mechanism of a registered kind names the row it extends, or says
+  why none fits.
+    - Mechanical where the code allows: tag `core/schema-inventory.ts` entries with a kind, add decision-shaped
+      request inputs, and let a test refuse an unregistered decision shape (an architecture fitness function).
+    - Triggered, not calendar-driven: the lookup runs at every design that adds a mechanism; a consolidation review
+      fires when a kind reaches its third independent shape (rule of three); a census for unregistered kinds runs
+      at program and cohort boundaries.
+
+- _Timing:_ prove it on one kind first, the review decision census, before `seam-delivery-review` designs those
+  schemas. Generalize into the method only if that register changes that design.
+
+- _Open:_ where registers live (beside their kind's owning code, in a reference document, or both); who keeps them
+  current; how a new kind gets noticed between censuses; and whether the method change ships to every project or the
+  registers stay a convention of this repository.
+
+- _Captured during:_ the `cli-compile-cache` Errand's close, discussing a `seam-record-kinds` frontline report,
+  2026-10-11.
+
+---
+
 ## Continuity
 
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, from a draft

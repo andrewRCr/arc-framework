@@ -138,6 +138,31 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
   documentation.
 
+### `[ ]` **Consider folding `worktree.harness_dirs` into `.worktreeinclude`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11);
+  re-targeted here, as its approach names, since it shapes no storage decision.
+
+- _Shapes:_ § Proposed Principle's decision tree (§ Decision tree update) — whether a value a tool reads is a
+  config key or a convention file the tool ecosystem reads; the mirror of the `worktree.location_template`
+  worked example.
+
+- _Observation:_ two mechanisms copy gitignored local files from the primary checkout into ARC-created worktrees,
+  both through the shared linked-worktree setup: the `worktree.harness_dirs` config key (default
+  `.claude,.codex,.gemini,.opencode`, whole top-level directories) and, once its pending Errand lands, a root
+  `.worktreeinclude` file (the cross-tool convention, gitignore-syntax patterns, gitignored matches only). The
+  Errand keeps both, additively.
+
+- _Approach:_ decide whether the config key retires in favor of the convention file, with `arc init` writing the
+  harness directories into `.worktreeinclude` instead. That trades a config key for a tracked file every supporting
+  tool reads, at the cost of config schema, init recipe, docs, and test changes. Consider only if two mechanisms
+  prove confusing in practice. If it reads as a config-versus-convention boundary call rather than a storage one,
+  re-route to `customization-arch-realign`.
+
+- _Drain note (2026-10-11):_ the `.worktreeinclude` Errand has landed (PR #864), so both mechanisms ship.
+
+- _Captured during:_ `.worktreeinclude` Errand scoping, 2026-10-09.
+
 ---
 
 ## Problem / Motivation
