@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeMetaCoreTable, setMetaBranch, setMetaClass, setMetaState, setMetaTitle,
   setMetaBulletFields, setMetaCurrentWorkflow, setMetaDesign, parseMetaRecord,
+  reconcileMetaFields, setMetaCandidate, setMetaFinalizeFields,
 } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
@@ -27,6 +28,59 @@ describe("metadata setter anchors", () => {
       expect(() => set(content)).toThrow(/H1/iu);
     },
   );
+});
+
+describe("targeted metadata backfills", () => {
+  it("keeps authored fields and every section while inserting only missing lines", () => {
+    const section = "## Session Context\n\nA handoff.\n\n## Completion Notes\n\nA result.\n\n";
+    const original = makeMetaFixture("example", { nextAction: "Keep `this` prose." })
+      .replace("- **Cohort:** [none]\n", "")
+      .replace("- **Design:** [none]", "* **Design:**   `spec-example.md`")
+      .replace("\n---\n", `\n${section}---\n`);
+    const result = reconcileMetaFields(original, { Design: "spec-other.md" });
+    expect(result.backfilled).toEqual(["Cohort"]);
+    expect(result.content).toContain(section);
+    expect(result.content.replace("- **Cohort:** [none]\n", "")).toBe(original);
+  });
+
+  it("writes Candidate alone when another field is absent", () => {
+    const original = makeMetaFixture("example").replace("- **Cohort:** [none]\n", "");
+    const value = `sha256:${"c".repeat(64)}`;
+    const written = setMetaCandidate(original, value);
+    expect(written).not.toContain("**Cohort:**");
+    expect(written.replace(`- **Candidate:** \`${value}\`\n`, "")).toBe(original);
+  });
+
+  it.each([false, true])("writes only finalize facts before an internal section (partial: %s)", (partial) => {
+    const section = "## Completion Notes\n\nKeep the result.\n\n";
+    let original = makeMetaFixture("example")
+      .replace("- **Cohort:** [none]\n", "")
+      .replace("- **Completed:** [none]\n", "")
+      .replace("\n---\n", `\n${section}---\n`);
+    if (!partial) original = original.replace("- **PR URL:** [none]\n", "");
+    const written = setMetaFinalizeFields(original, { prUrl: "https://example.com/pr/1", completed: "2026-10-11" });
+    expect(written).not.toContain("**Cohort:**");
+    expect(written).toContain(section);
+    expect(written.indexOf("**PR URL:**")).toBeLessThan(written.indexOf("**Completed:**"));
+    expect(written.indexOf("**Completed:**")).toBeLessThan(written.indexOf("## Completion Notes"));
+    const withoutFacts = partial
+      ? written.replace(/^- \*\*(?:PR URL|Completed):\*\*.*\n/gmu, "")
+      : written.replace(/\n- \*\*PR URL:\*\*.*\n- \*\*Completed:\*\*.*\n/u, "");
+    expect(withoutFacts)
+      .toBe(original.replace(/^- \*\*PR URL:\*\*.*\n/gmu, ""));
+  });
+
+  it("does not report an omitted optional field as backfilled", () => {
+    const content = makeMetaFixture("example");
+    expect(reconcileMetaFields(content, { Candidate: "[none]" })).toEqual({ content, backfilled: [] });
+  });
+
+  it.each([
+    ["H1", (content: string) => content.replace(/^# Metadata: example\n/u, "")],
+    ["closing.*---", (content: string) => content.replace(/\n---\n$/u, "\n")],
+  ] as const)("reconciliation refuses a missing %s anchor", (message, remove) => {
+    expect(() => reconcileMetaFields(remove(makeMetaFixture("example")))).toThrow(new RegExp(message, "iu"));
+  });
 });
 
 describe("legacy bullet setter rendering", () => {

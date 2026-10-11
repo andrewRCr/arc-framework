@@ -969,9 +969,8 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
   });
 
   it("normalizes a partial finalize group (one bullet present) instead of throwing", () => {
-    // A hand-edited meta where `Completed` was deleted but `PR URL` survived. The
-    // in-place rewrite would throw on the missing bullet; the write reconciles the
-    // absent bullet back in first, then updates both.
+    // A hand-edited meta where Completed was deleted but PR URL survived.
+    // Both facts are written without duplicating the present bullet.
     const full = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
     const partial = full
       .split("\n")

@@ -235,17 +235,10 @@ grows.
           inserting absent fields in order. Generic Promotion Receipt updates remain refused before delegation.
           Deactivate, reopen, archive, and Shipped attestation render their cleared Next Action as `—`.
 
-    - `[ ]` **2.5.c Fix `reconcileMetaFields`' section deletion, and stop the candidate and finalize backfills**
-        - `reconcileMetaFields` inserts only the missing lines and never re-renders a present one, so a section between
-          the first field bullet and `---` survives a backfill.
-        - `setMetaCandidate` drops its unconditional reconcile: the `Candidate` writer inserts its own absent bullet,
-          and no other bullet is backfilled, so `arc attest` no longer fills a drifted meta's missing fields.
-        - `setMetaFinalizeFields` places an absent `PR URL` and `Completed` in field order rather than just before the
-          closing `---`, and, with one present, backfills no other bullet.
-        - Build `test-first` (one behavior at a time):
-            - a backfill keeps every section inside the field block and adds only the missing lines
-            - `setMetaCandidate` on a drifted meta writes only the `Candidate` bullet
-            - `setMetaFinalizeFields` places absent finalize bullets in field order and backfills nothing else
+    - `[x]` **2.5.c Fix `reconcileMetaFields`' section deletion, and stop the candidate and finalize backfills**
+        - Reconciliation inserts only missing renderable bullets, preserving present fields and internal sections;
+          omitted optional fields are not reported as backfilled. Candidate writes only its bullet, and finalize
+          writes only PR URL and Completed in field order, including a partial group before an internal section.
 
     - `[ ]` **2.5.d Run every setter caller's tests**
         - The ten calling modules' tests pass, outside the corrections above, with no byte change (`npm test`):

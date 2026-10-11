@@ -34,14 +34,14 @@ import {
   writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
 } from "../store/kinds/meta/writers.js";
 import {
-  META_FIELDS, formatValue, renderCoreTable, renderBullets, parseIdentifierList, PLACEHOLDER, isSentinel,
-  type MetaFieldDescriptor, type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
+  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel,
+  type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
 } from "../store/kinds/meta/projection.js";
 export * from "../store/kinds/meta/projection.js";
 import {
   locateMetaCoreTable,
   locateMetaFieldBlock,
-  readMetaSectionBodies, bulletMarkerRe, FIELD_MARKER_RE, extractField, parseCoreTable, stripInlineCode,
+  readMetaSectionBodies, bulletMarkerRe, extractField, parseCoreTable, stripInlineCode,
 } from "../store/kinds/meta/line-reading.js";
 export { locateMetaCoreTable, stripInlineCode, type MetaCoreTableLocation } from "../store/kinds/meta/line-reading.js";
 
@@ -395,73 +395,27 @@ export function setMetaDesign(content: string, value: string): string {
  * @returns The rewritten markdown.
  */
 export function setMetaCandidate(content: string, candidateId: string): string {
-  const { content: reconciled } = reconcileMetaFields(content, { Candidate: candidateId });
-  return setMetaBulletFields(reconciled, { Candidate: formatValue(candidateId, "identifier") });
+  return writePreformattedMetaBullet(content, "Candidate", candidateId);
 }
 
-/** The finalize-group fields, in render order — written together at archive. */
-const FINALIZE_FIELDS = ["PR URL", "Completed"] as const satisfies readonly MetaFieldName[];
-
-/** The bare value an absent finalize fact resolves to (a sentinel — renders bare). */
-const FINALIZE_DEFAULT = "[none]";
-
 /**
- * Write the archive finalize facts (`PR URL` / `Completed`) to the meta as managed
- * fields — the structured replacement for the hand-appended post-integration prose
- * block. Each fact renders per its value class (`PR URL` as a clickable autolink or
- * the `[none]` placeholder; `Completed` as a bare date), and an absent fact resolves
- * to the `[none]` sentinel.
+ * Write only the archive finalize facts through their field writers. Missing
+ * PR URL and Completed bullets insert in field order, preserving existing
+ * fields and every section; an omitted fact resolves to the null sentinel.
  *
- * Update-or-insert (a localized forward-reconcile): when the meta already carries
- * the finalize group it rewrites both bullets in place; when it lacks them — a meta
- * minted before the finalize fields existed — it inserts the group as its own
- * blank-line-separated block immediately before the field block's closing `---`,
- * leaving the core table, every prior bullet, and any archive-phase H2 sections
- * below the rule byte-stable. Unlike the single-field setters this never throws on
- * an absent bullet — healing the older shape is the point.
- *
- * @param content - The meta file's raw markdown.
+ * @param content - Anchored metadata Markdown.
  * @param facts - The finalize facts; an omitted fact resolves to `[none]`.
- * @returns The rewritten markdown.
+ * @returns Markdown with only the finalize facts edited.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaFinalizeFields(
   content: string,
   facts: { prUrl?: string; completed?: string },
 ): string {
-  const valueOf = (name: (typeof FINALIZE_FIELDS)[number], raw: string | undefined): string => {
-    const field = META_FIELDS.find((f) => f.name === name);
-    return raw === undefined ? FINALIZE_DEFAULT : formatValue(raw, field?.valueClass ?? "narrative");
-  };
-  const rendered: Record<(typeof FINALIZE_FIELDS)[number], string> = {
-    "PR URL": valueOf("PR URL", facts.prUrl),
-    Completed: valueOf("Completed", facts.completed),
-  };
-
-  // Both bullets present → rewrite in place. Absent (a pre-finalize meta) → insert
-  // the group before the field block's `---`. A *partial* group (one bullet present,
-  // the other hand-deleted) would make the in-place rewrite throw on the missing
-  // bullet, so normalize it first via the forward-reconcile (which inserts the absent
-  // bullet at its canonical slot) before the in-place update.
-  const lines = content.split("\n");
-  const hasPrUrl = lines.some((line) => bulletMarkerRe("PR URL").test(line));
-  const hasCompleted = lines.some((line) => bulletMarkerRe("Completed").test(line));
-  if (hasPrUrl && hasCompleted) {
-    return setMetaBulletFields(content, rendered);
-  }
-  if (hasPrUrl || hasCompleted) {
-    const { content: normalized } = reconcileMetaFields(content);
-    return setMetaBulletFields(normalized, rendered);
-  }
-
-  const h1Idx = lines.findIndex((line) => /^# /.test(line));
-  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
-  if (h1Idx === -1 || ruleIdx === -1) {
-    // No field-block rule to anchor against — fall back to the fail-loud update.
-    return setMetaBulletFields(content, rendered);
-  }
-  const group = FINALIZE_FIELDS.map((name) => `- **${name}:** ${rendered[name]}`);
-  lines.splice(ruleIdx, 0, ...group, "");
-  return lines.join("\n");
+  return setMetaBulletFields(content, {
+    "PR URL": facts.prUrl ?? "[none]",
+    Completed: facts.completed ?? "[none]",
+  });
 }
 
 /** The result of a {@link reconcileMetaFields} forward-reconcile pass. */
@@ -504,61 +458,32 @@ export function validateMetaFieldBlockShape(content: string, path: string): stri
 
 
 /**
- * Forward-reconcile a meta's bullet fields against {@link META_FIELDS}: insert any
- * managed bullet field whose marker is absent, backfilling its value from
- * `overrides` (the transition-appropriate value) or the field's declared default.
- * The generalization of {@link setMetaFinalizeFields}'s update-or-insert from the
- * finalize group to the whole bullet set — the healing half of "code is the single
- * source of meta shape": a stub minted before a field was added graduates missing
- * that bullet, and this restores it.
+ * Insert absent managed bullet fields in canonical order, using an override
+ * or each field's declared default. Present fields remain byte-identical,
+ * even when an override names them, and all body sections survive. Optional
+ * fields remain omitted unless an override supplies a renderable value.
  *
- * Re-renders only the bullet region (between the core-block table and the field
- * block's closing `---`) from the canonical field order, preserving each present
- * field's value through the {@link parseMetaRecord} ↔ {@link renderMetaFile}
- * round-trip; the core table, the H1, and any section below the rule stay
- * byte-stable. A no-op when every managed bullet is already present (or the field
- * block can't be anchored) — returns the input unchanged with an empty `backfilled`,
- * so a caller gates its write and its notice on a non-empty result.
- *
- * @param content - The meta file's raw markdown.
- * @param overrides - Transition-appropriate backfill values; an absent field falls to its `META_FIELDS` default.
- * @returns The reconciled content and the backfilled field names (empty on a no-op).
+ * @param content - Anchored metadata Markdown.
+ * @param overrides - Transition-appropriate backfill values for absent fields.
+ * @returns Updated content and the names of bullets actually inserted.
+ * @throws When metadata field-block anchors are missing.
  */
 export function reconcileMetaFields(
   content: string,
   overrides: MetaProjectionOverrides = {},
 ): ReconcileMetaResult {
-  const lines = content.split("\n");
-  const h1Idx = lines.findIndex((line) => /^# /.test(line));
-  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
-  if (h1Idx === -1 || ruleIdx === -1) return { content, backfilled: [] };
-
-  const inFieldBlock = (i: number): boolean => i > h1Idx && i < ruleIdx;
-  const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
-  const absent = new Set<MetaFieldName>(
-    bulletFields
-      .filter((f) =>
-        (!("omitWhenAbsent" in f) || Object.prototype.hasOwnProperty.call(overrides, f.name))
-        && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
-      .map((f) => f.name as MetaFieldName),
-  );
-  if (absent.size === 0) return { content, backfilled: [] };
-
-  // Re-render the bullet region from the canonical order: present fields keep their
-  // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
-  // override or the declared default. The core table / H1 / below-`---` are untouched.
-  const record = parseMetaProjectionRecord(content);
-  const valueOf = (field: MetaFieldDescriptor): string => {
-    const name = field.name as MetaFieldName;
-    if (absent.has(name)) return overrides[name] ?? field.default;
-    return record[name] ?? field.default;
-  };
-  const firstBulletIdx = lines.findIndex((line, i) => inFieldBlock(i) && FIELD_MARKER_RE.test(line));
-  const start = firstBulletIdx === -1 ? ruleIdx : firstBulletIdx;
-  lines.splice(start, ruleIdx - start, ...renderBullets(valueOf), "");
-
-  const backfilled = bulletFields.filter((f) => absent.has(f.name as MetaFieldName)).map((f) => f.name);
-  return { content: lines.join("\n"), backfilled };
+  const block = locateMetaFieldBlock(content);
+  const fieldLines = block.lines.slice(block.h1Index + 1, block.fieldEndIndex);
+  const backfilled: MetaFieldName[] = [];
+  for (const field of META_FIELDS) {
+    if (field.render !== "bullet") continue;
+    if ("omitWhenAbsent" in field && !Object.prototype.hasOwnProperty.call(overrides, field.name)) continue;
+    if (fieldLines.some(({ text }) => bulletMarkerRe(field.name).test(text))) continue;
+    const written = writePreformattedMetaBullet(content, field.name, overrides[field.name] ?? field.default);
+    if (written !== content) backfilled.push(field.name);
+    content = written;
+  }
+  return { content, backfilled };
 }
 
 /** Normalize the managed three-row core table without changing any field value or surrounding byte.
