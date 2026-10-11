@@ -7,6 +7,87 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Make `arc start --from` either take its seed correctly or refuse it, on every arm**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-10-11); re-triaged to this work unit because its fix
+  edits the lifecycle write path, which nothing runs alongside the seam.
+
+- _Shapes:_ § Lifecycle, **Open** — how `arc start --from` takes a draft or spec seed, and whether a fix lands before
+  the flip or the seed waits for it.
+
+- _Observation:_ `arc start --here --new --from <seed>` (`runColdStart`, `commands/start.ts`) stores an `arc-spec` seed
+  as `Design` as given, and `scaffoldIntoWorktree` (`lib/git/worktree-scaffold.ts`) seeds
+  `Current Workflow: draft-design` (`PLANNING_ENTRY_STAGE`). `checkCurrentWorkflowConsistency` fails a `spec-` `Design`
+  under `draft-design`, so `validateCurrentWorkflow` (`scripts/validate-meta-spec.ts`) refuses that meta's commit, while
+  the cold-start step in `session-init.template.md` names `spec-` seeds as accepted. A `draft-` seed passes. Second
+  defect: without `--here`, `arc start <name> --new --from <seed>` passes the create-new guard (`handlers/start.ts`,
+  `--from` refused only off the create-new arm) but `createNew` never receives the seed, so it is silently dropped.
+  Infra smell: the fix may touch the shipped session-init template and carries a small fork, so the drain may route it
+  to the reviewed lane.
+
+- _Approach:_ enter at the stage the seed implies — `create-spec` for a `spec-` seed — or refuse a `spec-` seed with a
+  remedy that names the draft path; on the spawning arm, pass the seed through or refuse `--from` without `--here`.
+  Cover each arm with a test. Pre-flip only: from the flip `seam-lifecycle` settles how `--from` takes a seed
+  (`draft-seam-lifecycle.md` § Lifecycle, Open).
+
+- _Drain note (2026-10-11):_ the remedy above enters a `spec-` seed at `create-spec`, but
+  `checkCurrentWorkflowConsistency` (`lib/active/current-workflow-consistency.ts`) admits a `spec-` `Design` only
+  under `generate-tasks`; `draft-design` and `create-spec` take a `draft-` `Design` or none. § Lifecycle's **Open**
+  bullet already records both defects; this entry adds the pre-flip fix and a test on each arm.
+
+- _Captured during:_ `storage-seam` fix-check round 3 (FC5-2), 2026-10-09.
+
+### `[ ]` **Have `arc reopen` pull the item's history ref by name first**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-lifecycle`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Lifecycle, "Rows and keys": the lifecycle verbs under `lib/work-unit/verbs/`, reopen among them.
+
+- _Observation:_ in `storage-ref-backend`'s design, an ended item's history lives at `refs/arc/history/work/<uid>`,
+  which a clone holds only once a pull has fetched it; reopen brings the item back from it and removes the item's
+  folder from its quarter's ref (`draft-storage-ref-backend.md` § Decisions, Lifecycle moves and The version model).
+
+- _Approach:_ reopen pulls the item's history ref by name before it reads; on the unresolvable-state-version refusal it
+  pulls the named refs and retries, as every verb reading a completed item does.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Weigh routing into a work unit past planning case by case, never assuming it safe**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: inbound-routing-method`), housekeep drain (2026-10-11).
+  Its first target archived on 2026-10-09 (PR #862) without taking it.
+
+- _Shapes:_ § Lifecycle, **Open** — where an executing work unit integrates its inbound entries (§ Shared decisions,
+  item 9, whose text is in `draft-seam-locus.md`). The pre-flip guards at a work unit's exits are a separate Errand,
+  "Stop a work unit at its planning and closeout exits while captures still name it" (`USER-INBOX § Errand`).
+
+- _Observation:_ Owner principle (2026-10-09): routing an entry into any work unit past planning — executing or
+  integrating — needs case-by-case consideration and is never assumed safe. A work unit mid-execution can absorb an
+  entry only through a spec amendment or new tasks, which changes approved scope. D2 today has any started work unit's
+  owner take its entries now, with only a completed one no target. It surfaced when a `storage-seam` scope change for
+  `inbound-routing-method`, itself mid-execution, was routed to `storage-cutover` instead.
+
+- _Approach:_ the routing method treats a target past planning as an Owner decision at the door's Owner stop (D9) rather
+  than a default route, consistent with `seam-locus`'s from-the-flip rule that an Integrating work unit is no routing
+  target (`draft-seam-locus.md` § Shared decisions, item 9; routed to `storage-cutover`).
+
+- _Owner direction (2026-10-11):_ once a work unit is in implementation it is mostly closed to incoming captures.
+  Route out by default; fold in only when the Owner decides at the door's stop that the entry really modifies that
+  work and belongs there, recorded as a spec amendment or new tasks. The Integrating arm of item 9 already agrees; its
+  executing arm ("An executing work unit integrates its inbound entries… the owner folds each entry into the task
+  list") does not, so settle which stands and amend item 9 to match. The planning-exit guards are the Errand "Stop a
+  work unit at its planning and closeout exits while captures still name it".
+
+- _Captured during:_ `storage-seam` draft-design, adversarial pass 2's routing decision (P2-4), 2026-10-09; extended
+  at the 2026-10-11 housekeep drain.
+
+---
+
 ## Continuity
 
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, with the
