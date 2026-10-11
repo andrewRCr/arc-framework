@@ -32,13 +32,16 @@ function metaFile(
   designLine: string | null,
   fields: { stateLine?: string | null; integrationLine?: string | null } = {},
 ): string {
+  const state = fields.stateLine === null ? "" :
+    (fields.stateLine ?? "- **State:** Active").replace(/^- \*\*State:\*\*\s*/u, "");
   const lines = [
     "# Metadata: Foo",
     "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
   ];
-  if (fields.stateLine !== null) {
-    lines.push(fields.stateLine ?? "- **State:** Active");
-  }
   if (designLine !== null) lines.push(designLine);
   if (fields.integrationLine !== undefined && fields.integrationLine !== null) {
     lines.push(fields.integrationLine);
@@ -248,7 +251,10 @@ describe("validateFiles", () => {
     const content = [
       "# Metadata: Foo",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
       "- **Design:** `spec-foo.md`",
       "- **Design:** [none]",
       "- **Task List:** tasks-foo.md",
@@ -393,7 +399,10 @@ describe("validateFiles — Design multi-value (one or two refs)", () => {
     const content = [
       "# Metadata: Foo",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
       "- **Design:** `spec-a.md`",
       "- **Design:** `spec-b.md`",
       "- **Task List:** tasks-foo.md",
@@ -438,7 +447,18 @@ describe("validateLifecycleFields — core-block table form", () => {
 
 describe("validateCohort — two-segment path cap", () => {
   it("passes a meta with no Cohort line (the field is optional)", () => {
-    const content = "# Metadata: Foo\n\n- **State:** Active\n- **Design:** [none]\n";
+    const content = [
+      "# Metadata: Foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "- **Design:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n");
     expect(validateCohort(content, META_PATH_FIXTURE)).toEqual([]);
   });
 

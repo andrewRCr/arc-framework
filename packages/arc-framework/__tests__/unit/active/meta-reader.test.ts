@@ -60,13 +60,19 @@ function metaFileBody(fields: {
   currentWorkflow?: string;
   extra?: string;
 }): string {
-  const lines: string[] = ["# Metadata: fixture", ""];
-  if (fields.state !== undefined) lines.push(`- **State:** ${fields.state}`);
-  if (fields.branch !== undefined) lines.push(`- **Branch:** ${fields.branch}`);
+  const lines: string[] = [
+    "# Metadata: fixture",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? ""} | | ${fields.branch ?? ""} | | |`,
+    "",
+  ];
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
   if (fields.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.extra !== undefined) lines.push(fields.extra);
+  lines.push("", "---", "");
   return lines.join("\n");
 }
 
@@ -143,11 +149,10 @@ describe("parseMetaRecord — semantic adapter", () => {
     const record = parseMetaRecord([
       "# Metadata: legacy",
       "",
-      "- **State:** Unexpected-State",
-      "- **Owner:** andrew",
-      "- **Branch:** feat/legacy",
-      "- **Class:** Unclassified",
-      "- **Priority:** Urgent",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Unexpected-State | andrew | feat/legacy | Unclassified | Urgent |",
+      "",
       "- **Next Task:** Task 2.2.a — Preserve",
       "  legacy multiline recovery",
       "- **Next Action:** Continue `carefully`",
@@ -391,7 +396,17 @@ describe("parseMetaFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "# Metadata: fixture\n\n- **Branch:** \n- **State:** Active\n";
+    const content = [
+      "# Metadata: fixture",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const parsed = parseMetaFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("Active");
@@ -433,7 +448,18 @@ describe("parseMetaFile — formatting tolerance", () => {
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseMetaFile("# Metadata: fixture\n\n- **Task List:** [none]\n");
+    const parsed = parseMetaFile([
+      "# Metadata: fixture",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n"));
     expect(parsed.taskList).toBe("[none]");
   });
 
@@ -455,7 +481,12 @@ describe("parseMetaFile — section boundary", () => {
       "",
       "# Metadata: fixture",
       "",
-      "- **Branch:** real",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  | real |  |  |",
+      "",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -466,7 +497,12 @@ describe("parseMetaFile — section boundary", () => {
     const content = [
       "# Metadata: fixture",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
       "",
       "## Notes",
       "",
@@ -483,11 +519,15 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
-      "- **Branch:** plan/foo",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  | plan/foo |  |  |",
+      "",
       "- **Task List:** `tasks-foo.md`",
       "- **Next Task:** Task 1.1 — kick off (line ~42)",
       "- **Next Action:** Start Task 1.1",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -502,8 +542,12 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
-      "- **Branch:** plan/foo",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  | plan/foo |  |  |",
+      "",
+      "",
+      "---",
       "",
       "## Notes",
       "",
@@ -1063,6 +1107,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "",
       "- **Cohort:** `core/sub`",
       "",
+      "---",
+      "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
@@ -1081,6 +1127,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "| --------- | --------- | ---------- | --------- | ------------ |",
       "| `Active`  | `andrew`  | `feat/bar` | `Heavy`   | `P1`         |",
       "",
+      "---",
+      "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
@@ -1096,6 +1144,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "| Priority | Class   | Branch     | Owner    | State    |",
       "| -------- | ------- | ---------- | -------- | -------- |",
       "| `P2`     | `[TBD]` | `feat/bar` | `andrew` | `Active` |",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1133,12 +1183,21 @@ describe("parseMetaProjectionRecord — malformed table fails loud", () => {
       "| -------- | -------- | ------ | ----- | -------- |",
       "| `Active` | `andrew` |",
       "",
+      "---",
+      "",
     ].join("\n");
     expect(() => parseMetaProjectionRecord(content)).toThrow(/column-count mismatch/);
   });
 
   it("throws when a separator row has no adjacent header and value row", () => {
-    const content = ["# Metadata: foo", "", "| --- | --- | --- |", ""].join("\n");
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| --- | --- | --- |",
+      "",
+      "---",
+      "",
+    ].join("\n");
     expect(() => parseMetaProjectionRecord(content)).toThrow(/Malformed meta core-block table/);
   });
 
@@ -1146,11 +1205,16 @@ describe("parseMetaProjectionRecord — malformed table fails loud", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
       "- **Next Action:** Compare alternatives:",
       "  | Option | Result |",
       "  | ------ | ------ |",
       "  | A      | keep   |",
+      "",
+      "---",
       "",
     ].join("\n");
 
@@ -1172,6 +1236,8 @@ describe("parseMetaFile — reads the core-block table (session-init path)", () 
       "",
       "- **Task List:** `tasks-foo.md`",
       "- **Next Task:** Task 2.1 — go (line ~5)",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -1253,13 +1319,15 @@ describe("Class field — value-set semantics", () => {
     expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES)).Class).toBe("[TBD]");
   });
 
-  it("parses an absent Class to null when the core table omits the column", () => {
+  it("parses an empty Class cell to null in the core table", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "| State    | Owner    | Branch     | Priority |",
-      "| -------- | -------- | ---------- | -------- |",
-      "| `Active` | `andrew` | `feat/bar` | `P1`     |",
+      "| State    | Owner    | Branch     | Class | Priority |",
+      "| -------- | -------- | ---------- | ----- | -------- |",
+      "| `Active` | `andrew` | `feat/bar` |       | `P1`     |",
+      "",
+      "---",
       "",
     ].join("\n");
     expect(parseMetaProjectionRecord(content).Class).toBeNull();
@@ -1403,8 +1471,18 @@ describe("Current Workflow field — planning-stage pointer", () => {
     expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES))["Current Workflow"]).toBe("[none]");
   });
 
-  it("parses an absent Current Workflow to null in a legacy flat-bullet meta", () => {
-    const content = ["# Metadata: foo", "", "- **State:** Active", "- **Owner:** andrew", ""].join("\n");
+  it("parses an absent Current Workflow to null", () => {
+    const content = [
+    "# Metadata: foo",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| Active | andrew |  |  |  |",
+    "",
+    "",
+    "---",
+    "",
+  ].join("\n");
     expect(parseMetaProjectionRecord(content)["Current Workflow"]).toBeNull();
   });
 
@@ -1450,9 +1528,14 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **Branch:** `feat/x`",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  | `feat/x` |  |  |",
+      "",
       "- **Design:** `spec-foo.md`",
       "- **Next Action:** Run `create-spec.md`, then `generate-tasks.md`",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1465,8 +1548,14 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Next Action:** Author the spec via `create-spec` — a detailed PRD,",
       "  then re-derive the worked example and confirm the boundary tests.",
+      "",
+      "---",
       "",
     ].join("\n");
     expect(parseMetaProjectionRecord(content)["Next Action"]).toBe(
@@ -1479,9 +1568,15 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Last Completed:** Stub created from a routed capture (2026-06-01) from a",
       "  prior inbox sweep.",
       "- **Next Task:** [none]",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1495,10 +1590,16 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Blockers:** waiting on review of the upstream change",
       "  and a downstream rebase.",
       "",
       "- **Next Action:** proceed once unblocked",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1511,6 +1612,10 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
   it("stops the gather at the trailing `---` rule", () => {
     const content = [
       "# Metadata: foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
       "",
       "- **Next Action:** finish the migration",
       "  and regen the readiness view.",
@@ -1618,10 +1723,30 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
 
 describe("setMetaTitle — managed heading rewrite", () => {
   it("rewrites a CRLF heading without changing the document's line endings", () => {
-    const content = "# Metadata: old-name\r\n\r\n- **State:** Active\r\n";
+    const content = [
+      "# Metadata: old-name",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\r\n");
 
     expect(setMetaTitle(content, "new-name")).toBe(
-      "# Metadata: new-name\r\n\r\n- **State:** Active\r\n",
+      [
+        "# Metadata: new-name",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active |  |  |  |  |",
+        "",
+        "",
+        "---",
+        "",
+      ].join("\r\n"),
     );
   });
 });
@@ -1636,6 +1761,9 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "| `Planning` | `andrew` | [none] | `[TBD]` | `P2` |",
       "",
       "- **Cohort:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n");
 
     const after = normalizeMetaCoreTable(before);
@@ -1651,7 +1779,7 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "|---|---|---|---|---|",
       "| `Active` | `開発者` | `feat/表示` | `Heavy` | `P1` |",
     ].join("\r\n");
-    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n" +
+    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n---\r\n\r\n" +
       "## Narrative\r\n\r\nProse ordering without a final newline.";
     const before = `${prefix}${table}${suffix}`;
     const after = normalizeMetaCoreTable(before);
@@ -1664,16 +1792,16 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
   });
 
   it.each([
-    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n", /no table found/i],
+    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n\n---\n", /no table found/i],
     [
       "malformed",
       "# Metadata: demo\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
-        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n",
+        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n\n---\n",
       /expected adjacent/i,
     ],
     [
       "unrecognized",
-      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n",
+      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n\n---\n",
       /header not recognized/i,
     ],
     [
@@ -1682,7 +1810,7 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
         "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
         "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n" +
         "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
-        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n",
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n---\n",
       /duplicate/i,
     ],
   ])("fails loudly for a %s managed table", (_label, content, pattern) => {
@@ -1698,6 +1826,9 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "| `活動` | `é` | `feat/👩‍💻` | `✈️` | `1⃣` |",
       "",
       "- **Cohort:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n");
     const after = normalizeMetaCoreTable(before);
     const results = await lint({
