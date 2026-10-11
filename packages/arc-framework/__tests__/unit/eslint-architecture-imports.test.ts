@@ -29,6 +29,15 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it("keeps cohort registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { COHORT_REGISTRATION } from "../lib/store/kinds/cohort/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/cohort/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { COHORT_REGISTRATION } from "./cohort/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseCohortDocument } from "../lib/store/kinds/cohort/index.js";', "store-raw-state")).toEqual([]);
+  });
   it("keeps design registration behind the store while exposing the pure Purpose reader", () => {
     expect(violations("handlers/outside.ts",
       'import { DESIGN_REGISTRATIONS } from "../lib/store/kinds/design/registration.js";', "store-raw-state"))

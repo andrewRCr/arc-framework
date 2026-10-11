@@ -399,19 +399,11 @@ document conversion that must change with it.
 - _Goal:_ The cohort document registers a parser returning its Purpose and `Parent` and refusing any `Parent` line but
   an omitted, `[none]`, or one backticked slug, and exports a creation writer and the member-heading rename.
 
-    - `[ ]` **5.1.a Register the cohort parser**
-        - `{ purpose: string | null; parent: Slug | null }` under `lib/store/kinds/cohort/`, a public pure function;
-          `purpose` read through the Purpose reader (Task 4.2); `parent` `null` when the line is omitted or reads
-          `[none]`, the slug when it is one backticked slug; any other `Parent` line, or a second one, refuses.
-        - The kind's registration module builds its registration through `defineKindRegistration` and joins
-          `RAW_STATE_MODULES`, as the meta's does; the registration joins `registrations.ts`.
-        - Build `test-first` (one behavior at a time):
-            - an omitted line and `[none]` read `null`
-            - one backticked slug reads as the slug
-            - a bare value, a non-slug, and a second `Parent` line refuse
-            - Purpose reads as a draft's does, `—` included
-            - through the in-repo fixture's store, a cohort document lists with its parsed fields, and a refused one
-              as a `malformed` diagnostic naming it
+    - `[x]` **5.1.a Register the cohort parser**
+        - parseCohortDocument exposes the shared raw Purpose and a branded Parent slug, admitting omission and [none]
+          while refusing bare, invalid, multiple, or duplicate Parent values. Its structured result preserves record
+          diagnostics: store reads retain rejected bytes, and listings name malformed documents. Registration is private
+          to the store boundary; the parser and its result types are public.
 
     - `[ ]` **5.1.b Write the creation writer and move the member-heading rename**
         - The creation writer takes the template's bytes, the cohort path, an optional Purpose, and optional member

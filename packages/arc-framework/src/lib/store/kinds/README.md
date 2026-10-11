@@ -17,3 +17,5 @@ Registration modules remain behind the store's raw-state import boundary; schema
 
 `design/` exposes the shared raw Purpose reader for draft, spec, and companion content, together with the code-span
 offset reader used by status's sentence presentation.
+
+`cohort/` exposes Purpose and the authoritative Parent slug, with structural refusals retained by its registration.
