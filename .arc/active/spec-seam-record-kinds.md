@@ -62,6 +62,23 @@ invents its own and they disagree. This change builds those, and runs them nowhe
 - **Former slug** — a name a work item held before a rename, which `lookup` still resolves to it.
 - **Open cohort** — a cohort whose document is stored and not archived.
 
+## Shared decisions
+
+The remaining seam plans cite these shared-decision numbers. Each number resolves to the current contract sections
+below; those sections define the decision.
+
+| Item | Decision                       | Current sections                        |
+| ---- | ------------------------------ | --------------------------------------- |
+| 1    | Which verb writes which field  | § 5.4–5.6, § 6.3–6.5, § 7.2, § 8.3, § 9 |
+| 2    | The work-item base             | § 4                                     |
+| 3    | The meta's cross-member fields | § 5.1–5.4                               |
+| 4    | Session context                | § 5.5–5.6                               |
+| 5    | The task list                  | § 6                                     |
+| 6    | The lineage record             | § 7                                     |
+| 7    | The cohort document            | § 8                                     |
+| 8    | Parsed prose fields            | § 9                                     |
+| 11   | The write check                | § 3, § 11.3                             |
+
 ## Goals
 
 1. **One registered parser per kind** for the meta, task list, draft, spec, companion, lineage record, and cohort

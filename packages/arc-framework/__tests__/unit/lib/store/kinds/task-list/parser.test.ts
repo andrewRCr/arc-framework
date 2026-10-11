@@ -7,6 +7,16 @@ import { scanTaskListStructure } from "../../../../../../src/lib/task-list/scann
 const parser = createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/task-list"].parser;
 
 describe("task-list parsed fields", () => {
+  it.each(["##\u00a0**Phase 1:** Work", "## **Phase\u00a01:** Work", "##\u00a0**Phase\u00a01:** Work"])(
+    "stops the header at the accepted phase heading %j", (heading) => {
+      const content = `# Tasks\n\n${heading}\n\n- **Design:** \`body-only.md\`\n`;
+      expect(scanTaskListStructure(content)).toMatchObject({ status: "scanned", events: expect.arrayContaining([
+        expect.objectContaining({ type: "phase", line: 3 }),
+      ]) });
+      expect(parser?.(content)).toEqual({ success: true, data: { design: null } });
+    },
+  );
+
   it.each([
     ["header reference", "# Tasks\n\n- **Design:** `spec-example.md`\n\n## **Phase 1:** Work\n", "spec-example.md"],
     ["reference below a phase", "# Tasks\n\n## **Phase 1:** Work\n\n- **Design:** `spec-example.md`\n", null],

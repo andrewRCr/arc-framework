@@ -1,6 +1,7 @@
 /** Completed identifiers are compared through the task scanner's file-order pairs. */
 import { describe, expect, it } from "vitest";
 import { checkTaskListCompletedIdentifier, checkTaskListCompletedGoal } from "../../../../../../src/lib/store/kinds/task-list/integrity-rules.js";
+import { checkTaskListRecord } from "../../../../../../src/lib/store/kinds/task-list/check.js";
 import { TASK_RULE_CONTENT as content, taskRuleInput } from "../../../../../helpers/store/task-rule-input.js";
 const completed = content.replace("`[ ]`", "`[x]`");
 const prefix = content.slice(0, content.indexOf("### `[ ]`"));
@@ -47,6 +48,19 @@ describe("completed task identifiers", () => {
 
 const child = (id: string, goal: string) => `    - \`[x]\` **${id} Completed**\n        - _Goal:_ ${goal}\n`;
 describe("completed task Goals", () => {
+  it.each([
+    { action: "change", writer: { kind: "hand-edit" } as const },
+    { action: "remove", writer: { kind: "hand-edit" } as const },
+    { action: "change", writer: { kind: "verb", verb: "revise" } as const },
+    { action: "remove", writer: { kind: "verb", verb: "revise" } as const },
+  ])("refuses $action of a completed Goal before less-indented body prose by $writer.kind", ({ action, writer }) => {
+    const prior = `${content}\n${child("1.1.a", "Child intent.")}\n      Later body prose.\n`;
+    const next = action === "change" ? prior.replace("Child intent.", "Changed intent.")
+      : prior.replace("        - _Goal:_ Child intent.\n", "");
+    expect(checkTaskListRecord(taskRuleInput(next, prior, writer)))
+      .toMatchObject([{ rule: "task-list.completed-goal" }]);
+  });
+
   it("refuses changing a completed parent's Goal", () => {
     expect(checkTaskListCompletedGoal(taskRuleInput(completed.replace("Build behavior.", "Different intent."), completed)))
       .toMatchObject([{ rule: "task-list.completed-goal" }]);

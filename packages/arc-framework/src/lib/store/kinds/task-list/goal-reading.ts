@@ -31,13 +31,16 @@ export function readTaskGoals(content: string | undefined): ReadonlyMap<number, 
 function subtaskGoals(lines: readonly string[], task: TaskLine, end: number): string[] {
   const ownIndent = indentation(lines[task.line - 1] ?? "");
   const body: string[] = [];
+  let base: number | undefined;
   for (const line of lines.slice(task.line, end - 1)) {
-    if (line.trim() !== "" && indentation(line) <= ownIndent) break;
+    if (line.trim() !== "") {
+      const indent = indentation(line);
+      if (indent <= ownIndent || (base !== undefined && indent < base)) break;
+      base ??= indent;
+    }
     body.push(line);
   }
-  const indents = body.filter((line) => line.trim() !== "").map(indentation);
-  if (indents.length === 0) return [];
-  const base = indents.reduce((minimum, value) => Math.min(minimum, value));
+  if (base === undefined) return [];
   // Dedent only this task's body into the existing root descriptor grammar.
   const projected = [`### \`[ ]\` **${task.item.id} ${task.item.title}**`, ...body.map((line) => line.slice(base))].join("\n");
   const projectedLines = projected.split("\n");

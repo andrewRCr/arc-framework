@@ -16,10 +16,11 @@
   its consumer-map rows against the current code and settle its open items.
 
 **Reading this draft.** `cohort-storage-seam.md` holds the seam's coordination, its scope boundary, and how the
-register's keys are cited. A `§ Shared decisions` item lives in its owner's draft: items 1–8 and 11 in
-`draft-seam-record-kinds.md`, item 9 in `draft-seam-locus.md`, and items 10 and 12 in `draft-seam-lifecycle.md`.
-`§ Record kinds`, `§ Lifecycle`, `§ Decomposition`, `§ Delivery and review records`, `§ Locus`, and
-`§ Status and roadmap` name the member sections of `draft-seam-record-kinds.md`, `draft-seam-lifecycle.md`,
+register's keys are cited. A `§ Shared decisions` item lives in its owner's design record: items 1–8 and 11 in
+`spec-seam-record-kinds.md`, whose `§ Shared decisions` maps those numbers to their current contract sections; item 9 in
+`draft-seam-locus.md`; and items 10 and 12 in `draft-seam-lifecycle.md`. `§ Record kinds` resolves to
+`spec-seam-record-kinds.md`'s `§ Proposed Design`. `§ Lifecycle`, `§ Decomposition`, `§ Delivery and review records`,
+`§ Locus`, and `§ Status and roadmap` name the member sections of `draft-seam-lifecycle.md`,
 `draft-seam-decomposition.md`, `draft-seam-delivery-review.md`, `draft-seam-locus.md`, and
 `draft-seam-status-roadmap.md`. `D` and `A` numbers are `spec-storage-contract.md`'s decisions and amendments.
 

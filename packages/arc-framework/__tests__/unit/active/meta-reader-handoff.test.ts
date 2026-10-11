@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
-import { parseMetaRecord, renderMetaFile, toMetaRecord } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile, toMetaRecord, setMetaBulletFields, reconcileMetaFields } from "../../../src/lib/active/meta-reader.js";
 import { StateVersionSchema } from "../../../src/lib/store/identity.js";
 
 function withFields(lines: string): string {
@@ -10,6 +10,18 @@ function withFields(lines: string): string {
 }
 
 describe("meta handoff fields", () => {
+  describe.each([
+    ["generic setter", (content: string, value: string) => setMetaBulletFields(content, { "Session Type": value })],
+    ["reconciliation", (content: string, value: string) => reconcileMetaFields(content, { "Session Type": value }).content],
+  ] as const)("%s canonical Session Type", (_name, write) => {
+    it.each(["Planning", "Execution", "`Planning`", "`Execution`"])("admits %s", (value) => {
+      const result = write(makeMetaFixture("sample"), value);
+      const token = value.replaceAll("`", "");
+      expect(parseMetaRecord(result).sessionType).toBe(token.toLowerCase());
+      expect(result).toContain(`- **Session Type:** \`${token}\``);
+    });
+  });
+
   it("recovers handoff anchors and the session type from their bullets", () => {
     const parsed = parseMetaRecord(withFields([
       "- **State at Handoff:** `state-version`",

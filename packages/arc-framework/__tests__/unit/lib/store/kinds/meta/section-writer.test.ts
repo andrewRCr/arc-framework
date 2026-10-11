@@ -29,6 +29,14 @@ describe("meta Session Context writer", () => {
     expect(writeMetaSessionContext(withContext, null)).toBe(original);
   });
 
+  it.each(["\n", "\r\n"])("clears every repeated section while preserving outside bytes with %j endings", (ending) => {
+    const repeated = withContext.replace("## Completion Notes", `${section}## Completion Notes`)
+      .replace("## Outside", `${section}## Outside`).replace(/\n/gu, ending);
+    const result = writeMetaSessionContext(repeated, null);
+    expect(result).toBe(original.replace(/\n/gu, ending));
+    expect(parseMetaRecord(result).sessionContext).toBeNull();
+  });
+
   it("sets an empty present section body", () => {
     const result = writeMetaSessionContext(original, "");
     expect(result).toBe(original.replace("## Release Notes Entry", "## Session Context\n\n## Release Notes Entry"));

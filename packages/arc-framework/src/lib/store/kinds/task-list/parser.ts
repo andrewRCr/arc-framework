@@ -12,7 +12,7 @@ export type ParsedTaskListRecord = Readonly<z.infer<typeof ParsedTaskListRecordS
  * @returns The header reference with code delimiters removed, or null when absent.
  */
 export function parseTaskListRecord(content: string): ParsedTaskListRecord {
-  const header = content.split(/^##[ \t]+\*\*Phase[ \t]+/mu, 1)[0] ?? "";
+  const header = content.split(/^##[^\S\r\n]+\*\*Phase[^\S\r\n]+/mu, 1)[0] ?? "";
   const match = /^-[ \t]+\*\*Design:\*\*[ \t]*(.*)$/mu.exec(header);
   return { design: match?.[1]?.replaceAll("`", "").trim() || null };
 }

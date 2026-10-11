@@ -41,7 +41,7 @@ const writers: Partial<Record<MetaFieldName, PreformattedWriter>> = {
     MetaRecordSchema.shape.stateAtHandoff.parse(identifier(value))),
   "Commit at Handoff": (content, value) => writeMetaCommitAtHandoff(content, identifier(value)),
   "Session Type": (content, value) => writeMetaSessionType(content,
-    MetaRecordSchema.shape.sessionType.parse(identifier(value))),
+    MetaRecordSchema.shape.sessionType.parse(identifier(value)?.toLowerCase() ?? null)),
   "PR URL": (content, value) => writeMetaPrUrl(content, url(value)),
   Completed: (content, value) => writeMetaCompleted(content, nullableValue(value)),
 };

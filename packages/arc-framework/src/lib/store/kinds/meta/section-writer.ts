@@ -8,18 +8,21 @@ interface SectionSpan {
   readonly lineEnding: string;
 }
 
-function sessionContextSpan(block: MetaFieldBlockLocation, content: string): SectionSpan | null {
-  const start = block.lines.findIndex((line, index) => index > block.h1Index && line.text === "## Session Context");
-  if (start === -1) return null;
-  const insideBlock = start < block.closingIndex;
-  let end = start + 1;
-  for (; end < block.lines.length; end += 1) {
-    if ((insideBlock && end === block.closingIndex) || /^## /u.test(block.lines[end]?.text ?? "")) break;
+function sessionContextSpans(block: MetaFieldBlockLocation, content: string): readonly SectionSpan[] {
+  const spans: SectionSpan[] = [];
+  for (let start = block.h1Index + 1; start < block.lines.length; start += 1) {
+    const heading = block.lines[start];
+    if (heading?.text !== "## Session Context") continue;
+    const insideBlock = start < block.closingIndex;
+    let end = start + 1;
+    for (; end < block.lines.length; end += 1) {
+      if ((insideBlock && end === block.closingIndex) || /^## /u.test(block.lines[end]?.text ?? "")) break;
+    }
+    spans.push({ start: heading.startOffset, end: block.lines[end]?.startOffset ?? content.length,
+      lineEnding: heading.lineEnding });
+    start = end - 1;
   }
-  const heading = block.lines[start];
-  if (heading === undefined) return null;
-  return { start: heading.startOffset, end: block.lines[end]?.startOffset ?? content.length,
-    lineEnding: heading.lineEnding };
+  return spans;
 }
 
 function insertionOffset(block: MetaFieldBlockLocation, content: string): number {
@@ -43,10 +46,17 @@ export function writeMetaSessionContext(content: string, body: string | null): s
   if (body !== null && body.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---")) {
     throw new Error("Cannot write Session Context: body contains a section boundary.");
   }
-  const target = sessionContextSpan(block, content);
-  if (target === null && body === null) return content;
+  const targets = sessionContextSpans(block, content);
+  if (body === null) {
+    let result = content;
+    for (const target of [...targets].reverse()) {
+      result = `${result.slice(0, target.start)}${result.slice(target.end)}`;
+    }
+    return result;
+  }
+  const target = targets[0];
   const ending = target?.lineEnding || block.lines[block.h1Index]?.lineEnding || "\n";
-  const rendered = body === null ? "" : renderSessionContext(body, ending);
+  const rendered = renderSessionContext(body, ending);
   const start = target?.start ?? insertionOffset(block, content);
   const end = target?.end ?? start;
   return `${content.slice(0, start)}${rendered}${content.slice(end)}`;
