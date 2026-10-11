@@ -153,12 +153,25 @@ export function checkpointMovementCause(
 }
 
 /**
+ * Whether the host admits the exact head while only its test merge lags the base.
+ *
+ * The host's test merge covers the exact head on an earlier base, so what lags is its own conflict reading at the
+ * current base, and the exact-pair Git feasibility read beside it answers that question for the current base. The
+ * host may not recompute until a later change-request event, so waiting for it can stall indefinitely.
+ */
+function testMergeLagsOnlyTheBase(admission: ChangeRequestMergeObservation): boolean {
+  return admission.state === "unresolved" && admission.condition === "stale-base-test-merge";
+}
+
+/**
  * The readings every mutating reconciliation is held to, whatever the movement between the pair came to.
  *
  * The merge that collapses two best ancestors to one is an ordinary merge: it conflicts, and it is admitted
  * or refused, on the same terms as the reconciliation an overlapping base gets. Reading them in one place
  * ahead of any reconcile is what keeps a history that proves no overlap from buying a route past them.
- * A typed, locally repairable host condition permits only reconciliation; final admission is read again afterwards.
+ * A test merge that lags only the base bars neither a reconciliation nor a disjoint merge of a head Git merges
+ * cleanly. A host refusal that a local repair can clear permits only that reconciliation; final admission is read
+ * again afterwards.
  *
  * @param observation - The parsed movement observation, whose coordinates the caller has already agreed.
  * @returns The refusal the readings require, or `null` when none of them stops this pair.
@@ -171,9 +184,7 @@ function mutatingReconciliationBar(observation: CheckpointMovementObservation): 
     return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
   }
   if (observation.movement !== "unknown" && (
-    (observation.admission.state === "unresolved"
-      && observation.admission.condition === "stale-base-test-merge"
-      && (observation.movement === "overlapping" || observation.feasibility.state === "regenerable-conflict"))
+    testMergeLagsOnlyTheBase(observation.admission)
     || (observation.admission.state === "refused" && observation.admission.condition === "not-mergeable"
       && observation.feasibility.state === "regenerable-conflict")
   )) return null;
@@ -1659,7 +1670,7 @@ export async function checkpointIntegration(
           label: "Base drift",
           clean: observation.movement === "disjoint"
             && observation.feasibility.state === "clean"
-            && observation.admission.state === "mergeable",
+            && (observation.admission.state === "mergeable" || testMergeLagsOnlyTheBase(observation.admission)),
           evidence: `Movement is ${observation.movement}; Git feasibility is ${observation.feasibility.state}; `
             + `host admission is ${observation.admission.state}.`,
         },

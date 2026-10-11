@@ -749,12 +749,12 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it.each([true, false])("handles disjoint GitHub recomputation (becomes current: %s) without reconciliation", async (becomesCurrent) => {
+  it("merges across disjoint movement without reconciliation while GitHub's test merge lags the base", async () => {
     const { value, state } = dependencies();
     const host = githubMergeLag({
       repository: approvedTarget.repository, changeRequest: approvedTarget.pullRequest,
       baseRef: approvedTarget.baseRef, base: oid("b"), head: approvedTarget.headSha,
-    }, becomesCurrent);
+    });
     value.readFinalPlan = async () => composeErrandFinalPlan({
       target: approvedTarget,
       drift: {
@@ -769,18 +769,9 @@ describe("Errand merge operation", () => {
       admission: await host.observe(),
     });
     const result = await mergeErrand(request, value);
-    if (becomesCurrent) {
-      expect(result).toMatchObject({ state: "merged", approvedTarget });
-      expect(state).toEqual({ held: false, merged: true, mergeCalls: 1 });
-    } else {
-      expect(result).toMatchObject({
-        state: "host-pending", nextAction: "retry", reason: "host-admission-unresolved",
-        detail: expect.stringMatching(/three-read observation limit.*Retry/u),
-        continuation: { kind: "remedy", remedy: { stdin: request } },
-      });
-      expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
-      expect(host.reads()).toBe(3);
-    }
+    expect(result).toMatchObject({ state: "merged", approvedTarget });
+    expect(state).toEqual({ held: false, merged: true, mergeCalls: 1 });
+    expect(host.reads()).toBe(1);
   });
 
   it("returns unresolved host admission as a retryable exact request", async () => {

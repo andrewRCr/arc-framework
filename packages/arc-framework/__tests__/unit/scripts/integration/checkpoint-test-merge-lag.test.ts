@@ -1,4 +1,4 @@
-/** Shared-planner verdicts across GitHub test-merge recomputation and required reconciliation. */
+/** Shared-planner verdicts across a lagging GitHub test merge and required reconciliation. */
 
 import { describe, expect, it } from "vitest";
 import { githubMergeLag } from "../../../helpers/github-merge-lag.js";
@@ -8,7 +8,7 @@ import { checkpointIntegration } from "../../../../src/scripts/integration/check
 const oid = (character: string): string => character.repeat(40);
 
 describe("checkpoint host admission", () => {
-  it.each([true, false])("handles disjoint GitHub recomputation (becomes current: %s) without a new head", async (becomesCurrent) => {
+  it("lets disjoint movement proceed without a new head while GitHub's test merge lags the base", async () => {
     const deps = dependencies();
     const readDrift = deps.readDrift;
     deps.readDrift = async (workUnit) => {
@@ -18,19 +18,23 @@ describe("checkpoint host admission", () => {
     };
     const host = githubMergeLag({
       repository: "owner/repo", changeRequest: 42, baseRef: "main", base: oid("b"), head: oid("c"),
-    }, becomesCurrent);
+    });
     deps.readMovementObservation = async () => ({
       feasibility: { state: "clean", base: oid("b"), head: oid("c") },
       admission: await host.observe(),
     });
     const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
-    expect(result).toMatchObject(becomesCurrent ? {
+    expect(result).toMatchObject({
       state: "ready", nextAction: "request-approval",
-      payload: { movementObservation: { feasibility: { head: oid("c") }, admission: { head: oid("c") } } },
-    } : {
-      state: "blocked", reason: "host-pending", coordinates: { observedHeadOid: oid("c") },
-      detail: expect.stringMatching(/three-read observation limit.*Retry/u),
+      payload: {
+        movementObservation: {
+          feasibility: { head: oid("c") },
+          admission: { head: oid("c"), state: "unresolved", condition: "stale-base-test-merge" },
+        },
+        interlockSurface: { machineEvidence: { state: "clean" } },
+      },
     });
+    expect(host.reads()).toBe(1);
   });
 
   it.each([
