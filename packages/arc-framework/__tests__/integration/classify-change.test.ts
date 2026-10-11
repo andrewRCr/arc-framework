@@ -752,7 +752,7 @@ describe("classify-change.sh decide (pure arms)", () => {
     const result = await runScript(
       CLASSIFY_SCRIPT,
       ["decide", event, base, head],
-      { cwd: repo, env: { CLASSIFY_CHECK_RUNS_DIR: repo, ...env } },
+      { cwd: repo, env },
     );
     expect(result.exitCode).toBe(0);
     const lines = result.stdout.trimEnd().split("\n");
@@ -783,9 +783,7 @@ describe("classify-change.sh decide (pure arms)", () => {
       "docs only",
     );
 
-    // The docs-only arm is decided purely from the changed set — no Checks-API
-    // call. (The lookback seam, and a regression guard that docs-only never
-    // invokes it, land with the verified-tree work.)
+    // The docs-only arm is decided purely from the changed set.
     expect(await decide(repo, "pull_request", base, head)).toEqual({
       weight: "light",
       reason: "docs-only",
@@ -1180,176 +1178,12 @@ describe("classify-change.sh decide (pure arms)", () => {
   });
 });
 
-describe("classify-change.sh decide (verified-tree lookback)", () => {
+describe("classify-change.sh decide (tested-tree record)", () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
   });
-
-  /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
-  const HEAVY_CHECKS = [
-    "Shared setup",
-    "Build",
-    "Lint & Typecheck",
-    "Unit Tests (1)",
-    "Unit Tests (2)",
-    "Integration Tests (1)",
-    "Integration Tests (2)",
-    "Integration Tests (3)",
-    "Integration Tests (4)",
-    "E2E Tests (1)",
-    "E2E Tests (2)",
-    "E2E Tests (3)",
-    "E2E Tests (4)",
-    "Portability (concurrency guards) (linux)",
-  ];
-
-  function workflowHeavyCheckNames(workflowSource: string): string[] {
-    const value = z.union([z.string(), z.number(), z.boolean()]);
-    const leg = z.record(z.string(), value);
-    const workflow = z.object({
-      jobs: z.record(z.string(), z.object({
-        name: z.string(),
-        if: z.string().optional(),
-        strategy: z.object({ matrix: z.record(z.string(), z.unknown()) }).optional(),
-        steps: z.array(z.object({
-          if: z.string().optional(), run: z.string().optional(), uses: z.string().optional(),
-        })),
-      })),
-    }).parse(load(workflowSource));
-    const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
-    const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
-      + "packages/arc-framework/.test-cost-runs/duration-input";
-    const preparationCommands = new Set([
-      "npm ci", durationPreparationCommand,
-      "git show-ref --verify --quiet refs/heads/main || git branch main origin/main",
-      "node --import tsx scripts/run-ci-checks.mjs validate",
-      'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
-        + 'mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json',
-    ]);
-    const preparationAction = /^actions\/(?:checkout|setup-node|cache(?:\/restore)?|upload-artifact)@/u;
-    const names: string[] = [];
-    for (const [jobId, job] of Object.entries(workflow.jobs)) {
-      // Light runs omit these jobs or steps regardless of their verification command.
-      if (jobId !== "setup" && !heavyCondition.test(job.if ?? "")
-        && !job.steps.some((step) => heavyCondition.test(step.if ?? ""))) continue;
-      // Shared setup publishes artifacts, so it is the sole non-verification exception.
-      // Fail closed if that job acquires any verification command or action.
-      if (jobId === "setup") {
-        expect(job.steps.every((step) => step.run !== undefined
-          ? preparationCommands.has(step.run.trim())
-          : preparationAction.test(step.uses ?? "")), "Shared setup must remain artifact preparation only").toBe(true);
-        names.push(job.name);
-        continue;
-      }
-      const matrix = job.strategy?.matrix ?? {};
-      const axes = Object.entries(matrix).filter(([key]) => key !== "include" && key !== "exclude");
-      let combinations: z.infer<typeof leg>[] = axes.length === 0 && matrix.include !== undefined ? [] : [{}];
-      for (const [key, values] of axes) {
-        combinations = combinations.flatMap((combination) =>
-          z.array(value).parse(values).map((entry) => ({ ...combination, [key]: entry })));
-      }
-      const exclusions = z.array(leg).parse(matrix.exclude ?? []);
-      combinations = combinations.filter((combination) => !exclusions.some((excluded) =>
-        Object.entries(excluded).every(([key, entry]) => combination[key] === entry)));
-      const originals = combinations.map((combination) => ({ ...combination }));
-      for (const included of z.array(leg).parse(matrix.include ?? [])) {
-        let matched = false;
-        for (const [index, original] of originals.entries()) {
-          if (axes.every(([key]) => included[key] === undefined || included[key] === original[key])) {
-            Object.assign(combinations[index]!, included);
-            matched = true;
-          }
-        }
-        if (!matched) combinations.push(included);
-      }
-      for (const combination of combinations) {
-        const name = job.name.replace(/\$\{\{\s*matrix\.([\w-]+)\s*\}\}/gu, (_expression, key: string) => {
-          expect(combination[key], `missing matrix.${key} in ${job.name}`).toBeDefined();
-          return String(combination[key]);
-        });
-        expect(name, "unsupported expression in heavy check name").not.toContain("${{");
-        names.push(name);
-      }
-    }
-    return names;
-  }
-
-  it("keeps the classifier and check fixtures equal to CI's heavy verification checks", async () => {
-    const names = workflowHeavyCheckNames(await readFile(
-      join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8",
-    ));
-    expect(names.length).toBeGreaterThan(0);
-    const script = await readFile(CLASSIFY_SCRIPT, "utf-8");
-    const declared = /readonly HEAVY_CHECK_NAMES=\(([\s\S]*?)\n\)/u.exec(script)?.[1];
-    expect(declared, "missing classifier heavy-check declaration").toBeDefined();
-    const scriptNames = [...declared!.matchAll(/^\s*"([^"]+)"\s*$/gmu)].map((match) => match[1]);
-    expect(scriptNames.sort()).toEqual([...names].sort());
-    expect([...HEAVY_CHECKS].sort()).toEqual([...names].sort());
-  });
-
-  it("requires shared setup even when it has no heavy condition", async () => {
-    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
-    expect(workflowHeavyCheckNames(workflow)).toContain("Shared setup");
-  });
-
-  const verificationSteps = [
-    ["node", "run: node scripts/verify.mjs"],
-    ["npx", "run: npx verify-tool"],
-    ["arbitrary npm script", "run: npm run verify:custom"],
-    ["action", "uses: example/verification@v1"],
-  ];
-  it.each(verificationSteps.flatMap(([label, step]) => [
-    [label, "job", step], [label, "step", step],
-  ]))("includes %s verification under a heavy %s condition", async (_label, conditionAt, step) => {
-    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
-    const condition = "${{ needs.classify.outputs.weight != 'light' }}";
-    const addedJob = [
-      "", "  future-verification:", "    name: Future Heavy Verification",
-      ...(conditionAt === "job" ? [`    if: ${condition}`] : []),
-      "    steps:", `    - ${step}`,
-      ...(conditionAt === "step" ? [`      if: ${condition}`] : []),
-      "",
-    ].join("\n");
-
-    expect(workflowHeavyCheckNames(workflow + addedJob)).toContain("Future Heavy Verification");
-  });
-
-  it.each([
-    ["command", /run: npm ci/u, "run: node scripts/verify.mjs"],
-    ["duration command", /prepare-duration-input\.ts/u, "verify-duration-input.ts"],
-    ["action", /uses: actions\/upload-artifact@[^\n]+/u, "uses: example/verification@v1"],
-  ] as const)("rejects a verification %s in the shared setup exception", async (_label, pattern, replacement) => {
-    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
-    const start = workflow.indexOf("  setup:");
-    const end = workflow.indexOf("  build:", start);
-    const setup = workflow.slice(start, end);
-    expect(setup).toMatch(pattern);
-
-    expect(() => workflowHeavyCheckNames(workflow.slice(0, start) + setup.replace(pattern, replacement) + workflow.slice(end)))
-      .toThrow("Shared setup must remain artifact preparation only");
-  });
-
-  /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
-  function checkLines(runs: Array<[string, string]>): string {
-    return runs.map(([name, conclusion]) => `${name}\t${conclusion}`).join("\n") + "\n";
-  }
-
-  /** All heavy checks at `success`. */
-  function allGreen(): string {
-    return checkLines(HEAVY_CHECKS.map((name) => [name, "success"]));
-  }
-
-  /** All heavy checks green except `name`, which takes `conclusion` (e.g. `failure`, or `""` for in-progress). */
-  function greenExcept(name: string, conclusion: string): string {
-    return checkLines(HEAVY_CHECKS.map((n) => [n, n === name ? conclusion : "success"]));
-  }
-
-  /** All heavy checks green except `name`, which is absent from the set entirely. */
-  function greenOmitting(name: string): string {
-    return checkLines(HEAVY_CHECKS.filter((n) => n !== name).map((n) => [n, "success"]));
-  }
 
   async function writeAndCommit(
     repo: string,
@@ -1368,305 +1202,306 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     return stdout.trim();
   }
 
-  /** Write a check-runs fixture for `sha` into the injected directory. */
-  async function injectChecks(checksDir: string, sha: string, tsv: string): Promise<void> {
-    await writeFile(join(checksDir, `${sha}.tsv`), tsv);
-  }
-
-  /** Run `decide` with check-runs injected from `checksDir`, parsing the `weight=` / `reason=` lines. */
+  /** Run `decide`, passing the tested-tree record answer when one is given, and parse its output lines. */
   async function decide(
     repo: string,
-    checksDir: string,
     event: string,
     base: string,
     head: string,
-    env: NodeJS.ProcessEnv = {},
-  ): Promise<{ weight: string | undefined; reason: string | undefined }> {
-    const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], {
-      cwd: repo,
-      env: { CLASSIFY_CHECK_RUNS_DIR: checksDir, ...env },
-    });
+    verified?: string,
+  ): Promise<{ weight: string; reason: string }> {
+    const args = ["decide", event, base, head, ...(verified === undefined ? [] : [verified])];
+    const result = await runScript(CLASSIFY_SCRIPT, args, { cwd: repo });
     expect(result.exitCode).toBe(0);
-    const lines = result.stdout.trimEnd().split("\n");
-    expect(lines).toHaveLength(2);
-    const weightLine = lines[0];
-    const reasonLine = lines[1];
-    if (weightLine === undefined || reasonLine === undefined) {
-      throw new Error("decide output lines missing after length assertion");
+    const [weightLine, reasonLine, ...rest] = result.stdout.trimEnd().split("\n");
+    expect(rest).toEqual([]);
+    expect(weightLine).toMatch(/^weight=(light|heavy)$/u);
+    expect(reasonLine).toMatch(/^reason=(docs-only|verified|unverified)$/u);
+    return { weight: weightLine!.slice("weight=".length), reason: reasonLine!.slice("reason=".length) };
+  }
+
+  async function codeChange(): Promise<{ repo: string; base: string; head: string }> {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const head = await writeAndCommit(repo, { "packages/arc-framework/src/a.ts": "export const x = 1;\n" }, "code");
+    return { repo, base, head };
+  }
+
+  it("is light/verified when a pull request's tested tree carries a verified record", async () => {
+    const { repo, base, head } = await codeChange();
+    expect(await decide(repo, "pull_request", base, head, "true")).toEqual({ weight: "light", reason: "verified" });
+  });
+
+  it.each([undefined, "", "false", "TRUE", "yes", "true "])(
+    "keeps a code-touching pull request heavy/unverified when the record answer is %j",
+    async (verified) => {
+      const { repo, base, head } = await codeChange();
+      expect(await decide(repo, "pull_request", base, head, verified)).toEqual({ weight: "heavy", reason: "unverified" });
+    },
+  );
+
+  it("ignores a verified record on a push", async () => {
+    const { repo, base, head } = await codeChange();
+    expect(await decide(repo, "push", base, head, "true")).toEqual({ weight: "heavy", reason: "unverified" });
+  });
+
+  it("never lets a verified record skip an unresolvable change set", async () => {
+    const { repo, head } = await codeChange();
+    expect(await decide(repo, "pull_request", "0".repeat(40), head, "true"))
+      .toEqual({ weight: "heavy", reason: "unverified" });
+  });
+
+  it("keeps a docs-only pull request light without a verified record", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "packages/arc-framework/src/a.ts": "export const x = 1;\n" }, "code");
+    const head = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs only");
+    expect(await decide(repo, "pull_request", base, head, "false")).toEqual({ weight: "light", reason: "docs-only" });
+  });
+});
+
+/**
+ * A pull-request run tests GitHub's merge of its head into the current base, so the verified record is keyed by that
+ * merged tree. The head commit's own tree is not enough: a docs-only commit on verified code keeps the head's code tree,
+ * while the base may have moved the code the merge tests.
+ */
+describe("classify-change.sh tested-tree identity", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  async function git(repo: string, ...args: string[]): Promise<string> {
+    const { stdout } = await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd: repo });
+    return stdout.trim();
+  }
+
+  async function commit(repo: string, files: Record<string, string>, message: string): Promise<string> {
+    for (const [rel, content] of Object.entries(files)) {
+      await mkdir(dirname(join(repo, rel)), { recursive: true });
+      await writeFile(join(repo, rel), content);
     }
-    expect(weightLine).toMatch(/^weight=(light|heavy)$/);
-    expect(reasonLine).toMatch(/^reason=(docs-only|verified|unverified)$/);
-    const weight = weightLine.slice("weight=".length);
-    const reason = reasonLine.slice("reason=".length);
-    return { weight, reason };
+    await git(repo, "add", "-A");
+    await git(repo, "commit", "-m", message);
+    return git(repo, "rev-parse", "HEAD");
   }
 
-  /**
-   * A linear repo where a verified code commit is layered with a docs-only
-   * commit, so HEAD and the code commit share a code-tree hash: base → code → docs(HEAD).
-   */
-  async function layeredRepo(): Promise<{
-    repo: string;
-    checksDir: string;
-    base: string;
-    code: string;
-    head: string;
-  }> {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
-    const code = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
-      "code",
-    );
-    const head = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs on top of verified code");
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    return { repo, checksDir, base, code, head };
+  /** Merge `head` into `base` as a pull-request test merge does, returning the merge commit. */
+  async function testMerge(repo: string, base: string, head: string): Promise<string> {
+    await git(repo, "checkout", "-q", "--detach", base);
+    await git(repo, "merge", "--no-ff", "-q", "-m", `merge ${head} into ${base}`, head);
+    return git(repo, "rev-parse", "HEAD");
   }
 
-  it("is light/verified when a commit carrying HEAD's code tree has all heavy checks green", async () => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    // The prior code commit (not HEAD) holds the green run; HEAD is a docs-only
-    // delta on top, so its code tree matches and the lookback reaches back to it.
-    await injectChecks(checksDir, code, allGreen());
+  async function treeHash(repo: string, ref: string): Promise<string> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], { cwd: repo });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
 
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "light",
-      reason: "verified",
-    });
-  });
-
-  it("reuses a green code tree across a later ordinary packaged-prose edit", async () => {
+  async function scenario(): Promise<{ repo: string; base: string; verified: string; docsOnTop: string }> {
     const repo = await createTempRepo();
     tempDirs.push(repo);
-    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
-    const code = await writeAndCommit(
-      repo,
-      {
-        "packages/arc-framework/src/a.ts": "export const x = 1;\n",
-        "packages/arc-framework/arc/system/rules/example.md": "before\n",
-      },
-      "verified code tree",
-    );
-    const head = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/arc/system/rules/example.md": "after\n" },
-      "ordinary packaged prose",
-    );
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    await injectChecks(checksDir, code, allGreen());
+    const base = await commit(repo, { "packages/arc-framework/src/shared.ts": "export const s = 1;\n" }, "base");
+    await git(repo, "checkout", "-q", "-b", "feature");
+    const verified = await commit(repo, { "packages/arc-framework/src/a.ts": "export const x = 1;\n" }, "code");
+    const docsOnTop = await commit(repo, { "README.md": "docs\n" }, "docs on verified code");
+    return { repo, base, verified, docsOnTop };
+  }
 
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "light",
-      reason: "verified",
-    });
+  it("misses a record when the base moved the code under an unchanged head code tree", async () => {
+    const { repo, base, verified, docsOnTop } = await scenario();
+    const recorded = await testMerge(repo, base, verified);
+    await git(repo, "checkout", "-q", "--detach", base);
+    const movedBase = await commit(repo, { "packages/arc-framework/src/shared.ts": "export const s = 2;\n" }, "base code");
+
+    // The head commits share a code tree, which is all a head-keyed lookback compares.
+    expect(await treeHash(repo, docsOnTop)).toBe(await treeHash(repo, verified));
+    expect(await treeHash(repo, await testMerge(repo, movedBase, docsOnTop))).not.toBe(await treeHash(repo, recorded));
   });
 
-  it("does not reuse a green code tree after the declaration changes", async () => {
-    const { repo, checksDir, base } = await layeredRepo();
-    const path = ".arc/system/arc-checks.yml";
-    const before = "checks:\n  verify:\n    gate: merge\n    command: [node, --version]\n";
-    const prior = await writeAndCommit(repo, { [path]: before }, "declare check");
-    const head = await writeAndCommit(repo, { [path]: before.replace("--version", "--help") }, "change declared command");
-    await injectChecks(checksDir, prior, allGreen());
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
+  it("matches a record across a docs-only head commit and a docs-only base advance", async () => {
+    const { repo, base, verified, docsOnTop } = await scenario();
+    const recorded = await testMerge(repo, base, verified);
+    await git(repo, "checkout", "-q", "--detach", base);
+    const docsBase = await commit(repo, { "CHANGELOG.md": "notes\n" }, "base docs");
+
+    expect(await treeHash(repo, await testMerge(repo, docsBase, docsOnTop))).toBe(await treeHash(repo, recorded));
   });
+});
 
-  it.each([
-    ["sensitive packaged content", "packages/arc-framework/arc/system/extensions/example.md"],
-    ["classifier content", "scripts/classify-change.sh"],
-  ])("does not reuse a green tree after %s changes", async (_label, path) => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
-    const code = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", [path]: "before\n" },
-      "verified code tree",
-    );
-    const head = await writeAndCommit(repo, { [path]: "after\n" }, "change sensitive content");
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    await injectChecks(checksDir, code, allGreen());
-
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
+describe("CI verified-tree record", () => {
+  const workflowPath = join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml");
+  const step = z.object({
+    id: z.string().optional(),
+    if: z.string().optional(),
+    run: z.string().optional(),
+    uses: z.string().optional(),
+    env: z.record(z.string(), z.unknown()).optional(),
+    with: z.record(z.string(), z.unknown()).optional(),
+    "continue-on-error": z.boolean().optional(),
   });
+  const workflowSchema = z.object({
+    jobs: z.record(z.string(), z.object({
+      name: z.string(),
+      if: z.string().optional(),
+      needs: z.union([z.string(), z.array(z.string())]).optional(),
+      permissions: z.unknown().optional(),
+      outputs: z.record(z.string(), z.string()).optional(),
+      steps: z.array(step),
+    })),
+  });
+  type Workflow = z.infer<typeof workflowSchema>;
+  type Job = Workflow["jobs"][string];
 
-  /**
-   * A layered repo padded with `docsCommits` additional docs-only commits above
-   * the verified code commit, so the lookback must fetch through that many
-   * same-tree commits before reaching the green run.
-   */
-  async function paddedRepo(docsCommits: number): Promise<{
-    repo: string;
-    checksDir: string;
-    base: string;
-    code: string;
-    head: string;
-  }> {
-    const { repo, checksDir, base, code } = await layeredRepo();
-    let head = "";
-    for (let i = 0; i < docsCommits; i += 1) {
-      head = await writeAndCommit(repo, { "README.md": `docs v${i + 2}\n` }, `docs ${i + 2}`);
+  const readWorkflow = (): Promise<string> => readFile(workflowPath, "utf-8");
+  const parseWorkflow = (source: string): Workflow => workflowSchema.parse(load(source));
+  const needsOf = (job: Job): string[] => job.needs === undefined ? [] : [job.needs].flat();
+
+  function jobOf(workflow: Workflow, id: string): Job {
+    const job = workflow.jobs[id];
+    if (job === undefined) throw new Error(`missing job ${id}`);
+    return job;
+  }
+
+  function stepOf(job: Job, id: string): z.infer<typeof step> {
+    const found = job.steps.find((entry) => entry.id === id);
+    if (found === undefined) throw new Error(`missing step ${id}`);
+    return found;
+  }
+
+  /** Jobs a light run skips, entirely or by step: every one must pass before a tree counts as verified. */
+  function heavyJobIds(source: string): string[] {
+    const workflow = parseWorkflow(source);
+    const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
+    const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
+      + "packages/arc-framework/.test-cost-runs/duration-input";
+    const preparationCommands = new Set([
+      "npm ci", durationPreparationCommand,
+      "git show-ref --verify --quiet refs/heads/main || git branch main origin/main",
+      "node --import tsx scripts/run-ci-checks.mjs validate",
+      'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
+        + 'mv "$RUNNER_TEMP/arc-check-forecast.json" .arc-check-forecast.json',
+    ]);
+    const preparationAction = /^actions\/(?:checkout|setup-node|cache(?:\/restore)?|upload-artifact)@/u;
+    const ids: string[] = [];
+    for (const [jobId, job] of Object.entries(workflow.jobs)) {
+      // Shared setup publishes artifacts, so it is the sole non-verification exception.
+      // Fail closed if that job acquires any verification command or action.
+      if (jobId === "setup") {
+        expect(job.steps.every((entry) => entry.run !== undefined
+          ? preparationCommands.has(entry.run.trim())
+          : preparationAction.test(entry.uses ?? "")), "Shared setup must remain artifact preparation only").toBe(true);
+        ids.push(jobId);
+        continue;
+      }
+      if (heavyCondition.test(job.if ?? "") || job.steps.some((entry) => heavyCondition.test(entry.if ?? ""))) {
+        ids.push(jobId);
+      }
     }
-    return { repo, checksDir, base, code, head };
+    return ids;
   }
 
-  it("still finds the green run at the last fetch inside the lookback cap", async () => {
-    // layeredRepo has 1 docs commit; 6 more put the green code commit at
-    // same-tree fetch #8 — the LOOKBACK_MAX_FETCHES boundary itself.
-    const { repo, checksDir, base, code, head } = await paddedRepo(6);
-    await injectChecks(checksDir, code, allGreen());
+  /** Heavy jobs the record job does not both wait for and require to succeed. */
+  function recordCoverageGaps(source: string): string[] {
+    const record = jobOf(parseWorkflow(source), "record-verified-tree");
+    const needs = new Set(needsOf(record));
+    return heavyJobIds(source).filter((id) => !needs.has(id)
+      || !(record.if ?? "").includes(`needs.${id}.result == 'success'`));
+  }
 
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "light",
-      reason: "verified",
-    });
+  /** Fold both spellings of the tested tree into one token so the lookup and save keys compare directly. */
+  const normalizedKey = (key: unknown): string => String(key)
+    .replace("steps.tested.outputs.tree", "TESTED_TREE")
+    .replace("needs.classify.outputs.tested_tree", "TESTED_TREE");
+
+  it("records a tree only after every heavy job succeeds on a heavy pull-request run", async () => {
+    const source = await readWorkflow();
+    const ids = heavyJobIds(source);
+    expect(ids).toEqual(expect.arrayContaining(["setup", "build", "lint-typecheck", "unit", "integration", "e2e"]));
+    expect(recordCoverageGaps(source)).toEqual([]);
+    const record = jobOf(parseWorkflow(source), "record-verified-tree");
+    expect(needsOf(record).sort()).toEqual(["classify", ...ids].sort());
+    expect(record.if).toContain("github.event_name == 'pull_request'");
+    expect(record.if).toContain("needs.classify.outputs.weight == 'heavy'");
   });
 
-  it("is heavy/unverified (fail-safe) when the green run sits beyond the lookback cap", async () => {
-    // 7 more docs commits put the green code commit at same-tree fetch #9,
-    // one past the cap; the bounded lookback must give up, not keep fetching.
-    const { repo, checksDir, base, code, head } = await paddedRepo(7);
-    await injectChecks(checksDir, code, allGreen());
-
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
+  it("records only for a same-repository pull request, since a fork's run cannot save", async () => {
+    const record = jobOf(parseWorkflow(await readWorkflow()), "record-verified-tree");
+    expect(record.if).toContain("github.event.pull_request.head.repo.full_name == github.repository");
   });
 
-  const TARGET = "E2E Tests (2)";
+  const verificationSteps = [
+    ["node", "run: node scripts/verify.mjs"],
+    ["npx", "run: npx verify-tool"],
+    ["arbitrary npm script", "run: npm run verify:custom"],
+    ["action", "uses: example/verification@v1"],
+  ];
+  it.each(verificationSteps.flatMap(([label, entry]) => [
+    [label, "job", entry], [label, "step", entry],
+  ]))("refuses a record that omits a new %s verification under a heavy %s condition", async (_label, at, entry) => {
+    const condition = "${{ needs.classify.outputs.weight != 'light' }}";
+    const addedJob = [
+      "", "  future-verification:", "    name: Future Heavy Verification",
+      ...(at === "job" ? [`    if: ${condition}`] : []),
+      "    steps:", `    - ${entry}`,
+      ...(at === "step" ? [`      if: ${condition}`] : []),
+      "",
+    ].join("\n");
 
-  it.each(["Integration Tests (1)", "Integration Tests (2)"].flatMap((name) => [
-    [name, "failed", greenExcept(name, "failure")],
-    [name, "in-progress", greenExcept(name, "")],
-    [name, "absent", greenOmitting(name)],
-  ]))("is heavy/unverified when %s is %s even with the old unsharded check green", async (_name, _state, tsv) => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    await injectChecks(checksDir, code, tsv + "Integration Tests\tsuccess\n");
-
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
-  });
-
-  it.each([
-    ["failed", greenExcept("Shared setup", "failure")],
-    ["absent", greenOmitting("Shared setup")],
-  ])("requires the matching green code tree's setup check when it is %s", async (_state, checks) => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    await injectChecks(checksDir, code, checks);
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({ weight: "heavy", reason: "unverified" });
-  });
-
-  it("uses the latest duplicate check run when reruns share a display name", async () => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    await injectChecks(checksDir, code, allGreen() + `${TARGET}\tfailure\n`);
-
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
+    expect(recordCoverageGaps(await readWorkflow() + addedJob)).toEqual(["future-verification"]);
   });
 
   it.each([
-    ["a failed", greenExcept(TARGET, "failure")],
-    ["an in-progress (empty conclusion)", greenExcept(TARGET, "")],
-    ["an absent", greenOmitting(TARGET)],
-  ])("is heavy/unverified when the matching commit has %s heavy check", async (_label, tsv) => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    await injectChecks(checksDir, code, tsv);
+    ["command", /run: npm ci/u, "run: node scripts/verify.mjs"],
+    ["duration command", /prepare-duration-input\.ts/u, "verify-duration-input.ts"],
+    ["action", /uses: actions\/upload-artifact@[^\n]+/u, "uses: example/verification@v1"],
+  ] as const)("rejects a verification %s in the shared setup exception", async (_label, pattern, replacement) => {
+    const workflow = await readWorkflow();
+    const start = workflow.indexOf("  setup:");
+    const end = workflow.indexOf("  build:", start);
+    const setup = workflow.slice(start, end);
+    expect(setup).toMatch(pattern);
 
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
+    expect(() => heavyJobIds(workflow.slice(0, start) + setup.replace(pattern, replacement) + workflow.slice(end)))
+      .toThrow("Shared setup must remain artifact preparation only");
   });
 
-  it("is heavy/unverified when no commit in range carries HEAD's code tree (green run on a different tree)", async () => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
-    const oldCode = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
-      "code v1",
-    );
-    const head = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 2;\n" },
-      "code v2",
-    );
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    // The green run is on the v1 tree, which no longer matches HEAD's v2 tree;
-    // it must be filtered out by the hash check rather than skip the suite.
-    await injectChecks(checksDir, oldCode, allGreen());
-
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
+  it("keeps the advisory record out of the required roll-up", async () => {
+    const workflow = parseWorkflow(await readWorkflow());
+    const record = jobOf(workflow, "record-verified-tree");
+    expect(needsOf(jobOf(workflow, "ci_ok"))).not.toContain("record-verified-tree");
+    expect(record.permissions).toEqual({});
+    const save = record.steps.find((entry) => entry.uses?.startsWith("actions/cache/save@"));
+    expect(save?.["continue-on-error"]).toBe(true);
   });
 
-  it("does not look back on a push even when HEAD itself has a green run", async () => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
-    const head = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
-      "code",
-    );
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    await injectChecks(checksDir, head, allGreen());
+  it("looks the record up under the key it is saved with, for the commit every heavy job tests", async () => {
+    const source = await readWorkflow();
+    const workflow = parseWorkflow(source);
+    const classify = jobOf(workflow, "classify");
+    const tested = stepOf(classify, "tested");
+    const lookup = stepOf(classify, "verified");
+    const decision = stepOf(classify, "c");
+    const save = jobOf(workflow, "record-verified-tree").steps.find((entry) => entry.uses?.startsWith("actions/cache/save@"));
 
-    expect(await decide(repo, checksDir, "push", base, head)).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
-  });
-
-  it.each(["head", "candidate"])("fails closed when %s tree enumeration is malformed", async (target) => {
-    const { repo, checksDir, base, code, head } = await layeredRepo();
-    await injectChecks(checksDir, code, allGreen());
-    const fixtures = join(repo, ".trees");
-    await mkdir(fixtures, { recursive: true });
-    await writeFile(join(fixtures, `${target === "head" ? head : code}.raw`), Buffer.from("malformed\0"));
-
-    expect(
-      await decide(repo, checksDir, "pull_request", base, head, { CLASSIFY_TREE_LIST_DIR: fixtures }),
-    ).toEqual({
-      weight: "heavy",
-      reason: "unverified",
-    });
-  });
-
-  it("decides docs-only without consulting the Checks API (empty injected dir still resolves light)", async () => {
-    const repo = await createTempRepo();
-    tempDirs.push(repo);
-    const base = await writeAndCommit(
-      repo,
-      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", "README.md": "v1\n" },
-      "code + docs",
-    );
-    const head = await writeAndCommit(repo, { "README.md": "v2\n" }, "docs only");
-    const checksDir = join(repo, ".checks");
-    await mkdir(checksDir, { recursive: true });
-    // No fixtures injected: if the docs-only arm consulted the API, the absent
-    // run would force heavy. It must short-circuit to light without looking.
-    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
-      weight: "light",
-      reason: "docs-only",
-    });
+    expect(classify.outputs?.tested_tree).toBe("${{ steps.tested.outputs.tree }}");
+    expect(tested.env?.TESTED_SHA).toBe("${{ github.sha }}");
+    expect(tested.run).toContain('tree-hash "$TESTED_SHA"');
+    expect(lookup.uses).toMatch(/^actions\/cache\/restore@/u);
+    expect(lookup.with?.["lookup-only"]).toBe(true);
+    expect(lookup.with?.path).toBe(save?.with?.path);
+    expect(normalizedKey(lookup.with?.key)).toBe(normalizedKey(save?.with?.key));
+    expect(normalizedKey(lookup.with?.key)).toContain("github.event.pull_request.number");
+    expect(decision.env?.TESTED_TREE_VERIFIED).toBe("${{ steps.verified.outputs.cache-hit }}");
+    expect(decision.run).toContain('decide "$event" "$all_base" "$all_head" "$TESTED_TREE_VERIFIED"');
+    // Every job the record vouches for must test `github.sha`, which a checkout `ref` would override.
+    for (const id of ["classify", ...heavyJobIds(source)]) {
+      for (const entry of jobOf(workflow, id).steps.filter((candidate) => candidate.uses?.startsWith("actions/checkout@"))) {
+        expect(entry.with?.ref, `${id} checks out another ref`).toBeUndefined();
+      }
+    }
   });
 });

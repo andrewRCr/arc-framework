@@ -89,6 +89,7 @@ describe("trusted review-gate workflows", () => {
       "portability",
       "ci_ok",
       "merge-ok",
+      "record-verified-tree",
     ];
     for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
 
