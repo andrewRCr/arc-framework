@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import { join } from "node:path";
 import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
-import { createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
+import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -43,6 +43,9 @@ const architectureBans = [
   { files: [`src/commands/${TYPESCRIPT_SCOPE}`, `src/handlers/${TYPESCRIPT_SCOPE}`], predicates: ["layout-downward"] },
   { files: [`src/lib/store/concurrency/${TYPESCRIPT_SCOPE}`], predicates: ["store-concurrency"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
+  // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
+  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names", "work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
@@ -54,12 +57,15 @@ const architectureBans = [
   },
   {
     files: [`src/${TYPESCRIPT_SCOPE}`],
-    ignores: [src("lib/active/meta-reader.ts"), src("scripts/validate-meta-spec.ts")],
+    ignores: [src("lib/active/meta-reader.ts"), src("scripts/validate-meta-spec.ts"), subtree("lib/store/kinds/meta")],
     syntax: [{ selector: 'CallExpression[callee.name="parseIdentifierList"]', message: "Read identifier lists through their owner" }],
   },
   {
     files: [src("lib/active/meta-reader.ts")],
-    syntax: [{ selector: 'ImportDeclaration[source.value=/\\/store\\//]', message: "Keep the store delegate dynamic" }],
+    syntax: ["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].map((node) => ({
+      selector: `${node}[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])`,
+      message: "Keep the store delegate dynamic",
+    })),
   },
   {
     files: ["lib/errand/promote.ts", "lib/git/worktree-scaffold.ts", "lib/work-unit/pointer-record.ts",
@@ -146,7 +152,10 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   {
     plugins: {
-      arc: { rules: { "architecture-imports": createArchitectureImportsRule(join(import.meta.dirname, "src")) } },
+      arc: {
+        rules: Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
+          [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
+      },
     },
   },
   {
@@ -193,6 +202,10 @@ export default tseslint.config(
   },
   ...composeArchitectureBans(architectureBans),
   {
-    ignores: ["dist/", "eslint.config.js"],
+    ignores: ["dist/", "eslint.config.js",
+      // bundle-require uses a lowercase base36 token truncated to 13 characters, including an empty token.
+      ...Array.from({ length: 14 }, (_, length) =>
+        `**/*.bundled_${"[a-z0-9]".repeat(length)}.{mjs,cjs}`),
+    ],
   },
 );

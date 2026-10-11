@@ -23,7 +23,7 @@ function fullResult(overrides: Partial<ExtensionsStatusResult> = {}): Extensions
     mode: "full",
     extensions: [
       { name: "pre-merge", active: true, description: "Review ceremony" },
-      { name: "post-task-quality", active: false, description: "Extra checks" },
+      { name: "post-task-completion", active: false, description: "Extra checks" },
     ],
     activeCount: 1,
     inactiveCount: 1,
@@ -50,7 +50,7 @@ describe("buildExtensionsStatusSummary — counts line", () => {
   it("lists inactive extensions under a separate heading", () => {
     const summary = buildExtensionsStatusSummary(fullResult());
     expect(summary).toContain("Inactive:");
-    expect(summary).toContain("post-task-quality — Extra checks");
+    expect(summary).toContain("post-task-completion — Extra checks");
   });
 
   it("omits the `Inactive` section when every extension is active", () => {
@@ -64,7 +64,7 @@ describe("buildExtensionsStatusSummary — counts line", () => {
 
   it("omits the `Active` section when every extension is inactive", () => {
     const summary = buildExtensionsStatusSummary(fullResult({
-      extensions: [{ name: "post-task-quality", active: false, description: "x" }],
+      extensions: [{ name: "post-task-completion", active: false, description: "x" }],
       activeCount: 0,
       inactiveCount: 1,
     }));

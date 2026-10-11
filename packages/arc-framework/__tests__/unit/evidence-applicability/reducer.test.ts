@@ -11,9 +11,11 @@ import {
 import { composeEvidenceDelta } from "../../../src/lib/evidence-applicability/compose.js";
 import {
   EvidenceDeltaSchema,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
   type EvidenceDelta,
   type EvidenceOverlapObservation,
 } from "../../../src/lib/evidence-applicability/schema.js";
+import type { GitMergeFeasibility } from "../../../src/lib/git/merge-feasibility.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -38,11 +40,26 @@ const endpoints = {
   },
 };
 
+function mergeAt(state: GitMergeFeasibility["state"]): GitMergeFeasibility {
+  const at = { base: coordinates().base, head: coordinates().head };
+  switch (state) {
+    case "clean":
+      return { state, ...at };
+    case "regenerable-conflict":
+      return { state, ...at, paths: [".arc/backlog/ROADMAP.md"] };
+    case "substantive-conflict":
+      return { state, ...at, paths: ["a.ts"] };
+    case "unavailable":
+      return { state, ...at, detail: "merge-tree is unavailable" };
+  }
+}
+
 function baseMovement(input: {
   paths?: string[];
   unavailable?: boolean;
   admitted?: boolean;
   observed?: EvidenceOverlapObservation;
+  merge?: GitMergeFeasibility["state"];
 }) {
   return composeEvidenceDelta({
     cause: "base-movement",
@@ -55,6 +72,7 @@ function baseMovement(input: {
             substantivePaths: input.paths ?? [],
             regenerablePaths: [],
           }),
+      ...(input.merge === undefined ? {} : { merge: mergeAt(input.merge) }),
     },
     ...(input.admitted === true
       ? {
@@ -138,6 +156,40 @@ describe("evidence applicability reducer", () => {
       expect(reduceEvidenceApplicability(baseMovement({ paths: ["a.ts"] }), evidence))
         .toMatchObject({ verdict: "supplemental", judgmentRequired: true, residual: ["a.ts"] });
     }
+  });
+
+  it("carries review clearance over shared files whose edits the merge combines cleanly", () => {
+    for (const merge of ["clean", "regenerable-conflict"] as const) {
+      expect(reduceEvidenceApplicability(baseMovement({ paths: ["a.ts"], merge }), "review-clearance")).toEqual({
+        verdict: "carries", residual: null, reason: "base-movement-clean-merge", judgmentRequired: false,
+      });
+    }
+    const unbounded = Array.from(
+      { length: MAX_EVIDENCE_APPLICABILITY_PATHS + 1 },
+      (_, index) => `src/${String(index)}.ts`,
+    );
+    expect(reduceEvidenceApplicability(baseMovement({ paths: unbounded, merge: "clean" }), "review-clearance"))
+      .toMatchObject({ verdict: "carries", reason: "base-movement-clean-merge" });
+  });
+
+  it("keeps shared files on judgment when the merge conflicts or was not observed", () => {
+    for (const merge of ["substantive-conflict", "unavailable", undefined] as const) {
+      expect(reduceEvidenceApplicability(
+        baseMovement({ paths: ["a.ts"], ...(merge === undefined ? {} : { merge }) }),
+        "review-clearance",
+      )).toEqual({
+        verdict: "supplemental", residual: ["a.ts"], reason: "bounded-overlap", judgmentRequired: true,
+      });
+    }
+  });
+
+  it("carries only review clearance across a clean merge of shared files", () => {
+    expect(reduceEvidenceApplicability(baseMovement({ paths: ["a.ts"], merge: "clean" }), "verification"))
+      .toMatchObject({ verdict: "supplemental", reason: "bounded-overlap", judgmentRequired: true });
+    expect(reduceEvidenceApplicability(
+      baseMovement({ paths: ["a.ts"], merge: "clean", admitted: true }),
+      "merge-safety",
+    )).toMatchObject({ verdict: "fresh", reason: "merge-safety-requires-fresh" });
   });
 
   it("keeps merge-safety mechanical and exact-admission-only", () => {

@@ -141,7 +141,7 @@ Three adopter postures exist:
 **The two axes are independent:**
 
 | Profile         | No method overrides   | Selective overrides            | Heavy overrides                     |
-|-----------------|-----------------------|--------------------------------|-------------------------------------|
+| --------------- | --------------------- | ------------------------------ | ----------------------------------- |
 | **Essentials**  | Solo dev learning ARC | —                              | Evaluating team, existing practices |
 | **Recommended** | Full ARC adoption     | Team with Jira + custom format | Heavily customized team             |
 | **Custom**      | Selective enforcement | Mixed adoption                 | Full customization                  |

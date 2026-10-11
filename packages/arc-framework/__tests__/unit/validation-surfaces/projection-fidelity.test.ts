@@ -81,6 +81,12 @@ const metaRecord = {
   nextAction: "Begin Task 6.2.a",
   prUrl: null,
   completed: null,
+  stateAtHandoff: null,
+  commitAtHandoff: null,
+  sessionType: null,
+  sessionContext: null,
+  completionNotes: [],
+  releaseNotesEntry: [],
 } as const;
 
 const syncBase = {
@@ -138,6 +144,10 @@ describe("validation-surface projection fidelity", () => {
   it("matches semantic meta-record runtime acceptance", () => {
     assertAcceptanceParity(VALIDATION_SURFACE_SCHEMA_IDS.metaRecord, MetaRecordSchema, [
       { label: "complete record", value: metaRecord, accepted: true },
+      { label: "handoff fields and sections", value: { ...metaRecord, stateAtHandoff: "state-version",
+        commitAtHandoff: "abc123", sessionType: "execution", sessionContext: "", completionNotes: ["Done"],
+        releaseNotesEntry: [""] }, accepted: true },
+      { label: "unknown session type", value: { ...metaRecord, sessionType: "investigating" }, accepted: false },
       { label: "missing owner", value: { ...metaRecord, owner: undefined }, accepted: false },
       { label: "extra field", value: { ...metaRecord, extra: true }, accepted: false },
       { label: "invalid state", value: { ...metaRecord, state: "Paused" }, accepted: false },

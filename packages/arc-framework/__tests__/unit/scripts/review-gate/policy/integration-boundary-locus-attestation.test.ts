@@ -45,7 +45,7 @@ function recover(stored: IntegrationBoundaryLocus | null, overrides: Partial<
   Parameters<typeof recoverAttestedSingletonPublicationBoundary>[0]
 > = {}) {
   return recoverAttestedSingletonPublicationBoundary({
-    stored, workUnit, candidateId, candidateSubjectDigest, integrating: true, ...overrides,
+    stored, workUnit, candidateId, candidateSubjectDigest, integrating: true, repairCurrent: false, ...overrides,
   });
 }
 
@@ -77,6 +77,25 @@ describe("attested singleton publication conservation", () => {
     ["different subject", { candidateSubjectDigest: `sha256:${"d".repeat(64)}` }],
   ] as const)("does not adopt authority for a %s", (_label, overrides) => {
     expect(recover(publication(), overrides)).toBeNull();
+  });
+
+  it.each([
+    ["published", null],
+    ["hosted", { repository: "owner/repository", pullRequest: 41 }],
+  ] as const)("rebinds %s authority to the subject a current Candidate recognizes", (_label, changeRequest) => {
+    const stored = publication(changeRequest);
+    const moved = `sha256:${"d".repeat(64)}`;
+    expect(recover(stored, { candidateSubjectDigest: moved, repairCurrent: true }))
+      .toEqual({ ...stored, candidateSubjectDigest: moved });
+  });
+
+  it.each([
+    ["private or withdrawn lifecycle", { integrating: false }],
+    ["different Candidate", { candidateId: `sha256:${"c".repeat(64)}` }],
+  ] as const)("does not rebind a current Candidate's authority for a %s", (_label, overrides) => {
+    expect(recover(publication(), {
+      ...overrides, candidateSubjectDigest: `sha256:${"d".repeat(64)}`, repairCurrent: true,
+    })).toBeNull();
   });
 
   it("does not manufacture publication when no boundary exists", () => {

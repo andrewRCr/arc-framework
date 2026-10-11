@@ -28,7 +28,7 @@ function fakeLister(listings: { arc?: string[]; package?: string[] }) {
 }
 
 const headerRef = "### 3. Post-Context-Load Extensions · `#post-context-load`";
-const inlineRef = "- **Extensions** · `#post-task-quality`: load and execute.";
+const inlineRef = "- **Extensions** · `#post-task-completion`: load and execute.";
 
 describe("classifyWorkflowPath", () => {
   it("classifies .arc/ workflow paths as arc-workflow", () => {
@@ -87,7 +87,7 @@ describe("validateFiles", () => {
     const result = validateFiles(
       Object.keys(files),
       fakeReader(files),
-      fakeLister({ arc: ["post-task-quality"] }),
+      fakeLister({ arc: ["post-task-completion"] }),
     );
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
@@ -124,7 +124,7 @@ describe("validateFiles", () => {
     const result = validateFiles(
       Object.keys(files),
       fakeReader(files),
-      fakeLister({ arc: ["post-task-quality"] }),
+      fakeLister({ arc: ["post-task-completion"] }),
     );
     expect(result.pass).toBe(true);
   });
@@ -132,7 +132,7 @@ describe("validateFiles", () => {
   it("checks every reference in a file when multiple are present — each resolves independently", () => {
     const multiple = [
       "### X · `#post-context-load`",
-      "### Y · `#post-task-quality`",
+      "### Y · `#post-task-completion`",
       "### Z · `#does-not-exist`",
     ].join("\n");
     const files = {
@@ -141,7 +141,7 @@ describe("validateFiles", () => {
     const result = validateFiles(
       Object.keys(files),
       fakeReader(files),
-      fakeLister({ arc: ["post-context-load", "post-task-quality"] }),
+      fakeLister({ arc: ["post-context-load", "post-task-completion"] }),
     );
     expect(result.pass).toBe(false);
     expect(result.diagnostics.length).toBe(1);

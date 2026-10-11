@@ -223,10 +223,10 @@ Custom user-level hooks — scripts the developer installs at the harness's hook
 based on the developer's own criteria — and the interlock release wrappers are complementary
 layers, not alternatives. They cover different concerns at different boundaries:
 
-| Layer                   | Boundary       | Coverage                                            | Mechanism                                |
-|-------------------------|----------------|-----------------------------------------------------|------------------------------------------|
-| Custom user-level hooks | Harness layer  | Broad — any command pattern the hook matches        | Pre-execution hook intercepts shell call |
-| Interlock wrappers      | CLI boundary   | Narrow — `arc release commit` / `arc release push`  | Wrapper validates ARC state, then spawns |
+| Layer                   | Boundary      | Coverage                                           | Mechanism                                |
+| ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------- |
+| Custom user-level hooks | Harness layer | Broad — any command pattern the hook matches       | Pre-execution hook intercepts shell call |
+| Interlock wrappers      | CLI boundary  | Narrow — `arc release commit` / `arc release push` | Wrapper validates ARC state, then spawns |
 
 The two compose without conflict. A custom hook denying `git push --force` continues to fire
 even when the wrapper is engaged — wrapper invocations don't bypass the hook layer. Conversely,

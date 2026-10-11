@@ -10,7 +10,7 @@ import { writeSubmissionBoundary, SubmissionBoundaryVersionConflictError } from 
 import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { writeTransitionRecord } from "../../src/lib/work-unit/transition-record-store.js";
-import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { trackedWriteFixture, trackedDigest, candidateFixture, boundaryFixture } from "../helpers/store/tracked-write-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 
@@ -113,10 +113,10 @@ for (const kind of ["review/candidate", "review/integration-boundary"] as const)
 for (const moment of ["after-removal", "during-restoration", "replace-created"] as const) it(`preserves an exclusive transition accepted ${moment}`, async () => {
   const h = await trackedWriteFixture();
   const reference = h.reference("lineage/transition");
-  const beforeRecord = { schemaVersion: 1 as const, origin: "example", kind: "abandon" as const, successors: [], edges: [] };
-  const winningRecord = { schemaVersion: 1 as const, origin: "example", kind: "rename" as const, successors: ["next"], edges: [] };
-  const before = serializeTransitionRecord(beforeRecord);
-  const winning = serializeTransitionRecord(winningRecord);
+  const beforeRecord = LineageRecordSchema.parse({ schemaVersion: 2 as const, origin: { name: "example" }, kind: "abandon" as const, successors: [], incoming: [] });
+  const winningRecord = LineageRecordSchema.parse({ schemaVersion: 2 as const, origin: { name: "example" }, kind: "rename" as const, successors: [{ name: "next" }], incoming: [] });
+  const before = writeLineageRecord(beforeRecord);
+  const winning = writeLineageRecord(winningRecord);
   const path = join(h.root, ".arc/system/.internal/transitions/example.json");
   if (moment !== "replace-created") success(await h.store.write({ action: "put", reference, content: before, expected: null, provenance }));
   await mkdir(join(h.root, ".arc/active"), { recursive: true });

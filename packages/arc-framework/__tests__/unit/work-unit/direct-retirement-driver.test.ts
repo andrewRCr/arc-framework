@@ -96,6 +96,39 @@ describe("direct retirement branch resolution", () => {
   });
 });
 
+describe("direct retirement staged-index refusal", () => {
+  it("names staged paths, explains repair, and resolves after the index is cleared", async () => {
+    const stagedPaths = ["file with spaces.txt", "line\nbreak.txt"];
+    let staged = `${stagedPaths.join("\0")}\0`;
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
+      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
+      if (args[0] === "diff" && args[1] === "--cached") return { stdout: staged };
+      if (args[0] === "write-tree") return { stdout: `${"b".repeat(40)}\n` };
+      throw new Error(`unexpected Git command: ${args.join(" ")}`);
+    };
+    const context = createInRepoAbandonRetirementContext({
+      cwd: "/repo", exec, readBlob: async () => bytes("meta"),
+    });
+    const source = await context.captureSource({
+      name: "sample", sourceDir: ".arc/active", expectedBranch: "feat/sample",
+    });
+
+    const result = await context.authority.readSnapshot(source.scope);
+    expect(result).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
+    if (result.status !== "refused") throw new Error("expected refusal");
+    expect(result).toHaveProperty("diagnostic", expect.stringContaining(JSON.stringify(stagedPaths[0])));
+    expect(result).toHaveProperty("diagnostic", expect.stringContaining(JSON.stringify(stagedPaths[1])));
+    expect(result).toHaveProperty("diagnostic", expect.stringMatching(/commit.*or clear.*index.*retry/iu));
+
+    staged = "";
+    await expect(context.authority.readSnapshot(source.scope)).resolves.toMatchObject({
+      status: "resolved", snapshot: { sourceRefOid: HEAD, resultRefOid: HEAD },
+    });
+  });
+});
+
 describe("rename result derivation", () => {
   it("maps every source artifact basename to the target slug", async () => {
     const sourcePaths = [".arc/active/meta-sample.md", ".arc/active/spec-sample.md"];

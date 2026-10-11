@@ -310,6 +310,7 @@ function enableSelfHusk(ctx: TeardownContext): () => WorktreeMarker | null {
     pathExists: async () => false,
     directoryExists: async () => false,
     copyDirectory: async () => {},
+    copyFileIfAbsent: async () => {},
     readFile: async () => "",
     writeFile: async () => {},
     mkdir: async () => {},

@@ -11,6 +11,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "cascade-resolution",
   "change-path-fact",
   "change-path-set",
+  "check-declaration",
   "class-composition",
   "compaction-seed",
   "config-session-init",

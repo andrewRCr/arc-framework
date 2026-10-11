@@ -304,14 +304,16 @@ describe("Markdown authority", () => {
     })).toThrow(/contradicts recipe mapping/u);
   });
 
-  it("rejects invalid, untracked, and non-file explicit selections", async () => {
+  it("rejects invalid and ignored explicit selections", async () => {
     const boundaries = {
       root: "/repo",
       operation: "worktree-read" as const,
-      exec: scriptGitExec([{
-        match: ["ls-files", "--error-unmatch", "--", "README.md"],
-        responses: [{ failure: { exitCode: 1, stderr: "untracked" } }],
-      }]).exec,
+      exec: scriptGitExec([
+        { match: ["ls-files", "--error-unmatch", "--", "README.md"],
+          responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
+        { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+          responses: [{ stdout: "" }] },
+      ]).exec,
       lstat: vi.fn(),
       realpath: vi.fn(),
     };
@@ -323,7 +325,7 @@ describe("Markdown authority", () => {
     await expect(validateExplicitMarkdownPaths({ ...boundaries, paths: ["README.txt"] }))
       .rejects.toMatchObject({ code: "markdown.non-markdown" });
     await expect(validateExplicitMarkdownPaths({ ...boundaries, paths: ["README.md"] }))
-      .rejects.toMatchObject({ code: "markdown.untracked" });
+      .rejects.toMatchObject({ code: "markdown.ignored", message: expect.stringContaining("README.md") });
   });
 
   it("allows contained worktree reads but refuses physical escapes and directories", async () => {

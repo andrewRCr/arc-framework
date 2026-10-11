@@ -63,6 +63,13 @@ A roadmap slot is when, not what; an owner follows the wrapper; a dependency is 
 
 - Quiet under-design still requires review of decision lines and prompt promotion when an answer flips.
 
+### Amendments
+
+**Amendment (2026-10-10):** An Errand now writes each settled decision as one plain-prose line naming the choice,
+the alternative it was chosen over, and the reason: a bullet under its PR body's `## Decisions` heading and a body
+bullet in its commit, in place of the `Decided: X over Y — because Z` paragraph question 4 quotes. The record test is
+unchanged; question 4 reads against that line.
+
 ## Amending This Document
 
 ---

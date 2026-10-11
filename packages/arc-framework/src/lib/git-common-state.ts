@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { atomicWriteFile } from "./fs.js";
+import { atomicWriteFile, classifyFilesystemAccessFault, type FilesystemAccessFault } from "./fs.js";
 import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
 
@@ -44,7 +44,7 @@ export interface GitCommonStatePublisherIO {
 export class GitCommonStateAccessError extends Error {
   constructor(
     public readonly access: "read" | "write",
-    public readonly failureCause: "permission-denied" | "read-only-filesystem",
+    public readonly failureCause: FilesystemAccessFault,
   ) {
     super(`Repository-common state ${access} failed: ${failureCause}`);
     this.name = "GitCommonStateAccessError";
@@ -58,16 +58,8 @@ async function withGitCommonStateAccessFailure<T>(
   try {
     return await operation();
   } catch (error) {
-    const code = typeof error === "object" && error !== null && "code" in error
-      && typeof error.code === "string"
-      ? error.code
-      : undefined;
-    if (code === "EROFS") {
-      throw new GitCommonStateAccessError(access, "read-only-filesystem");
-    }
-    if (code === "EACCES" || code === "EPERM") {
-      throw new GitCommonStateAccessError(access, "permission-denied");
-    }
+    const fault = classifyFilesystemAccessFault(error);
+    if (fault !== undefined) throw new GitCommonStateAccessError(access, fault);
     throw error;
   }
 }

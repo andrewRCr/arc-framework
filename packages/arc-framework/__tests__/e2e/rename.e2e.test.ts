@@ -266,10 +266,10 @@ describe("arc rename", () => {
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
     const transition = JSON.parse(await git(fixture.repo, [
       "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",
-    ])) as { kind: string; successors: string[] };
+    ])) as { schemaVersion: 2; kind: string; successors: { name: string }[] };
     expect(transition).toMatchObject({
       kind: "rename",
-      successors: ["new-name"],
+      successors: [{ name: "new-name" }],
     });
     await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");

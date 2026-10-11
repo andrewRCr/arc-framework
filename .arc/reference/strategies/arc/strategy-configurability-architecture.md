@@ -4,11 +4,11 @@
 > philosophy, adoption defaults, validation scenarios, and the complete agent hooks guide.
 
 **Purpose:** Operational reference for ARC's customization mechanisms — configuration settings, extension
-points, method overrides, and the convention inventory. Agents and workflows consult this document when
-encountering customization decisions.
+points, method overrides, check declarations, and the convention inventory. Agents and workflows consult this document
+when encountering customization decisions.
 
-**Scope:** Configuration settings, extension points, method overrides, content-level customization (project
-strategies, workflows, domain-specific rules), platform compatibility, and the full convention inventory.
+**Scope:** Configuration settings, extension points, method overrides, check declarations, content-level customization
+(project strategies, workflows, domain-specific rules), platform compatibility, and the full convention inventory.
 
 ---
 
@@ -28,19 +28,21 @@ ARC's three-tier flexibility model draws a sharp line between principles (tier 1
 conventions (tier 2, configurable with defaults). Escape hatches (tier 3) acknowledge practices outside ARC's
 design envelope without blocking them.
 
-Customizing conventions — not principles — is the entire scope of the configurability architecture. Three
-mechanisms handle different kinds of customization, and existing project documentation absorbs a fourth concern:
+Customizing conventions — not principles — is the entire scope of the configurability architecture. Four
+mechanisms handle different kinds of customization, and project documentation holds tool-command variation:
 
-| Mechanism       | What It Does              | File                 | Example                                    |
-| --------------- | ------------------------- | -------------------- | ------------------------------------------ |
-| Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
-| Extension       | Adds steps to workflows   | `system/extensions/` | Post-task quality: also run security scan  |
-| Method override | Replaces default behavior | `system/methods/`    | Session state: custom format, not default  |
-| QUICK-REFERENCE | Environment/tool commands | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
+| Mechanism         | What It Does                     | File                 | Example                                    |
+| ----------------- | -------------------------------- | -------------------- | ------------------------------------------ |
+| Config            | Toggles enforcement              | `arc-config.yml`     | `commit.format: any` disables hook check   |
+| Extension         | Adds steps to workflows          | `system/extensions/` | Post-task completion: update a tracker     |
+| Check declaration | Defines project checks and gates | `arc-checks.yml`     | Security checks before push                |
+| Method override   | Replaces default behavior        | `system/methods/`    | Session state: custom format, not default  |
+| QUICK-REFERENCE   | Environment/tool commands        | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
 
 ### Which mechanism do I use?
 
 - If the customization changes a **value** that affects existing behavior → **config**
+- If it declares **project checks and their deadlines** → **check declaration**
 - If it adds **new steps** at a workflow point → **extension**
 - If it **replaces** how ARC does something with how the team does it → **method override**
 - If it changes **which CLI tool** to use for an operation → **QUICK-REFERENCE**
@@ -48,9 +50,8 @@ mechanisms handle different kinds of customization, and existing project documen
 - If it adds **project-specific procedures** not covered by ARC → **project workflow**
 - If it extends **project standards** for a specific domain → **domain-specific dev-rules**
 
-Config, extensions, and method overrides are the three customization mechanisms. QUICK-REFERENCE is not a
-"mechanism" in the same sense — it is existing project documentation that naturally absorbs platform command
-variation.
+Config, extensions, method overrides, and the check declaration are the four customization mechanisms. QUICK-REFERENCE
+is existing project documentation that naturally absorbs platform command variation.
 
 Beyond mechanisms, ARC supports **content-level customization** through project-owned files that add
 domain-specific guidance, project-specific procedures, or extended standards:
@@ -98,23 +99,23 @@ a configurability path (how teams adapt it).
 
 #### Operational discipline conventions
 
-| Convention                              | Principle | Default                             | Configurability Path                                 |
-| --------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
-| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
-| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
-| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Method activation + override                         |
-| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                         |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
-| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
-| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
-| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
-| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
-| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
-| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism       |
-| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
-| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`     |
-| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`       |
-| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`       |
+| Convention                             | Principle | Default                             | Configurability Path                                 |
+| -------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
+| Zero-tolerance quality gates           | P4        | Every check passes by its deadline  | Project declaration defines the checks               |
+| Event-based quality gates              | P4        | Commit / push / merge               | Check declaration — earliest gate per check          |
+| Pre-merge aggregate review             | P4        | Lightweight diff review before push | Method activation + override                         |
+| Planning checkpoint review             | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                         |
+| Leave it cleaner (capture floor)       | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
+| Test-first assessment                  | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
+| Conventional commit format             | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
+| Context footer on commits              | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
+| Atomic commits                         | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
+| Branch naming conventions              | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
+| Per-WU status + user/{identity}/ state | P5        | Two-file session state in user dir  | Method override — substitute session mechanism       |
+| Session init/handoff ceremonies        | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
+| Commit interlock release               | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`     |
+| Sync interlock release                 | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`       |
+| Push interlock release                 | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`       |
 
 #### Design commitment conventions
 
@@ -382,8 +383,8 @@ the setting. The squash merge example demonstrates this — the config value tri
 
 ## Extension Points
 
-Extension points let teams add behavior at specific locations in ARC workflows — custom quality checks,
-additional context loading, pre-commit verification — without modifying framework-owned files.
+Extension points let teams add behavior at specific locations in ARC workflows — additional context loading, tracker
+updates, or review — without modifying framework-owned files. Project checks belong in the check declaration.
 
 ### Mechanism
 
@@ -443,8 +444,8 @@ New reserved names land here when codified, keeping the namespace coherent befor
 Extension points appear as conditional steps in workflow documents, with a backtick anchor tag for grep-ability:
 
 ```markdown
-- **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions
-  list (established at session init), load and execute its [`.actions`][arc-ext-task-quality].
+- **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
+  list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
   Otherwise, skip.
 ```
 
@@ -583,7 +584,7 @@ legitimate, complementary practice. This includes standards like [Agent Skills][
 skill modules adopted across multiple platforms) as well as platform-specific custom instructions and slash
 commands.
 
-**The boundary is dependency.** If guidance depends on ARC concepts — quality tiers, session lifecycle, task
+**The boundary is dependency.** If guidance depends on ARC concepts — quality gates, session lifecycle, task
 loop protocol — it belongs in an ARC strategy or workflow. If guidance is fully self-contained, it can exist
 independently.
 
@@ -596,9 +597,10 @@ lifecycle guarantees.
 
 Most modern agent platforms support lifecycle hooks — event handlers that fire deterministically when platform
 events occur. These operate alongside ARC's methodology-layer customization (config, extensions, method
-overrides) but at a different layer:
+overrides, check declarations) but at a different layer:
 
-- **ARC's customization mechanisms** are methodology-directed — the agent reads configuration and follows it
+- **ARC's customization mechanisms** supply methodology-directed configuration and procedure; the CLI resolves and
+  runs declared checks
 - **Agent hooks** are platform-directed — the platform executes them regardless of agent decision-making
 
 Agent hooks are configured in the platform's native format (not in `arc-config.yml`). ARC does not ship hook
@@ -614,8 +616,8 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
   P1-P11 principles, philosophical foundation. This document defines how teams customize it.
 - **[Development Rules][dev-rules-arc]** — Operational rules for how work happens (commit standards, session
   management, task protocols). The conventions that this document's configuration system makes adjustable.
-- **[Quality Gates Strategy][quality-gates]** — The tiered quality gate system. Extension points at quality gate
-  boundaries let teams add project-specific checks.
+- **[Quality Gates Strategy][quality-gates]** — Operator guidance for placing project checks at event deadlines and
+  declaring the inputs they depend on.
 - **[Work Organization Strategy][work-org]** — Branch model, work categories, archival. Branch-related config
   settings interact with conventions defined there.
 - **[Interlock Release Wrappers Strategy][interlock-release-wrappers]** — Trust-model framing for release

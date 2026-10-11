@@ -436,7 +436,7 @@ describe("delivery suffix reconciliation", () => {
       status: "applied",
       selectedDeliverableId,
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true },
       acknowledgementInput: {
         planId: plan.planId,
         selectedDeliverableId,
@@ -582,7 +582,7 @@ describe("delivery suffix reconciliation", () => {
     ];
     expect(applied).toMatchObject({
       status: "applied",
-      verification: { memberDeliverableIds, tier1Required: true },
+      verification: { memberDeliverableIds, commitGateRequired: true },
       acknowledgementInput: { memberDeliverableIds },
       state: {
         value: {

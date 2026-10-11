@@ -1,5 +1,47 @@
 /** Shared data-only corpus for ARC configuration compatibility adapters. */
 
+// Keep these rendered checks hand-maintained: deriving them from the production catalog or
+// validator would let a missing check update both sides of the assertion. The file check counts too.
+export const EMPTY_CONFIG_VALIDATION_PASS_LINES = [
+  "PASS  Config file exists: selected.yml",
+  "PASS  branch.base: [absent, default: main]",
+  "PASS  branch.protection: [absent, default: partial]",
+  "PASS  commit.format: [absent, default: conventional]",
+  "PASS  commit.context_footer: [absent, default: required]",
+  "PASS  hooks.pre_commit: [absent, default: enabled]",
+  "PASS  hooks.commit_msg: [absent, default: enabled]",
+  "PASS  hooks.pre_push: [absent, default: enabled]",
+  "PASS  hooks.task_numbering: [absent, default: error]",
+  "PASS  hooks.subject_max_length: 72",
+  "PASS  hooks.body_max_lines: 100",
+  "PASS  hooks.body_max_line_length: 100",
+  "PASS  merge.strategy: [absent, default: merge]",
+  "PASS  merge.lock: [absent, default: none]",
+  "PASS  platform.type: [absent, default: github]",
+  "PASS  review.frontline_max_passes: 2",
+  "PASS  review.standard_max_passes: 2",
+  "PASS  review.hosted_await_timeout_seconds: 120",
+  "PASS  review.hosted_await_initial_poll_interval_seconds: 15",
+  "PASS  review.hosted_await_attention_after_minutes: 15",
+  "PASS  review.checks_await_timeout_seconds: 300",
+  "PASS  review.checks_await_initial_poll_interval_seconds: 5",
+  "PASS  changeset.advisory_threshold_lines: 0",
+  "PASS  changeset.advisory_threshold_files: 0",
+  "PASS  pm.mode: [absent, default: none]",
+  "PASS  team.mode: [absent, default: false]",
+  "PASS  session.remote_sync: [absent, default: enabled]",
+  "PASS  session.init_pull.worktree: [absent, default: prompt]",
+  "PASS  session.init_pull.notes: [absent, default: prompt]",
+  "PASS  session.init_pull.base: [absent, default: prompt]",
+  "PASS  session.init_load.notes: [absent, default: prompt]",
+  "PASS  user.notes_push: [absent, default: on-sync]",
+  "PASS  sync.auto_pull: [absent, default: false]",
+  "PASS  archive.cadence: [absent, default: with-integration]",
+] as const;
+
+// Counts follow the independent rendered inventory, not the full configuration catalog size.
+export const EMPTY_CONFIG_VALIDATION_PASSES = EMPTY_CONFIG_VALIDATION_PASS_LINES.length;
+
 export const CONFIG_COMPATIBILITY_KINDS = [
   "valid",
   "invalid",
@@ -137,7 +179,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".codex", ".claude"] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -183,7 +225,8 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "throws", messageIncludes: "reserved directory" },
       },
       validator: {
-        passes: 30,
+        // Four baseline key checks fail; the location-template error adds no pass.
+        passes: EMPTY_CONFIG_VALIDATION_PASSES - 4,
         warnings: 0,
         errors: 5,
         exitCode: 2,
@@ -232,7 +275,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -280,7 +323,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 0,
         errors: 1,
         exitCode: 2,
@@ -310,7 +353,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 2,
         errors: 0,
         exitCode: 1,
@@ -348,7 +391,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -375,7 +418,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 34,
+        passes: EMPTY_CONFIG_VALIDATION_PASSES,
         warnings: 0,
         errors: 0,
         exitCode: 0,

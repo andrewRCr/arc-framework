@@ -29,7 +29,7 @@ import {
   type LifecycleIndexFs,
 } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
-import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
+import type { LineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
@@ -108,14 +108,14 @@ interface Harness {
   calls: string[];
   removed: string[];
   rmdirs: string[];
-  recordedTransitions: TransitionRecord[];
+  recordedTransitions: LineageRecord[];
 }
 
 function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
-  const recordedTransitions: TransitionRecord[] = [];
+  const recordedTransitions: LineageRecord[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -313,11 +313,11 @@ describe("runAbandon — started WU (active)", () => {
     expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("transition:record"));
     expect(calls.indexOf("transition:record")).toBeLessThan(calls.indexOf("retirement:complete"));
     expect(recordedTransitions).toEqual([{
-      schemaVersion: 1,
-      origin: "foo",
+      schemaVersion: 2,
+      origin: { name: "foo" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     }]);
   });
 
@@ -360,11 +360,11 @@ describe("runAbandon — started WU (active)", () => {
 
     expect(result.status).toBe("abandoned");
     expect(recordedTransitions).toEqual([{
-      schemaVersion: 1,
-      origin: "foo",
+      schemaVersion: 2,
+      origin: { name: "foo" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     }]);
   });
 

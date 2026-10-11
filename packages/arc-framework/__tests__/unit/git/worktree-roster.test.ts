@@ -269,7 +269,17 @@ describe("runWorktreeRoster", () => {
     });
     const fs = buildFs({
       "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Bogus\n- **Branch:** feature/x\n",
+        [
+          "# Metadata: x",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Bogus | — | feature/x | — | — |",
+          "",
+          "",
+          "---",
+          "",
+        ].join("\n"),
     });
 
     const result = await runWorktreeRoster({ exec, fs });

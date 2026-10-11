@@ -58,6 +58,7 @@ import {
   resolveWorktreePathsByBranchResult,
 } from "../../git/worktree-roster.js";
 import { setupLinkedWorktree } from "../../git/linked-worktree-setup.js";
+import { nodeCopyFileIfAbsent } from "../../git/worktree-include.js";
 import { localPathContains } from "../../local-path-identity.js";
 import {
   reconcileLinkedIdentityGlobalUserSurfaces,
@@ -94,6 +95,8 @@ export interface ReconcileWorkUnitWorktreeFs {
   directoryExists(path: string): Promise<boolean>;
   /** Recursively copy a directory into the destination worktree. */
   copyDirectory(source: string, destination: string): Promise<void>;
+  /** Copy one file, creating parent directories, unless the destination already exists. */
+  copyFileIfAbsent(source: string, destination: string): Promise<void>;
   /** Read a UTF-8 text file. */
   readFile(path: string): Promise<string>;
   /** Write a UTF-8 text file. */
@@ -120,6 +123,7 @@ export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
   copyDirectory: async (source, destination) => {
     await cp(source, destination, { recursive: true, force: true, verbatimSymlinks: true });
   },
+  copyFileIfAbsent: nodeCopyFileIfAbsent,
   readFile: (path) => readFile(path, "utf8"),
   writeFile,
   mkdir: async (path, options) => {
@@ -312,7 +316,7 @@ export interface ProvisionSpawnedWorktreeOp {
 }
 
 /**
- * Apply project setup, registered harness copies, the ignore rule, and ownership marker.
+ * Apply include-file copies, project setup, registered harness copies, the ignore rule, and ownership marker.
  *
  * @param ctx - Git and filesystem boundaries
  * @param op - Exact spawned-worktree provisioning operands

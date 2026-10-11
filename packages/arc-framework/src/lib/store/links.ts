@@ -25,6 +25,9 @@ export const LinksSchema = z.strictObject({
 });
 /** Whole-value traceability replacement, including the empty clear value. */
 export type Links = z.infer<typeof LinksSchema>;
+/** Verbs under which automatic write-back and explicit save persist hand edits. */
+export const HAND_EDIT_VERBS = ["write-back", "save"] as const;
+
 /** Only the caller's facts: backend identity and batch fields cannot be supplied. */
 export const CallerProvenanceSchema = z.strictObject({
   verb: z.string().trim().min(1),

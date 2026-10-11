@@ -91,8 +91,8 @@ describe("runExtensionsStatus — full mode", () => {
 
   it("classifies active and inactive extensions and counts them", async () => {
     await writeExtension(fixture.extDir, "pre-merge", true, "Review ceremony");
-    await writeExtension(fixture.extDir, "post-task-quality", false, "Extra checks");
-    await writeExtension(fixture.extDir, "post-unit-quality", false);
+    await writeExtension(fixture.extDir, "post-task-completion", false, "Extra checks");
+    await writeExtension(fixture.extDir, "post-work-unit-activate", false);
     await writeWorkflow(fixture.wfDir, "a.md", ["pre-merge"]);
 
     const result = await runExtensionsStatus({ cwd: fixture.root });
@@ -103,7 +103,7 @@ describe("runExtensionsStatus — full mode", () => {
     expect(result.extensions).toEqual(
       expect.arrayContaining([
         { name: "pre-merge", active: true, description: "Review ceremony" },
-        { name: "post-task-quality", active: false, description: "Extra checks" },
+        { name: "post-task-completion", active: false, description: "Extra checks" },
       ]),
     );
   });
@@ -190,7 +190,7 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
 
   it("returns only active extensions, not inactive ones", async () => {
     await writeExtension(fixture.extDir, "pre-merge", true);
-    await writeExtension(fixture.extDir, "post-task-quality", false);
+    await writeExtension(fixture.extDir, "post-task-completion", false);
     await writeExtension(fixture.extDir, "post-context-load", true);
 
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
@@ -201,7 +201,7 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
   });
 
   it("returns an empty list when no extensions are active", async () => {
-    await writeExtension(fixture.extDir, "post-task-quality", false);
+    await writeExtension(fixture.extDir, "post-task-completion", false);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
     assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(result.active).toEqual([]);

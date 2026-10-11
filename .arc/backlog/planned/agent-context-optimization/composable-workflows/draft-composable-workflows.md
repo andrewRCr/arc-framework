@@ -650,7 +650,7 @@ below are the schema's first fixtures.
 **Vocabulary v1 (confirmed — nothing in the file needed an eighth type):**
 
 | Step       | Args (sketch)                                 | Session-init instances                               |
-|------------|-----------------------------------------------|------------------------------------------------------|
+| ---------- | --------------------------------------------- | ---------------------------------------------------- |
 | `read`     | path/id, read-mode, parallel-group, on-fail   | the 11 Step-3 items (already shipped as `loadSet`)   |
 | `exec`     | command, rationale                            | channel pulls, `arc user load`, relocate, base fetch |
 | `offer`    | precomposed text, choices, per-choice payload | sync prompts, combined prompt, displacement guard    |
@@ -741,7 +741,7 @@ Every former inbound-buffer item, integrated or consciously rejected — content
 this map records that nothing dropped silently:
 
 | Former buffer item (origin)                              | Disposition                                          |
-|----------------------------------------------------------|------------------------------------------------------|
+| -------------------------------------------------------- | ---------------------------------------------------- |
 | Recovery load-set emitter (`compaction-recovery`, 06-28) | Integrated — D3 seed + first-consumer rewire         |
 | Stable-anchor convention (housekeep 06-01)               | Integrated — D2 § Stable anchors                     |
 | External/harness skill references (housekeep 06-01)      | Integrated — D1 landing surface (authoring strategy) |

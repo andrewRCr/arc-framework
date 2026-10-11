@@ -5,9 +5,11 @@ arc:
   methods:
     - source-grounding
     - assess-design-proportionality
+    - disposition-report
 related:
   - source-grounding
   - assess-design-proportionality
+  - disposition-report
   - frontline-review
   - implementation-audit
   - review-chunking
@@ -230,6 +232,9 @@ reads.
 **Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
 verification and obtains approval for the complete set before any finding-driven response.
+
+**Presenting the set.** Present the verified set by the [disposition-report][disposition-report] method, with a fix in
+place as `FIX`, a durable carry-forward as `DEFER`, a drop as `REJECT`, and a refuted finding as `Not supported`.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
@@ -579,5 +584,6 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [source-grounding]: source-grounding.md
 [assess-design-proportionality]: assess-design-proportionality.md
+[disposition-report]: disposition-report.md
 [resolve-planning-depth]: resolve-planning-depth.md
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard

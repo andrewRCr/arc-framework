@@ -97,6 +97,7 @@ export function composeErrandFinalPlan(input: {
   const baseMovement = BaseMovementObservationSchema.parse({
     coordinates,
     overlap: observeDriftOverlap(input.drift.overlap),
+    merge: input.feasibility,
   });
   const hostAdmission = input.admission.state === "mergeable"
     ? { state: "mergeable" as const, coordinates }

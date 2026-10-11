@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { RawGitExec } from "../../../../src/lib/git/exec.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import {
   ensureCandidateHeadAvailable,
@@ -9,6 +10,9 @@ import {
   selectDeliveryReviewStatusTarget,
 } from
   "../../../../src/scripts/review-gate/status-composition.js";
+
+/** A raw Git boundary that fails every read, so any merge observed through it comes back unavailable. */
+const unreachableRawExec: RawGitExec = () => Promise.reject(new Error("unexpected raw Git read"));
 
 describe("review status composition", () => {
   it("classifies non-contained disjoint base movement for the resolved review subject", async () => {
@@ -36,6 +40,7 @@ describe("review status composition", () => {
     await expect(readBasePosition({
       cwd: "/repo",
       exec,
+      rawExec: unreachableRawExec,
       headSha,
       repository: "owner/repo",
       changeRequest: 42,
@@ -69,6 +74,7 @@ describe("review status composition", () => {
     await expect(readBasePosition({
       cwd: "/repo",
       exec,
+      rawExec: unreachableRawExec,
       headSha,
       repository: "owner/repo",
       changeRequest: 42,
@@ -79,6 +85,8 @@ describe("review status composition", () => {
       baseMovement: {
         coordinates: { repository: "owner/repo", changeRequest: 42, base: currentBaseOid, head: headSha },
         overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+        // Overlap on reviewable paths is the one shape where the merge decides; here it cannot be read.
+        merge: { state: "unavailable", base: currentBaseOid, head: headSha },
       },
     });
     expect(calls.some(({ args }) => args[0] === "diff")).toBe(true);
@@ -101,6 +109,7 @@ describe("review status composition", () => {
     await expect(readBasePosition({
       cwd: "/repo",
       exec,
+      rawExec: unreachableRawExec,
       headSha,
       repository: "owner/repo",
       changeRequest: 42,
@@ -131,6 +140,7 @@ describe("review status composition", () => {
     await expect(readBasePosition({
       cwd: "/repo",
       exec,
+      rawExec: unreachableRawExec,
       headSha,
       repository: "owner/repo",
       changeRequest: 42,

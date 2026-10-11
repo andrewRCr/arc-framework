@@ -275,7 +275,16 @@ describe("session-init E2E — real remote-access boundaries", () => {
 
         const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
         await mkdir(join(publisher, ".arc", "completed", "2026-q3", "shipped-widget"), { recursive: true });
-        await writeFile(join(publisher, completedPath), "# Metadata: shipped-widget\n", "utf8");
+        await writeFile(join(publisher, completedPath), [
+          "# Metadata: shipped-widget",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "---",
+          "",
+        ].join("\n"), "utf8");
         await git(publisher, ["add", completedPath]);
         await git(publisher, ["commit", "-m", "record shipped widget"]);
         const baseProofOid = await git(publisher, ["rev-parse", "HEAD"]);

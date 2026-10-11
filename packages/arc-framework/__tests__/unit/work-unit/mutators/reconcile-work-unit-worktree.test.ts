@@ -76,6 +76,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
       copyDirectory: async (source, destination) => {
         events.push(["copy", source, destination]);
       },
+      copyFileIfAbsent: async () => {},
       readFile: async () => "",
       writeFile: async () => {},
       mkdir: async () => {},
@@ -172,6 +173,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
 
@@ -274,6 +276,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
 
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       postCreateCommand,
       ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
@@ -308,6 +311,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
 
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       postCreateCommand,
       ["git", "worktree", "remove", "--force", expectedPath],
       ["git", "branch", "-D", "plan/demo-wu"],
@@ -416,6 +420,7 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
     expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "feat/demo-wu" });
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "feat/demo-wu"],
+      ["git", "worktree", "list", "--porcelain", "-z"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
 

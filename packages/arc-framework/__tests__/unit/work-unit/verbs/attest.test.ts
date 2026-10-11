@@ -19,6 +19,8 @@ import {
 import { projectCandidateReviewBoundary } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { setMetaBulletFields } from "../../../../src/lib/active/meta-reader.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -893,6 +895,12 @@ describe("runAttest", () => {
 
   it("preserves terminal workflow orientation when a shipped subject is re-rooted", async () => {
     const fixture = harness();
+    let content = makeMetaFixture("example", { nextAction: "Continue." });
+    const publish = fixture.context.publish;
+    fixture.context.publish = async (input) => {
+      content = setMetaBulletFields(content, { "Next Action": input.nextAction });
+      return publish(input);
+    };
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("archive-cadence") });
 
@@ -906,5 +914,6 @@ describe("runAttest", () => {
       projectedCurrentWorkflow: "[none]",
       projectedNextAction: "[none]",
     });
+    expect(content).toContain("- **Next Action:** —\n");
   });
 });

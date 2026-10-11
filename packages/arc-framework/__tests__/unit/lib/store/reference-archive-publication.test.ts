@@ -104,11 +104,11 @@ describe("reference archive publication", () => {
     const incoming = fixture.reference("work-item/meta", "incoming");
     success(await local.write({ action: "put", reference: incoming, expected: null, content: fixture.content(incoming), placement, provenance: testProvenance }));
     let attempted = false;
-    local.context.publication.remote!.beforePublish = () => {
+    local.context.publication.remote!.beforePublish = async () => {
       if (attempted) return;
       attempted = true;
       const reference = fixture.reference("work-item/meta", "published-during-cas");
-      void remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
+      await remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
     };
     expect(success(await local.sync()).publishes[0]?.status).toBe("reconciled");
     expect(success(await remote.read({ reference: incoming })).placement).toEqual({ ...placement, sequence: "02" });
@@ -124,10 +124,10 @@ describe("reference archive publication", () => {
     const saved = structuredClone(local.state);
     const moving = fixture.reference("work-item/meta", "moving");
     const memoryRemote = local.context.publication.remote!;
-    memoryRemote.beforePublish = () => {
+    memoryRemote.beforePublish = async () => {
       // Use a fresh slug each attempt so every interleaving consumes a published position.
       const reference = RecordReferenceSchema.parse({ ...moving, owner: { ...moving.owner, name: `moving-${remote.state.counter}` } });
-      void remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
+      await remote.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement, provenance: testProvenance });
     };
     expect(success(await local.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
     expect(local.state).toEqual(saved);

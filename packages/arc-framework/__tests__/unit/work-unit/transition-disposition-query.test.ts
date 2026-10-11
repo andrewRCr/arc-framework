@@ -3,38 +3,38 @@ import { describe, expect, it } from "vitest";
 import {
   queryTransitionDisposition,
 } from "../../../src/lib/work-unit/transition-disposition-query.js";
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import {
   validateTransitionRecordEnumeration,
   type TransitionRecordEnumerationResult,
 } from "../../../src/lib/work-unit/transition-record-enumeration.js";
 
-function enumeration(...records: TransitionRecord[]): TransitionRecordEnumerationResult {
+function enumeration(...records: LineageRecord[]): TransitionRecordEnumerationResult {
   return records.length === 0
     ? { status: "valid", groups: [] }
-    : { status: "valid", groups: [{ origin: records[0]?.origin ?? "origin", records }] };
+    : { status: "valid", groups: [{ origin: records[0]?.origin.name ?? "origin", records }] };
 }
 
 describe("transition disposition query", () => {
   it.each([
     {
-      record: {
-        schemaVersion: 1,
-        origin: "origin",
+      record: LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: "origin" },
         kind: "rename",
-        successors: ["successor"],
-        edges: [],
-      } satisfies TransitionRecord,
+        successors: [{ name: "successor" }],
+        incoming: [],
+      }) satisfies LineageRecord,
       expected: { kind: "retarget", targetSlug: "successor" },
     },
     {
-      record: {
-        schemaVersion: 1,
-        origin: "origin",
+      record: LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: "origin" },
         kind: "abandon",
         successors: [],
-        edges: [],
-      } satisfies TransitionRecord,
+        incoming: [],
+      }) satisfies LineageRecord,
       expected: { kind: "abandoned" },
     },
   ])("projects a direct transition for any dependent", ({ record, expected }) => {
@@ -45,16 +45,17 @@ describe("transition disposition query", () => {
   });
 
   it("resolves decompose dispositions only by dependent slug", () => {
-    const candidate: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "origin",
+    const candidate: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["first", "second"],
-      edges: [
-        { dependent: "replace-me", disposition: { kind: "replace", replacementTargets: ["first"] } },
-        { dependent: "drop-me", disposition: { kind: "drop", reason: "no longer needed" } },
+      successors: [{ name: "first" }, { name: "second" }],
+      incoming: [
+        { dependent: { name: "replace-me" }, disposition: { kind: "replace", replacementTargets: [{ name: "first" }] } },
+        { dependent: { name: "drop-me" }, disposition: { kind: "drop", reason: "no longer needed" } },
       ],
-    };
+      outgoing: [],
+    });
     const query = (dependentSlug: string) => queryTransitionDisposition(
       enumeration(candidate),
       { origin: "origin", dependentSlug },
@@ -72,21 +73,21 @@ describe("transition disposition query", () => {
   });
 
   it("distinguishes absent, origin-local ambiguity, and global corruption", () => {
-    const first: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "origin",
+    const first: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["first"],
-      edges: [],
-    };
-    const second: TransitionRecord = { ...first, successors: ["second"] };
-    const unrelated: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "unrelated",
+      successors: [{ name: "first" }],
+      incoming: [],
+    });
+    const second: LineageRecord = LineageRecordSchema.parse({ ...first, successors: [{ name: "second" }] });
+    const unrelated: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "unrelated" },
       kind: "abandon",
       successors: [],
-      edges: [],
-    };
+      incoming: [],
+    });
     const input = { origin: "origin", dependentSlug: "consumer" };
     const localAmbiguity: TransitionRecordEnumerationResult = {
       status: "valid",
@@ -108,21 +109,22 @@ describe("transition disposition query", () => {
   it.each([
     ["malformed JSON", "{"],
     ["unknown version", JSON.stringify({
-      schemaVersion: 2,
-      origin: "origin",
+      schemaVersion: 1,
+      origin: { name: "origin" },
       kind: "abandon",
       successors: [],
-      edges: [],
+      incoming: [],
     })],
     ["duplicate dependent", JSON.stringify({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["successor"],
-      edges: [
-        { dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["successor"] } },
-        { dependent: "consumer", disposition: { kind: "drop", reason: "retired" } },
+      successors: [{ name: "successor" }],
+      incoming: [
+        { dependent: { name: "consumer" }, disposition: { kind: "replace", replacementTargets: [{ name: "successor" }] } },
+        { dependent: { name: "consumer" }, disposition: { kind: "drop", reason: "retired" } },
       ],
+      outgoing: [],
     })],
   ])("poisons every query for a reachable %s record", (_label, content) => {
     const corrupt = validateTransitionRecordEnumeration([{

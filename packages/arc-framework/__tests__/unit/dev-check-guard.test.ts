@@ -10,7 +10,8 @@ function run(input: DevBuildGuardInput, overrides: Partial<DevBuildGuardDeps> = 
   const deps: DevBuildGuardDeps = {
     token: undefined, readHolder: () => "absent", now: () => now,
     freshness: { newestSrc: () => ({ mtimeMs: now - 30_000, path: "src/cli.ts" }),
-      distMtimeMs: () => now - 120_000, now: () => now, runtimeQualified: () => false },
+      distMtimeMs: () => now - 120_000, now: () => now,
+      runtimeQualification: () => ({ status: "unqualified", reason: "Build input identity does not match." }) },
     writeStderr: (message) => { messages.push(message); },
     exit: (code) => { exitCode = code; },
     ...overrides,
@@ -22,24 +23,24 @@ describe("development command guard", () => {
   it("admits fresh refresh commands and marks them eligible", () => {
     expect(run({ commandPath: "arc base merge" }, { freshness: {
       newestSrc: () => ({ mtimeMs: now, path: "src/cli.ts" }), distMtimeMs: () => now,
-      now: () => now, runtimeQualified: () => true,
+      now: () => now, runtimeQualification: () => ({ status: "qualified" }),
     } })).toEqual({ eligible: true, stderr: "", exitCode: undefined });
   });
 
   it("refuses stale commands with the existing remedy and exit", () => {
     expect(run({ commandPath: "arc status" })).toEqual({ eligible: false, exitCode: 1,
-      stderr: "error: arc dev build is stale (runtime inputs or build qualification differ from the build stamp; dist/cli.js built 2m ago). Refusing `arc status` against stale dist; run `npm run build:fast`, then retry.\n" });
+      stderr: "error: arc dev build is stale (Build input identity does not match.; dist/cli.js built 2m ago). Refusing `arc status` against stale dist; run `npm run build:fast`, then retry.\n" });
   });
 
   it("warns and continues only for a stale compaction-seed write", () => {
     expect(run({ commandPath: "arc status", writeCompactionSeed: true })).toEqual({ eligible: false, exitCode: undefined,
-      stderr: "warn: arc dev build is stale (runtime inputs or build qualification differ from the build stamp; dist/cli.js built 2m ago). Run `npm run build:fast` before relying on output.\n" });
+      stderr: "warn: arc dev build is stale (Build input identity does not match.; dist/cli.js built 2m ago). Run `npm run build:fast` before relying on output.\n" });
   });
 
   it("admits an adopter silently without refresh eligibility", () => {
     const forbidden = (): never => { throw new Error("adopter accessed development inputs"); };
     expect(run({ commandPath: "arc base merge" }, { freshness: { newestSrc: () => null,
-      distMtimeMs: forbidden, now: forbidden, runtimeQualified: forbidden } }))
+      distMtimeMs: forbidden, now: forbidden, runtimeQualification: forbidden } }))
       .toEqual({ eligible: false, stderr: "", exitCode: undefined });
   });
 
@@ -49,7 +50,7 @@ describe("development command guard", () => {
       token: "owned", leaseUntil: now + 1, metadata: { operation: "tests (integration)" } }) });
     let result: ReturnType<typeof run> | undefined;
     expect(() => { result = run({ commandPath: "arc base merge" }, { token: "owned", readHolder: () => read,
-      freshness: { newestSrc: forbidden, distMtimeMs: forbidden, now: forbidden, runtimeQualified: forbidden } }); }).not.toThrow();
+      freshness: { newestSrc: forbidden, distMtimeMs: forbidden, now: forbidden, runtimeQualification: forbidden } }); }).not.toThrow();
     expect(result).toEqual({ eligible: false, stderr: "", exitCode: undefined });
   });
 });

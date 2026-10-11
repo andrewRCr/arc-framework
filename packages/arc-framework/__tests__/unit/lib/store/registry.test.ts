@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   KIND_REGISTRY, FAMILY_REGISTRY, KIND_SHAPES, FAMILY_IDS, createKindRegistry,
-  MACHINE_LOCAL_PATHS, DERIVED_VIEWS, type KindId,
+  MACHINE_LOCAL_PATHS, DERIVED_VIEWS, defineKindRegistration, StateVersionSchema, type KindId,
 } from "../../../../src/lib/store/index.js";
 import { resolveArcPath, ArcLayoutAddressSchema } from "../../../../src/lib/layout/index.js";
 
@@ -45,10 +45,27 @@ describe("role-based storage registry", () => {
   });
   it("isolates parser registration without changing storage properties", () => {
     const parser = (content: string) => ({ success: true as const, data: { text: content } });
-    const registered = createKindRegistry({ "work-item/meta": parser });
+    const check = async () => [];
+    const registered = createKindRegistry([{ kind: "work-item/meta", parser, check, anchorFields: ["anchor"] }]);
     expect(registered["work-item/meta"].parser?.("bytes")).toEqual({ success: true, data: { text: "bytes" } });
+    expect(registered["work-item/meta"].check).toBe(check);
+    expect(registered["work-item/meta"].anchorFields).toEqual(["anchor"]);
     expect(KIND_REGISTRY["work-item/meta"].parser).toBeNull();
+    expect(KIND_REGISTRY["work-item/meta"].check).toBeNull();
+    expect(KIND_REGISTRY["work-item/meta"].anchorFields).toEqual([]);
     expect(registered["work-item/meta"].merge).toBe("single-writer");
+  });
+  it("rejects two registrations for the same kind", () => {
+    expect(() => createKindRegistry([{ kind: "work-item/meta" }, { kind: "work-item/meta" }])).toThrow(/duplicate/iu);
+  });
+  it("checks anchor keys against the parser's output", () => {
+    const parser = () => ({ success: true as const, data: { anchor: StateVersionSchema.parse("state:one"), nullable: null as null, text: "prose" } });
+    const registration = defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["anchor", "nullable"] });
+    expect(createKindRegistry([registration])["work-item/meta"].anchorFields).toEqual(["anchor", "nullable"]);
+    // @ts-expect-error A prose string is not an opaque state-version anchor.
+    defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["text"] });
+    // @ts-expect-error An anchor must name a key the parser returns.
+    defineKindRegistration({ kind: "work-item/meta", parser, anchorFields: ["missing"] });
   });
   it("has a concrete finder or address for each housed record", () => {
     for (const kind of kinds) {
@@ -99,6 +116,7 @@ describe("role-based storage registry", () => {
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/.internal/**" });
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/*/.internal/**" });
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-common", pattern: "arc/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-checks/**" });
     expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
   });
   it("keeps presentation filenames out of the production store core", () => {

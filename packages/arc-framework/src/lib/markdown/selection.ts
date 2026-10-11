@@ -121,7 +121,7 @@ function assertNativePathContained(root: string, candidate: string, path: Manage
 }
 
 /**
- * Validate explicit tracked Markdown paths and physical containment before any content loader runs.
+ * Validate explicit Markdown worktree paths and physical containment before any content loader runs.
  *
  * @param options - Repository root, candidate paths, operation policy, and injected boundaries
  * @returns Canonical repository-relative paths in caller order
@@ -137,8 +137,16 @@ export async function validateExplicitMarkdownPaths(
   for (const path of paths) {
     try {
       await options.exec("git", ["ls-files", "--error-unmatch", "--", path], { cwd: options.root });
-    } catch (error) {
-      throw new ArcError(`Markdown path is not tracked: ${path}`, "markdown.untracked", { cause: error });
+    } catch {
+      const worktreePaths = await enumerateTrackedMarkdownPaths({
+        root: options.root, exec: options.exec, source: "worktree",
+      }).catch((error: unknown): readonly ManagedPath[] => {
+        if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
+        throw error;
+      });
+      if (!worktreePaths.includes(path)) {
+        throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
+      }
     }
 
     let native = options.root;

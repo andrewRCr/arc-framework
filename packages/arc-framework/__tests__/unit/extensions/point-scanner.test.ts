@@ -4,7 +4,7 @@
  * An extension point is marked in a workflow body with the pattern
  * `· ` + backtick-delimited `#<extension-name>`. Two surface forms are
  * recognized — the mid-line bullet prefix (e.g., `- **Extensions** ·
- * `#post-task-quality`: ...`) and the trailing header suffix (e.g.,
+ * `#post-task-completion`: ...`) and the trailing header suffix (e.g.,
  * `### 3. Post-Context-Load Extensions · `#post-context-load``).
  */
 
@@ -30,12 +30,12 @@ describe("scanExtensionPoints", () => {
 
   it("extracts an inline bullet-prefix reference", () => {
     const content = [
-      "- **Extensions** · `#post-task-quality`: If `post-task-quality` appears ...",
+      "- **Extensions** · `#post-task-completion`: If `post-task-completion` appears ...",
       "",
     ].join("\n");
     const refs = scanExtensionPoints([{ path: "wf.md", content }]);
     expect(refs).toEqual([
-      { workflowPath: "wf.md", lineNumber: 1, extensionName: "post-task-quality" },
+      { workflowPath: "wf.md", lineNumber: 1, extensionName: "post-task-completion" },
     ]);
   });
 
@@ -43,14 +43,14 @@ describe("scanExtensionPoints", () => {
     const content = [
       "### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`",
       "",
-      "- **Extensions** · `#post-unit-quality`: body",
+      "- **Extensions** · `#post-work-unit-activate`: body",
       "",
       "### 6) Pre-Merge Review · `#pre-merge`",
     ].join("\n");
     const refs = scanExtensionPoints([{ path: "wf.md", content }]);
     expect(refs).toEqual([
       { workflowPath: "wf.md", lineNumber: 1, extensionName: "pre-merge-inbox-review" },
-      { workflowPath: "wf.md", lineNumber: 3, extensionName: "post-unit-quality" },
+      { workflowPath: "wf.md", lineNumber: 3, extensionName: "post-work-unit-activate" },
       { workflowPath: "wf.md", lineNumber: 5, extensionName: "pre-merge" },
     ]);
   });
@@ -72,7 +72,7 @@ describe("scanExtensionPoints", () => {
     // Reference-style link targets like `[arc-ext-…]: ../extensions/pre-merge.md`
     // or hashtag-free mentions shouldn't match — only the anchored marker does.
     const content = [
-      "See `#post-task-quality` below.",
+      "See `#post-task-completion` below.",
       "[arc-ext-x]: ../extensions/pre-merge.md",
       "",
     ].join("\n");

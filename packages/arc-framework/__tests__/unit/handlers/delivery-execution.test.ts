@@ -957,7 +957,7 @@ describe("delivery execution handler", () => {
       selectedDeliverableId,
       affectedDeliverableIds,
       nextAction: "execute-provider-refresh" as const,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true as const },
+      verification: { memberDeliverableIds: [selectedDeliverableId], commitGateRequired: true as const },
       recommendedActionText: "Refresh externally, then adopt.",
     };
     const publishWrite = vi.fn();
@@ -1073,13 +1073,13 @@ describe("delivery execution handler", () => {
           head: state.members.at(-1)!.coordinates!.head,
           tree: state.members.at(-1)!.coordinates!.tree,
         },
-        tier1: {
+        commitGate: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
           targetTree: state.members.at(-1)!.coordinates!.tree,
           coveredInputs: "unchanged",
         },
-        verificationEvidenceRefs: ["criteria://member", "gates://tier-1"],
+        verificationEvidenceRefs: ["criteria://member", "gates://commit"],
       },
     };
     const acknowledged = {
@@ -2561,9 +2561,9 @@ describe("delivery execution handler", () => {
       nextAction: "verify-review-fix",
       verification: {
         memberDeliverableIds: [changed],
-        tier1Required: true,
+        commitGateRequired: true,
         target: { head: terminal.head, tree: terminal.tree },
-        tier1ReuseCriteria: {
+        commitGateReuseCriteria: {
           kind: "exact-tree",
           targetTree: terminal.tree,
           requiredResult: "passed",
@@ -2597,9 +2597,9 @@ describe("delivery execution handler", () => {
       nextAction: "verify-review-fix",
       verification: {
         memberDeliverableIds: [changed],
-        tier1Required: true,
+        commitGateRequired: true,
         target: { head: terminal.head, tree: terminal.tree },
-        tier1ReuseCriteria: {
+        commitGateReuseCriteria: {
           kind: "exact-tree",
           targetTree: terminal.tree,
           requiredResult: "passed",

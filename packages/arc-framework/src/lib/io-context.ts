@@ -339,12 +339,10 @@ export async function readGitBlobEntry(
   cwd: string,
   ref: string | null,
   path: string,
-  options: { objectAccess?: "local-only" } = {},
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
 ): Promise<GitBlobEntry | null> {
   const exec = createRawGitExec(cwd);
-  const execOptions = options.objectAccess === undefined
-    ? undefined
-    : { objectAccess: options.objectAccess };
+  const execOptions = options;
   const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
   let mode: string;
@@ -401,7 +399,7 @@ export async function readGitBlobBytes(
   cwd: string,
   ref: string | null,
   path: string,
-  options: { objectAccess?: "local-only" } = {},
+  options: { objectAccess?: "local-only"; indexFile?: string } = {},
 ): Promise<Uint8Array | null> {
   return (await readGitBlobEntry(cwd, ref, path, options))?.bytes ?? null;
 }

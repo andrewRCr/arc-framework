@@ -12,6 +12,7 @@ import type {
 } from "../locus/provisioning.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { SlugSchema } from "../kernel/index.js";
+import { MAX_LOCUS_OPAQUE_CHARS } from "../locus/schema/limits.js";
 import {
   createErrandOperationResult,
   type ErrandOperationResult,
@@ -376,16 +377,36 @@ function validateResumeContinuity(
 ): string | null {
   const requestedIntent = intent?.trim();
   if (requestedIntent !== undefined && requestedIntent !== "" && requestedIntent !== record.intent) {
-    return "Resume cannot change the Errand intent.";
+    return resumeContinuityRefusal(
+      "Resume cannot change the Errand intent. Recorded intent: ", record.intent,
+      originEntry === null ? ". Rerun without --intent to resume with the recorded intent."
+        : ". Rerun without --intent and any inbox selector (--from-inbox, --inbox-title-file, or --inbox-entry-file)"
+          + " to resume with the recorded intent and origin.",
+    );
   }
   if (originEntry !== null && (
     record.origin !== "inbox"
     || record.originEntry !== originEntry
     || record.originEntrySourceDigest !== originEntrySourceDigest
   )) {
-    return "Resume cannot change the originating inbox entry.";
+    return resumeContinuityRefusal(
+      "Resume cannot change the originating inbox entry. Recorded inbox entry: ",
+      record.origin === "inbox" ? record.originEntry : null,
+      ". Rerun without --from-inbox, --inbox-title-file, or --inbox-entry-file to resume with the recorded origin.",
+    );
   }
   return null;
+}
+
+function resumeContinuityRefusal(prefix: string, recordedValue: string | null, remedy: string): string {
+  if (recordedValue === null) return `${prefix}none (description-origin Errand)${remedy}`;
+  const context = JSON.stringify(recordedValue);
+  const budget = MAX_LOCUS_OPAQUE_CHARS - prefix.length - remedy.length;
+  if (context.length <= budget) return `${prefix}${context}${remedy}`;
+  const marker = " (truncated)";
+  // JSON escaping uses at most six characters per UTF-16 code unit, plus the enclosing quotes.
+  const previewLength = Math.floor((budget - marker.length - 2) / 6);
+  return `${prefix}${JSON.stringify(recordedValue.slice(0, previewLength))}${marker}${remedy}`;
 }
 
 async function rollbackAfterRefusal(

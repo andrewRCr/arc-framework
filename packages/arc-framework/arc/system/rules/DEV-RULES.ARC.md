@@ -3,9 +3,9 @@
 Behavioral rules for human-AI collaboration under the ARC methodology. These rules apply to every
 ARC project regardless of technology stack.
 
-Your project-specific standards — quality gate commands, testing requirements, architecture rules,
-documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contributors
-(`arc.role = contributor`) work within different boundaries throughout — see
+Your project-specific standards — testing requirements, architecture rules, and documentation style — live in
+[DEV-RULES.PROJECT][dev-rules-project]. Project checks are declared in `.arc/system/arc-checks.yml` and run with
+`arc check`. Contributors (`arc.role = contributor`) work within different boundaries throughout — see
 [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 > Rules marked `[configurable]` follow the project's configured override; see [Configurability
@@ -94,7 +94,8 @@ integration interlock:
 - archive composition and closeout
 - lifecycle sweep and readiness regeneration
 - a typed base reconcile selected from complete host-admission evidence, whose overlap is disclosed and whose
-  resulting head passes Tier 1 before fresh checkpoint applicability and exact-head authorization
+  resulting head passes `arc check new-head --from <pre-merge head>` before fresh checkpoint applicability and
+  exact-head authorization
 
 An implementation or finding-driven fix still requires its structured approval gate before commit, and no
 provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
@@ -169,7 +170,7 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
       wrapper refuses them by design.
     - `arc sync` handles its own internal push and does not re-route through `arc release push`.
 
-- **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
+- **Never use `--no-verify` or set `ARC_SKIP`** · `[invariant]` to bypass commit hooks or skip declared checks.
 
 - **Amend scope:** `git commit --amend` only for same-concern fixups to the most recent unpushed commit (typo,
   lint, missing file from the same logical change); anything else is a new commit. **Never amend pushed commits
@@ -521,9 +522,6 @@ Load these documents when you reach the relevant work — not during session ini
 - **For method defaults and overrides:** At a direct fire-point, load the relevant
   [`system/methods/`][arc-methods-dir] files on-demand
 
-- **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
-  Tier 1/2/3 boundaries, escalation guidance
-
 ---
 
 [dev-rules-project]: DEV-RULES.PROJECT.md
@@ -541,6 +539,5 @@ Load these documents when you reach the relevant work — not during session ini
 [process-task-loop]: ../../system/workflows/arc/process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
-[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [contributor-briefing]: ../../reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md
 [session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md

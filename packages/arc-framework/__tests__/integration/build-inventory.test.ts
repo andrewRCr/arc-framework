@@ -1,17 +1,54 @@
 /** Native resolver output and first-party build membership agree across directory changes. */
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { build } from "esbuild";
+import { bundleRequire, dynamicImport } from "bundle-require";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureBuildInventory } from "../../src/lib/build-inventory.js";
 import { identifyBuildInputs } from "../../src/lib/build-evidence.js";
 import { hashSourceInputs, selectBundleInputs } from "../../src/lib/dev-check.js";
 import { makeBuildFixture, writeBuildFixtureFile } from "../helpers/build-fixture.js";
+import { makeStagedBuildFixture } from "../helpers/staged-build-fixture.js";
+import { publishStagedBuild } from "../../src/lib/build-publication.js";
+import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("native resolver membership", () => {
+  it.each(["esm", "cjs"] as const)("keeps qualification stable across native %s loader modules and retry", async (format) => {
+    const fixture = makeStagedBuildFixture();
+    roots.push(fixture.root);
+    const { packageRoot } = fixture;
+    await publishStagedBuild(fixture.lease, fixture.staged, fixture.evidence, { checkCli: async () => {} });
+    const before = captureBuildInventory(packageRoot);
+    expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
+    for (let pass = 0; pass < 2; pass += 1) {
+      let transient: string | undefined;
+      let during: ReturnType<typeof captureBuildInventory> | undefined;
+      let qualification: ReturnType<typeof readBuildQualification> | undefined;
+      const loaded = await bundleRequire<{ marker: number }>({
+        filepath: join(packageRoot, "src/control.ts"), format, preserveTemporaryFile: false,
+        require: async (outfile, context) => {
+          transient = context.format === "esm" ? fileURLToPath(outfile) : outfile;
+          expect(existsSync(transient)).toBe(true);
+          during = captureBuildInventory(packageRoot);
+          qualification = readBuildQualification(packageRoot, "runtime");
+          const value: unknown = await dynamicImport(outfile, context);
+          return value;
+        },
+      });
+      expect(loaded.mod).toMatchObject({ marker: 1 });
+      expect(during).toEqual(before);
+      expect(qualification).toMatchObject({ status: "qualified" });
+      if (transient === undefined) throw new Error("native loader never exposed its generated module");
+      expect(existsSync(transient)).toBe(false);
+      expect(captureBuildInventory(packageRoot)).toEqual(before);
+      expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
+    }
+  });
+
   it("keeps identities stable for irrelevant directories but invalidates a newly preferred source", async () => {
     const { root, packageRoot } = makeBuildFixture();
     roots.push(root);

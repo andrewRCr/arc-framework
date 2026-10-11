@@ -24,11 +24,8 @@ import {
 } from "./schema.js";
 import type { DeliveryTerminalDeltaClassification } from "./lifecycle-contribution.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
-import {
-  DELIVERY_PLAN_END_SENTINEL,
-  DELIVERY_PLAN_START_SENTINEL,
-  renderDeliveryPlanSection,
-} from "./task-list-render.js";
+import { renderDeliveryPlanSection } from "./task-list-render.js";
+import { DELIVERY_PLAN_END_SENTINEL, DELIVERY_PLAN_START_SENTINEL } from "../store/kinds/task-list/index.js";
 import type {
   DeliveryChangeRequestV1,
   DeliveryMemberCoordinatesV1,
@@ -300,12 +297,12 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
       target: z.strictObject({
         head: DeliveryGitObjectIdSchema,
         tree: DeliveryGitObjectIdSchema,
       }),
-      tier1ReuseCriteria: z.strictObject({
+      commitGateReuseCriteria: z.strictObject({
         kind: z.literal("exact-tree"),
         targetTree: DeliveryGitObjectIdSchema,
         requiredResult: z.literal("passed"),
@@ -854,7 +851,7 @@ export async function inspectDeliveryEntry(
       stateRevision: state.revision,
       ...continuation,
       recommendedActionText:
-        "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
+        "Complete the pending changed-member verification and commit gate checks, close the correction task, then "
         + "acknowledge the exact review-fix continuation before resuming delivery.",
     };
   }

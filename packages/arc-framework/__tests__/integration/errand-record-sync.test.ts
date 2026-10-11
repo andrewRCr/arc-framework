@@ -19,11 +19,8 @@ import {
   makeGitExecInput,
   execFileAsync,
 } from "../helpers/integration.js";
-import {
-  reconcileErrandPush,
-  errandsRef,
-  type ErrandRecordIO,
-} from "../../src/lib/errand/index.js";
+import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
+import { errandsRef } from "../../src/lib/errand/ref-tree.js";
 import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import {

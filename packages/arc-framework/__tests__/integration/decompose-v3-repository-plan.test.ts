@@ -926,11 +926,11 @@ Prove the direct-base retirement.
 async function copiedRealNotesRepository() {
   const origin = "decompose-transform-integrity";
   const member = "integrity-core";
-  const archive = "../../../../.arc/completed/2026-q3/39_decompose-transform-integrity";
+  const archive = "../fixtures/decompose-v3-archive";
   const source = {
-    spec: await readFile(new URL(`${archive}/spec-${origin}.md`, import.meta.url), "utf8"),
-    tasks: await readFile(new URL(`${archive}/tasks-${origin}.md`, import.meta.url), "utf8"),
-    notes: await readFile(new URL(`${archive}/notes-${origin}.md`, import.meta.url), "utf8"),
+    spec: await readFile(new URL(`${archive}/spec.md`, import.meta.url), "utf8"),
+    tasks: await readFile(new URL(`${archive}/tasks.md`, import.meta.url), "utf8"),
+    notes: await readFile(new URL(`${archive}/notes.md`, import.meta.url), "utf8"),
   };
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-real-notes-"));
   roots.push(repo);
@@ -1127,11 +1127,12 @@ describe("Git v3 repository plan", () => {
       join(candidatePath, resolveTransitionRecordRelativePath("origin")),
       "utf8",
     ))).toEqual({
-      schemaVersion: 1,
-      origin: "origin",
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "decompose",
-      successors: ["member"],
-      edges: [],
+      successors: [{ name: "member" }],
+      incoming: [],
+      outgoing: [],
     });
     expect(canonicalize(fixture.completedMap.machine)).toBe(machineBefore);
     expect(new TextDecoder().decode(await readBlob(fixture.repo, fixture.sourceHead, consumerPath) ?? undefined))
@@ -2793,7 +2794,7 @@ describe("Git v3 repository plan", () => {
       protection: "full",
       candidateBranch: "chore/decompose-origin",
     });
-    expect(full.operation.transitionRecord).toMatchObject({ kind: "decompose", origin: "origin" });
+    expect(full.operation.transitionRecord).toMatchObject({ kind: "decompose", origin: { name: "origin" } });
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe("");
 
     const partial = await executeGitV3DecomposeOperation({
@@ -4701,7 +4702,7 @@ describe("Git v3 repository plan", () => {
           status: "occupied",
           protection: "partial",
         },
-        transitionRecord: { kind: "decompose", origin: "origin" },
+        transitionRecord: { kind: "decompose", origin: { name: "origin" } },
       },
     });
     if (staged.status !== "staged") return;

@@ -33,14 +33,18 @@ describe("tracked meta placement", () => {
     expect(await readFile(join(h.root, ".arc/active/meta-example.md"), "utf8")).toBe(content);
   });
 
-  it.each(["a/b/c", "Not-A-Slug", "broken-projection"])("refuses malformed creation %s and lands the corrected meta", async (bad) => {
+  it.each(["a/b/c", "Not-A-Slug", "broken-projection", "missing-table", "missing-h1"])("refuses malformed creation %s and lands the corrected meta", async (bad) => {
     const h = await trackedWriteFixture();
     const reference = h.reference("work-item/meta");
     const valid = makeMetaFixture("example", { cohort: "group" });
-    const content = bad === "broken-projection" ? valid.replace(/^\| `Active`[^\n]*\n/mu, "") : makeMetaFixture("example", { cohort: bad });
+    const content = bad === "broken-projection" ? valid.replace(/^\| `Active`[^\n]*\n/mu, "")
+      : bad === "missing-table" ? valid.replace(/^\|[^\n]*\n/gmu, "")
+        : bad === "missing-h1" ? valid.replace(/^# Metadata: example\n/u, "")
+          : makeMetaFixture("example", { cohort: bad });
     const write = { action: "put" as const, reference, content, expected: null, placement: { kind: "backlog" as const, commitment: "planned" as const }, provenance };
     await expect(h.store.write(write)).resolves.toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: expect.stringMatching(/Cohort|meta/iu) } });
     expect(await exists(join(h.root, ".arc/backlog/planned/group/example/meta-example.md"))).toBe(false);
+    expect(await exists(join(h.root, ".arc/backlog/planned/example/meta-example.md"))).toBe(false);
     success(await h.store.write({ ...write, content: valid }));
     expect(await readFile(join(h.root, ".arc/backlog/planned/group/example/meta-example.md"), "utf8")).toBe(valid);
   });

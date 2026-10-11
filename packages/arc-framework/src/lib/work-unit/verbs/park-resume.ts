@@ -345,7 +345,7 @@ async function parkPlanning(
   if (snapshot.status === "refused") {
     return {
       status: "rejected",
-      reason: `Cannot record park evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
+      reason: `Cannot record park evidence: ${snapshot.diagnostic ?? describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
   }
 

@@ -15,7 +15,7 @@ import { collectLifecycleMetaFiles } from "../../../src/lib/work-unit/lifecycle-
 import {
   resolveTransitionRecordRelativePath,
 } from "../../../src/lib/work-unit/transition-record-store.js";
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
@@ -38,10 +38,10 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
     "",
@@ -62,12 +62,12 @@ function isStagedTransitionList(args: readonly string[]): boolean {
   ].join("\0");
 }
 
-function transition(origin = "retired"): TransitionRecord {
-  return { schemaVersion: 1, origin, kind: "decompose", successors: ["member"], edges: [] };
+function transition(origin = "retired"): LineageRecord {
+  return LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: origin }, kind: "decompose", successors: [{ name: "member" }], incoming: [] , outgoing: []});
 }
 
 interface StagedTransition {
-  record: TransitionRecord;
+  record: LineageRecord;
   path: string;
 }
 
@@ -88,8 +88,8 @@ function makeStagedTransitionsExec(records: readonly StagedTransition[]): GitExe
 }
 
 function makeStagedTransitionExec(
-  record: TransitionRecord,
-  path = resolveTransitionRecordRelativePath(record.origin),
+  record: LineageRecord,
+  path = resolveTransitionRecordRelativePath(record.origin.name),
 ): GitExec {
   return makeStagedTransitionsExec([{ record, path }]);
 }
@@ -264,20 +264,20 @@ describe("resolveStagedTransitionOverlays", () => {
       exec: makeStagedTransitionExec(record),
     })).resolves.toMatchObject([{
       kind: "validated",
-      origin: record.origin,
+      origin: record.origin.name,
       sourceBranch: "plan/retired",
     }]);
   });
 
   it("derives direct-transition suppression from the origin meta branch at HEAD", async () => {
-    const record: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "retired",
+    const record: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "retired" },
       kind: "rename",
-      successors: ["renamed"],
-      edges: [],
-    };
-    const path = resolveTransitionRecordRelativePath(record.origin);
+      successors: [{ name: "renamed" }],
+      incoming: [],
+    });
+    const path = resolveTransitionRecordRelativePath(record.origin.name);
     const metaPath = ".arc/backlog/planned/retired/meta-retired.md";
     const exec: GitExec = async (_command, args) => {
       if (isStagedTransitionList(args)) return { stdout: `${path}\0`, stderr: "" };
@@ -289,14 +289,14 @@ describe("resolveStagedTransitionOverlays", () => {
         return { stdout: `${metaPath}\0`, stderr: "" };
       }
       if (args[0] === "show" && args[1] === `HEAD:${metaPath}`) {
-        return { stdout: transitionMeta(record.origin, "Planning", "feat/retired"), stderr: "" };
+        return { stdout: transitionMeta(record.origin.name, "Planning", "feat/retired"), stderr: "" };
       }
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     };
 
     await expect(resolveStagedTransitionOverlays({ cwd: "/repo", exec })).resolves.toMatchObject([{
       kind: "validated",
-      origin: record.origin,
+      origin: record.origin.name,
       sourceBranch: "feat/retired",
     }]);
   });
@@ -321,7 +321,7 @@ describe("resolveStagedTransitionOverlays", () => {
       cwd: "/repo",
       exec: makeStagedTransitionsExec(records.map((record) => ({
         record,
-        path: resolveTransitionRecordRelativePath(record.origin),
+        path: resolveTransitionRecordRelativePath(record.origin.name),
       }))),
     })).resolves.toMatchObject([
       { kind: "validated", origin: "retired", sourceBranch: "plan/retired" },

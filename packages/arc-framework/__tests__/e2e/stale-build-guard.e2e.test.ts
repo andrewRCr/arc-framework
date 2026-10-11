@@ -111,7 +111,7 @@ describe("stale-build guard", () => {
 
     const result = await runStale(bundle, ["status"], cwd);
 
-    expect(result.stderr).toContain("runtime inputs or build qualification differ from the build stamp");
+    expect(result.stderr).toContain("Build input identity does not match.");
     expect(result.stderr).not.toContain("src/cli.ts changed");
   });
 

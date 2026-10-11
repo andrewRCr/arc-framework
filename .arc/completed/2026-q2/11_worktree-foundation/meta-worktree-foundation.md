@@ -1,8 +1,8 @@
 # Metadata: Worktree Foundation
 
-- **State:** Shipped
-- **Owner:** andrew
-- **Branch:** feat/worktree-foundation
+| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
+| --------- | --------- | -------------------------- | --------- | ------------ |
+| `Shipped` | `andrew`  | `feat/worktree-foundation` | —         | —            |
 
 - **Origin:** [internal]
 - **Design:** `spec-worktree-foundation.md`

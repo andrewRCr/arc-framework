@@ -13,6 +13,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { writeFile as fsWriteFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
+import { bootstrapRetiredChecks, checkBootstrapSummary, type CheckBootstrapReport } from "../lib/checks/bootstrap.js";
 import type { IOContext } from "./init.js";
 import {
   buildConfigMap,
@@ -40,6 +41,8 @@ import {
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { configureRoadmapConflictRemedy } from "../lib/setup.js";
+import { detectHookManager } from "../lib/hook-manager.js";
+import { upgradeGeneratedHooks, type HookUpgradeReport } from "../lib/hook-integration.js";
 import type { Recipe, Manifest } from "../lib/types.js";
 import {
   ARC_IN_GIT_CONDITION,
@@ -99,6 +102,10 @@ export interface UpdateResult {
   migrationWarnings: string[];
   /** Cause of whole-store pristine failure, if any (for UX messaging). */
   pristineStoreError: PristineStoreError;
+  /** Rewritten manager configurations and unresolved hook upgrade notices. */
+  hookUpgrade: HookUpgradeReport;
+  /** Preserved commands from retired check surfaces. */
+  checkBootstrap: CheckBootstrapReport | null;
 }
 
 interface ConfigMigrationResult {
@@ -384,6 +391,8 @@ export async function runUpdate(
   // Build change plan (pure computation)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
 
+  const checkBootstrap = await bootstrapRetiredChecks(arcDir, plan.removals, io);
+
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
   const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
@@ -447,6 +456,11 @@ export async function runUpdate(
     ic.pm_mode === "arc-in-git",
   );
 
+  const hookManager = await detectHookManager(cwd, io.access);
+  const hookUpgrade: HookUpgradeReport = hookManager === null
+    ? { files: [], warnings: [], instructions: [] }
+    : await upgradeGeneratedHooks(hookManager, io.readFile, io.writeFile);
+
   // Write updated manifest and pristine store
   await ensureDir(internalDir, io.mkdir);
   const newManifest: Manifest = {
@@ -460,6 +474,7 @@ export async function runUpdate(
 
   // Compose final result from apply result + update-specific fields
   return {
+    checkBootstrap,
     updated: applyResult.updated,
     migrated: [...migrated],
     conflicts: applyResult.conflicts,
@@ -475,6 +490,7 @@ export async function runUpdate(
     skillWarnings: skillResult.warnings,
     migrationWarnings,
     pristineStoreError,
+    hookUpgrade,
   };
 }
 
@@ -578,6 +594,16 @@ export function buildUpdateSummary(result: UpdateResult): string {
     }
   }
 
+  if (result.hookUpgrade.files.length > 0) {
+    lines.push("", "Hook configurations upgraded (YAML comments are not preserved):");
+    lines.push(...result.hookUpgrade.files.map(path => `  ${path}`));
+  }
+  if (result.hookUpgrade.warnings.length > 0) {
+    lines.push("", "Hook upgrade warnings:");
+    lines.push(...result.hookUpgrade.warnings.map(warning => `  ${warning}`));
+  }
+  lines.push(...result.hookUpgrade.instructions);
+
   // Reclassified files
   if (result.reclassified.length > 0) {
     lines.push("");
@@ -598,5 +624,6 @@ export function buildUpdateSummary(result: UpdateResult): string {
     }
   }
 
+  lines.push(...checkBootstrapSummary(result.checkBootstrap));
   return lines.join("\n");
 }

@@ -150,7 +150,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(frontlineCycle).toContain("arc review local resume -");
     expect(frontlineCycle).toContain("public typed actions");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
-    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 gates");
+    expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("arc check gate commit");
   });
 
   it("resumes post-PR hosted review directly through public status", async () => {

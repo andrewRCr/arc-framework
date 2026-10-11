@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
-import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import {
   TRANSITION_RECORD_NAMESPACE,
   resolveTransitionRecordPath,
@@ -10,14 +9,14 @@ import {
   type TransitionRecordFs,
 } from "../../../src/lib/work-unit/transition-record-store.js";
 
-function record(): TransitionRecord {
-  return {
-    schemaVersion: 1,
-    origin: "retired-origin",
+function record(): LineageRecord {
+  return LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: "retired-origin" },
     kind: "rename",
-    successors: ["replacement"],
-    edges: [],
-  };
+    successors: [{ name: "replacement" }],
+    incoming: [],
+  });
 }
 
 function memoryFs() {
@@ -51,7 +50,7 @@ describe("transition record store", () => {
     expect(memory.directories).toContain(`/repo/${TRANSITION_RECORD_NAMESPACE}`);
     expect([...memory.files]).toEqual([[
       `/repo/${TRANSITION_RECORD_NAMESPACE}/retired-origin.json`,
-      serializeTransitionRecord(record()),
+      writeLineageRecord(record()),
     ]]);
     expect(resolveTransitionRecordRelativePath("retired-origin")).toBe(
       `${TRANSITION_RECORD_NAMESPACE}/retired-origin.json`,
@@ -63,7 +62,7 @@ describe("transition record store", () => {
 
   it("refuses invalid records before creating the namespace", async () => {
     const memory = memoryFs();
-    const invalid = { ...record(), origin: "../outside" } as TransitionRecord;
+    const invalid = { ...record(), origin: { name: "../outside" } } as LineageRecord;
 
     await expect(writeTransitionRecord("/repo", invalid, memory.fs)).rejects.toThrow();
 
@@ -77,7 +76,7 @@ describe("transition record store", () => {
 
     await expect(writeTransitionRecord("/repo", record(), memory.fs)).rejects.toMatchObject({ code: "EEXIST" });
 
-    expect([...memory.files.values()]).toEqual([serializeTransitionRecord(record())]);
+    expect([...memory.files.values()]).toEqual([writeLineageRecord(record())]);
   });
 
   it("refuses a symlinked parent before writing", async () => {

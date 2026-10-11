@@ -30,7 +30,7 @@ export interface ExtensionParseResult {
  * Parse and validate an extension file's frontmatter against the extension schema.
  *
  * @param content - Full file contents
- * @param basename - File basename without `.md` (e.g., `post-task-quality`)
+ * @param basename - File basename without `.md` (e.g., `post-task-completion`)
  * @returns `{ frontmatter, errors }` — `frontmatter` is set only when errors is empty.
  */
 export function parseExtensionFrontmatter(

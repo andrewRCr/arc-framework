@@ -23,7 +23,7 @@ import {
   recordErrandPartialPushMarker,
   clearErrandPartialPushMarker,
 } from "../../src/lib/user-sync/index.js";
-import { errandsRef } from "../../src/lib/errand/index.js";
+import { errandsRef } from "../../src/lib/errand/ref-tree.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 

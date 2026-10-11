@@ -1,3 +1,4 @@
+import { parseCohortDocument } from "../../../src/lib/store/kinds/cohort/index.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -304,5 +305,57 @@ describe("decomposition cohort doctrine projection", () => {
     expect(packageMethod).toMatch(
       /Every decomposition with more than one new\s+member must select `cohort`, `subcohort`, or `at-cap`/u,
     );
+  });
+});
+
+
+describe("parsed cohort topology", () => {
+  it.each(["", "**Parent:** [none]\n"])("admits top-level Parent form %j", (parent) => {
+    const path = ".arc/backlog/planned/origin/cohort-origin.md";
+    const text = `# Cohort: \`origin\`\n${parent}**Purpose:** Shared.\n`;
+    expect(planV3DecomposeTopology(input({ baseTree: { [path]: file(encoder.encode(text)) } })).status)
+      .toBe("planned");
+  });
+
+  it.each([
+    ["**Parent:** `group`", "planned"],
+    ["**Parent:** `other`", "refused"],
+    ["**Parent:** group", "refused"],
+    ["**Parent:** `group`\n**Parent:** `group`", "refused"],
+  ])("judges nested Parent form %j", (parent, status) => {
+    const path = ".arc/backlog/planned/group/origin/cohort-origin.md";
+    const parentPath = ".arc/backlog/planned/group/cohort-group.md";
+    const text = `# Cohort: \`origin\`\n${parent}\n**Purpose:** Shared.\n`;
+    const result = planV3DecomposeTopology(input({
+      placement: { kind: "subcohort", cohort: "group/origin" },
+      destinations: [newMember("alpha"), newMember("beta")],
+      baseTree: {
+        [parentPath]: file(encoder.encode("# Cohort: `group`\n**Purpose:** Shared.\n")),
+        [path]: file(encoder.encode(text)),
+      },
+    }));
+    expect(result.status).toBe(status);
+    if (status === "refused") expect(result).toEqual({
+      status: "refused", refusal: { code: "wrong-structural-identity", path },
+    });
+  });
+
+  it.each(["origin", "group/origin"])("scaffolds parseable topology for %s", (cohort) => {
+    const bytes = renderV3IncompleteCohort(template, cohort);
+    expect(bytes).not.toBeNull();
+    const parsed = parseCohortDocument(decoder.decode(bytes!));
+    expect(parsed).toEqual({ success: true, data: { purpose: "—", parent: cohort.includes("/") ? "group" : null } });
+    const path = cohort.includes("/")
+      ? ".arc/backlog/planned/group/origin/cohort-origin.md"
+      : ".arc/backlog/planned/origin/cohort-origin.md";
+    const options = cohort.includes("/") ? {
+      placement: { kind: "subcohort" as const, cohort },
+      destinations: [newMember("alpha"), newMember("beta")],
+      baseTree: {
+        ".arc/backlog/planned/group/cohort-group.md": file(cohortBytes("group")),
+        [path]: file(bytes!),
+      },
+    } : { baseTree: { [path]: file(bytes!) } };
+    expect(planV3DecomposeTopology(input(options)).status).toBe("planned");
   });
 });

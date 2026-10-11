@@ -27,7 +27,17 @@ afterEach(async () => {
 async function writeMeta(name: string): Promise<void> {
   await writeFile(
     join(activeDir, `meta-${name}.md`),
-    ["# Metadata: Sample", "", "- **State:** Active", "- **Branch:** feat/sample", ""].join("\n"),
+    [
+      "# Metadata: Sample",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | feat/sample | — | — |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\n"),
   );
 }
 

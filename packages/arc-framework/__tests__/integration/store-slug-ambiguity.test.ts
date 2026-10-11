@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
-import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { trackedWriteFixture } from "../helpers/store/tracked-write-fixture.js";
 import { success, testProvenance } from "../helpers/store/suite-tools.js";
@@ -58,8 +58,8 @@ describe("cross-substrate slug lookup", () => {
     const h = await fixture();
     await writeFile(join(h.root, ".arc/active/meta-beta.md"), makeMetaFixture("beta"));
     await mkdir(join(h.root, ".arc/system/.internal/transitions"), { recursive: true });
-    await writeFile(join(h.root, ".arc/system/.internal/transitions/alpha.json"), serializeTransitionRecord({ schemaVersion: 1,
-      origin: "alpha", kind: "rename", successors: ["beta"], edges: [] }));
+    await writeFile(join(h.root, ".arc/system/.internal/transitions/alpha.json"), writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2,
+      origin: { name: "alpha" }, kind: "rename", successors: [{ name: "beta" }], incoming: [] })));
     const beta = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "beta" }));
     const result = await h.store.lookup({ kind: "slug", slug });
     expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([meta, beta, errand]) } });

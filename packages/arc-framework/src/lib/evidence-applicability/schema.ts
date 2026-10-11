@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { DeliveryContributionEndpointsSchema, DeliveryContributionProofResultSchema } from
   "../delivery/contribution-proof.js";
+import { GitMergeFeasibilitySchema } from "../git/merge-feasibility.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
@@ -109,6 +110,8 @@ export type EvidenceOverlapObservation = z.infer<typeof EvidenceOverlapObservati
 export const BaseMovementObservationSchema = z.strictObject({
   coordinates: IntegrationCoordinateSchema,
   overlap: EvidenceOverlapObservationSchema,
+  /** Whether Git merges the observed base and head, when the producer read it at these coordinates. */
+  merge: GitMergeFeasibilitySchema.optional(),
 });
 export type BaseMovementObservation = z.infer<typeof BaseMovementObservationSchema>;
 
@@ -311,6 +314,15 @@ function baseMovementResidualMatchesOverlap(
     && residual.every((path, index) => path === bounded.data[index]);
 }
 
+/**
+ * Whether merging the observed base and head leaves a conflict in any path a review reads.
+ *
+ * A conflict confined to regenerable paths is `clean` here, as regenerable overlap is disjoint on the overlap
+ * axis. A merge read at other coordinates, or not read at all, is `unobserved`.
+ */
+const SubstantiveMergeSchema = z.enum(["clean", "conflicted", "unobserved"]);
+export type SubstantiveMerge = z.infer<typeof SubstantiveMergeSchema>;
+
 const BaseMovementDeltaSchema = z.strictObject({
   cause: z.literal("base-movement"),
   relation: z.literal("not-applicable"),
@@ -322,6 +334,7 @@ const BaseMovementDeltaSchema = z.strictObject({
     coordinates: IntegrationCoordinateSchema,
   }),
   residual: ResidualSchema,
+  substantiveMerge: SubstantiveMergeSchema,
 }).superRefine((value, context) => {
   const coordinates = value.hostAdmission.coordinates;
   if (coordinates !== null && !integrationCoordinatesEqual(coordinates, value.observed.coordinates)) {

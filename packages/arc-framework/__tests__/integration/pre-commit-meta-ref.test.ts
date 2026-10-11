@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -48,7 +49,7 @@ async function runHook(cwd: string): Promise<{ code: number; stdout: string; std
   try {
     const { stdout, stderr } = await execFileAsync("bash", [hookPath], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, PATH: await restrictedGitPath(cwd), NO_COLOR: "1" },
     });
     return { code: 0, stdout, stderr };
   } catch (err) {
@@ -91,6 +92,31 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain("Meta-project references found in production code");
     expect(result.stdout).toContain("src/domain.ts");
+  });
+
+  it("exempts quoted Git name-status scores without hiding a same-line planning ID", async () => {
+    const root = await freshRepo();
+    const renameScore = ["R", "100"].join("");
+    const singleQuotedRenameScore = ["R", "075"].join("");
+    const requirement = ["R", "12"].join("");
+    const scores = `export const scores = ["${renameScore}", '${singleQuotedRenameScore}'];`;
+    await writeRepoFile(root, "src/domain.ts", `${scores}\n`);
+    await git(root, ["add", "src/domain.ts"]);
+
+    const allowed = await runHook(root);
+
+    expect(allowed.code).toBe(0);
+    expect(allowed.stdout).not.toContain("Meta-project references found in production code");
+
+    await writeRepoFile(root, "src/domain.ts", `${scores} export const requirement = "${requirement}";\n`);
+    await git(root, ["add", "src/domain.ts"]);
+
+    const rejected = await runHook(root);
+
+    expect(rejected.code).toBe(1);
+    expect(rejected.stdout).toContain("Meta-project references found in production code");
+    expect(rejected.stdout).toContain("src/domain.ts");
+    expect(rejected.stdout).toContain(requirement);
   });
 
   it("does not re-trigger on incoming merge content that already landed", async () => {

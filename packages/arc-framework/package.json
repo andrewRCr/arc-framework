@@ -4,7 +4,7 @@
   "description": "CLI tool for installing, updating, and managing ARC framework files",
   "type": "module",
   "bin": {
-    "arc": "dist/cli.js"
+    "arc": "bin/arc.js"
   },
   "scripts": {
     "build": "node --import tsx src/scripts/run-build.ts full",
@@ -60,6 +60,7 @@
     "esbuild": "^0.27.7",
     "eslint": "^10.1.0",
     "fast-check": "^4.10.2",
+    "lefthook": "2.2.1",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm": "^3.1.0",
     "mdast-util-gfm-table": "^2.0.0",
@@ -73,6 +74,7 @@
     "vitest": "^4.1.8"
   },
   "files": [
+    "bin",
     "dist",
     "arc",
     "templates",

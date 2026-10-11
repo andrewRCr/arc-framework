@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { validateManagedPath } from "../../../../src/lib/kernel/canonical/managed-path.js";
 import type { RenameRetirementContext } from "../../../../src/lib/work-unit/direct-retirement-driver.js";
-import type { TransitionRecord } from "../../../../src/lib/work-unit/transition-record.js";
+import type { LineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
 import {
   runRename,
   type RenamePlan,
@@ -36,10 +36,10 @@ function buildContext(options: {
 } = {}): {
   ctx: RunRenameContext;
   calls: string[];
-  recordedTransitions: TransitionRecord[];
+  recordedTransitions: LineageRecord[];
 } {
   const calls: string[] = [];
-  const recordedTransitions: TransitionRecord[] = [];
+  const recordedTransitions: LineageRecord[] = [];
   const selected = plan(options.shape ?? "spawned", options.resuming ?? false);
   const source = {
     scope: {
@@ -181,6 +181,20 @@ function buildContext(options: {
 }
 
 describe("runRename", () => {
+  it("preserves an authority snapshot diagnostic in the rename refusal", async () => {
+    const { ctx, recordedTransitions } = buildContext();
+    ctx.retirement.authority.readSnapshot = async () => ({
+      status: "refused", reason: "evidence-mismatch",
+      diagnostic: 'The index contains staged paths: "file with spaces.txt". Commit or clear them from the index, then retry',
+    });
+    const result = await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining('"file with spaces.txt"'),
+    });
+    expect(recordedTransitions).toEqual([]);
+  });
+
   it("surfaces prepared coordination advisories before tracked mutation", async () => {
     const { ctx, calls } = buildContext();
     const preflight = ctx.preflight;
@@ -207,11 +221,11 @@ describe("runRename", () => {
     await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
 
     expect(recordedTransitions).toEqual([{
-      schemaVersion: 1,
-      origin: "old-name",
+      schemaVersion: 2,
+      origin: { name: "old-name" },
       kind: "rename",
-      successors: ["new-name"],
-      edges: [],
+      successors: [{ name: "new-name" }],
+      incoming: [],
     }]);
   });
 

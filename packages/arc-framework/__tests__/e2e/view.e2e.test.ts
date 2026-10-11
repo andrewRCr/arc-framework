@@ -33,10 +33,14 @@ describe("arc view", () => {
     await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
       "# Metadata: feature",
       "",
-      "- **State:** Active",
-      "- **Branch:** main",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | main | — | — |",
+      "",
       "- **Task List:** tasks-feature.md",
       "- **Next Action:** Continue implementation",
+      "",
+      "---",
       "",
     ].join("\n"));
     await writeFile(join(cwd, ".arc", "active", "tasks-feature.md"), [
@@ -69,7 +73,16 @@ describe("arc view", () => {
 
   it("uses conventional task fallback and bare lifecycle selection", async () => {
     await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
-      "# Metadata: feature", "", "- **State:** Active", "- **Branch:** main", "- **Task List:** [none]", "",
+      "# Metadata: feature",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | main | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     const forming = await runArcNoTty(["view"], cwd);
     expect(forming.stdout).toContain("# Task List: feature");
@@ -90,14 +103,41 @@ describe("arc view", () => {
     await mkdir(completed, { recursive: true });
     await mkdir(join(planned, "planned"), { recursive: true });
     await writeFile(join(planned, "planned", "meta-planned.md"), [
-      "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+      "# Metadata: planned",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Planning | — | [none] | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     await writeFile(join(planned, "planned", "spec-planned.md"), "# Planned spec\n");
     await writeFile(join(provisional, "meta-provisional.md"), [
-      "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+      "# Metadata: provisional",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Planning | — | [none] | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     await writeFile(join(completed, "meta-completed.md"), [
-      "# Metadata: completed", "", "- **State:** Shipped", "- **Branch:** feat/completed", "- **Task List:** [none]", "",
+      "# Metadata: completed",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Shipped | — | feat/completed | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
 
     const active = await runArcNoTty(["view", "meta", "--for", "feature"], cwd);

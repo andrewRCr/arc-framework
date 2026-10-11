@@ -31,9 +31,13 @@ function statusBody(state: string): string {
   return [
     "# Metadata: Sample",
     "",
-    `- **State:** ${state}`,
-    "- **Branch:** technical/sample",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | technical/sample | — | — |`,
+    "",
     "- **Task List:** `tasks-sample.md`",
+    "",
+    "---",
     "",
   ].join("\n");
 }

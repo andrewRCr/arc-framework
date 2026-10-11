@@ -9,7 +9,7 @@ import {
   planReferenceReconcile,
   type ReachableReferenceTransition,
 } from "../../../src/lib/work-unit/reference-reconcile.js";
-import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 
 function rename(subject: string, targetSlug: string): ReachableReferenceTransition {
   return { subject, outcome: { kind: "rename", targetSlug } };
@@ -181,21 +181,22 @@ describe("planReferenceReconcile", () => {
 
 describe("enumerateTransitionReferenceTransitions", () => {
   it("projects lean rename, abandon, and decompose kinds", () => {
-    const records: TransitionRecord[] = [
-      { schemaVersion: 1, origin: "renamed", kind: "rename", successors: ["target"], edges: [] },
-      { schemaVersion: 1, origin: "abandoned", kind: "abandon", successors: [], edges: [] },
-      {
-        schemaVersion: 1,
-        origin: "decomposed",
+    const records: LineageRecord[] = [
+      LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "renamed" }, kind: "rename", successors: [{ name: "target" }], incoming: [] }),
+      LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "abandoned" }, kind: "abandon", successors: [], incoming: [] }),
+      LineageRecordSchema.parse({
+        schemaVersion: 2,
+        origin: { name: "decomposed" },
         kind: "decompose",
-        successors: ["member"],
-        edges: [],
-      },
+        successors: [{ name: "member" }],
+        incoming: [],
+        outgoing: [],
+      }),
     ];
 
     expect(enumerateTransitionReferenceTransitions({
       status: "valid",
-      groups: records.map((record) => ({ origin: record.origin, records: [record] })),
+      groups: records.map((record) => ({ origin: record.origin.name, records: [record] })),
     })).toEqual({
       status: "valid",
       transitions: [
@@ -210,14 +211,14 @@ describe("enumerateTransitionReferenceTransitions", () => {
     ["byte-identical", "target"],
     ["divergent", "other-target"],
   ])("refuses %s duplicate origin records before outcome de-duplication", (_label, secondTarget) => {
-    const first: TransitionRecord = {
-      schemaVersion: 1,
-      origin: "origin",
+    const first: LineageRecord = LineageRecordSchema.parse({
+      schemaVersion: 2,
+      origin: { name: "origin" },
       kind: "rename",
-      successors: ["target"],
-      edges: [],
-    };
-    const second: TransitionRecord = { ...first, successors: [secondTarget] };
+      successors: [{ name: "target" }],
+      incoming: [],
+    });
+    const second: LineageRecord = LineageRecordSchema.parse({ ...first, successors: [{ name: secondTarget }] });
 
     expect(enumerateTransitionReferenceTransitions({
       status: "valid",

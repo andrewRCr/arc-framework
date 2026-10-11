@@ -1,5 +1,5 @@
 ---
-purpose: Execute the task list's verification phase — Tier 3 gates, success criteria, completion notes.
+purpose: Execute the task list's verification phase — merge quality gate, success criteria, completion notes.
 audience: agent
 arc:
   methods:
@@ -7,7 +7,6 @@ arc:
     - self-review
     - review-triage
     - commit-footer
-    - quality-gate-commands
     - review-chunking
 ---
 
@@ -24,7 +23,7 @@ was verified (see [Completion Notes](#completion-notes)), stage every verified r
 task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
 [integrate-work-unit][integrate-work-unit] begins only after `arc publish` starts public integration.
 
-## Step 1 — Clean, Self-Review, and Run Tier 3 Quality Gates
+## Step 1 — Clean, Self-Review, and Run the Merge Quality Gate
 
 Before the Candidate exists, clean the WU content:
 
@@ -38,7 +37,8 @@ the base branch. Classify findings per [`review-triage`][review-triage], present
 obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
 before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
 
-When the task list carries a Delivery Plan, inspect every member-close scale-attention result before terminal Tier 3.
+When the task list carries a Delivery Plan, inspect every member-close scale-attention result before the terminal
+merge quality gate.
 Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
 supplies them. A `disabled / none` result is complete without metrics because its typed envelope carries none. A
 `consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an explicit
@@ -47,9 +47,7 @@ attention result, or an unbound member re-cut stops and returns to the delivery-
 [`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces
 the exact post-materialization recheck.
 
-Run the complete quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
-[quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
-clean throughout implementation, completing every project-designated gate supplies the final local attestation.
+Request `arc check gate merge --force` before the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
@@ -171,8 +169,6 @@ verification-task exception). Cover both:
 
 ---
 
-[quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [adversarial-review]: ../../../methods/adversarial-review.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md

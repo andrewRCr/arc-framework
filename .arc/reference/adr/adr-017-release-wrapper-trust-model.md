@@ -59,15 +59,15 @@ for the same structural reason; this is documented as a known forensic gap rathe
 
 Per-invocation trust before vs. after the opt-in:
 
-| Surface                                       | Before opt-in (harness gates raw git)                | After opt-in (wrapper allowlisted)                                                            |
-|-----------------------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| Per-invocation prompt at the OS boundary      | Yes — harness prompt on `git commit` / `git push`    | No — allowlist match skips the prompt                                                         |
-| ARC interlock validation                      | Workflow guidance only                               | Mechanical refusal at the CLI boundary (codes 10–14)                                          |
-| Destructive-flag rejection                    | Harness or per-tool policy                           | Wrapper refuses unconditionally (`--amend`, `--no-verify`, `--force`, `--mirror`, `+refspec`) |
-| Branch-protection enforcement                 | Workflow guidance and per-tool policy                | Wrapper refuses on protected base under `branch.protection: full`                             |
-| Pushability pre-check                         | Server-side rejection only                           | Wrapper refuses on blocking conditions before invocation (code 14)                            |
-| Forensic record                               | Per-tool harness logs (varies; not ARC-managed)      | Per-invocation JSONL audit at `.arc/user/{identity}/.internal/.audit-log.jsonl`               |
-| Active-WU resolution                          | Workflow check only                                  | Wrapper refuses on no-WU or multi-candidate ambiguity (code 10)                               |
+| Surface                                  | Before opt-in (harness gates raw git)             | After opt-in (wrapper allowlisted)                                                            |
+| ---------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Per-invocation prompt at the OS boundary | Yes — harness prompt on `git commit` / `git push` | No — allowlist match skips the prompt                                                         |
+| ARC interlock validation                 | Workflow guidance only                            | Mechanical refusal at the CLI boundary (codes 10–14)                                          |
+| Destructive-flag rejection               | Harness or per-tool policy                        | Wrapper refuses unconditionally (`--amend`, `--no-verify`, `--force`, `--mirror`, `+refspec`) |
+| Branch-protection enforcement            | Workflow guidance and per-tool policy             | Wrapper refuses on protected base under `branch.protection: full`                             |
+| Pushability pre-check                    | Server-side rejection only                        | Wrapper refuses on blocking conditions before invocation (code 14)                            |
+| Forensic record                          | Per-tool harness logs (varies; not ARC-managed)   | Per-invocation JSONL audit at `.arc/user/{identity}/.internal/.audit-log.jsonl`               |
+| Active-WU resolution                     | Workflow check only                               | Wrapper refuses on no-WU or multi-candidate ambiguity (code 10)                               |
 
 The columns are not "weaker vs. stronger." Each surface has gaps and mitigations that compose differently. The
 columns describe where the per-invocation trust check lives, not whether one exists.

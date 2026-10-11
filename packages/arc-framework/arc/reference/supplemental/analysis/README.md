@@ -47,7 +47,7 @@ Files are named: `analysis-topic-description.md`
 ## Relationship to Other Reference Types
 
 | Type         | Source                 | Purpose                  | Example             |
-|--------------|------------------------|--------------------------|---------------------|
+| ------------ | ---------------------- | ------------------------ | ------------------- |
 | **Analysis** | Internal investigation | Maps what exists         | Dependency map      |
 | **Research** | External sources       | Synthesizes outside info | API comparison      |
 | **Strategy** | Experience + decisions | Prescribes patterns      | Testing methodology |

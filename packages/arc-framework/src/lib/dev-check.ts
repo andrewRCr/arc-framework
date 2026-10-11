@@ -5,7 +5,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { selectFirstPartyInputs } from "./build-inputs.js";
 import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "./build-evidence.js";
-import { readBuildQualification } from "./build-qualification.js";
+import { readBuildQualification, type BuildQualification } from "./build-qualification.js";
 import { classifyAdvisoryLockRead, type AdvisoryLockReadResult } from "./advisory-lock.js";
 import { BUILD_ARTIFACT_LOCK_NAME, TEST_CONTROLLER_TOKEN_ENV } from "./build-ownership.js";
 
@@ -47,17 +47,18 @@ export function isBuiltBundleEntry(entryPath: string): boolean {
 export type DevCheckResult =
   | { kind: "skip" }
   | { kind: "fresh" }
-  | {
+  | ({
       kind: "stale";
-      /** Evidence that established staleness. */
-      basis: "content-hash" | "missing-dist";
       /** Seconds since the newest src change. */
       srcAge: number;
       /** Seconds since dist/cli.js was built. `null` when dist is missing. */
       distAge: number | null;
       /** Repo-relative path of the newest src file. */
       newestSrc: string;
-    };
+    } & (
+      | { basis: "missing-dist" }
+      | { basis: "content-hash"; qualificationReason: string }
+    ));
 
 /** Exact developer command that regenerates the self-hosting runtime bundle. */
 export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
@@ -120,8 +121,8 @@ export interface DevCheckDeps {
   distMtimeMs: () => number | null;
   /** Current time in ms — injectable for deterministic age calculations. */
   now: () => number;
-  /** Current runtime input identity and required live output are qualified. */
-  runtimeQualified: () => boolean;
+  /** Qualification of current runtime inputs and live output, retaining any refusal reason. */
+  runtimeQualification: () => { status: "qualified" } | Extract<BuildQualification, { status: "unqualified" }>;
 }
 
 /** Synchronous command identity and the sole stale-build continuation exception. */
@@ -154,7 +155,7 @@ export function runDevBuildGuard(input: DevBuildGuardInput, deps: DevBuildGuardD
   const distAgeText = verdict.distAge === null ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
   const staleCause = verdict.basis === "content-hash"
-    ? "runtime inputs or build qualification differ from the build stamp"
+    ? verdict.qualificationReason
     : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
   const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
   // A stale seed is revalidated during recovery and is preferable to no seed.
@@ -212,8 +213,10 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
 
   const distAge = Math.max(0, Math.floor((now - distMtimeMs) / 1000));
 
-  if (deps.runtimeQualified()) return { kind: "fresh" };
-  return { kind: "stale", basis: "content-hash", srcAge, distAge, newestSrc: newest.path };
+  const qualification = deps.runtimeQualification();
+  if (qualification.status === "qualified") return { kind: "fresh" };
+  return { kind: "stale", basis: "content-hash", qualificationReason: qualification.reason,
+    srcAge, distAge, newestSrc: newest.path };
 }
 
 /**
@@ -309,7 +312,7 @@ export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
     },
     distMtimeMs: () => existsSync(cliJsPath) ? statSync(cliJsPath).mtimeMs : null,
     now: () => Date.now(),
-    runtimeQualified: () => readBuildQualification(pkgDir, "runtime").status === "qualified",
+    runtimeQualification: () => readBuildQualification(pkgDir, "runtime"),
   };
 }
 

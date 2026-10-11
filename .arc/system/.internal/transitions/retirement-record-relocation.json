@@ -1,1 +1,1 @@
-{"edges":[],"kind":"abandon","origin":"retirement-record-relocation","schemaVersion":1,"successors":[]}
+{"incoming":[],"kind":"abandon","origin":{"name":"retirement-record-relocation"},"schemaVersion":2,"successors":[]}

@@ -55,7 +55,7 @@ export const HarnessDirectorySchema = z.string()
   .regex(/^(?!(?:\.{1,2}|\.git|\.arc)$)[^/\\]+$/iu);
 
 const HarnessDirectoryListSourceSchema = z.string();
-const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|"
+const STRICT_META_REF_PATTERN_DEFAULT = "PRD " + "R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\\b|"
   + String.fromCodePoint(0xa7) + " ";
 
 function enumField<const Key extends string, const Values extends readonly [string, ...string[]]>(
@@ -257,7 +257,7 @@ export const ARC_CONFIG_FIELDS = [
     "hooks.meta_ref_patterns",
     PatternSourceSchema,
     "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"
-      + "(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
+      + "(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
     "unset",
     "pattern",
   ),

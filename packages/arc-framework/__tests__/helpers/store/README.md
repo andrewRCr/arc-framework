@@ -1,6 +1,6 @@
 # Store conformance support
 
-`registerStoreConformanceSuite` registers sixteen contract items against a fresh fixture for each assertion. Fixtures
+`registerStoreConformanceSuite` registers seventeen contract items against a fresh fixture for each assertion. Fixtures
 declare served families, substrate and saved-state coverage, merge behavior, publish families, and named exclusions.
 Excluded items, assertions, and refusal scenarios appear as skips with their reasons, including items that register no
 family assertions. Registration rejects per-assertion declarations that are unused or hidden by a whole-item exclusion.
@@ -28,3 +28,7 @@ transient entry reconciliation, both merged notes manifests, and publication of 
 The import guard scans production source for references to this directory. After `npm run build`, the build guard checks
 the raw bundle metafile and every output's input attribution. Planted import and metafile fixtures prove both guards
 reject a test-backend dependency.
+
+Registered write checks receive versions of their own kind. A primary role replacement runs the removed kind's
+check without a next version and the created kind's check without a prior version, over the same before and after
+views. Both rule sets contribute to the deterministic refusal before any prepared state is published.
