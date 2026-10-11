@@ -87,6 +87,15 @@ describe("loadReadyMineSlice", () => {
     expect(slice).toEqual([]);
   });
 
+  it("keeps a readable malformed planned meta without field evidence", async () => {
+    await seed(["backlog", "planned"], "broken", [
+      "# Metadata: broken", "", "| State | Owner | Branch | Class | Priority |",
+      "| --- | --- | --- | --- | --- |", "| Active |", "",
+    ].join("\n"));
+    const slice = await loadReadyMineSlice({ cwd: root, identity: null });
+    expect(slice).toEqual([{ workUnit: "broken", state: "Planning", dependsOn: [] }]);
+  });
+
   it("skips a planned meta that vanishes between discovery and read", async () => {
     await seed(["backlog", "planned"], "ready", meta({ class: "light" }));
     const vanishedDir = join(root, ".arc", "backlog", "planned", "vanished");

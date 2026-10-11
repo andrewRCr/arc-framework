@@ -243,16 +243,10 @@ grows.
 - _Goal:_ `parseMetaRecord` refuses a meta without an H1 or a core table, the in-repo creation admission refuses one,
   the advisory readers still degrade on a bad meta without throwing, and every tracked meta parses to its base fields.
 
-    - `[ ]` **2.6.a Give the advisory readers an empty record**
-        - A meta kind module other than the registration module exports an empty parsed record — every field `null` or
-          empty, through `ParsedMetaRecordSchema` — which `meta-reader.ts` re-exports, so no ratchet count moves; and
-          in-flight derivation's degraded candidate (`degradedMetaRecord`, `lib/git/in-flight-derivation.ts`) and the
-          ready-mine view's malformed planned meta (`parsePlanned`, `lib/status/ready-mine-source.ts`) take it in
-          place of `parseMetaRecord("")`.
-        - Build `test-first` (one behavior at a time):
-            - the exported record carries every field at `null` or empty and passes `ParsedMetaRecordSchema`
-            - in-flight derivation degrades an unreadable or malformed meta without throwing
-            - the ready-mine view keeps a malformed planned meta, with no fields, without throwing
+    - `[x]` **2.6.a Give the advisory readers an empty record**
+        - The meta kind exports a fresh schema-validated empty parsed record through meta-reader. In-flight degraded
+          candidates and ready-mine's malformed planned metas use it without parsing empty bytes, preserving their
+          advisory outcomes and the existing raw-state import counts.
 
     - `[ ]` **2.6.b Retire the fallback**
         - `parseMetaProjectionRecord` no longer scans bullets when `parseCoreTable` finds no core table: a meta without

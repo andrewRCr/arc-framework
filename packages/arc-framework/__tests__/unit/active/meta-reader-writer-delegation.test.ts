@@ -5,7 +5,9 @@ import {
   normalizeMetaCoreTable, setMetaBranch, setMetaClass, setMetaState, setMetaTitle,
   setMetaBulletFields, setMetaCurrentWorkflow, setMetaDesign, parseMetaRecord,
   reconcileMetaFields, setMetaCandidate, setMetaFinalizeFields,
+  emptyParsedMetaRecord,
 } from "../../../src/lib/active/meta-reader.js";
+import { ParsedMetaRecordSchema } from "../../../src/lib/active/meta-schema.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 const setters = [
@@ -15,6 +17,17 @@ const setters = [
   ["Title", (content: string) => setMetaTitle(content, "renamed")],
   ["Normalization", normalizeMetaCoreTable],
 ] as const;
+
+describe("empty parsed metadata", () => {
+  it("carries every field with no scalar or list evidence", () => {
+    const record = emptyParsedMetaRecord();
+    const listFields = new Set(["dependsOn", "design", "completionNotes", "releaseNotesEntry"]);
+    const expected = Object.fromEntries(Object.keys(ParsedMetaRecordSchema.shape)
+      .map((key) => [key, listFields.has(key) ? [] : null]));
+    expect(record).toEqual(expected);
+    expect(ParsedMetaRecordSchema.parse(record)).toEqual(record);
+  });
+});
 
 describe("metadata setter anchors", () => {
   it.each(setters)("%s refuses metadata without its closing rule", (_name, set) => {

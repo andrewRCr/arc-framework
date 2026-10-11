@@ -38,6 +38,7 @@ import {
   type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
 } from "../store/kinds/meta/projection.js";
 export * from "../store/kinds/meta/projection.js";
+export { emptyParsedMetaRecord } from "../store/kinds/meta/empty-record.js";
 import {
   locateMetaCoreTable,
   locateMetaFieldBlock,
