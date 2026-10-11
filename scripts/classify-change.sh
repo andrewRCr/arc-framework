@@ -3,8 +3,7 @@
 # Canonical code-surface classifier for CI run-depth decisions.
 #
 # Single source of truth for "what counts as code" in this repo. Structured as
-# subcommand dispatch so each capability is invocable in isolation by unit tests
-# and the live Checks-API lookback stays behind an injectable seam:
+# subcommand dispatch so each capability is invocable in isolation by unit tests:
 #
 #   classify <file>...   Decide a changed-file set as code (heavy) or docs (light).
 #   classify --stdin0    Same, but read NUL-delimited paths from standard input.
@@ -13,9 +12,10 @@
 #                       Decide exact-ref ARC planning clearance.
 #   tree-hash <ref>      Compute a rebase/squash-stable code-tree identity at a ref.
 #
-# The pure subcommands (classify, tree-hash) run without network; the Checks-API
-# lookback is the one seam that needs a live token. Subcommand bodies are filled
-# in by the test-first work that follows this harness.
+# The pure subcommands (classify, tree-hash) run without network. Whether a
+# pull request's tested tree was already verified is looked up by the workflow
+# and passed to `decide`; the open-PR lookup behind `duplicate-push` is the one
+# seam that needs a live token.
 
 set -euo pipefail
 
@@ -28,38 +28,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CHANGE_FACTS_MODULE="${SCRIPT_DIR}/../packages/arc-framework/src/lib/change-facts.ts"
 readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
-
-# --- Heavy verification checks -------------------------------------------------
-#
-# The check-run display names that together prove a code tree was fully verified.
-# The verified-tree lookback skips the heavy suite for a pull request only when
-# every one of these concluded `success` for a commit carrying HEAD's exact code
-# tree. These strings must match the heavy verification jobs' expanded `name:`
-# fields in .github/workflows/ci.yml, including every matrix leg. Contract tests
-# compare this list and the check-run fixtures with the workflow: a stale name
-# defeats reuse, while an omitted new leg could wrongly skip verification.
-readonly HEAVY_CHECK_NAMES=(
-  "Shared setup"
-  "Build"
-  "Lint & Typecheck"
-  "Unit Tests (1)"
-  "Unit Tests (2)"
-  "Integration Tests (1)"
-  "Integration Tests (2)"
-  "Integration Tests (3)"
-  "Integration Tests (4)"
-  "E2E Tests (1)"
-  "E2E Tests (2)"
-  "E2E Tests (3)"
-  "E2E Tests (4)"
-  "Portability (concurrency guards) (linux)"
-)
-
-# Upper bound on Checks-API fetches during the verified-tree lookback. Each
-# same-tree commit costs a paginated API call; a deep stack of tree-identical
-# commits would otherwise stretch the classify job by ~2s per commit. Hitting
-# the cap leaves the fail-safe heavy default in place — never a wrong skip.
-readonly LOOKBACK_MAX_FETCHES=8
 
 usage() {
   cat >&2 <<'EOF'
@@ -75,7 +43,7 @@ Commands:
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head
-  decide <event> <base> <head>
+  decide <event> <base> <head> [<tested-tree-verified>]
                             Resolve the run weight (light|heavy) and reason for a change
 EOF
 }
@@ -164,55 +132,6 @@ cmd_tree_hash() {
   fi
 }
 
-# Collapse check-run rows to the latest row per check name, emitting normalized
-# "<name>\t<conclusion>" lines. Fixture rows may be two-column normalized TSV,
-# where later rows win; live rows include timestamp + id tie-breakers.
-_latest_check_runs() {
-  awk -F '\t' '
-    NF >= 2 {
-      name = $1
-      conclusion = $2
-      if (NF >= 4) {
-        key = $3 sprintf("%020.0f", $4 + 0)
-      } else {
-        key = sprintf("%020d", NR)
-      }
-      if (!(name in latest_key) || key >= latest_key[name]) {
-        latest_key[name] = key
-        latest_line[name] = name "\t" conclusion
-      }
-      if (!(name in seen)) {
-        seen[name] = 1
-        order[++count] = name
-      }
-    }
-    END {
-      for (i = 1; i <= count; i++) {
-        print latest_line[order[i]]
-      }
-    }
-  '
-}
-
-# Fetch the latest check-run results for <sha> as normalized
-# "<name>\t<conclusion>" lines. Live, this queries the GitHub Checks API with the
-# ambient token; the JSON→tsv extraction runs inside `gh` and is exercised only
-# in live CI. Tests inject results by pointing CLASSIFY_CHECK_RUNS_DIR at a
-# directory of "<sha>.tsv" fixtures. An absent fixture, an unset repository, or
-# any `gh` failure yields no lines — which the matcher below reads as "not
-# verified".
-_fetch_check_runs() {
-  local sha="$1"
-  if [[ -n "${CLASSIFY_CHECK_RUNS_DIR:-}" ]]; then
-    local fixture="${CLASSIFY_CHECK_RUNS_DIR}/${sha}.tsv"
-    [[ -f "${fixture}" ]] && _latest_check_runs <"${fixture}"
-    return 0
-  fi
-  gh api --paginate "repos/${GITHUB_REPOSITORY:-}/commits/${sha}/check-runs" \
-    --jq '.check_runs[] | [.name, (.conclusion // ""), (.started_at // .completed_at // .created_at // ""), ((.id // 0) | tostring)] | @tsv' \
-    2>/dev/null | _latest_check_runs || true
-}
-
 # Fetch open pull-request heads for <ref-name>/<head-sha> as normalized
 # "<head-ref>\t<head-sha>" lines. Live push runs use this to avoid duplicating
 # the pull_request run once a PR already owns the same branch head. Any lookup
@@ -252,37 +171,23 @@ cmd_duplicate_push() {
   fi
 }
 
-# True (exit 0) when the latest normalized check-run lines
-# (<name>\t<conclusion>) carry every heavy check at conclusion `success`. A
-# heavy check that is failed, in-progress (empty conclusion), or absent leaves
-# its name unmatched, so the set is incomplete and the function reports
-# not-passed.
-_all_heavy_checks_passed() {
-  local runs="$1" name
-  for name in "${HEAVY_CHECK_NAMES[@]}"; do
-    if ! grep -qxF -- "${name}"$'\t'"success" <<<"${runs}"; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-# decide <event> <base> <head> — resolve the run weight ∈ {light, heavy} and the
-# reason it was reached ∈ {docs-only, verified, unverified}, the run-vs-skip
-# decision the `classify` job emits. Prints `weight=<w>` and `reason=<r>` on
-# stdout (consumable as `$GITHUB_OUTPUT` lines) plus a human decision line on
-# stderr. <event> is the triggering event name (`pull_request` | `push`);
-# <base>/<head> are the change endpoints (a PR's base/head SHAs, or a push's
-# before/after).
+# decide <event> <base> <head> [<tested-tree-verified>] — resolve the run weight
+# ∈ {light, heavy} and the reason it was reached ∈ {docs-only, verified,
+# unverified}, the run-vs-skip decision the `classify` job emits. Prints
+# `weight=<w>` and `reason=<r>` on stdout (consumable as `$GITHUB_OUTPUT` lines)
+# plus a human decision line on stderr. <event> is the triggering event name
+# (`pull_request` | `push`); <base>/<head> are the change endpoints (a PR's
+# base/head SHAs, or a push's before/after). <tested-tree-verified> is `true`
+# only when an earlier run of the same pull request recorded a full heavy pass
+# on the exact code tree this run checks out; the workflow looks that record up.
 #
 # The decision is fail-safe to heavy: only a resolvable, non-empty change set
-# that touches no code surface skips the heavy suite. An empty, unresolvable, or
-# ambiguous change set runs heavy — an unknown change must never be mistaken for
-# docs-only. The docs-only arm is decided with no Checks-API call; the
-# verified-tree lookback for a code-touching pull request is the one live seam,
-# layered in separately.
+# that touches no code surface, or a code-touching pull request whose tested
+# tree carries a verified record, skips the heavy suite. An empty, unresolvable,
+# or ambiguous change set runs heavy — an unknown change must never be mistaken
+# for docs-only — and any value other than `true` leaves a tree unverified.
 cmd_decide() {
-  local event="${1:-}" base="${2:-}" head="${3:-}"
+  local event="${1:-}" base="${2:-}" head="${3:-}" tested_tree_verified="${4:-}"
   local weight reason
 
   # Whole change over base/head. PRs compare merge-base to head; pushes compare
@@ -300,7 +205,7 @@ cmd_decide() {
     weight=heavy
     reason=unverified
   elif [[ "${classification}" == "light" ]]; then
-    # No code-surface path changed → docs-only, no API call.
+    # No code-surface path changed → docs-only.
     weight=light
     reason=docs-only
   elif [[ "${event}" != "pull_request" ]]; then
@@ -308,33 +213,17 @@ cmd_decide() {
     # is the pull request's job), so run heavy for fast feedback.
     weight=heavy
     reason=unverified
+  elif [[ "${tested_tree_verified}" == "true" ]]; then
+    # Code touched on a pull request whose run tests a tree an earlier run of
+    # this pull request already passed in full. A pull-request run checks out
+    # GitHub's merge of the head into the current base, so the record is keyed
+    # by that merged tree, not by the head commit: a docs-only commit on
+    # verified code still matches, while a base that moved the code does not.
+    weight=light
+    reason=verified
   else
-    # Code touched on a pull request: skip the heavy suite only when some commit
-    # in the PR range carries HEAD's exact code tree AND already has the full
-    # heavy check set at `success`. Blob SHAs are rebase/squash-stable, so a
-    # docs-only commit layered on verified code still matches the verified
-    # commit's tree. Any gap — an unhashable HEAD, no matching tree, an
-    # incomplete/failed/in-progress check, or an API miss — leaves the fail-safe
-    # heavy default in place.
     weight=heavy
     reason=unverified
-    local head_hash
-    if head_hash="$(_code_tree_hash "${head}")"; then
-      local sha sha_hash runs fetches=0
-      while IFS= read -r sha; do
-        [[ -z "${sha}" ]] && continue
-        sha_hash="$(_code_tree_hash "${sha}")" || continue
-        [[ "${sha_hash}" != "${head_hash}" ]] && continue
-        (( fetches >= LOOKBACK_MAX_FETCHES )) && break
-        fetches=$((fetches + 1))
-        runs="$(_fetch_check_runs "${sha}")"
-        if _all_heavy_checks_passed "${runs}"; then
-          weight=light
-          reason=verified
-          break
-        fi
-      done < <(git rev-list "${base}..${head}" 2>/dev/null || true)
-    fi
   fi
 
   printf 'decide: event=%s base=%s head=%s -> weight=%s reason=%s\n' \

@@ -55,10 +55,11 @@ jobs:
   # Classify the change on two independent axes:
   #   lane   - merge policy (auto-merge vs reviewed). PR-only.
   #   weight - CI cost (light vs heavy), resolved by scripts/classify-change.sh:
-  #            heavy when the change touches the canonical code surface and that
-  #            exact code tree has not already passed the heavy suite; light for a
-  #            docs-only change or an already-verified tree. A light run skips the
-  #            code checks, the integration/e2e suite, and the portability leg.
+  #            heavy when the change touches the canonical code surface and the
+  #            exact code tree this run tests has not already passed the heavy
+  #            suite in this pull request; light for a docs-only change or an
+  #            already-verified tree. A light run skips the code checks, the
+  #            integration/e2e suite, and the portability leg.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
@@ -66,7 +67,6 @@ jobs:
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
-      checks: read
       pull-requests: read
     outputs:
       lane: ${{ steps.c.outputs.lane }}
@@ -74,6 +74,7 @@ jobs:
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
       portability_target: ${{ steps.c.outputs.portability_target }}
+      tested_tree: ${{ steps.tested.outputs.tree }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -106,12 +107,33 @@ jobs:
               echo 'Downstream jobs are skipped; the pull_request run owns the merge signal.'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+      # A pull-request run checks out GitHub's merge of the head into the current
+      # base (`github.sha`), and every heavy job tests that same commit, so its
+      # code tree is the tree this run verifies. The record-verified-tree job
+      # saves a marker under this tree's key after a full heavy pass; finding one
+      # here means an earlier run of this pull request already verified it. An
+      # unhashable tree leaves nothing to look up, which keeps the run heavy.
+      - id: tested
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          if tested_tree="$(bash scripts/classify-change.sh tree-hash "$TESTED_SHA")"; then
+            echo "tree=$tested_tree" >> "$GITHUB_OUTPUT"
+          fi
+      - id: verified
+        if: ${{ steps.tested.outputs.tree != '' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .ci-verified-tree
+          key: ci-verified-tree-v1-pr${{ github.event.pull_request.number }}-${{ steps.tested.outputs.tree }}
+          lookup-only: true
       - id: c
         if: ${{ steps.duplicate.outputs.duplicate_push != 'true' }}
         env:
-          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
+          TESTED_TREE_VERIFIED: ${{ steps.verified.outputs.cache-hit }}
         run: |
           # changed_all - the whole change (PR base...head, or push delta) - drives
           # the lane (merge policy) decision below. The weight axis (CI cost) is
@@ -163,9 +185,9 @@ jobs:
 
           # weight axis: delegate to the canonical classifier. It prints
           # `weight=` and `reason=` (GITHUB_OUTPUT lines) on stdout and a decision
-          # line on stderr; the verified-tree lookback uses the ambient token
-          # (checks: read) and runs only in live CI.
-          weight_out="$(bash scripts/classify-change.sh decide "$event" "$all_base" "$all_head")"
+          # line on stderr; only a `true` tested-tree lookup above lets a
+          # code-touching pull request run light.
+          weight_out="$(bash scripts/classify-change.sh decide "$event" "$all_base" "$all_head" "$TESTED_TREE_VERIFIED")"
           if ! printf '%s\n' "$weight_out" | awk '
             /^weight=(light|heavy)$/ { weight += 1; next }
             /^reason=(docs-only|verified|unverified)$/ { reason += 1; next }
@@ -757,3 +779,26 @@ jobs:
             exit 1
           fi
           echo 'merge-ok compatibility alias ✓'
+
+  # Record that this pull-request run passed every heavy job on the code tree it
+  # tested, so a later run of the same pull request that tests an identical tree
+  # can run light. Only a heavy run records: a light run tested nothing. The save
+  # is advisory, so this job stays out of ci-ok's needs and a failed or duplicate
+  # save never reddens the required check.
+  record-verified-tree:
+    name: Record verified tree
+    permissions: {}
+    needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+    - name: Write verified-tree marker
+      env:
+        TESTED_TREE: ${{ needs.classify.outputs.tested_tree }}
+      run: printf '%s\n' "$TESTED_TREE" > .ci-verified-tree
+    - name: Save verified-tree record
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: .ci-verified-tree
+        key: ci-verified-tree-v1-pr${{ github.event.pull_request.number }}-${{ needs.classify.outputs.tested_tree }}
