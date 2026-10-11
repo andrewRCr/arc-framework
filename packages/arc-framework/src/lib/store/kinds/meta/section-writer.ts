@@ -8,15 +8,18 @@ interface SectionSpan {
   readonly lineEnding: string;
 }
 
-function sessionContextSpans(block: MetaFieldBlockLocation, content: string): readonly SectionSpan[] {
+function sessionContextSpans(
+  block: MetaFieldBlockLocation, content: string, includePreamble: boolean,
+): readonly SectionSpan[] {
   const spans: SectionSpan[] = [];
-  for (let start = block.h1Index + 1; start < block.lines.length; start += 1) {
+  for (let start = includePreamble ? 0 : block.h1Index + 1; start < block.lines.length; start += 1) {
     const heading = block.lines[start];
     if (heading?.text !== "## Session Context") continue;
-    const insideBlock = start < block.closingIndex;
+    const insideBlock = start > block.h1Index && start < block.closingIndex;
     let end = start + 1;
     for (; end < block.lines.length; end += 1) {
-      if ((insideBlock && end === block.closingIndex) || /^## /u.test(block.lines[end]?.text ?? "")) break;
+      if (end === block.h1Index || (insideBlock && end === block.closingIndex)
+        || /^## /u.test(block.lines[end]?.text ?? "")) break;
     }
     spans.push({ start: heading.startOffset, end: block.lines[end]?.startOffset ?? content.length,
       lineEnding: heading.lineEnding });
@@ -46,7 +49,7 @@ export function writeMetaSessionContext(content: string, body: string | null): s
   if (body !== null && body.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---")) {
     throw new Error("Cannot write Session Context: body contains a section boundary.");
   }
-  const targets = sessionContextSpans(block, content);
+  const targets = sessionContextSpans(block, content, body === null);
   if (body === null) {
     let result = content;
     for (const target of [...targets].reverse()) {

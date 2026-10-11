@@ -37,6 +37,18 @@ describe("meta Session Context writer", () => {
     expect(parseMetaRecord(result).sessionContext).toBeNull();
   });
 
+  it.each(["\n", "\r\n"].flatMap((ending) => ["", "## Preview\n\nPreview prose.\n\n"].map(
+    (boundary) => ({ ending, boundary }),
+  )))("clears pre-H1 context and preserves metadata anchors with %j", ({ ending, boundary }) => {
+    const prefix = "Preamble prose.\n\n";
+    const content = `${prefix}## Session Context\n\nStale context.\n\n${boundary}${withContext}`
+      .replace(/\n/gu, ending);
+    expect(parseMetaRecord(content).sessionContext).not.toBeNull();
+    const result = writeMetaSessionContext(content, null);
+    expect(result).toBe(`${prefix}${boundary}${original}`.replace(/\n/gu, ending));
+    expect(parseMetaRecord(result).sessionContext).toBeNull();
+  });
+
   it("sets an empty present section body", () => {
     const result = writeMetaSessionContext(original, "");
     expect(result).toBe(original.replace("## Release Notes Entry", "## Session Context\n\n## Release Notes Entry"));

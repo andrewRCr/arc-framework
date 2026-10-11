@@ -17,6 +17,16 @@ describe("task-list parsed fields", () => {
     },
   );
 
+  it.each(["##\r**Phase 1:** Work", "## **Phase\r1:** Work", "##\r**Phase\r1:** Work"])(
+    "stops the header at the scanner-admitted CR phase heading %j", (heading) => {
+      const content = `# Tasks\n\n${heading}\n\n- **Design:** \`body-only.md\`\n`;
+      expect(scanTaskListStructure(content)).toMatchObject({ status: "scanned", events: expect.arrayContaining([
+        expect.objectContaining({ type: "phase", line: 3 }),
+      ]) });
+      expect(parser?.(content)).toEqual({ success: true, data: { design: null } });
+    },
+  );
+
   it.each([
     ["header reference", "# Tasks\n\n- **Design:** `spec-example.md`\n\n## **Phase 1:** Work\n", "spec-example.md"],
     ["reference below a phase", "# Tasks\n\n## **Phase 1:** Work\n\n- **Design:** `spec-example.md`\n", null],
