@@ -20,6 +20,7 @@ const FinalReasonSchema = z.enum([
   "merge-safety-admitted-disjoint",
   "merge-safety-requires-fresh",
   "base-movement-disjoint",
+  "base-movement-clean-merge",
   "overlap-unknown",
   "overlap-ambiguous-base",
   "overlap-unrelated-base",
@@ -109,6 +110,12 @@ export function reduceEvidenceApplicability(
       case "unknown":
         return final("fresh", unprovenOverlapReason(delta.overlap.cause));
       case "overlapping":
+        // A merge that combines both sides without a substantive conflict leaves the reviewed change as it was
+        // reviewed, wherever in a shared file the base moved. That settles review clearance only: what the
+        // combined code does is still verification's question, and merging it is still merge safety's.
+        if (evidence === "review-clearance" && delta.substantiveMerge === "clean") {
+          return final("carries", "base-movement-clean-merge");
+        }
         return delta.residual === null
           ? final("fresh", "unbounded-residual")
           : judgment(delta.residual, "bounded-overlap");

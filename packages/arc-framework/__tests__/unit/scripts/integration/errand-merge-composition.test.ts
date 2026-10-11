@@ -100,8 +100,40 @@ describe("Errand final-plan composition", () => {
       status: "available",
       plan,
       reviewApplicability: {
+        verdict: "carries",
+        residual: null,
+        reason: "base-movement-clean-merge",
+        judgmentRequired: false,
+      },
+    });
+  });
+
+  it("asks for judgment over a shared file the merge cannot combine", () => {
+    expect(composeErrandFinalPlan({
+      drift: {
+        ...drift,
+        verdict: "reconcile",
+        movement: "overlapping",
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/index.ts"],
+          regenerablePaths: [],
+        },
+      },
+      target,
+      feasibility: {
+        state: "substantive-conflict",
+        base: oid("b"),
+        head: target.headSha,
+        paths: ["src/index.ts"],
+      },
+      admission,
+    })).toMatchObject({
+      status: "available",
+      reviewApplicability: {
         verdict: "supplemental",
         residual: ["src/index.ts"],
+        reason: "bounded-overlap",
         judgmentRequired: true,
       },
     });

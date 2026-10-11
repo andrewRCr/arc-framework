@@ -50,7 +50,8 @@ describe("evidence applicability integration doctrine", () => {
     expect(rules).toMatch(
       /typed base reconcile[\s\S]*complete host-admission evidence[\s\S]*arc check new-head --from <pre-merge head>[\s\S]*exact-head authorization/iu,
     );
-    expect(workflow).toMatch(/Clearance never carries across the[\s\S]*overlapping base-merge arm/iu);
+    expect(workflow).toMatch(/No checkpoint approval carries across the[\s\S]*overlapping base-merge arm/iu);
+    expect(workflow).toMatch(/review carries across it only as the typed[\s\S]*applicability result decides/iu);
     expect(workflow).toMatch(/disjoint movement[\s\S]*without a fresh review by[\s\S]*default/iu);
   });
 });

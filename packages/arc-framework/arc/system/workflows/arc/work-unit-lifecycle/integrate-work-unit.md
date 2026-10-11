@@ -645,8 +645,9 @@ rerun. Every stale, conflicting, invalid, or unavailable resolution follows its 
 substituting a selection in prose.
 
 `candidate-publication-required / resume-pre-publication` renders its supplied reason, detail, coordinates, and
-`payload.recommendedActionText` verbatim and
-invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
+`payload.recommendedActionText` verbatim and invokes `payload.attestArgv` unchanged. A returned
+`publication-pending` or `hosted-review-pending` locus keeps publication; continue at the shared publication-boundary
+commit below. For any other locus, invoke the returned `locus.nextAction.command` and follow that ordinary
 pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
 Integrating result, then complete the already-open Step 2 review for any carried reservation. Continue at the shared
 publication-boundary commit below.
@@ -719,9 +720,9 @@ For `merged / run-quality-gates` only, repeat the Step 1 push extension contract
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 Restart this step. The checkpoint now owns Candidate applicability, ordinary publication settlement, delivery
-rebind, review status, and final readiness over the pushed exact head. Clearance never carries across the
-overlapping base-merge arm; disjoint movement follows the typed applicability result without a fresh review by
-default.
+rebind, review status, and final readiness over the pushed exact head. No checkpoint approval carries across the
+overlapping base-merge arm, and review carries across it only as the typed applicability result decides;
+disjoint movement follows the typed applicability result without a fresh review by default.
 Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
