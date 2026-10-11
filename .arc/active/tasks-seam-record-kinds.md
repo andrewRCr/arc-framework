@@ -394,7 +394,7 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
 _Purpose:_ Build the cohort-document kind and land its parser with the decomposition checks, scaffold, template, and
 document conversion that must change with it.
 
-### `[ ]` **5.1 The cohort-document kind: parser and writers — § 8.1, § 8.3, § 8.6**
+### `[x]` **5.1 The cohort-document kind: parser and writers — § 8.1, § 8.3, § 8.6**
 
 - _Goal:_ The cohort document registers a parser returning its Purpose and `Parent` and refusing any `Parent` line but
   an omitted, `[none]`, or one backticked slug, and exports a creation writer and the member-heading rename.
@@ -405,24 +405,11 @@ document conversion that must change with it.
           diagnostics: store reads retain rejected bytes, and listings name malformed documents. Registration is private
           to the store boundary; the parser and its result types are public.
 
-    - `[ ]` **5.1.b Write the creation writer and move the member-heading rename**
-        - The creation writer takes the template's bytes, the cohort path, an optional Purpose, and optional member
-          sections, each a slug and a body. It renders the heading, the template's identity paragraph, a backticked
-          `Parent` for a subcohort and none for a top-level cohort, and the Purpose, `—` when none is given, closed by
-          a rule; member sections follow under `## Members`, one `` ### `slug` `` heading and its body each in the
-          order given, closed by a rule.
-        - It finds the identity paragraph between the template's heading and its `**Parent:**` label, so today's
-          template line and the backticked one read alike, and returns `null` when the template lacks its heading,
-          that label, or its Purpose placeholder, as `renderV3IncompleteCohort` does on template drift.
-        - `rewriteCohortMemberHeading` moves from `lib/work-unit/rename-reference-sweep.ts` into the kind folder, its
-          one caller (`planRenameReferences`) importing it from there; its cases in `rename-reference-sweep.test.ts`
-          move with it.
-        - Build `test-first` (one behavior at a time):
-            - a created top-level and a created subcohort document each parse back to their Purpose and `Parent`
-            - an absent Purpose writes `—`
-            - member sections render under `## Members` in the order given
-            - today's template line and the backticked one yield the same identity paragraph
-            - a template lacking its heading, `Parent` label, or Purpose placeholder returns `null`
+    - `[x]` **5.1.b Write the creation writer and move the member-heading rename**
+        - writeCohortDocument preserves the template identity for both Parent placeholder forms, writes a backticked
+          subcohort Parent and authored Purpose or —, and retains member bodies and their supplied order. Template
+          drift or a noncanonical path returns null. The exact Members heading rewrite and its cases now live under
+          the kind; the reference planner imports that public helper.
 
 ### `[ ]` **5.2 The member-section report carries condition (c) — § 8.5**
 

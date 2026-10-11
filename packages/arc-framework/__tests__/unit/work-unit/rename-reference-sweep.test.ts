@@ -4,39 +4,8 @@ import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-re
 import { WorkUnitArtifactKindSchema } from "../../../src/lib/layout/index.js";
 import { artifactMatcher } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 import {
-  rewriteCohortMemberHeading,
   sweepRenameReferences,
 } from "../../../src/lib/work-unit/rename-reference-sweep.js";
-
-describe("rewriteCohortMemberHeading", () => {
-  it("rewrites only the exact member heading inside Members", () => {
-    const content = [
-      "# Cohort: group",
-      "",
-      "## Members",
-      "",
-      "### `sample`",
-      "",
-      "### `sibling`",
-      "",
-      "## Coordination",
-      "",
-      "### `sample`",
-      "",
-    ].join("\n");
-
-    const rewritten = rewriteCohortMemberHeading(content, "sample", "renamed-sample");
-
-    expect(rewritten).toContain("## Members\n\n### `renamed-sample`");
-    expect(rewritten).toContain("### `sibling`");
-    expect(rewritten).toContain("## Coordination\n\n### `sample`");
-  });
-
-  it("is byte-identical when the member section is absent", () => {
-    const content = "## Members\n\n### `sibling`\n";
-    expect(rewriteCohortMemberHeading(content, "sample", "renamed-sample")).toBe(content);
-  });
-});
 
 describe("sweepRenameReferences", () => {
   it.each([
