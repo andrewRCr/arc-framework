@@ -14,3 +14,6 @@ The meta's `line-reading.ts` shares core-table cells and bullet extents between 
 the raw-state import boundary beside the registration modules.
 
 Registration modules remain behind the store's raw-state import boundary; schemas and pure writers are public.
+
+`design/` exposes the shared raw Purpose reader for draft, spec, and companion content, together with the code-span
+offset reader used by status's sentence presentation.

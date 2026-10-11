@@ -379,20 +379,10 @@ _Mode:_ `layer` through Phase 6 — closes on every registered kind's parser, wr
 - _Goal:_ One Purpose reader is the registered parser of the draft, spec, and companion kinds and the reader status's
   purpose read calls, reading the first `**Purpose:**` field as § 9 states and never refusing.
 
-    - `[ ]` **4.2.a Move status's Purpose reader into the kind folder**
-        - `purposeField` (`lib/status/work-unit-purpose.ts`), with `purposeParagraph`, moves into
-          `lib/store/kinds/design/` as a public pure function; `codeSpanEnds`, which status's sentence cut shares,
-          moves with it and is exported for that.
-        - `extractWorkUnitPurpose` and `selectWorkUnitDesign` call the moved reader and keep their presentation: an
-          empty value or `—` reads as no purpose, cut to its opening sentence; `work-unit-purpose.test.ts` passes
-          unchanged.
-        - The reader's own unit tests pin § 9's reading at its new home:
-            - a list-item and a bare-line `Purpose` both read
-            - continuation lines join by single spaces to the paragraph's end — a blank line, a heading, or the next
-              list item — or a line opening with another bold field label
-            - `—` and an empty value read as written
-            - a `Purpose` in a heading or a fenced block is skipped
-            - a design with no `Purpose`, the `brief` spec form included, reads `null`
+    - `[x]` **4.2.a Move status's Purpose reader into the kind folder**
+        - readDesignPurpose and codeSpanEnds expose the existing pure paragraph and code-span reading under the design
+          kind. Empty, placeholder, and absent fields stay distinct; status and design selection call the shared reader
+          while retaining their existing presentation. The reader's own tests pin paragraph boundaries and exclusions.
 
     - `[ ]` **4.2.b Register the Purpose reader for the three kinds**
         - The design folder's registration module builds the `work-item/draft`, `work-item/spec`, and
