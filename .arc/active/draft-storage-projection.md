@@ -50,8 +50,10 @@ What this work unit builds, each to the contract's text:
   every `arc` command and `arc save`, merged against each file's base — line merge for prose, entry merge for the inbox
   and working memory; writer-pushed refresh of every worktree's copy on the machine, `in-flight/` views included; and
   `arc sync` rebuilding deleted files.
-- **Serialization rules at persist** (D10): text only, a size cap of about 1 MB, `.env` and private-key files refused —
-  each a typed refusal, never a skip.
+- **Serialization refusals at persist** (D10): text only, a size cap of about 1 MB, `.env` and private-key files refused
+  — each a typed refusal, never a skip. `storage-ref-backend` enforces the rules in its `write` and `batch`; write-back
+  and `arc save` report its refusal, and the removal check's projection part runs the same rules without writing,
+  through one function the backend exports for both (asked 2026-10-10), keeping no copy (§ Coordination, Others).
 - **Edit rights, protected files, and conflicts** (D13): the edit-rights rule by lifecycle state and kind, the
   three-layer protected-file notice, conflicts shown in the file with parse-back at persist, and a whole-record
   conflict's notice line.
@@ -268,7 +270,13 @@ Replacing a file, the aside folder). The skip switch bypasses all of it.
   own stamped base, so write-back finds no edit and the next refresh replaces it.
 - **Blob ids** computed with `node:crypto` over the content as stored — LF-normalized, with the base stamp and any
   notice line stripped, since the stored record carries neither — as `blob <length>\0` plus the bytes, never by spawning
-  Git per file. Line endings are normalized on read (D13).
+  Git per file. Line endings are normalized on read (D13). The stamp's blob id names content alone; the compare-and-swap
+  basis is the record version, which covers the record's metadata too (`draft-storage-ref-backend.md` § The version
+  model). Write-back passes the record version it read from the store as its write's expected version and compares and
+  merges by blob id, so a write that moved only metadata leaves the stored blob equal to the stamp, and the edit
+  fast-forwards rather than merging. The backend stores every projected kind as written, the meta and task list among
+  them, canonicalizing only its JSON machine records, which no file shows, so the blob id write-back computes over what
+  it sends is the one the store keeps.
 - **Base-stamp recovery** (D13's content heuristic), for a stamp deleted as noise or dropped by a whole-file rewrite.
   Content that, stamp aside, equals a version exactly — the index's recorded version first, then `history` newest first
   — takes that version as its base. Otherwise the base is the closest by line diff among the index's version, the
@@ -548,8 +556,16 @@ Cost per command grows with what changed, never with how much state exists:
   follow-up probe's costs adds about 2 ms on Linux and 8 ms on Windows, most of it the folder walk. `completed/`, which
   grows with the archive, is checked by `arc save`, by teardown's persist-first pass and the removal check, and whenever
   a refresh touches a file.
-- **Refresh is store-driven:** each worktree's index carries the state version it last projected, and the next
-  command asks the store's `changes` for the records since, rewriting only those and any file still marked pending.
+- **Refresh is store-driven:** each worktree's index carries the state version it last projected, and the next command
+  asks the store's `changes` for the records since, rewriting only those and any file still marked pending. When
+  `changes` refuses because that state version no longer resolves — Git collected its manifest, which only an anchor
+  written into a record keeps reachable, or it names an ended item whose history this clone has not fetched — the
+  command rebuilds the worktree's projection from the current state: every projected record refreshed by the same rules
+  as a changed one, every index entry the current state no longer holds handled as a removal, the replace guard and
+  pending marks included, and the index takes the current state version. Write-back has already run, and a file holding
+  an edit is handed to it as any refresh hands one, so the rebuild loses none. It costs one full materialization
+  (below), paid by a worktree idle past Git's expiry or one whose state version names history this clone lacks; the
+  refusal code's name is `storage-ref-backend`'s.
 - **History depth never enters the read path** (D10).
 
 | Axis                         | Cost grows with                     | Watch                                    | Response                                          |
@@ -717,8 +733,15 @@ carries them at draft close.
 
 ### Others
 
-- **`storage-ref-backend`** — the multi-process test lane runs over it, and its writer derivation reads
-  `HAND_EDIT_VERBS` (§ `storage-seam`, item 1); the projection otherwise consumes only the contract.
+- **`storage-ref-backend`** — joint on a record's two identifiers: the base stamp stays the stored content's Git blob
+  id, which it assumes, and the record version, covering metadata too, is the compare-and-swap basis (§ State and change
+  detection, blob ids). It enforces the serialization rules in `write` and `batch`, and is asked (2026-10-10) to export
+  them as one pure function in `lib/store/` over a record's reference and content, returning the typed refusal or none,
+  which `write`, `batch`, and the removal check's projection part all call, so a refusal the persist step would meet is
+  reported before a verb mutates anything (§ `storage-seam`, item 2). Its `changes` refuses a state version that no
+  longer resolves, and the projection then rebuilds the worktree (§ Performance and scale). Base-stamp recovery reads
+  its `history` newest first. The multi-process test lane runs over it, and its writer derivation reads
+  `HAND_EDIT_VERBS` (§ `storage-seam`, item 1).
 - **`storage-cutover`** — runs the first full materialization at the flip and the live rehearsal; the flip's workflow
   rewrite names `arc save`.
 - **`config-storage-architecture`** — re-homes the in-flight view setting with the per-developer tier.
@@ -777,6 +800,12 @@ None.
 - **Scope the `after` view's conformance case around commit lookups** (sent by `seam-record-kinds`' generate-tasks
   session, 2026-10-10) — integrated: § Coordination item 1's `after` view throws on a commit lookup, whose `taskIds` a
   task-list hand edit changes and which no rule makes, and its conformance case covers the other lookup kinds.
+- **Share the record version and base stamp, report the backend's serialization refusals, and rebuild on an unresolvable
+  state version** (sent by `storage-ref-backend`'s draft-design session at the Owner's direction, 2026-10-10) —
+  integrated: the stamp stays the content's blob id beside the record version (§ State and change detection); the
+  backend enforces the serialization rules, asked to export them as one function the removal check also runs (§ Scope;
+  § Coordination, Others); and refresh rebuilds a worktree whose state version no longer resolves (§ Performance and
+  scale).
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
