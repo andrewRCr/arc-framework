@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "decompose-cut-map-refusal-detail",
+  "claimId": "7ef2065791e073710bdb2c9b0fab84c1",
+  "createdAt": "2026-10-11T23:18:02.184Z",
+  "updatedAt": "2026-10-11T23:18:02.184Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Carry the cut-map decoder's refusal code and message through decompose's execute, extract, and advance-base",
+  "branch": "chore/decompose-cut-map-refusal-detail",
+  "origin": "inbox",
+  "originEntry": "Carry the cut-map decoder's refusal code and message through decompose's execute, extract, and advance-base",
+  "originEntrySourceDigest": "sha256:e40780b7ae7b46a6ef7d4ae2cd6f6dbd1421a10ad0bf36876f22b2e9bdfc0216",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
