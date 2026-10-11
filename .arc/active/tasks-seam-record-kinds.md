@@ -207,12 +207,9 @@ grows.
   lifecycle inventory (`requireCompleteInventory`, `lib/store/lifecycle-storage.ts`) refuses while any meta fails to
   parse. The fixture surface is in `notes-seam-record-kinds.md` § Meta fixtures to convert.
 
-    - `[ ]` **2.4.a Convert the five archived bullet-form metas**
-        - `meta-work-organization-reform.md`, `meta-worktree-foundation.md`, `meta-errand-enablement.md`,
-          `meta-work-routing-discipline.md`, and `meta-in-flight-awareness.md` (`.arc/completed/2026-q2/` 10 through
-          14) take the core table, as a committed edit to tracked records.
-        - Verified by parsing before and after: each meta's parsed fields under today's fallback equal its fields from
-          the table after; no verification script ships.
+    - `[x]` **2.4.a Convert the five archived bullet-form metas**
+        - The five archived metas use the core table. Parsing each before and after returns the same complete field
+          record; absent historical Class and Priority values render as `—` and remain semantic nulls.
 
     - `[ ]` **2.4.b Convert the test fixtures, batch by batch**
         - Each fixture the notes list takes whichever it lacks of an H1, the core table, and a closing `---`, in the
