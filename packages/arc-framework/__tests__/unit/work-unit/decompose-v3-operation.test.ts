@@ -208,6 +208,69 @@ function extractionReportFacts() {
   };
 }
 
+describe("decomposition preparation exception causes", () => {
+  it.each([
+    ["retirement", "occupation", "partial"], ["retirement", "occupation", "full"],
+    ["retirement", "post-occupation-revalidation", "partial"],
+    ["retirement", "post-occupation-revalidation", "full"],
+    ["extraction", "occupation", "partial"], ["extraction", "occupation", "full"],
+    ["extraction", "post-occupation-revalidation", "partial"],
+    ["extraction", "post-occupation-revalidation", "full"],
+  ] as const)("%s preserves the %s cause under %s protection and retries", async (mode, stage, protection) => {
+    const fixture = operationFixture();
+    const occupation = protection === "full" ? fullOccupation() : partialOccupation();
+    let broken = true;
+    const deps = dependencies(fixture, occupation, [], {
+      occupy: async () => {
+        if (broken && stage === "occupation") throw new Error("candidate observation failed");
+        return occupation;
+      },
+      revalidate: async () => {
+        if (broken && stage === "post-occupation-revalidation") throw new Error("source reread failed");
+        return { status: "valid" };
+      },
+    });
+    if (deps.partialRecovery !== undefined) {
+      deps.partialRecovery.capture = async (paths) => paths.map((path) => ({
+        path, index: { kind: "absent" as const }, worktree: { kind: "absent" as const },
+      }));
+    }
+    const run = () => mode === "retirement"
+      ? executeV3DecomposeOperation({ protection, configuredBase: "main", plan: fixture.plan,
+          completedMap: fixture.completedMap }, deps)
+      : executeV3ExtractionOperation({ protection, configuredBase: "main", origin: "origin",
+          plan: fixture.plan, extractionFacts: extractionReportFacts() }, deps);
+    const refused = await run();
+    expect(refused).toMatchObject({
+      status: "refused", stage,
+      reason: stage === "occupation" ? "occupation-failed" : "post-occupation-revalidation-failed",
+      locus: stage === "occupation" ? "candidate observation failed" : "source reread failed",
+      recovery: stage === "occupation" || protection === "partial" ? { kind: "none" } : {
+        kind: "full-candidate", path: "/repo/.git/arc/worktrees/candidate",
+        candidateBranch: "chore/decompose-origin", expectedHead: fixture.plan.expectedBaseHead,
+      },
+    });
+    expect(refused).not.toHaveProperty("report");
+    broken = false;
+    await expect(run()).resolves.toMatchObject({ status: "staged", occupation });
+  });
+
+  it.each([
+    ["occupation", "adapter threw a string", "adapter threw a string"],
+    ["post-occupation-revalidation", "adapter threw a string", "adapter threw a string"],
+    ["occupation", new Error(" "), "occupation failed"],
+    ["post-occupation-revalidation", new Error(" "), "post-occupation revalidation failed"],
+  ] as const)("%s gives a usable cause for nonstandard throws: %s", async (stage, error, locus) => {
+    const fixture = operationFixture();
+    const result = await executeV3DecomposeOperation({ protection: "partial", configuredBase: "main",
+      plan: fixture.plan, completedMap: fixture.completedMap }, dependencies(fixture, partialOccupation(), [], {
+      ...(stage === "occupation" ? { occupy: async () => { throw error; } }
+        : { revalidate: async () => { throw error; } }),
+    }));
+    expect(result).toMatchObject({ status: "refused", stage, locus });
+  });
+});
+
 describe("executeV3DecomposeOperation", () => {
   it("validates every recovery arm strictly", () => {
     const recoveries = [

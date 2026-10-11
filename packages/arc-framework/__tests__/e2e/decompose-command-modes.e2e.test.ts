@@ -467,6 +467,37 @@ async function gitReadFailureEnvironment(repo: string): Promise<Record<string, s
   return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
 }
 
+async function editorExcludeFailureEnvironment(repo: string): Promise<Record<string, string>> {
+  const shimDir = join(repo, "editor-exclude-failure-shim");
+  await mkdir(shimDir);
+  const driver = [
+    "#!/usr/bin/env node",
+    'const { spawnSync } = require("node:child_process");',
+    'const { existsSync } = require("node:fs");',
+    'const { delimiter, join, resolve } = require("node:path");',
+    "const args = process.argv.slice(2);",
+    'const marker = join(process.cwd(), ".arc/system/.internal/worktree-marker.json");',
+    'if (args[0] === "rev-parse" && args[1] === "--git-path" && args[2] === "info/exclude" && existsSync(marker)) {',
+    '  process.stderr.write("injected editor exclude read failure\\n");',
+    "  process.exit(97);",
+    "}",
+    "const shim = resolve(__dirname);",
+    'const path = (process.env.PATH ?? "").split(delimiter)',
+    "  .filter((entry) => resolve(entry) !== shim).join(delimiter);",
+    'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
+    "process.exit(result.status ?? 1);",
+    "",
+  ].join("\n");
+  const driverPath = join(shimDir, process.platform === "win32" ? "git-shim.cjs" : "git");
+  await writeFile(driverPath, driver, "utf8");
+  if (process.platform === "win32") {
+    await writeFile(join(shimDir, "git.cmd"), '@node "%~dp0git-shim.cjs" %*\r\n', "utf8");
+  } else {
+    await chmod(driverPath, 0o755);
+  }
+  return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
+}
+
 function parseSingleDecomposeRefusal(result: RunResult): {
   status: string;
   reason: string;
@@ -520,6 +551,37 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
+  });
+
+  it.each(["--execute", "--extract"] as const)("%s reports the caught occupation cause and retries after repair", async (mode) => {
+    repo = await startedRepository();
+    const cutMapPath = mode === "--execute" ? await writeCompletedCutMap(repo) : await writeExtractionCutMap(repo);
+    const env = await editorExcludeFailureEnvironment(repo);
+    const head = await git(repo, ["rev-parse", "HEAD"]);
+    const sourceHead = await git(repo, ["rev-parse", "refs/heads/plan/origin"]);
+    const index = await git(repo, ["write-tree"]);
+    const refused = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000, env });
+    expect(refused.exitCode, refused.stderr).toBe(1);
+    const envelope = JSON.parse(refused.stdout) as {
+      status: string; stage: string; reason: string; locus: string;
+      recovery: { kind: string }; remedy: { argv: string[]; text: string };
+    };
+    expect(envelope).toMatchObject({
+      status: "refused", stage: "occupation", reason: "occupation-failed",
+      locus: expect.stringContaining("injected editor exclude read failure"), recovery: { kind: "none" },
+      remedy: { argv: ["arc", "decompose", "origin", mode, cutMapPath] },
+    });
+    expect(refused.stderr).toBe(`${envelope.reason}\nCause: ${envelope.locus}\n${envelope.remedy.text}\n`);
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await git(repo, ["rev-parse", "refs/heads/plan/origin"])).toBe(sourceHead);
+    expect(await git(repo, ["write-tree"])).toBe(index);
+
+    const retried = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
+    expect(retried.exitCode, retried.stderr).toBe(0);
+    const result = JSON.parse(retried.stdout) as { status: string; operation: { occupation: { path: string } } };
+    expect(result.status).toBe("staged");
+    await assertEditorDocumentsProvisioned(result.operation.occupation.path);
+    expect(await claimFiles(repo)).toEqual([]);
   });
 
   it("emits one actionable refusal envelope from every selected mode without mutation", async () => {
