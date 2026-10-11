@@ -31,13 +31,10 @@ the remote state too, holds that state's queue only while it compares and publis
 - _Goal:_ A kind's registration — its parser, write check, and anchor declaration — installs into an isolated registry
   through `createKindRegistry`, and a kind with no registration keeps empty slots.
 
-    - `[ ]` **1.1.a Declare the write check's contract types**
-        - `WriteCheck`, `WriteCheckInput`, `StoreView`, and `BrokenRule` as § 3.1 states them, in
-          `lib/store/write-check.ts`, exported through the store's index (`lib/store/index.ts`).
-        - `BrokenRule.remedy` takes a `Remedy` type, inferred from `RemedySchema` and exported beside it
-          (`lib/store/refusal.ts`), which exports no such type today.
-        - `writer` is `{ kind: "verb"; verb }` or `{ kind: "hand-edit" }`; `prior.fields` is absent when the stored
-          version fails to parse.
+    - `[x]` **1.1.a Declare the write check's contract types**
+        - Exported `WriteCheck`, `WriteCheckInput`, `StoreView`, and `BrokenRule` through the store index;
+          the check carries both views, a provenance-derived writer, and optional prior parsed fields.
+        - Exported `Remedy` beside `RemedySchema` and used it for each broken rule's correction.
 
     - `[ ]` **1.1.b Take registrations in `createKindRegistry`**
         - `KindRegistration<Fields>`, `AnchorField<Fields>`, `RegisteredKind`, and `defineKindRegistration` as § 2.1
