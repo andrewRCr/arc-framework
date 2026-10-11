@@ -30,6 +30,8 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 
 describe("raw state helper ratchet", () => {
   it.each([
+    ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
+    ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
@@ -49,6 +51,8 @@ describe("raw state helper ratchet", () => {
     ["handlers/outside.ts", 'export { type MetaRecord } from "../lib/active/meta-reader.js";'],
     ["handlers/outside.ts", 'type Reader = import("../lib/active/meta-reader.js").MetaRecord;'],
     ["handlers/outside.ts", 'import "../lib/active/meta-schema.js";'],
+    ["lib/store/in-repo/context.ts", 'import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";'],
+    ["lib/store/kinds/registrations.ts", 'import { META_REGISTRATION } from "./meta/registration.js";'],
     ["lib/store/current-work-unit.ts", 'import { parseMetaFile } from "../active/meta-reader.js";'],
     ["lib/store/in-repo/meta.ts", 'import { buildComposedLifecycleIndex } from "../../work-unit/composed-lifecycle-index.js";'],
     ["lib/work-unit/composed-lifecycle-index.ts", 'import { buildLifecycleIndex } from "./lifecycle-index.js";'],

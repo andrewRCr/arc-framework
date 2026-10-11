@@ -22,6 +22,9 @@ writer rule, merge mechanism, projection, and independent parser, write-check, a
 registration installs those declarations into an isolated registry. Logical placement and code links travel beside
 record content, without projected paths.
 
+The `kinds/` folders own each record kind's parsed fields, writers, and write rules. Their registration modules
+compose the production set used by storage backends.
+
 Landing and task commit captures carry their own repository, SHA and optional patch ID. Commit lookup filters those
 captures by repository and prefers exact SHA matches; it needs no branch or change-request link. Task captures
 reject duplicate repository and SHA pairs.

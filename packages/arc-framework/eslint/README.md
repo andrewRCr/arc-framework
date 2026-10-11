@@ -7,7 +7,8 @@ Architecture bans live in the ESLint configuration as one table. Rooted director
 without enumerating current source files, so future modules receive every matching row's rules.
 
 Three predicates are ratchets rather than fail-closed bans. `store-raw-state` keeps the raw state helpers — meta
-parsing, the lifecycle indexes, state-ref tree access, the Candidate and transition record stores, the Git
+parsing and kind registrations, the lifecycle indexes, state-ref tree access, the Candidate and transition record
+stores, the Git
 transition-record enumeration, the Errand record snapshot and transaction, and the inbox writer — inside `lib/store/`.
 `surface-names` keeps the literal surface names and path fragments inside the layout resolver. `work-unit-paths` keeps
 layout-resolver calls for work-unit state inside `lib/store/`: work-unit artifacts, containers, and placement roots,

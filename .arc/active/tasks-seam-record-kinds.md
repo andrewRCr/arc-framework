@@ -53,28 +53,16 @@ the remote state too, holds that state's queue only while it compares and publis
 - _Note:_ What decodes through the registry before Phase 3, and what parses meta content outside reads and listings,
   is in `notes-seam-record-kinds.md` § Interim decode, Phases 1–3.
 
-    - `[ ]` **1.2.a Create the kind folders, the meta's registration module, and the production set**
-        - `lib/store/kinds/` with one folder per kind as § 1.2's table lays out; this task creates `meta/` and
-          `registrations.ts`, and each later phase adds its own folder.
-        - `kinds/meta/`'s registration module builds the meta's registration through `defineKindRegistration`, its
-          parser wrapping `parseMetaRecord` as `createInRepoContext`'s inline parser does today
-          (`lib/store/in-repo/context.ts`): a throw becomes a parse failure carrying its message.
-        - `registrations.ts` exports the one list of `RegisteredKind` every backend registers; it holds the meta alone
-          until later phases add theirs.
-        - One README for `lib/store/kinds/` names each folder's kind and what a registration module holds, covering
-          every kind folder, and each later task creating a folder adds it there; the store README names the folder.
+    - `[x]` **1.2.a Create the kind folders, the meta's registration module, and the production set**
+        - Created the meta registration around today's parser and `PRODUCTION_REGISTRATIONS`, with the meta alone.
+        - Added the kinds README and the store's pointer to the kind-owned parser, writer, and rule interfaces.
 
-    - `[ ]` **1.2.b Count the registration modules in the import ratchet**
-        - `registrations.ts` and the meta's registration module join `RAW_STATE_MODULES`
-          (`eslint/architecture-imports.ts`), so a production import of either from outside `lib/store/` fails
-          `store-raw-state`, while every file under `lib/store/` may import them (`rawStateViolations`).
-        - `eslint/README.md`'s list of the raw state helpers names the kinds' registrations.
-        - Build `test-first` (one behavior at a time), in `__tests__/unit/eslint-architecture-imports.test.ts`:
-            - a production module outside `lib/store/` importing a registration module is reported
-            - a module under `lib/store/` importing one is not
+    - `[x]` **1.2.b Count the registration modules in the import ratchet**
+        - Added the production set and meta registration to `RAW_STATE_MODULES` and documented the boundary.
+        - Tests reject external value imports and admit store-owned imports of both registration modules.
 
-    - `[ ]` **1.2.c Build the in-repo registry from the production set**
-        - `createInRepoContext` registers `registrations.ts`' list in place of its inline meta parser.
+    - `[x]` **1.2.c Build the in-repo registry from the production set**
+        - `createInRepoContext` now installs `PRODUCTION_REGISTRATIONS`, replacing its inline meta parser.
 
     - `[ ]` **1.2.d Decode in-repo meta reads and listings through the registered parser**
         - `decodeTrackedContent` (`lib/store/in-repo/read-codec.ts`) takes the context and decodes through its
