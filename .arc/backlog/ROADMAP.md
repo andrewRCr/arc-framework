@@ -16,8 +16,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State      | Work unit                       | Priority | Owner  | Depends on                 | Cohort        |
 | ---------- | ------------------------------- | -------- | ------ | -------------------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage |
-| `Planning` | storage-ref-backend             | P1       | andrew | —                          | state-storage |
-| `Planning` | seam-record-kinds               | P1       | andrew | —                          | storage-seam  |
+| `Planning` | storage-ref-backend             | P1       | andrew | seam-record-kinds          | state-storage |
+| `Active`   | seam-record-kinds               | P1       | andrew | —                          | storage-seam  |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                          | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                          | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                          | —             |
@@ -52,7 +52,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
 | frictionless-capture                | P2       | andrew | —          | —                          |
-| goal-aware-direction                | P2       | andrew | —          | —                          |
 | graduation-cleanup                  | P2       | andrew | —          | —                          |
 | in-process-cli-harness              | P2       | andrew | —          | —                          |
 | knowledge-architecture              | P2       | andrew | —          | —                          |
@@ -139,6 +138,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | errand-promotion-concurrency    | P2       | andrew | storage-cutover          | —                |
 | framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
 | ghost-mode                      | P2       | andrew | storage-cutover          | —                |
+| goal-aware-direction            | P2       | andrew | storage-cutover          | —                |
 | history-policy                  | P2       | andrew | storage-cutover          | —                |
 | operational-state-docs          | P2       | andrew | storage-cutover          | —                |
 | shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
