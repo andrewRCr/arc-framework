@@ -283,12 +283,10 @@ written.
   rejects, one create-only writer whose output round-trips byte-identical, and the kind's registration, ahead of any
   caller.
 
-    - `[ ]` **3.1.a Define the final shape and its invariants**
-        - `LineageRecord` and `WorkItemRef` as § 7.1 states them: `origin`, `successors`, `incoming`, and `outgoing`
-          each carrying a name and an optional UID (`z.uuid()`, as `OwnerIdentitySchema` holds one).
-        - The invariants carried over from `TransitionRecordSchema` and the added `outgoing` rules: present exactly on
-          a decomposition, prerequisites unique, each one's members unique and ordered by name; no member checked
-          against `successors`.
+    - `[x]` **3.1.a Define the final shape and its invariants**
+        - The lineage kind defines closed version-2 records and name/optional-UUID references. Cardinality, unique
+          dependents and prerequisites, ordered reference lists, and decomposition-only outgoing evidence are
+          enforced; outgoing members may name existing destinations outside the successor list.
 
     - `[ ]` **3.1.b Build the parser, the writer, and the registration module**
         - The parser decodes the JSON and refuses a record the schema rejects, as `parseTransitionRecord` does; a public
