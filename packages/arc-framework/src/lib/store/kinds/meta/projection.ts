@@ -134,8 +134,8 @@ export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
  */
 export type MetaProjectionOverrides = Partial<Record<MetaFieldName, string>>;
 
-/** Partial storage-independent record accepted by the full semantic renderer. */
-export type MetaRenderOverrides = Partial<MetaRecord>;
+/** Creation fields accepted by fresh metadata rendering; section bodies have separate writers. */
+export type MetaRenderOverrides = Partial<Omit<MetaRecord, "sessionContext" | "completionNotes" | "releaseNotesEntry">>;
 
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
 /** Strict durable semantic record type. */
@@ -240,13 +240,21 @@ export function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): 
     const value = valueOf(field);
     if ("omitWhenAbsent" in field && value === field.default) continue;
     if (prevGroup !== null && field.group !== prevGroup) lines.push("");
-    const prefix = `- **${field.name}:** `;
-    const [first = "", ...rest] = renderBulletValueLines(field, value, prefix.length);
-    lines.push(`${prefix}${first}`);
-    for (const continuation of rest) lines.push(`  ${continuation}`);
+    lines.push(...renderMetaBullet(field, value));
     prevGroup = field.group;
   }
   return lines;
+}
+
+/** Render one managed bullet with its canonical wrapping and value formatting.
+ * @param field - Bullet descriptor.
+ * @param value - Bare semantic projection value or its unset sentinel.
+ * @param prefix - Existing marker and spacing, or the canonical bullet marker.
+ * @returns The field's line and any indented continuation lines.
+ */
+export function renderMetaBullet(field: MetaFieldDescriptor, value: string, prefix = `- **${field.name}:** `): string[] {
+  const [first = "", ...rest] = renderBulletValueLines(field, value, prefix.length);
+  return [`${prefix}${first}`, ...rest.map((line) => `  ${line}`)];
 }
 
 function renderBulletValueLines(

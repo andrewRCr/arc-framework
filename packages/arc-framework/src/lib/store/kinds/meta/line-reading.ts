@@ -4,7 +4,8 @@ import { CORE_FIELD_NAMES } from "./projection.js";
 /** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
 const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
 
-interface MetaSourceLine {
+/** One source line with its exact content span and line ending. */
+export interface MetaSourceLine {
   readonly text: string;
   readonly startOffset: number;
   readonly endOffset: number;
@@ -39,6 +40,29 @@ function sourceLines(content: string): MetaSourceLine[] {
     lines.push({ text: content.slice(startOffset), startOffset, endOffset: content.length, lineEnding: "" });
   }
   return lines;
+}
+
+/** Exact line anchors for a metadata field block. */
+export interface MetaFieldBlockLocation {
+  readonly lines: readonly MetaSourceLine[];
+  readonly h1Index: number;
+  readonly closingIndex: number;
+  readonly fieldEndIndex: number;
+}
+
+/** Require the H1 and closing rule that delimit metadata edits.
+ * @param content - Complete metadata Markdown.
+ * @returns Source lines and the two field-block anchors.
+ * @throws When the H1 or its closing rule is missing.
+ */
+export function locateMetaFieldBlock(content: string): MetaFieldBlockLocation {
+  const lines = sourceLines(content);
+  const h1Index = lines.findIndex(({ text }) => /^# /u.test(text));
+  if (h1Index === -1) throw new Error("Cannot edit metadata: missing H1 field-block anchor.");
+  const closingIndex = lines.findIndex(({ text }, index) => index > h1Index && text.trim() === "---");
+  if (closingIndex === -1) throw new Error("Cannot edit metadata: missing closing `---` field-block anchor.");
+  const sectionIndex = lines.findIndex(({ text }, index) => index > h1Index && index < closingIndex && /^## /u.test(text));
+  return { lines, h1Index, closingIndex, fieldEndIndex: sectionIndex === -1 ? closingIndex : sectionIndex };
 }
 
 function isTableRow(line: MetaSourceLine | undefined): line is MetaSourceLine {

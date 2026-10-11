@@ -170,66 +170,32 @@ grows.
         - The registration installs `stateAtHandoff` as its sole anchor, checked against the parser's branded
           state-version output type and exposed through the production registry.
 
-### `[ ]` **2.3 One typed writer per meta field and section — § 5.4, § 5.5, § 5.6**
+### `[x]` **2.3 One typed writer per meta field and section — § 5.4, § 5.5, § 5.6**
 
 - _Goal:_ Every meta field and section has one exported writer that takes its typed value, renders its canonical form,
   and touches only its own lines.
 
-- _Rationale:_ The writers are the interface the rerouting members adopt; their byte stability outside their own lines
-  is what lets a verb adopt one without changing any other part of a meta.
+    - `[x]` **2.3.a Write the core-table writers**
+        - Five typed writers render the core cells canonically, including the Branch and unresolved Class/Priority
+          sentinels. They preserve the table's line endings and every byte outside its three rows.
 
-    - `[ ]` **2.3.a Write the core-table writers**
-        - One writer per core field (`State`, `Owner`, `Branch`, `Class`, `Priority`) taking its typed value
-          (`WorkUnitState`, an identity slug, a branch or `null`, `MetaWorkClass`, a `MetaPriority`) and re-rendering
-          only the table's three rows, as `setMetaState` does today.
-        - Only `Branch` is nullable, its `null` rendering `[none]` (`renderNullable`); an unset `Class` or `Priority`
-          is `TBD`, rendering `[TBD]`, as `renderMetaFile` renders both.
-        - Build `test-first` (one behavior at a time):
-            - each writer renders its value canonically and leaves every other byte unchanged
-            - a `null` `Branch` renders `[none]`, and a `TBD` `Class` or `Priority` renders `[TBD]`
+    - `[x]` **2.3.b Write the bullet writers**
+        - Eighteen typed writers replace only their own bullet spans or insert in field order; the shared renderer
+          preserves canonical identifier wrapping, sentinels, marker prefixes, and source line endings.
+        - Clearing an optional field removes its lines, while Next Action clears to `—`. The Promotion Receipt writer
+          sets an absent receipt and refuses changing or removing a present one; every section remains intact.
 
-    - `[ ]` **2.3.b Write the bullet writers**
-        - One writer per bullet field of `META_FIELDS` and § 5.2's three handoff bullets, each taking its typed value: a
-          slug list, a filename, a `StateVersion`, a narrative, or `null`.
-        - A writer replaces only its bullet and its continuation lines, or inserts the bullet at its canonical place in
-          field order when absent; the field region ends at its last field line, so a section inside the block
-          survives.
-        - `null` removes a field omitted when absent and renders any other at `renderMetaFile`'s unset sentinel — `—`
-          for `Next Action`, `[none]` for the rest (`renderNullable`).
-        - An identifier list longer than the bullet width wraps as `renderMetaFile` wraps it (`wrapCommaList`, at
-          `META_BULLET_WRAP_COLUMN`).
-        - The `Promotion Receipt` writer refuses to change a present receipt; the generic any-field writer stays
-          internal and no longer special-cases it.
-        - Build `test-first` (one behavior at a time):
-            - each writer leaves content outside its own lines byte-identical
-            - a section inside the field block survives every writer
-            - an absent bullet inserts at its place in field order
-            - `null` removes an omitted-when-absent field and renders the sentinel for the rest
-            - a long identifier list wraps at the bullet width
-            - the `Promotion Receipt` writer refuses to change a present receipt and sets an absent one
+    - `[x]` **2.3.c Write the Session Context section writer**
+        - The writer inserts, replaces, clears, or removes the complete body while preserving other fields, sections,
+          and source line endings. A missing section inserts before the field block's other sections or closing rule.
+        - Body lines that delimit a section are refused, including boundaries inside a code fence. Field-like markers
+          in section prose are excluded from the bullet writers' managed region.
 
-    - `[ ]` **2.3.c Write the Session Context section writer**
-        - Sets the body whole, inserts the section after the last field line and before any Release Notes Entry or
-          Completion Notes inside the field block when absent, and removes it on `null`.
-        - Throws on a body line § 5.2 reads as ending the section — one opening with `##` and a space, or a standalone
-          `---` — inside a code fence or not.
-        - Build `test-first` (one behavior at a time):
-            - setting, replacing, inserting, and removing the section each leave every other byte unchanged
-            - a body line opening with `##` and a space, or a standalone `---`, throws, fenced or not
-
-    - `[ ]` **2.3.d Write the title writer, settle the creation writer, and fail loudly on an unanchored meta**
-        - The title writer renders `# Metadata: <slug>`.
-        - The creation writer is `renderMetaFile` (Task 2.1.a): its input omits the three section keys, so it renders
-          the title, core table, field bullets, and closing `---`, the handoff bullets in their group when present.
-        - Every writer taking a meta's content checks for its H1 and the `---` after it before reading its own lines,
-          and throws on a meta lacking either.
-        - Build `test-first` (one behavior at a time):
-            - the title writer changes only the H1
-            - `renderMetaFile`'s existing tests pass unchanged, and present handoff fields render in their group after
-              `Next Action`
-            - `renderMetaFile`'s input admits no section key (a type-level case)
-            - each content writer throws on a meta with no H1 and on one with no closing `---`
-            - a meta lacking both its closing `---` and the writer's own field throws the anchor error
+    - `[x]` **2.3.d Write the title writer, settle the creation writer, and fail loudly on an unanchored meta**
+        - The public writer module exposes the field, section, title, and creation writers. The title writer changes
+          only the H1; creation inputs omit the three section keys, enforced by compiler assertions.
+        - Every content writer requires the H1 and closing rule before inspecting its own field. Core-table writes
+          operate inside those anchors, and an absent field never masks a missing-anchor error.
 
 ### `[ ]` **2.4 Every bullet-form meta and unanchored test fixture takes the core table — § 5.1, § 5.6, § 12**
 
