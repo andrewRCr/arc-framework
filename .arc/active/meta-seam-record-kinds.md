@@ -1,8 +1,8 @@
 # Metadata: Seam Record Kinds
 
-| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
-| --------- | --------- | ------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/seam-record-kinds` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**               | **Class** | **Priority** |
+| ------------- | --------- | ------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/seam-record-kinds` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:0f7ce9ec6fe0b7e123f68d91dd2ea8c260668860b5e3b5233eb9597c02d0a604`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 7.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
