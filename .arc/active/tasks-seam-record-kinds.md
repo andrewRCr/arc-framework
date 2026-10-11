@@ -553,7 +553,7 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           Newly introduced segmentation diagnostics compare without source-line shifts; scanner failures match by code.
           The production registration collects all six rules, including simultaneous violations and legacy repairs.
 
-### `[ ]` **6.4 The lineage and cohort checks — § 3.6, § 8.2**
+### `[x]` **6.4 The lineage and cohort checks — § 3.6, § 8.2**
 
 - _Goal:_ The lineage record's and the cohort document's registrations carry checks running their rules, so a
   retirement leaves no inbound entry held and a cohort's Purpose, nesting, and members stay consistent in `after`.
@@ -563,18 +563,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           grammar-driven helper, including UID-less pre-import origins. Held or unavailable evidence refuses;
           a batch settling the last entry admits, and the production registration supplies the declared grammar.
 
-    - `[ ]` **6.4.b Build the cohort rules and register the cohort check**
-        - `cohort.purpose`: a new document, or a write changing its Purpose, whose parsed `purpose` fails today's floor
-          predicate (`hasPurposeFloor`): absent, empty, or `—`.
-        - `cohort.parent`: a new or changed `Parent` naming no open cohort in `after`, nesting deeper than one level
-          counting the cohort's own subcohorts, or leaving an open member's `Cohort` disagreeing in `after`.
-        - `cohort.open-members`: a write removing a document, or placing it completed, while in `after` an open member's
-          `Cohort` or an open subcohort's `Parent` names it.
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - an archive placing the document completed with its last open member admits
-            - a cohort reads as open while no completed placement is returned
-            - the registered check returns every rule a write breaks, two at once included
+    - `[x]` **6.4.b Build the cohort rules and register the cohort check**
+        - Purpose changes retain the authored-value floor; Parent changes use complete proposed cohort and membership
+          observations to enforce one-level nesting and full member paths. Retirement waits for open members and
+          subcohorts, including batch archives; incomplete evidence refuses under its own rule. All three are registered.
 
 ### `[ ]` **6.5 Every registered kind is settled** — validate exit criterion at segment scope
 
