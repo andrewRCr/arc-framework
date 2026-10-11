@@ -16,3 +16,7 @@ field schemas live in `lib/active/meta-schema.ts`; the filesystem reader and par
 problems and changed durable values, including the identity-slug Owner. `check-support.ts` narrows field versions while
 preserving creation versus an unparseable prior: field authority admits without readable prior values, and shape
 rules judge that repair whole. These modules form a separate dependency branch from the parser and writers.
+
+`reference-rules.ts` resolves newly introduced dependency edges, own Design filenames and paired-spec companions, and
+changed full-path cohort membership through the proposed store view. Cohort membership reads its named document,
+so an unrelated malformed cohort does not block an edit.

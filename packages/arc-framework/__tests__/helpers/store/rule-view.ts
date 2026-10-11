@@ -33,8 +33,15 @@ export type RuleLookups = ReadonlyMap<string, StoreResult<LookupResult>>;
 export function ruleView(records: readonly StoreRecord[] = [], lookups: RuleLookups = new Map()): StoreView {
   return {
     read: async ({ reference }) => {
-      const record = records.find((candidate) => sameReference(candidate.reference, reference));
-      return record === undefined ? missing({ reference }) : { status: "ok", result: record };
+      const candidates = records.filter((candidate) => sameReference(candidate.reference, reference)
+        || (!("uid" in reference.owner) || reference.owner.uid === undefined)
+          && candidate.reference.kind === reference.kind && candidate.reference.owner.type === reference.owner.type
+          && candidate.reference.owner.name === reference.owner.name && JSON.stringify(candidate.reference.key) === JSON.stringify(reference.key));
+      const live = candidates.filter((record) => record.placement?.kind !== "completed");
+      const selected = live.length > 0 ? live : candidates;
+      if (selected.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
+        candidates: selected.map(({ reference }) => reference), condition: "Multiple fixture generations match.", remedy: { text: "Choose a unique fixture name." } } };
+      return selected.length === 0 ? missing({ reference }) : { status: "ok", result: selected[0]! };
     },
     list: async ({ family, kind, owner, filter }) => {
       const selected = records.filter((record) => record.reference.kind.startsWith(`${family}/`)

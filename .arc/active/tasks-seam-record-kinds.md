@@ -513,18 +513,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           field-block facts and changed durable values through the existing schemas; Owner also requires an identity
           slug. An unparseable prior admits field authority while both shape rules judge the repair whole.
 
-    - `[ ]` **6.2.b Build the reference rules**
-        - `meta.depends-on`: a new or changed edge resolving in `after` to no record, or — a live record first — to
-          more than one.
-        - `meta.design-entry`: a new or changed `Design` entry that is not the work item's own (`draft-<slug>.md` or
-          `spec-<slug>.md` as the layout resolver projects them, or a paired spec's `spec-<slug>-prd.md` or
-          `spec-<slug>-rfc.md` when `after` holds that companion), or more than two entries.
-        - `meta.cohort`: a new or changed `Cohort` other than `[none]` that is not the full path of an open cohort in
-          `after`, read through the cohort parser.
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking write and admits its valid counterpart
-            - an existing edge gone ambiguous does not refuse an unrelated write
-            - a subcohort's slug alone refuses as a `Cohort`
+    - `[x]` **6.2.b Build the reference rules**
+        - Dependency rules resolve newly introduced edges in `after`, retaining unchanged stale edges. Design accepts
+          own draft/spec names and stored paired-spec companions, with a changed-list limit of two. Cohort reads only
+          the named document, parses Parent, requires its full open path, and ignores unrelated malformed documents.
 
     - `[ ]` **6.2.c Build the lifecycle-consistency rules**
         - `meta.stage`: a write leaving a work unit in flight, moving it in flight or changing `State`,
