@@ -20,6 +20,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
   MetaCandidateIdSchema,
+  MetaWorkClassSchema,
   MetaProjectionRecordSchema,
   MetaRecordSchema,
   ParsedMetaRecordSchema,
@@ -27,6 +28,10 @@ import {
   type ParsedMetaRecord,
 } from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import {
+  writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
+} from "../store/kinds/meta/writers.js";
 import {
   META_FIELDS, formatValue, renderCoreTable, renderBullets, parseIdentifierList, PLACEHOLDER, isSentinel,
   type MetaFieldDescriptor, type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
@@ -34,6 +39,7 @@ import {
 export * from "../store/kinds/meta/projection.js";
 import {
   locateMetaCoreTable,
+  locateMetaFieldBlock,
   readMetaSectionBodies, bulletMarkerRe, FIELD_MARKER_RE, extractField, parseCoreTable, stripInlineCode,
 } from "../store/kinds/meta/line-reading.js";
 export { locateMetaCoreTable, stripInlineCode, type MetaCoreTableLocation } from "../store/kinds/meta/line-reading.js";
@@ -276,7 +282,7 @@ export function parseReviewRubric(value: string | null): Slug | null {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaState(content: string, state: string): string {
-  return setMetaCoreFields(content, { State: state });
+  return writeMetaState(content, WorkUnitStateSchema.parse(stripInlineCode(state)));
 }
 
 /**
@@ -293,7 +299,8 @@ export function setMetaState(content: string, state: string): string {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaBranch(content: string, branch: string): string {
-  return setMetaCoreFields(content, { Branch: branch });
+  const value = stripInlineCode(branch);
+  return writeMetaBranch(content, value === "[none]" || value === "—" ? null : value);
 }
 
 /**
@@ -305,12 +312,9 @@ export function setMetaBranch(content: string, branch: string): string {
  * @throws When the managed metadata H1 is absent
  */
 export function setMetaTitle(content: string, name: string): string {
-  const lines = content.split("\n");
-  const index = lines.findIndex((line) => /^# Metadata: .+\r?$/u.test(line));
-  if (index === -1) throw new Error("Cannot set metadata title: managed H1 not found.");
-  const line = lines[index];
-  lines[index] = `# Metadata: ${name}${line?.endsWith("\r") === true ? "\r" : ""}`;
-  return lines.join("\n");
+  const heading = /^# Metadata: .+\r?$/mu.exec(content);
+  if (heading === null) throw new Error("Cannot set metadata title: managed H1 not found.");
+  return content.slice(0, heading.index) + writeMetaTitle(content.slice(heading.index), SlugSchema.parse(name));
 }
 
 /**
@@ -330,7 +334,8 @@ export function setMetaTitle(content: string, name: string): string {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaClass(content: string, value: string): string {
-  return setMetaCoreFields(content, { Class: value });
+  const token = stripInlineCode(value);
+  return writeMetaClass(content, MetaWorkClassSchema.parse(token === "[TBD]" ? "TBD" : token));
 }
 
 /**
@@ -557,32 +562,13 @@ export function reconcileMetaFields(
   return { content: lines.join("\n"), backfilled };
 }
 
-/**
- * Rewrite one or more core-block table cells in place, re-rendering *only* the
- * three core-table rows so column alignment stays correct and leaving every
- * bullet, narrative field, and section below byte-identical. The shared engine
- * behind {@link setMetaState} and {@link setMetaBranch}: an override map supplies
- * the new values for named core fields; unnamed cells keep their current value.
- *
- * @param content - The meta file's raw markdown.
- * @param overrides - Core field → new value; only named core fields are rewritten.
- * @returns The rewritten markdown.
- * @throws When the meta carries no resolvable core-block table.
+/** Normalize the managed three-row core table without changing any field value or surrounding byte.
+ * @param content - Anchored metadata Markdown.
+ * @returns Markdown with only table alignment changed.
+ * @throws When metadata anchors or the core table are missing or malformed.
  */
-function setMetaCoreFields(content: string, overrides: MetaProjectionOverrides): string {
-  const located = locateMetaCoreTable(content);
-  const overrideMap = new Map<string, string>(Object.entries(overrides));
-  const valueOf = (field: MetaFieldDescriptor): string =>
-    overrideMap.get(field.name) ?? located.values.get(field.name) ?? field.default;
-  const rendered = renderCoreTable(valueOf);
-  const replacement = rendered
-    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
-    .join("");
-  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
-}
-
-/** Normalize the managed three-row core table without changing any field value or surrounding byte. */
 export function normalizeMetaCoreTable(content: string): string {
+  locateMetaFieldBlock(content);
   const located = locateMetaCoreTable(content);
   const rendered = renderCoreTable(
     (field) => located.renderedValues.get(field.name) ?? formatValue(field.default, field.valueClass),

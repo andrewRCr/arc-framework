@@ -225,13 +225,10 @@ grows.
   form (`formatValue`, `renderEdgeList`, or a narrative as written), so the bytes change only where a correction
   applies.
 
-    - `[ ]` **2.5.a Delegate the core-table and title setters**
-        - `setMetaState`, `setMetaBranch`, `setMetaClass`, and `setMetaTitle` call their writers.
-        - `normalizeMetaCoreTable` runs the writers' anchor check, then passes the cells it finds, as written, to the
-          core table's shared row renderer (`renderCoreTable`, moved in Task 2.1.a) rather than parsing them to typed
-          values, so an authored cell such as `` `[TBD]` `` survives.
-        - Their existing tests pass unchanged; a new case for each states the throw on an unanchored meta where today
-          the setter wrote it.
+    - `[x]` **2.5.a Delegate the core-table and title setters**
+        - Core and managed-title setters delegate to typed writers; every setter refuses a missing closing rule,
+          and core setters and normalization refuse a missing H1. Normalization keeps authored cell tokens intact.
+          Existing setter cases remain unchanged, including CRLF title bytes and managed-heading refusal.
 
     - `[ ]` **2.5.b Delegate the bullet setters, with the wrapping, insertion, and `Next Action` corrections**
         - `setMetaBulletFields`, `setMetaCurrentWorkflow`, and `setMetaDesign` call the bullet writers: an identifier
