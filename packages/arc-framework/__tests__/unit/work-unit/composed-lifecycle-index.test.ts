@@ -24,11 +24,13 @@ function meta(slug: string, state: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    "- **Branch:** [none]",
-    "- **Priority:** P3",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | [none] | — | P3 |`,
+    "",
     "- **Depends On:** [none]",
+    "",
+    "---",
     "",
   ].join("\n");
 }
@@ -37,11 +39,13 @@ function oracleMeta(slug: string, branch: string, state = "Active"): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Depends On:** [none]",
+    "",
+    "---",
     "",
   ].join("\n");
 }

@@ -53,7 +53,18 @@ describe("sweepRenameReferences", () => {
     ["analysis", "# Analysis: sample", "# Analysis: renamed-sample"],
   ])("rewrites the registered %s basename-bound identity H1", async (prefix, title, expectedTitle) => {
     const path = `.arc/active/${prefix}-sample.md`;
-    const files = new Map([[path, `${title}\n\nBody.\n`]]);
+    const body = prefix === "meta" ? [
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | — | — | — |",
+      "",
+      "---",
+      "",
+      "Body.",
+      "",
+    ].join("\n") : "\nBody.\n";
+    const files = new Map([[path, `${title}\n${body}`]]);
 
     await sweepRenameReferences({
       arcRoot: ".arc",
@@ -65,7 +76,7 @@ describe("sweepRenameReferences", () => {
       writeFile: async (candidate, content) => { files.set(candidate, content); },
     });
 
-    expect(files.get(path)).toBe(`${expectedTitle}\n\nBody.\n`);
+    expect(files.get(path)).toBe(`${expectedTitle}\n${body}`);
   });
 
   it("rewrites the exact basename-bound plan resume anchor with the self title", async () => {

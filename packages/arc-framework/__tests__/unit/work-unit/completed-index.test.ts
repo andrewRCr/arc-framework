@@ -205,8 +205,10 @@ describe("readShippedWorkUnitsFromRef", () => {
       blobs: {
         [metaPath]:
           "# Metadata: decompose-matrix\n\n"
-          + "- **State:** Shipped\n"
-          + "- **Completed:** 2026-06-20\n",
+          + "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n"
+          + "| --------- | --------- | ---------- | --------- | ------------ |\n"
+          + "| Shipped | — | — | — | — |\n\n"
+          + "- **Completed:** 2026-06-20\n\n---\n",
       },
     });
 
@@ -233,8 +235,30 @@ describe("readShippedWorkUnitsFromRef", () => {
     const result = await readCompletedEvidenceFromRef(buildTreeExec({
       paths: [withPr, withoutPr],
       blobs: {
-        [withPr]: "# Metadata\n\n- **PR URL:** https://github.com/o/r/pull/17\n",
-        [withoutPr]: "# Metadata\n\n- **PR URL:** [none]\n",
+        [withPr]: [
+          "# Metadata: widget",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "- **PR URL:** https://github.com/o/r/pull/17",
+          "",
+          "---",
+          "",
+        ].join("\n"),
+        [withoutPr]: [
+          "# Metadata: plain",
+          "",
+          "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+          "| --------- | --------- | ---------- | --------- | ------------ |",
+          "| Shipped | — | — | — | — |",
+          "",
+          "- **PR URL:** [none]",
+          "",
+          "---",
+          "",
+        ].join("\n"),
       },
     }), "origin/main");
     expect(result.status).toBe("available");

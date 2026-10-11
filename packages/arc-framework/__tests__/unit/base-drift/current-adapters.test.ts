@@ -14,7 +14,18 @@ const PARENT = "a".repeat(40);
 const META_PATH = ".arc/completed/2026-q3/01_widget/meta-widget.md";
 const UNREADABLE_META_PATH = ".arc/completed/2026-q3/02_other/meta-other.md";
 const PR_LESS_META_PATH = ".arc/completed/2026-q3/03_prless/meta-prless.md";
-const meta = (pr: number): string => `# Work Unit\n\n- **PR URL:** https://github.com/o/r/pull/${pr}\n`;
+const meta = (pr: number): string => [
+  "# Metadata: widget",
+  "",
+  "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+  "| --------- | --------- | ---------- | --------- | ------------ |",
+  "| Shipped | — | — | — | — |",
+  "",
+  `- **PR URL:** https://github.com/o/r/pull/${pr}`,
+  "",
+  "---",
+  "",
+].join("\n");
 
 function input(subject: string, acceptedPrNumber?: number): BaseDriftCommitInput {
   return {

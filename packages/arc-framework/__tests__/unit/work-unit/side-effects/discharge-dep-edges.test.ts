@@ -34,14 +34,22 @@ function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: strin
   return makeMetaFixture("x", { state, dependsOn });
 }
 
-/** Retain the legacy projection independently for the carved current-WU apply cases. */
+/** Keep independently authored projection values for the carved current-WU apply cases. */
 function legacyMeta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 const DEPENDENT_PATH = ".arc/active/meta-dependent.md";
