@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-record-warning",
+  "claimId": "1aea74aed02c9e1290073cb9e1b940fa",
+  "createdAt": "2026-10-11T03:34:19.858Z",
+  "updatedAt": "2026-10-11T03:34:19.858Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report when arc check cannot record its passes, instead of failing silently",
+  "branch": "chore/check-record-warning",
+  "origin": "inbox",
+  "originEntry": "Report when `arc check` cannot record its passes, instead of failing silently",
+  "originEntrySourceDigest": "sha256:e17767bc4cedbcb70645980afbbfe1d05b1775d8758975131ec042cf1f7ba22a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
