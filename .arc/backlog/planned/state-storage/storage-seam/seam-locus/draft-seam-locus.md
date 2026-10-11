@@ -7,6 +7,49 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Call `maintain()` at handoff and report the ref backend's growth figures against the tripwire bounds**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-locus`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the growth and contention tripwires' bounds, which `cohort-storage-seam.md` § Shared contracts leaves with
+  this member, and handoff (its § Members, "Rows and keys", key 52).
+
+- _Observation:_ `storage-ref-backend` adds `maintain()` to the contract, a forward amendment to D1: it runs
+  `git maintenance run --auto` and returns each never-retiring ref's commit count and disk usage, and every push
+  outcome carries its retry count and time waited (`draft-storage-ref-backend.md` § Decisions, Maintenance and
+  measurements). The backend emits the measurements; `seam-locus` owns the bounds and the handoff report that shows
+  them.
+
+- _Approach:_ handoff calls `maintain()`, reads its own push's figures, and reports them against the bounds.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Retry restate and recovery on an unresolvable state version, and rebuild a seed that cannot resolve**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-locus`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Members, "Rows and keys": state continuity anchored on the state version for handoff restating and
+  recover audit (52); and "The compaction seed".
+
+- _Observation:_ in `storage-ref-backend`'s design, a read as of a state version or `changes` from one refuses with the
+  unresolvable-state-version code on a clone that lacks an ended item's history ref, naming each ref; the calling verb
+  pulls them by name and retries, with no stop. A compaction seed's state version rests on Git's expiry, so it can stop
+  resolving, and that refusal's remedy is to rebuild from the current state. `changes` between two people's manifests
+  carries the newer one's identity history whole (`draft-storage-ref-backend.md` § Decisions, The version model).
+
+- _Approach:_ restate and recovery pull the named history refs by name and retry; recovery rebuilds from the current
+  state when a seed's state version no longer resolves; restate from another person's anchor, when a work unit is
+  handed over, restricts `changes` to project scope.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+---
+
 ## Continuity
 
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, with the
