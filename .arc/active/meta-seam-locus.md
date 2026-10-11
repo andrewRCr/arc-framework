@@ -1,8 +1,8 @@
 # Metadata: Seam Locus, Session-Init, and Personal Surfaces
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**        | **Class** | **Priority** |
+| ---------- | --------- | ----------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/seam-locus` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** `seam-record-kinds`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
