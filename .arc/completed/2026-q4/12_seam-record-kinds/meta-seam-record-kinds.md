@@ -1,8 +1,8 @@
 # Metadata: Seam Record Kinds
 
-| **State**     | **Owner** | **Branch**               | **Class** | **Priority** |
-| ------------- | --------- | ------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/seam-record-kinds` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:0f7ce9ec6fe0b7e123f68d91dd2ea8c260668860b5e3b5233eb9597c02d0a604`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 7.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/893>
+- **Completed:** 2026-10-11
 
 ## Release Notes Entry
 
