@@ -15,3 +15,8 @@ remain with delivery.
 
 `line-pairing.ts` pairs scanned task items by identifier, including repeated identifiers in source order. It retains
 unmatched prior lines and explicit scan availability for rules that compare markers, completed intent, and shape.
+
+`authority-rules.ts` protects task closure and changes to existing closed markers under hand-edit provenance. It also
+protects exact marked delivery-plan bytes, including the markers, while leaving the unmarked provisional section
+editable. A prior structural scan failure removes marker comparison authority; readable managed-region bytes remain
+protected independently of task-line syntax.

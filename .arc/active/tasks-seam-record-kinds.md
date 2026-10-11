@@ -538,16 +538,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           unmatched prior lines. Titles and parent/subtask roles do not affect pairing; a failed scan supplies no
           lines, with its readability retained for the rules.
 
-    - `[ ]` **6.3.b Build the authority rules**
-        - `task-list.close`: a hand edit giving a line `[x]` or `[~]` its prior counterpart lacked — an added line or a
-          new list's included — or changing a closed line's marker.
-        - `task-list.delivery-plan`: a hand edit changing any line between the `arc:delivery-plan` markers; the
-          unmarked provisional section stays editable.
-        - Build `test-first` (one behavior at a time):
-            - each rule refuses its breaking hand edit and admits its valid counterpart
-            - a new list carrying a closed line refuses as a hand edit
-            - both are silent for a verb writer
-            - a prior failing the scanner leaves `task-list.close` judging nothing
+    - `[x]` **6.3.b Build the authority rules**
+        - Hand edits cannot close added or paired tasks, change existing closed markers, or change marked delivery
+          region bytes or markers. Verb writes and unmarked provisional edits admit; a failed prior scanner leaves
+          marker authority silent while a readable marked region remains protected.
 
     - `[ ]` **6.3.c Build the completed-task integrity rules**
         - `task-list.completed-identifier`: a task completed in the prior version has no task line in the next.
