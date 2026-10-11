@@ -36,21 +36,11 @@ the remote state too, holds that state's queue only while it compares and publis
           the check carries both views, a provenance-derived writer, and optional prior parsed fields.
         - Exported `Remedy` beside `RemedySchema` and used it for each broken rule's correction.
 
-    - `[ ]` **1.1.b Take registrations in `createKindRegistry`**
-        - `KindRegistration<Fields>`, `AnchorField<Fields>`, `RegisteredKind`, and `defineKindRegistration` as § 2.1
-          states them (`lib/store/registry.ts`): `createKindRegistry` takes a list of `RegisteredKind`, and each
-          `KindDefinition` gains `check: WriteCheck | null` and `anchorFields: readonly string[]` beside `parser`.
-        - An unregistered kind keeps `parser: null`, `check: null`, and no anchor fields; `KIND_REGISTRY` stays empty.
-        - The two test callers passing bare parsers (`__tests__/helpers/store/reference-fixture.ts`,
-          `__tests__/unit/lib/store/registry.test.ts`) build registrations from them.
-        - The store README's registry paragraph (`lib/store/README.md`), which names one independent parser slot, names
-          a registration's parser, check, and anchor slots.
-        - Build `test-first` (one behavior at a time):
-            - a registration's parser, check, and anchor fields reach its kind's definition
-            - an unregistered kind keeps empty slots
-            - two registrations for one kind throw
-            - `defineKindRegistration` admits only an anchor key whose parsed value is a `StateVersion` or `null` (a
-              type-level case)
+    - `[x]` **1.1.b Take registrations in `createKindRegistry`**
+        - Installed typed registrations into parser, check, and copied anchor slots; rejected duplicate kinds.
+          `defineKindRegistration` checks anchor keys against opaque state-version fields before erasing the type.
+        - Converted the in-repo and reference fixture's parser callers; registry tests cover isolation, duplicate
+          rejection, and anchor types, and the store README describes all three slots.
 
     - `[ ]` **1.1.c Add the per-worktree Git-directory root to the machine-local set**
         - `MACHINE_LOCAL_PATHS` gains `{ root: "git-worktree", pattern: "arc-checks/**" }`, the worktree's own Git

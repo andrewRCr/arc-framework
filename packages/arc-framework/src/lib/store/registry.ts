@@ -1,9 +1,34 @@
 /** Storage grouping and record mechanisms as role-based, backend-independent data. */
 
 import { FAMILY_IDS, KIND_SHAPES, familyOf, type FamilyId, type KindId } from "./catalog.js";
+import type { StateVersion } from "./identity.js";
+import type { WriteCheck } from "./write-check.js";
 
 /** Pure family parser outcome; defects remain thrown rather than disguised as refusals. */
 export type RecordParser = (content: string) => { success: true; data: unknown } | { success: false; error: string };
+/** Parsed keys that hold an opaque saved-state anchor. */
+export type AnchorField<Fields> = { [K in keyof Fields]: Fields[K] extends StateVersion | null ? K : never }[keyof Fields];
+/** One kind's parser, rules, and typed anchor declarations. */
+export interface KindRegistration<Fields> {
+  kind: KindId;
+  parser?: (content: string) => { success: true; data: Fields } | { success: false; error: string };
+  check?: WriteCheck;
+  anchorFields?: readonly AnchorField<Fields>[];
+}
+/** A checked registration with its parsed-field type erased for heterogeneous lists. */
+export interface RegisteredKind {
+  kind: KindId;
+  parser?: RecordParser;
+  check?: WriteCheck;
+  anchorFields?: readonly string[];
+}
+/** Type-check anchors against the parser's output before storing a registration.
+ * @param registration - One kind's typed declarations.
+ * @returns The declarations with their field type erased.
+ */
+export function defineKindRegistration<Fields>(registration: KindRegistration<Fields>): RegisteredKind {
+  return registration as RegisteredKind;
+}
 /** Partial semantic address; the backend supplies its record name, placement, or identity.
  * Scope is a family role, never a physical filename or checkout path.
  */
@@ -103,6 +128,8 @@ export interface KindDefinition extends KindMechanism {
   key: typeof KIND_SHAPES[KindId]["key"];
   formatVersion: number;
   parser: RecordParser | null;
+  check: WriteCheck | null;
+  anchorFields: readonly string[];
 }
 /** Ref ownership; subtree declarations are the only permitted ref sharing. */
 export type RefPlacement = { pattern: string } | { subtreeOf: FamilyId; path: string } | null;
@@ -137,13 +164,20 @@ export const FAMILY_REGISTRY: Readonly<Record<FamilyId, FamilyDefinition>> = {
   constitution: { ...project, id: "constitution", ref: null, profiles: { standard: "tracked", ghost: "stored" } },
 };
 
-/** Build an isolated registry with only caller-registered field parsers.
- * @param parsers - Parsers installed by the code rerouting each record family.
- * @returns All role definitions with their independent parser slots.
+/** Build an isolated registry from one registration per kind.
+ * @param registrations - Kind parsers, checks, and anchor declarations.
+ * @returns All role definitions with independent registration slots.
  */
-export function createKindRegistry(parsers: Partial<Record<KindId, RecordParser>> = {}): Readonly<Record<KindId, KindDefinition>> {
-  return Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[]).map((id) => [id, {
-    id, family: familyOf(id), ...KIND_SHAPES[id], ...KIND_MECHANISMS[id], formatVersion: 1, parser: parsers[id] ?? null,
+export function createKindRegistry(registrations: readonly RegisteredKind[] = []): Readonly<Record<KindId, KindDefinition>> {
+  const byKind = new Map<KindId, RegisteredKind>();
+  for (const registration of registrations) {
+    if (byKind.has(registration.kind)) throw new Error(`Duplicate kind registration: ${registration.kind}`);
+    byKind.set(registration.kind, registration);
+  }
+  return Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[]).map((id): [KindId, KindDefinition] => [id, {
+    id, family: familyOf(id), ...KIND_SHAPES[id], ...KIND_MECHANISMS[id], formatVersion: 1,
+    parser: byKind.get(id)?.parser ?? null, check: byKind.get(id)?.check ?? null,
+    anchorFields: [...(byKind.get(id)?.anchorFields ?? [])],
   }])) as Record<KindId, KindDefinition>;
 }
 /** Default registry keeps parser slots empty until their consumers are rerouted. */

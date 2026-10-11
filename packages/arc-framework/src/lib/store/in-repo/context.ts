@@ -20,10 +20,10 @@ export interface InRepoContext {
  * @returns The backend's independent parser registry and ports.
  */
 export function createInRepoContext(ports: StorePorts): InRepoContext {
-  return { ports, registry: createKindRegistry({
-    "work-item/meta": (content) => {
+  return { ports, registry: createKindRegistry([{
+    kind: "work-item/meta", parser: (content) => {
       try { return { success: true, data: parseMetaRecord(content) }; }
       catch (error) { return { success: false, error: error instanceof Error ? error.message : String(error) }; }
     },
-  }) };
+  }]) };
 }

@@ -67,7 +67,7 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
   const declarations = { ...referenceDeclarations, entryShapes: { ...referenceDeclarations.entryShapes, ...entryShapes } };
   const parsers = Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
     .filter((kind) => KIND_REGISTRY[kind].merge === "single-writer").map((kind) => [kind, kind.endsWith("/conflict-record") ? conflictParser : jsonParser]));
-  const definitions = createKindRegistry(parsers);
+  const definitions = createKindRegistry(Object.entries(parsers).map(([kind, parser]) => ({ kind: kind as KindId, parser })));
   const registry = Object.fromEntries((Object.keys(definitions) as KindId[]).map((kind) => [kind, {
     ...definitions[kind], ...(declarations.entryShapes[kind] ? { entry: declarations.entryShapes[kind] } : {}),
     ...registryOverrides[kind],
