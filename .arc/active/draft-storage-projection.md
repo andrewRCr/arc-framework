@@ -209,7 +209,7 @@ It lives in `lib/store/projection/`, inside the store. Write-back reads each kin
 production registration set, `lib/store/kinds/registrations.ts`, which the `store-raw-state` ratchet lists: the ratchet
 passes every file under `lib/store/` and counts any importer outside it (`rawStateViolations`,
 `eslint/architecture-imports.ts`), so write-back outside the store would be a floor entry that never reroutes, and the
-floor could never reach zero (`draft-seam-record-kinds.md` § Where the kinds live). `cli.ts`'s root hooks call the
+floor could never reach zero (`spec-seam-record-kinds.md` § 1.2, § 2.2). `cli.ts`'s root hooks call the
 engine's entry points, which the ratchet does not list, so they stay uncounted too.
 
 The model is jj's working copy: snapshot at the start of every command, a stat fast path backed by a per-worktree state
@@ -217,7 +217,7 @@ file, and conflicts written into files as markers and parsed back at the next sn
 by concern.
 
 **One command, in order.** A command takes its worktree's projection lock, sweeps the aside folder, writes back pending
-edits — each settled, parsed, checked, and merged — and refreshes its pending files and what the store changed since the
+edits — each settled, parsed, merged, and checked — and refreshes its pending files and what the store changed since the
 index's state version; then it releases the lock and runs. Each write fans out as soon as it lands, inside the write
 path: the writer refreshes every worktree on the machine that holds a projection, its own included, taking each one's
 lock in turn and bringing each up from that worktree's own state version, never only its own write. At the command's end
@@ -474,9 +474,14 @@ of any kind (§ State and change detection, files other than Markdown):
 
 - `active/current/` and a stub's folder under `backlog/` — adopted into that work item.
 - A new folder under `backlog/` — adopted as a new stub through `arc stub`'s minting path when it holds a meta that
-  parses, its commitment tier and any cohort taken from the path and the rest from the meta. Without one, its files
-  are ownerless — flagged in `arc status`, with teardown refusing while they stay unadopted (analysis § 6.10) — and the
-  remedy names `arc stub <name> --commitment <tier>` with the tier filled in, after which the folder's files adopt.
+  parses, its commitment tier and any cohort taken from the path and the rest from the meta as `arc stub`'s own
+  parameters — priority, owner, origin, design, and class — while the verb renders every other field, `State` among them
+  (`renderMetaFile`, `lib/work-unit/verbs/stub.ts`). The one verb-owned value the meta supplies, `Class`, enters as
+  `arc stub --class` passes it, validated the same way, so no other hand-set verb-owned value lands under `stub`; what
+  else the file holds is then a hand edit of the minted record, written back and checked like any other. Without a meta
+  that parses, the folder's files are ownerless — flagged in `arc status`, with teardown refusing while they stay
+  unadopted (analysis § 6.10) — and the remedy names `arc stub <name> --commitment <tier>` with the tier filled in,
+  after which the folder's files adopt.
 - `active/` top level and the identity root outside `scratch/` — persist refuses, naming `current/` or `scratch/`.
 - `active/in-flight/<slug>/` — the owner's prose only, under D13's edit rights.
 - `completed/` — read-only; `arc reopen` is the route, and the errata convention moves onto the store's history
@@ -601,27 +606,49 @@ here. Five interfaces cross:
 
 1. **Parsers and write checks.** Write-back reads a hand-edited file through its kind's parser, from the production
    registration set both backends register (`lib/store/kinds/registrations.ts`, which is why the engine lives in
-   `lib/store/`, § Engine), skipping and reporting a file that fails to parse
-   (D13). It persists the edit only if the kind's write check, registered beside the parser, admits it: write-back and
-   `arc save` call the check with a hand edit as the writer, the record's reference, the prior and next parsed records,
-   and a read-only view of the store. A change to a field only a verb may set is refused there, not by the parser, which
-   stays content-only — the seam's amendment to D13's mechanism (`draft-storage-seam.md` § Shared decisions, item 11).
+   `lib/store/`, § Engine), skipping and reporting a file that fails to parse (D13). It merges the edit against the
+   store, then persists the result only if the kind's write check, registered beside the parser, admits it
+   (`spec-seam-record-kinds.md` § 3.1). Write-back and `arc save` call the check with a hand edit as the writer
+   (`{ kind: "hand-edit" }`), the record's reference, the store's current version as `prior`, the content write-back
+   would persist as `next`, and two views, `before` and `after`, and they report every rule it returns. `prior` carries
+   its content and parsed fields, or its content alone when it fails to parse, so the shape rules check the edit whole
+   and a hand edit can repair a record a merge or an import stored broken; it is absent for an adopted file, which the
+   store does not yet hold. `next` is the merged content, never the file alone: a verb that changed `State` since the
+   file's base merges in, so an edit that left `State` alone never reads as changing it. Write-back sends no removal,
+   since a deleted file is rebuilt (D13), so `next` is always present. The merged content is parsed again before the
+   check, since a line merge of two valid versions can fail its parser, and a merge that fails is refused like a file
+   that does: it stays in the file and is reported. A change to a field only a verb may set is refused by the check, not
+   by the parser, which stays content-only — the seam's amendment to D13's mechanism (`draft-storage-seam.md` § Shared
+   decisions, item 11).
+
+   **The `after` view** is this work unit's to build, in `lib/store/projection/`; the seam ships none (the spec's
+   § 3.1). `before` is the backend as write-back finds it. `after` answers `read` and `list` for the written record from
+   the pending write and everything else from `before`, and its `lookup` is `before`'s, since no write-back write
+   changes what lookup resolves: write-back writes content alone — never a reference, placement, former slug, or link —
+   removes nothing, creates no primary record (a new stub mints through `arc stub`, § Files the store does not know),
+   and edits no machine kind whose parsed fields lookup reads, an Errand record or a claim (`lookupReference`,
+   `__tests__/helpers/store/lookup.ts`). A view resolving differently would admit a write the backend then refuses, so a
+   conformance case holds it there: for each hand-editable kind, over each backend that runs checks, the `after` view
+   built before a write answers `read`, `list`, and `lookup` as the backend does once the write lands. Each edited file
+   persists as its own `write`, so `after` is the store plus that one write and one refused edit blocks no other —
+   `arc save`'s "at once" (D13) means in one command, not one batch, which D3 makes all-or-none; a refusal another
+   file's pending edit would cure clears at the next command, once that edit has landed.
+
    Write-back persists under the provenance verb `write-back` and `arc save` under `save`, each with the lifecycle
    action `edit`; a backend reads those two verbs as a hand edit and any other as itself, so it enforces the authority
-   rules where the write lands, not only through this call (`draft-seam-record-kinds.md` § What a kind registers). The
-   two names are one exported constant, `HAND_EDIT_VERBS`, beside `CallerProvenanceSchema` in `lib/store/links.ts`,
-   which the backends' derivation and write-back both import, landing with the first of them. Every other persist of a
-   hand edit here runs under `write-back` too — the removal function's persist step and its takeover of an aside copy
-   (item 2), even inside `arc teardown` — so no hand edit lands under a verb that reads as itself; the removal check's
-   projection part writes nothing and carries none. Write-back sets the provenance itself, never from the file, so a
-   hand edit cannot name another verb. A refused edit, whether this call or the backend's check at the write refuses
-   it, stays in the file and is reported, never blocking the command (D13). The seam's members fill both slots;
-   this work unit consumes them. An empty slot needs no rule here: write-back is a contract `write`, which D5 lets land
-   unvalidated, a kind with no rules registers no check, and merge takes a kind's entry shape from its mechanism, not
-   its parser. Write-back is dark until the flip, so the gap is the flip's: `storage-cutover`'s rehearsal confirms every
-   hand-editable projected kind has its parser and every entry kind its entry shape, which `work-item/description`,
-   `work-item/inbound`, and `personal/errand-queue` still lack (`lib/store/registry.ts`) (captured; widened at draft
-   close).
+   rules where the write lands, not only through this call (the spec's § 3.2). The two names are one constant,
+   `HAND_EDIT_VERBS`, which `seam-record-kinds` exports beside `CallerProvenanceSchema` in `lib/store/links.ts` and
+   write-back imports. Every other persist of a hand edit here runs under `write-back` too — the removal function's
+   persist step and its takeover of an aside copy (item 2), even inside `arc teardown` — so no hand edit lands under a
+   verb that reads as itself; the removal check's projection part writes nothing and carries none. Write-back sets the
+   provenance itself, never from the file, so a hand edit cannot name another verb. A refused edit, whether this call or
+   the backend's check at the write refuses it, stays in the file and is reported, never blocking the command (D13). The
+   seam's members fill both slots; this work unit consumes them. An empty slot needs no rule here: write-back is a
+   contract `write`, which D5 lets land unvalidated, a kind with no rules registers no check, and merge takes a kind's
+   entry shape from its mechanism, not its parser. Write-back is dark until the flip, so the gap is the flip's:
+   `storage-cutover`'s rehearsal confirms every hand-editable projected kind has its parser and every entry kind its
+   entry shape, which `work-item/description`, `work-item/inbound`, and `personal/errand-queue` still lack
+   (`lib/store/registry.ts`) (captured; widened at draft close).
 2. **Checkout removal and the lock's sites.** One seam member builds one removal function for every removal ARC runs of
    a work unit's or Errand's checkout, spawn rollbacks aside (§ The worktree lock) — the removal check, then a persist
    step, then unlock when Git lists the checkout as locked, then remove — and the asks name `seam-lifecycle`, which
@@ -629,10 +656,11 @@ here. Five interfaces cross:
    `lib/git/worktree-cleanup.ts` defines, plus a projection part, a slot this work unit fills that reports whether the
    persist step would refuse — a file unadopted, held by a conflict, failing to parse, or holding a refused edit. The
    index records neither of the last two, so the projection part runs write-back's read path over each file that changed
-   — the settle rule, the parser, the kind's write check, and the merge against the store — and writes nothing; it takes
-   no lock, and the removal checks again under it. Its cost is the stat walk, about 3 ms on Linux and 27 ms on Windows
-   at 1,000 files (notes § Spike 2), plus the read of each changed file. Each member moves its callers that remove a
-   checkout onto the function and those that decide or report whether one can be removed onto the removal check.
+   — the settle rule, the parser, the merge against the store, and the kind's write check over the merged content with
+   item 1's views — and writes nothing; it takes no lock, and the removal checks again under it. Its cost is the stat
+   walk, about 3 ms on Linux and 27 ms on Windows at 1,000 files (notes § Spike 2), plus the read of each changed file.
+   Each member moves its callers that remove a checkout onto the function and those that decide or report whether one
+   can be removed onto the removal check.
    `seam-lifecycle` moves `teardown.ts` and `reconcile-work-unit-worktree.ts` onto the function, and onto the removal
    check `lifecycle-guards.ts`, whose guard refuses a park or abandon before any mutation fires, so a refusal present
    when the verb starts stops it before it changes anything. `seam-locus` moves onto the function the Errand's exits
@@ -738,6 +766,10 @@ None.
 - **Place write-back inside or outside `lib/store/`, now that the production registration set is ratchet-listed** (sent
   by `seam-record-kinds`' draft-design session after its pass 2, 2026-10-10) — integrated: the engine lives in
   `lib/store/projection/` (§ Engine), and § Coordination item 1 reads from `lib/store/kinds/registrations.ts`.
+- **Consume the approved write-check signature** (sent by `seam-record-kinds`' create-spec session, 2026-10-10) —
+  integrated: § Coordination item 1 passes `before` and `after` views and builds `after` itself, passes an unparseable
+  stored version as `prior` with no fields, checks the merged content rather than the file, imports `HAND_EDIT_VERBS`
+  from `seam-record-kinds`, and cites `spec-seam-record-kinds.md` in place of its draft.
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
