@@ -12,11 +12,12 @@ function meta(
   return [
     "# Metadata: x",
     "",
-    `- **State:** ${fields.state ?? "Planning"}`,
-    `- **Owner:** ${fields.owner ?? "andrew"}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? "Planning"} | ${fields.owner ?? "andrew"} | — | ${fields.class ?? "—"} | — |`,
+    "",
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
-    ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
     "",
     "---",
   ].join("\n");

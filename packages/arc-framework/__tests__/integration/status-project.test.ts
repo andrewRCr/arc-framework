@@ -36,10 +36,10 @@ function meta(slug: string, state: string, branch: string): string {
   return [
     `# Metadata: ${slug}`,
     "",
-    `- **State:** ${state}`,
-    "- **Owner:** andrew",
-    `- **Branch:** ${branch}`,
-    "- **Priority:** P1",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | andrew | ${branch} | — | P1 |`,
+    "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
     "",
@@ -49,7 +49,7 @@ function meta(slug: string, state: string, branch: string): string {
 }
 
 function metaAt(slug: string, state: string, branch: string, priority: string): string {
-  return meta(slug, state, branch).replace("- **Priority:** P1", `- **Priority:** ${priority}`);
+  return meta(slug, state, branch).replace("| P1 |", `| ${priority} |`);
 }
 
 async function commitAll(cwd: string, message: string): Promise<void> {
