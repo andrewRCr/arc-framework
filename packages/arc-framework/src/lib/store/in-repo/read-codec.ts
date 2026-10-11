@@ -1,17 +1,22 @@
 /** Lazy field decoding for the tracked kinds with existing record schemas. */
-import { parseMetaRecord } from "../../active/meta-reader.js";
+import type { InRepoContext } from "./context.js";
 import type { KindId } from "../catalog.js";
 
 /** A parser's independent fields, own-key evidence, or explicit rejecting rule. */
 export interface TrackedDecodedContent { fields?: unknown; key?: string; error?: string }
 /** Decode fields without validating ordinary Markdown writes.
+ * @param context - Backend registry and dependencies.
  * @param kind - Registered tracked role.
  * @param content - Exact stored bytes decoded as UTF-8.
  * @returns Fields or the rejecting rule; malformed bytes remain readable.
  */
-export async function decodeTrackedContent(kind: KindId, content: string): Promise<TrackedDecodedContent> {
+export async function decodeTrackedContent(context: InRepoContext, kind: KindId, content: string): Promise<TrackedDecodedContent> {
+  const parser = context.registry[kind].parser;
+  if (parser !== null) {
+    const parsed = parser(content);
+    return parsed.success ? { fields: parsed.data } : { error: parsed.error };
+  }
   try {
-    if (kind === "work-item/meta") return { fields: parseMetaRecord(content) };
     if (kind === "review/candidate") {
       const [codec] = await Promise.all([import("../../work-unit/candidate-attestation.js"), import("../../work-unit/candidate-record-store.js")]);
       const fields = codec.CandidateManagedRecordV1Schema.parse(JSON.parse(content));

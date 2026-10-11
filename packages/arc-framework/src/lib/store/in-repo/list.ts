@@ -60,7 +60,7 @@ async function listedRecord(context: InRepoContext, source: KindSource, input: L
   const content = await listingContent(context, source, input);
   if (content === null) return undefined;
   if (typeof content !== "string") return content;
-  const decoded = await decodeTrackedContent(kind, content);
+  const decoded = await decodeTrackedContent(context, kind, content);
   if (decoded.error !== undefined || (decoded.key !== undefined && decoded.key !== source.reference.owner.name)) {
     return { kind: decoded.error === undefined ? "key-mismatch" : "malformed", key: source.path,
       condition: decoded.error ?? `Stored record names ${decoded.key} instead of ${source.reference.owner.name}`,

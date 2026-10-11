@@ -45,7 +45,7 @@ the remote state too, holds that state's queue only while it compares and publis
     - `[x]` **1.1.c Add the per-worktree Git-directory root to the machine-local set**
         - Added the `git-worktree` root with `arc-checks/**` and verified its presence in the registry tests.
 
-### `[ ]` **1.2 In-repo meta reads and listings decode through the production registration set — § 1.2, § 2.2, § 11.1**
+### `[x]` **1.2 In-repo meta reads and listings decode through the production registration set — § 1.2, § 2.2, § 11.1**
 
 - _Goal:_ The in-repo implementation builds its registry from the one production registration set and decodes every
   meta it reads or lists through the registered parser, returning today's fields.
@@ -64,23 +64,11 @@ the remote state too, holds that state's queue only while it compares and publis
     - `[x]` **1.2.c Build the in-repo registry from the production set**
         - `createInRepoContext` now installs `PRODUCTION_REGISTRATIONS`, replacing its inline meta parser.
 
-    - `[ ]` **1.2.d Decode in-repo meta reads and listings through the registered parser**
-        - `decodeTrackedContent` (`lib/store/in-repo/read-codec.ts`) takes the context and decodes through its
-          registry's parser where the kind has one, ahead of its remaining branches; `readTracked` and `listedRecord`
-          pass it.
-        - The meta listing's direct parse (`parsedFields`, `lib/store/in-repo/meta.ts`) takes the context at its three
-          call sites — `flatActiveMeta`, `collectHeldMetaSources`, and `composedMetaSource` — and calls the registry's
-          parser; `MetaSource.fields` holds the parser's output, typed `unknown`.
-        - A parser failure leaves a read's fields absent, its bytes still returned, and lists as a `malformed`
-          diagnostic, as today.
-        - The tests are an integration test that replaces the production set with a stub meta registration
-          (`vi.mock` of `lib/store/kinds/registrations.ts`, which vitest hoists above the imports that load the
-          in-repo fixture) and reads and lists through the in-repo fixture's store; tests may not import
-          `lib/store/in-repo/` (`store-tests`), and production gains no registry parameter.
-        - Build `test-first` (one behavior at a time):
-            - a read and a listing return the fields the stub registration's parser produces
-            - a registration rejecting the content reads the bytes with no fields and lists a `malformed` diagnostic
-            - existing in-repo read, listing, and lifecycle-index tests pass unchanged
+    - `[x]` **1.2.d Decode in-repo meta reads and listings through the registered parser**
+        - Routed tracked decoding and all three meta-source paths through the backend's registry, with fields typed
+          `unknown`; registered parser failures keep read bytes and become malformed listing diagnostics.
+        - An integration registration substitution exercises acceptance and rejection through the fixture's public
+          store, alongside the unchanged tracked-read and lifecycle-index cases.
 
 ### `[ ]` **1.3 A check's broken rules compose one refusal under the derived writer — § 3.2, § 3.4**
 
