@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — A kind registration fills its kind's parser, check, and anchor slots
+- **Last Completed:** Task 6.5 — Every registered kind is settled
+- **Next Task:** Task 7.1 — Complete verification (line ~594 in `tasks-seam-record-kinds.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — declare the write check's contract types (Task 1.1.a), then take registrations in createKindRegistration
+- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` for final work-unit verification.
 
 - **PR URL:** [none]
 - **Completed:** [none]
