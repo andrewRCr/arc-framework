@@ -8,3 +8,7 @@ carry no incoming dispositions or outgoing list. References keep the name at the
 The writer sorts copied reference lists by UTF-8 name bytes before validating and leaves its input intact.
 `parser.ts` also provides the issue-bearing decode result used by `registration.ts`, which installs the create-only
 kind's content parser behind the store's raw-state boundary.
+
+`check.ts` refuses terminal lineage creation while the origin has held inbound entries in the proposed state. It
+uses the shared work-item observation and the declared inbound grammar; no declared grammar means no held-entry
+obligation. Unavailable reads retain an actionable refusal, and settling entries in the same batch permits retirement.

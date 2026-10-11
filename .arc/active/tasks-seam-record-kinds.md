@@ -558,11 +558,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - _Goal:_ The lineage record's and the cohort document's registrations carry checks running their rules, so a
   retirement leaves no inbound entry held and a cohort's Purpose, nesting, and members stay consistent in `after`.
 
-    - `[ ]` **6.4.a Build `lineage.inbound-held` and register the lineage check**
-        - Refuses a lineage record retiring a work unit created while that work unit's inbound list holds an entry in
-          `after`, under the given grammar; no grammar admits.
-        - Build `test-first` (one behavior at a time):
-            - under a stub grammar, a retirement with an entry held refuses and one without admits
+    - `[x]` **6.4.a Build `lineage.inbound-held` and register the lineage check**
+        - Terminal lineage creation observes the origin generation's proposed inbound entries through the shared
+          grammar-driven helper, including UID-less pre-import origins. Held or unavailable evidence refuses;
+          a batch settling the last entry admits, and the production registration supplies the declared grammar.
 
     - `[ ]` **6.4.b Build the cohort rules and register the cohort check**
         - `cohort.purpose`: a new document, or a write changing its Purpose, whose parsed `purpose` fails today's floor
