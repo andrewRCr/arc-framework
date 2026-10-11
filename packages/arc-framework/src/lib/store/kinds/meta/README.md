@@ -8,7 +8,7 @@
 `section-writer.ts` edits the Session Context body and rejects body lines that would delimit the section.
 `line-reading.ts` shares exact core-table cells, bullet extents, and section bodies behind the raw-state boundary.
 `empty-record.ts` constructs a fresh parsed record with no evidence for advisory read failures.
-`registration.ts` installs the tolerant meta parser and declares its state-version handoff anchor. Parsed and durable
+`registration.ts` installs the tolerant parser, complete write check, and state-version handoff anchor. Parsed and durable
 field schemas live in `lib/active/meta-schema.ts`; the filesystem reader and parser expose their public API through
 `lib/active/meta-reader.ts`.
 
@@ -24,3 +24,7 @@ so an unrelated malformed cohort does not block an edit.
 `lifecycle-rules.ts` checks the state/workflow/design tuple on active placement entry or relevant field changes.
 Preparation checks the projected own task-list filename and the resulting cursor when its fields change; stored stale
 values stay readable, and unavailable placement or task-list observations retain an explicit retry remedy.
+
+`check.ts` composes the nine metadata rules and both shared slug rules, returning every violation. The registration
+supplies the inbound kind's declared grammar to `inbound-held-rule.ts`; no grammar means no held-entry obligation.
+Integration and archive transitions judge the resulting list, so a batch can settle its last entry before leaving.

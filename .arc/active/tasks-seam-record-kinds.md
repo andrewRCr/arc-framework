@@ -499,14 +499,10 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
 - _Outcome:_ Native lint permits only the five helper entry points for static store imports and re-exports. The helper
   closure and the shared-rule closure contain no parser, registration, or backend back-edge.
 
-### `[ ]` **6.2 The meta's check — § 3.3, § 3.6, § 4, § 5.3, § 5.4**
+### `[x]` **6.2 The meta's check — § 3.3, § 3.6, § 4, § 5.3, § 5.4**
 
 - _Goal:_ The meta's registration carries a check running its nine rules and the two shared slug rules, each rule
   reusing today's condition where one exists, applied to what the write changes against the prior version.
-
-- _Context:_ A rule restates a pre-commit condition over parsed fields and the kind's own line reading; no kind module
-  imports from `scripts/` or `commands/` (§ 1.2), and `scripts/validate-meta-spec.ts` keeps its validators as they
-  are.
 
     - `[x]` **6.2.a Build the authority and shape rules**
         - Authority protects meta creation/removal and changed State, Class, or Current Workflow. Shape rules compare
@@ -523,16 +519,14 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           requires the projected own task-list filename and an `after` cursor with no open task; both no-list sentinels
           refuse. Unchanged stale fields admit, while unavailable placement or task-list evidence remains a refusal.
 
-    - `[ ]` **6.2.d Build `meta.inbound-held` and register the check**
-        - `meta.inbound-held`: a write moving a work unit to `Integrating` or to the archive while its inbound list,
-          read through `after` and split by the given entry grammar, holds an entry; no grammar admits.
-        - The meta's registration carries the check, running the nine rules and the shared slug rules.
-        - Confirm the registered check's runtime closure reaches no meta parser, production registration, or backend.
-        - Build `test-first` (one behavior at a time):
-            - under a stub grammar, an entry held at `Integrating` and at archive refuses
-            - an empty or missing inbound list admits
-            - with no grammar declared, the rule admits
-            - the registered check returns every rule a write breaks, two at once included
+    - `[x]` **6.2.d Build `meta.inbound-held` and register the check**
+        - The declared-grammar inbound observation checks the proposed list on Integrating or archive entry, preserving
+          unavailable evidence and admitting without a grammar. The production registration composes all nine meta
+          rules and both slug rules; multi-rule cases return the complete catalog of applicable violations.
+
+- _Outcome:_ The registered check and the five meta-reader helper entry points retain separate runtime closures,
+  with no parser, production-registration, or backend back-edge. Existing pre-commit validators remain unchanged;
+  the kind rules restate their conditions over the write's changed fields and proposed records.
 
 ### `[ ]` **6.3 The task list's check — § 3.3, § 3.6, § 6.3, § 6.4, § 6.5**
 
