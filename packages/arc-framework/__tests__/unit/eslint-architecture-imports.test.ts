@@ -29,6 +29,13 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it("keeps Errand registration behind the store boundary", () => {
+    expect(violations("handlers/outside.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "../lib/store/kinds/errand-record/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/errand-record/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "./errand-record/registration.js";', "store-raw-state")).toEqual([]);
+  });
   it("keeps cohort registration behind the store while exposing its pure parser", () => {
     expect(violations("handlers/outside.ts",
       'import { COHORT_REGISTRATION } from "../lib/store/kinds/cohort/registration.js";', "store-raw-state"))

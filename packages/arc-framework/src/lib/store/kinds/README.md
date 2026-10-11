@@ -22,3 +22,5 @@ offset reader used by status's sentence presentation.
 
 `work-item/` contains the slug acquisition and former-name rules shared by primary record kinds.
 `rule-support.ts` preserves available, absent, and unavailable read evidence for content checks.
+
+`errand-record/` registers both shared slug rules for the Errand primary, over the supplied batch views.

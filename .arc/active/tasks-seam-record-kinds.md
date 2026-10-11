@@ -459,7 +459,7 @@ fixture's test parsers never exercise the production rules (§ 11.3). A rule jud
 what differs from the prior version (§ 3.3); a stale value never refuses an unrelated write. The held-entries rules take
 the inbound list's entry grammar as an input and admit while the inbound kind declares none.
 
-### `[ ]` **6.1 The shared slug rules and the Errand record's check — § 3.3, § 3.6, § 5.3, § 10**
+### `[x]` **6.1 The shared slug rules and the Errand record's check — § 3.3, § 3.6, § 5.3, § 10**
 
 - _Goal:_ `work-item.former-slug` and `work-item.slug-edges` refuse a creation or rename taking a slug they guard, from
   `lib/store/kinds/work-item/`, and the Errand record registers a check running both.
@@ -474,13 +474,9 @@ the inbound list's entry grammar as an input and admit while the inbound kind de
           views. It names surviving edges and the reconcile, resume, stub-edit, or alternate-slug remedy; batch-settled,
           removed, and archived dependents admit. Incomplete enumeration or reads remain explicit refusals.
 
-    - `[ ]` **6.1.c Register the Errand record's check**
-        - `lib/store/kinds/errand-record/`'s registration carries a check alone, running both shared rules; the Errand
-          record keeps its schema and codec (`lib/errand/identity-record.ts`).
-        - The registration module builds it through `defineKindRegistration` and joins `RAW_STATE_MODULES`, as the
-          meta's does; the registration joins `registrations.ts`.
-        - Build `test-first` (one behavior at a time):
-            - the registered check returns both rules when a write breaks both
+    - `[x]` **6.1.c Register the Errand record's check**
+        - Its check-only production registration composes both shared rules and returns both violations when a write
+          breaks both. The registration joins the raw-state boundary, with its outside-store import refused.
 
 ### `[ ]` **6.2 The meta's check — § 3.3, § 3.6, § 4, § 5.3, § 5.4**
 
