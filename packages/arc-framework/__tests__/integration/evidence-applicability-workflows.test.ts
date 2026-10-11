@@ -45,6 +45,8 @@ describe("evidence applicability workflow fire-points", () => {
     const workflow = await readPair(prepareWorkflow);
 
     expect(workflow).toContain("`nextAction.requiredScope`");
+    expect(workflow).toContain("arc check gate push --range --force");
+    expect(workflow).toContain("arc check gate merge --force");
     expect(workflow).toContain("`nextAction.verificationKind`");
     expect(workflow).toContain("`nextAction.attestArgv`");
     expect(workflow).toContain("`{verificationEvidenceRef}`");

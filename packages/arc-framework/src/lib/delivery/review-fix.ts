@@ -743,7 +743,7 @@ export type DeliveryReviewFixPublicationResult =
       readonly nextAction: "execute-provider-refresh";
       readonly verification: {
         readonly memberDeliverableIds: readonly string[];
-        readonly tier1Required: true;
+        readonly commitGateRequired: true;
       };
       readonly recommendedActionText: string;
     }
@@ -817,7 +817,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
     selectedDeliverableId: input.selectedDeliverableId,
     affectedDeliverableIds,
     nextAction: "execute-provider-refresh",
-    verification: { memberDeliverableIds: [input.selectedDeliverableId], tier1Required: true },
+    verification: { memberDeliverableIds: [input.selectedDeliverableId], commitGateRequired: true },
     recommendedActionText:
       "Run provider-native refresh execution for the selected member; ARC will publish any dependent rewrites "
       + "and absorb the resulting highest member into the top.",

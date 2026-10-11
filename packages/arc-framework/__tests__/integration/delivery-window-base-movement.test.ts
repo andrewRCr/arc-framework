@@ -43,7 +43,7 @@ async function arrange(): Promise<CandidateChainArrangement> {
   return arrangement;
 }
 
-/** Every member's Tier 2 result, reported passing against the exact coordinates gates ran on. */
+/** Every member's push-gate result, reported passing against the exact coordinates gates ran on. */
 function passingGateResults(snapshot: DeliveryEligibilitySnapshot): readonly DeliveryCandidateGateResult[] {
   return snapshot.members.map((member) => ({
     deliverableId: member.deliverableId,

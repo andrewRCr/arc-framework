@@ -462,7 +462,7 @@ paragraph) plus rule-heading annotations removed throughout the file (17 sites).
 Rule → Principle mapping (constructed from `· PN` annotations stripped during audit):
 
 | Rule                                 | Principles |
-|--------------------------------------|------------|
+| ------------------------------------ | ---------- |
 | Commit control                       | P2, P6     |
 | Commit format                        | P6         |
 | Atomicity                            | P6         |

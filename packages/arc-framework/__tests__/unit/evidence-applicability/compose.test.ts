@@ -11,6 +11,7 @@ import {
   composeEvidenceDelta,
   type EvidenceOverlapObservation,
 } from "../../../src/lib/evidence-applicability/index.js";
+import type { GitMergeFeasibility } from "../../../src/lib/git/merge-feasibility.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -59,7 +60,34 @@ describe("evidence delta composition", () => {
       approvedScope: "not-applicable",
       observed: { kind: "base-movement", coordinates: coordinates() },
       residual: ["packages/arc-framework/src/example.ts"],
+      substantiveMerge: "unobserved",
     });
+  });
+
+  it("reads whether the merge of base and head leaves a substantive conflict", () => {
+    const merged = (merge?: GitMergeFeasibility) => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap, ...(merge === undefined ? {} : { merge }) },
+    });
+    const at = { base: oid("a"), head: oid("b") };
+
+    expect([
+      merged({ state: "clean", ...at }),
+      merged({ state: "regenerable-conflict", ...at, paths: [regenerable] }),
+      merged({ state: "substantive-conflict", ...at, paths: [reviewable] }),
+      merged({ state: "unavailable", ...at, detail: "merge-tree is unavailable" }),
+      merged(),
+    ].map((delta) => delta.cause === "base-movement" ? delta.substantiveMerge : delta.cause))
+      .toEqual(["clean", "clean", "conflicted", "unobserved", "unobserved"]);
+  });
+
+  it("leaves a merge observed at other coordinates unobserved", () => {
+    for (const at of [{ base: oid("c"), head: oid("b") }, { base: oid("a"), head: oid("c") }]) {
+      expect(composeEvidenceDelta({
+        cause: "base-movement",
+        observation: { coordinates: coordinates(), overlap, merge: { state: "clean", ...at } },
+      })).toMatchObject({ substantiveMerge: "unobserved" });
+    }
   });
 
   it("leaves a base with more than one comparison point unproven rather than disjoint", () => {

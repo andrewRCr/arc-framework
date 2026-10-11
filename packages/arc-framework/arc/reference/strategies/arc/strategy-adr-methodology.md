@@ -297,14 +297,14 @@ When the decision itself changes, write a new ADR and update the original's stat
 
 ### Choosing the right tier
 
-| Change                                      | Tier                                    |
-| ------------------------------------------- | --------------------------------------- |
-| Fix a typo in the Decision section          | Correction                              |
-| Update a broken link to an external API doc | Correction                              |
-| Note that a predicted risk didn't happen    | Amendment                               |
-| Add a cross-reference to a new ADR          | Amendment                               |
-| Reword the Decision for clarity             | Amendment (must not change meaning)     |
-| Reverse or significantly alter the decision | Supersession                            |
-| Choose a different technology than decided  | Supersession                            |
+| Change                                      | Tier                                |
+| ------------------------------------------- | ----------------------------------- |
+| Fix a typo in the Decision section          | Correction                          |
+| Update a broken link to an external API doc | Correction                          |
+| Note that a predicted risk didn't happen    | Amendment                           |
+| Add a cross-reference to a new ADR          | Amendment                           |
+| Reword the Decision for clarity             | Amendment (must not change meaning) |
+| Reverse or significantly alter the decision | Supersession                        |
+| Choose a different technology than decided  | Supersession                        |
 
 ---

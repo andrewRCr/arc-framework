@@ -187,14 +187,14 @@ describe("update integration — baseline (real recipe)", () => {
         "route-discovered-work", "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "disposition-report",
-        "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+        "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-response", "review-triage",
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ].map((n) => `system/methods/${n}.md`),
       ...[
-        "post-context-load", "post-task-completion", "post-task-quality",
-        "post-unit-quality", "post-work-unit-activate",
+        "post-context-load", "post-task-completion",
+        "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
         "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ].map((n) => `system/extensions/${n}.md`),
@@ -1143,6 +1143,7 @@ describe("update integration — error cases", () => {
 
 describe("buildUpdateSummary", () => {
   const baseResult: UpdateResult = {
+    checkBootstrap: null,
     updated: 0,
     migrated: [],
     conflicts: [],
@@ -1158,6 +1159,7 @@ describe("buildUpdateSummary", () => {
     skillWarnings: [],
     migrationWarnings: [],
     pristineStoreError: null,
+    hookUpgrade: { files: [], warnings: [], instructions: [] },
   };
 
   it("shows 'rebuilt' count in summary line", () => {

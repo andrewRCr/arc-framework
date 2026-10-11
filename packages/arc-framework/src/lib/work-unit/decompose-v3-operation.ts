@@ -366,11 +366,12 @@ async function prepareV3Operation(
       origin: input.origin,
       plan: input.plan,
     });
-  } catch {
+  } catch (error) {
     return {
       status: "refused",
       stage: "occupation",
       reason: "occupation-failed",
+      locus: failureLocus(error, "occupation failed"),
       recovery: { kind: "none" },
     };
   }
@@ -388,8 +389,11 @@ async function prepareV3Operation(
   let revalidated: V3PostOccupationRevalidation;
   try {
     revalidated = await dependencies.revalidate(input.plan, occupation);
-  } catch {
-    revalidated = { status: "refused", reason: "post-occupation-revalidation-failed" };
+  } catch (error) {
+    revalidated = {
+      status: "refused", reason: "post-occupation-revalidation-failed",
+      locus: failureLocus(error, "post-occupation revalidation failed"),
+    };
   }
   if (revalidated.status === "refused") {
     return {

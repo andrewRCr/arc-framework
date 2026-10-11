@@ -237,16 +237,6 @@
       "layer": "core",
       "pristine_hash": "bd9588190fb258e2713efb1af579c63b793a2792308f56604a8bb4462da65793"
     },
-    "system/extensions/post-task-quality.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "d110027409af01f5673b19138347a964b9666b0e1de78d66e2d13634598d24fe"
-    },
-    "system/extensions/post-unit-quality.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "91e7ef3cc60a7a8fe3bc84837c9fea47851c2312ee2685e5c2a9f950ccf24f50"
-    },
     "system/extensions/post-work-unit-activate.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -446,11 +436,6 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "4e1ebdac1d7347c9bc100412b74bca0a015ad3494b7959d36f858ffab463b299"
-    },
-    "system/methods/quality-gate-commands.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "9bb2f54ff4e75465ac983577108bb180d59439b54c81c1b3776bb66b46174f4c"
     },
     "system/methods/resolve-plan-segmentation.md": {
       "classification": "Configurable",

@@ -100,11 +100,11 @@ lists.
 
 ### Axis 1 — Scope
 
-| Value     | Meaning                                                | Shipped | Dev |
-|-----------|--------------------------------------------------------|---------|-----|
-| framework | Ships to all adopters via package source               | —       | ✓   |
-| project   | This adopter only; lives in `.arc/`                    | ✓       | ✓   |
-| personal  | Per-developer; gitignored under `user/{identity}/`     | ✓       | ✓   |
+| Value     | Meaning                                            | Shipped | Dev |
+| --------- | -------------------------------------------------- | ------- | --- |
+| framework | Ships to all adopters via package source           | —       | ✓   |
+| project   | This adopter only; lives in `.arc/`                | ✓       | ✓   |
+| personal  | Per-developer; gitignored under `user/{identity}/` | ✓       | ✓   |
 
 Shipped `arc-reinforce` constrains Axis 1 to `{project, personal}`. Dev variant
 `arc-reinforce-dev` adds `framework`, plus the package-sync workflow handoff trigger that fires
@@ -112,19 +112,19 @@ when framework × any × durable lands.
 
 ### Axis 2 — Form
 
-| Value     | Meaning                                          | Anchor destinations                        |
-|-----------|--------------------------------------------------|--------------------------------------------|
-| rule      | Constraint on what to do or avoid                | DEV-RULES.{ARC,PROJECT,DOMAIN}             |
-| procedure | Sequence of steps                                | system/project workflows                   |
-| reference | Stable fact about what something is or where     | AGENT-BRIEF.{ARC,PROJECT}, QUICK-REFERENCE |
-| trigger   | When/where a behavior fires                      | method override, extension activation      |
+| Value     | Meaning                                      | Anchor destinations                        |
+| --------- | -------------------------------------------- | ------------------------------------------ |
+| rule      | Constraint on what to do or avoid            | DEV-RULES.{ARC,PROJECT,DOMAIN}             |
+| procedure | Sequence of steps                            | system/project workflows                   |
+| reference | Stable fact about what something is or where | AGENT-BRIEF.{ARC,PROJECT}, QUICK-REFERENCE |
+| trigger   | When/where a behavior fires                  | method override, extension activation      |
 
 ### Axis 3 — Persistence
 
-| Value     | Meaning                                          | Implication                              |
-|-----------|--------------------------------------------------|------------------------------------------|
-| durable   | Lives until superseded by future change          | Default for codified guidance            |
-| temporary | Active for bounded period, with removal trigger  | SESSION-NOTES persistent context entry   |
+| Value     | Meaning                                         | Implication                            |
+| --------- | ----------------------------------------------- | -------------------------------------- |
+| durable   | Lives until superseded by future change         | Default for codified guidance          |
+| temporary | Active for bounded period, with removal trigger | SESSION-NOTES persistent context entry |
 
 Personal × temporary always lands as a SESSION-NOTES persistent context entry with explicit
 removal trigger (by definition of the section).

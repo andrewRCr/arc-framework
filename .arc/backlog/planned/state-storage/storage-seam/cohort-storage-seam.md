@@ -52,14 +52,14 @@ Members inherit consumer-map rows rather than redesigning their subsystem, and r
 plan. Counts are seam-owned rows in the landed map; the six rows added since `baa12bf98` each fall in a partition the
 member already holds. Record kinds inherits none: it builds the kinds those rows consume.
 
-| Member                                     | Rows | From the map's partitions                                               |
-| ------------------------------------------ | ---- | ----------------------------------------------------------------------- |
-| `seam-record-kinds`                        | —    | none of its own; the kinds the other members' rows consume              |
-| `seam-lifecycle`                           | 79   | lifecycle and in-flight, less decomposition and in-flight derivation    |
-| `seam-decomposition`                       | 19   | lifecycle and in-flight: `decompose-work-unit.md` and its modules       |
-| `seam-delivery-review`                     | 35   | delivery; review and evidence                                           |
-| `seam-locus`                               | 63   | locus and session-init; user sync; in-flight derivation from lifecycle  |
-| `seam-status-roadmap`                      | 16   | status and roadmap                                                      |
+| Member                 | Rows | From the map's partitions                                              |
+| ---------------------- | ---- | ---------------------------------------------------------------------- |
+| `seam-record-kinds`    | —    | none of its own; the kinds the other members' rows consume             |
+| `seam-lifecycle`       | 79   | lifecycle and in-flight, less decomposition and in-flight derivation   |
+| `seam-decomposition`   | 19   | lifecycle and in-flight: `decompose-work-unit.md` and its modules      |
+| `seam-delivery-review` | 35   | delivery; review and evidence                                          |
+| `seam-locus`           | 63   | locus and session-init; user sync; in-flight derivation from lifecycle |
+| `seam-status-roadmap`  | 16   | status and roadmap                                                     |
 
 - **Record kinds stand apart and ship first.** Lifecycle, decomposition, locus, and delivery all write records whose
   kinds items 1–8 of the shared decisions settle — the meta, task list, lineage, and cohort document — and status reads

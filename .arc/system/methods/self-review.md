@@ -54,9 +54,9 @@ aggregate change actually solve the stated problem? Check exception handling pat
 code systematically underperforms on error cases and edge conditions.
 
 **Process findings** using the [review-triage method](review-triage.md). Present the author self-review as the
-standalone non-producer report that method describes, and obtain complete-set approval before applying fixes. Run Tier
-3 quality gates on modified files. Commit finding-driven fixes with the canonical `(code review)` context footer;
-reserve lifecycle-phase footers for ceremony commits rather than the fixes review produced.
+standalone non-producer report that method describes, and obtain complete-set approval before applying fixes. Request
+`arc check increment` once over the approved fixes. Commit finding-driven fixes with the canonical `(code review)`
+context footer; reserve lifecycle-phase footers for ceremony commits rather than the fixes review produced.
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.

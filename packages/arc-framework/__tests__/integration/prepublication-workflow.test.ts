@@ -111,22 +111,22 @@ describe("prepublication workflow boundary", () => {
         .toMatch(softWrappedProse("approval does not authorize delivery-member advancement"));
 
       const recordedAttention = indexOfSoftWrappedProse(verification, "member-close scale-attention result");
-      const tierThree = indexOfSoftWrappedProse(verification, "Run the complete quality gate suite");
+      const mergeChecks = verification.indexOf("arc check gate merge --force");
       expect(recordedAttention).toBeGreaterThan(-1);
-      expect(recordedAttention).toBeLessThan(tierThree);
+      expect(recordedAttention).toBeLessThan(mergeChecks);
       expect(verification).toContain("    - review-chunking");
-      expect(verification.slice(recordedAttention, tierThree))
+      expect(verification.slice(recordedAttention, mergeChecks))
         .toMatch(/metrics when the resolver\s+supplies them/u);
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);
-      const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
+      const pushChecks = delivery.indexOf("arc check gate push --all", locate);
       expect(materializedScale).toBeGreaterThan(locate);
-      expect(materializedScale).toBeLessThan(tierTwo);
+      expect(materializedScale).toBeLessThan(pushChecks);
       expect(delivery).toContain("    - review-chunking");
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("materialized member scale recheck"));
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("No Tier 2 command starts"));
-      expect(delivery.slice(locate, tierTwo))
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("materialized member scale recheck"));
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("No member push-gate request starts"));
+      expect(delivery.slice(locate, pushChecks))
         .toMatch(softWrappedProse("whole-target choice closes the attention disposition"));
 
       for (const [workflow, carrierCommand] of [
@@ -295,13 +295,13 @@ describe("prepublication workflow boundary", () => {
 
       const cleanup = indexOfSoftWrappedProse(verification, "Before the Candidate exists, clean the WU content");
       const selfReview = indexOfSoftWrappedProse(verification, "execute it against the local aggregate diff");
-      const tierThree = verification.indexOf("[quality-gate-commands method][arc-methods-qg]");
+      const mergeChecks = verification.indexOf("arc check gate merge --force");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);
       expect(selfReview).toBeGreaterThan(cleanup);
-      expect(tierThree).toBeGreaterThan(selfReview);
-      expect(attest).toBeGreaterThan(tierThree);
+      expect(mergeChecks).toBeGreaterThan(selfReview);
+      expect(attest).toBeGreaterThan(mergeChecks);
       expect(reRoot).toBeGreaterThan(attest);
       expect(verification).toMatch(softWrappedProse("execute its exact `continuation.argv`"));
       expect(verification).toContain("`attested / re-root`");

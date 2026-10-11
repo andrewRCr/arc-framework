@@ -13,8 +13,6 @@ import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/l
 import { recordHostedRequestAdmission, acknowledgeHostedRequest, recordHostedAwaitAttempt, readLaneProgress } from
   "../../src/scripts/review-gate/lane-progress.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
-import { projectGitReviewContributionApplicability } from
-  "../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 import type { HostedRequestHandle } from "../../src/scripts/review-gate/hosted/request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
@@ -249,16 +247,56 @@ async function reviewedErrand(
     expect(exits, output.join("")).toEqual([]);
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
   });
-  /** Merge the published base into the branch, as the approved append-only reconcile does, and publish it. */
-  const reconcile = async (): Promise<typeof target> => {
+  /**
+   * Merge the published base into the branch, as the approved append-only reconcile does, and publish it.
+   *
+   * @param resolve - Resolves the conflicts of a merge that cannot complete on its own; omitted, the merge must.
+   */
+  const reconcile = async (resolve?: () => Promise<void>): Promise<typeof target> => {
     await git(root, ["fetch", "origin", "main"]);
-    await git(root, ["-c", "core.hooksPath=/dev/null", "merge", "--no-edit", "refs/remotes/origin/main"]);
+    const merge = git(root, ["-c", "core.hooksPath=/dev/null", "merge", "--no-edit", "refs/remotes/origin/main"]);
+    if (resolve === undefined) await merge;
+    else {
+      await expect(merge).rejects.toThrow();
+      await resolve();
+      await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "--no-edit"]);
+    }
     const reconciled = await git(root, ["rev-parse", "HEAD"]);
     await git(root, ["push", "origin", branch]);
     await installHost(root, reconciled, remote);
     return { ...target, headSha: reconciled };
   };
   return { root, base, target, paths, status, publish, reconcile };
+}
+
+/** Publish one base-side edit to an existing file, leaving the checkout untouched. */
+async function advanceBaseFile(root: string, path: string, content: string): Promise<string> {
+  return (await advanceBase({ cwd: root, paths: [path], contents: { [path]: content }, message: "edit the base side" }))
+    .head;
+}
+
+const baselinePath = "lint-baseline.json";
+const baselineLines = Array.from({ length: 12 }, (_, line) => `entry ${String(line)}`);
+
+/** The seeded baseline file, with each named line edited by the named side. */
+function editBaseline(...edits: readonly (readonly [line: number, side: string])[]): string {
+  return `${baselineLines.map((entry, index) => {
+    const side = edits.find(([line]) => line === index)?.[1];
+    return side === undefined ? entry : `${entry} removed by ${side}`;
+  }).join("\n")}\n`;
+}
+
+/** A reviewed Errand whose branch edits one line of the seeded baseline file. */
+async function reviewedBaselineEdit() {
+  return reviewedErrand("hosted", "disjoint", {
+    seed: { [baselinePath]: editBaseline() },
+    arrange: async (root) => {
+      await writeFile(join(root, baselinePath), editBaseline([1, "branch"]));
+      await git(root, ["add", "--", baselinePath]);
+      await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove a branch-side baseline entry"]);
+      return undefined;
+    },
+  });
 }
 
 describe("Errand review currency across base movement", () => {
@@ -284,6 +322,19 @@ describe("Errand review currency across base movement", () => {
       routedObligation: { state: "review-required" },
       baseMovement: { overlap: { status: "available", substantivePaths: fixture.paths.base } },
     });
+  });
+
+  it("keeps review settled when the base edits other lines of a reviewed file", async () => {
+    const fixture = await reviewedBaselineEdit();
+    const advanced = await advanceBaseFile(fixture.root, baselinePath, editBaseline([10, "base"]));
+    const status = await fixture.status();
+    expect(status, JSON.stringify(status)).toMatchObject({
+      routedObligation: { state: "settled" },
+      currentBaseOid: advanced,
+      movement: "overlapping",
+      baseMovement: { overlap: { substantivePaths: [baselinePath] }, merge: { state: "clean" } },
+    });
+    expect(status).not.toMatchObject({ state: "base-moved" });
   });
 
   it("refuses to carry review when overlap cannot be read", async () => {
@@ -349,22 +400,6 @@ async function standardProgress(root: string, headSha: string) {
   });
 }
 
-/** Publish one base-side edit to an existing file through a scratch worktree, leaving the checkout untouched. */
-async function advanceBaseFile(root: string, path: string, content: string): Promise<string> {
-  const scratch = join(root, ".arc-fixture", "base-edit");
-  await git(root, ["fetch", "origin", "main"]);
-  await git(root, ["worktree", "add", "--detach", scratch, "refs/remotes/origin/main"]);
-  try {
-    await writeFile(join(scratch, path), content);
-    await git(scratch, ["add", "--", path]);
-    await git(scratch, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "edit the base side"]);
-    await git(scratch, ["push", "origin", "HEAD:refs/heads/main"]);
-    return await git(scratch, ["rev-parse", "HEAD"]);
-  } finally {
-    await git(root, ["worktree", "remove", "--force", scratch]);
-  }
-}
-
 describe("Errand review carry across an approved base merge", () => {
   it.each(["hosted", "local"] as const)("carries settled %s review onto a mechanical base merge", async (carrier) => {
     const fixture = await reviewedErrand(carrier, "disjoint");
@@ -405,33 +440,29 @@ describe("Errand review carry across an approved base merge", () => {
     expect(await fixture.status(undefined, reconciled)).toMatchObject({ routedObligation: { state: "settled" } });
   });
 
-  it("keeps a merge that combined edits to one reviewed file on the review path", async () => {
-    const path = "lint-baseline.json";
-    const lines = Array.from({ length: 12 }, (_, line) => `entry ${String(line)}`);
-    const edit = (line: number, side: string) =>
-      `${lines.map((entry, index) => index === line ? `${entry} removed by ${side}` : entry).join("\n")}\n`;
-    const fixture = await reviewedErrand("hosted", "disjoint", {
-      seed: { [path]: `${lines.join("\n")}\n` },
-      arrange: async (root) => {
-        await writeFile(join(root, path), edit(1, "branch"));
-        await git(root, ["add", "--", path]);
-        await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove a branch-side baseline entry"]);
-        return undefined;
-      },
-    });
-    const advanced = await advanceBaseFile(fixture.root, path, edit(10, "base"));
+  it("carries review onto a merge that combined separate edits to one reviewed file", async () => {
+    const fixture = await reviewedBaselineEdit();
+    const advanced = await advanceBaseFile(fixture.root, baselinePath, editBaseline([10, "base"]));
+    // Both sides edited the file, so the paths overlap; the merge combines the edits without a conflict.
     const reconciled = await fixture.reconcile();
-    // The merge reapplies the reviewed change exactly; only the overlapping base movement withholds the carry.
-    const contribution = await projectGitReviewContributionApplicability({
-      selector: {
-        schemaVersion: 1, repositoryId: "repository-1", repository, pullRequest, lane: "standard",
-        sourceId: "codex-pr", priorAttemptId: "attempt-1", priorHead: fixture.target.headSha,
-        currentHead: reconciled.headSha, priorBase: fixture.base, currentBase: advanced,
+    const status = await fixture.status(undefined, reconciled);
+    expect(status, JSON.stringify(status)).toMatchObject({
+      routedObligation: {
+        state: "settled",
+        detail: expect.stringContaining(`review of ${fixture.target.headSha} carries to this head`),
       },
-      exec: createRawGitExec(fixture.root),
-      observeEndpoints: () => Promise.resolve({ head: reconciled.headSha, base: advanced }),
+      currentBaseOid: advanced,
     });
-    expect(contribution).toMatchObject({ state: "applicable" });
+  });
+
+  it("keeps a merge that resolved adjacent edits to one reviewed file on the review path", async () => {
+    const fixture = await reviewedBaselineEdit();
+    await advanceBaseFile(fixture.root, baselinePath, editBaseline([2, "base"]));
+    // Git conflicts on edits to adjacent lines, so the reconcile needs a hand resolution no review has seen.
+    const reconciled = await fixture.reconcile(async () => {
+      await writeFile(join(fixture.root, baselinePath), editBaseline([1, "branch"], [2, "base"]));
+      await git(fixture.root, ["add", "--", baselinePath]);
+    });
     expect(await fixture.status(undefined, reconciled)).toMatchObject({
       routedObligation: { state: "review-required" },
     });
@@ -455,6 +486,16 @@ describe("Errand review carry across an approved base merge", () => {
     const reconciled = await fixture.reconcile();
     expect(await fixture.status(undefined, reconciled)).toMatchObject({
       routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("judges base movement since the merge that edits other lines of the reviewed file", async () => {
+    const fixture = await reviewedBaselineEdit();
+    await advanceBaseFile(fixture.root, baselinePath, editBaseline([10, "base"]));
+    const reconciled = await fixture.reconcile();
+    const later = await advanceBaseFile(fixture.root, baselinePath, editBaseline([6, "later base"], [10, "base"]));
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state: "settled" }, currentBaseOid: later,
     });
   });
 

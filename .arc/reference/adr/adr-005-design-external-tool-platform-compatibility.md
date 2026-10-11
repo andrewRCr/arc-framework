@@ -64,7 +64,7 @@ We will introduce a **method override** system as the third customization mechan
 in ADR-003:
 
 | Mechanism       | What it does                | File                | Example                                    |
-|-----------------|-----------------------------|---------------------|--------------------------------------------|
+| --------------- | --------------------------- | ------------------- | ------------------------------------------ |
 | Config          | Toggles enforcement         | `arc-config.yml`    | `commit.format: any` disables hook         |
 | Extension       | Adds steps to workflows     | `arc-extensions.md` | Post-task quality: also run Snyk scan      |
 | Method override | Replaces default convention | `arc-methods.md`    | Task completion: update Jira, not markdown |
@@ -142,7 +142,7 @@ fewer is better than more.
 **Candidate preset methods** (to be finalized during WU2 when workflows are updated):
 
 | Method                   | Workflow             | Default                          | Common Override               |
-|--------------------------|----------------------|----------------------------------|-------------------------------|
+| ------------------------ | -------------------- | -------------------------------- | ----------------------------- |
 | Task completion tracking | process-task-loop    | Mark `[x]` in markdown task list | Update Jira/Linear status     |
 | Quality gate commands    | process-task-loop    | Project-specific lint/test/build | Team CI suite, security scans |
 | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
@@ -174,7 +174,7 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 **Hook behavior by config value:**
 
 | Setting value  | Hook behavior                                                |
-|----------------|--------------------------------------------------------------|
+| -------------- | ------------------------------------------------------------ |
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against `commit.custom_pattern` regex              |
 | `any`          | Skips format validation entirely                             |
@@ -342,7 +342,7 @@ followed the adapter workflow.
 The four mechanisms form a complete customization model:
 
 | Mechanism       | Purpose                   | File                 | Scope             |
-|-----------------|---------------------------|----------------------|-------------------|
+| --------------- | ------------------------- | -------------------- | ----------------- |
 | Config          | Toggle enforcement        | `arc-config.yml`     | Convention values |
 | Extension       | Add workflow steps        | `arc-extensions.md`  | New behavior      |
 | Method override | Replace convention impl   | `arc-methods.md`     | Alt. behavior     |

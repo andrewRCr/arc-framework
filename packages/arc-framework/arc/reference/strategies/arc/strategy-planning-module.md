@@ -32,7 +32,7 @@ Three capture surfaces plus a generated sequencing view, distinguished by **owne
 vs. project-shared) and **work character** (atomic vs. multi-step):
 
 | Artifact                           | Location           | Scope                | Purpose                                               |
-|------------------------------------|--------------------|----------------------|-------------------------------------------------------|
+| ---------------------------------- | ------------------ | -------------------- | ----------------------------------------------------- |
 | `USER-INBOX.md`                    | `user/{identity}/` | Personal, gitignored | Live capture; `## Errand` and `## Work Unit` sections |
 | `ATOMIC-INBOX.md`                  | `backlog/`         | Project-shared       | Homeless atomic entries (committed, tracked)          |
 | `{planned,provisional}/<wu-name>/` | `backlog/`         | Project-shared       | Per-WU subdirs for matured backlog WUs                |

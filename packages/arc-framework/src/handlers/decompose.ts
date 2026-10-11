@@ -52,7 +52,9 @@ function emitV3DecomposeRefusal(
       ? GitV3ExtractionCommandRefusalSchema.parse(input)
       : V3DecomposeCoreRefusalSchema.parse(input);
   process.stdout.write(`${canonicalize(refusal)}\n`);
-  process.stderr.write(`${refusal.reason}\n${refusal.remedy.text}\n`);
+  const cause = (refusal.reason === "occupation-failed" || refusal.reason === "post-occupation-revalidation-failed")
+    && refusal.locus !== undefined ? `Cause: ${refusal.locus}\n` : "";
+  process.stderr.write(`${refusal.reason}\n${cause}${refusal.remedy.text}\n`);
   process.exitCode = 1;
 }
 

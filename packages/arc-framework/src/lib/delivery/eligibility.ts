@@ -33,7 +33,7 @@ export interface DeliveryEligibilityMember extends DeliveryEligibilityCoordinate
   readonly ref: string;
 }
 
-/** Caller-reported Tier 2 outcome for one exact disposable member candidate. */
+/** Caller-reported push gate outcome for one exact disposable member candidate. */
 export interface DeliveryCandidateGateResult extends DeliveryEligibilityCoordinates {
   readonly deliverableId: string;
   readonly status: "passed" | "failed";

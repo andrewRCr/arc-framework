@@ -54,7 +54,7 @@ organization that existing methodologies do not address.
 **The organizational level distinction:**
 
 | Level                 | Governs                                  | Examples                     | Typical Artifacts          |
-|-----------------------|------------------------------------------|------------------------------|----------------------------|
+| --------------------- | ---------------------------------------- | ---------------------------- | -------------------------- |
 | **Portfolio/program** | Strategic direction, resource allocation | SAFe PI planning, OKRs       | Roadmaps, PI objectives    |
 | **Team coordination** | What to build, when, by whom             | Scrum sprints, Kanban boards | Sprint backlogs, boards    |
 | **Execution pair**    | How a developer-agent pair implements    | ARC methodology              | PRDs, task lists, sessions |
@@ -89,7 +89,7 @@ context.
 **Planning artifacts:**
 
 | ARC Construct                   | Scrum Equivalent                       | Kanban Equivalent       | Shape Up Equivalent |
-|---------------------------------|----------------------------------------|-------------------------|---------------------|
+| ------------------------------- | -------------------------------------- | ----------------------- | ------------------- |
 | PRD                             | Epic spec or refined story             | Card description        | Pitch document      |
 | Task list                       | Story subtasks / sprint backlog detail | Checklist within card   | Scopes within a bet |
 | Work unit (PRD + tasks + notes) | Epic with stories                      | Card with full context  | Shaped project      |
@@ -98,7 +98,7 @@ context.
 **Execution constructs:**
 
 | ARC Construct            | Methodology Parallel             | Why Compatible                                                                                   |
-|--------------------------|----------------------------------|--------------------------------------------------------------------------------------------------|
+| ------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------ |
 | One-task-at-a-time       | WIP limit of 1 (execution level) | Kanban teams recognize instantly; Scrum velocity unaffected (multiple tasks complete per sprint) |
 | Quality gates (T1/T2/T3) | Definition of Done               | ARC's tiered gates can serve as or supplement the team's DoD                                     |
 | Review increment         | N/A (new concept)                | Operates below the level methodology addresses — within a developer's work session               |
@@ -108,7 +108,7 @@ context.
 **Work organization:**
 
 | ARC Construct                                    | Methodology Parallel               | Integration Pattern                                               |
-|--------------------------------------------------|------------------------------------|-------------------------------------------------------------------|
+| ------------------------------------------------ | ---------------------------------- | ----------------------------------------------------------------- |
 | `feature/` `technical/` `incidental/` categories | Story types, work item types       | ARC categories map to whatever taxonomy the team uses             |
 | Branch model                                     | Team's existing branching strategy | ARC's branch conventions are configurable (ADR-003)               |
 | Atomic commits with context                      | Team's commit conventions          | Configurable format (ADR-003), context footer adaptable (ADR-005) |

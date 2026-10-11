@@ -926,11 +926,11 @@ Prove the direct-base retirement.
 async function copiedRealNotesRepository() {
   const origin = "decompose-transform-integrity";
   const member = "integrity-core";
-  const archive = "../../../../.arc/completed/2026-q3/39_decompose-transform-integrity";
+  const archive = "../fixtures/decompose-v3-archive";
   const source = {
-    spec: await readFile(new URL(`${archive}/spec-${origin}.md`, import.meta.url), "utf8"),
-    tasks: await readFile(new URL(`${archive}/tasks-${origin}.md`, import.meta.url), "utf8"),
-    notes: await readFile(new URL(`${archive}/notes-${origin}.md`, import.meta.url), "utf8"),
+    spec: await readFile(new URL(`${archive}/spec.md`, import.meta.url), "utf8"),
+    tasks: await readFile(new URL(`${archive}/tasks.md`, import.meta.url), "utf8"),
+    notes: await readFile(new URL(`${archive}/notes.md`, import.meta.url), "utf8"),
   };
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-real-notes-"));
   roots.push(repo);

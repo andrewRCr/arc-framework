@@ -29,7 +29,8 @@ _Key characteristics:_
 - **Self-hosting** — Framework development follows its own ARC methodology, providing continuous real-world
   validation of workflows and conventions
 - **Customization surfaces** — Adopters override behavior without forking via `arc-config.yml` (project settings),
-  `system/methods/` (overridable defaults), and `system/extensions/` (lifecycle hook points)
+  `system/methods/` (overridable defaults), `system/extensions/` (lifecycle hook points), and `system/arc-checks.yml`
+  (project checks and their deadlines)
 
 ## 2. Architecture Components
 
@@ -93,17 +94,20 @@ Lib modules compose horizontally (e.g., `files.ts` imports `render.ts`) but neve
 
 ### Customization Surfaces
 
-Three orthogonal mechanisms let teams adapt ARC without forking:
+Four orthogonal mechanisms let teams adapt ARC without forking:
 
 - **`arc-config.yml`** — Flat key-value project settings (branch protection, commit/push interlocks, hook
   toggles, PM mode, session-init pull behavior, user-notes push behavior). The live shape is `system/arc-config.yml`.
-- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, quality
-  gate commands, test-first assessment, session state, branch format, and similar). Each method ships a default
-  and an override slot; teams replace the default in place. See `system/methods/README.md` for the full set.
-- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task, unit,
+- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, test-first
+  assessment, session state, branch format, and similar). Each method ships a default and an override slot; teams
+  replace the default in place. See `system/methods/README.md` for the full set.
+- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task,
   work-unit activate/archive, commit, push, PR, merge, and context-load. Teams declare `active: true` in the
   extension's frontmatter and supply `.actions` content for team-specific automation. See
   `system/extensions/README.md` for available hook points.
+- **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, and earliest
+  event deadlines. `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the
+  same declaration.
 
 ### Cross-Machine User State
 
@@ -210,5 +214,6 @@ workflow.
 - **Test suite** — Vitest with all tests passing
 - **Build verification** — tsup produces working CLI output
 - **CI validation** — GitHub Actions validates all gates on push and PR
-- **Tiered approach** — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR). See
-  `strategy-quality-gates.md` for tier boundaries and escalation guidance.
+- **Event deadlines** — The commit gate, push gate, and merge quality gate require declared checks to pass before
+  their respective events. Increment and segment requests provide earlier feedback; verification and attestation
+  requests force fresh results at their required scope.

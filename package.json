@@ -55,7 +55,8 @@
     "tsx": "^4.22.4"
   },
   "allowScripts": {
-    "esbuild": true
+    "esbuild": true,
+    "lefthook": false
   },
   "overrides": {
     "markdownlint-cli2": {

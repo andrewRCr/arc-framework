@@ -82,7 +82,7 @@ async function initializeRepository(): Promise<string> {
 }
 
 describe("coupling audit repository command", () => {
-  it("keeps the checked-in exact corpus inventory runnable against tracked files", async () => {
+  it("keeps the tooling corpus runnable with captured planning inventory members", async () => {
     const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
     const context = createCouplingAuditScriptContext(repositoryRoot);
     const checkedInManifest = parseCouplingManifest(
@@ -93,12 +93,22 @@ describe("coupling audit repository command", () => {
         ),
       ),
     );
-    const files = await collectCorpus(checkedInManifest.corpus, {
+    const corpus = {
+      ...checkedInManifest.corpus,
+      installedDelta: checkedInManifest.corpus.installedDelta.map(path =>
+        path === ".arc/backlog/ATOMIC-INBOX.md" || path === ".arc/backlog/ROADMAP.md"
+          ? `packages/arc-framework/__tests__/fixtures/coupling-audit-planning/${path.slice(".arc/backlog/".length)}`
+          : path),
+    };
+    const files = await collectCorpus(corpus, {
       git: context.git,
       readFile: (path) => context.readBytes(join(repositoryRoot, path)),
     });
 
     expect(files.length).toBeGreaterThan(0);
+    expect(files.map(file => file.path)).toEqual(expect.arrayContaining([
+      ".arc/system/arc-checks.yml", "scripts/run-local-e2e.mjs",
+    ]));
   });
 
   it("discovers tracked hidden files and writes identical results", async () => {

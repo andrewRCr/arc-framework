@@ -30,7 +30,7 @@ last: each checks a derived thing against the referent it was derived from.
 **Named inputs:**
 
 | Input            | Kind     | Contents                                                                                                                                                                     |
-|------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `design`         | required | The artifact carrying the design under audit — a finished draft, or a spec plus its upstream draft when one exists.                                                          |
 | `goal-referents` | optional | Where the goal lives when the artifact doesn't fully carry it — a PRD section, an origin issue, a stated objective. Defaults to the artifact's own problem / goal statement. |
 

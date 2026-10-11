@@ -181,6 +181,20 @@ function buildContext(options: {
 }
 
 describe("runRename", () => {
+  it("preserves an authority snapshot diagnostic in the rename refusal", async () => {
+    const { ctx, recordedTransitions } = buildContext();
+    ctx.retirement.authority.readSnapshot = async () => ({
+      status: "refused", reason: "evidence-mismatch",
+      diagnostic: 'The index contains staged paths: "file with spaces.txt". Commit or clear them from the index, then retry',
+    });
+    const result = await runRename(ctx, { sourceSlug: "old-name", targetSlug: "new-name" });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining('"file with spaces.txt"'),
+    });
+    expect(recordedTransitions).toEqual([]);
+  });
+
   it("surfaces prepared coordination advisories before tracked mutation", async () => {
     const { ctx, calls } = buildContext();
     const preflight = ctx.preflight;

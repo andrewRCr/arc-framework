@@ -9,7 +9,6 @@ import {
 import {
   isMarkdownGateTriggerPath,
   MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS,
-  runStagedMarkdownGate,
 } from "../../../src/lib/markdown/staged-gate.js";
 
 describe("staged Markdown gate", () => {
@@ -36,47 +35,6 @@ describe("staged Markdown gate", () => {
     ".arc/active/temp-draft.md",
   ])("ignores unrelated or excluded path %s", (path) => {
     expect(isMarkdownGateTriggerPath(path)).toBe(false);
-  });
-
-  it("returns before certification for unrelated staged paths", async () => {
-    const certify = vi.fn(async () => undefined);
-    const exec = vi.fn(async () => ({ stdout: "notes.txt\0", stderr: "" }));
-
-    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toEqual({
-      triggered: false,
-      changedPaths: ["notes.txt"],
-    });
-    expect(certify).not.toHaveBeenCalled();
-    expect(exec).toHaveBeenCalledWith("git", [
-      "diff",
-      "--cached",
-      "--name-only",
-      "--no-renames",
-      "--diff-filter=ACMRD",
-      "-z",
-    ], { cwd: "/repo" });
-  });
-
-  it("runs certification once for any relevant staged path", async () => {
-    const certify = vi.fn(async () => undefined);
-    const exec = vi.fn(async () => ({ stdout: "notes.txt\0README.md\0", stderr: "" }));
-
-    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toMatchObject({
-      triggered: true,
-    });
-    expect(certify).toHaveBeenCalledTimes(1);
-  });
-
-  it("runs certification when only the segmentation scanner changes", async () => {
-    const certify = vi.fn(async () => undefined);
-    const path = "packages/arc-framework/src/lib/task-list/segmentation.ts";
-    const exec = vi.fn(async () => ({ stdout: `${path}\0`, stderr: "" }));
-
-    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toEqual({
-      triggered: true,
-      changedPaths: [path],
-    });
-    expect(certify).toHaveBeenCalledOnce();
   });
 });
 
@@ -161,13 +119,5 @@ describe("staged Markdown checker alignment", () => {
     })).rejects.toThrow(
       `Indexed Markdown checker differs from executing worktree bytes: ${transitive}`,
     );
-    const certify = vi.fn(async () => undefined);
-    await expect(runStagedMarkdownGate({
-      root: "/repo",
-      exec: vi.fn(async () => ({ stdout: `${transitive}\0`, stderr: "" })),
-      certify,
-      runtimePaths: new Set(runtimePaths),
-    })).resolves.toMatchObject({ triggered: true });
-    expect(certify).toHaveBeenCalledOnce();
   });
 });

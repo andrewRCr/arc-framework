@@ -177,7 +177,7 @@ others. The smell will continue to propagate unless the boundaries are clarified
 Every method ships with concrete default content + `override-active: false` frontmatter:
 
 | Method                  | Default activity                                               | Override surface       |
-|-------------------------|----------------------------------------------------------------|------------------------|
+| ----------------------- | -------------------------------------------------------------- | ---------------------- |
 | `branch-format`         | CB-style type prefix + `plan/` planning prefix                 | Type list override     |
 | `commit-format`         | Conventional commit format                                     | Custom pattern         |
 | `commit-footer`         | Context footer naming deepest spec-shaped artifact             | Custom pattern         |
@@ -198,17 +198,17 @@ Extensions have **one customization axis** (`active`). No defaults to override.
 
 ### Config keys by functional category
 
-| Category                         | Examples                                                  |
-|----------------------------------|-----------------------------------------------------------|
-| Hook enable/disable              | `hooks.pre_commit`, `hooks.commit_msg`                    |
-| Method selector + custom pattern | `commit.format`, `commit.context_footer`                  |
-| Hook validator value             | `hooks.subject_max_length`, `hooks.meta_ref_patterns`     |
-| Structural / setup               | `pm.mode`, `team.mode`                                    |
-| Workflow path selector           | `branch.protection`, `archive.cadence`, `merge.strategy`  |
-| Informational                    | `platform.type`                                           |
-| Session/sync behavior            | `session.*`, `user.notes_push`                            |
-| **Method invocation toggle**     | `review.pre_merge`                                        |
-| **Bare halt toggle (deferred)**  | _(was `review.planning_checkpoint`; deferred from WOR)_   |
+| Category                         | Examples                                                 |
+| -------------------------------- | -------------------------------------------------------- |
+| Hook enable/disable              | `hooks.pre_commit`, `hooks.commit_msg`                   |
+| Method selector + custom pattern | `commit.format`, `commit.context_footer`                 |
+| Hook validator value             | `hooks.subject_max_length`, `hooks.meta_ref_patterns`    |
+| Structural / setup               | `pm.mode`, `team.mode`                                   |
+| Workflow path selector           | `branch.protection`, `archive.cadence`, `merge.strategy` |
+| Informational                    | `platform.type`                                          |
+| Session/sync behavior            | `session.*`, `user.notes_push`                           |
+| **Method invocation toggle**     | `review.pre_merge`                                       |
+| **Bare halt toggle (deferred)**  | _(was `review.planning_checkpoint`; deferred from WOR)_  |
 
 The bottom two rows are the architectural smell. Their existence is a symptom of methods lacking
 an `active` axis.
@@ -239,12 +239,12 @@ Concretely:
 
 The existing "which mechanism do I use?" tree gets a new row:
 
-| Customization shape                                  | Mechanism                                            |
-|------------------------------------------------------|------------------------------------------------------|
-| Changes a value hooks/CLI/structural code reads      | Config                                               |
-| Adds new steps at a workflow point                   | Extension (`active: true` + populate `.actions`)     |
-| Replaces how ARC does an activity                    | Method (`override-active: true` + populate override) |
-| **Disables how ARC does an activity**                | Method (`active: false` in frontmatter)              |
+| Customization shape                             | Mechanism                                            |
+| ----------------------------------------------- | ---------------------------------------------------- |
+| Changes a value hooks/CLI/structural code reads | Config                                               |
+| Adds new steps at a workflow point              | Extension (`active: true` + populate `.actions`)     |
+| Replaces how ARC does an activity               | Method (`override-active: true` + populate override) |
+| **Disables how ARC does an activity**           | Method (`active: false` in frontmatter)              |
 
 ---
 

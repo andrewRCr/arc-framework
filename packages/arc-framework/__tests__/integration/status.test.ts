@@ -600,7 +600,7 @@ describe("runStatus — clean state", () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge", true);
-    await writeExtension(fixture.extDir, "post-task-quality", false);
+    await writeExtension(fixture.extDir, "post-task-completion", false);
     await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",

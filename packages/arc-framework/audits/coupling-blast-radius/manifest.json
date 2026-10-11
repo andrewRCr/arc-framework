@@ -10,6 +10,7 @@
       ".arc/reference/TECHNICAL-OVERVIEW.md",
       ".arc/reference/briefs/AGENT-BRIEF.PROJECT.md",
       ".arc/reference/strategies/STRATEGY-INDEX.md",
+      ".arc/system/arc-checks.yml",
       ".arc/system/arc-config.yml",
       ".arc/system/extensions/post-pr-open.md",
       ".arc/system/extensions/pre-merge.md",
@@ -24,6 +25,7 @@
       ".editorconfig",
       ".gitattributes",
       ".github/CODEOWNERS",
+      ".github/check-plumbing.yml",
       ".github/workflows/arc-lane-attestation.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/docs.yml",
@@ -38,8 +40,9 @@
       "package-lock.json",
       "package.json",
       "scripts/check-package-sync.sh",
-      "scripts/check-ts-quality.sh",
       "scripts/classify-change.sh",
+      "scripts/run-ci-checks.mjs",
+      "scripts/run-local-e2e.mjs",
       "scripts/worktree-post-create.sh"
     ],
     "excluded": [

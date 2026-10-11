@@ -112,14 +112,14 @@ Follow the planner state; do not infer or combine transitions:
 
 - For `awaiting-approval`, return the canonical proposal and report to the governing caller. That caller already owns
   `review-triage`, presentation, and complete-set approval; do not invoke triage again or mutate the target.
-- For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly
-  the approved `fix` findings as one review increment, run the affected quality gates, and return the candidate target
+- For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly the
+  approved `fix` findings as one review increment, run the caller's review-fix request, and return the candidate target
   plus actual verification scope and evidence. The performed scope must equal or exceed `approvedVerification`; do not
-  use that floor to choose fewer checks. Do not persist the candidate inside this method: return control to the
-  caller's commit interlock. Once the fix is committed and the worktree is clean, the caller replays the exact
-  approved request with `verifiedFix` (`reentryCommand: respond-verified-fix`), leaving out any `supersedes`: the fix
-  commit moved the reviewed head that supersession requires, so carrying it returns `supersession-refused`. A replay
-  over an uncommitted fix refuses with a remedy that names this commit-then-replay continuation.
+  use that floor to choose fewer checks. Do not persist the candidate inside this method: return control to the caller's
+  commit interlock. Once the fix is committed and the worktree is clean, the caller replays the exact approved request
+  with `verifiedFix` (`reentryCommand: respond-verified-fix`), leaving out any `supersedes`: the fix commit moved the
+  reviewed head that supersession requires, so carrying it returns `supersession-refused`. A replay over an uncommitted
+  fix refuses with a remedy that names this commit-then-replay continuation.
 - `ready-to-persist` is reached inside that replay. The replay binds the authorization consumption to the actual
   old/new target, applying actor, and verification references, so run it before any push interlock can release.
   Preserve `approvedVerification` in the changed-target response continuation.

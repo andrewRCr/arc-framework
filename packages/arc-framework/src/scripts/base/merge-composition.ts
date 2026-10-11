@@ -177,7 +177,7 @@ export function createBaseMergePort(input: {
                     cwd: input.cwd,
                     objectAccess: "local-only",
                   });
-                  await input.exec("git", ["commit", "--no-edit"], { cwd: input.cwd });
+                  await input.exec("git", ["commit", "--no-edit", "--no-verify"], { cwd: input.cwd });
                   const after = await resolveOid(input.exec, input.cwd, "HEAD");
                   const parents = await resolveParents(input.exec, input.cwd, after);
                   const clean = (await input.exec("git", ["status", "--porcelain=v1"], {

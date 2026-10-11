@@ -223,7 +223,11 @@ function createInRepoDirectRetirementContext(
     readSnapshot: async (scope) => {
       const source = requireCaptured(captured, { scope });
       const staged = await readStagedPaths(deps.exec, deps.cwd);
-      if (staged.length > 0) return { status: "refused", reason: "evidence-mismatch" };
+      if (staged.length > 0) return {
+        status: "refused", reason: "evidence-mismatch",
+        diagnostic: `The index contains staged paths: ${staged.map((path) => JSON.stringify(path)).join(", ")}. `
+          + "Commit the staged changes or clear them from the index, then retry this retirement",
+      };
       const result = await readRetirementAuthoritySnapshot(
         {
           cwd: deps.cwd,

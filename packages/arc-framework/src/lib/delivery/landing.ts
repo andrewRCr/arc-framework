@@ -267,7 +267,7 @@ export const DeliveryRecoveryResultV1Schema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).length(1).readonly(),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
     }),
   }),
   z.strictObject({
@@ -1094,7 +1094,7 @@ export async function reconcileDeliveryExecution(input: {
           selectedDeliverableId: selectedChangeDeliverableId,
           verification: {
             memberDeliverableIds: [selectedChangeDeliverableId],
-            tier1Required: true,
+            commitGateRequired: true,
           },
         }
       : observed.continuation === undefined

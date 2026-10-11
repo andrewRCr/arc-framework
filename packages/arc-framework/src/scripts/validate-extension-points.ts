@@ -4,7 +4,7 @@
  *
  * Workflows mark extension fire points with anchor-suffix markers
  * (e.g., `### 3. Post-Context-Load Extensions · `#post-context-load``
- * or `**Extensions** · `#post-task-quality`: …`). Every reference must
+ * or `**Extensions** · `#post-task-completion`: …`). Every reference must
  * resolve to a matching `system/extensions/<name>.md` file in the same
  * copy — .arc/ workflow → .arc/ extension; package-source workflow →
  * package-source extension. Cross-copy resolution is rejected by design:

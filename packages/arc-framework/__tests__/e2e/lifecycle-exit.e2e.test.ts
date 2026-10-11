@@ -1022,6 +1022,43 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(sessionNotes)).toBe(true);
   });
 
+  it.each([
+    ["abandon", "commit"], ["abandon", "clear"],
+    ["park", "commit"], ["park", "clear"],
+  ] as const)("%s names staged paths and retries after %s repair", async (verb, repair) => {
+    await scaffoldStartedWu(repo, "mono", "in-place");
+    const paths = ["staged one.txt", "staged-two.txt"];
+    for (const path of paths) await writeFile(join(repo, path), "unrelated change\n");
+    await git(repo, ["add", "--", ...paths]);
+    const head = await git(repo, ["rev-parse", "HEAD"]);
+    const index = await git(repo, ["write-tree"]);
+    const metaPath = join(repo, ".arc/active/meta-mono.md");
+    const draftPath = join(repo, ".arc/active/draft-mono.md");
+    const meta = await readFile(metaPath, "utf8");
+    const draft = await readFile(draftPath, "utf8");
+    const args = verb === "park" ? ["park", "mono", "--reason", "paused"] : ["abandon", "mono", "--yes"];
+
+    const refused = await runArc(args, repo);
+    const output = refused.stdout + refused.stderr;
+    expect(refused.exitCode, output).toBe(1);
+    for (const path of paths) expect(output).toContain(JSON.stringify(path));
+    expect(output).toMatch(/commit.*or clear.*index.*retry/iu);
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await git(repo, ["write-tree"])).toBe(index);
+    expect(await readFile(metaPath, "utf8")).toBe(meta);
+    expect(await readFile(draftPath, "utf8")).toBe(draft);
+    expect(await pathExists(join(repo, ".arc/system/.internal/transitions/mono.json"))).toBe(false);
+
+    if (repair === "commit") await commitFixtureBypassingHooks(repo, "commit unrelated staged changes");
+    else await git(repo, ["restore", "--staged", "--", ...paths]);
+    const retried = await runArc(args, repo);
+    expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+    expect(await pathExists(metaPath)).toBe(false);
+    expect(await pathExists(draftPath)).toBe(false);
+    if (verb === "park") expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(true);
+    for (const path of paths) expect(await readFile(join(repo, path), "utf8")).toBe("unrelated change\n");
+  });
+
   it("arc abandon refuses a started work unit outside its recorded source branch", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     expect(worktree).toBeDefined();

@@ -6,6 +6,9 @@ import { promisify } from "node:util";
 import { load } from "js-yaml";
 import { execa } from "execa";
 import { makeVitestRuntimeFixture } from "./vitest-runtime-fixture.js";
+import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
+import { resolveCheckForecast } from "../../src/lib/checks/forecast.js";
+import { CheckPlumbingSchema } from "../../src/lib/ci-check-plumbing.js";
 
 const execute = promisify(execFile);
 const sourceRoot = resolve(import.meta.dirname, "../../../..");
@@ -40,11 +43,22 @@ export async function ciBuildSteps(job: string): Promise<CiBuildStep[]> {
  * @returns Native build status and diagnostics
  */
 export async function runCiProducer(root: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  const step = (await ciBuildSteps("setup")).find((candidate) => candidate.run?.startsWith("npm run build"));
+  const step = (await ciBuildSteps("build")).find((candidate) => candidate.id === "build");
   if (step?.run === undefined) throw new Error("Missing CI build gate");
-  const [command, ...args] = step.run.split(/\s+/u);
-  if (command !== "npm") throw new Error(`Unsupported producer: ${step.run}`);
-  const result = await execa(command, args, { cwd: root, env: { ARC_E2E_SKIP_BUILD: "" },
+  if (step.run !== "node --import tsx scripts/run-ci-checks.mjs run build build") {
+    throw new Error(`Unsupported CI producer: ${step.run}`);
+  }
+  const plumbing = CheckPlumbingSchema.parse(load(await readFile(join(sourceRoot, ".github/check-plumbing.yml"), "utf8")));
+  if (!plumbing.build?.some(destination => destination.job === "build" && destination.step === step.id)) {
+    throw new Error("Missing declared build placement");
+  }
+  const declaration = CheckDeclarationSchema.parse(load(await readFile(join(sourceRoot, ".arc/system/arc-checks.yml"), "utf8")));
+  const check = declaration.checks.build;
+  if (!check) throw new Error("Missing build declaration");
+  const forecast = resolveCheckForecast(check, root, [], process.platform);
+  const [command, ...args] = forecast.batches[0] ?? [];
+  if (!command) throw new Error("Missing build invocation");
+  const result = await execa(command, args, { cwd: resolve(root, forecast.cwd), env: { ...step.env, FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: "" },
     reject: false, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 });
   return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr };
 }
@@ -56,8 +70,8 @@ export async function runCiProducer(root: string): Promise<{ code: number; stdou
  * @returns Caller-owned consumer fixture
  */
 export async function downloadCiBuild(producer: string, job: string): Promise<Awaited<ReturnType<typeof makeVitestRuntimeFixture>>> {
-  const upload = (await ciBuildSteps("setup")).find((step) => step.uses?.startsWith("actions/upload-artifact@"));
-  const download = (await ciBuildSteps(job)).find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  const upload = (await ciBuildSteps("build")).find((step) => step.uses?.startsWith("actions/upload-artifact@") && step.with?.name === "arc-framework-dist");
+  const download = (await ciBuildSteps(job)).find((step) => step.uses?.startsWith("actions/download-artifact@") && step.with?.name === "arc-framework-dist");
   if (upload?.with?.path === undefined || download?.with?.path === undefined
     || upload.with.name !== download.with.name) throw new Error("Missing or mismatched artifact transfer");
   const fixture = await makeVitestRuntimeFixture();
