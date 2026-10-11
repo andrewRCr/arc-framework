@@ -84,7 +84,7 @@ the remote state too, holds that state's queue only while it compares and publis
           in write order, preserving the condition and remedy and counting all other record/rule pairs.
         - Unit cases cover ordering, tied records, counts, single violations, and admission with no broken rules.
 
-### `[ ]` **1.4 The reference backend refuses a registered check's breaking write and batch — § 3.4, § 3.5, § 11.3**
+### `[x]` **1.4 The reference backend refuses a registered check's breaking write and batch — § 3.4, § 3.5, § 11.3**
 
 - _Goal:_ The reference backend runs every registered check in `write` and `batch` over the state it found and that
   state with the whole write or batch applied, before committing, and the conformance suite proves it for every fixture
@@ -99,19 +99,10 @@ the remote state too, holds that state's queue only while it compares and publis
           refusals through the shared helper. A queue per shared state also serializes reopened stores and sync.
           Remote publication holds its queue only for comparison and publication, after awaiting the hook.
 
-    - `[ ]` **1.4.c Add the write-check suite item**
-        - Item 17 in `conformanceItems` (`__tests__/helpers/store/conformance-suite.ts`), with `SuiteItem` gaining it,
-          installing a test registration through the registry override; the registration records the writer, content,
-          and views it receives.
-        - Assertions: a breaking write and batch refuse with `record-malformed` naming the first rule broken and the
-          first record breaking it and counting the other pairs; a verb in `HAND_EDIT_VERBS` reaches the check as a
-          hand edit and any other verb as itself; a batch's check sees the batch's other writes in `after` and the
-          state as found in `before`; and, on a fixture merging concurrent writes, a stale write to a line-merge kind
-          reaches the check with the merged content as `next`.
-        - A fixture declaring no write checks skips the item with that reason, through `assertion()`'s inapplicable
-          reason, as the merge items do with `mergesConcurrentWrites` (`mergingKind`, `suite-merges.ts`).
-        - The suite's item count reads seventeen in `conformance-suite.ts`, `fixture-contract.ts`,
-          `conformance-reference.test.ts`, and `__tests__/helpers/store/README.md`.
+    - `[x]` **1.4.c Add the write-check suite item**
+        - Item 17 installs isolated checks and proves deterministic refusals, provenance-derived authority, complete
+          batch views, and merged stale-write content. Fixtures without checks report reasoned skips; suite declarations
+          and documentation now name seventeen items.
 
 ### `[ ]` **1.5 Registered reads and checked writes hold end to end** — validate exit criterion at segment scope
 

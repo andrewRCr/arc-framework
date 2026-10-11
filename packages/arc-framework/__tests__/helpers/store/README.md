@@ -1,6 +1,6 @@
 # Store conformance support
 
-`registerStoreConformanceSuite` registers sixteen contract items against a fresh fixture for each assertion. Fixtures
+`registerStoreConformanceSuite` registers seventeen contract items against a fresh fixture for each assertion. Fixtures
 declare served families, substrate and saved-state coverage, merge behavior, publish families, and named exclusions.
 Excluded items, assertions, and refusal scenarios appear as skips with their reasons, including items that register no
 family assertions. Registration rejects per-assertion declarations that are unused or hidden by a whole-item exclusion.

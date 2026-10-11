@@ -1,4 +1,4 @@
-/** Backend-neutral hooks and named exclusions used by the sixteen-item conformance suite. */
+/** Backend-neutral hooks and named exclusions used by the seventeen-item conformance suite. */
 
 import type {
   FamilyId, KindId, KindDefinition, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
@@ -6,7 +6,7 @@ import type {
 } from "../../../src/lib/store/index.js";
 
 /** The numbered contract item, kept stable across every backend fixture. */
-export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 /** One refusal scenario; interim unsupported cases and missing identity have their own names. */
 export type RecoveryCaseId = Exclude<RefusalCode, "unsupported" | "not-found">
   | `unsupported:${UnsupportedCase}` | "not-found:name" | "not-found:identity"

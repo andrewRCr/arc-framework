@@ -27,7 +27,7 @@ describe("conformance registration exclusions", () => {
       .toThrow(/Invalid conformance registration:.*unserved/);
   });
 
-  it.each([0,17,"bogus"])("refuses an unknown suite item %s", (item) => {
+  it.each([0,18,"bogus"])("refuses an unknown suite item %s", (item) => {
     expect(() => validateConformanceRegistration(registration({familyExclusions:{personal:{items:{[item]:"Unavailable"}}}})))
       .toThrow(/Invalid conformance registration:.*item/);
   });
