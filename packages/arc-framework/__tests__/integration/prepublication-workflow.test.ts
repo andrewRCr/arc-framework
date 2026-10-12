@@ -3,7 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const ROOTS = [
@@ -252,8 +252,8 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch))
         .toMatch(softWrappedProse("leave the closing task `[ ]`"));
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toMatch(softWrappedProse("Mark the task `[x]`"));
-      expect(validateCriteria).toMatch(/do\s+not\s+re-derive\s+member\s+criteria/u);
-      expect(validateCriteria).toMatch(/walk\s+the\s+seam\s+group\s+and\s+union\s+coherence/u);
+      expect(validateCriteria).toMatch(softWrappedPattern(/do\s+not\s+re-derive\s+member\s+criteria/u));
+      expect(validateCriteria).toMatch(softWrappedPattern(/walk\s+the\s+seam\s+group\s+and\s+union\s+coherence/u));
       expect(validateCriteria).toMatch(
         /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:[\s\S]*?criterion-digest:/u,
       );
@@ -314,7 +314,7 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
       expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
       expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));
-      expect(taskLoop).toMatch(/When\s+all\s+tasks\s+are\s+marked\s+complete[\s\S]*proceed\s+to\s+Candidate\s+preparation/iu);
+      expect(taskLoop).toMatch(softWrappedPattern(/When\s+all\s+tasks\s+are\s+marked\s+complete[\s\S]*proceed\s+to\s+Candidate\s+preparation/iu));
     }
   });
 

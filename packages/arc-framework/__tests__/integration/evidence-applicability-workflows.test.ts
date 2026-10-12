@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 
@@ -50,7 +50,7 @@ describe("evidence applicability workflow fire-points", () => {
     expect(workflow).toContain("`nextAction.verificationKind`");
     expect(workflow).toContain("`nextAction.attestArgv`");
     expect(workflow).toContain("`{verificationEvidenceRef}`");
-    expect(workflow).toMatch(/never\s+select\s+a\s+verification\s+scope\s+in\s+prose/iu);
+    expect(workflow).toMatch(softWrappedPattern(/never\s+select\s+a\s+verification\s+scope\s+in\s+prose/iu));
   });
 
   it("requires only the typed bounded result that every fire-point actually supplies", async () => {
@@ -67,7 +67,7 @@ describe("evidence applicability workflow fire-points", () => {
     expect(frontmatter.parseError).toBeUndefined();
     expect(frontmatter.methods).toContain("assess-evidence-applicability");
     expect(workflow).toContain("**Method fire-point** · [`assess-evidence-applicability`]");
-    expect(workflow).toMatch(/judgmentRequired:\s+true[\s\S]*supplemental[\s\S]*fresh/iu);
+    expect(workflow).toMatch(softWrappedPattern(/judgmentRequired:\s+true[\s\S]*supplemental[\s\S]*fresh/iu));
     expect(workflow).toMatch(/merge-safety[\s\S]*never|never[\s\S]*merge-safety/iu);
   });
 
@@ -90,10 +90,10 @@ describe("evidence applicability workflow fire-points", () => {
 
     expect(occurrences(workflow, "arc delivery eligibility prepare -")).toBe(1);
     expect(occurrences(workflow, "arc delivery eligibility close -")).toBe(1);
-    expect(workflow).toMatch(/member-rewrite[\s\S]*judgmentRequired:\s+true/iu);
+    expect(workflow).toMatch(softWrappedPattern(/member-rewrite[\s\S]*judgmentRequired:\s+true/iu));
     expect(workflow).toContain("selectionAction.projection.applicability.judgmentRequired: true");
     expect(workflow).toMatch(
-      /mechanical\s+eligibility[\s\S]*do(?:es)?\s+not\s+fire|do(?:es)?\s+not\s+fire[\s\S]*mechanical\s+eligibility/iu,
+      softWrappedPattern(/mechanical\s+eligibility[\s\S]*do(?:es)?\s+not\s+fire|do(?:es)?\s+not\s+fire[\s\S]*mechanical\s+eligibility/iu),
     );
   });
 
@@ -108,17 +108,17 @@ describe("evidence applicability workflow fire-points", () => {
     expect(terminal).not.toContain("gh pr merge");
     expect(terminal).not.toContain("arc merge lock hold");
     expect(occurrences(terminal, "arc merge lock release -")).toBe(1);
-    expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh\s+integration\s+approval/iu);
-    expect(terminal).toMatch(/arc base drift --json[\s\S]*last-observed\s+base\s+OID/iu);
-    expect(terminal).toMatch(/required\s+checks\s+are\s+bound\s+to\s+the\s+approved\s+head[\s\S]*residual\s+race/iu);
-    expect(terminal).toMatch(/base\s+OID\s+qualifies\s+the\s+evidence\s+but\s+is\s+not\s+merge\s+authority/iu);
+    expect(terminal).toMatch(softWrappedPattern(/applicability-judgment-required[\s\S]*fresh\s+integration\s+approval/iu));
+    expect(terminal).toMatch(softWrappedPattern(/arc base drift --json[\s\S]*last-observed\s+base\s+OID/iu));
+    expect(terminal).toMatch(softWrappedPattern(/required\s+checks\s+are\s+bound\s+to\s+the\s+approved\s+head[\s\S]*residual\s+race/iu));
+    expect(terminal).toMatch(softWrappedPattern(/base\s+OID\s+qualifies\s+the\s+evidence\s+but\s+is\s+not\s+merge\s+authority/iu));
   });
 
   it("dispatches the coordinate-bound currentness remedy returned by terminal integration", async () => {
     const workflow = await readPair(workflows.integrate);
 
     expect(workflow).toMatch(
-      /invalidated\s+\/\s+reconcile-base[\s\S]*remedy\.argv[\s\S]*--expected-base[\s\S]*--expected-head/iu,
+      softWrappedPattern(/invalidated\s+\/\s+reconcile-base[\s\S]*remedy\.argv[\s\S]*--expected-base[\s\S]*--expected-head/iu),
     );
   });
 });

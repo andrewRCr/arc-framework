@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 
@@ -95,12 +95,12 @@ describe("delivery terminal integration handoff", () => {
     expect(inspect).toBeLessThan(singletonResolution);
     expect(inspect).toBeLessThan(push);
     expect(packaged).toContain('{"entryMode":"integrating"}');
-    expect(packaged).toMatch(/`not-applicable`[\s\S]*ordinary\s+singleton\s+integration/iu);
+    expect(packaged).toMatch(softWrappedPattern(/`not-applicable`[\s\S]*ordinary\s+singleton\s+integration/iu));
     expect(packaged).toMatch(
-      /`candidate-renewal-required`[\s\S]*`attestationAction`[\s\S]*requires\s+`unchanged`[\s\S]*without\s+replaying[\s\S]*verification/iu,
+      softWrappedPattern(/`candidate-renewal-required`[\s\S]*`attestationAction`[\s\S]*requires\s+`unchanged`[\s\S]*without\s+replaying[\s\S]*verification/iu),
     );
     expect(packaged).toMatch(
-      /`candidate-verification-required`[\s\S]*verification\s+closeout[\s\S]*no[\s\S]*attestation\s+or\s+review\s+action/iu,
+      softWrappedPattern(/`candidate-verification-required`[\s\S]*verification\s+closeout[\s\S]*no[\s\S]*attestation\s+or\s+review\s+action/iu),
     );
     expect(packaged).toMatch(
       /`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`continue-publication`[\s\S]*`resume-bound`/u,

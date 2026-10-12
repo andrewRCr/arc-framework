@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseWorkflowFrontmatter } from "../../../src/scripts/audit-method-triggers.js";
-import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -137,7 +137,7 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(installed).toBe(packaged);
       expect(packaged).toContain(suffix);
       expect(packaged).toMatch(/member(?:(?!\r?\n[ \t]*(?:>[ \t]*)?\r?\n)[\s\S])*range[\s\S]*?final[\s\S]{0,160}?(?:parent|task)/iu);
-      expect(packaged).toMatch(/sole\s+terminal\s+work-unit\s+verification\s+task/u);
+      expect(packaged).toMatch(softWrappedPattern(/sole\s+terminal\s+work-unit\s+verification\s+task/u));
     }
   });
 });

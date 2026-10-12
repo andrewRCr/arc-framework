@@ -19,3 +19,16 @@ export function indexOfSoftWrappedProse(document: string, phrase: string, fromIn
   search.lastIndex = fromIndex;
   return search.exec(document)?.index ?? -1;
 }
+
+/**
+ * Compile prose patterns whose `\s+` tokens separate words, preserving regex syntax and flags.
+ * @param pattern - Prose pattern with explicit cross-section spans where required.
+ * @returns A matcher that keeps word separators within one Markdown prose block.
+ */
+export function softWrappedPattern(pattern: RegExp): RegExp {
+  const blockStart = "(?:[-+*]|\\d+[.)])[ \\t]|#{1,6}(?:[ \\t]|$)|`{3,}|~{3,}|>";
+  const blockOrigin = "(?<!(?:^|[\\r\\n])[ \\t]*(?:>|#{1,6}[ \\t])[^\\r\\n]*)";
+  const continuation = `${blockOrigin}[ \\t]*\\r?\\n[ \\t]*(?![ \\t\\r\\n]|${blockStart})`;
+  const separator = `(?:[ \\t]+|${continuation})`;
+  return new RegExp(pattern.source.replaceAll("\\s+", separator), pattern.flags);
+}

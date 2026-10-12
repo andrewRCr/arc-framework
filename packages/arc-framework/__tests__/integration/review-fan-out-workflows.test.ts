@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const paths = {
@@ -54,23 +54,23 @@ function expectTypedProgression(section: string): void {
   expect(section).toContain("arc review local resume -");
   expect(section).toMatch(/action` unchanged[\s\S]*`deliveryAdmission/iu);
   expect(section).not.toContain("memberHeadObjectId");
-  expect(section).toMatch(/local\s+(?:attempt|operation)[\s\S]*arc review status/iu);
+  expect(section).toMatch(softWrappedPattern(/local\s+(?:attempt|operation)[\s\S]*arc review status/iu));
   expect(section).toMatch(
-    /obtain-ceiling-override[\s\S]*exact\s+`consequence`[\s\S]*stops?\s+without\s+requesting[\s\S]*explicit\s+approval[\s\S]*--ceiling-override/iu,
+    softWrappedPattern(/obtain-ceiling-override[\s\S]*exact\s+`consequence`[\s\S]*stops?\s+without\s+requesting[\s\S]*explicit\s+approval[\s\S]*--ceiling-override/iu),
   );
   expect(section).toContain("resolve-review-applicability");
   expect(section).toContain("arc candidate applicability resolve");
   expect(section).toMatch(softWrappedProse("pass the returned action unchanged"));
   expect(section).toMatch(
-    /requested\s+\/\s+await[\s\S]*returned\s+`action`\s+unchanged[\s\S]*pending\s+\/\s+await[\s\S]*newly\s+returned\s+`action`\s+unchanged/iu,
+    softWrappedPattern(/requested\s+\/\s+await[\s\S]*returned\s+`action`\s+unchanged[\s\S]*pending\s+\/\s+await[\s\S]*newly\s+returned\s+`action`\s+unchanged/iu),
   );
-  expect(section).toMatch(/returned\s+settlement\s+plan|payload\.hostedSettlementPlan/iu);
+  expect(section).toMatch(softWrappedPattern(/returned\s+settlement\s+plan|payload\.hostedSettlementPlan/iu));
   expect(section).toContain("payload.hostedSettlementPlan.actorIdentity");
   expect(section).toContain("payload.hostedFixTarget");
   expect(section).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);
   expect(section).toMatch(softWrappedProse("typed discharge conjunction"));
   expect(section).not.toMatch(
-    /for\s+each\s+(?:retained\s+)?member|enumerate\s+(?:the\s+)?members|priorAttemptId|priorHead|currentHead|priorBase|currentBase|projectionDigest|residualDigest/iu,
+    softWrappedPattern(/for\s+each\s+(?:retained\s+)?member|enumerate\s+(?:the\s+)?members|priorAttemptId|priorHead|currentHead|priorBase|currentBase|projectionDigest|residualDigest/iu),
   );
   expect(section).not.toMatch(/arc review (?:delivery|fan-?out|member)\b/iu);
 }
@@ -85,7 +85,7 @@ describe("hosted review fan-out workflow", () => {
       "Only a native arm admitted",
     );
     expectTypedProgression(section);
-    expect(section).toMatch(/typed\s+settled\s+variant\s+without\s+a\s+conjunction\s+is\s+also\s+authoritative/iu);
+    expect(section).toMatch(softWrappedPattern(/typed\s+settled\s+variant\s+without\s+a\s+conjunction\s+is\s+also\s+authoritative/iu));
     expect(packaged.indexOf("arc delivery native land-prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
     expect(packaged.indexOf("arc delivery land prepare -"))
@@ -103,13 +103,13 @@ describe("hosted review fan-out workflow", () => {
       "Resolve the branch head",
     );
     expect(entryDispatch).toMatch(
-      /resolve-delivery-status[\s\S]*Step\s+2[\s\S]*do\s+not\s+resolve\s+a\s+singleton\s+change\s+request/iu,
+      softWrappedPattern(/resolve-delivery-status[\s\S]*Step\s+2[\s\S]*do\s+not\s+resolve\s+a\s+singleton\s+change\s+request/iu),
     );
     expect(entryDispatch).toMatch(
-      /candidate-renewal-required[\s\S]*attestationAction[\s\S]*requires\s+`unchanged`[\s\S]*without\s+replaying[\s\S]*verification/iu,
+      softWrappedPattern(/candidate-renewal-required[\s\S]*attestationAction[\s\S]*requires\s+`unchanged`[\s\S]*without\s+replaying[\s\S]*verification/iu),
     );
     expect(entryDispatch).toMatch(
-      /candidate-verification-required[\s\S]*verification\s+closeout[\s\S]*no[\s\S]*attestation\s+or\s+review\s+action/iu,
+      softWrappedPattern(/candidate-verification-required[\s\S]*verification\s+closeout[\s\S]*no[\s\S]*attestation\s+or\s+review\s+action/iu),
     );
     const section = reviewSection(
       packaged,
@@ -121,7 +121,7 @@ describe("hosted review fan-out workflow", () => {
       /scopeSelection\.mode` is `chunked`[\s\S]*review-chunking[\s\S]*fresh aggregate evaluator[\s\S]*Attest only the aggregate result[\s\S]*partial chunk or seam reports never consume/iu,
     );
     expect(section).toMatch(
-      /terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded\s+\/\s+commit-boundary[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status/iu,
+      softWrappedPattern(/terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded\s+\/\s+commit-boundary[\s\S]*exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status/iu),
     );
     const terminusSection = reviewSection(
       section,
@@ -135,16 +135,16 @@ describe("hosted review fan-out workflow", () => {
     expect(correctionResume).toBeGreaterThan(recordedTerminus);
     expect(exactReplay).toBeGreaterThan(correctionResume);
     expect(terminusSection).toMatch(
-      /exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status[\s\S]*re-enter\s+status\s+directly/iu,
+      softWrappedPattern(/exact-replay\s+\/\s+continue[\s\S]*refused\s+\/\s+rerun-status[\s\S]*re-enter\s+status\s+directly/iu),
     );
     expect(section).toMatch(
-      /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional\s+Owner\s+alternative[\s\S]*absent\s+explicit\s+acceptance[\s\S]*review\s+action\s+unchanged/iu,
+      softWrappedPattern(/review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional\s+Owner\s+alternative[\s\S]*absent\s+explicit\s+acceptance[\s\S]*review\s+action\s+unchanged/iu),
     );
     expect(section).toMatch(
       softWrappedProse("When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first."),
     );
     expect(section).toMatch(
-      /Owner\s+alternative\s+first[\s\S]*Absent[\s\S]*explicit\s+acceptance[\s\S]*selectionAction/iu,
+      softWrappedPattern(/Owner\s+alternative\s+first[\s\S]*Absent[\s\S]*explicit\s+acceptance[\s\S]*selectionAction/iu),
     );
     expect(section).toMatch(/terminus[\s\S]*never[\s\S]*(?:clean|converged)/iu);
     const deliveryResume = section.indexOf("`resolve-delivery-status`");

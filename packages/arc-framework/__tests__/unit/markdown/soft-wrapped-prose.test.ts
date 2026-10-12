@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 describe("soft-wrapped Markdown prose assertions", () => {
   it("accepts a soft wrap while keeping paragraph boundaries meaningful", () => {
@@ -60,5 +60,54 @@ describe("soft-wrapped Markdown prose assertions", () => {
     expect("## approval\nauthorizes merge").not.toMatch(matcher);
     expect("> ## approval\n> authorizes merge").not.toMatch(matcher);
     expect("- item\n  > ## approval\n  > authorizes merge").not.toMatch(matcher);
+  });
+});
+
+describe("soft-wrapped prose patterns", () => {
+  it("keeps occurrence counts and case-insensitive matching across soft wraps", () => {
+    const pattern = softWrappedPattern(/Every\s+selected\s+mode\s+emits/giu);
+    const content = "EVERY selected\n  mode emits\n\nEvery selected\r\nmode emits";
+
+    expect(content.match(pattern)).toHaveLength(2);
+    expect("Every selected\n\nmode emits").not.toMatch(pattern);
+    expect("Every selected\r\n  \r\nmode emits").not.toMatch(pattern);
+  });
+
+  it.each(["- ", "+ ", "* ", "1. ", "2) ", "## ", "> ", "``` ", "~~~ "])(
+    "does not enter a Markdown block starting with %s",
+    (marker) => {
+      expect(`selected\n  ${marker}mode`).not.toMatch(
+        softWrappedPattern(/selected\s+.*mode/u),
+      );
+    },
+  );
+
+  it.each(["## ", "> "])("does not leave a block starting with %s", (marker) => {
+    expect(`Preamble\n  ${marker}selected\nmode`).not.toMatch(
+      softWrappedPattern(/selected\s+mode/u),
+    );
+    expect(`Preamble\n  ${marker}first clause\n\nsecond instruction`).toMatch(
+      softWrappedPattern(/first\s+clause[\s\S]*second\s+instruction/u),
+    );
+  });
+
+  it("preserves explicit cross-section spans and alternative wording", () => {
+    const pattern = softWrappedPattern(/first\s+clause[\s\S]*second\s+(?:clause|instruction)/iu);
+
+    expect("first\nclause\n\n## Later\nsecond\r\n  instruction").toMatch(pattern);
+    expect("first\n\nclause\n\nsecond clause").not.toMatch(pattern);
+    expect("first clause\n\nsecond\n\ninstruction").not.toMatch(pattern);
+  });
+
+  it("retains literal command spaces and multiline anchors", () => {
+    expect("arc review\n  after approval").toMatch(
+      softWrappedPattern(/arc review\s+after\s+approval/u),
+    );
+    expect("arc\nreview after approval").not.toMatch(
+      softWrappedPattern(/arc review\s+after\s+approval/u),
+    );
+    expect("Preamble\nmode\n  emits\nPostscript").toMatch(
+      softWrappedPattern(/^mode\s+emits$/imu),
+    );
   });
 });

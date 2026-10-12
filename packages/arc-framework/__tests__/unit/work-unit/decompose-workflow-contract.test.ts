@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const workflow = readFileSync(
   new URL("../../../arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
@@ -30,9 +30,9 @@ describe("decompose workflow contract", () => {
   });
 
   it("defines one all-mode refusal envelope and preserves its actionable fields", () => {
-    expect(workflow.match(/Every\s+selected\s+mode\s+emits\s+one\s+typed\s+refusal\s+envelope\s+on\s+stdout\./gu)).toHaveLength(1);
+    expect(workflow.match(softWrappedPattern(/Every\s+selected\s+mode\s+emits\s+one\s+typed\s+refusal\s+envelope\s+on\s+stdout\./gu))).toHaveLength(1);
     expect(workflow).toMatch(
-      /status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u,
+      softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
     );
     expect(workflow).toMatch(
       softWrappedProse(
@@ -61,7 +61,7 @@ describe("decompose workflow contract", () => {
     expect(interlocks[2]!.index).toBeLessThan(finishApply);
     expect(workflow.slice(interlocks[2]!.index, finishApply))
       .toMatch(softWrappedProse("explicit 'apply' direction"));
-    expect(workflow).toMatch(/This\s+is\s+destructive\s+mutation\s+confirmation,\s+not\s+a\s+second\s+semantic/u);
+    expect(workflow).toMatch(softWrappedPattern(/This\s+is\s+destructive\s+mutation\s+confirmation,\s+not\s+a\s+second\s+semantic/u));
   });
 
   it("surfaces extraction's typed report fields at the sole semantic distribution gate", () => {
@@ -101,7 +101,7 @@ describe("decompose workflow contract", () => {
         "manually transfer allocated content from every other companion",
       );
       expect(candidate).toMatch(
-        /status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u,
+        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
       );
     }
   });
@@ -126,7 +126,7 @@ describe("decompose workflow contract", () => {
       expect(candidate).toMatch(softWrappedProse("`provisional-task` and `provisional-notes`"));
       expect(candidate).toMatch(softWrappedProse("manually transfer allocated content"));
       expect(candidate).toMatch(
-        /status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u,
+        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
       );
       expect(candidate).not.toMatch(/\bnpx\s+arc\b/u);
     }

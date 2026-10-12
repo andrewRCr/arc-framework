@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseWorkflowFrontmatter } from "../../../src/scripts/audit-method-triggers.js";
-import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -33,7 +33,7 @@ describe("boundary-fit workflow contract", () => {
       expect(packaged).toMatch(softWrappedProse("compare the evidence semantically"));
       expect(packaged).toMatch(softWrappedProse("material new-evidence delta"));
       expect(packaged).toMatch(softWrappedProse("materially unchanged"));
-      expect(packaged).toMatch(/No\s+CLI\s+parser,\s+fingerprint,\s+schema,\s+or\s+new\s+decision\s+record\s+is\s+introduced/u);
+      expect(packaged).toMatch(softWrappedPattern(/No\s+CLI\s+parser,\s+fingerprint,\s+schema,\s+or\s+new\s+decision\s+record\s+is\s+introduced/u));
       expect(installed).toBe(packaged);
     });
   }
