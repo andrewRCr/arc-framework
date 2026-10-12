@@ -53,9 +53,10 @@ route-discovered-work:
   host: this work unit
 ```
 
-On confirmation, carry out each outcome before the flip; a `fold` amends the spec or task list, and no outcome holds
-the capture in this work unit. Remove each routed capture with `arc user inbox-remove`, or rewrite it in place when its
-outcome is itself a capture. Then re-run the gate.
+On confirmation, carry out each outcome before the flip. A `fold` amends the spec and carries what it changes into the
+task list and its success criteria; no outcome holds the capture in this work unit. Remove each routed capture with
+`arc user inbox-remove`, or rewrite it in place when its outcome is itself a capture. Record each rejection or
+dismissal, with its reason, in the activation commit body. Then re-run the gate.
 
 ### 2) Fire `pre-activation` extension
 

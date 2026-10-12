@@ -99,7 +99,8 @@ at that pass. Create-spec's entry check, activation, and verification also take 
 work unit through this door; activation and verification exclude `hold <host>` too. Leave a compact dispositions
 table in the draft for entries whose disposition no other record keeps: entry, outcome, fold location, and reason for
 rejection or dismissal. Draft review reads the table; readiness checks only that nothing remains held. Retire the
-table with the draft at create-spec. Row coverage is in the binding.
+table with the draft at create-spec. Activation and verification run after the draft is retired, so they record the
+same rows in their ceremony commit body. Row coverage is in the binding.
 
 **Drain re-triage:** only backlog stubs may be groomed; only a started work unit's owner edits or removes its entries.
 At the drain's confirmation interlock, offer each routed-into backlog stub already holding entries once, showing
