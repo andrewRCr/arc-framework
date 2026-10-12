@@ -1329,7 +1329,7 @@ describe("trusted review-gate workflows", () => {
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
     expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
     expect(resumeEntry).toMatch(softWrappedPattern(/under\s+`with-integration`,\s+the\s+resolver\s+reports\s+`shipped`\s+in\s+`completed`/iu));
-    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close` or `arc teardown`/u));
+    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close`\s+or\s+`arc teardown`/u));
     expect(resumeEntry).toMatch(softWrappedProse("lifecycle-only repair change request"));
   });
 
