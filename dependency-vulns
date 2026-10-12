@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "dependency-vulns",
+  "claimId": "16e736f44c81e069eb5f3bb1f33433c0",
+  "createdAt": "2026-10-12T23:52:49.531Z",
+  "updatedAt": "2026-10-12T23:52:49.531Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Clear the open npm audit and Dependabot vulnerability alerts, applying in-range fixes and bringing any fix that needs a major or older version to a decision",
+  "branch": "chore/dependency-vulns",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
