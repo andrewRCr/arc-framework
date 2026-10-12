@@ -38,6 +38,14 @@ describe("check declaration fields", () => {
   ])("refuses unknown fields or enumerators: %j", (input) => {
     expect(CheckDeclarationSchema.safeParse(input).success).toBe(false);
   });
+  it("accepts the exit status a check's command reports when it finds nothing to examine", () => {
+    expect(CheckDeclarationSchema.parse({ checks: { test: { command: ["npm", "test"], no_evidence_exit: 5 } } }))
+      .toMatchObject({ checks: { test: { no_evidence_exit: 5 } } });
+  });
+  it.each([0, 256, 1.5, "5"])("refuses %j as a no-evidence exit status", (status) => {
+    const check = { command: ["npm", "test"], no_evidence_exit: status };
+    expect(CheckDeclarationSchema.safeParse({ checks: { test: check } }).success).toBe(false);
+  });
   it("admits an editor schema reference only at the root", () => {
     expect(CheckDeclarationSchema.parse({ $schema: "urn:test", checks: {} })).toMatchObject({ $schema: "urn:test" });
   });
@@ -61,6 +69,7 @@ describe("cross-field check rules", () => {
     { check: { command: ["echo", "ready"], shell: true }, field: "command" },
     { check: { command: "echo ready" }, field: "command" },
     { check: { command: ["npm", "test"], shards: { count: 4, argument: "--shard={count}" } }, field: "shards.argument" },
+    { check: { command: ["npm", "test"], gate: "push", no_evidence_exit: 5 }, field: "no_evidence_exit" },
   ])("refuses an incompatible $field", ({ check, field }) => {
     const result = CheckDeclarationSchema.safeParse({ checks: { test: check } });
     expect(result.success).toBe(false);

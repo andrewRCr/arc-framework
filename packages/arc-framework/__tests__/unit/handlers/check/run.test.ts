@@ -11,7 +11,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number }>, failSecondTreeWrite = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -101,6 +101,27 @@ it("carries the notice a check's command reports into that check's result", asyn
   expect(result.result.checks.find(check => check.id === "other")).not.toHaveProperty("notice");
 });
 
+it("reports a check's declared no-evidence status as its own non-passing outcome, without a pass or retry", async () => {
+  const { root, io, ids } = await fixture({ related: { no_evidence_exit: 5 } });
+  io.execute = async () => ({ started: true, exitCode: 5, output: "No unit tests reach the changed files." });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 1, result: {
+    checks: [{ id: "related", outcome: "no evidence", output: "No unit tests reach the changed files." }],
+    verification: "Checks: related no evidence.",
+  } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks[0]).not.toHaveProperty("record");
+  expect(result.result.checks[0]).not.toHaveProperty("remedy");
+});
+
+it("reports the same status as a failure when the check does not declare it", async () => {
+  const { root, io, ids } = await fixture({ related: {} });
+  io.execute = async () => ({ started: true, exitCode: 5, output: "" });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 1, result: { checks: [{ id: "related", outcome: "failed" }] },
+  });
+});
+
 it("reports an inherited object name as an unknown hook skip", async () => {
   const { root, io } = await fixture({});
   io.git = scriptGitExec([
@@ -128,6 +149,8 @@ const exitCases: Array<{ outcomes: DeclaredCheckResult["outcome"][]; exit: 0 | 1
   { outcomes: [], exit: 0 },
   { outcomes: ["passed", "reused", "skipped", "not selected", "would run"], exit: 0 },
   { outcomes: ["failed", "passed"], exit: 1 },
+  { outcomes: ["no evidence", "passed"], exit: 1 },
+  { outcomes: ["no evidence", "couldn't run"], exit: 2 },
   { outcomes: ["failed", "couldn't run"], exit: 2 },
   { outcomes: ["couldn't run", "failed"], exit: 2 },
 ];

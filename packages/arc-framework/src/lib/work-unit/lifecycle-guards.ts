@@ -11,7 +11,7 @@
  *   nameCollisionGuard} wires it onto the create-new edge as the belt-and-braces
  *   rejection (a forced scaffold over an existing name never lands a second meta).
  * - **worktree-occupancy** — one active work unit per worktree.
- *   {@link makeWorktreeOccupancyGuard} composes the lite/full-aware active-meta
+ *   {@link makeWorktreeOccupancyGuard} composes the active-meta
  *   reader (the same one session-init's active-resolution uses) with the
  *   slug→state derivation, rejecting when the worktree already holds a *different*
  *   work unit in an occupying state (`planning` / `active` / `integrating`)
@@ -70,7 +70,7 @@ export const nameCollisionGuard: GuardValidator = ({ index, slug }) =>
 /** The derived states in which a work unit occupies a branch / worktree. */
 const OCCUPYING = new Set(["planning", "active", "integrating"]);
 
-/** Recover a candidate's slug from its `meta-<slug>.md` filename, or `null` (e.g. a lite `status.md`). */
+/** Recover a candidate's slug from its `meta-<slug>.md` filename, or `null` for an unmatched filename. */
 function candidateSlug(candidate: MetaFileCandidate): string | null {
   return META_FILENAME_RE.exec(candidate.filename)?.[1] ?? null;
 }
@@ -80,7 +80,7 @@ export interface WorktreeOccupancyDeps {
   /** The worktree root whose `active/` is checked for occupancy. */
   cwd: string;
   /**
-   * The lite/full-aware active-meta reader (production binds
+   * The active-meta reader (production binds
    * `readActiveMetaCandidates`); injected for testability and to keep the guard
    * off the filesystem directly.
    */
@@ -135,9 +135,7 @@ function materializesInCurrentCheckout(inputs: {
  *
  * Reads the worktree's active-meta candidates, derives each one's state from its
  * `(phase, location)` (never `git branch` inference), and rejects on the first
- * foreign occupant. A candidate that *is* the target (same slug, or — when the
- * slug is underivable, e.g. a lite `status.md` — the same branch the start would
- * take) is not a collision.
+ * foreign occupant. A candidate with the target slug is not a collision.
  *
  * @param deps - The worktree root and the injected active-meta reader.
  * @returns An async guard validator.
@@ -150,15 +148,10 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
-    const targetBranch =
-      inputs.worktreeOp?.mutation === "spawn" ? inputs.worktreeOp.branch : undefined;
 
     for (const candidate of candidates) {
       const cSlug = candidateSlug(candidate);
       if (cSlug === slug) continue; // the target work unit itself
-      if (cSlug === null && targetBranch !== undefined && candidate.branch === targetBranch) {
-        continue; // lite layout: same branch ⇒ same work unit
-      }
 
       const state = deriveState(
         resolveLifecyclePosition({ path: candidate.path, state: candidate.state }),

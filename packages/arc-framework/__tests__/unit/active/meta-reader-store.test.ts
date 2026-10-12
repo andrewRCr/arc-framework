@@ -36,12 +36,13 @@ describe("active-meta store delegate", () => {
     expect(await readActiveMetaCandidates(h.cwd)).toEqual({ layout: "full", candidates: [expected], warnings: [] });
   });
 
-  it("keeps lite status precedence over a full-layout meta", async () => {
+  it("reads the held meta and ignores malformed status.md bytes", async () => {
     const h = await fixture();
     const content = makeMetaFixture("example");
-    await writeFile(join(h.root, "status.md"), content);
+    await writeFile(join(h.root, "status.md"), "not a metadata record");
     await writeFile(join(h.root, "meta-example.md"), content);
-    expect(await readActiveMetaCandidates(h.cwd)).toMatchObject({ layout: "lite", candidates: [{ filename: "status.md" }] });
+    const expected = { path: ".arc/active/meta-example.md", filename: "meta-example.md", ...parseMetaFile(content), integrationBoundary: null };
+    expect(await readActiveMetaCandidates(h.cwd)).toEqual({ layout: "full", candidates: [expected], warnings: [] });
   });
 
   it("keeps the contributor root's legacy symlink scan", async () => {

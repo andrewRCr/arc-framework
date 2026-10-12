@@ -20,6 +20,12 @@ export const ARC_CONTRACT_SUITES = [
 ] as const;
 
 /**
+ * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
+ * from a failing test. pytest exits with the same status when it collects no tests.
+ */
+export const EMPTY_RELATED_SELECTION_EXIT_CODE = 5;
+
+/**
  * Execute one configured tier through Vitest's supported in-process API.
  *
  * @param tier - Logical package-script tier.

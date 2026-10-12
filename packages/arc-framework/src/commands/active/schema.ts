@@ -17,7 +17,7 @@ const MetaFileCandidateSchema = z.strictObject({
 /** Strict result shared by standalone active resolution and derived session projection. */
 export const ActiveSessionInitResultSchema = z.strictObject({
   mode: z.literal("session-init"),
-  layout: z.enum(["full", "lite"]),
+  layout: z.literal("full"),
   resolution: z.enum(["none", "single", "multiple"]),
   /** Resolved meta path for a single candidate; null otherwise. */
   path: z.string().nullable(),

@@ -18,18 +18,8 @@ import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-eff
 import type { CandidateReviewFixAuthorityReader } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
-/**
- * Directory layout discovered on disk.
- *
- * - `full` — `meta-*.md` files rooted directly at the active dir. The
- *   reader enumerates the active root non-recursively, so this is a flat
- *   layout: meta files placed in subdirectories are not discovered.
- * - `lite` — single fixed-path `.arc/active/status.md`.
- *
- * Determined by file presence: `.arc/active/status.md` wins when both
- * shapes are present, since Lite mode's contract is one file.
- */
-export type ActiveLayout = "full" | "lite";
+/** Named work-unit metadata uses the flat `meta-*.md` active layout. */
+export type ActiveLayout = "full";
 
 /** Resolution state of the session-init-scoped probe. */
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";

@@ -2,7 +2,7 @@
  * Foreign-write advisory backstop — pre-commit hook entry point.
  *
  * Given a list of staged file paths, surfaces any that another in-flight work
- * unit also touches — a foreign-owned write about to land on the wrong branch.
+ * unit or Errand also touches — a foreign-owned write about to land on the wrong branch.
  * It reuses {@link detectForeignArtifactOverlap} (the same primitive behind the
  * `arc errand` advisory gate) over the locally-derived in-flight set, so the
  * hook stays fast and offline: no network read at commit time.
@@ -127,7 +127,7 @@ export interface StagedForeignWriteOptions {
 }
 
 /**
- * Detect staged work-unit-surface paths that a foreign in-flight WU also touches.
+ * Detect staged work-unit-surface paths that a foreign in-flight work unit or Errand also touches.
  * A thin orchestration over {@link detectForeignArtifactOverlap}: narrows the
  * candidates to the work-unit surface, then defers to the shared primitive.
  *
@@ -163,7 +163,7 @@ export async function detectStagedForeignWrites(
 }
 
 /**
- * Word the overlaps as advisory warning lines (one per foreign WU). Empty input
+ * Word the overlaps as advisory warning lines (one per foreign entry). Empty input
  * yields no lines — the hook stays silent on a clean self-write.
  */
 export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): string[] {

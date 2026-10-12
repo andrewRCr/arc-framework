@@ -280,6 +280,7 @@ checks:
       - test:changed
       - --
     mode: files
+    no_evidence_exit: 5
     root: packages/arc-framework
     inputs:
       - packages/arc-framework/src/**/*.ts
@@ -301,6 +302,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 2
       argument: --shard={index}/{count}
@@ -319,6 +321,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 4
       argument: --shard={index}/{count}
@@ -336,6 +339,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:e2e:
     command:
       - npm
@@ -350,6 +354,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 4
       argument: --shard={index}/{count}
@@ -366,6 +371,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:portability:macos:
     command:
       - npm
@@ -379,6 +385,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:e2e:local:
     command:
       - bash
