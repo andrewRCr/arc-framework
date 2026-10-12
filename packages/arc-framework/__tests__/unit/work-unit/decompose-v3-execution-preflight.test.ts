@@ -4,6 +4,7 @@ import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   createV3DecomposeStarterMap,
+  decodeV3DecomposeCutMap,
   v3PreflightId,
   v3SourceArtifactDigest,
 } from "../../../src/lib/work-unit/decompose-v3-schema.js";
@@ -78,7 +79,7 @@ describe("v3 decomposition execution preflight", () => {
     }, "origin", "map.json");
     expect(noncanonical).toEqual({
       status: "stale",
-      reason: "completed-map",
+      reason: "map:non-canonical",
       locus: "map.json",
     });
     expect(resolvePreflight).not.toHaveBeenCalled();
@@ -96,8 +97,50 @@ describe("v3 decomposition execution preflight", () => {
 
     expect(result).toEqual({
       status: "stale",
-      reason: "completed-map",
+      reason: "map:authoring-identity",
       locus: "authoring.sourceAllocations",
+      message: "Preserve every machine identity exactly once and in machine order; edit only its authored value.",
+    });
+    expect(resolvePreflight).not.toHaveBeenCalled();
+  });
+
+  it("preserves the decoder code, path, and message for invalid authoring", async () => {
+    const map = v3DecompositionEvidenceFixture().preparation.facts.completedMap;
+    const invalid = { ...map, authoring: { ...map.authoring, shape: "bogus" } };
+    const decoded = decodeV3DecomposeCutMap(invalid);
+    if (decoded.status !== "rejected") throw new Error("invalid fixture");
+    const result = await revalidateV3DecomposeExecutionPreflight({
+      readCutMap: async () => new TextEncoder().encode(`${canonicalize(invalid)}\n`),
+      resolvePreflight: vi.fn(),
+    }, "origin", "map.json");
+
+    expect(result).toEqual({
+      status: "stale",
+      reason: `map:${decoded.issue.code}`,
+      locus: decoded.issue.path,
+      message: decoded.issue.message,
+    });
+  });
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["unknown root key", { ...v3DecompositionEvidenceFixture().preparation.facts.completedMap, extra: true }],
+  ])("uses the map filename for a root-level %s decoder refusal", async (_label, invalid) => {
+    const decoded = decodeV3DecomposeCutMap(invalid);
+    if (decoded.status !== "rejected") throw new Error("invalid fixture");
+    expect(decoded.issue.path).toBe("");
+    const resolvePreflight = vi.fn();
+    const result = await revalidateV3DecomposeExecutionPreflight({
+      readCutMap: async () => new TextEncoder().encode(`${canonicalize(invalid)}\n`),
+      resolvePreflight,
+    }, "origin", "map.json");
+
+    expect(result).toEqual({
+      status: "stale",
+      reason: `map:${decoded.issue.code}`,
+      locus: "map.json",
+      message: decoded.issue.message,
     });
     expect(resolvePreflight).not.toHaveBeenCalled();
   });

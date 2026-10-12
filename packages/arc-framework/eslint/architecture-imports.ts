@@ -11,7 +11,7 @@ const { isSyntaxValueReference, syntaxBindingLookup } = await import(
 const RATCHET_PREDICATES = ["store-raw-state", "surface-names", "work-unit-paths"] as const;
 
 /** Predicate IDs accepted by the native configuration schema. */
-export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
+export const ARCHITECTURE_PREDICATES = ["clack", "kernel", "store-production", "store-tests",
   "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity",
   ...RATCHET_PREDICATES] as const;
 
@@ -274,15 +274,10 @@ function within(root: string, file: string): boolean {
 
 function kernelViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
   const root = join(sourceRoot, "lib/kernel");
-  const result = join(root, "result.ts");
   const factories = createRequireBindings(source);
   const violations: ArchitectureImportViolation[] = [];
   const report = (node: ts.Node, reason: string): void => { violations.push({ node, predicate: "kernel", reason }); };
   const inspect = (node: ts.Node, specifier: string): void => {
-    if (specifier === "neverthrow") {
-      if (resolve(filename) !== result) report(node, "neverthrow import outside kernel Result seam");
-      return;
-    }
     if (specifier === "zod" || specifier.startsWith("node:")) return;
     if (!specifier.startsWith(".")) {
       report(node, "unapproved external package");
@@ -594,15 +589,11 @@ export function findArchitectureImportViolations(
   predicates: readonly ArchitecturePredicate[],
 ): ArchitectureImportViolation[] {
   const violations = predicates.includes("kernel") ? kernelViolations(source, filename, sourceRoot) : [];
-  const references = predicates.some((predicate) => predicate === "clack" || predicate === "neverthrow" || predicate.startsWith("layout-")
+  const references = predicates.some((predicate) => predicate === "clack" || predicate.startsWith("layout-")
     || predicate === "store-concurrency" || predicate === "store-reference") ? moduleReferences(source) : [];
   if (predicates.includes("clack")) {
     violations.push(...references.filter(({ specifier }) => specifier === "@clack/prompts")
       .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "clack", reason: "raw prompt import outside terminal/renderer owners" })));
-  }
-  if (predicates.includes("neverthrow") && !within(join(sourceRoot, "lib/kernel"), resolve(filename))) {
-    violations.push(...references.filter(({ specifier }) => specifier === "neverthrow")
-      .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "neverthrow", reason: "neverthrow import outside kernel Result seam" })));
   }
   if (predicates.includes("store-production") || predicates.includes("store-tests")) {
     violations.push(...storeViolations(source, filename, sourceRoot, predicates));

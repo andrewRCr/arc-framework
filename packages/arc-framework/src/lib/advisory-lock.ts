@@ -12,6 +12,10 @@
  * so concurrent breakers converge on one holder. Release verifies PID and token
  * ownership and never drops a same-process sibling's acquisition.
  *
+ * A lockfile is created by hard-linking a fully written file into place, so a
+ * contender sees either no lockfile or a complete holder record. The lock
+ * directory's filesystem must therefore support hard links.
+ *
  * Cross-platform: the `wx` create flag and `process.kill(pid, 0)` liveness behave
  * on Windows, WSL, and macOS.
  *
@@ -21,7 +25,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { readFile as fsReadFile, unlink as fsUnlink, writeFile as fsWriteFile } from "node:fs/promises";
-import { exclusiveCreateFile } from "./fs.js";
+import { atomicCreateFile } from "./fs.js";
 
 type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
 
@@ -39,13 +43,13 @@ const BACKOFF_INITIAL_MS = 10;
 const BACKOFF_CAP_MS = 250;
 
 /**
- * Read-back budget for an observed-empty lockfile. The winner's exclusive create
- * (`O_CREAT | O_EXCL`) precedes its content write by a narrow window, so a
- * contender can read the file after creation but before the holder record lands.
- * Treating that transient empty as immediately breakable would let a contender
- * reclaim a lock another caller legitimately just took; re-read briefly before
- * concluding the empty file is an abandoned husk. Mirrors the machine-id store's
- * lost-race read-back (50 × 2ms ≈ 100ms).
+ * Read-back budget for an observed-empty lockfile. The default create never
+ * exposes one, but an injected create or the synchronous release's break-lock
+ * can open the file before its holder record lands. Treating that transient
+ * empty as immediately breakable would let a contender reclaim a lock another
+ * caller legitimately just took; re-read briefly before concluding the empty file
+ * is an abandoned husk. Mirrors the machine-id store's lost-race read-back
+ * (50 × 2ms ≈ 100ms).
  */
 const EMPTY_READBACK_ATTEMPTS = 50;
 const EMPTY_READBACK_DELAY_MS = 2;
@@ -103,7 +107,7 @@ export type IsProcessAliveFn = (pid: number) => boolean;
  * filesystem / process / clock; tests override them for determinism.
  */
 export interface AdvisoryLockOptions {
-  /** Exclusive-create primitive; defaults to the real `O_EXCL` create. */
+  /** Exclusive-create primitive; defaults to a create that links a complete file into place. */
   exclusiveCreate?: ExclusiveCreateFn;
   /** Lockfile reader; defaults to the real filesystem read. */
   readFile?: (path: string) => Promise<string>;
@@ -174,8 +178,9 @@ export class AdvisoryLockTimeoutError extends Error {
  * rest contend. A contender reclaims the current holder only when it is provably
  * abandoned — a dead recorded pid, a malformed lockfile, a demonstrably reused
  * same-scope PID, or an expired renewable lease from another process-visibility
- * scope. An observed-empty lockfile is re-read briefly before being judged an
- * abandoned husk, so the winner's create-before-write window does not invite a
+ * scope. The default create publishes only a complete holder record; an
+ * observed-empty lockfile is still re-read briefly before being judged an
+ * abandoned husk, so a create that opens before it writes does not invite a
  * contender to break a freshly-taken lock. The whole loop — break, back-off, and
  * re-race alike — is bounded by a single wait deadline, so a lock that cannot be
  * acquired surfaces a timeout rather than spinning.
@@ -189,7 +194,7 @@ export async function acquireAdvisoryLock(
   lockPath: string,
   options: AdvisoryLockOptions = {},
 ): Promise<AdvisoryLockHandle> {
-  const exclusiveCreate = options.exclusiveCreate ?? exclusiveCreateFile;
+  const exclusiveCreate = options.exclusiveCreate ?? atomicCreateFile;
   const readFile = options.readFile ?? defaultReadFile;
   const removeFile = options.removeFile ?? defaultRemoveFile;
   const isProcessAlive = options.isProcessAlive ?? realProcessAlive;
@@ -345,7 +350,7 @@ export async function renewAdvisoryLock(
     throw new Error("Advisory-lock lease duration must be a positive finite number");
   }
 
-  const exclusiveCreate = options.exclusiveCreate ?? exclusiveCreateFile;
+  const exclusiveCreate = options.exclusiveCreate ?? atomicCreateFile;
   const readFile = options.readFile ?? defaultReadFile;
   const writeFile = options.writeFile ?? defaultWriteFile;
   const removeFile = options.removeFile ?? defaultRemoveFile;
@@ -575,7 +580,7 @@ export async function releaseAdvisoryLock(
   handle: AdvisoryLockHandle,
   options: AdvisoryLockReleaseOptions = {},
 ): Promise<void> {
-  const exclusiveCreate = options.exclusiveCreate ?? exclusiveCreateFile;
+  const exclusiveCreate = options.exclusiveCreate ?? atomicCreateFile;
   const readFile = options.readFile ?? defaultReadFile;
   const removeFile = options.removeFile ?? defaultRemoveFile;
   const isProcessAlive = options.isProcessAlive ?? realProcessAlive;
@@ -732,7 +737,7 @@ export function classifyAdvisoryLockRead(observation: { text: string } | { error
  * Read and parse the current holder from a lockfile.
  *
  * @returns the parsed holder; `"absent"` when the file does not exist; `"empty"`
- *   when present but blank (the holder's create-before-write window — re-read
+ *   when present but blank (a create that opens before it writes — re-read
  *   before judging); `"unreadable"` when the read itself fails for a reason other
  *   than absence (a transient EACCES/EBUSY — waited on, never broken); `"corrupt"`
  *   when present and non-blank but malformed (treated as breakable).
@@ -746,13 +751,14 @@ async function readHolder(
 }
 
 /**
- * Read the holder, tolerating the winner's create-before-write window. The lock is
- * created (`exclusiveCreateFile`, `wx`) before its JSON body is fully written, so a
- * contender can observe it blank (`empty`) or mid-write (`corrupt`). Both are
- * re-read a bounded number of times before the file is declared `corrupt` (an
- * abandoned husk, breakable) — so a partially-written live holder is never broken
- * mid-write, while a genuinely abandoned husk stays corrupt across the retries. A
- * settled result — a parsed holder, `absent`, or `unreadable` — returns at once.
+ * Read the holder, tolerating a create that opens the lockfile before writing it.
+ * The default create links a complete record into place, but an injected create
+ * or the synchronous release's break-lock can expose it blank (`empty`) or
+ * mid-write (`corrupt`). Both are re-read a bounded number of times before the
+ * file is declared `corrupt` (an abandoned husk, breakable) — so a
+ * partially-written live holder is never broken mid-write, while a genuinely
+ * abandoned husk stays corrupt across the retries. A settled result — a parsed
+ * holder, `absent`, or `unreadable` — returns at once.
  * The injected `sleep` keeps the read-back deterministic under test.
  */
 async function readHolderSettled(

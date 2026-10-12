@@ -186,6 +186,8 @@ checks:
     root: packages/arc-framework
   typecheck:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -196,6 +198,8 @@ checks:
       - packages/arc-framework/__tests__/**/*.ts
   typecheck:test:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -206,6 +210,8 @@ checks:
       - packages/arc-framework/__tests__/**/*.ts
   lint:ts:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -266,6 +272,8 @@ checks:
       - packages/arc-framework/build-compiler.config.ts
   test:changed:
     command:
+      - bash
+      - ../../scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -280,6 +288,8 @@ checks:
       - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'
   test:unit:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -296,12 +306,14 @@ checks:
       argument: --shard={index}/{count}
   test:integration:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - test:integration
       - --
-    gate: push
+    gate: merge
     inputs:
       - '**'
       - '!.arc/active/**'
@@ -312,6 +324,8 @@ checks:
       argument: --shard={index}/{count}
   test:arc-contracts:
     command:
+      - bash
+      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -367,6 +381,8 @@ checks:
       - '!.arc/completed/**'
   test:e2e:local:
     command:
+      - bash
+      - scripts/check-runner.sh
       - node
       - --import
       - tsx
@@ -378,6 +394,7 @@ checks:
       - scripts/run-local-e2e.mjs
 global_inputs:
   - package.json
+  - scripts/check-runner.sh
   - package-lock.json
   - packages/arc-framework/package.json
   - .editorconfig

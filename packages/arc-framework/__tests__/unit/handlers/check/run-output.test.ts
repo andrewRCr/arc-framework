@@ -10,6 +10,13 @@ it("labels a successful divergent run with its differing input paths", () => {
   expect(result).toContain("worktree differs: src/a.ts");
 });
 
+it("shows a check's notice beside its outcome", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "test", kind: "enforcement", outcome: "passed", notice: "ran locally: build-vm unreachable", costMs: 12 }],
+  } }, false);
+  expect(result).toContain("test: passed [enforcement] (ran locally: build-vm unreachable) (12 ms)");
+});
+
 it("lists a fixer's rewritten paths in the human report", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
     status: "completed", checks: [{ id: "format", kind: "enforcement", outcome: "failed", rewritten: ["src/a.ts"] }],

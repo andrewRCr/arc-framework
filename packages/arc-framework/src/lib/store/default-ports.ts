@@ -1,6 +1,6 @@
 /** Production dependency binding with lazy identity, remote, and write-lock resolution. */
 import * as fs from "node:fs/promises";
-import { atomicWriteFile } from "../fs.js";
+import { atomicCreateFile, atomicWriteFile } from "../fs.js";
 import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
@@ -24,7 +24,7 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
     clock: () => new Date(),
     fs: { readFile: (path) => fs.readFile(path, "utf8"),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
-      writeFile: atomicWriteFile, exclusiveCreate: (path, content) => fs.writeFile(path, content, { flag: "wx", encoding: "utf8" }),
+      writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
       unlink: fs.unlink },
     locks: {
       tracked: (operation) => withTrackedWriteLock({ exec, checkoutRoot: input.checkoutRoot }, operation),

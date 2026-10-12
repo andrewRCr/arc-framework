@@ -104,6 +104,27 @@ describe("Codex hosted adapter", () => {
     );
   });
 
+  it.each([
+    ["readReviews", "rate-limited"],
+    ["readIssueComments", "transient-unavailable"],
+  ] as const)("leaves a retryable %s %s failure to the waiting caller", async (boundary, kind) => {
+    const failure = new HostedGitHubReadError(kind, `${boundary}-${kind}`);
+    const adapter = new CodexHostedAdapter(port({ [boundary]: () => Promise.reject(failure) }));
+
+    await expect(adapter.observeHandle(target)).rejects.toBe(failure);
+  });
+
+  it("reports a terminal read failure as the review's outcome", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readThreads: () => Promise.reject(new HostedGitHubReadError("terminal-failure", "threads: malformed JSON")),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "threads: malformed JSON",
+    });
+  });
+
   it("fails open to complete coverage when incremental review is unavailable", async () => {
     const posted: string[] = [];
     const adapter = new CodexHostedAdapter(port({

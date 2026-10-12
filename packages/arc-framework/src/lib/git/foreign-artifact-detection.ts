@@ -20,6 +20,7 @@
  */
 
 import type { GitExec } from "./exec.js";
+import { isGitProcessError } from "./process-error.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
@@ -102,7 +103,7 @@ export interface ForeignArtifactIndeterminateProbe {
   /** Determinate matched paths, when any survived before indeterminacy was detected. */
   matchedPaths: string[];
   /** Why the probe cannot be asserted as overlap or no-overlap. */
-  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement";
+  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement" | "merge-in-progress";
 }
 
 export type ForeignArtifactSkippedReason =
@@ -312,8 +313,8 @@ async function committedMatches(
 }
 
 /** Resolve a ref to a commit SHA once so later probes operate on immutable inputs. */
-async function resolveRefSha(exec: GitExec, ref: string): Promise<string> {
-  const { stdout } = await exec("git", ["rev-parse", "--verify", ref]);
+async function resolveRefSha(exec: GitExec, ref: string, cwd?: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--verify", ref], cwd === undefined ? undefined : { cwd });
   const sha = stdout.trim().split(/\s+/u)[0] ?? "";
   if (sha === "") throw new Error(`Unable to resolve ref: ${ref}`);
   return sha;
@@ -333,9 +334,16 @@ async function uncommittedMatches(
   worktreePath: string,
   targetPaths: string[],
 ): Promise<PathProbeResult> {
-  const first = await readUncommittedPaths(exec, worktreePath, targetPaths);
-  const second = await readUncommittedPaths(exec, worktreePath, targetPaths);
-  if (!sameStrings(first, second)) {
+  const headBefore = await resolveRefSha(exec, "HEAD", worktreePath);
+  const mergingBefore = await hasMergeInProgress(exec, worktreePath);
+  const first = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  const mergingBetween = !mergingBefore && await hasMergeInProgress(exec, worktreePath);
+  const second = mergingBefore || mergingBetween ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  if (mergingBefore || mergingBetween || await hasMergeInProgress(exec, worktreePath)) {
+    // A merge index includes incoming changes that status cannot attribute to this work unit.
+    return { matchedPaths: [], indeterminate: true, reason: "merge-in-progress" };
+  }
+  if (!sameStrings(first, second) || headBefore !== await resolveRefSha(exec, "HEAD", worktreePath)) {
     return {
       matchedPaths: [],
       indeterminate: true,
@@ -345,6 +353,16 @@ async function uncommittedMatches(
   return {
     matchedPaths: targetPaths.filter((target) => first.some((file) => underPath(file, target))),
   };
+}
+
+async function hasMergeInProgress(exec: GitExec, worktreePath: string): Promise<boolean> {
+  try {
+    await exec("git", ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], { cwd: worktreePath });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    throw error;
+  }
 }
 
 async function readUncommittedPaths(

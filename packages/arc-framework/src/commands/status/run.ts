@@ -8,7 +8,7 @@
  *   by the harness. Replaces Batch 1's four probe invocations + two
  *   `git config` reads with a single CLI call.
  *
- * Each entry point fans out independent ResultAsync probes through
+ * Each entry point fans out independent fallible probes through
  * `Promise.all`, carries typed failures through derived stages, then adapts
  * every present slot to the public {@link Probe} union at final composition.
  * The envelope itself never rejects on an ordinary probe failure.
@@ -45,9 +45,12 @@ import type {
 } from "./types.js";
 import {
   buildSessionRemoteContextSlot,
+  composeSlot,
+  failedSlot,
+  mapSlot,
+  resolvedSlot,
   gatedSlot,
   safeProbe,
-  SessionCompositionError,
   SessionIdentityMissingError,
   toProbe,
   userSlot,
@@ -82,12 +85,6 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
-import {
-  fromThrowable,
-  err,
-  ok,
-  okAsync,
-} from "../../lib/kernel/index.js";
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
 }
@@ -184,13 +181,13 @@ export async function runSessionInitStatus(
   ]);
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
-    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
         identity,
-        extensions.isOk() ? extensions.value.active : [],
+        extensions.ok ? extensions.value.active : [],
       ));
-  const active = derivedLocusState.map(projectDerivedActiveSession);
-  const owningWorkUnitId = derivedLocusState.isOk()
+  const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
+  const owningWorkUnitId = derivedLocusState.ok
     && derivedLocusState.value.active?.subject.kind === "work-unit"
       ? derivedLocusState.value.active.subject.key
       : null;
@@ -198,7 +195,7 @@ export async function runSessionInitStatus(
   const deliveryPosition = owningWorkUnitId === null
     ? undefined
     : deliveryPositionProbe === undefined
-      ? ok(null)
+      ? resolvedSlot(null)
       : await remote.run(
           "deliveryPosition",
           (context) => deliveryPositionProbe(context, { workUnitId: owningWorkUnitId }),
@@ -206,7 +203,7 @@ export async function runSessionInitStatus(
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
   // to "primary" (surface nothing) rather than masking the whole worktree slot.
-  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.isOk()
+  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.ok
     ? worktreeIdentitySlot.value
     : { kind: "primary" };
 
@@ -216,8 +213,8 @@ export async function runSessionInitStatus(
   // identity: a failed worktreeIdentity probe still degrades to `{ kind:
   // "primary" }` for roster/sweep, and must not leak hygiene onto that coerce.
   const primaryIdentity = identity !== null
-    && worktree.isOk()
-    && worktreeIdentitySlot.isOk()
+    && worktree.ok
+    && worktreeIdentitySlot.ok
     && worktreeIdentity.kind === "primary"
     ? identity
     : null;
@@ -236,9 +233,9 @@ export async function runSessionInitStatus(
   // because local HEAD is behind origin, attach the qualifier to user
   // so downstream consumers can reason about reachability.
   const qualifiedUser: RawUser =
-    user.isOk() && user.value.state === "clean" &&
-      worktree.isOk() && worktree.value.state === "remote-ahead"
-      ? user.map((value) => ({ ...value, qualifier: "clean-at-current-head" as const }))
+    user.ok && user.value.state === "clean" &&
+      worktree.ok && worktree.value.state === "remote-ahead"
+      ? mapSlot(user, (value) => ({ ...value, qualifier: "clean-at-current-head" as const }))
       : user;
 
   // Patch-equal supersession refinement — only meaningful when the worktree has
@@ -246,13 +243,13 @@ export async function runSessionInitStatus(
   // `git cherry` over the local-ahead set; skipped on every non-diverged resume,
   // so the common path pays nothing. `null` when not diverged or the read failed.
   const supersessionSlot =
-    worktree.isOk() && worktree.value.state === "diverged" && worktree.value.branch !== null
+    worktree.ok && worktree.value.state === "diverged" && worktree.value.branch !== null
       ? await remote.run(
         "supersession",
         (context) => probes.supersession(context, worktree.value.branch as string),
       )
       : undefined;
-  const supersession = supersessionSlot?.isOk() ? supersessionSlot.value : null;
+  const supersession = supersessionSlot?.ok ? supersessionSlot.value : null;
 
   const recommendations = composeSessionInitRecommendations({
     worktree,
@@ -262,7 +259,7 @@ export async function runSessionInitStatus(
     supersession,
   });
 
-  const enrichedWorktree = worktree.map((value) => ({
+  const enrichedWorktree = mapSlot(worktree, (value) => ({
         ...value,
         recommendedAction: recommendations.worktree.recommendedAction,
         recommendedPromptText: recommendations.worktree.recommendedPromptText,
@@ -273,7 +270,7 @@ export async function runSessionInitStatus(
   // Current-locus husk/transient provenance is a linked + branchless
   // refinement, not a new sync state. Ordinary branched resumes skip the read.
   const currentHusk =
-    worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
+    worktreeIdentity.kind === "linked" && worktree.ok && worktree.value.branch === null
       ? await remote.run(
         "currentHusk",
         (context) => probes.currentHusk(context, worktreeIdentity.path),
@@ -284,8 +281,8 @@ export async function runSessionInitStatus(
   // recommendation is an independent advisory (behind-base reconcile offer),
   // composed straight from the slot — orthogonal to the worktree+notes pull
   // recommendations and their combined prompt.
-  const baseDistanceRec = inferBaseDistance(baseDistance.isOk() ? baseDistance.value : null);
-  const enrichedBaseDistance = baseDistance.map((value) => ({
+  const baseDistanceRec = inferBaseDistance(baseDistance.ok ? baseDistance.value : null);
+  const enrichedBaseDistance = mapSlot(baseDistance, (value) => ({
         ...value,
         recommendedAction: baseDistanceRec.recommendedAction,
         recommendedPromptText: baseDistanceRec.recommendedPromptText,
@@ -297,13 +294,13 @@ export async function runSessionInitStatus(
   // non-checked-out ref); a base checked out elsewhere degrades pull/prompt
   // to a primary-aware surface.
   const baseBranchPolicy = normalizeBaseBranchSyncPolicy(
-    config.isOk() ? config.value.settings["session.init_pull.base"] : "prompt",
+    config.ok ? config.value.settings["session.init_pull.base"] : "prompt",
   );
   const baseBranchSyncRec = inferBaseBranchSync(
-    baseBranchSync.isOk() ? baseBranchSync.value : null,
+    baseBranchSync.ok ? baseBranchSync.value : null,
     baseBranchPolicy,
   );
-  const enrichedBaseBranchSync = baseBranchSync.map((value) => ({
+  const enrichedBaseBranchSync = mapSlot(baseBranchSync, (value) => ({
         ...value,
         recommendedAction: baseBranchSyncRec.recommendedAction,
         recommendedPromptText: baseBranchSyncRec.recommendedPromptText,
@@ -316,17 +313,17 @@ export async function runSessionInitStatus(
   // fires one `arc user load` when `loadNeeded` OR retired candidates are
   // present — so a current-notes machine still reconciles its orphan subdirs.
   const notesLoadPolicy = normalizeNotesLoadPolicy(
-    config.isOk() ? config.value.settings["session.init_load.notes"] : "prompt",
+    config.ok ? config.value.settings["session.init_load.notes"] : "prompt",
   );
   const retiredSubdirsRec = inferRetiredSubdirs(
-    retiredSubdirs !== null && retiredSubdirs.isOk() ? retiredSubdirs.value : null,
+    retiredSubdirs !== null && retiredSubdirs.ok ? retiredSubdirs.value : null,
     notesLoadPolicy,
-    dirty.isOk() ? dirty.value : { state: "clean", fileCount: 0 },
+    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
   );
   const enrichedRetiredSubdirs =
     retiredSubdirs === null
       ? undefined
-      : retiredSubdirs.map((value) => ({
+      : mapSlot(retiredSubdirs, (value) => ({
         ...value,
         recommendedAction: retiredSubdirsRec.recommendedAction,
         recommendedPromptText: retiredSubdirsRec.recommendedPromptText,
@@ -337,10 +334,10 @@ export async function runSessionInitStatus(
   // auto-load sub-case (the active WU's missing SESSION-NOTES) without it. The
   // verdict finalizes `loadNeeded` (the safe sub-case upgrades it) and any
   // advisory `notesDriftSurface`.
-  const activePath = active.isOk() ? active.value.path : null;
+  const activePath = active.ok ? active.value.path : null;
   const activeWuName = metaWorkUnitNameFromActive(activePath);
   const currentWuReconcile =
-    active.isOk()
+    active.ok
     && active.value.resolution === "single"
     && activePath !== null
     && activeWuName !== null
@@ -348,18 +345,18 @@ export async function runSessionInitStatus(
         probes.currentWuReconcile({ slug: activeWuName, metaPath: activePath }))
       : undefined;
   const userReferenceReconcile =
-    active.isOk()
+    active.ok
     && active.value.resolution === "single"
     && activeWuName !== null
     && identity !== null
       ? await remote.run("userReferenceReconcile", (context) =>
         probes.userReferenceReconcile(context, { slug: activeWuName }))
       : undefined;
-  const notesVerdict = qualifiedUser.isOk() && qualifiedUser.value.notesDrift
+  const notesVerdict = qualifiedUser.ok && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
     : null;
 
-  const enrichedUser = qualifiedUser.map((value) => ({
+  const enrichedUser = mapSlot(qualifiedUser, (value) => ({
         ...value,
         recommendedAction: recommendations.user.recommendedAction,
         recommendedPromptText: recommendations.user.recommendedPromptText,
@@ -383,8 +380,8 @@ export async function runSessionInitStatus(
   // arms; the primary arm fires it for the stale-worktree sweep — a main session
   // recurs often enough to bound the lingering window.
   const rosterGated =
-    (worktree.isOk() && worktree.value.state === "branch-gone") ||
-    (active.isOk() && active.value.resolution === "none") ||
+    (worktree.ok && worktree.value.state === "branch-gone") ||
+    (active.ok && active.value.resolution === "none") ||
     worktreeIdentity.kind === "primary";
   const rosterTask = gatedSlot(rosterGated, "roster", () => probes.roster());
   const cleanupRosterTask = gatedSlot(
@@ -405,23 +402,25 @@ export async function runSessionInitStatus(
   // so one roster computation feeds every consumer and recovery fires only when
   // the worktree is branch-gone and the roster resolved.
   const rawRecovery =
-    worktree.isOk() && worktree.value.state === "branch-gone" && roster?.isOk()
+    worktree.ok && worktree.value.state === "branch-gone" && roster?.ok
       ? await remote.run(
         "recovery",
         (context) => probes.recovery(context, roster.value, worktree.value.branch),
       )
       : undefined;
-  const recovery = rawRecovery?.map((value) => inferBranchGoneRecovery(
-    value,
-    dirty.isOk() ? dirty.value : { state: "dirty", fileCount: 0 },
-  ));
+  const recovery = rawRecovery === undefined
+    ? undefined
+    : mapSlot(rawRecovery, (value) => inferBranchGoneRecovery(
+      value,
+      dirty.ok ? dirty.value : { state: "dirty", fileCount: 0 },
+    ));
 
   // Residue sweep — consumes the public roster in the primary worktree and the
   // private cleanup-only roster in a linked worktree. The private value never
   // reaches recovery, completion state, or the returned envelope.
   const sweepRoster = worktreeIdentity.kind === "primary" ? roster : cleanupRoster;
   const sweep =
-    sweepRoster?.isOk()
+    sweepRoster?.ok
       ? await remote.run(
         "sweep",
         (context) => probes.sweep(context, sweepRoster.value, worktreeIdentity),
@@ -438,12 +437,12 @@ export async function runSessionInitStatus(
       )
       : undefined;
   const errandState: RawErrandState | undefined =
-    worktree.isOk() && active.isOk()
+    worktree.ok && active.ok
       ? await remote.run("errandState", (context) => probes.errandState(context, {
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
-        includeNudge: worktreeIdentitySlot.isOk() && worktreeIdentity.kind === "primary",
+        includeNudge: worktreeIdentitySlot.ok && worktreeIdentity.kind === "primary",
       }))
       : undefined;
 
@@ -454,11 +453,11 @@ export async function runSessionInitStatus(
   // mergeable-sharpening tier's live PR query is requested ONLY on the
   // no-active-WU arm — the same bounded network slice the materialize oracle uses.
   const workUnitState =
-    roster?.isOk()
+    roster?.ok
       ? await remote.run("workUnitState", (context) =>
         probes.workUnitState(context, {
           roster: roster.value,
-          includeSharpening: active.isOk() && active.value.resolution === "none",
+          includeSharpening: active.ok && active.value.resolution === "none",
         }))
       : undefined;
 
@@ -466,7 +465,7 @@ export async function runSessionInitStatus(
   // pickup. Declared against the shared remote context and gated inline: the
   // oracle's bounded network slice runs ONLY on the no-active-WU arm, so the
   // resume path pays zero oracle cost.
-  const materializableWorkUnitsTask = active.isOk() && active.value.resolution === "none"
+  const materializableWorkUnitsTask = active.ok && active.value.resolution === "none"
     ? remote.run(
       "materializableWorkUnits",
       (context) => probes.materializableWorkUnits(context),
@@ -482,18 +481,18 @@ export async function runSessionInitStatus(
   // (where discovery runs) and computed synchronously from the resolved roster;
   // omitted when nothing is in flight.
   const inFlightComposition =
-    active.isOk() && active.value.resolution === "none" && roster?.isOk()
+    active.ok && active.value.resolution === "none" && roster?.ok
       ? (resolveInFlightComposition(roster.value.entries) ?? undefined)
       : undefined;
 
-  const derivedContext = derivedLocusState.isOk()
+  const derivedContext = derivedLocusState.ok
     ? derivedLocusState.value.active?.context ?? null
     : null;
   const cohortDocPath = derivedContext?.cohortDocPath ?? null;
-  const loadSet: SessionResult<LoadSetManifest> = derivedLocusState.isErr()
-    ? err(derivedLocusState.error)
+  const loadSet: SessionResult<LoadSetManifest> = !derivedLocusState.ok
+    ? failedSlot(derivedLocusState.error)
     : derivedLocusState.value.active !== null
-      ? ok(derivedLocusState.value.active.context.loadSet)
+      ? resolvedSlot(derivedLocusState.value.active.context.loadSet)
       : loadSetFromState({
       identity,
       activeWorkUnit: null,
@@ -501,14 +500,14 @@ export async function runSessionInitStatus(
       sessionType: null,
       planningStage: null,
       taskListPath: null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
+      activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath: null,
-      cohortDoc: ok(null),
+      cohortDoc: resolvedSlot(null),
       workingMemoryPath: workingMemoryPath ?? null,
     });
   const taskCursor = derivedContext?.taskCursor === null || derivedContext === null
     ? undefined
-    : derivedLocusState.map(() => derivedContext.taskCursor as NonNullable<typeof derivedContext.taskCursor>);
+    : mapSlot(derivedLocusState, () => derivedContext.taskCursor as NonNullable<typeof derivedContext.taskCursor>);
 
   return {
     mode: "session-init",
@@ -585,34 +584,33 @@ export async function runRecoverStatus(
   ]);
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
-    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
         identity,
-        extensions.isOk() ? extensions.value.active : [],
+        extensions.ok ? extensions.value.active : [],
       ));
 
   // Physical checkout identity remains an independent informational slot; the
   // derived frame already selected the exact entering checkout.
-  const enrichedWorktree = worktree.andThen((value) =>
-    worktreeIdentitySlot.map((identityValue) => ({
-      ...value,
+  const enrichedWorktree = !worktree.ok
+    ? worktree
+    : mapSlot(worktreeIdentitySlot, (identityValue) => ({
+      ...worktree.value,
       identity: identityValue,
-    } satisfies SessionRecoverWorktreeValue)));
+    } satisfies SessionRecoverWorktreeValue));
 
-  const deriveContext = fromThrowable(
-    (state: DerivedLocusFrame) => deriveRecoveryLocusContext({
-      state,
+  const recoveryContext = !derivedLocusState.ok
+    ? failedSlot(derivedLocusState.error)
+    : composeSlot("derive-recovery-locus", "recoveryFrame", () => deriveRecoveryLocusContext({
+      state: derivedLocusState.value,
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
-    }),
-    (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
-  );
-  const recoveryContext = derivedLocusState.andThen(deriveContext);
-  const recoveryFrame = recoveryContext.map((value) => value.frame);
-  const loadSet = recoveryContext.map((value) => value.loadSet);
-  const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
-    ? recoveryContext.map((value) => value.taskCursor as NonNullable<typeof value.taskCursor>)
+      activeExtensions: extensions.ok ? extensions.value.active : [],
+    }));
+  const recoveryFrame = mapSlot(recoveryContext, (value) => value.frame);
+  const loadSet = mapSlot(recoveryContext, (value) => value.loadSet);
+  const taskCursor = recoveryContext.ok && recoveryContext.value.taskCursor !== null
+    ? mapSlot(recoveryContext, (value) => value.taskCursor as NonNullable<typeof value.taskCursor>)
     : undefined;
 
   return {
@@ -685,22 +683,18 @@ function loadSetFromState(options: {
   cohortDoc: SessionResult<string | null>;
   workingMemoryPath: string | null;
 }): SessionResult<ReturnType<typeof resolveLoadSetManifest>> {
-  if (!options.cohortDoc.isOk()) return err(options.cohortDoc.error);
-  const resolve = fromThrowable(
-    () => resolveLoadSetManifest({
-      identity: options.identity,
-      activeWorkUnit: options.activeWorkUnit,
-      metaPath: options.metaPath,
-      sessionType: options.sessionType,
-      planningStage: options.planningStage,
-      taskListPath: options.taskListPath,
-      activeExtensions: options.activeExtensions,
-      cohortDocPath: options.cohortDocPath,
-      workingMemoryPath: options.workingMemoryPath,
-    }),
-    (cause) => new SessionCompositionError("resolve-load-set", "loadSet", cause),
-  );
-  return resolve();
+  if (!options.cohortDoc.ok) return failedSlot(options.cohortDoc.error);
+  return composeSlot("resolve-load-set", "loadSet", () => resolveLoadSetManifest({
+    identity: options.identity,
+    activeWorkUnit: options.activeWorkUnit,
+    metaPath: options.metaPath,
+    sessionType: options.sessionType,
+    planningStage: options.planningStage,
+    taskListPath: options.taskListPath,
+    activeExtensions: options.activeExtensions,
+    cohortDocPath: options.cohortDocPath,
+    workingMemoryPath: options.workingMemoryPath,
+  }));
 }
 
 /**
@@ -719,7 +713,7 @@ function composeSessionInitRecommendations(slots: {
   config: SessionResult<import("../config/types.js").ConfigSessionInitResult>;
   supersession: import("../../lib/git/supersession.js").SupersessionResult | null;
 }): ReturnType<typeof inferSessionInitRecommendations> {
-  if (!slots.worktree.isOk() || !slots.dirty.isOk() || !slots.config.isOk()) {
+  if (!slots.worktree.ok || !slots.dirty.ok || !slots.config.ok) {
     return {
       worktree: { recommendedAction: "skip", recommendedPromptText: "" },
       user: { recommendedAction: "skip", recommendedPromptText: "" },
@@ -729,7 +723,7 @@ function composeSessionInitRecommendations(slots: {
   const settings = slots.config.value.settings;
   return inferSessionInitRecommendations({
     worktree: slots.worktree.value,
-    user: slots.user.isOk() ? slots.user.value : null,
+    user: slots.user.ok ? slots.user.value : null,
     worktreePullPolicy: normalizeWorktreePolicy(settings["session.init_pull.worktree"]),
     notesPullPolicy: normalizeNotesPolicy(settings["session.init_pull.notes"]),
     dirty: slots.dirty.value,
@@ -790,7 +784,7 @@ export async function runSessionHandoffStatus(
   // The options union requires a resolver whenever identity is non-null, so a
   // successful pathSet never silently nulls identity-global paths for lack of one.
   const surfacesTask = identity === null
-    ? okAsync(null as HandoffSurfacePaths | null)
+    ? Promise.resolve(resolvedSlot(null as HandoffSurfacePaths | null))
     : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
@@ -811,27 +805,27 @@ export async function runSessionHandoffStatus(
   ]);
 
   const derivedLocusState = identity === null
-    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
         identity,
-        extensions.isOk() ? extensions.value.active : [],
+        extensions.ok ? extensions.value.active : [],
       ));
-  const active = derivedLocusState.map(projectDerivedActiveSession);
+  const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
 
-  const branch = worktree.isOk() ? worktree.value.branch : null;
-  const handoffActiveWuName = derivedLocusState.isOk()
+  const branch = worktree.ok ? worktree.value.branch : null;
+  const handoffActiveWuName = derivedLocusState.ok
     ? derivedLocusState.value.active?.subject.key ?? null
     : null;
-  const handoffNotesVerdict = user.isOk() && user.value.notesDrift
+  const handoffNotesVerdict = user.ok && user.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: handoffActiveWuName })
     : null;
-  const enrichedUser = user.map((value) => ({
+  const enrichedUser = mapSlot(user, (value) => ({
         ...value,
         ...(handoffNotesVerdict ? { loadNeeded: handoffNotesVerdict.loadNeeded } : {}),
         ...(handoffNotesVerdict?.driftSurface ? { notesDriftSurface: handoffNotesVerdict.driftSurface } : {}),
       } satisfies SessionUserValue));
 
-  const recommendedSummaryLine = worktree.isOk()
+  const recommendedSummaryLine = worktree.ok
     ? inferRecommendedSummaryLine({
       context: "sync-skipped",
       worktreeState: worktree.value.state,
@@ -841,13 +835,9 @@ export async function runSessionHandoffStatus(
       unpushedN: worktree.value.ahead,
     })
     : null;
-  const deriveHandoff = fromThrowable(
-    (frame: DerivedLocusFrame) => deriveHandoffLocusPlan(frame),
-    (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
-  );
-  const handoffLocus: SessionResult<HandoffLocusPlan> = derivedLocusState.isErr()
-    ? err(derivedLocusState.error)
-    : deriveHandoff(derivedLocusState.value);
+  const handoffLocus: SessionResult<HandoffLocusPlan> = !derivedLocusState.ok
+    ? failedSlot(derivedLocusState.error)
+    : composeSlot("derive-handoff-locus", "handoffLocus", () => deriveHandoffLocusPlan(derivedLocusState.value));
 
   const pathSet = composeHandoffPathSet({
     surfaces,
@@ -886,7 +876,7 @@ function composeHandoffPathSet(options: {
   surfaces: SessionResult<HandoffSurfacePaths | null>;
   activeWuName: string | null;
 }): Probe<HandoffPathSet> {
-  if (!options.surfaces.isOk()) {
+  if (!options.surfaces.ok) {
     // Map surface-resolution failure into the pathSet probe without widening
     // the success value type through toProbe's generic.
     return {

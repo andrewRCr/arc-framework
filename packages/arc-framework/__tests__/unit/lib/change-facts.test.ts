@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   affectedPaths,
   classifyPlanningLane,
+  isIntegrationTargetPath,
   isPortabilitySurfacePath,
   parseRawDiff,
   resolveChangeSet,
@@ -24,6 +25,48 @@ describe("status portability surface", () => {
     "status/session.ts",
   ])("retains portability checks for the status implementation at %s", (path) => {
     expect(isPortabilitySurfacePath(`packages/arc-framework/src/handlers/${path}`)).toBe(true);
+  });
+});
+
+describe("integration target paths", () => {
+  it.each([
+    "packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md",
+    "packages/arc-framework/arc/system/methods/test-first.md",
+    ".arc/system/workflows/arc/supplemental/run-errand.md",
+    ".arc/system/rules/DEV-RULES.PROJECT.md",
+    ".arc/system/arc-config.yml",
+    ".arc/reference/strategies/arc/strategy-quality-gates.md",
+    ".arc/reference/QUICK-REFERENCE.md",
+    "README.md",
+    "docs/index.md",
+    "mkdocs.yml",
+  ])("targets %s, whose content the verified code tree leaves out", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(true);
+  });
+
+  it.each([
+    "packages/arc-framework/src/lib/change-facts.ts",
+    "packages/arc-framework/__tests__/integration/classify-change.test.ts",
+    "packages/arc-framework/arc/system/extensions/README.md",
+    "packages/arc-framework/arc/reference/templates/template-tasks.md",
+    "packages/arc-framework/arc/system/arc-config.yml",
+    ".arc/system/arc-checks.yml",
+    ".arc/system/extensions/post-context-load.md",
+    ".github/workflows/ci.yml",
+    ".claude/skills/arc-session/SKILL.md",
+  ])("leaves %s to the code weight, which covers its content", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/active/tasks-example.md",
+    ".arc/backlog/ROADMAP.md",
+    ".arc/backlog/planned/cohort/example/meta-example.md",
+    ".arc/backlog/ATOMIC-INBOX.md",
+    ".arc/completed/2026-q4/01_example/spec-example.md",
+    ".arc/system/.internal/transitions/example.json",
+  ])("does not target the planning record %s", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
   });
 });
 

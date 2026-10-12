@@ -7,7 +7,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/
 import { type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
-import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, laneProgressOperationId, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, readHostedAwaitReplay, readHostedRequestAdmissionReplay, recordLaneAttempt, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, laneProgressOperationId, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, readHostedAwaitReplay, readHostedRequestAdmissionReplay, recordLaneAttempt, resolveHostedAwaitResult, HostedAwaitEndedError, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
@@ -813,6 +813,30 @@ describe("hosted await lane recording", () => {
       outcome: "rate-limited",
     })]);
     expect(state?.completedPasses).toBe(0);
+  });
+
+  it("refuses to await an ended request again, naming its recorded outcome", async () => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "rate-limited", nextAction: "try-next-source" },
+      now: "2026-08-15T12:00:00Z",
+    });
+    let observed = false;
+
+    const failure = await resolveHostedAwaitResult(store, {
+      repositoryId: "repo-1",
+      handle,
+      observe: () => { observed = true; return Promise.reject(new Error("observed an ended request")); },
+      now: () => "2026-08-15T12:01:00Z",
+    }).catch((error: unknown) => error);
+
+    expect(observed).toBe(false);
+    expect(failure).toBeInstanceOf(HostedAwaitEndedError);
+    expect(failure).toMatchObject({ code: "invalid-input", outcome: "rate-limited" });
+    expect(String((failure as Error).message)).toContain("already ended as rate-limited");
   });
 
   it("counts an incremental verdict once while retaining its coverage", async () => {

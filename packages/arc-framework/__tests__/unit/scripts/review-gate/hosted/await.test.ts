@@ -11,6 +11,7 @@ import {
   type HostedAwaitClock,
   type HostedReviewObserver,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
+import { HostedGitHubReadError } from "../../../../../src/scripts/review-gate/hosted/github.js";
 import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
@@ -265,6 +266,118 @@ describe("hosted review await", () => {
       nextAction: "stop",
       expectedHeadSha: HEAD,
       actualHeadSha: "b".repeat(40),
+    });
+  });
+
+  it("keeps polling through a failed GitHub read and reports it while the review is pending", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValue(new HostedGitHubReadError("transient-unavailable", "HTTP 502: Bad Gateway"));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      action: { schemaVersion: 1, handle },
+      readFailure: { kind: "transient-unavailable", detail: "HTTP 502: Bad Gateway" },
+    });
+    expect(observe.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("takes a review that lands after a failed GitHub read", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockResolvedValue({ kind: "clean", reviewUrl: "https://example.com/review" });
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({ state: "clean", nextAction: "complete" });
+  });
+
+  it("drops a read failure once a later poll reads the review", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockResolvedValue({ kind: "pending" });
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({ state: "pending", nextAction: "await" });
+    expect(result).not.toHaveProperty("readFailure");
+  });
+
+  it("keeps the last failed read when the deadline cuts off the next one", async () => {
+    const observe = vi.fn<HostedReviewObserver["observe"]>()
+      .mockRejectedValueOnce(new HostedGitHubReadError("transient-unavailable", "timed out"))
+      .mockImplementation((_handle, options) => new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+      }));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 200,
+      pollIntervalMs: 100,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [observer(observe)] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      readFailure: { kind: "transient-unavailable", detail: "timed out" },
+    });
+    expect(observe).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a rate-limited head read as a failed read, not the provider's outcome", async () => {
+    const limited = observer(() => Promise.resolve({ kind: "pending" }));
+    limited.readHead = () => Promise.reject(new HostedGitHubReadError("rate-limited", "HTTP 429: rate limit exceeded"));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [limited] });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      readFailure: { kind: "rate-limited", detail: "HTTP 429: rate limit exceeded" },
+    });
+  });
+
+  it("reports a failed GitHub read when unattended waiting reaches its attention threshold", async () => {
+    const failing = observer(() => Promise.reject(new HostedGitHubReadError("transient-unavailable", "timed out")));
+
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [failing],
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      readFailure: { kind: "transient-unavailable", detail: "timed out" },
     });
   });
 

@@ -7,6 +7,35 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Publish this repository's personal state with its project state, superseding the 2026-10-06 hold**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: public-repo-flip`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Flip decision (2026-10-06), "Notes gate (1)" and "Still published".
+
+- _Observation:_ `storage-ref-backend` decides (Owner, 2026-10-10) that this repository runs the default backend with
+  its personal state published with its project state: nothing in it needs hiding, and the project should exercise the
+  path most teams take. That supersedes the 2026-10-06 decision's expectation that private notes sync returns with a
+  backing repository or local-only backend. The contract never split publication by scope, so D10's sentence about a
+  repository going public describes one that wants its state private, a wording amendment to D10. Its personal state is
+  pruned and brought to D5's layout before the import, since store history is never rewritten
+  (`draft-storage-ref-backend.md` § Decisions, Ownership).
+
+- _Approach:_ record the supersession at the flip decision; the interim `user.notes_push: manual` holds until the
+  cutover retires notes.
+
+- _Drain note (2026-10-11):_ the repository went public on 2026-10-06. Register row 43 is this stub's last open
+  coupling, and this entry supersedes it.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+---
+
 ## Motivation
 
 Going public zeroes the entire Actions bill (standard hosted runners — including the Windows/macOS portability

@@ -28,6 +28,22 @@ const BaseMergeContinuationSchema = z.union([
   z.strictObject({ kind: z.literal("remedy"), remedy: SpineRemedySchema }),
   z.strictObject({ kind: z.literal("terminal-explanation"), terminalExplanation: DetailSchema }),
 ]);
+/** Lockfiles not named `*.lock`, whose change means installed dependencies may no longer match the checkout. */
+const DEPENDENCY_LOCKFILES = new Set([
+  "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "bun.lockb", "go.sum", "packages.lock.json",
+  "Package.resolved", "gradle.lockfile", ".terraform.lock.hcl",
+]);
+const REINSTALL_REMEDY = "reinstall dependencies before running checks";
+const isDependencyLockfile = (name: string): boolean => name.endsWith(".lock") || DEPENDENCY_LOCKFILES.has(name);
+const DependencyChangeSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("changed"),
+    paths: z.array(z.string().min(1)).min(1),
+    detail: DetailSchema,
+  }),
+  z.strictObject({ status: z.literal("unknown"), detail: DetailSchema }),
+]).nullable();
+type DependencyChange = z.infer<typeof DependencyChangeSchema>;
 const BaseMergeNonSuccessCommon = {
   ...BaseMergeResultCommon,
   detail: DetailSchema,
@@ -43,6 +59,7 @@ export const BaseMergeResultSchema = z.discriminatedUnion("state", [
     expectedBase: ObjectIdSchema,
     expectedHead: ObjectIdSchema,
     actualHead: ObjectIdSchema,
+    dependencyChange: DependencyChangeSchema,
   }),
   z.strictObject({
     ...BaseMergeResultCommon,
@@ -125,6 +142,7 @@ export interface BaseMergePort {
     | { status: "remedy-refused"; detail: string }
     | { status: "head-moved"; actualHead: string }
   >;
+  changedPaths(fromOid: string, toOid: string): Promise<string[]>;
 }
 
 type EndpointObservation = { actualBase: string; actualHead: string };
@@ -309,6 +327,7 @@ export async function mergeExpectedBase(
       expectedBase: request.expectedBase,
       expectedHead: request.expectedHead,
       actualHead: actualHead.data,
+      dependencyChange: await absorbedDependencyChange(port, request.expectedHead, actualHead.data),
     };
   }
   if (outcome.status === "remedy-refused") {
@@ -346,6 +365,31 @@ export async function mergeExpectedBase(
       kind: "terminal-explanation",
       terminalExplanation: "No safe automated continuation exists; resolve the conflict and recompose the owning checkpoint.",
     },
+  };
+}
+
+async function absorbedDependencyChange(
+  port: BaseMergePort,
+  fromOid: string,
+  toOid: string,
+): Promise<DependencyChange> {
+  let changed: string[];
+  try {
+    changed = await port.changedPaths(fromOid, toOid);
+  } catch (error) {
+    return {
+      status: "unknown",
+      detail: sanitizeBaseMergeDetail(
+        `Could not read which files the merge changed (${sanitizeBaseMergeDetail(error)}); ${REINSTALL_REMEDY}.`,
+      ),
+    };
+  }
+  const paths = changed.filter((path) => isDependencyLockfile(path.slice(path.lastIndexOf("/") + 1))).sort();
+  if (paths.length === 0) return null;
+  return {
+    status: "changed",
+    paths,
+    detail: sanitizeBaseMergeDetail(`The absorbed base changed ${paths.join(", ")}; ${REINSTALL_REMEDY}.`),
   };
 }
 

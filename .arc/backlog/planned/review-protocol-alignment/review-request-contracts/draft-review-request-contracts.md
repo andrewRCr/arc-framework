@@ -327,6 +327,36 @@
 
 - _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
 
+### `[ ]` **Rebind Errand review obligations when an approved fix changes routing risk**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the existing durable review-judgment and obligation-derivation contracts, including their Errand arm.
+
+- _Observation:_ PR #853 began with routine atomic review routing (`recommended`, `incremental`). An approved
+  review fix advanced the retained measurement format, changing the risk to sensitive (`required`, `full-final`).
+  The new-head policy resolver admitted pass 2 under that updated projection, but `review status` and hosted admission
+  retained the claim's original `standardReview`. The complete hosted Codex pass returned clean; reducing it against
+  the updated policy failed with "review producer policy or rubric does not match the policy request". Status
+  nevertheless reported settled under the old binding. Completion required explicit Owner approval to reduce the
+  genuine complete clean result using its original producer binding.
+
+- _Evidence:_ original head `a956ac6401e8a7a8fdfd3f42927d51617a3d67cd`, corrected head
+  `c9b7b03d3068f64cb211eac50d47abf4820fb81f`; hosted pass-2 result:
+  <https://github.com/andrewRCr/arc-framework/pull/853#issuecomment-6091750220>.
+  `hosted/request.ts` resolves an Errand binding by exact obligation equality; `policy/review-policy-evidence.ts`
+  likewise requires the terminal producer requirement to equal the caller's projection.
+
+- _Approach:_ derive and bind the current target's obligation from its current routing judgments before admitting
+  the next pass, preserving prior producer requirements and cumulative pass counts as history. Make status, hosted
+  admission, and result reduction agree on that current binding; cover routine-to-sensitive movement after a fix
+  and successful clean-result reduction. Do not relabel the earlier receipt or weaken exact policy matching.
+
+- _Boundary:_ review request and obligation binding across target movement, not provider selection, native review
+  scope, or Owner-accepted termini. Additional evidence for the existing work unit; no standalone implementation.
+
+- _Captured during:_ `warm-test-cost-runs` Errand, PR #853, 2026-10-09.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

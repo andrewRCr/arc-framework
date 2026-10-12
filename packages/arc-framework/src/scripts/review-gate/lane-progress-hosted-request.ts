@@ -455,15 +455,28 @@ export async function acknowledgeHostedRequest(
   throw new Error("hosted acknowledgment exceeded version-conflict retry attempts");
 }
 
+/** An await of a hosted request whose attempt already concluded without a sealed review result. */
+export class HostedAwaitEndedError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly outcome: LaneAttempt["outcome"];
+
+  constructor(outcome: LaneAttempt["outcome"]) {
+    const continuation = outcome === "rate-limited" || outcome === "transient-unavailable"
+      ? "feed that outcome to the lane's review resolve call, which may select the next configured source"
+      : "stop, as the await that recorded it did";
+    super(`hosted request already ended as ${outcome}, so awaiting it again cannot change it; ${continuation}`);
+    this.name = "HostedAwaitEndedError";
+    this.outcome = outcome;
+  }
+}
+
 /** Revalidate one acknowledged pending handle against its durable admission owner. */
 export async function readHostedAcknowledgedRequest(
   store: ReviewOperationStateStore,
   handle: HostedRequestHandle,
 ): Promise<LaneProgressState> {
   const recorded = await readHostedRequestProgress(store, handle);
-  if (recorded.attempt.outcome !== "pending") {
-    throw new Error("hosted acknowledged request does not match durable progress");
-  }
+  if (recorded.attempt.outcome !== "pending") throw new HostedAwaitEndedError(recorded.attempt.outcome);
   return recorded.progress;
 }
 

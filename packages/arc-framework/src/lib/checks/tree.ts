@@ -70,8 +70,7 @@ export interface WorktreeSnapshot {
  * @returns Snapshot coordinates and cleanup boundary
  */
 export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent = tmpdir()): Promise<WorktreeSnapshot> {
-  const { stdout } = await git("git", ["rev-parse", "--git-path", "index"], { cwd });
-  const realIndex = isAbsolute(stdout) ? stdout : resolve(cwd, stdout);
+  const realIndex = await checkoutIndexPath(git, cwd);
   const directory = await mkdtemp(join(parent, "arc-check-index-"));
   const indexFile = join(directory, "index");
   const remove = async () => { await rm(directory, { recursive: true, force: true }); };
@@ -84,20 +83,49 @@ export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent =
     },
   };
   try {
-    try {
-      const original = await stat(realIndex);
-      await copyFile(realIndex, indexFile);
-      // Preserve the timestamp used by Git to distrust racy cached file metadata.
-      await utimes(indexFile, original.atime, original.mtime);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      await git("git", ["read-tree", "--empty"], { cwd, indexFile });
-    }
+    await copyIndex(git, cwd, realIndex, indexFile);
     await snapshot.refresh();
     return snapshot;
   } catch (error) {
     await remove();
     throw error;
+  }
+}
+
+/**
+ * Compute the tree an index stages without letting Git write back to that index.
+ * @param git - Injectable Git process boundary
+ * @param cwd - Repository root
+ * @param index - The index to read, relative to the repository root unless absolute; the checkout's own index when
+ *   omitted
+ * @returns The staged tree's object id
+ */
+export async function stagedIndexTree(git: GitExec, cwd: string, index?: string): Promise<string> {
+  const source = index === undefined ? await checkoutIndexPath(git, cwd) : resolve(cwd, index);
+  const directory = await mkdtemp(join(tmpdir(), "arc-check-index-"));
+  const indexFile = join(directory, "index");
+  try {
+    await copyIndex(git, cwd, source, indexFile);
+    return (await git("git", ["write-tree"], { cwd, indexFile })).stdout;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+async function checkoutIndexPath(git: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await git("git", ["rev-parse", "--git-path", "index"], { cwd });
+  return isAbsolute(stdout) ? stdout : resolve(cwd, stdout);
+}
+
+async function copyIndex(git: GitExec, cwd: string, source: string, indexFile: string): Promise<void> {
+  try {
+    const original = await stat(source);
+    await copyFile(source, indexFile);
+    // Preserve the timestamp used by Git to distrust racy cached file metadata.
+    await utimes(indexFile, original.atime, original.mtime);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    await git("git", ["read-tree", "--empty"], { cwd, indexFile });
   }
 }
 

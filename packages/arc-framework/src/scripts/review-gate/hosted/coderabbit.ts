@@ -624,10 +624,9 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         ? { kind: "terminal-failure", reason: "changes-requested-without-findings" }
         : { kind: "pending" };
     } catch (error) {
-      if (error instanceof HostedGitHubReadError) {
-        return error.kind === "terminal-failure"
-          ? { kind: "terminal-failure", reason: error.message }
-          : { kind: error.kind };
+      // A retryable read failure is left to the waiting caller, which keeps polling; only a terminal one ends it.
+      if (error instanceof HostedGitHubReadError && error.kind === "terminal-failure") {
+        return { kind: "terminal-failure", reason: error.message };
       }
       throw error;
     }

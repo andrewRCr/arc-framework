@@ -11,12 +11,13 @@ override-active: false
 
 # Method: route-discovered-work
 
-> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec], [drain-inbox.md][drain-inbox],
+> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
+>   [activate-work-unit.md][activate-work-unit], [verify-work-unit.md][verify-work-unit], [drain-inbox.md][drain-inbox],
 >   [run-errand.md][run-errand]
 > - **When:** The drain classifies captures or re-triages picked backlog stubs, `arc-inbox` runs its route-now mode,
 >   `arc-errand` gates a directly invoked route shape, `run-errand` routes a discovery or re-checks a route-only
 >   Errand before writing, or the owner's planning pass clears inbound entries at drafting's readiness exit or spec
->   entry.
+>   entry, and `USER-INBOX` captures naming the work unit at spec entry, activation, or verification.
 > - **Signature:** `route-discovered-work(entry, door, host?) → per concern, one outcome or an Owner-decided pair`
 > - **Contract:** Decide disposition → homing → integration → re-triage. Decide only: callers execute outcomes
 >   through verbs after their own interlock. Read lifecycle position, owner, and horizon advisory from `arc status`,
@@ -94,9 +95,12 @@ another home, a new stub, an Errand, dismissal, or an owner rejection.
 **Owner's planning pass:** fold or disposition every inbound entry at the pass that makes the draft
 formalization-ready. It runs at drafting's readiness exit when inbound entries are the returned gap, and at
 create-spec's entry check for arrivals while a ready draft waited. It takes every outcome except `hold <host>`
-at that pass. Leave a compact dispositions table in the draft for entries whose disposition no other record keeps:
-entry, outcome, fold location, and reason for rejection or dismissal. Draft review reads the table; readiness checks
-only that nothing remains held. Retire the table with the draft at create-spec. Row coverage is in the binding.
+at that pass. Create-spec's entry check, activation, and verification also take each `USER-INBOX` capture naming the
+work unit through this door; activation and verification exclude `hold <host>` too. Leave a compact dispositions
+table in the draft for entries whose disposition no other record keeps: entry, outcome, fold location, and reason for
+rejection or dismissal. Draft review reads the table; readiness checks only that nothing remains held. Retire the
+table with the draft at create-spec. Activation and verification run after the draft is retired, so they record the
+same rows in their ceremony commit body. Row coverage is in the binding.
 
 **Drain re-triage:** only backlog stubs may be groomed; only a started work unit's owner edits or removes its entries.
 At the drain's confirmation interlock, offer each routed-into backlog stub already holding entries once, showing
@@ -199,5 +203,7 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 [classify-work-unit]: classify-work-unit.md
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md
+[activate-work-unit]: ../workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [drain-inbox]: ../workflows/arc/supplemental/drain-inbox.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md

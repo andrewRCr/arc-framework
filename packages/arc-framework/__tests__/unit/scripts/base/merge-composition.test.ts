@@ -329,4 +329,16 @@ describe("base merge composition", () => {
       head: oid("c"), mergeHead: oid("e"), clean: true, merging: false, remedied: true,
     });
   });
+
+  it("lists every path the merge changed, read without rename pairing", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      calls.push([...args]);
+      return { stdout: "package-lock.json\0docs/a file.md\0", stderr: "" };
+    };
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
+      .changedPaths(oid("c"), oid("d")))
+      .resolves.toEqual(["package-lock.json", "docs/a file.md"]);
+    expect(calls).toEqual([["diff", "--name-only", "-z", "--no-renames", oid("c"), oid("d")]]);
+  });
 });

@@ -36,6 +36,30 @@
 
 - _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
 
+### `[ ]` **Leave the projection's machine-local files alone when the package projects `.arc/system/`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: framework-core-from-package`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the package as a second projection source with read-only copies (`storage-contract`'s D13, More than one
+  source), and the path list the projection's exclude writer accepts `.arc/system/` paths into.
+
+- _Observation:_ three per-worktree machine-local things sit under `.arc/system/.internal/`, inside the tree a package
+  source would project: the projection's aside folder, `.arc/system/.internal/projection/`, which holds aside copies,
+  staged files, and the racy-timestamp reference stamp; the checkout marker, `worktree-marker.json`
+  (`lib/git/worktree-marker.ts`); and the pristine store, `pristine.json`. A source that writes, refreshes, or prunes
+  `.arc/system/` as a whole would delete or overwrite them. `storage-projection` registers the aside folder in
+  `MACHINE_LOCAL_PATHS` under a checkout-relative root with the pattern `.arc/system/.internal/projection/**` — never
+  all of `.internal/`, which also holds stored records — while the marker and the pristine store are not listed yet
+  (`cohort-storage-seam.md` § Soft coordination, "The machine-local set").
+
+- _Approach:_ have the package source skip every path `MACHINE_LOCAL_PATHS` lists, and list the marker and the
+  pristine store there before it lands, rather than hand-keeping exclusions in the source.
+
+- _Drain note (2026-10-11):_ the machine-local path list (`MACHINE_LOCAL_PATHS`) is `storage-projection`'s
+  planned addition, not yet on `main`.
+
+- _Captured during:_ `storage-projection` draft close, 2026-10-10.
+
 ---
 
 ## Problem

@@ -117,6 +117,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "user add": "Create a team member's user directory",
   "user open": "Open a work-unit user workspace",
   "user close": "Remove a work-unit user workspace",
+  "user inbox-list": "List inbox captures naming a work unit",
   "user inbox-mark-execute-bound": "Mark and order execute-bound inbox entries",
   "user inbox-remove": "Remove a title-matched inbox entry",
   "user save": "Save the user directory to Git notes",

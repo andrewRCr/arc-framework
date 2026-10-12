@@ -15,6 +15,40 @@
   preserve the `cli-schema-kernel` carve-out, and treat command-specific active envelopes as adapter inputs rather than
   re-homing them speculatively.
 
+### `[ ]` **Re-scope `lib-layer-type-extraction` to the inversions that survive the storage cutover**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: lib-layer-type-extraction`), housekeep drain (2026-10-11).
+
+- _Shapes:_ `draft-lib-layer-type-extraction.md` § Scope and § Sibling Work Units; the storage-coupling register in
+  `cohort-state-storage.md`, where row 159 already re-scopes this stub's siblings, `user-sync-module-split` and
+  `sync-handler-decomposition`, to "split only what survives".
+
+- _Observation:_ the stub's inventory is stale both ways. Of its six named sites, three no longer invert:
+  `lib/active/status-reader.ts` is gone, and `lib/config/status-reader.ts`, `lib/config/resolved-settings.ts`, and
+  `lib/release/wu-resolution.ts` import nothing from `commands/`. Meanwhile 19 `lib/` files carry 28 imports from
+  `commands/` (counted 2026-10-10). About half sit in code the storage program removes or rewrites: the user-notes and
+  workspace types — `UserIOContext`, `runUserOpen` and `runUserClose`, `notesRef`, `NotesPushOutcome`,
+  `UserSessionInitStatusResult`, two of them in `lib/store/in-repo/` (register rows 139, 146, 153) — and the
+  active-layout reads, `ActiveLayout`, `MetaFileCandidate`, and `resolveTaskListPath` (row 169). The rest are outside
+  storage: the session-envelope registry importing command result schemas (`lib/session-envelope/registry.ts`),
+  recover's `Probe` types, and `IOContext` from `commands/init.ts`. Re-homing the first half before the cutover is
+  thrown away. The stub also records `Heavy` beside a "Small, 1–2 sessions" estimate, and its sequencing note predates
+  the parallelism work it waits on.
+
+- _Approach:_ give the stub a register row like 159, re-deriving its inventory from what survives the cutover. Offer
+  `storage-seam` the stub's principle as a standing convention while it reroutes consumers — the domain types it
+  rewrites land in `lib/`, never `commands/` — so the rewrite does not recreate the inversions at the cheapest moment
+  to avoid them. `lib/store/`'s core already imports only the kernel, and the ref backend keeps that.
+  `seam-record-kinds` adopted the convention for its kind modules under `lib/store/kinds/`, which import nothing from
+  `commands/` (its draft, § This member's design, 2026-10-10); the offer stands for the other seam members. Consider
+  making the re-scoped stub a lint ratchet rather than a one-time sweep: a `lib/`-to-`commands/` ban beside the
+  `store-raw-state` and `surface-names` predicates (`eslint/architecture-imports.ts`), its survivors recorded as a
+  floor in `eslint-suppressions.json`. The inventory grew while the stub waited — the copied pattern its draft warned
+  of — and a floor stops that growth without waiting on the re-scope.
+
+- _Captured during:_ `storage-ref-backend` draft-design, 2026-10-10; enriched during `seam-record-kinds` draft-design,
+  2026-10-10.
+
 ---
 
 ## Problem / Motivation
