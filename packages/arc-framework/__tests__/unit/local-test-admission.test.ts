@@ -1,6 +1,8 @@
 /** Unit tests for repository-wide admission of subprocess-heavy local test tiers. */
 
 import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
@@ -507,6 +509,37 @@ describe("withLocalHeavyTestAdmission", () => {
 
     await expect(admitted).resolves.toEqual({ result: "complete", waitMs: 493_000 });
     expect(appendNotice).toHaveBeenCalledExactlyOnceWith("/tmp/check/notice", "waited 8m 13s for the heavy-test slot");
+  });
+
+  it("keeps its wait a separate line after a runner line written without a newline", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "arc-admission-notice-"));
+    try {
+      const notice = join(directory, "notice");
+      await writeFile(notice, "ran locally");
+      let clock = 0;
+      await withLocalHeavyTestAdmission(
+        { cwd: "/repo/worktree-a", env: { ARC_CHECK_NOTICE: notice }, tier: "e2e" },
+        async () => "complete",
+        {
+          acquireLock: vi.fn(async (_path, options) => {
+            options?.onWait?.({ holder: "unreadable", waitedMs: 0 });
+            clock = 493_000;
+            return { path: "/repo/.git/lock", pid: 42, token: "ours" };
+          }),
+          git: admissionGit(),
+          mkdir: vi.fn(async () => undefined),
+          now: () => clock,
+          pid: 42,
+          releaseLock: vi.fn(async () => {}),
+          resolveProcessScope: async () => "pid:[test]",
+          writeLine: () => {},
+        },
+      );
+      const lines = (await readFile(notice, "utf8")).split("\n").filter(line => line !== "");
+      expect(lines).toEqual(["ran locally", "waited 8m 13s for the heavy-test slot"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("adds no notice when the run never queued or no notice is named", async () => {

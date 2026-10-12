@@ -95,7 +95,8 @@ interface LocalTestAdmissionDependencies {
 const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
   ...NATIVE_LEASE_PROCESS,
   acquireLock: acquireAdvisoryLock,
-  appendNotice: async (path, line) => { await appendFile(path, `${line}\n`); },
+  // A leading break keeps the line apart from one a runner wrote without its own; empty lines are dropped on read.
+  appendNotice: async (path, line) => { await appendFile(path, `\n${line}\n`); },
   git: createGitExec(),
   mkdir: async (path) => { await fsMkdir(path, { recursive: true, mode: 0o700 }); },
 };
