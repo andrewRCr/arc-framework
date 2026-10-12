@@ -42,7 +42,7 @@ route-discovered-work:
 On confirmation, carry out each outcome; no outcome holds the capture in this work unit. A `fold` enters
 [`amend-design`][amend-design] over the capture, and any work it adds returns to the task loop before verification
 resumes. Remove each routed capture with `arc user inbox-remove`, or rewrite it in place when its outcome is itself a
-capture. Record each rejection or dismissal, with its reason, in the verification commit body.
+capture. Record each rejection or dismissal, with its reason, in the verification commit body. Then re-run the listing.
 
 Before the Candidate exists, clean the WU content:
 

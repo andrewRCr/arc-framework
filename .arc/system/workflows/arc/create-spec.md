@@ -90,9 +90,10 @@ route-discovered-work:
 Show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon advisory, and any wait
 the binding names at the Owner's pass. On confirmation, execute through the binding and leave the dispositions
 table; no entry stays held at this ready-making pass. Remove each routed capture with `arc user inbox-remove`, or
-rewrite it in place when its outcome is itself a capture. Then assess formalization-readiness via the
-[assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
-them inline (or return to drafting) before investing in spec writing.
+rewrite it in place when its outcome is itself a capture. Re-run the listing, and continue only once it reports
+`clear`. Then assess formalization-readiness via the [assess-draft-readiness][assess-draft-readiness] method; on
+**not-ready**, surface the returned gaps and resolve them inline (or return to drafting) before investing in spec
+writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but

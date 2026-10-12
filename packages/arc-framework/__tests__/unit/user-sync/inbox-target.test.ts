@@ -92,6 +92,54 @@ describe("listInboxEntriesNamingTarget", () => {
     const listing = listInboxEntriesNamingTarget(content, "seam-lifecycle");
 
     expect(listing.entries).toEqual([{ title: "Readable", section: "Work Unit", held: false }]);
-    expect(listing.diagnostics).toEqual(["USER-INBOX Work Unit entry missing bold title: ### `[ ]` missing bold title"]);
+    expect(listing.diagnostics).toEqual([
+      "USER-INBOX Work Unit entry missing bold title: ### `[ ]` missing bold title",
+      "A line naming seam-lifecycle sits outside any readable inbox entry: - `WU_Target: seam-lifecycle`",
+    ]);
+  });
+
+  it("reports a target line in a repeated section, then lists the capture once the sections merge", () => {
+    const first = entry("First section", "- WU_Target: other");
+    const misplaced = entry("Second section", "- WU_Target: seam-lifecycle");
+    const duplicated = [inbox([], [first]), "## Work Unit", "", misplaced].join("\n");
+
+    expect(listInboxEntriesNamingTarget(duplicated, "seam-lifecycle")).toEqual({
+      entries: [],
+      diagnostics: ["A line naming seam-lifecycle sits outside any readable inbox entry: - WU_Target: seam-lifecycle"],
+    });
+    expect(listInboxEntriesNamingTarget(inbox([], [first, misplaced]), "seam-lifecycle")).toEqual({
+      entries: [{ title: "Second section", section: "Work Unit", held: false }],
+      diagnostics: [],
+    });
+  });
+
+  it("reports a target line past a rule that ends its section, then lists it once the rule is gone", () => {
+    const before = entry("Before the rule", "- `WU_Target: seam-lifecycle`");
+    const after = entry("After the rule", "- `WU_Target: seam-lifecycle`");
+
+    expect(listInboxEntriesNamingTarget(inbox([], [before, "---", "", after]), "seam-lifecycle")).toEqual({
+      entries: [{ title: "Before the rule", section: "Work Unit", held: false }],
+      diagnostics: ["A line naming seam-lifecycle sits outside any readable inbox entry: - `WU_Target: seam-lifecycle`"],
+    });
+    expect(listInboxEntriesNamingTarget(inbox([], [before, after]), "seam-lifecycle").entries).toEqual([
+      { title: "Before the rule", section: "Work Unit", held: false },
+      { title: "After the rule", section: "Work Unit", held: false },
+    ]);
+  });
+
+  it("reads removal tombstones after the sections as no target", () => {
+    const content = [
+      inbox([], [entry("Live", "- WU_Target: seam-lifecycle")]),
+      "## Removed: Retired capture",
+      "",
+      "- _Section:_ Work Unit",
+      "- _Removed:_ 2026-10-01T00:33:26.897Z",
+      "",
+    ].join("\n");
+
+    expect(listInboxEntriesNamingTarget(content, "seam-lifecycle")).toEqual({
+      entries: [{ title: "Live", section: "Work Unit", held: false }],
+      diagnostics: [],
+    });
   });
 });
