@@ -3,7 +3,7 @@
   "slug": "check-runner-notice",
   "claimId": "6069d5f64e99b51e593eb0d034b08a32",
   "createdAt": "2026-10-12T12:52:02.353Z",
-  "updatedAt": "2026-10-12T12:52:02.353Z",
+  "updatedAt": "2026-10-12T14:04:55.932Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Let a machine's check runner report where a routed check ran, and show it beside the check's outcome in arc check's summary",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Show where a routed check ran in `arc check`'s summary",
   "originEntrySourceDigest": "sha256:450623307ba88bef74a158c7ab1544236ce6fa7a87436a5a05de754a14a67245",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/check-runner-notice",
+    "headSha": "4c6da7ecc072a83131f053901c2184ca14815cf3"
+  }
 }
