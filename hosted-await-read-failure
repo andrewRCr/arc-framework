@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-await-read-failure",
+  "claimId": "206404171d5d1865279ec17a9c4b2a27",
+  "createdAt": "2026-10-12T15:33:24.161Z",
+  "updatedAt": "2026-10-12T15:33:24.161Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep awaiting an acknowledged hosted review through a failed GitHub read, reporting the failure, instead of recording it as the provider's outcome",
+  "branch": "chore/hosted-await-read-failure",
+  "origin": "inbox",
+  "originEntry": "Keep an acknowledged hosted review live through a read failure while awaiting it",
+  "originEntrySourceDigest": "sha256:741a2a31e146e6db3c1f3d0e538641e20df6a264a090f634e59b458846de139c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
