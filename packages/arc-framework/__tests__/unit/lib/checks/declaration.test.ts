@@ -69,6 +69,7 @@ describe("cross-field check rules", () => {
     { check: { command: ["echo", "ready"], shell: true }, field: "command" },
     { check: { command: "echo ready" }, field: "command" },
     { check: { command: ["npm", "test"], shards: { count: 4, argument: "--shard={count}" } }, field: "shards.argument" },
+    { check: { command: ["npm", "test"], gate: "push", no_evidence_exit: 5 }, field: "no_evidence_exit" },
   ])("refuses an incompatible $field", ({ check, field }) => {
     const result = CheckDeclarationSchema.safeParse({ checks: { test: check } });
     expect(result.success).toBe(false);
