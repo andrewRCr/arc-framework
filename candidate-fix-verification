@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "candidate-fix-verification",
+  "claimId": "9784b00b79561fa478efe56393f66575",
+  "createdAt": "2026-10-12T21:30:38.214Z",
+  "updatedAt": "2026-10-12T21:30:38.214Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "State that a Candidate-bound fix meets a focused or full verification floor through the Candidate's convergence verification, so fix time runs only the commit gate",
+  "branch": "chore/candidate-fix-verification",
+  "origin": "inbox",
+  "originEntry": "Run a Candidate-bound fix's full verification once, at convergence",
+  "originEntrySourceDigest": "sha256:b37dfa2a6a513486f2abc0e5e99c07042711bd1c22a2c4067e2a589d4dc0f029",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
