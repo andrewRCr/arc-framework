@@ -20,6 +20,7 @@
  */
 
 import type { GitExec } from "./exec.js";
+import { isGitProcessError } from "./process-error.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
@@ -102,7 +103,7 @@ export interface ForeignArtifactIndeterminateProbe {
   /** Determinate matched paths, when any survived before indeterminacy was detected. */
   matchedPaths: string[];
   /** Why the probe cannot be asserted as overlap or no-overlap. */
-  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement";
+  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement" | "merge-in-progress";
 }
 
 export type ForeignArtifactSkippedReason =
@@ -333,8 +334,13 @@ async function uncommittedMatches(
   worktreePath: string,
   targetPaths: string[],
 ): Promise<PathProbeResult> {
-  const first = await readUncommittedPaths(exec, worktreePath, targetPaths);
-  const second = await readUncommittedPaths(exec, worktreePath, targetPaths);
+  const mergingBefore = await hasMergeInProgress(exec, worktreePath);
+  const first = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  const second = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  if (mergingBefore || await hasMergeInProgress(exec, worktreePath)) {
+    // A merge index includes incoming changes that status cannot attribute to this work unit.
+    return { matchedPaths: [], indeterminate: true, reason: "merge-in-progress" };
+  }
   if (!sameStrings(first, second)) {
     return {
       matchedPaths: [],
@@ -345,6 +351,16 @@ async function uncommittedMatches(
   return {
     matchedPaths: targetPaths.filter((target) => first.some((file) => underPath(file, target))),
   };
+}
+
+async function hasMergeInProgress(exec: GitExec, worktreePath: string): Promise<boolean> {
+  try {
+    await exec("git", ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], { cwd: worktreePath });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    throw error;
+  }
 }
 
 async function readUncommittedPaths(
