@@ -147,6 +147,7 @@ export async function runSessionInitStatus(
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const domainRulesTask = safeProbe("domainRules", () => probes.domainRules());
+  const hooksPathTask = safeProbe("hooksPath", () => probes.hooksPath());
   // Retired-subdir detection rides the eager phase (no roster dependency); it
   // needs identity to resolve a user dir, so it is omitted when identity is
   // absent. `null` here means "not computed" — distinct from an empty result.
@@ -164,7 +165,7 @@ export async function runSessionInitStatus(
   const [
     user, worktree, dirty, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
-    retiredSubdirs, partialPushMarker,
+    hooksPath, retiredSubdirs, partialPushMarker,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -176,6 +177,7 @@ export async function runSessionInitStatus(
     extensionsTask,
     configTask,
     domainRulesTask,
+    hooksPathTask,
     retiredSubdirsTask,
     partialPushMarkerTask,
   ]);
@@ -524,6 +526,7 @@ export async function runSessionInitStatus(
     active: toProbe(active),
     domainRules: toProbe(domainRules),
     releaseRouting: toProbe(releaseRouting),
+    hooksPath: toProbe(hooksPath),
     ...(currentWuReconcile !== undefined ? { currentWuReconcile: toProbe(currentWuReconcile) } : {}),
     ...(deliveryPosition !== undefined ? { deliveryPosition: toProbe(deliveryPosition) } : {}),
     ...(userReferenceReconcile !== undefined
