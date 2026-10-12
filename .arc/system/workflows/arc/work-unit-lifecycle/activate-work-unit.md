@@ -6,6 +6,7 @@ arc:
     - assess-parallel-fit
     - branch-format
     - classify-work-unit
+    - route-discovered-work
   extensions:
     - pre-activation
     - pre-push-review
@@ -36,8 +37,25 @@ Verify the activation context is well-formed:
 - Currently on a `plan/<name>` branch (per [`branch-format`][branch-format])
 - `.arc/active/meta-{name}.md` exists and shows `**State:** Planning`
 - `.arc/active/spec-{name}.md` and `.arc/active/tasks-{name}.md` are present
+- `arc user inbox-list --target {name} --json` reports `clear` — no capture, held or not, still names this work unit
 
 If any check fails, surface the mismatch and halt — do not proceed to state-flip or branch rename.
+
+A `refused` listing clears by applying its remedy, and a `named` one only by disposing of each listed capture at the
+Owner's pass.
+
+**Method fire-point** · [`route-discovered-work`][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: each listed capture
+  door: owner's planning pass
+  host: this work unit
+```
+
+On confirmation, carry out each outcome before the flip; a `fold` amends the spec or task list, and no outcome holds
+the capture in this work unit. Remove each routed capture with `arc user inbox-remove`, or rewrite it in place when its
+outcome is itself a capture. Then re-run the gate.
 
 ### 2) Fire `pre-activation` extension
 
@@ -208,6 +226,7 @@ With activation complete, proceed to task execution:
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [branch-format]: ../../../methods/branch-format.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
+[route-discovered-work]: ../../../methods/route-discovered-work.md
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
