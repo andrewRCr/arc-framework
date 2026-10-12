@@ -3,7 +3,7 @@
   "slug": "cross-machine-sync-refs",
   "claimId": "981dbac8cc733848b8a63d07c7df2c17",
   "createdAt": "2026-10-12T20:31:50.994Z",
-  "updatedAt": "2026-10-12T20:31:50.994Z",
+  "updatedAt": "2026-10-12T20:51:34.242Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Re-point the retired cross-machine-sync-coherence references in ADR-027 and three backlog drafts to the successor that owns each dependency",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Re-point the remaining retired `cross-machine-sync-coherence` references to their successors",
   "originEntrySourceDigest": "sha256:30b5552b0ca9947a266ed98a19a8abac62e547d7f654822f647a920b8f454472",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/cross-machine-sync-refs",
+    "headSha": "4ba079cc5502c962d4e48159745882d27ca0dda5"
+  }
 }
