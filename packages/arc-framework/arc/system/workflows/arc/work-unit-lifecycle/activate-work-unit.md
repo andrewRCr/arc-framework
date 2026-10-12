@@ -123,6 +123,7 @@ chore(arc): activate {work-name} work unit
 - Set Next Task / Next Action; discharge satisfied Depends On edges
 - Settle Class (confirm-or-ratchet)
 - Remove draft-{name}.md (absorbed into the spec; safety-catch)
+- Capture {title}: {reject | dismiss} — {reason} (one line per rejected or dismissed capture; omit when none)
 
 Context: meta-{name}.md (activation)
 ```
