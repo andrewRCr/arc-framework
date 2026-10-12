@@ -3,14 +3,20 @@
   "slug": "integration-off-push-gate",
   "claimId": "034a90137ddec89bbe9a93ea3a504c41",
   "createdAt": "2026-10-12T16:44:50.798Z",
-  "updatedAt": "2026-10-12T16:44:50.798Z",
+  "updatedAt": "2026-10-12T17:24:26.928Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Move the integration suite from the push gate to the merge gate, and have CI run it whenever a change touches the Markdown its tests read, so a prose-only change keeps integration coverage",
   "branch": "chore/integration-off-push-gate",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/integration-off-push-gate",
+    "headSha": "f516a89abfc305b949283452190129bf8d6c6ede"
+  }
 }
