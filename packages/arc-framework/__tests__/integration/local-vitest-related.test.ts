@@ -52,6 +52,16 @@ it("reports an empty related selection with its own status before executing eith
   expect(result.stdout).not.toContain("RELATED-MOCK-RAN");
 }, 30_000);
 
+it("keeps a controller-close failure's status when an empty related selection closes the controller", async () => {
+  const setup = await fixture();
+  await writeFile(join(setup.packageRoot, "tests/reporter.mjs"), "export default class { onInit(vitest) { "
+    + 'vitest.onClose(() => { throw new Error("closing failure retained"); }); } }\n');
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "src/unrelated-fixture.mjs"]);
+  expect(result.stderr).toContain("No unit tests reach the changed files");
+  expect(result.stderr).toContain("closing failure retained");
+  expect(result.code, result.stderr).toBe(1);
+}, 30_000);
+
 it("declares the empty related selection's status as the related-tests check's no-evidence status", async () => {
   const declaration = CheckDeclarationSchema.parse(load(await readFile(
     resolve(import.meta.dirname, "../../../../.arc/system/arc-checks.yml"), "utf8")));
