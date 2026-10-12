@@ -33,6 +33,13 @@ it("bounds a notice to one short line", async () => {
   expect(result.notice).toBe("x".repeat(200));
 });
 
+it("keeps a notice to plain text on one line", async () => {
+  const result = await runCheckProcess(writesNotice("connecting\rran\u001b[2K on\tbuild-vm\nsecond line"), await checkout());
+  expect(result.notice).toBe("connecting");
+  const later = await runCheckProcess(writesNotice("\r\nran\u001b[2K on\tbuild-vm"), await checkout());
+  expect(later.notice).toBe("ran [2K on build-vm");
+});
+
 it("reads only the start of a notice file", async () => {
   const result = await runCheckProcess([process.execPath, "-e",
     "require(\"node:fs\").writeFileSync(process.env.ARC_CHECK_NOTICE, \"\\n\".repeat(64 * 1024) + \"late line\")"], await checkout());

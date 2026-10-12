@@ -40,7 +40,9 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
 
 async function readNotice(noticeFile: string): Promise<string | undefined> {
   const text = await readNoticeStart(noticeFile).catch(() => "");
-  const line = text.split(/\r?\n/u).map(part => part.trim()).find(part => part !== "");
+  // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
+  // printed inside a summary line cannot move the cursor over that line.
+  const line = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).find(part => part !== "");
   return line?.slice(0, NOTICE_LIMIT);
 }
 
