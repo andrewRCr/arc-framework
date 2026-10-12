@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-staged-index",
+  "claimId": "d327031bf905f557b60ce67fc48a63b1",
+  "createdAt": "2026-10-12T05:21:59.219Z",
+  "updatedAt": "2026-10-12T05:21:59.219Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep a staged check from rewriting the checkout's real Git index",
+  "branch": "chore/check-staged-index",
+  "origin": "inbox",
+  "originEntry": "Keep `arc check --staged` from rewriting the checkout's own index",
+  "originEntrySourceDigest": "sha256:4c5209b8d170b6ea30677a7493786b526392091994e55fb830e9f921ecacda66",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
