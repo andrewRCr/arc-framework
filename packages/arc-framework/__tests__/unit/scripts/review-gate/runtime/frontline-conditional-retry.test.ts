@@ -114,12 +114,19 @@ function memoryStores(): {
 }
 
 
-async function conditionalFixture() {
+async function conditionalFixture(
+  invocationMode: "inherit" | "force" = "force",
+  sourceTier: "invocation" | "developer" | "project" = "invocation",
+  failureCount = 2,
+) {
   const reviewTarget = target("c");
   const stores = memoryStores();
   const resolverDependencies = {
     operationStore: stores.operationStore,
-    preferences: { readDeveloperSourceIds: async () => [], readProjectSourceIds: async () => [] },
+    preferences: {
+      readDeveloperSourceIds: async () => sourceTier === "developer" ? [source.sourceId] : [],
+      readProjectSourceIds: async () => sourceTier === "project" ? [source.sourceId] : [],
+    },
     registry: new FrontlineSourceRegistry([{
       sourceId: source.sourceId, descriptor: { kind: source.kind, executable: source.executable, argv: source.argv },
     }]),
@@ -135,7 +142,10 @@ async function conditionalFixture() {
   };
   const request = {
     schemaVersion: 1 as const, target: reviewTarget, changeSet: routingFacts,
-    invocation: { mode: "force" as const, sourceId: source.sourceId },
+    invocation: {
+      mode: invocationMode,
+      ...(sourceTier === "invocation" ? { sourceId: source.sourceId } : {}),
+    },
   };
   const first = await resolveFrontlineCommand(request, resolverDependencies);
   const producer = first.payload.admission;
@@ -163,10 +173,10 @@ async function conditionalFixture() {
   const admitted = await resolveFrontlineCommand({ ...request, policyJudgment }, resolverDependencies);
   const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => ({
     outcome: normalizeFrontlineOutcome({
-      providerResult: execute.mock.calls.length <= 2 ? { kind: "timed-out" } : { kind: "clean" },
+      providerResult: execute.mock.calls.length <= failureCount ? { kind: "timed-out" } : { kind: "clean" },
       source, target: reviewTarget, pass: input.pass, maxPasses: input.maxPasses,
     }),
-    executableIdentity: execute.mock.calls.length <= 2 ? null : {
+    executableIdentity: execute.mock.calls.length <= failureCount ? null : {
       digest: canonicalDigest({ executable: "reviewer" }), qualifiedVersion: "reviewer/1.0.0",
     },
   }));
@@ -224,6 +234,47 @@ describe("conditional frontline retries", () => {
         })] }),
       })]),
     } });
+  });
+
+  it.each([
+    ["inherit", "invocation"], ["inherit", "developer"], ["inherit", "project"],
+    ["force", "invocation"], ["force", "developer"], ["force", "project"],
+  ] as const)("preserves %s invocation and %s source selection above the ceiling", async (mode, tier) => {
+    const f = await conditionalFixture(mode, tier, 1);
+    const write = vi.fn();
+    const publicTarget = {
+      kind: f.reviewTarget.kind, baseRef: f.reviewTarget.baseRef,
+      diffBaseSha: f.reviewTarget.diffBaseSha, headSha: f.reviewTarget.headSha,
+    };
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1, target: publicTarget, resolution: f.admitted,
+        retryOfOperationId: f.timedOut.payload.operationId,
+      }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target: f.reviewTarget }),
+      run: (request) => runFrontlineReviewCommand(request, f.runDependencies), write, setExitCode: vi.fn(),
+    });
+    const refusal = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(refusal.remedy.stdin.invocation).toEqual(f.request.invocation);
+    expect(refusal.remedy.stdin.policyJudgment).toEqual(f.policyJudgment);
+    expect(f.execute).toHaveBeenCalledOnce();
+    const retryResolution = await resolveFrontlineCommand({
+      ...FrontlineResolveRequestSchema.parse(refusal.remedy.stdin), target: f.reviewTarget,
+    }, f.resolverDependencies);
+    const original = f.admitted.payload.admission;
+    expect(retryResolution.payload.admission).toMatchObject({
+      logicalPass: 2, retryGeneration: 1, maxPasses: 2,
+      policyVersion: original?.policyVersion, frontlineReview: original?.frontlineReview,
+    });
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1, target: f.reviewTarget, resolution: retryResolution,
+      retryOfOperationId: f.timedOut.payload.operationId,
+    }, f.runDependencies)).resolves.toMatchObject({ state: "clean", nextAction: "none" });
+    expect(f.execute).toHaveBeenCalledTimes(2);
+    await expect(f.stores.operationStore.readOperation(laneProgressOperationId({
+      lane: "frontline", repositoryId: f.reviewTarget.repositoryId, headSha: f.reviewTarget.headSha, lineage: defaultLineage,
+    }))).resolves.toMatchObject({ state: { completedPasses: 2 } });
   });
 
   it.each(["policy", "source", "target", "authorization", "pass"] as const)("refuses a consumed grant with a different %s", async (kind) => {

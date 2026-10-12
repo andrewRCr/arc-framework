@@ -25,7 +25,10 @@ export function frontlineRetryRemedy(error: unknown, submittedRequest: unknown):
     schemaVersion: 1,
     target: request.target,
     changeSet: admission.routing.facts,
-    invocation: { mode: "force", sourceId: source.sourceId },
+    invocation: {
+      mode: admission.frontlineReview.reasons.includes("invocation-force") ? "force" : "inherit",
+      ...(admission.frontlineReview.reasons.includes("source-invocation") ? { sourceId: source.sourceId } : {}),
+    },
     ...(error.ceilingOverride === undefined ? {} : { policyJudgment: { ceilingOverride: error.ceilingOverride } }),
     ...(admission.lineage.kind === "delivery-member"
       ? { vehicle: { ...admission.lineage, head: request.target.headSha } } : {}),
