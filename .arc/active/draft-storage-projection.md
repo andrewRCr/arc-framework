@@ -53,7 +53,8 @@ What this work unit builds, each to the contract's text:
 - **Serialization refusals at persist** (D10): text only, a size cap of about 1 MB, `.env` and private-key files refused
   — each a typed refusal, never a skip. `storage-ref-backend` enforces the rules in its `write` and `batch`; write-back
   and `arc save` report its refusal, and the removal check's projection part runs the same rules without writing,
-  through one function the backend exports for both (asked 2026-10-10), keeping no copy (§ Coordination, Others).
+  through the one function the backend exports for both, `checkSerializationRules`, keeping no copy (§ Coordination,
+  Others).
 - **Edit rights, protected files, and conflicts** (D13): the edit-rights rule by lifecycle state and kind, the
   three-layer protected-file notice, conflicts shown in the file with parse-back at persist, and a whole-record
   conflict's notice line.
@@ -71,8 +72,9 @@ What this work unit builds, each to the contract's text:
   removals printed or documented rather than run rewritten before it lands; teardown persisting first and refusing while
   a file is unadopted, held by a conflict, failing to parse, or holding a refused edit — the persist step the seam's
   removal function runs before ARC removes a work unit's or Errand's checkout, spawn rollbacks aside, and the removal
-  check's projection part, which reports such a refusal beforehand; and every worktree's own copy of the user surfaces,
-  which retires their primary-worktree rooting and its migration at the flip.
+  check's projection part, which reports such a refusal beforehand; the release step, which persists the same way and
+  then drops the projection when ARC releases a checkout it did not create; and every worktree's own copy of the user
+  surfaces, which retires their primary-worktree rooting and its migration at the flip.
 - **Windows** (D13; analysis § 6.10): close before replacing, bounded retry while a holder refuses, a re-check that
   sees a same-size save, bigint stats, CRLF normalized to LF, batched Git calls, and the Windows portability lane.
 - **More than one source** (D13): the store now, the package later, and read-only copies.
@@ -149,21 +151,22 @@ spawns a checkout for a grooming or housekeeping claim (`provisionTransientLocus
 and `arc errand materialize`, both for an Errand). The rule keys on the spawn, never on the capability, so it holds
 before the flip as after. A checkout claimed in place with `arc start --here` is not ARC's spawn and is not locked,
 since another tool may own and remove it: today it gets no marker (`writeWorktreeOwnershipMarker` writes none when
-`createdByArc` is false), D17 has it write one from the flip, which gives it a projection (§ State and change
-detection), and teardown removes it through the removal function as it does a spawned one
-(`lib/work-unit/verbs/teardown.ts`). Every such lock carries one reason naming the exits of both kinds — `arc teardown`
-for a work unit's checkout, and `arc errand close`, `abandon`, or `leave` for an Errand's — since Git prints the reason
-in its refusal ("cannot remove a locked working tree, lock reason: …", checked on Git 2.55). One reason for both lets
-promotion, which rewrites a spawned Errand's marker to its work unit's (`convertSpawnedMarker`,
-`lib/errand/promote-runtime.ts`), leave the lock alone, as it must: `git worktree lock` refuses a worktree already
-locked (checked on Git 2.55). The reason names no slug, so a rename leaves it true. Spawn rollbacks —
+`createdByArc` is false); D17 has it write one from the flip, with `spawnedByArc: false`, which gives it a projection
+(§ State and change detection) and grants no removal; and teardown and `arc locus release` release its marker and keep
+the checkout, never removing it (`draft-seam-lifecycle.md` § Lifecycle, "A checkout ARC did not create"), once this work
+unit's release step has persisted its edits there (§ Coordination, item 2). Every such lock carries one reason naming
+the exits of both kinds — `arc teardown` for a work unit's checkout, and `arc errand close`, `abandon`, or `leave` for
+an Errand's — since Git prints the reason in its refusal ("cannot remove a locked working tree, lock reason: …", checked
+on Git 2.55). One reason for both lets promotion, which rewrites a spawned Errand's marker to its work unit's
+(`convertSpawnedMarker`, `lib/errand/promote-runtime.ts`), leave the lock alone, as it must: `git worktree lock` refuses
+a worktree already locked (checked on Git 2.55). The reason names no slug, so a rename leaves it true. Spawn rollbacks —
 `rollbackSpawnedWorktree` in `commands/start.ts`, `atomic-graduation.ts`, `reconcile-work-unit-worktree.ts`'s
 fresh-spawn rollback, and the transient claim's `rollbackSpawned` in `lib/locus/provisioning-runtime.ts` — remove with
 one `--force` or none, either of which a lock refuses, so the lock waits until the spawn has succeeded. A checkout ARC
 creates for its own machinery carries no such marker — review-gate materializations, base sync's managed checkout, and
 the delivery-refresh and review-fix worktrees have none, and a decomposition worktree's names a branch — so it gets
-neither a lock nor an index (§ State and change detection) and is removed as today (a narrowing of D13 and D17, §
-Proposed D13 amendments).
+neither a lock nor an index (§ State and change detection) and is removed as today (a narrowing of D13 and D17,
+§ Proposed D13 amendments).
 
 Every removal ARC runs of a checkout it locks runs the seam's removal function — the removal check, this work unit's
 persist step, unlock, remove (§ Coordination, item 2) — so ARC removes a locked checkout only that way; a person removes
@@ -225,8 +228,12 @@ path: the writer refreshes every worktree on the machine that holds a projection
 lock in turn and bringing each up from that worktree's own state version, never only its own write. At the command's end
 it takes each lock again for the second check of its aside copies. The start runs from the root `preAction` hook
 `cli.ts` already registers on the program for every command, and the end from its root `postAction`, which Commander
-skips when an action fails: the end's second check is best-effort, and the sweep takes over the copies it leaves (§
-Replacing a file, the aside folder). The skip switch bypasses all of it.
+skips when an action fails: the end's second check is best-effort, and the sweep takes over the copies it leaves
+(§ Replacing a file, the aside folder). The skip switch bypasses all of it. Write-back's report — each file it refused,
+skipped, deferred, or kept as a conflict, with its typed reason and each rule's remedy, argv included — goes to stderr
+before the command's own output, where the root hooks in `cli.ts` already report, so a JSON result on stdout stays
+whole, and `arc status` reports what stays refused. A hand tick the task-list kind refuses (`task-list.close`) therefore
+shows ahead of anything `arc check increment` reports, the request the task loop runs right after an edit.
 
 #### State and change detection
 
@@ -271,12 +278,12 @@ Replacing a file, the aside folder). The skip switch bypasses all of it.
 - **Blob ids** computed with `node:crypto` over the content as stored — LF-normalized, with the base stamp and any
   notice line stripped, since the stored record carries neither — as `blob <length>\0` plus the bytes, never by spawning
   Git per file. Line endings are normalized on read (D13). The stamp's blob id names content alone; the compare-and-swap
-  basis is the record version, which covers the record's metadata too (`draft-storage-ref-backend.md` § The version
-  model). Write-back passes the record version it read from the store as its write's expected version and compares and
-  merges by blob id, so a write that moved only metadata leaves the stored blob equal to the stamp, and the edit
-  fast-forwards rather than merging. The backend stores every projected kind as written, the meta and task list among
-  them, canonicalizing only its JSON machine records, which no file shows, so the blob id write-back computes over what
-  it sends is the one the store keeps.
+  basis is the record version, which covers the record's metadata too (`spec-storage-ref-backend.md` § 3.4). Write-back
+  passes the record version it read from the store as its write's expected version and compares and merges by blob id,
+  so a write that moved only metadata leaves the stored blob equal to the stamp, and the edit fast-forwards rather than
+  merging. The backend stores every projected kind as written, the meta and task list among them, canonicalizing only
+  its JSON machine records, which no file shows, so the blob id write-back computes over what it sends is the one the
+  store keeps.
 - **Base-stamp recovery** (D13's content heuristic), for a stamp deleted as noise or dropped by a whole-file rewrite.
   Content that, stamp aside, equals a version exactly — the index's recorded version first, then `history` newest first
   — takes that version as its base. Otherwise the base is the closest by line diff among the index's version, the
@@ -438,6 +445,16 @@ so nothing clears the mode (spike 1b). Node's unlink, `git worktree remove`, and
 both platforms (spike 1), so teardown and deletes need nothing. The persist refusal is the real protection. The
 per-editor settings command (D13) may set VS Code's option.
 
+**A paused work unit** stays placed active from the flip, where pause replaces park, and keeps its checkout until its
+owner releases it (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle moves from the flip"). It projects where any
+in-flight work unit does, under the same edit rights, and its protected files' notice names its owning checkout or the
+machine it is in flight on, as any in-flight work unit's does. Once no checkout owns it, the notice names
+`arc materialize <slug>`, since `arc resume` only clears the pause: from the flip `arc materialize` gives a checkout to
+any in-flight work unit its owner holds no checkout of on this machine, remote-only or released here, paused or not, and
+the pause stays — lifecycle's verb, widened at `seam-locus`'s ask (2026-10-12) — where today it admits only remote-only
+work and skips parked work (`findMaterializableWorkUnits`, `lib/session-init/materializable-work-units.ts`). Until the
+flip park stays as today, and the projection is dark.
+
 ### Ignoring, finding, and editor settings
 
 - **The exclude writer** generalizes `ensureGitExcludePattern` (`lib/git/exclude.ts`) to a path list — one Git call
@@ -492,7 +509,15 @@ of any kind (§ State and change detection, files other than Markdown):
   after which the folder's files adopt.
 - `active/` top level and the identity root outside `scratch/` — persist refuses, naming `current/` or `scratch/`.
 - `active/in-flight/<slug>/` — the owner's prose only, under D13's edit rights.
-- `completed/` — read-only; `arc reopen` is the route, and the errata convention moves onto the store's history
+- `completed/` — the archived work unit's owner edits its files from any checkout, the meta and task list included,
+  since no checkout owns it, under each kind's write check; anyone else's archived work is read-only. A correction is a
+  write to the completed item in place, which keeps its archive number (`spec-storage-ref-backend.md` § 7.3), since no
+  verb reopens an archived work unit (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle moves from the flip").
+  Write-back does not scan `completed/` (§ Performance and scale), so a correction persists at `arc save`, at teardown's
+  persist-first pass, or when a refresh touches the file. Where this clone lacks the item's history ref, the write
+  refuses `state-unresolvable` naming it, and the persist pulls that ref by name and retries once (the same spec's
+  § 4.5); where the state remote lacks it too, the edit stays as a refused edit carrying the backend's remedy. A new
+  file there adopts into its archived work unit the same way, and the errata convention moves onto the store's history
   (register row on `archive-work-unit`'s errata convention).
 
 Editor side files are never adopted: `*~`, `.#*`, `#*#`, `.*.sw?`, `4913`, and `*.tmp.<pid>.<hex>` from the terminal
@@ -502,14 +527,15 @@ file name before any other test, since Emacs's `.#name.md` lock is a dangling sy
 
 ### Proposed D13 amendments
 
-These change what a caller sees, which the cohort assigns to `storage-contract`. Four revise the contract's own wording
-— the replacement's re-check, the stamp on files other than Markdown, the base a stale buffer's save merges from, and
-which worktrees D13 projects into and D17 locks — and the rest add to D13 without contradicting it. With the contract
-archived, this draft and then this work unit's spec record them as forward amendments for the Owner to decide as
-contract extensions:
+These change what a caller sees, which the cohort assigns to `storage-contract`. Five revise the contract's own wording
+— the replacement's re-check, the stamp on files other than Markdown, the base a stale buffer's save merges from, which
+worktrees D13 projects into and D17 locks, and a paused work unit's placement and notice in place of D13's parked one —
+and the rest add to D13 without contradicting it. With the contract archived, this draft and then this work unit's spec
+record them as forward amendments for the Owner to decide as contract extensions:
 
-- **`completed/` is read-only,** reopened through `arc reopen` — D13's edit-rights rule names no rule for archived
-  work.
+- **`completed/` keeps its owner's rules** — D13's edit-rights rule names none for archived work. The archived work
+  unit's owner edits its files from any checkout, the meta and task list included, since no checkout owns it, and a
+  correction is a write in place that keeps its archive number; no verb reopens an archived work unit.
 - **The skip switch** — a flag every `arc` command accepts.
 - **Escalated conflict markers** — longer than seven characters where a side holds a marker-like line, with a
   resolve-by-hand line after the start marker; D13 names the standard markers.
@@ -538,7 +564,12 @@ contract extensions:
   only on a linked checkout ARC spawns for a work unit or an Errand. Any other checkout — ARC's machinery, a hand-made
   worktree nothing has claimed — gets neither and is removed as today; after the flip an editor or agent there finds no
   state at the familiar paths and reads it through `arc view` and the status surfaces, or claims the checkout with
-  `arc start --here`.
+  `arc start --here`. A linked checkout whose marker is released, as an anchored one's is at teardown, loses its
+  projection once the release step has persisted its edits.
+- **A paused work unit replaces the parked one** — D13 keeps a parked work unit's backlog placement and has its
+  protected notice name `arc resume`, since no checkout owns it. From the flip a pause changes neither `State` nor
+  placement, so a paused work unit projects as any in-flight one does, and its notice names its owning checkout, the
+  machine it is in flight on, or, once no checkout owns it, `arc materialize <slug>`.
 
 ### Retired here, not built
 
@@ -558,14 +589,15 @@ Cost per command grows with what changed, never with how much state exists:
   a refresh touches a file.
 - **Refresh is store-driven:** each worktree's index carries the state version it last projected, and the next command
   asks the store's `changes` for the records since, rewriting only those and any file still marked pending. When
-  `changes` refuses because that state version no longer resolves — Git collected its manifest, which only an anchor
-  written into a record keeps reachable, or it names an ended item whose history this clone has not fetched — the
-  command rebuilds the worktree's projection from the current state: every projected record refreshed by the same rules
-  as a changed one, every index entry the current state no longer holds handled as a removal, the replace guard and
-  pending marks included, and the index takes the current state version. Write-back has already run, and a file holding
-  an edit is handed to it as any refresh hands one, so the rebuild loses none. It costs one full materialization
-  (below), paid by a worktree idle past Git's expiry or one whose state version names history this clone lacks; the
-  refusal code's name is `storage-ref-backend`'s.
+  `changes` refuses `state-unresolvable` because that state version no longer resolves (`spec-storage-ref-backend.md`
+  § 2.3) — Git collected its manifest, which only an anchor written into a record keeps reachable, or it names an ended
+  item whose history this clone has not fetched — the command rebuilds the worktree's projection from the current state,
+  rather than pulling any history ref the refusal names, so a command's start never waits on the network: every
+  projected record refreshed by the same rules as a changed one, every index entry the current state no longer holds
+  handled as a removal, the replace guard and pending marks included, and the index takes the current state version.
+  Write-back has already run, and a file holding an edit is handed to it as any refresh hands one, so the rebuild loses
+  none. It costs one full materialization (below), paid by a worktree idle past Git's expiry or one whose state version
+  names history this clone lacks.
 - **History depth never enters the read path** (D10).
 
 | Axis                         | Cost grows with                     | Watch                                    | Response                                          |
@@ -659,52 +691,73 @@ here. Five interfaces cross:
    rules where the write lands, not only through this call (the spec's § 3.2). The two names are one constant,
    `HAND_EDIT_VERBS`, which `seam-record-kinds` exports beside `CallerProvenanceSchema` in `lib/store/links.ts` and
    write-back imports. Every other persist of a hand edit here runs under `write-back` too — the removal function's
-   persist step and its takeover of an aside copy (item 2), even inside `arc teardown` — so no hand edit lands under a
-   verb that reads as itself; the removal check's projection part writes nothing and carries none. Write-back sets the
-   provenance itself, never from the file, so a hand edit cannot name another verb. A refused edit, whether this call or
-   the backend's check at the write refuses it, stays in the file and is reported, never blocking the command (D13). The
-   seam's members fill both slots; this work unit consumes them. An empty slot needs no rule here: write-back is a
-   contract `write`, which D5 lets land unvalidated, a kind with no rules registers no check, and merge takes a kind's
-   entry shape from its mechanism, not its parser. Write-back is dark until the flip, so the gap is the flip's:
-   `storage-cutover`'s rehearsal confirms every hand-editable projected kind has its parser and every entry kind its
-   entry shape, which `work-item/description`, `work-item/inbound`, and `personal/errand-queue` still lack
+   persist step, the release step, and their takeover of aside copies (item 2), even inside `arc teardown` — so no hand
+   edit lands under a verb that reads as itself; the removal check's projection part writes nothing and carries none.
+   Write-back sets the provenance itself, never from the file, so a hand edit cannot name another verb. A refused edit,
+   whether this call or the backend's check at the write refuses it, stays in the file and is reported, never blocking
+   the command (D13). The seam's members fill both slots; this work unit consumes them. An empty slot needs no rule
+   here: write-back is a contract `write`, which D5 lets land unvalidated, a kind with no rules registers no check, and
+   merge takes a kind's entry shape from its mechanism, not its parser. Write-back is dark until the flip, so the gap is
+   the flip's: `storage-cutover`'s rehearsal confirms every hand-editable projected kind has its parser and every entry
+   kind its entry shape, which `work-item/description`, `work-item/inbound`, and `personal/errand-queue` still lack
    (`lib/store/registry.ts`) (captured; widened at draft close).
-2. **Checkout removal and the lock's sites.** One seam member builds one removal function for every removal ARC runs of
-   a work unit's or Errand's checkout, spawn rollbacks aside (§ The worktree lock) — the removal check, then a persist
-   step, then unlock when Git lists the checkout as locked, then remove — and the asks name `seam-lifecycle`, which
-   holds teardown. The removal check also runs on its own: today's `isWorktreeClean`, which
-   `lib/git/worktree-cleanup.ts` defines, plus a projection part, a slot this work unit fills that reports whether the
-   persist step would refuse — a file unadopted, held by a conflict, failing to parse, or holding a refused edit. The
-   index records neither of the last two, so the projection part runs write-back's read path over each file that changed
-   — the settle rule, the parser, the merge against the store, and the kind's write check over the merged content with
-   item 1's views — and writes nothing; it takes no lock, and the removal checks again under it. Its cost is the stat
-   walk, about 3 ms on Linux and 27 ms on Windows at 1,000 files (notes § Spike 2), plus the read of each changed file.
-   Each member moves its callers that remove a checkout onto the function and those that decide or report whether one
-   can be removed onto the removal check.
-   `seam-lifecycle` moves `teardown.ts` and `reconcile-work-unit-worktree.ts` onto the function, and onto the removal
-   check `lifecycle-guards.ts`, whose guard refuses a park or abandon before any mutation fires, so a refusal present
-   when the verb starts stops it before it changes anything. `seam-locus` moves onto the function the Errand's exits
-   through `lib/errand/terminal-occupancy.ts`, one of the register row's two direct `git status` readers, and onto the
-   removal check `stale-worktree-sweep.ts`, `branch-gone-recovery.ts`, `lifecycle-residue-sweep.ts`, and
-   `arc errand leave`'s authorization (`authorizePreservation`, `lib/errand/leave-runtime.ts`), which inspects the
-   Errand's checkout through `terminal-occupancy.ts` before recording its paused or awaiting-merge state and removes the
-   checkout only afterward; the primary, which no exit removes, keeps `git status` wherever `terminal-occupancy.ts`
-   inspects it (`settleTerminalOccupancy`). The sweep and branch-gone recovery already read
+2. **Checkout removal and the lock's sites.** `seam-lifecycle` builds one removal function for every removal ARC runs of
+   a work unit's or Errand's checkout, spawn rollbacks aside (§ The worktree lock), taking the checkout, the primary,
+   and this work unit's check, persist, and release slots: with the folder present it runs the removal check, the
+   persist step, `git worktree unlock` when Git lists the checkout as locked, and a plain `git worktree remove`; with
+   the folder missing it unlocks a locked registration and prunes it. It returns `removed`, `pruned`, `refused` with the
+   check's result, or `failed` naming the step (`draft-seam-lifecycle.md` § Lifecycle, "The checkout removal function
+   and its removal check"). The removal check also runs on its own, reading only and taking no lock: it returns
+   `removable`, `missing` when only Git's registration remains, or `refused` as `dirty`, `persist-would-refuse`, or
+   `unobservable`. Its Git part is today's `isWorktreeClean` (`lib/git/worktree-cleanup.ts`), with a failed status read
+   reported as `unobservable`; its projection part is a slot this work unit fills, answering `persist-would-refuse` when
+   the persist step would refuse — a file unadopted, held by a conflict, failing to parse, or holding a refused edit —
+   and `unobservable` when a store read it needs fails. The index records neither a parse failure nor a refused edit, so
+   the projection part runs write-back's read path over each file that changed — the settle rule, the parser, the merge
+   against the store, and the kind's write check over the merged content with item 1's views — and writes nothing; the
+   persist step checks again under the lock. Its cost is the stat walk, about 3 ms on Linux and 27 ms on Windows at
+   1,000 files (notes § Spike 2), plus the read of each changed file. Each member moves its callers that remove a
+   checkout onto the function and those that decide or report whether one can be removed onto the removal check.
+   `seam-lifecycle` moves teardown's two removals onto the function — `reconcileWorkUnitWorktree`'s teardown arm, whose
+   clean check is today's live refusal, run before the teardown and again under the locked-retirement driver
+   (`reconcile-work-unit-worktree.ts`), and the decomposition candidate's cleanup (`cleanupGitOwnedDecomposeCandidate`,
+   run from `teardown.ts`) — and has abandon and park from Planning run the removal check before their first write, so a
+   refusal present when the verb starts stops it before it changes anything: today both record the transition and leave
+   the removal to a later `arc teardown --force`, while park from Active already tears down before it writes its pointer
+   record (`parkActive`, `park-resume.ts`). The `worktree-clean` guard (`makeWorktreeCleanGuard`, `lifecycle-guards.ts`)
+   never runs — the one edge declaring it is park from Active's, which `parkActive` bypasses by calling the teardown
+   directly — and `seam-lifecycle` deletes it. `seam-locus` moves onto the function the Errand's exits through
+   `lib/errand/terminal-occupancy.ts`, one of the register row's two direct `git status` readers, and onto the removal
+   check `stale-worktree-sweep.ts`, `branch-gone-recovery.ts`, `lifecycle-residue-sweep.ts`, and `arc errand leave`'s
+   authorization (`authorizePreservation`, `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout through
+   `terminal-occupancy.ts` before recording its paused or awaiting-merge state and removes the checkout only afterward;
+   the primary, which no exit removes, keeps `git status` wherever `terminal-occupancy.ts` inspects it
+   (`settleTerminalOccupancy`). The sweep and branch-gone recovery already read
    `linkedIdentityGlobalUserSurfacesAreSafe` beside `isWorktreeClean` the same way. The register row's other direct
    reader, `lib/locus/primary-safety.ts`, decides only whether the primary may host a transient claim, a branch switch
    that leaves the gitignored projection in place and removes no checkout, so it stays as today. Like the removal
    check's projection part, the persist step is a slot, as item 1's are, empty until this work unit fills it: it holds
    the target worktree's projection lock until the checkout is gone, persists every edit there or refuses, and takes
    over every aside copy there, its writer live or not: once a copy has settled (§ Reading an edit), it takes in an edit
-   the copy holds and deletes the copy, so the writer's own second check finds nothing left. The function checks the
-   folder first: a missing one skips the removal check and the persist step, and its registration is unlocked if locked
-   and pruned; `seam-locus`'s stale-worktree sweep reports a missing locked registration with that remedy. For the
-   removals this work unit rewrites (§ The worktree lock), `seam-locus` also has the sweep's report of a removable
-   worktree and branch-gone recovery's removable candidate each carry an `arc teardown <name>` command line, as the
-   residue sweep's report does (`teardown.argv`, `lifecycle-residue-sweep.ts`). The seam's members also make every move
-   of a projected checkout, run or printed, take the `git worktree move -f -f` form that keeps the lock. This work unit
-   depends on both members, rewrites the printed and documented removals, and lands the lock after them (§ The worktree
-   lock).
+   the copy holds and deletes the copy, so the writer's own second check finds nothing left. `seam-locus`'s
+   stale-worktree sweep reports a missing locked registration with the function's unlock and prune as its remedy. A
+   checkout ARC did not create — an anchored one, its marker `spawnedByArc: false` — is never removed: teardown and
+   `arc locus release` release its marker and keep it (`draft-seam-lifecycle.md` § Lifecycle, "A checkout ARC did not
+   create"; `draft-seam-locus.md` § Locus, "`arc locus release`"). The third slot, the release step, runs on every path
+   that releases a checkout rather than removing it, teardown's anchored arm and `arc locus release`'s among them,
+   before the marker is cleared, and the path refuses if it refuses: under the target worktree's projection lock it
+   persists every edit there or refuses, and takes over every aside copy, as the persist step does; then, on a linked
+   checkout, it removes the projection — its files, the aside folder, and the index — since a checkout no marker claims
+   holds none (§ State and change detection), while the primary keeps its projection, which its next refresh lays out as
+   for a checkout with no current work item. A caller that fails after the step leaves the marker, and the next command
+   projects again. The removal check takes the disposition, removing or releasing, and on a release runs its projection
+   part alone: the checkout and its uncommitted changes stay, so `dirty` never refuses an anchored release or abandon.
+   For the removals this work unit rewrites (§ The worktree lock), `seam-locus` also has the sweep's report of a
+   removable worktree and branch-gone recovery's removable candidate each carry an `arc teardown <name>` command line,
+   as the residue sweep's report does (`teardown.argv`, `lifecycle-residue-sweep.ts`). The seam's members also make
+   every move of a projected checkout, run or printed, take the `git worktree move -f -f` form that keeps the lock. This
+   work unit depends on both members, rewrites the printed and documented removals, and lands the lock after them (§ The
+   worktree lock).
 3. **The user-surfaces shim.** Under the capability the projection gives every worktree its own copy of the user
    surfaces and reads none through `lib/user-surfaces.ts`'s resolver. The in-repo implementation keeps the resolver
    (`lib/store/in-repo/personal-paths.ts` imports it), and teardown keeps merging a linked worktree's copy up through
@@ -719,29 +772,32 @@ here. Five interfaces cross:
 
 **Ordering:** `active/current/` lands only after the seam's locus member resolves the current work unit from the
 checkout marker plus the store, and takes session-init's slot paths and the compaction seed's from the layout resolver
-(D13 § The `active/` layout, Ordering). The asks on the seam's side sit in `cohort-storage-seam.md` § Cross-cohort
-(merged at `b7f866165`), which the seam amends through an Errand. This draft's second review and its fix checks change
-them: the removal function moves to the seam, built by one member (`seam-lifecycle` asked), with the removal check's
-projection part and the persist step as slots this work unit fills, unlocking only a locked checkout, and a missing
-folder unlocked and pruned; each member moves its callers that remove a checkout onto the function and those that decide
-or report a removal onto the removal check — `seam-lifecycle`'s `lifecycle-guards.ts`, and `seam-locus`'s two sweeps,
-branch-gone recovery, and `arc errand leave`'s authorization; `lib/locus/primary-safety.ts` leaves the ask, since it
-decides only whether the primary may host a transient claim; the stale-worktree sweep reports a missing locked
-registration, and it and branch-gone recovery carry an `arc teardown <name>` command line for the prompts this work unit
-rewrites; and the removals printed or documented rather than run stay with this work unit. An Errand of the same kind
-carries them at draft close.
+(D13 § The `active/` layout, Ordering). The asks on the seam's side sit in `cohort-storage-seam.md` § Cross-cohort,
+amended on `main` with this draft's second review and fix checks (PR #867, `8099977dc`): the removal function moves to
+the seam, built by `seam-lifecycle`, with the removal check's projection part and the persist step as slots this work
+unit fills, unlocking only a locked checkout, and a missing folder unlocked and pruned; each member moves its callers
+that remove a checkout onto the function and those that decide or report a removal onto the removal check —
+`seam-lifecycle` its pre-write checks, which the cohort document places in `lifecycle-guards.ts`, a guard that never
+runs (item 2), a correction captured as an Errand, and `seam-locus` its two sweeps, branch-gone recovery, and
+`arc errand leave`'s authorization; `lib/locus/primary-safety.ts` leaves the ask, since it decides only whether the
+primary may host a transient claim; the stale-worktree sweep reports a missing locked registration, and it and
+branch-gone recovery carry an `arc teardown <name>` command line for the prompts this work unit rewrites; and the
+removals printed or documented rather than run stay with this work unit. The release step (item 2) was asked of
+`seam-lifecycle` and `seam-locus` directly, and both take it (2026-10-12): teardown's anchored arm and
+`arc locus release`'s run the removal check's projection part, then the step, and clear the marker only after it.
 
 ### Others
 
 - **`storage-ref-backend`** — joint on a record's two identifiers: the base stamp stays the stored content's Git blob
-  id, which it assumes, and the record version, covering metadata too, is the compare-and-swap basis (§ State and change
-  detection, blob ids). It enforces the serialization rules in `write` and `batch`, and is asked (2026-10-10) to export
-  them as one pure function in `lib/store/` over a record's reference and content, returning the typed refusal or none,
-  which `write`, `batch`, and the removal check's projection part all call, so a refusal the persist step would meet is
-  reported before a verb mutates anything (§ `storage-seam`, item 2). Its `changes` refuses a state version that no
-  longer resolves, and the projection then rebuilds the worktree (§ Performance and scale). Base-stamp recovery reads
-  its `history` newest first. The multi-process test lane runs over it, and its writer derivation reads
-  `HAND_EDIT_VERBS` (§ `storage-seam`, item 1).
+  id, and the record version, covering metadata too, is the compare-and-swap basis (`spec-storage-ref-backend.md` § 3.4;
+  § State and change detection, blob ids). It enforces the serialization rules in `write` and `batch` through one pure
+  function its spec, under review, names `checkSerializationRules` in `lib/store/` (§ 5.6), which the removal check's
+  projection part also calls, so a refusal the persist step would meet is reported before a verb mutates anything
+  (§ `storage-seam`, item 2). Its `changes` refuses `state-unresolvable` for a state version that no longer resolves,
+  and the projection then rebuilds the worktree (§ Performance and scale); a write to a completed item refuses the same
+  way where this clone lacks its history ref, and the persist pulls the ref by name and retries (its § 7.3; § Files the
+  store does not know). Base-stamp recovery reads its `history` newest first. The multi-process test lane runs over it,
+  and its writer derivation reads `HAND_EDIT_VERBS` (§ `storage-seam`, item 1).
 - **`storage-cutover`** — runs the first full materialization at the flip and the live rehearsal; the flip's workflow
   rewrite names `arc save`.
 - **`config-storage-architecture`** — re-homes the in-flight view setting with the per-developer tier.
@@ -806,6 +862,19 @@ None.
   backend enforces the serialization rules, asked to export them as one function the removal check also runs (§ Scope;
   § Coordination, Others); and refresh rebuilds a worktree whose state version no longer resolves (§ Performance and
   scale).
+- **Align with `seam-lifecycle`'s settled removal, archive, pause, and close decisions** (sent by `seam-lifecycle`'s
+  draft-design session, 2026-10-12) — integrated: § Coordination item 2 takes the removal function's and check's shapes,
+  corrects the guard attribution, and adds a release step for a checkout ARC did not create, which teardown and
+  `arc locus release` release rather than remove and which both members take (§ The worktree lock); `completed/` keeps
+  its owner's rules with corrections written in place, since no verb reopens an archived work unit (§ Files the store
+  does not know); a paused work unit projects as any in-flight one, its notice naming `arc materialize <slug>` once no
+  checkout owns it (§ Protected files); and write-back's report reaches stderr ahead of a command's output, so a refused
+  hand tick shows ahead of `arc check increment`'s results, while the close command belongs in `task-list.close`'s
+  remedy, which `seam-lifecycle` rewrites with its close verb as text, never an argv run before the commit (§ Engine).
+- **Take the release step, and give a released paused work unit a checkout** (sent by `seam-locus`' draft-design
+  session, 2026-10-12) — integrated: `arc locus release`'s anchored arm runs the release step before clearing the marker
+  (§ Coordination, Ordering), and `arc materialize` serves a paused work unit released on this machine, so the notice
+  names it (§ Protected files).
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
@@ -826,7 +895,7 @@ None.
   is refreshed (§ State and change detection, files other than Markdown): content alone cannot tell it from what the
   stop left.
 - An edit or a store change landing between the removal check and the removal can still make the persist step refuse
-  after a park, abandon, or Errand leave has changed state, as an uncommitted change can today between `git status` and
+  after an abandon or an Errand leave has changed state, as an uncommitted change can today between `git status` and
   `git worktree remove`.
 - A save that lands between the persist step and a checkout's removal goes with the checkout, as with any deletion: the
   persist step holds the projection lock, which no editor takes.
