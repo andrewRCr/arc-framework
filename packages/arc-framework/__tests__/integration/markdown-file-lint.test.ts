@@ -10,6 +10,7 @@ import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 import { copyLiveTree } from "../helpers/copy-live-tree.js";
 
 let root: string;
+let outside: string;
 
 async function write(path: string, content: string): Promise<void> {
   await mkdir(dirname(join(root, path)), { recursive: true });
@@ -32,12 +33,21 @@ beforeAll(async () => {
   for (const path of [".arc/user/andrew/WORKING-MEMORY.md", ".arc/user/andrew/nested/USER-INBOX.md", ".arc/temp-probe.md"]) {
     await write(path, "# Excluded\n");
   }
+  outside = `${root}-outside.md`;
+  await writeFile(outside, "# Outside\n");
+  await symlink("valid.md", join(root, "docs/contained-link.md"), "file");
+  await mkdir(join(root, "docs/target-directory"));
+  await symlink("target-directory", join(root, "docs/directory-link.md"), "dir");
+  await symlink(outside, join(root, "docs/escaping-link.md"), "file");
   await execa("git", ["init", "-q"], { cwd: root });
   await execa("git", ["add", "."], { cwd: root });
   await write("docs/new file.md", "# New file\n");
 });
 
-afterAll(async () => { if (root) await rm(root, { recursive: true, force: true }); });
+afterAll(async () => {
+  if (root) await rm(root, { recursive: true, force: true });
+  if (outside) await rm(outside, { force: true });
+});
 
 async function lint(paths: string[]) {
   return execa("npm", ["run", "-s", "lint:md:file", "--", ...paths], {
@@ -77,4 +87,22 @@ it("retains native lint findings for included files", async () => {
   const result = await lint(["docs/invalid.md"]);
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("MD012");
+});
+
+
+it("lints a contained regular-file symlink", async () => {
+  const result = await lint(["docs/contained-link.md"]);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Linting: 1 file(s)");
+});
+
+it.each([
+  ["docs/directory-link.md", "not a regular file"],
+  ["docs/escaping-link.md", "escapes the repository"],
+])("refuses a symlink with an invalid read target %s", async (path, message) => {
+  const result = await lint([path]);
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain(path);
+  expect(result.stderr).toContain(message);
+  expect(result.stdout).not.toContain("Linting:");
 });

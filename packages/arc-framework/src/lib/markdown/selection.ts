@@ -166,7 +166,7 @@ export async function validateExplicitMarkdownPaths(
       }
       finalStat = stat;
     }
-    if (finalStat === undefined || !finalStat.isFile() || finalStat.isDirectory()) {
+    if (finalStat === undefined || (!finalStat.isFile() && !finalStat.isSymbolicLink()) || finalStat.isDirectory()) {
       throw selectionError(`Markdown path is not a regular file: ${path}`, "markdown.not-file");
     }
 
@@ -177,8 +177,25 @@ export async function validateExplicitMarkdownPaths(
       throw new ArcError(`Markdown path cannot be resolved: ${path}`, "markdown.path-unreadable", { cause: error });
     }
     assertNativePathContained(options.root, physical, path);
+    if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;
+}
+
+async function assertRegularFileTarget(
+  options: ValidateExplicitMarkdownPathsOptions,
+  physical: string,
+  path: ManagedPath,
+): Promise<void> {
+  let target: MarkdownPathStat;
+  try {
+    target = await options.lstat(physical);
+  } catch (error) {
+    throw new ArcError(`Markdown target is missing or unreadable: ${path}`, "markdown.path-unreadable", { cause: error });
+  }
+  if (!target.isFile()) {
+    throw selectionError(`Markdown path is not a regular file: ${path}`, "markdown.not-file");
+  }
 }
 
 /**
