@@ -313,7 +313,7 @@ checks:
       - -s
       - test:integration
       - --
-    gate: push
+    gate: merge
     inputs:
       - '**'
       - '!.arc/active/**'

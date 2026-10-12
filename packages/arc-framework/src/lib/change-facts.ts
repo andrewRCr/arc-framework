@@ -316,6 +316,8 @@ const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
   "packages/arc-framework/arc/*.template.md",
 ] as const;
 
+const PLANNING_RECORD_GLOBS = [".arc/backlog/*", ".arc/completed/*"] as const;
+
 const PORTABILITY_SURFACE_GLOBS = [
   "packages/arc-framework/src/lib/fs.ts",
   "packages/arc-framework/src/lib/kernel/fs-retry.ts",
@@ -385,6 +387,17 @@ export function isPackagedContentSensitivePath(path: string): boolean {
 /** Whether a path can affect the cross-platform portability suite. */
 export function isPortabilitySurfacePath(path: string): boolean {
   return matchesAny(path, PORTABILITY_SURFACE_GLOBS);
+}
+
+/**
+ * Whether a path's content can change integration results on a change the CI weight classifies as light: packaged
+ * Markdown the verified code tree records by shape alone, or project content outside the code surface and the
+ * planning record.
+ */
+export function isIntegrationTargetPath(path: string): boolean {
+  if (isPackagedArcPath(path)) return !isPackagedContentSensitivePath(path);
+  if (isCodeSurfacePath(path) || isPlanningArtifactPath(path)) return false;
+  return !matchesAny(path, PLANNING_RECORD_GLOBS);
 }
 
 /** Whether a path belongs to the formative planning-artifact lane. */
@@ -467,7 +480,7 @@ function parseNulPaths(input: Uint8Array): string[] | null {
   }
 }
 
-type PathProjection = "classify" | "lane" | "portability";
+type PathProjection = "classify" | "lane" | "portability" | "integration";
 
 function projectPaths(kind: PathProjection, input: Uint8Array): string {
   const paths = parseNulPaths(input);
@@ -478,6 +491,7 @@ function projectPaths(kind: PathProjection, input: Uint8Array): string {
   }
   if (kind === "classify") return paths.some(isCodeSurfacePath) ? "heavy" : "light";
   if (kind === "lane") return paths.every(isPlanningArtifactPath) ? "auto" : "reviewed";
+  if (kind === "integration") return paths.some(isIntegrationTargetPath) ? "true" : "false";
   return paths.some(isPortabilitySurfacePath) ? "true" : "false";
 }
 
@@ -594,6 +608,7 @@ async function runExecutable(args: string[]): Promise<void> {
     "classify-paths": "classify",
     "lane-paths": "lane",
     "portability-paths": "portability",
+    "integration-paths": "integration",
   }[command ?? ""] as PathProjection | undefined;
   if (pathProjection !== undefined && operands.length === 0) {
     process.stdout.write(`${projectPaths(pathProjection, readFileSync(0))}\n`);

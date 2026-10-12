@@ -60,6 +60,9 @@ jobs:
   #            suite in this pull request; light for a docs-only change or an
   #            already-verified tree. A light run skips the code checks, the
   #            integration/e2e suite, and the portability leg.
+  # integration_target keeps the integration suite on a light pull request whose
+  # change touches content that suite reads but the weight's code tree leaves
+  # out, such as ARC prose; the push gate does not run integration.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
@@ -74,6 +77,7 @@ jobs:
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
       portability_target: ${{ steps.c.outputs.portability_target }}
+      integration_target: ${{ steps.c.outputs.integration_target }}
       tested_tree: ${{ steps.tested.outputs.tree }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -171,6 +175,28 @@ jobs:
             fi
           fi
           echo "portability_target=$portability_target" >> "$GITHUB_OUTPUT"
+
+          # integration_target reports whether the change touches content the
+          # integration suite reads that the weight's code tree leaves out (an
+          # unreadable PR diff fails safe to true). Rename detection stays off so
+          # moving a file reports both of its paths.
+          integration_target=false
+          if [ "$event" = 'pull_request' ]; then
+            integration_target=true
+            if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
+               && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
+              if ! integration_target="$(git diff --name-only --no-renames -z "$all_base...$all_head" \
+                | bash scripts/classify-change.sh integration --stdin0)"; then
+                echo "::error::integration classifier failed"
+                exit 1
+              fi
+              if [ "$integration_target" != 'true' ] && [ "$integration_target" != 'false' ]; then
+                echo "::error::invalid integration classifier output: $integration_target"
+                exit 1
+              fi
+            fi
+          fi
+          echo "integration_target=$integration_target" >> "$GITHUB_OUTPUT"
           lane=reviewed
           if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
              && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
@@ -273,7 +299,7 @@ jobs:
       contents: read
       actions: write
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -462,7 +488,7 @@ jobs:
       contents: read
       actions: write # download runtime and upload writer durations
     needs: [classify, setup, build]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -782,7 +808,7 @@ jobs:
 
   # Record that this pull-request run passed every heavy job on the code tree it
   # tested, so a later run of the same pull request that tests an identical tree
-  # can run light. Only a heavy run records: a light run tested nothing. The save
+  # can run light. Only a heavy run records: a light run skips heavy jobs. The save
   # is advisory, so this job stays out of ci-ok's needs and a failed or duplicate
   # save never reddens the required check. A pull request from a fork runs with
   # read-only cache access, where a save writes nothing, so only a same-repository
