@@ -127,6 +127,12 @@ Errand record's schema.
     a checked kind runs through it, and `storage-ref-backend` and `storage-projection` call it from the flip.
 12. **Prepared writes** — `seam-lifecycle`, the protocol; `seam-decomposition` and `seam-locus` follow it for their
     reconciling writers.
+13. **The completed-item refusal** — `storage-ref-backend`, settled at its draft close (Owner, 2026-10-10). On a clone
+    lacking an ended item's history ref, a read as of a state version, `changes` from one, or a write to a completed
+    item refuses with the unresolvable-state-version code, naming each history ref it lacks, and the calling verb pulls
+    them by name and retries, with no stop. `seam-locus`'s restate and recovery consume it, as do `seam-lifecycle`'s
+    reopen, which pulls first, and any member's verb that writes a completed item's records, a resolving write to one
+    of its conflict records among them.
 
 Stays with its member: the review family's schemas and the working-state split (delivery and review); personal surfaces,
 claims, the inbox listing verb's name, and the growth and contention tripwires' bounds (locus); the close verb's name
