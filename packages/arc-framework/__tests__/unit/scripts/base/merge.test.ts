@@ -11,7 +11,7 @@ import {
 const oid = (character: string): string => character.repeat(40);
 
 function repository(base = oid("a"), conflict = false) {
-  const state = { base, head: oid("c"), history: [oid("c")], merging: false };
+  const state = { base, head: oid("c"), history: [oid("c")], merging: false, absorbed: [] as string[] };
   const port: BaseMergePort = {
     refreshBase: async () => state.base,
     refreshHead: async () => state.head,
@@ -27,6 +27,7 @@ function repository(base = oid("a"), conflict = false) {
       state.merging = false;
       return { status: "merged", headOid: oid("d") } as const;
     },
+    changedPaths: async () => state.absorbed,
   };
   return { port, state };
 }
@@ -83,6 +84,54 @@ describe("base merge", () => {
     });
     expect(state.history.slice(0, published.length)).toEqual(published);
     expect(state.history.at(-1)).toBe(oid("a"));
+  });
+
+  it("flags lockfiles the absorbed base changed, at any depth", async () => {
+    const { port, state } = repository();
+    state.absorbed = ["src/index.ts", "packages/app/pnpm-lock.yaml", "package.json", "package-lock.json"];
+    const diffed: string[][] = [];
+    const changedPaths = port.changedPaths;
+    port.changedPaths = async (fromOid, toOid) => {
+      diffed.push([fromOid, toOid]);
+      return changedPaths(fromOid, toOid);
+    };
+
+    await expect(mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port))
+      .resolves.toMatchObject({
+      state: "merged",
+      actualHead: oid("d"),
+      dependencyChange: {
+        status: "changed",
+        paths: ["package-lock.json", "packages/app/pnpm-lock.yaml"],
+        detail: expect.stringContaining("reinstall dependencies before running checks"),
+      },
+    });
+    expect(diffed).toEqual([[oid("c"), oid("d")]]);
+  });
+
+  it("does not flag a manifest change that leaves every lockfile alone", async () => {
+    const { port, state } = repository();
+    state.absorbed = ["package.json", "packages/app/package.json", "src/index.ts"];
+
+    await expect(mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port))
+      .resolves.toMatchObject({ state: "merged", dependencyChange: null });
+  });
+
+  it("reports an unreadable absorbed change instead of an unchanged one", async () => {
+    const { port } = repository();
+    port.changedPaths = async () => {
+      throw new Error("diff failed");
+    };
+
+    await expect(mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port))
+      .resolves.toMatchObject({
+      state: "merged",
+      nextAction: "run-quality-gates",
+      dependencyChange: {
+        status: "unknown",
+        detail: expect.stringMatching(/diff failed[\s\S]*reinstall dependencies before running checks/u),
+      },
+    });
   });
 
   it("skips a base revision already contained by the candidate", async () => {

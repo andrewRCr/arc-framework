@@ -712,7 +712,8 @@ Candidate head; only the regenerable arm carries `--regenerate-roadmap`.
 stopping, render the supplied semantic reason, detail, decisive coordinates, and `continuation` remedy or terminal
 explanation.
 `skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, request
-`arc check new-head --from <pre-merge head>`, using the returned `expectedHead`. Make no applicability or review
+`arc check new-head --from <pre-merge head>`, using the returned `expectedHead`; when the result's
+`dependencyChange` is not null, reinstall the project's dependencies first. Make no applicability or review
 judgment before the checkpoint classifies the exact target.
 
 For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
