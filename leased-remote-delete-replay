@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "leased-remote-delete-replay",
+  "claimId": "3bc2c726a006de088b906a0e02185bab",
+  "createdAt": "2026-10-12T04:43:58.102Z",
+  "updatedAt": "2026-10-12T04:43:58.102Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "leased-remote-delete-replay",
+  "branch": "chore/leased-remote-delete-replay",
+  "origin": "inbox",
+  "originEntry": "Make leased remote branch deletion replay after an already completed delete",
+  "originEntrySourceDigest": "sha256:5b3dac41317bd5e1b6bc9557920120bc6abf3901e4c9c5f08e249ca57e284110",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
