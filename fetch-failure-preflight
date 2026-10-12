@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "fetch-failure-preflight",
+  "claimId": "aa34df1159241f1b32cc60d470ddf11f",
+  "createdAt": "2026-10-12T21:09:27.249Z",
+  "updatedAt": "2026-10-12T21:09:27.249Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Audit and report a materializing fetch's authentication, transport, and ref-update failures in arc sync and arc release push, with sync's JSON failure envelope and a retry remedy; arc user sync and delivery record effects keep the global handler",
+  "branch": "chore/fetch-failure-preflight",
+  "origin": "inbox",
+  "originEntry": "Audit non-timeout materializing-fetch failures and preserve sync JSON output",
+  "originEntrySourceDigest": "sha256:0d8f5ba03d149e6df32d37d5bd49f4a13b1eace249ee55bef0574f1828ca6e60",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
