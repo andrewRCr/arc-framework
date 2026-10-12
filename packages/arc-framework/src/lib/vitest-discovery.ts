@@ -2,6 +2,14 @@
 import { closeVitestController } from "./vitest-closing.js";
 import { createVitest, type TestSpecification, type Vitest, type CliOptions } from "vitest/node";
 
+/** No configured test specification matches the requested selection. */
+export class EmptyVitestSelectionError extends Error {
+  constructor() {
+    super("No configured test specifications match the selection.");
+    this.name = "EmptyVitestSelectionError";
+  }
+}
+
 /** One initialized controller and its configured native selection. */
 export interface VitestSelection {
   readonly controller: Vitest;
@@ -42,7 +50,7 @@ export async function discoverVitestSelection(
       if (failed.length > 0) throw new Error("Native test specification parsing failed.");
       specifications = specifications.filter((specification) => !isNativeSkippedSpecification(specification));
     }
-    if (specifications.length === 0) throw new Error("No configured test specifications match the selection.");
+    if (specifications.length === 0) throw new EmptyVitestSelectionError();
     return { controller, specifications, requiresRuntime: specifications.some(({ project }) =>
       project.name !== "unit" && project.name !== "unit-mocks") };
   } catch (error) {

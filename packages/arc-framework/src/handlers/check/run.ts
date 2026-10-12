@@ -30,7 +30,7 @@ export type DeclaredCheckRecord = CheckPassWrite | { status: "not-recordable" };
 export interface DeclaredCheckResult extends Partial<CheckForecast> {
   id: string;
   kind: CheckResultKind;
-  outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
+  outcome: "passed" | "failed" | "no evidence" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
   output?: string;
   reason?: string;
   /** One line the check's command reported about its run, such as where it ran. */
@@ -53,13 +53,14 @@ export type RunDeclaredChecksResult = {
   | { kind: "usage"; code: string; message: string } };
 
 /**
- * Classify a request from all named outcomes, with unavailable execution taking precedence.
+ * Classify a request from all named outcomes, with unavailable execution taking precedence. A check that found
+ * nothing to examine produced no evidence, so it never lets the request succeed.
  * @param checks - Every included check outcome
  * @returns Success, failure, or unavailable-execution exit status
  */
 export function declaredChecksExitCode(checks: readonly DeclaredCheckResult[]): 0 | 1 | 2 {
   if (checks.some(check => check.outcome === "couldn't run")) return 2;
-  return checks.some(check => check.outcome === "failed") ? 1 : 0;
+  return checks.some(check => check.outcome === "failed" || check.outcome === "no evidence") ? 1 : 0;
 }
 
 /** Checked content exposed only to file checks. */
@@ -327,6 +328,7 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
+  if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
@@ -367,6 +369,9 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
   const ran = (result: { started: boolean; exitCode: number }) => ({ ...result, output: outputs.join("\n"),
     ...(notices.size > 0 ? { notice: [...notices].join("; ") } : {}) });
   let exitCode = 0;
+  // A batch that found nothing to examine neither fails the check nor shows the others examined anything, so the
+  // check reports no evidence only when every batch did.
+  let examined = false;
   try {
     const batches = check.mode === "files" ? batchCheckPaths(command, paths, io.platform) : [[]];
     for (const batch of batches) {
@@ -374,11 +379,13 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
       if (result.output) outputs.push(result.output);
       if (result.notice !== undefined) notices.add(result.notice);
       if (!result.started) return ran(result);
+      if (result.exitCode === check.no_evidence_exit) continue;
+      examined = true;
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
   } catch (error) {
     outputs.push(String(error));
     return ran({ started: false, exitCode: 1 });
   }
-  return ran({ started: true, exitCode });
+  return ran({ started: true, exitCode: examined ? exitCode : check.no_evidence_exit ?? exitCode });
 }
