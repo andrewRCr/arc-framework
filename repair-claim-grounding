@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "repair-claim-grounding",
+  "claimId": "d4191949b6f48e46fc82e734aa709e7a",
+  "createdAt": "2026-10-12T20:52:57.754Z",
+  "updatedAt": "2026-10-12T20:52:57.754Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Ground a proposed planning repair's claims about anything outside the artifact's own design before its disposition set is presented, with the evidence given on request",
+  "branch": "chore/repair-claim-grounding",
+  "origin": "inbox",
+  "originEntry": "Probe-ground a repair's claims about other domains before proposing its disposition",
+  "originEntrySourceDigest": "sha256:d37da1638249580c88c2a72ec8cfae08474e37fd4934da85a4e404f41bbd226b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
