@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "backup-test-timing",
+  "claimId": "7c60fa3cb098770a118b2e295a199bd5",
+  "createdAt": "2026-10-12T14:05:52.333Z",
+  "updatedAt": "2026-10-12T14:05:52.333Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Gate the concurrent pre-load backup test's race on the loads' own progress instead of a wall-clock window, so it proves backup serialization under any scheduling",
+  "branch": "chore/backup-test-timing",
+  "origin": "inbox",
+  "originEntry": "Make the concurrent pre-load backup test independent of timing",
+  "originEntrySourceDigest": "sha256:d4ddc27ca46a6b6c95b6fd52ae239f62824bdbea8f4252d573031df68132dfd6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
