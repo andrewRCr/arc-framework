@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "base-merge-dependency-flag",
+  "claimId": "745bae29e9b71150c8316149270c31ca",
+  "createdAt": "2026-10-12T02:26:52.748Z",
+  "updatedAt": "2026-10-12T02:26:52.748Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Flag a lockfile change in absorbed base movement in the base-merge result, naming a generic reinstall remedy before new-head checks run",
+  "branch": "chore/base-merge-dependency-flag",
+  "origin": "inbox",
+  "originEntry": "Flag a dependency change in absorbed base movement before new-head checks run",
+  "originEntrySourceDigest": "sha256:1867c7fe4fb56849a1a248a1e68dbaae58c1859b3795140425107c3ebbbc97d9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
