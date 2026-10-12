@@ -3,7 +3,7 @@
   "slug": "spec-freeze-carrier",
   "claimId": "af2175c1de4de7a4061f0e7df4dbf8ac",
   "createdAt": "2026-10-12T23:22:18.528Z",
-  "updatedAt": "2026-10-12T23:22:18.528Z",
+  "updatedAt": "2026-10-12T23:40:01.948Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the spec boundary carrier say its freeze starts at activation, so the boundary revises in place while the spec is still authored and reviewed",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Scope the spec boundary carrier to when its freeze actually takes effect",
   "originEntrySourceDigest": "sha256:2758bfbc51e58b9f1cb6ec6de6ceb50ed40da293eac18a54b7cbf3b402dbd78d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/spec-freeze-carrier",
+    "headSha": "62638382f7c09dd6ed88a3f971e7a328df21f9c1"
+  }
 }
