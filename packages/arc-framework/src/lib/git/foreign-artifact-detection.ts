@@ -1,8 +1,9 @@
 /**
  * Deterministic foreign-artifact detection for the `arc-errand` advisory gate.
  *
- * Given an errand's target path(s) and the originating WU, reports which other
- * in-flight WUs touch the target — a git-checkable fact, not a judgment call.
+ * Given an errand's target path(s) and the originating checkout, reports which
+ * other in-flight work units and Errands touch the target — a git-checkable fact,
+ * not a judgment call.
  * The check stays deterministic because an errand has a concrete target path, so
  * overlap is decidable from local git state alone (no remote fetch, no heuristics).
  *
@@ -46,8 +47,10 @@ export interface OverlapCandidateEntry {
   worktreePath?: string;
   /** False distinguishes an unoccupied local branch from legacy/remote worktree-less input. */
   remoteOnly?: boolean;
-  /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout. */
+  /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout or an Errand. */
   metaFilePath?: string;
+  /** Errand slug from the in-flight roster; present marks an in-flight Errand, which carries no meta. */
+  errand?: string;
   /** Roster-entry state; a `Shipped` WU has merged and is excluded. */
   state?: WorktreeRosterState;
   /** Degradation/indeterminacy marks from the in-flight roster. */
@@ -82,7 +85,7 @@ export interface ForeignArtifactDetectionOptions {
   snapshot?: InFlightInputSnapshot;
 }
 
-/** One foreign in-flight WU whose state overlaps the errand's target. */
+/** One foreign in-flight work unit or Errand whose state overlaps the errand's target. */
 export interface ForeignArtifactOverlap {
   branch: string;
   /** The WU's worktree path; absent when no checkout currently owns the branch. */
@@ -172,6 +175,11 @@ function isUnshippedWorkUnit(entry: OverlapCandidateEntry): boolean {
   return entry.metaFilePath !== undefined && entry.state !== "Shipped";
 }
 
+/** An unshipped work unit, or an Errand, whose branch is still to merge. */
+function isOverlapCandidate(entry: OverlapCandidateEntry): boolean {
+  return isUnshippedWorkUnit(entry) || entry.errand !== undefined;
+}
+
 function skipReasonForMarks(marks: readonly InFlightEntryMark[] | undefined): ForeignArtifactSkippedReason | null {
   if (marks?.includes("indeterminate") === true) return "entry-marked-indeterminate";
   if (marks?.includes("location-ambiguous") === true) return "entry-location-ambiguous";
@@ -179,7 +187,7 @@ function skipReasonForMarks(marks: readonly InFlightEntryMark[] | undefined): Fo
 }
 
 /**
- * Detect which other in-flight WUs touch the errand's target path(s).
+ * Detect which other in-flight work units and Errands touch the errand's target path(s).
  *
  * @param options - Roster, target paths, base branch, and the originating worktree.
  * @returns The foreign overlaps; empty when none touch the target.
@@ -222,7 +230,7 @@ export async function detectForeignArtifactOverlap(
   const candidates: OverlapCandidateEntry[] = [];
   const skipped: ForeignArtifactSkippedEntry[] = [];
   for (const { entry, isOriginatingWorktree } of entries) {
-    if (!isUnshippedWorkUnit(entry)) continue;
+    if (!isOverlapCandidate(entry)) continue;
     if (selfName !== undefined && entry.name === selfName) continue;
     if (isOriginatingWorktree) continue;
     if (originatingMetaPath !== undefined && entry.metaFilePath === originatingMetaPath) continue;
@@ -401,14 +409,14 @@ function underPath(file: string, target: string): boolean {
 /**
  * Project oracle in-flight entries into the overlap roster shape.
  *
- * Work units only — errands carry no meta and aren't WU-overlap candidates
- * (mirroring the meta-bearing narrowing the worktree roster applies). A
- * locally-checked-out WU keeps its branch and worktree, so the core runs its
- * full committed + uncommitted probe. A worktree-less local WU keeps its local
- * branch ref; a remote-only WU projects as `origin/<branch>`. The committed diff
- * against that selected ref is its overlap signal. The content-derived WU name stays on each
- * candidate so stale duplicate refs of the originating WU self-exclude by
- * identity instead of by path equality.
+ * A locally-checked-out entry keeps its branch and worktree, so the core runs
+ * its full committed + uncommitted probe. A worktree-less local entry keeps its
+ * local branch ref; a remote-only entry projects as `origin/<branch>`. The
+ * committed diff against that selected ref is its overlap signal. The
+ * content-derived WU name stays on each work-unit candidate so stale duplicate
+ * refs of the originating WU self-exclude by identity instead of by path
+ * equality. An Errand carries its slug instead of a meta: its record keys one
+ * entry per branch, so the originating Errand self-excludes by its checkout.
  *
  * @param entries - Oracle output (identity-filtered in-flight WUs and errands).
  * @returns The overlap roster the detection core consumes.
@@ -416,12 +424,18 @@ function underPath(file: string, target: string): boolean {
 export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]): OverlapRoster {
   const projected: OverlapCandidateEntry[] = [];
   for (const entry of entries) {
-    if (entry.kind !== "work-unit") continue;
-    projected.push({
+    const location = {
       branch: entry.remoteOnly ? `origin/${entry.branch}` : entry.branch,
-      name: entry.name,
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
       ...(entry.worktreePath === undefined && !entry.remoteOnly ? { remoteOnly: false } : {}),
+    };
+    if (entry.kind === "errand") {
+      projected.push({ ...location, errand: entry.slug, ...(entry.marks !== undefined ? { marks: entry.marks } : {}) });
+      continue;
+    }
+    projected.push({
+      ...location,
+      name: entry.name,
       metaFilePath: resolveArcPath({
         kind: "work-unit-artifact",
         placement: { kind: "active", scope: { kind: "project" } },
