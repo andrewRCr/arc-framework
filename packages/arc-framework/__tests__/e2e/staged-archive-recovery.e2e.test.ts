@@ -1,12 +1,12 @@
 /** Recovery coverage for the staged active-to-completed archive seam. */
 
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -102,7 +102,17 @@ describe("staged archive recovery", () => {
     await cleanupTempDir(worktreeRoot);
   });
 
-  it("writes and audits a compaction seed after archive staging but before its commit", async () => {
+  it.each([false, true])("archives and recovers staged metadata after Git checkout (autocrlf=%s)", async crlf => {
+    const activeMeta = ".arc/active/meta-staged-archive-recovery.md";
+    await git(worktree, ["config", "core.autocrlf", String(crlf)]);
+    await rm(join(worktree, activeMeta));
+    await git(worktree, ["checkout", "--", activeMeta]);
+    const before = await readFile(join(worktree, activeMeta), "utf8");
+    const checkoutEol = await git(worktree, ["ls-files", "--eol", "--", activeMeta]);
+    expect(checkoutEol).toContain("i/lf");
+    expect(checkoutEol).toContain(crlf ? "w/crlf" : "w/lf");
+    expect(before.includes("\r\n")).toBe(crlf);
+    expect(await git(worktree, ["status", "--porcelain", "--", activeMeta])).toBe("");
     const archived = await runArc([
       "archive",
       "staged-archive-recovery",
@@ -122,6 +132,21 @@ describe("staged archive recovery", () => {
     if (archivedMeta === undefined) {
       throw new Error("archive did not stage the completed work-unit meta");
     }
+
+    const archivedContent = await readFile(join(worktree, archivedMeta), "utf8");
+    const indexedContent = await git(worktree, ["show", `:${archivedMeta}`]);
+    for (const content of [archivedContent, indexedContent]) {
+      expect(parseMetaRecord(content)).toMatchObject({
+        state: "Shipped",
+        branch: null,
+        nextTask: null,
+        prUrl: "https://github.com/example/project/pull/42",
+        completed: "2026-09-10",
+      });
+    }
+    expect(archivedContent.includes("\r\n")).toBe(crlf);
+    if (crlf) expect(archivedContent.replace(/\r\n/gu, "")).not.toContain("\n");
+    expect(await git(worktree, ["diff", "--name-only", "--", archivedMeta])).toBe("");
 
     const seeded = await runArc(
       ["status", "--session-init", "--write-compaction-seed", "--json"],
