@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "conformance-undeclared-family",
+  "claimId": "558cbef6eba3af4a734f9e77fd175f01",
+  "createdAt": "2026-10-12T01:49:06.947Z",
+  "updatedAt": "2026-10-12T01:49:06.947Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the store conformance suite report each family a fixture leaves undeclared, by name with a reason",
+  "branch": "chore/conformance-undeclared-family",
+  "origin": "inbox",
+  "originEntry": "Make the store conformance suite report a family a fixture leaves undeclared",
+  "originEntrySourceDigest": "sha256:aa99fcfb77cae76e2eb8c1451ffddf718b3740670f2f720b46804a7067fec0a5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
