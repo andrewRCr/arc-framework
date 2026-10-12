@@ -141,19 +141,21 @@ review chunking to hold.
 #### 1.2 Module layout
 
 - **`lib/store/ref/`** holds the backend: its tree codec, metadata, version model, write path, merge and sync, lifecycle
-  moves, lookup, layouts, designation, and the migrate verb's engine. It depends on the contract core (`lib/store/`), the
-  concurrency library (`lib/store/concurrency/`), the kind registry and production registrations
+  moves, lookup, layouts, designation, and the migrate verb's engine. It depends on the contract core (`lib/store/`),
+  the concurrency library (`lib/store/concurrency/`), the kind registry and production registrations
   (`lib/store/kinds/registrations.ts`), the kernel's canonical form (`lib/kernel/canonical/canonical-json.ts`), the
   advisory lock (`lib/advisory-lock.ts`), and `lib/git/`'s executor. Nothing outside `lib/store/` imports it, as for the
-  in-repo implementation.
+  in-repo implementation: the `store-production` and `store-tests` import rules (`eslint/architecture-imports.ts`) cover
+  it as they cover `lib/store/in-repo/`, so only `lib/store/create.ts` imports its entry and no test imports it.
 - **`lib/git/`** gains the executor capabilities of § 11: the ref-transaction helper, the push helper, cancellation on
   the stdin and byte variants, and the Git-version check on failure.
 - **`lib/store/`** gains the contract changes of § 2; the serialization rules' function (§ 5.6); and, in
-  `lib/store/create.ts` beside `createStore`, three exports over the ref backend: `createReadSourceStore` (§ 9.6), and
+  `lib/store/create.ts` beside `createStore`, four exports over the ref backend: `createRefStore(ports)`, which the
+  conformance fixture and the integration tests build their store with (§ 14); `createReadSourceStore` (§ 9.6); and
   `runStoreRemote` and `runStoreMigrate`, the entry points the `arc store remote` and `arc store migrate` handlers call
   (§ 9.4, § 10.1). `createStore` stays the one composition point that selects the backend operational reads and writes
-  run through; the three serve only a read source's view and the `arc store` commands, which act on the ref store by
-  name.
+  run through; the four serve only tests, a read source's view, and the `arc store` commands, which act on the ref store
+  by name.
 - **The import's transform** sits in its own module under `lib/store/ref/import/`, reading through the in-repo
   implementation, so the cutover's deletion pass removes it with that implementation and nothing else references it.
 - **Commands:** `arc store remote` and `arc store migrate` (§ 9.4, § 10.1), registered hidden until the flip, as
@@ -224,17 +226,18 @@ type ReadOnlyStore = Pick<Store, "capabilities" | "read" | "list" | "version" | 
   and disk usage (§ 12).
 - **On the other two backends:** the in-repo implementation's `pull` is today's notes pull, a fetch and a load to disk
   that publishes nothing (`runUserPull`, `commands/user/push-fetch.ts`), for the `personal` family alone, since the
-  transient-identity refs its `sync` also publishes take remote state into local state only inside a rejected push's
-  reconcile (`reconcileErrandPush`, `lib/errand/merge.ts`). Its results map onto `PullOutcome` with no notices: a fetch
-  that moved or created the notes ref, then its load, is `pulled`; one that moved nothing, found no note, or found the
-  local notes ahead, `noop`; a remote it cannot reach `failed` `unreachable`, with the cause `classifyRemoteFailure`
-  reads (§ 11.5); and notes that diverged `failed` `refused`, terminal, with the remedy `arc sync`. Its `push` is
-  today's `sync`, each outcome carrying a retry count of zero and, as its time waited, the elapsed time it already
-  measures; and its `maintain` returns no measurements. The in-repo fixture excludes the suite's `pull` items for the
-  `work-item` and `claims` families by name (§ 14.2). The reference backend's `pull` reconciles against its in-memory
-  remote and publishes nothing (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`), its `push` is today's `sync`,
-  and its `maintain` returns no measurements. Both backends' `push` returns `pulls` empty, reporting its reconciliation
-  through `publishes` as `sync` does today.
+  transient-identity refs its `sync` also publishes take remote state into local state only in a transaction that also
+  pushes — each remote identity transaction (`transactRemoteAttempt`, `lib/errand/identity-transaction.ts`) and a
+  rejected push's reconcile (`reconcileErrandPush`, `lib/errand/merge.ts`). Its results map onto `PullOutcome` with no
+  notices: a fetch that moved or created the notes ref, then its load, is `pulled`; one that moved nothing, found no
+  note, or found the local notes ahead, `noop`; a remote it cannot reach `failed` `unreachable`, with the cause
+  `classifyRemoteFailure` reads (§ 11.5); and notes that diverged `failed` `refused`, terminal, with the remedy
+  `arc sync`. Its `push` is today's `sync`, each outcome carrying a retry count of zero and, as its time waited, the
+  elapsed time it already measures; and its `maintain` returns no measurements. The in-repo fixture excludes the suite's
+  `pull` items for the `work-item` and `claims` families by name (§ 14.2). The reference backend's `pull` reconciles
+  against its in-memory remote and publishes nothing (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`), its
+  `push` is today's `sync`, and its `maintain` returns no measurements. Both backends' `push` returns `pulls` empty,
+  reporting its reconciliation through `publishes` as `sync` does today.
 - **The rename is cheap now:** no production code calls the contract's `sync()` — `createStore` delegates it, and the
   conformance suite exercises it (`__tests__/helpers/store/suite-sync.ts`).
 
@@ -483,7 +486,8 @@ export interface RefHome {
 - **`project-machinery` and `constitution`,** stored only under ghost mode, and the three reserved families have no ref
   (`FAMILY_REGISTRY`), so their kinds carry no `RefHome` until their family takes one.
 - **Each ref also holds one metadata file** (§ 3.3): `metadata-<uid>.json` on a work item's or cohort's ref, live or
-  under history; `metadata-registry.json` and `metadata-inbox.json` on the project's refs;
+  under history, while its tree holds a record — an abandon's or decomposition's final commit and the import's origin
+  refs hold none (§ 7.4, § 10.11); `metadata-registry.json` and `metadata-inbox.json` on the project's refs;
   `<person>/metadata-<person>.json` on a personal ref; and `metadata-claims-<person>.json` on a claims ref.
 - **A ref whose records carry an anchor holds its manifest** (§ 4.5) as a subtree at `state-<uid>/`, beside its metadata
   file and named as it is, with `state` for `metadata` and no extension.
@@ -532,13 +536,18 @@ interface RefMetadata {
   `__tests__/helpers/store/write.ts`): `StoreRecordSchema` refuses a work-item or review record without one. A put of a
   work-item or review record whose owner has neither a primary nor a kept placement refuses `record-malformed`, with the
   remedy to create the primary first or in the same batch.
-- **A metadata file that is missing or does not parse** — a ref's, or a quarter folder's — leaves its records nothing to
-  read placement, slugs, or format versions by. Only a commit made outside ARC leaves one, since every write and merge
-  builds the file (§ 5.1, § 6.4). A listing reports that ref's family `unreadable`, as for a tip it cannot read (§ 3.1);
-  `read`, `history`, and `changes` of a record on it, a `lookup` whose scan reads it, and a `write` or `batch` touching
-  it refuse `namespace-corrupt`, terminal, naming the ref as its `namespace`, with the remedy to move the ref back to
-  its last commit whose metadata file parses, with `git update-ref` against the store's repository as § 6.3's remedies
-  run; and a pull's merge that meets such a tip fails that remote's outcome as terminal `refused`, naming the ref.
+- **A metadata file that is missing or does not parse** where its tree holds records — a ref's, or a quarter folder's —
+  leaves those records nothing to read placement, slugs, or format versions by. A tree that holds no record needs no
+  metadata file and reads as holding none: an abandon's or decomposition's final commit (§ 7.4) and the import's origin
+  refs (§ 10.11). Only a commit made outside ARC leaves one, since every write and merge that leaves a record builds the
+  file (§ 5.1, § 6.4). A listing reports that ref's family `unreadable`, as for a tip it cannot read (§ 3.1); `read`,
+  `history`, and `changes` of a record on it, a `lookup` whose scan reads it, and a `write` or `batch` touching it
+  refuse `namespace-corrupt`, terminal, naming the ref as its `namespace`, with the remedy to repair it forward: commit
+  on top of its tip the metadata file from its last commit whose file parses, against the store's repository as § 6.3's
+  remedies run, which the next push publishes as a fast-forward wherever the broken commit went. The push loop publishes
+  no such ref (§ 6.7), and a pull that would move a local ref onto such a tip, by fast-forward or merge, leaves the ref
+  and fails that remote's outcome as terminal `refused`, naming the ref, with the remedy to take the remote's tip
+  (§ 6.3) and repair it forward.
 
 #### 3.4 Record versions
 
@@ -690,14 +699,14 @@ rebuild from the current state and a write with § 7.3's.
 provenance, oldest first within a ref, refs in name order — restricted to the named records' paths (§ 3.6) when the
 caller names any. A ref in one manifest only reads by its namespace:
 
-| Where the ref is                                                    | What `changes` reads                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A work item or cohort, older only                                   | Its end, from its history ref's log; refuses as § 4.4 when this clone lacks that ref                                                                                                                                                                 |
-| A work item or cohort, newer only                                   | New since the older: from its root. Reopened since it: from its reopen, the commits the history tip it moved back from does not reach                                                                                                                |
-| A work item or cohort in neither, its folder in the older's quarter | Ended before the older and changed since — written while ended, or reopened and ended again: found by its folder among the quarters' changes, read on its history ref from the first such batch's commit through the last's, which it needs as above |
-| A work item or cohort in neither, otherwise                         | Created and ended between them: found by its end's record among the quarter's or the registry's changes, read from its root on its history ref, which it needs as above                                                                              |
-| Any other ref, newer only                                           | New since the older — a quarter, the inbox or registry, or an identity ref — from root                                                                                                                                                               |
-| Any other ref, older only                                           | Nothing                                                                                                                                                                                                                                              |
+| Where the ref is                                                    | What `changes` reads                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A work item or cohort, older only                                   | Its end, from its history ref's log; refuses as § 4.4 when this clone lacks that ref                                                                                                                                                                                                                                                                               |
+| A work item or cohort, newer only                                   | New since the older: from its root. Reopened since it: from its reopen, the commits the history tip it moved back from does not reach                                                                                                                                                                                                                              |
+| A work item or cohort in neither, its folder in the older's quarter | Ended before the older and changed since — written while ended, or reopened and ended again: found by its folder among the quarters' changes, read on its history ref from the first such batch's commit through the last batch in the window that changed its folder or wrote its end's record — a quarter's, or the registry's lineage — which it needs as above |
+| A work item or cohort in neither, otherwise                         | Created and ended between them: found by its end's record among the quarter's or the registry's changes, read from its root on its history ref, which it needs as above                                                                                                                                                                                            |
+| Any other ref, newer only                                           | New since the older — a quarter, the inbox or registry, or an identity ref — from root                                                                                                                                                                                                                                                                             |
+| Any other ref, older only                                           | Nothing                                                                                                                                                                                                                                                                                                                                                            |
 
 - **A batch is one change** (D3): `changes` groups the commits it reads by their `Arc-Batch` across refs and gives each
   record one entry per batch — its version and content after the batch — only where that differs from its version before
@@ -708,7 +717,9 @@ caller names any. A ref in one manifest only reads by its namespace:
   record's version changed, never on one that only carries it, so a record's entries run oldest first however its
   batches span refs. A merge commit is read by § 3.6's rule, so one that renumbers or renames a folder adds no entry.
 - **An archived item's later writes** are found through its quarter's ref, whose folder each such write refreshes in its
-  batch (§ 7.3), and read on its history ref, where the record's version changed.
+  batch (§ 7.3), and read on its history ref, where the record's version changed. A history ref whose log lacks a batch
+  its folder shows — another machine's write, which the default fetch does not bring (D10) — refuses as § 4.4 does,
+  naming the ref, so § 4.5's pull by name and retry covers it.
 - **An identity ref is missing from a manifest only on another person's clone,** since each clone fetches its own
   identity alone (D10), and a shared ref leaves only by loss, which the next push restores (§ 6.4). So `changes` between
   two people's manifests carries the newer one's identity history whole, and a reader that wants project scope alone
@@ -829,7 +840,8 @@ hand edit stay silent on a merge.
 
 #### 5.6 Serialization rules
 
-D10's rules are checked at every write, by one pure function every persisting path calls:
+D10's rules are checked at every write, by one pure function the write path and the import's build call; a merge and a
+move store what they carry unchecked (§ 6.4, § 10.4):
 
 ```ts
 /** Check one record's content against the store's serialization rules.
@@ -1065,7 +1077,10 @@ one and an abandon on the other, or two archives, each perhaps after a reopen of
 2. **List** the refs to push: every store ref whose tip differs from its tracking ref or has none, and every delete an
    end or reopen owes. Take their locks in ref-name order (§ 11.4) and list again; a batch that creates a ref grows
    the listing, and a grown one releases every lock held and takes the larger set in order, so the order holds.
-3. **Read the tips under the locks, then release them** before the network call.
+3. **Read the tips under the locks, then release them** before the network call. A ref whose tree holds records but no
+   metadata file that parses (§ 3.3) is left out of the push, with every ref an unpublished batch of it spans, so a push
+   still never publishes part of a batch; their families' outcomes are `failed`, terminal `refused`, naming the ref,
+   with § 3.3's forward repair.
 4. **Push** explicit `<oid>:<ref>` pairs — leases per § 6.5, `--porcelain`, and `--atomic` when the push names more than
    one ref (A7) — so a push never publishes part of a local batch, which a reader of the files format can see
    mid-transaction.
@@ -1188,8 +1203,10 @@ has taken since refuses `ambiguous-match` naming both (§ 5.1).
   unleased push would recreate the ref the reopen deleted.
 - **A clone that holds no copy of the history ref** refuses the write `state-unresolvable`, naming it, and refuses
   `history` of the item's records the same way rather than read the quarter folder's shorter log; an abandoned or
-  decomposed item's `history` refuses alike, its end read from lineage (§ 2.3). Expected contract: the verb pulls it by
-  name and retries (§ 4.5).
+  decomposed item's `history` refuses alike, its end read from lineage (§ 2.3). A copy whose log lacks a batch the
+  quarter's folder shows — another machine's write, which the default fetch does not bring — refuses `history` and
+  `changes` the same way, while a write over it meets its lease (§ 6.5) and lands after the pull that follows. Expected
+  contract: the verb pulls it by name and retries (§ 4.5).
 - **Where the remote answers without the ref and no reopen explains it** — the mirror push D10 names, which deletes
   state refs — the retried write stays refused, naming the ref. Rebuilding from the current state cannot land a write,
   so the remedy is that a clone holding the ref push it back: `git push` of that ref to that clone's own state remote,
@@ -1411,9 +1428,11 @@ private: a wording amendment to D10 (§ 2.5).
   (§ 6.3) with one way out, taking theirs, since nothing of a read source is merged or pushed.
 - **A forwarding record on a read source** (§ 10.6) means the upstream moved its state: the fetch prunes the source's
   namespace as any fetch does, so its view empties, and the source's pull outcome is `failed`, terminal `refused`,
-  naming the move, with the remedy to designate as `read` the remote the upstream's state moved to — the backing
-  repository its tracked pointer names, added as a remote, or the upstream itself where it names none
-  (`arc store remote <remote> read`).
+  naming the move, with the remedy to set the old source `off` and designate as `read` the remote the upstream's state
+  moved to — the backing repository its tracked pointer names, added as a remote of the code repository
+  (`git remote add`), whose URL a read source is fetched by (below), or the upstream itself where it names none
+  (`arc store remote <old> off`, then `arc store remote <remote> read`). Where this repository's own tracked pointer
+  records the move, the follow does both (§ 10.6).
 
 #### 9.7 Layouts
 
@@ -1430,9 +1449,11 @@ private: a wording amendment to D10 (§ 2.5).
     - **Its presence is the layout:** `version` reads it with no Git call (§ 4.2). A store that holds state (§ 3.1)
       stays where it is — the directory where it exists, else the code repository's refs — and only a write or a pull
       that finds neither places itself by the designation, creating the directory under the layout lock (§ 11.4) where
-      the designation puts the store there; whatever creates it while the tracked pointer names a backing repository
-      adds its `backing` remote at the pointer's URL, undesignated until § 9.2 settles it. A store in the layout its
-      designation does not call for reports `move-incomplete` from `pull` and `push` (§ 10.3).
+      the designation puts the store there; while the tracked pointer names a backing repository, a write, pull, or push
+      that finds the directory without its `backing` remote adds it at the pointer's URL, undesignated until § 9.2
+      settles it, and so does the layout move that creates the directory, `arc store remote backing push`'s among them
+      (§ 9.4). A store in the layout its designation does not call for reports `move-incomplete` from `pull` and `push`
+      (§ 10.3).
     - **It is made by** `git init --bare --ref-format=reftable --object-format=<the code repository's>`: a layout move
       fetches between the two, and Git refuses a fetch across object formats, and the manifest's in-process id hashes
       with the same format.
@@ -1616,8 +1637,9 @@ the tracked pointer carries, so no state history stays reachable from it.
   answer (§ 9.4). A role the person gave the old remote never carries to the new one unasked, since the answer publishes
   their state, so a rerun after an interruption asks again unless it is the answering command, which carries the answer.
   On `push` the follow first clears the old remote as below. Whatever the answer, the clone then switches as it calls
-  for: the layout move where the layout changes; the old state remote, where the answer went to another, set `off` after
-  the rename as § 10.3 orders it; and `backing` repointed at the pointer's URL, or removed where no pointer names one.
+  for: the layout move where the layout changes; the old remote — the state remote, or a `read` source carrying the
+  forwarding record (§ 9.6) — set `off` where the answer went to another, after the rename as § 10.3 orders it; and
+  `backing` repointed at the pointer's URL, or removed where no pointer names one.
 - **The follow clears what raced the move.** On a `push` answer it lists the old remote's store refs as the move's last
   step does (§ 10.2) and copies any it finds onto the new remote, merging where it holds them (§ 10.4), then deletes
   them, so a ref a teammate's loop pushed after the mover's last listing leaves with that teammate's own follow, since
@@ -1991,9 +2013,9 @@ the default in a files-format code repository, and the separate one in its refta
   (`__tests__/helpers/store/reference-fixture.ts`): the cross-substrate and saved-state coverage items,
   `checkout-not-writable`, nine of the ten `unsupported` cases, and the transient-write cases. It produces the tenth,
   `held-here` (`held-here-unsupported-remedy`, `__tests__/helpers/store/suite-lookup.ts`), `state-unresolvable`, and
-  `namespace-corrupt`, by a commit made outside ARC that breaks an item ref's metadata file, which moving the ref back
-  to the commit before it repairs (§ 3.3). One more is its own: `diagnostic-key-mismatch` for the kinds on the project's
-  two refs whose ref, path, and test parser's fields name their owner at most once between them — `project-inbox/inbox`,
+  `namespace-corrupt`, by a commit made outside ARC that breaks an item ref's metadata file, which a forward repair
+  restoring the file mends (§ 3.3). One more is its own: `diagnostic-key-mismatch` for the kinds on the project's two
+  refs whose ref, path, and test parser's fields name their owner at most once between them — `project-inbox/inbox`,
   `project-inbox/routing-receipt`, `project-registry/identity`, `project-registry/counter`, `lineage/transition`, and
   `lineage/conflict-record` — so no stored state there names two (§ 3.1). Any further exclusion is a defect or a forward
   amendment.
@@ -2044,10 +2066,12 @@ the default in a files-format code repository, and the separate one in its refta
   when an ended item's tip is missing; a verb's pull by name then resolves it. `history` of an item whose end this
   clone holds without its history ref refuses the same way, and a fresh clone's first pull fetches no history ref.
 - **`changes`:** one case for each row of § 4.6's table, among them an item archived before the older manifest and
-  written while archived, which lists the window's writes alone, and one reopened and archived again within the window,
-  which lists from its reopen; a reopen lists no removal of the item's other records, an archive and a write to a
-  completed item list each changed record once; and a write followed by the item's archive in one window lists the
-  record's later version last.
+  written while archived, which lists the window's writes alone, one reopened and archived again within the window,
+  which lists from its reopen, and one reopened and then abandoned within it, which lists from its reopen through its
+  end, its live writes among them; a completed item another machine wrote, whose history ref this clone holds without
+  that write, refuses as § 4.4 does until a pull by name brings it; a reopen lists no removal of the item's other
+  records, an archive and a write to a completed item list each changed record once; and a write followed by the item's
+  archive in one window lists the record's later version last.
 - **Anchors:** a meta write that sets `stateAtHandoff` carries its manifest in the same commit, resolvable on a fresh
   clone that fetches the ref; an unresolvable token refuses naming the field.
 - **Writes:** a no-op rewrite makes no commit; a stale base on a merge kind merges; a role replacement runs both kinds'
@@ -2091,6 +2115,10 @@ Held to the spikes' pass criteria for writes — no lost write, bounded retries,
       that ref ending at once as terminal `refused`, publishing nothing, with the notice in its `pulls`;
     - the same refusal with `fetch.showForcedUpdates` set false in the person's global configuration and in the store
       repository's own, in both layouts;
+    - a commit made outside ARC that breaks an item ref's metadata file is left out of the push with the refs its
+      unpublished batches span, failing their families `refused`; the same commit pushed outside ARC makes another
+      clone's pull leave its ref and fail that remote `refused`; and a forward repair on either clone, once pushed, brings
+      both back to reads that succeed;
     - a fetch whose tracking-ref update meets a held lock reports `tracking-update-failed`, keeps that ref's tips, and
       applies the rest, and the next pull applies it;
     - leased deletes, the archive sequence renumbered after a concurrent archive, and a cohort's `a` and `b` folders;
@@ -2130,7 +2158,10 @@ A read source, in both layouts: a pull fetches its project namespaces into `refs
 another person's identity; `createReadSourceStore` reads, lists, and looks up there, as of its own state versions too;
 nothing it fetches merges into local state or is pushed; a history ref its refusal names, pulled by name, resolves; and
 on a clone with no state remote whose registry holds no project ID, the first pull that fetches the upstream's registry
-adopts its ID, which a later pull leaves alone, while a clone with a state remote and no ID adopts nothing from it.
+adopts its ID, which a later pull leaves alone, while a clone with a state remote and no ID adopts nothing from it. A
+diverged ref there reports `history-diverged` with taking theirs as its one way out; and a forwarding record there fails
+that source terminal `refused`, naming the move, until its remedy sets it `off` and the moved-to remote `read`, after
+which a pull reads the upstream from there.
 
 #### 14.7 The migrate verb and the import, by comparison
 
@@ -2150,12 +2181,12 @@ adopts its ID, which a later pull leaves alone, while a clone with a state remot
 - **Following a move** to a backing repository, back to the code remote, and between two backing repositories, from a
   follower carrying `push` on its code remote, one carrying it on a fork's upstream, and one carrying `read`: once the
   pointer's change is in and until the follow, `pull` and `push` report `move-incomplete` — a `read` follower of a move
-  to a backing repository meets only the pointer's `designation-needed` — and, where the pointer disallows the
-  follower's designation, `arc store remote` refuses every setting but the follow's; the follow asks, never carrying the
-  old role, and without a terminal reports `designation-needed`, whose answering command completes it; on `push` the
-  follower ends in the layout the move calls for, the old state remote `off`, and `backing` repointed or removed, and on
-  `read` or `off` in a designation the pointer allows; and interrupted after each step, rerunning its answering command
-  completes it.
+  to a backing repository meets the pointer's `designation-needed`, and its old source's forwarding record fails that
+  source terminal `refused` (§ 9.6) — and, where the pointer disallows the follower's designation, `arc store remote`
+  refuses every setting but the follow's; the follow asks, never carrying the old role, and without a terminal reports
+  `designation-needed`, whose answering command completes it; on `push` the follower ends in the layout the move calls
+  for, the old state remote `off`, and `backing` repointed or removed, and on `read` or `off` in a designation the
+  pointer allows, the old source `off`; and interrupted after each step, rerunning its answering command completes it.
 - **The import** runs over a fixture repository in today's substrates. Afterward every record the in-repo implementation
   lists reads the same through the ref backend — its content and every field both carry, never its version — but for the
   transforms of § 10.9. What the import reads directly is compared with its own source: each person's notes snapshot,
@@ -2323,7 +2354,8 @@ design avoids.
 - Identity scope is not private: anyone who can read the state remote reads it. A repository that wants its state
   private keeps it in a backing repository or local, and moves it before going public (§ 10.7).
 - The backend never pushes `refs/arc/*` to a remote the person has not designated, and the designation never syncs.
-- The serialization rules refuse `.env` files and private keys at every write and in the import, never skipping them.
+- The serialization rules refuse `.env` files and private keys at every write and in the import, never skipping them; a
+  merge or a move carries what another machine's write already checked, gating on none (§ 6.4, § 10.4).
 - The forwarding record carries no URL and keeps no state history reachable on the remote being left.
 - Leases keep a push from recreating what another machine's lifecycle move deleted; a host cannot enforce ARC's writer
   rules, as for every ARC writer rule (D11).
@@ -2383,8 +2415,9 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
 9. **The Windows budget holds:** a dispatched portability run passes and times every operation of § 11.7 within its
    budget.
 10. **The backend stays dark.** `createStore` composes the in-repo implementation; outside `lib/store/`, nothing imports
-    `lib/store/ref/`, no production code calls `createReadSourceStore`, and only the `arc store` handlers call
-    `runStoreRemote` and `runStoreMigrate`; and `arc store` is absent from `arc --help`.
+    `lib/store/ref/`, as the store import rules enforce; no production code calls `createRefStore` or
+    `createReadSourceStore`, and only the `arc store` handlers call `runStoreRemote` and `runStoreMigrate`; and
+    `arc store` is absent from `arc --help`.
 11. **CI cost holds:** each layout's conformance run stays within 1.5 times the in-repo conformance's time on the same
     runner, and the test-cost rows the new files touch were baselined before they landed.
 12. **The host kit has run, the pack cost is measured, and the surviving suites are listed:** GitHub and GitLab hold
