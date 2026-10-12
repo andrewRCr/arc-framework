@@ -40,17 +40,23 @@ function meta(state = "Active"): string {
  * Exec stub answering the reads the command makes: local remote-tracking refs
  * (`for-each-ref`), live membership (`ls-remote`), the worktree map (`worktree
  * list`), meta content (`show`), and the errand records keying errand-ness
- * (`ls-tree` + `cat-file` over `refs/arc/user/{identity}/errands`).
+ * (`ls-tree` + `cat-file` over `refs/arc/user/{identity}/errands`). An online read fetches the remote identity
+ * ref into a discovery snapshot, which `remoteErrandRecords` answers; without it the remote has no such ref.
  */
 function makeExec(opts: {
   localRefs: string[];
   liveBranches: string[] | "unreachable";
   metas?: Record<string, string>;
   errandRecords?: Array<{ slug: string; branch: string }>;
+  remoteErrandRecords?: Array<{ slug: string; branch: string }>;
 }): GitExec {
   const metas = opts.metas ?? {};
   const errandRecords = opts.errandRecords ?? [];
+  const remoteErrandRecords = opts.remoteErrandRecords;
   const DUMMY_SHA = "0".repeat(40);
+  const SNAPSHOT_TIP = "c".repeat(40);
+  const SNAPSHOT_BLOB = "b".repeat(40);
+  const isSnapshotRef = (ref: string | undefined): boolean => ref?.startsWith("refs/arc/tmp/transient-discovery/") === true;
   const errandBlob = (record: { slug: string; branch: string }): string => JSON.stringify({
     version: 3,
     kind: "errand",
@@ -82,6 +88,28 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "fetch" && args[2]?.startsWith("+refs/arc/user/") === true) {
+      if (remoteErrandRecords === undefined) throw new Error("fatal: couldn't find remote ref refs/arc/user/andrew/errands");
+      return { stdout: "", stderr: "" };
+    }
+    if (args[0] === "update-ref" && args[1] === "-d" && isSnapshotRef(args[2])) return { stdout: "", stderr: "" };
+    if (args[0] === "show-ref" && isSnapshotRef(args[2])) return { stdout: "", stderr: "" };
+    if (args[0] === "rev-parse" && isSnapshotRef(args[3]?.replace("^{commit}", ""))) {
+      return { stdout: `${SNAPSHOT_TIP}\n`, stderr: "" };
+    }
+    if (args[0] === "ls-tree" && args.includes(SNAPSHOT_TIP)) {
+      return {
+        stdout: (remoteErrandRecords ?? [])
+          .map((record) => `100644 blob ${SNAPSHOT_BLOB} ${Buffer.byteLength(errandBlob(record))}\t${record.slug}\0`)
+          .join(""),
+        stderr: "",
+      };
+    }
+    if (args[0] === "cat-file" && args[2] === SNAPSHOT_BLOB) {
+      const rec = remoteErrandRecords?.[0];
+      if (rec === undefined) throw new Error(`fatal: not found ${SNAPSHOT_BLOB}`);
+      return { stdout: errandBlob(rec), stderr: "" };
+    }
     if (args[0] === "show-ref") {
       if (errandRecords.length === 0) throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 2 });
       return { stdout: "", stderr: "" };
@@ -495,6 +523,33 @@ describe("runActiveInFlight", () => {
       branch: "feat/x",
       workUnit: "x",
     });
+  });
+
+  it("reads Errand records from the remote identity ref when this machine's copy is stale", async () => {
+    const exec = makeExec({
+      localRefs: ["chore/elsewhere"],
+      liveBranches: ["chore/elsewhere"],
+      remoteErrandRecords: [{ slug: "elsewhere", branch: "chore/elsewhere" }],
+    });
+
+    const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
+
+    expect(result.entries).toEqual([{ kind: "errand", branch: "chore/elsewhere", slug: "elsewhere", remoteOnly: true }]);
+    expect(exec).toHaveBeenCalledWith("git", ["update-ref", "-d", expect.stringMatching(/^refs\/arc\/tmp\/transient-discovery\//u)]);
+  });
+
+  it("keeps a local-only read on this machine's Errand records without fetching them", async () => {
+    const exec = makeExec({
+      localRefs: ["chore/here"],
+      liveBranches: "unreachable",
+      errandRecords: [{ slug: "here", branch: "chore/here" }],
+      remoteErrandRecords: [{ slug: "elsewhere", branch: "chore/elsewhere" }],
+    });
+
+    const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: true });
+
+    expect(result.entries).toEqual([{ kind: "errand", branch: "chore/here", slug: "here", remoteOnly: true }]);
+    expect(vi.mocked(exec).mock.calls.map(([, args]) => args[0])).not.toContain("fetch");
   });
 
   it("skips the network read under localOnly and reports reachable=false", async () => {
