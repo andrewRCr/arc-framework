@@ -231,7 +231,7 @@ section body you otherwise replace wholesale — keep it, along with the `brief`
 where that form applies:
 
 ```text
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 ```
 
 **Naming:** The `{name}` descriptor in the spec filename becomes the work unit's identifier across all artifacts
