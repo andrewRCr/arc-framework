@@ -41,15 +41,17 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
 async function readNotice(noticeFile: string): Promise<string | undefined> {
   const text = await readNoticeStart(noticeFile).catch(() => "");
   // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
-  // printed inside a summary line cannot move the cursor over that line.
-  const line = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).find(part => part !== "");
-  return line?.slice(0, NOTICE_LIMIT);
+  // printed inside a summary line cannot move the cursor over that line. The command and a runner wrapping it
+  // may each write a line, so every line is kept.
+  const lines = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).filter(part => part !== "");
+  return lines.length === 0 ? undefined : lines.join("; ").slice(0, NOTICE_LIMIT);
 }
 
 /**
- * Spawn a check through the same native executable and environment boundary as local requests. The command may
- * write a one-line notice, such as where it ran, to the file `ARC_CHECK_NOTICE` names. The notice is best effort:
- * when no file can be created, the command runs without one.
+ * Spawn a check through the same native executable and environment boundary as local requests. The command, and
+ * any runner wrapping it, may write lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
+ * names; they are joined into one short notice. The notice is best effort: when no file can be created, the command
+ * runs without one.
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks

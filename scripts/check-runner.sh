@@ -5,8 +5,10 @@
 # (~/.config/arc-framework/check-runner by default). It receives the command and
 # its arguments, must run that command against this checkout's working tree, and
 # must exit with the command's status, for example by running it on another
-# machine. It may write one line, such as where the command ran, to the file
-# $ARC_CHECK_NOTICE names; arc check shows that line beside the check's outcome.
+# machine. It may write a line, such as where the command ran, to the file
+# $ARC_CHECK_NOTICE names, where the command may add its own, such as how long
+# it waited for the heavy-test slot; arc check shows those lines beside the
+# check's outcome.
 # Without a runner, the command runs here unchanged, as it does in CI.
 
 set -euo pipefail
