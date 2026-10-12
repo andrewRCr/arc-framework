@@ -38,6 +38,14 @@ describe("check declaration fields", () => {
   ])("refuses unknown fields or enumerators: %j", (input) => {
     expect(CheckDeclarationSchema.safeParse(input).success).toBe(false);
   });
+  it("accepts the exit status a check's command reports when it finds nothing to examine", () => {
+    expect(CheckDeclarationSchema.parse({ checks: { test: { command: ["npm", "test"], no_evidence_exit: 5 } } }))
+      .toMatchObject({ checks: { test: { no_evidence_exit: 5 } } });
+  });
+  it.each([0, 256, 1.5, "5"])("refuses %j as a no-evidence exit status", (status) => {
+    const check = { command: ["npm", "test"], no_evidence_exit: status };
+    expect(CheckDeclarationSchema.safeParse({ checks: { test: check } }).success).toBe(false);
+  });
   it("admits an editor schema reference only at the root", () => {
     expect(CheckDeclarationSchema.parse({ $schema: "urn:test", checks: {} })).toMatchObject({ $schema: "urn:test" });
   });

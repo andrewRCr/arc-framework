@@ -17,6 +17,7 @@ const CheckSchema = z.strictObject({
   shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
   cache: z.boolean().default(true),
   reads_index: z.boolean().default(false),
+  no_evidence_exit: z.int().min(1).max(255).optional(),
 }).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });

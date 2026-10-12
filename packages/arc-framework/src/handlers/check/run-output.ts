@@ -28,9 +28,7 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
     ? `ARC_SKIP ignored unknown checks: ${outcome.result.ignoredSkips.join(", ")}\n` : "");
   const verification = outcome.result.verification ?? checkVerification(outcome.result.status, outcome.result.checks);
   if (outcome.result.status === "none declared") return `${ignored}none declared\n${verification}\n`;
-  const failureFirst = [...outcome.result.checks].sort((a, b) =>
-    Number(b.outcome === "failed" || b.outcome === "couldn't run") -
-    Number(a.outcome === "failed" || a.outcome === "couldn't run"));
+  const failureFirst = [...outcome.result.checks].sort((a, b) => Number(isNonPassing(b)) - Number(isNonPassing(a)));
   const checks = failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n");
   return `${ignored}${checks}\n${renderRecordWarnings(outcome.result.checks)}${verification}\n`;
 }
@@ -49,8 +47,13 @@ function renderRecordWarnings(checks: readonly DeclaredCheckResult[]): string {
     `warning: could not record passes${location}; later gates will run ${ids.join(", ")} again\n`).join("");
 }
 
+/** Outcomes that hold a request back, and whose output and log explain why. */
+function isNonPassing(check: DeclaredCheckResult): boolean {
+  return check.outcome === "failed" || check.outcome === "couldn't run" || check.outcome === "no evidence";
+}
+
 function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
-  const failed = check.outcome === "failed" || check.outcome === "couldn't run";
+  const failed = isNonPassing(check);
   const difference = check.divergent?.length ? ` (worktree differs: ${check.divergent.join(", ")})` : "";
   const rewrites = check.rewritten === undefined ? "" : check.rewritten.length > 0
     ? ` (rewrote: ${check.rewritten.join(", ")})` : " (rewrote no files)";

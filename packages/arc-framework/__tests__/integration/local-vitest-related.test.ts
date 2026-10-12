@@ -1,7 +1,10 @@
 /** Supplied source paths select related configured unit projects without a Git-diff selector. */
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { load } from "js-yaml";
 import { afterEach, expect, it } from "vitest";
+import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
+import { EMPTY_RELATED_SELECTION_EXIT_CODE } from "../../src/lib/local-vitest-runner.js";
 import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 import { gitExec } from "../../src/lib/io-context.js";
@@ -40,11 +43,18 @@ it("runs both related unit projects for a supplied source despite a clean Git di
   expect(result.stdout).toContain("2 passed");
 }, 30_000);
 
-it("refuses an empty related selection before executing either configured unit project", async () => {
+it("reports an empty related selection with its own status before executing either configured unit project", async () => {
   const setup = await fixture();
   const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "src/unrelated-fixture.mjs"]);
-  expect(result.code).toBe(1);
-  expect(result.stderr).toContain("No configured test specifications match the selection");
+  expect(result.code, result.stderr).toBe(EMPTY_RELATED_SELECTION_EXIT_CODE);
+  expect(result.stderr).toContain("No unit tests reach the changed files");
   expect(result.stdout).not.toContain("RELATED-UNIT-RAN");
   expect(result.stdout).not.toContain("RELATED-MOCK-RAN");
 }, 30_000);
+
+it("declares the empty related selection's status as the related-tests check's no-evidence status", async () => {
+  const declaration = CheckDeclarationSchema.parse(load(await readFile(
+    resolve(import.meta.dirname, "../../../../.arc/system/arc-checks.yml"), "utf8")));
+  expect(EMPTY_RELATED_SELECTION_EXIT_CODE).not.toBe(1);
+  expect(declaration.checks["test:changed"]?.no_evidence_exit).toBe(EMPTY_RELATED_SELECTION_EXIT_CODE);
+});

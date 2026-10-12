@@ -97,3 +97,17 @@ it("warns without naming a directory when the record directory never resolved", 
   } }, false);
   expect(result).toContain("warning: could not record passes; later gates will run lint again\n");
 });
+
+it("leads with a no-evidence check and shows its output tail, but offers no retry", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [
+      { id: "success", kind: "enforcement", outcome: "passed" },
+      { id: "related", kind: "feedback", outcome: "no evidence", output: "No unit tests reach the changed files.",
+        logPath: "/records/related.log", costMs: 30 },
+    ],
+  } }, false);
+  expect(result.split("\n")[0]).toBe("related: no evidence [feedback] (30 ms); log: /records/related.log");
+  expect(result).toContain("No unit tests reach the changed files.");
+  expect(result).not.toContain("Retry:");
+  expect(result).toContain("Checks: success passed; related no evidence.");
+});

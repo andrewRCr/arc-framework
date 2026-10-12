@@ -25,7 +25,7 @@ These gate behaviors prevent misleading results:
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
 - `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
-  not evidence that the changed code passed.
+  not evidence that the changed code passed; `arc check` reports it as `no evidence`.
 - All supported run-mode tier and focused commands require completed cases. All-skipped selections and unmatched
   name filters are non-passing, and closing or final worker errors retain failure status.
 

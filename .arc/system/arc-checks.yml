@@ -280,6 +280,7 @@ checks:
       - test:changed
       - --
     mode: files
+    no_evidence_exit: 5
     root: packages/arc-framework
     inputs:
       - packages/arc-framework/src/**/*.ts
