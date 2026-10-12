@@ -90,6 +90,17 @@ it("reports an uncached pass as not recordable rather than recorded", async () =
   expect(published).toBe(0);
 });
 
+it("carries the notice a check's command reports into that check's result", async () => {
+  const { root, io, ids } = await fixture({ lint: {}, other: {} });
+  const execute = io.execute;
+  io.execute = async (command, ...rest) => ({ ...await execute(command, ...rest),
+    ...(command[0] === "lint" ? { notice: "ran on build-vm" } : {}) });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks.find(check => check.id === "lint")).toMatchObject({ outcome: "passed", notice: "ran on build-vm" });
+  expect(result.result.checks.find(check => check.id === "other")).not.toHaveProperty("notice");
+});
+
 it("reports an inherited object name as an unknown hook skip", async () => {
   const { root, io } = await fixture({});
   io.git = scriptGitExec([
