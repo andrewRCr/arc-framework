@@ -466,6 +466,7 @@ describe("trusted review-gate workflows", () => {
         readRepositoryFile(`.arc/${path}`),
       ]);
       expect(project).toBe(packaged);
+      expect(packaged).toMatch(softWrappedProse("fresh ready resolution"));
       for (const command of [
         "arc review frontline run -",
         "arc review local prepare -",

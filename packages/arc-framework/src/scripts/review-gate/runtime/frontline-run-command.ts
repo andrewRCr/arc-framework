@@ -215,8 +215,9 @@ export async function runFrontlineReviewCommand(
   const diagnostics = transition.nextAction === "operator-repair"
     ? [{
         code: "frontline-explicit-retry",
-        message: "This exact request replays its durable outcome. Inspect the provider failure before starting "
-          + `a new review with retryOfOperationId: '${terminal.operationId}'.`,
+        message: "This exact request replays its durable outcome. Inspect the provider failure; on approval, "
+          + "re-run arc review frontline resolve - for a fresh ready resolution, then arc review frontline run - "
+          + `with that resolution and retryOfOperationId: '${terminal.operationId}'.`,
       }]
     : [];
   return FrontlineRunEnvelopeSchema.parse({
