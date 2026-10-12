@@ -100,3 +100,35 @@ it("keeps a merge that starts and commits during status reads indeterminate", as
     branch: "feat/foreign", worktreePath: foreign, matchedPaths: ["docs/own.md"],
   }]);
 });
+
+
+it("keeps a merge aborted after both status reads indeterminate and resumes accurate overlap", async () => {
+  const { exec, foreign, options } = await setupFixture();
+  const headBefore = (await exec("git", ["rev-parse", "HEAD"], { cwd: foreign })).stdout;
+  let statusReads = 0;
+  const probingExec: GitExec = async (cmd, args, controls) => {
+    if (controls?.cwd === foreign && args[0] === "status") {
+      statusReads += 1;
+      if (statusReads === 1) {
+        await exec("git", ["merge", "--no-ff", "--no-commit", "main"], { cwd: foreign });
+      }
+      const result = await exec(cmd, args, controls);
+      if (statusReads === 2) await exec("git", ["merge", "--abort"], { cwd: foreign });
+      return result;
+    }
+    return exec(cmd, args, controls);
+  };
+
+  const moving = await detectForeignArtifactOverlap({ ...options, exec: probingExec });
+  expect(moving.overlaps).toEqual([]);
+  expect(moving.indeterminate).toEqual([{
+    branch: "feat/foreign", worktreePath: foreign, matchedPaths: ["docs/own.md"], reason: "merge-in-progress",
+  }]);
+  await exec("git", ["merge", "--abort"], { cwd: foreign });
+  expect((await exec("git", ["rev-parse", "HEAD"], { cwd: foreign })).stdout).toBe(headBefore);
+  const settled = await detectForeignArtifactOverlap(options);
+  expect(settled.indeterminate).toBeUndefined();
+  expect(settled.overlaps).toEqual([{
+    branch: "feat/foreign", worktreePath: foreign, matchedPaths: ["docs/own.md"],
+  }]);
+});

@@ -337,8 +337,9 @@ async function uncommittedMatches(
   const headBefore = await resolveRefSha(exec, "HEAD", worktreePath);
   const mergingBefore = await hasMergeInProgress(exec, worktreePath);
   const first = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
-  const second = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
-  if (mergingBefore || await hasMergeInProgress(exec, worktreePath)) {
+  const mergingBetween = !mergingBefore && await hasMergeInProgress(exec, worktreePath);
+  const second = mergingBefore || mergingBetween ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
+  if (mergingBefore || mergingBetween || await hasMergeInProgress(exec, worktreePath)) {
     // A merge index includes incoming changes that status cannot attribute to this work unit.
     return { matchedPaths: [], indeterminate: true, reason: "merge-in-progress" };
   }

@@ -244,6 +244,36 @@ describe("detectForeignArtifactOverlap", () => {
     }]);
   });
 
+  it("keeps a merge aborted after both status reads indeterminate", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+    });
+    let statusReads = 0;
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md docs/own.md": { stdout: "docs/own.md\n" },
+      "status --porcelain -- docs/x.md docs/own.md": () => {
+        statusReads += 1;
+        return { stdout: "M  docs/x.md\n" };
+      },
+      "rev-parse --verify --quiet MERGE_HEAD": (args) => {
+        if (statusReads === 1) return { stdout: `${"a".repeat(40)}\n` };
+        throw makeGitProcessError({ command: "git", args, exitCode: 1 });
+      },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec, roster, targetPaths: ["docs/x.md", "docs/own.md"], baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([{
+      branch: "feat/wu-a", worktreePath: "/repo.wu-a",
+      matchedPaths: ["docs/own.md"], reason: "merge-in-progress",
+    }]);
+  });
+
   it("does not interpret a failed merge-state probe as an absent merge", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a", branch: "feat/wu-a",
