@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "tsdoc-lint",
+  "claimId": "86537b7575d1cd3ea5945d280dc0543d",
+  "createdAt": "2026-10-12T23:44:25.413Z",
+  "updatedAt": "2026-10-12T23:44:25.413Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Lint every exported function for a TSDoc block and every source file for a module comment, and narrow the project's TSDoc standard so @param and @returns are required only where they add information",
+  "branch": "chore/tsdoc-lint",
+  "origin": "inbox",
+  "originEntry": "Enforce the exported-surface TSDoc rule with a scoped lint rule",
+  "originEntrySourceDigest": "sha256:06f7a2a5454acf7815d708e56cc009dec733b86c32125915e6cbc12961c18687",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
