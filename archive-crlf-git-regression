@@ -3,7 +3,7 @@
   "slug": "archive-crlf-git-regression",
   "claimId": "c9c900785d62cfbbe0da85bfa4425862",
   "createdAt": "2026-10-12T04:13:50.800Z",
-  "updatedAt": "2026-10-12T04:13:50.800Z",
+  "updatedAt": "2026-10-12T04:43:22.046Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Cover native archive managed-field updates on a real Git checkout with core.autocrlf conversion",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Cover managed lifecycle metadata updates on Git-converted CRLF files with a real-Git test",
   "originEntrySourceDigest": "sha256:213f8f57f4574bf3c0987817ffed4b225f42c8ba66a8e51a45d2a150c9a98579",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/archive-crlf-git-regression",
+    "headSha": "921acdea3c3ef6e68d368f226f32270f65c0ff8a"
+  }
 }
