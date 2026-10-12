@@ -27,7 +27,7 @@ const conflictParser: RecordParser = (content) => {
 
 /** Reference serves every role; named exclusions are only interim backend-specific cases. */
 export const referenceDeclarations: FixtureDeclarations = {
-  families: FAMILY_IDS, mergesConcurrentWrites: true, runsWriteChecks: true, substrates: ["memory"], stateOffBranch: true,
+  families: FAMILY_IDS, unservedFamilies: {}, mergesConcurrentWrites: true, runsWriteChecks: true, substrates: ["memory"], stateOffBranch: true,
   liveListingStateVersion: true,
   syncFamilies: FAMILY_IDS,
   identitySyncFamilies: FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),

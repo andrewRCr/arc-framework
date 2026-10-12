@@ -24,6 +24,8 @@ export interface FamilyExclusions {
 /** Fixture facts belong to tests, rather than the production capability report. */
 export interface FixtureDeclarations {
   families: readonly FamilyId[];
+  /** Reason for each family left out of `families`; the suite reports every one as a named skip. */
+  unservedFamilies: Partial<Record<FamilyId, string>>;
   mergesConcurrentWrites: boolean;
   runsWriteChecks: boolean;
   substrates: readonly string[];

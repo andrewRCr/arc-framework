@@ -1,5 +1,5 @@
 /** Named coverage boundaries of the repository fixture across all current substrates. */
-import { KIND_REGISTRY, FAMILY_IDS, type KindId, type FamilyId } from "../../../src/lib/store/index.js";
+import { KIND_REGISTRY, FAMILY_IDS, FAMILY_REGISTRY, type KindId, type FamilyId } from "../../../src/lib/store/index.js";
 import type { FixtureDeclarations, FamilyExclusions } from "./fixture-contract.js";
 
 const raw = "This tracked format preserves legacy whole-file bytes without rejecting their prose or field content.";
@@ -20,6 +20,8 @@ function selected(name: string, kind: KindId): boolean {
   return true;
 }
 const families = FAMILY_IDS.filter((family) => Object.values(KIND_REGISTRY).some((kind) => kind.family === family && kind.inRepo.substrate !== "none"));
+const unservedFamilies = Object.fromEntries(FAMILY_IDS.filter((family) => !families.includes(family)).map((family) => [family,
+  FAMILY_REGISTRY[family].reserved ? "This reserved family registers no kinds." : "No kind in this family has a home in the current substrates."]));
 const outside = "This substrate sits outside the branch state version; use its own record version instead.";
 const personalRaw = "Personal files accept arbitrary whole-file bytes, have no size cap or embedded key, and do not validate content.";
 const syncNames = ["publish-and-noop-family-coverage", "remote-movement-reconciles-by-mechanism", "concurrent-sync-merges-and-preserves-both-side-labels", "single-writer-sync-keeps-remote-and-stores-local-conflict"];
@@ -92,7 +94,7 @@ if (familyExclusions.lineage?.assertions) familyExclusions.lineage.assertions["t
 
 /** Static substrate coverage and explicit limitations registered with every fresh fixture. */
 export const inRepoDeclarations: FixtureDeclarations = {
-  families, mergesConcurrentWrites: false, runsWriteChecks: false, substrates: ["tracked", "personal", "transient-identity"], stateOffBranch: false,
+  families, unservedFamilies, mergesConcurrentWrites: false, runsWriteChecks: false, substrates: ["tracked", "personal", "transient-identity"], stateOffBranch: false,
   liveListingStateVersion: false, syncFamilies: ["personal", "work-item", "claims"], identitySyncFamilies: ["personal", "work-item", "claims"], entryShapes: {}, familyExclusions,
   syncRetryCount: 4, syncWaitedMs: 30,
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => families.includes(KIND_REGISTRY[kind].family) && !["review/candidate", "review/integration-boundary", "lineage/transition", "work-item/record", "claims/groom", "claims/housekeep"].includes(kind)).map((kind) => [kind, KIND_REGISTRY[kind].inRepo.substrate === "personal" ? personalRaw : KIND_REGISTRY[kind].inRepo.substrate === "tracked" ? raw : unhomed])),
