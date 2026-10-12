@@ -320,8 +320,17 @@ With `fold-verification: on`, a **fold** is a change landed in a reviewed planni
 reads it: an approved fix, a correction made while grounding those fixes, or another change the Owner approved.
 This input enables author grounding, the offered fix check, kept reviewed versions, fold tags, and runner labels.
 
-**Author grounding.** As part of performing the approved response, run [source-grounding][source-grounding] at
-`fold` scope over the folds before the fix check:
+**Author grounding.** Ground repairs before proposing them and folds once they land, both by
+[source-grounding][source-grounding] at `fold` scope. Before presenting a disposition set carrying a fix, ground its
+proposed repairs, and revise a repair the check refutes before presenting it:
+
+```yaml
+source-grounding:
+  artifacts:  # reviewed artifacts + upstream chain + proposed repairs
+  scope: fold
+```
+
+Then, as part of performing the approved response, ground the folds before the fix check:
 
 ```yaml
 source-grounding:
