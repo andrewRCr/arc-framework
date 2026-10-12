@@ -3,7 +3,7 @@
   "slug": "frontline-retry-remedy",
   "claimId": "5d968265fe3202193e4c042f825506b9",
   "createdAt": "2026-10-12T19:09:48.829Z",
-  "updatedAt": "2026-10-12T19:09:48.829Z",
+  "updatedAt": "2026-10-12T21:21:09.734Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Return a fresh-admission resolve remedy for stale frontline retries and align operator-repair diagnostics and workflow prose.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make a refused frontline retry name its remedy: re-resolve for a fresh admission first",
   "originEntrySourceDigest": "sha256:d9c4cf4491b62173f62a6e5d27ef23f1ca804e8ff5027bfbf2980d2266400222",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/frontline-retry-remedy",
+    "headSha": "70b44416446b61485d6b633004e2d5e6a5a68676"
+  }
 }
