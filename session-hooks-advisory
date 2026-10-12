@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "session-hooks-advisory",
+  "claimId": "aca66d24ecadb1692ba7fb98f109a08f",
+  "createdAt": "2026-10-12T22:08:39.343Z",
+  "updatedAt": "2026-10-12T22:08:39.343Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Warn at session-init when the entering checkout's configured hooks path does not exist, since Git then runs no hooks for a raw commit; Git offers no fail-closed setting",
+  "branch": "chore/session-hooks-advisory",
+  "origin": "inbox",
+  "originEntry": "Make a raw commit in a hand-made worktree fail closed when its hooks path is missing",
+  "originEntrySourceDigest": "sha256:cef3dbd9e3a8e84a92fcd437a447df9cdf76e7e3e581b90901d154d740c5a2e7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
