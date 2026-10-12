@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** Spec adversarial pass 6 — 27 findings verified and dispositioned
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec — land adversarial pass 6's approved folds, then its fix check and pass 7
 
 - **PR URL:** [none]
 - **Completed:** [none]
