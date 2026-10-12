@@ -6,6 +6,8 @@ import { FrontlineResolveRequestSchema, resolveFrontlineCommand } from "../../..
 import { FrontlineSourceRegistry } from "../../../../../src/scripts/review-gate/policy/frontline-source.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { frontlineRetryCeilingOverride } from "../../../../../src/scripts/review-gate/core/frontline-retry-contract.js";
+import type { LaneSubjectLineage } from "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   ReviewOperationStateSchema,
@@ -23,6 +25,7 @@ import {
   settleLaneAttempt,
 } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import type { ResponseHeadContinuationInput } from "../../../../../src/scripts/review-gate/core/response-head-continuation.js";
 import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gate/runtime/frontline-run-command.js";
 
 const oid = (value: string): string => value.repeat(40);
@@ -118,8 +121,16 @@ async function conditionalFixture(
   invocationMode: "inherit" | "force" = "force",
   sourceTier: "invocation" | "developer" | "project" = "invocation",
   failureCount = 2,
+  headContinuation = false,
+  errandResponse = false,
 ) {
-  const reviewTarget = target("c");
+  const initialTarget = target("c");
+  const reviewTarget = headContinuation || errandResponse ? target("e") : initialTarget;
+  const lineageFor = (reviewTarget: { headSha: string }): LaneSubjectLineage => errandResponse ? {
+    kind: "head-bound", vehicleKind: "errand", vehicleIdentity: "5".repeat(32), headSha: reviewTarget.headSha,
+  } : defaultLineage;
+  const initialLineage = lineageFor(initialTarget);
+  const reviewLineage = lineageFor(reviewTarget);
   const stores = memoryStores();
   const resolverDependencies = {
     operationStore: stores.operationStore,
@@ -130,10 +141,14 @@ async function conditionalFixture(
     registry: new FrontlineSourceRegistry([{
       sourceId: source.sourceId, descriptor: { kind: source.kind, executable: source.executable, argv: source.argv },
     }]),
-    resolveLineage: async () => defaultLineage,
+    resolveLineage: async (reviewTarget: { headSha: string }) => lineageFor(reviewTarget),
     resolveSupersessionAncestors: async () => [],
     withLaneOperationLock: async <T>(_id: string, action: () => Promise<T>) => action(),
     confirmDispositionSetCurrent: async () => true,
+    confirmResponseHeadContinuation: vi.fn(async (input: ResponseHeadContinuationInput) => headContinuation
+      && input.repositoryId === initialTarget.repositoryId
+      && input.fromHeadSha === initialTarget.headSha && input.toHeadSha === reviewTarget.headSha
+      && input.producerId === producer?.operationId && input.dispositionSetId === dispositionSetId),
     readSettledFindingsAdvice: async () => ({
       action: "follow-up-after-fix" as const, pass: 2, maxPasses: 2, nextCommand: "frontline-resolve" as const,
     }),
@@ -147,25 +162,25 @@ async function conditionalFixture(
       ...(sourceTier === "invocation" ? { sourceId: source.sourceId } : {}),
     },
   };
-  const first = await resolveFrontlineCommand(request, resolverDependencies);
+  const first = await resolveFrontlineCommand({ ...request, target: initialTarget }, resolverDependencies);
   const producer = first.payload.admission;
   if (producer === undefined) throw new Error("expected first admission");
   await recordLaneAttempt(stores.operationStore, {
-    lane: "frontline", repositoryId: reviewTarget.repositoryId, changeRequestId: null,
-    headSha: reviewTarget.headSha, lineage: defaultLineage, logicalPass: 1, retryGeneration: 0,
+    lane: "frontline", repositoryId: initialTarget.repositoryId, changeRequestId: null,
+    headSha: initialTarget.headSha, lineage: initialLineage, logicalPass: 1, retryGeneration: 0,
     attemptId: producer.operationId, sourceId: source.sourceId, outcome: "findings", consumedPass: true, advancePendingAttempt: true,
     frontline: { admission: producer, effectiveCoverage: "complete" }, now: resolverDependencies.now(),
   });
   const dispositionSetId = canonicalDigest({ disposition: "fixed" });
   const authorization = await captureConditionalNextPassAuthorization(stores.operationStore, {
-    lane: "frontline", repositoryId: reviewTarget.repositoryId, headSha: reviewTarget.headSha,
-    lineage: defaultLineage, producerId: producer.operationId, dispositionSetId, authorizedBy: "owner-1",
+    lane: "frontline", repositoryId: initialTarget.repositoryId, headSha: initialTarget.headSha,
+    lineage: initialLineage, producerId: producer.operationId, dispositionSetId, authorizedBy: "owner-1",
     exhaustedPassCount: 1, nextPass: 2, now: resolverDependencies.now(),
   });
   await settleLaneAttempt(stores.operationStore, {
-    lane: "frontline", repositoryId: reviewTarget.repositoryId, headSha: reviewTarget.headSha,
-    lineage: defaultLineage, attemptId: producer.operationId, dispositionSetId,
-    producedHeadSha: reviewTarget.headSha, now: resolverDependencies.now(),
+    lane: "frontline", repositoryId: initialTarget.repositoryId, headSha: initialTarget.headSha,
+    lineage: initialLineage, attemptId: producer.operationId, dispositionSetId,
+    producedHeadSha: errandResponse ? reviewTarget.headSha : initialTarget.headSha, now: resolverDependencies.now(),
   });
   const policyJudgment = { ceilingOverride: {
     exhaustedPassCount: 1, nextPass: 2, conditionalPassAuthorizationId: authorization.authorizationId,
@@ -185,7 +200,7 @@ async function conditionalFixture(
     prepareExecutionTarget: async () => ({ target: reviewTarget, reviewRoot: "/tmp/review", release: vi.fn() }),
   };
   const timedOut = await runFrontlineReviewCommand({ schemaVersion: 1, target: reviewTarget, resolution: admitted }, runDependencies);
-  return { request, policyJudgment, admitted, timedOut, execute, runDependencies, resolverDependencies, stores, reviewTarget };
+  return { request, policyJudgment, admitted, timedOut, execute, runDependencies, resolverDependencies, stores, reviewTarget, initialTarget, initialLineage, reviewLineage };
 }
 
 describe("conditional frontline retries", () => {
@@ -275,6 +290,115 @@ describe("conditional frontline retries", () => {
     await expect(f.stores.operationStore.readOperation(laneProgressOperationId({
       lane: "frontline", repositoryId: f.reviewTarget.repositoryId, headSha: f.reviewTarget.headSha, lineage: defaultLineage,
     }))).resolves.toMatchObject({ state: { completedPasses: 2 } });
+  });
+
+  it.each([false, true])("retries a continued-head admission with temporarily unverified continuation=%s", async (unverified) => {
+    const f = await conditionalFixture("inherit", "project", 1, true);
+    const operationId = laneProgressOperationId({
+      lane: "frontline", repositoryId: f.reviewTarget.repositoryId, headSha: f.reviewTarget.headSha, lineage: defaultLineage,
+    });
+    const before = await f.stores.operationStore.readOperation(operationId);
+    if (before.state?.kind !== "lane-progress") throw new Error("expected lane owner");
+    const grant = before.state.attempts[0]?.conditionalPassAuthorizations?.authorizations[0];
+    expect(grant).toMatchObject({
+      producedHeadSha: f.initialTarget.headSha, status: "consumed", admissionId: f.timedOut.payload.operationId,
+    });
+    expect(f.admitted.payload.admission?.target.headSha).toBe(f.reviewTarget.headSha);
+    expect(f.reviewTarget.headSha).not.toBe(f.initialTarget.headSha);
+    const write = vi.fn();
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        target: { kind: f.reviewTarget.kind, baseRef: f.reviewTarget.baseRef,
+          diffBaseSha: f.reviewTarget.diffBaseSha, headSha: f.reviewTarget.headSha },
+        resolution: f.admitted, retryOfOperationId: f.timedOut.payload.operationId,
+      }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target: f.reviewTarget }),
+      run: (request) => runFrontlineReviewCommand(request, f.runDependencies), write, setExitCode: vi.fn(),
+    });
+    const refusal = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(refusal.remedy.stdin.policyJudgment).toEqual(f.policyJudgment);
+    expect(f.execute).toHaveBeenCalledOnce();
+    const retryRequest = { ...FrontlineResolveRequestSchema.parse(refusal.remedy.stdin), target: f.reviewTarget };
+    if (unverified) {
+      f.resolverDependencies.confirmResponseHeadContinuation.mockResolvedValueOnce(false);
+      await expect(resolveFrontlineCommand(retryRequest, f.resolverDependencies))
+        .rejects.toThrow("does not match the produced head");
+      expect(f.execute).toHaveBeenCalledOnce();
+    }
+    const fresh = await resolveFrontlineCommand(retryRequest, f.resolverDependencies);
+    expect(fresh.payload.admission).toMatchObject({
+      logicalPass: 2, retryGeneration: 1, target: f.reviewTarget,
+      policyVersion: f.admitted.payload.admission?.policyVersion,
+    });
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1, target: f.reviewTarget, resolution: fresh, retryOfOperationId: f.timedOut.payload.operationId,
+    }, f.runDependencies)).resolves.toMatchObject({ state: "clean" });
+    expect(f.execute).toHaveBeenCalledTimes(2);
+    const after = await f.stores.operationStore.readOperation(operationId);
+    if (after.state?.kind !== "lane-progress") throw new Error("expected lane owner");
+    expect(after.state.attempts[0]?.conditionalPassAuthorizations?.authorizations[0]).toEqual(grant);
+    expect(after.state.completedPasses).toBe(2);
+  });
+
+  it("recovers an Errand grant across its response head without authorizing a different identity", async () => {
+    const f = await conditionalFixture("inherit", "project", 1, false, true);
+    const operationId = laneProgressOperationId({
+      lane: "frontline", repositoryId: f.reviewTarget.repositoryId,
+      headSha: f.reviewTarget.headSha, lineage: f.reviewLineage,
+    });
+    const before = await f.stores.operationStore.readOperation(operationId);
+    const admission = f.admitted.payload.admission;
+    if (before.state?.kind !== "lane-progress" || admission === undefined) throw new Error("expected consumed admission");
+    const grant = before.state.attempts[0]?.conditionalPassAuthorizations?.authorizations[0];
+    expect(grant).toMatchObject({
+      lineage: f.initialLineage, producedHeadSha: f.reviewTarget.headSha,
+      status: "consumed", admissionId: admission.operationId,
+    });
+    expect(admission.lineage).toEqual(f.reviewLineage);
+    expect(admission.lineage).not.toEqual(grant?.lineage);
+    const foreignLineage: LaneSubjectLineage = {
+      kind: "head-bound", vehicleKind: "errand", vehicleIdentity: "6".repeat(32), headSha: f.reviewTarget.headSha,
+    };
+    expect(frontlineRetryCeilingOverride(before.state, { ...admission, lineage: foreignLineage })).toBeUndefined();
+    await expect(resolveFrontlineCommand({ ...f.request, policyJudgment: f.policyJudgment }, {
+      ...f.resolverDependencies, resolveLineage: async () => foreignLineage,
+    })).rejects.toThrow();
+    expect(f.execute).toHaveBeenCalledOnce();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        target: { kind: f.reviewTarget.kind, baseRef: f.reviewTarget.baseRef,
+          diffBaseSha: f.reviewTarget.diffBaseSha, headSha: f.reviewTarget.headSha },
+        resolution: f.admitted, retryOfOperationId: f.timedOut.payload.operationId,
+      }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target: f.reviewTarget }),
+      run: (request) => runFrontlineReviewCommand(request, f.runDependencies), write, setExitCode,
+    });
+    const refusal = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(setExitCode).toHaveBeenCalledWith(1);
+    expect(refusal.remedy.stdin.policyJudgment).toEqual(f.policyJudgment);
+    expect(f.execute).toHaveBeenCalledOnce();
+    const fresh = await resolveFrontlineCommand({
+      ...FrontlineResolveRequestSchema.parse(refusal.remedy.stdin), target: f.reviewTarget,
+    }, f.resolverDependencies);
+    expect(fresh.payload.admission).toMatchObject({
+      target: admission.target, lineage: admission.lineage, policyVersion: admission.policyVersion,
+      logicalPass: 2, retryGeneration: 1, maxPasses: 2,
+    });
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1, target: f.reviewTarget, resolution: fresh, retryOfOperationId: f.timedOut.payload.operationId,
+    }, f.runDependencies)).resolves.toMatchObject({ state: "clean" });
+    expect(f.execute).toHaveBeenCalledTimes(2);
+    expect(f.resolverDependencies.confirmResponseHeadContinuation).not.toHaveBeenCalled();
+    const after = await f.stores.operationStore.readOperation(operationId);
+    if (after.state?.kind !== "lane-progress") throw new Error("expected lane owner");
+    expect(after.state.attempts[0]?.conditionalPassAuthorizations?.authorizations[0]).toEqual(grant);
+    expect(after.state.completedPasses).toBe(2);
   });
 
   it.each(["policy", "source", "target", "authorization", "pass"] as const)("refuses a consumed grant with a different %s", async (kind) => {

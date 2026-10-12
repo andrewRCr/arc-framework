@@ -2,6 +2,7 @@
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { FrontlineAdmission } from "./frontline-admission.js";
+import { laneSubjectOwnerMatches } from "./lane-admission.js";
 import type { ConditionalPassAuthorization, LaneProgressState } from "./operation-state-schema.js";
 
 export type FrontlineRetryCeilingOverride = Pick<ConditionalPassAuthorization, "exhaustedPassCount" | "nextPass"> & {
@@ -35,9 +36,8 @@ export function frontlineRetryCeilingOverride(
     .filter((authorization) => {
       if (authorization.status !== "consumed" || authorization.lane !== "frontline"
         || authorization.repositoryId !== admission.target.repositoryId
-        || canonicalize(authorization.lineage) !== canonicalize(admission.lineage)
-        || authorization.nextPass !== admission.logicalPass
-        || authorization.producedHeadSha !== admission.target.headSha) return false;
+        || !laneSubjectOwnerMatches(authorization.lineage, admission.lineage)
+        || authorization.nextPass !== admission.logicalPass) return false;
       const original = owner.attempts.find((attempt) => attempt.attemptId === authorization.admissionId);
       const bound = original?.frontline?.admission;
       return bound !== undefined && !original?.terminalProducer
