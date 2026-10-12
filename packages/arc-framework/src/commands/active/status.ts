@@ -564,13 +564,12 @@ function resolveMetaRelativeTaskListPath(
 /**
  * Derive companion-file paths (`notes-{stem}.md`, `atomic-{stem}.md`) for the
  * resolved task list. Returns `undefined` when the task-list value is absent
- * or doesn't match the Full-layout `tasks-{stem}.md` pattern (Lite-shape
- * `tasks.md` and `[none]` both fall here). Otherwise returns paths relative
- * to cwd, with `null` for absent files.
+ * or doesn't match the `tasks-{stem}.md` pattern. Otherwise returns paths
+ * relative to cwd, with `null` for absent files.
  *
  * Task-list value may be a full path or a bare filename. Bare filenames
  * resolve to the status file's directory — co-location of status + task list
- * is invariant across full / lite / contributor layouts.
+ * applies to project and contributor roots.
  */
 async function deriveCompanions(
   cwd: string,

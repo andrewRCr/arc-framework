@@ -2,7 +2,7 @@
  * Unit tests for the active-meta reader.
  *
  * Covers the meta-file parser (field extraction, missing fields,
- * malformed content) and the layout detector (full vs lite, missing
+ * malformed content) and candidate selection (meta files, missing
  * directory) — the behaviors the probe runners and composite status
  * consumer depend on.
  */
@@ -661,20 +661,16 @@ describe("readActiveMetaCandidates — layout detection", () => {
     expect(result.candidates[0]!.path.startsWith(".arc/user/alice/active/")).toBe(true);
   });
 
-  it("detects lite layout when .arc/active/status.md exists", async () => {
+  it("ignores status.md when no meta candidates exist", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       metaFileBody({ state: "Active", branch: "main" }),
     );
     const result = await readActiveMetaCandidates(fixture.root);
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/active/status.md");
-    expect(result.candidates[0]!.filename).toBe("status.md");
-    expect(result.candidates[0]!.state).toBe("Active");
+    expect(result).toEqual({ layout: "full", candidates: [], warnings: [] });
   });
 
-  it("detects lite layout under custom rootSegments", async () => {
+  it("ignores status.md under custom rootSegments", async () => {
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
@@ -685,12 +681,10 @@ describe("readActiveMetaCandidates — layout detection", () => {
     const result = await readActiveMetaCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
     });
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/user/alice/active/status.md");
+    expect(result).toEqual({ layout: "full", candidates: [], warnings: [] });
   });
 
-  it("prefers lite layout when both lite and meta-*.md candidates are present", async () => {
+  it("selects meta candidates when status.md is also present", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       metaFileBody({ state: "Active" }),
@@ -700,9 +694,12 @@ describe("readActiveMetaCandidates — layout detection", () => {
       metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
     const result = await readActiveMetaCandidates(fixture.root);
-    expect(result.layout).toBe("lite");
+    expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("status.md");
+    expect(result.candidates[0]).toMatchObject({
+      filename: "meta-foo.md", path: ".arc/active/meta-foo.md", branch: "technical/foo", state: "Active",
+    });
+    expect(result.warnings).toEqual([]);
   });
 
   it("emits a warning naming the supplied custom root when the directory is absent", async () => {
