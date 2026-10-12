@@ -3,7 +3,7 @@
   "slug": "cohort-ref-backend-decisions",
   "claimId": "1803d0345328ca47f9656f5ea9577768",
   "createdAt": "2026-10-12T02:18:15.040Z",
-  "updatedAt": "2026-10-12T02:18:15.040Z",
+  "updatedAt": "2026-10-12T02:24:45.166Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Record storage-ref-backend's settled decisions (the migrate verb and import scope, the seam-record-kinds edge, the public-repo-flip supersession, and the completed-item refusal) in the state-storage and storage-seam cohort records",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Record `storage-ref-backend`'s settled decisions in the `state-storage` and `storage-seam` cohort records",
   "originEntrySourceDigest": "sha256:80123b3837ced15097c5a5ddc61bb019e82cc243785701598f4351dc4f5c29f0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/cohort-ref-backend-decisions",
+    "headSha": "6f1fc5a20cd906e6837354f5e4ff91cddd95dd82"
+  }
 }
