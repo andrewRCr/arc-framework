@@ -3,7 +3,7 @@
   "slug": "retire-lite-active-layout",
   "claimId": "db88240f6911f440c6945af80d5e35b6",
   "createdAt": "2026-10-12T18:00:22.406Z",
-  "updatedAt": "2026-10-12T18:00:22.406Z",
+  "updatedAt": "2026-10-12T18:22:25.269Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retire the unwritten lite active layout and its runtime branches, schemas, and tests.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Retire the vestigial lite active layout (`.arc/active/status.md`)",
   "originEntrySourceDigest": "sha256:4af458ec183b08874c035daa61a339b78995fa8aed68fc4a5a3c92fa3eb9ccf8",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/retire-lite-active-layout",
+    "headSha": "471d4f40e9cd2c759ada0967d2af9f2eebd5854d"
+  }
 }
