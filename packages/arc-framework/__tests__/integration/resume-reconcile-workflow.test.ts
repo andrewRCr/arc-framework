@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 
 async function readRepositoryFile(path: string): Promise<string> {
@@ -30,9 +32,9 @@ describe("resume current-WU reconcile ceremony", () => {
     expect(reconcile).toBeGreaterThan(pointerCommit);
     expect(reconcile).toBeGreaterThan(inPlaceCheckout);
     expect(dependentCommit).toBeGreaterThan(reconcile);
-    expect(packaged).toMatch(/Spawn[\s\S]*fresh worktree reported by `arc resume`[\s\S]*arc wu reconcile/u);
+    expect(packaged).toMatch(softWrappedPattern(/Spawn[\s\S]*fresh\s+worktree\s+reported\s+by\s+`arc resume`[\s\S]*arc wu reconcile/u));
     expect(packaged).not.toContain("--attach-session");
-    expect(packaged).toContain("`clean` — continue without a write, stage, or commit.");
-    expect(packaged).toMatch(/`conflict`[\s\S]*base-side\s+pointer removal is already committed/u);
+    expect(packaged).toMatch(softWrappedProse("`clean` — continue without a write, stage, or commit."));
+    expect(packaged).toMatch(softWrappedPattern(/`conflict`[\s\S]*base-side\s+pointer\s+removal\s+is\s+already\s+committed/u));
   });
 });

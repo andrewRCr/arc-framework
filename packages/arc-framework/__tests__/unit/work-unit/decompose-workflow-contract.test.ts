@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const workflow = readFileSync(
   new URL("../../../arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
@@ -30,18 +30,16 @@ describe("decompose workflow contract", () => {
   });
 
   it("defines one all-mode refusal envelope and preserves its actionable fields", () => {
-    expect(workflow.match(/Every selected mode emits one typed refusal envelope\s+on stdout\./gu)).toHaveLength(1);
+    expect(workflow.match(softWrappedPattern(/Every\s+selected\s+mode\s+emits\s+one\s+typed\s+refusal\s+envelope\s+on\s+stdout\./gu))).toHaveLength(1);
     expect(workflow).toMatch(
-      /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+      softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
     );
     expect(workflow).toMatch(
-      new RegExp(
-        "Successful\\s+preflight writes the starter map alone; refusal follows the common envelope "
-          + "and never emits a\\s+partial starter map\\.",
-        "u",
+      softWrappedProse(
+        "Successful preflight writes the starter map alone; refusal follows the common envelope and never emits a partial starter map.",
       ),
     );
-    expect(workflow).not.toContain("Diagnostics use stderr; a refusal emits no partial map.");
+    expect(workflow).not.toMatch(softWrappedProse("Diagnostics use stderr; a refusal emits no partial map."));
   });
 
   it("separates semantic distribution, advancement, and destructive finish interlocks", () => {
@@ -63,7 +61,7 @@ describe("decompose workflow contract", () => {
     expect(interlocks[2]!.index).toBeLessThan(finishApply);
     expect(workflow.slice(interlocks[2]!.index, finishApply))
       .toMatch(softWrappedProse("explicit 'apply' direction"));
-    expect(workflow).toMatch(/This is destructive mutation confirmation, not a\s+second semantic/u);
+    expect(workflow).toMatch(softWrappedPattern(/This\s+is\s+destructive\s+mutation\s+confirmation,\s+not\s+a\s+second\s+semantic/u));
   });
 
   it("surfaces extraction's typed report fields at the sole semantic distribution gate", () => {
@@ -75,7 +73,7 @@ describe("decompose workflow contract", () => {
     expect(review).toContain("report.extraction.reasonedDrops");
     expect(review).toContain("report.extraction.anchor");
     expect(review).toMatch(softWrappedProse("surviving origin as the natural continuation"));
-    expect(review).toContain("never re-derive");
+    expect(review).toMatch(softWrappedProse("never re-derive"));
     expect(review.match(/`workflow-interlock`/gu)).toHaveLength(1);
     expect(review).toMatch(softWrappedProse("sole semantic distribution approval"));
   });
@@ -103,14 +101,14 @@ describe("decompose workflow contract", () => {
         "manually transfer allocated content from every other companion",
       );
       expect(candidate).toMatch(
-        /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
       );
     }
   });
 
   it("routes external-edge authoring without losing cumulative workflow guidance", () => {
     for (const candidate of [workflow, projectWorkflow]) {
-      const refusalStart = candidate.indexOf("Use only CLI-reported paths, packets, statuses, and remedies");
+      const refusalStart = indexOfSoftWrappedProse(candidate, "Use only CLI-reported paths, packets, statuses, and remedies");
       const preconditionsStart = candidate.indexOf("## Preconditions");
       const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
       const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
@@ -125,10 +123,10 @@ describe("decompose workflow contract", () => {
       expect(map).toContain("work unit outside the cut");
       expect(map).toContain("`internalEdges`");
       expect(map).toContain("`outgoingDispositions`");
-      expect(candidate).toContain("`provisional-task` and `provisional-notes`");
-      expect(candidate).toContain("manually transfer allocated content");
+      expect(candidate).toMatch(softWrappedProse("`provisional-task` and `provisional-notes`"));
+      expect(candidate).toMatch(softWrappedProse("manually transfer allocated content"));
       expect(candidate).toMatch(
-        /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+        softWrappedPattern(/status,\s+reason,\s+optional\s+locus\s+and\s+evidence,\s+remedy,\s+and\s+any\s+optional\s+report\s+unchanged/u),
       );
       expect(candidate).not.toMatch(/\bnpx\s+arc\b/u);
     }
@@ -246,7 +244,7 @@ describe("decompose workflow contract", () => {
     const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
 
     expect(finished).toBeGreaterThan(finishApply);
-    expect(workflow.slice(finished, stage)).toContain("surviving `tasks-{origin}.md`");
+    expect(workflow.slice(finished, stage)).toMatch(softWrappedProse("surviving `tasks-{origin}.md`"));
     expect(workflow.slice(finished, stage)).toContain("`**Next Task:**`");
     expect(workflow.slice(finished, stage)).toContain("`**Next Action:**`");
     expect(workflow.slice(finished, stage))
