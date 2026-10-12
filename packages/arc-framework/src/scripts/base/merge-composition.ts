@@ -235,5 +235,12 @@ export function createBaseMergePort(input: {
         };
       }
     },
+    changedPaths: async (fromOid, toOid) => {
+      const stdout = (await input.exec("git", ["diff", "--name-only", "-z", "--no-renames", fromOid, toOid], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      })).stdout;
+      return stdout.split("\0").filter(Boolean);
+    },
   };
 }

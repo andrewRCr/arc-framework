@@ -2,7 +2,7 @@
 
 import { expect, it } from "vitest";
 import {
-  KIND_REGISTRY, familyOf, singletonReference, type FamilyId, type KindId, type Links,
+  FAMILY_IDS, KIND_REGISTRY, familyOf, singletonReference, type FamilyId, type KindId, type Links,
   type RecordReference, type StoreRecord, type StoreResult, type WritePlacement,
 } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture, ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
@@ -39,6 +39,16 @@ export function emptyItemExclusions(context: SuiteContext): { family: FamilyId; 
   return context.registration.declarations.families.flatMap((family) => {
     const reason = context.registration.declarations.familyExclusions[family]?.items?.[context.item];
     return reason && !context.coverage?.registered.get(context.item)?.get(family)?.size ? [{ family, reason }] : [];
+  });
+}
+/** Name each family the fixture leaves unserved, in registry order.
+ * @param registration - Validated fixture declarations.
+ * @returns Each unserved family and its declared reason.
+ */
+export function unservedFamilyExclusions(registration: ConformanceRegistration): { family: FamilyId; reason: string }[] {
+  return FAMILY_IDS.flatMap((family) => {
+    const reason = registration.declarations.unservedFamilies[family];
+    return reason ? [{ family, reason }] : [];
   });
 }
 /** Refuse assertion exclusions that never selected a registered assertion.

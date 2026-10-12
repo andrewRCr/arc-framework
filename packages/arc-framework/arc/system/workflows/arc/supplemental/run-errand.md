@@ -635,7 +635,8 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
    - `reconcile-base / reconcile-base` and `reconcile-regenerable / reconcile-regenerable` invoke only the supplied
      remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` requests
      `arc check new-head --from <pre-merge head>`, using the returned `expectedHead`, then pushes through the generic
-     contract and returns through Step 4 before fresh approval.
+     contract and returns through Step 4 before fresh approval. When that result's `dependencyChange` is not null,
+     reinstall the project's dependencies before requesting the checks.
      `skipped-clean / continue-reconcile`, `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
      `head-contained-by-base / rerun-checkpoint` return through Step 4 without gates or push. `conflict / stop`,
      `regenerable-refused / stop`, and `blocked / stop` render the supplied explanation and stop; any other result

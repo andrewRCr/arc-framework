@@ -117,4 +117,152 @@
 - _Captured during:_ Errand `transition-record-checks`, 2026-09-30; re-routed from `storage-seam` at its draft
   consolidation, 2026-10-05, because the records leave the tracked folder only at the flip.
 
+### `[ ]` **Drop lineage's `rename` and the meta's retired session fields in the deletion pass**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Scope's deletion passes, and its inbound entry "Retire the live transition-record test when lineage
+  moves to the store".
+
+- _Observation:_ `seam-record-kinds` leaves three things to the deletion pass (`spec-seam-record-kinds.md`
+  § Non-Goals). Lineage's `rename` kind stays until the flip, since the in-repo arm writes rename records and
+  resolves former slugs through them; `storage-ref-backend`'s import turns today's three into former slugs, so from
+  the flip lineage holds terminal transitions only. The parsed meta keeps `Next Task`, `Last Completed`, and
+  `Blockers`, with their writers, so rerouted code compiles unchanged across the flip; verbs stop writing them on the
+  capability. And record kinds rewrites `live-transition-records.test.ts` to the converted lineage shape, which the
+  inbound entry's deletion still covers.
+
+- _Approach:_ in the deletion pass, drop `rename` from the lineage kind and its parser, and the three fields from
+  the meta's parsed schema, with their writers and every pre-flip arm that writes them.
+
+- _Drain note (2026-10-11):_ overlaps the held entry above on lineage's move to the store; integrate them together.
+
+- _Captured during:_ `seam-record-kinds` draft close, 2026-10-10.
+
+### `[ ]` **Confirm at the flip rehearsal that every hand-editable projected kind has its parser and entry shape**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its rehearsal before the flip, and the register row "Lifecycle hook checks" ("Removed at cutover, except
+  content rules that move into a record-family parser").
+
+- _Observation:_ the projection's write-back is an ordinary contract `write`, so a kind whose parser slot is empty
+  (`createKindRegistry` in `lib/store/registry.ts`) writes unvalidated, as D5 defines. Merge does not need the parser —
+  entry merge takes its shape from the kind's mechanism — so nothing fails visibly. But the commit-time content checks
+  retire at the cutover, and the parser is both their replacement and what refuses edits to verb-owned fields. A kind
+  the projection makes hand-editable that reaches the flip with an empty slot accepts any hand edit unchecked.
+
+- _Observation:_ entry merge has the same gap one level down. `mergeEntryText` (`lib/store/concurrency/entry-merge.ts`)
+  takes the entry grammar and its sections as an argument, from the kind's `entry` config in `KIND_MECHANISMS`. Three
+  entry-merge kinds declare none — `work-item/description`, `work-item/inbound`, and `personal/errand-queue` — where
+  `personal/inbox`, `project-inbox/inbox`, and `personal/working-memory` do, so a hand edit to one of them has no
+  grammar to merge by once it is projected.
+
+- _Approach:_ a rehearsal check that lists every kind with a writable projected path and refuses the flip while any of
+  them has an empty parser slot, or, merging by entry, no entry config.
+
+- _Drain note (2026-10-11):_ the check slot, not the record parser, refuses edits to verb-owned fields; the
+  write path registers through `PRODUCTION_REGISTRATIONS`.
+
+- _Captured during:_ `storage-projection` draft-design, 2026-10-09; widened to entry shapes at its draft close,
+  2026-10-10.
+
+### `[ ]` **Take `storage-seam`'s flip-rewrite obligations into the cutover's workflow rewrite**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the flip rewrite of workflow steps and the deletion pass.
+
+- _Observation:_ `storage-seam`'s settled decisions leave cutover steps the consumer map's workflow rows do not name:
+  § 5.4, § 6.5, and § 8.4 of `spec-seam-record-kinds.md`, and item 9 in `draft-seam-locus.md`. Move every step
+  that hand-edits `Class` onto the Class verb, or a shipped `--class` flag where one covers it: none covers activate's
+  Step 4, init's post-init ratchet, a new work unit's resolution, init's Errand-promotion step 6, promote's Step 2, or
+  draft-design's capture. Move the steps that hand-edit `Branch`, deactivate's Case C and init's re-run, onto verbs.
+  Rewrite the cohort template's "convenience pointer" note on `Parent`, which becomes the cohort's stored nesting.
+  Retire `hooks.task_numbering` with the task-numbering hook, since the write check reads no configuration. Where the
+  rewrite takes `inbound-routing-method`'s from-the-flip binding for the `route-discovered-work` method, the
+  `_Routed from:_` line's date moves to `_Created:_`, and an Integrating work unit is no routing target, which amends
+  that work unit's D2.
+
+- _Approach:_ fold each into the flip rewrite's step list, checked against `strategy-procedure-evolution.md`.
+
+- _Captured during:_ `storage-seam` draft close, 2026-10-09.
+
+### `[ ]` **Carry the import's second run, the pre-import tidy, and every machine's notes and reviews into the window**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Scope, "Rehearsal on a scratch repository first, then the window: quiesce, import, flip, retire
+  notes".
+
+- _Observation:_ `storage-ref-backend`'s import (`draft-storage-ref-backend.md` § Decisions, The migrate verb and the
+  import) leaves the window five steps. Run the import again after the first push: that run deletes the
+  transient-identity refs from the remote, each leased on the tip the import re-homed, and drops the tips it kept under
+  `refs/arc/tmp/migrate/`. Tidy this repository's personal state before the import, worked from the import's trial run,
+  since on a public repository the import publishes it for good. Bring every machine's notes to the importing machine
+  by `git bundle` or a fetch between machines, since the remote notes refs are deleted and the import refuses a notes
+  file that differs from its disk copy. Finish review on every machine but the importing one, since the review gate's
+  repository ID is minted per clone and only the importing clone's facts are read. And keep the old notes ref outside
+  `refs/tags/`, or drop it, so `git push --tags` cannot publish every past personal note.
+
+- _Approach:_ fold the five into the window's runbook, and confirm at import that no draft's buffer section or held
+  capture is left behind, since the import converts both into inbound lists.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Compare every Candidate chain through the store with today's reader in the rehearsal**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Scope, "Rehearsal on a scratch repository first".
+
+- _Observation:_ the import replays each Candidate record's versions from the plain path log today's chain reader walks
+  (`readRepositoryCandidateSupersessionChain`, `lib/work-unit/candidate-record-store.ts`), since the in-repo `history`
+  follows renames and drops a version a merge commit introduced. Today's reader refuses six records:
+  `evidence-applicability` at a broken chain link (`resolveCandidateSupersessionAncestors`), and five that fail today's
+  Candidate schema before any chain walk (`readCandidateRecordVersioned`). The import carries all six unchanged.
+  `storage-ref-backend`'s tests compare the two readers over a fixture; only the rehearsal can compare every record in
+  this repository.
+
+- _Approach:_ in the rehearsal, read every Candidate record's chain through the store's `history` and through today's
+  reader, and require the same chain or the same refusal for each (`draft-storage-ref-backend.md` § Decisions,
+  Verification).
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Rewire `arc sync` onto the store's `pull` and `push`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Scope, the window's flip.
+
+- _Observation:_ `storage-ref-backend` renames the contract's `sync()` to `push({ carry? })` and adds `pull()`, while
+  `arc sync` keeps its name and runs both, pulling then pushing (`draft-storage-ref-backend.md` § Decisions, Sync). No
+  production code calls the contract's `sync()` yet, so the rename is cheap; rewiring the command is the flip's.
+
+- _Approach:_ at the flip, point `arc sync` at `pull` then `push`, and remove its notes path with the notes machinery.
+
+- _Drain note (2026-10-11):_ overlaps the held entry "Delete the code `cli-substrate-complete-migration` carves
+  out" on removing notes-specific sync; integrate them together.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Delete the import's transform, the suites that target retired substrates, and the sync-state ref**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Scope, "Deletion passes", notes-specific sync among them.
+
+- _Observation:_ `storage-ref-backend` leaves three items to the deletion pass. The import's transform is the migrate
+  verb's one-time part and goes with the in-repo implementation, the verb staying. A store suite that runs the shared
+  conformance suite or tests a consumer through the contract survives, while one that targets the in-repo
+  implementation, notes, or Errand refs by name retires with them, and that list comes from the ref backend's
+  implementation. And `refs/arc/user/<id>/sync-state` retires with notes rather than through the import
+  (`draft-storage-ref-backend.md` § Decisions, The migrate verb and the import, and Verification).
+
+- _Approach:_ fold all three into the deletion pass's inventory, and take the suite list from the ref backend when it
+  lands.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
 ---

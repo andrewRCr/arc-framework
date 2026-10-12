@@ -2,9 +2,11 @@
 
 import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
-import type { ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
+import type { ConformanceRegistration, FixtureDeclarations, SuiteItem } from "./fixture-contract.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import { createAssertionCoverage, emptyItemExclusions, validateUsedAssertionExclusions, type SuiteContext } from "./suite-tools.js";
+import {
+  createAssertionCoverage, emptyItemExclusions, unservedFamilyExclusions, validateUsedAssertionExclusions, type SuiteContext,
+} from "./suite-tools.js";
 import { registerCapabilityAssertions, registerDurabilityAssertions, registerRecordAssertions, registerVersionConflictAssertions } from "./suite-records.js";
 import { registerBatchAssertions, registerFreshnessAssertions, registerHistoryAssertions, registerStateAssertions } from "./suite-versions.js";
 import { registerMergeAssertions } from "./suite-merges.js";
@@ -43,6 +45,10 @@ export const conformanceItems: Record<SuiteItem, { name: string; register(contex
 export function registerStoreConformanceSuite(name: string, registration: ConformanceRegistration): void {
   validateConformanceRegistration(registration);
   const coverage = createAssertionCoverage();
+  const unserved = unservedFamilyExclusions(registration);
+  if (unserved.length > 0) describe(`${name} — unserved families`, () => {
+    for (const { family, reason } of unserved) it.skip(`${family}: every item — ${reason}`, () => {});
+  });
   for (const [number, item] of Object.entries(conformanceItems)) {
     const context = { item: Number(number) as SuiteItem, registration, coverage };
     describe(`${name} — item ${number}: ${item.name}`, () => {
@@ -61,6 +67,7 @@ export function registerStoreConformanceSuite(name: string, registration: Confor
 export function validateConformanceRegistration(registration: ConformanceRegistration): void {
   const declarations = registration.declarations;
   validateNames(declarations.families,"families",new Set(FAMILY_IDS),false);
+  validateUnservedFamilies(declarations);
   validateNames(declarations.syncFamilies,"syncFamilies",new Set(declarations.families));
   validateNames(declarations.identitySyncFamilies,"identitySyncFamilies",new Set(declarations.syncFamilies));
   validateNames(declarations.substrates,"substrates",undefined,false);
@@ -84,6 +91,18 @@ function declarationEntries(value: unknown,label: string): [string,unknown][] {
 
 function requireReason(value: unknown,label: string): void {
   if (typeof value !== "string" || value.trim().length === 0) declarationError(`${label} needs a nonempty exclusion reason`);
+}
+
+function validateUnservedFamilies(declarations: FixtureDeclarations): void {
+  const known = new Set<string>(FAMILY_IDS);
+  const served = new Set<string>(declarations.families);
+  for (const [family,reason] of declarationEntries(declarations.unservedFamilies,"unservedFamilies")) {
+    if (!known.has(family)) declarationError(`unservedFamilies names unknown family ${family}`);
+    if (served.has(family)) declarationError(`unservedFamilies names served family ${family}`);
+    requireReason(reason,`unserved family ${family}`);
+  }
+  const omitted = FAMILY_IDS.filter((family)=>!served.has(family) && !Object.hasOwn(declarations.unservedFamilies,family));
+  if (omitted.length > 0) declarationError(`unserved families ${omitted.join(", ")} need a declared reason`);
 }
 
 function validateFamilyExclusions(registration: ConformanceRegistration): void {

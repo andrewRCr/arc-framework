@@ -33,6 +33,32 @@
   (`resolveCodexExecutionCheckout`). With a second session executing in the primary, both write one seed file, and
   either session's recovery can rehydrate the other's Errand. Bind the Claude seed to the working checkout too.
 
+### `[ ]` **Key the Claude Code compaction seed to its session through `CLAUDE_CODE_SESSION_ID`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-10-11).
+
+- _Shapes:_ "Bind compaction recovery to the live directed-worktree locus" — the binding key for its Claude Code
+  fold-in.
+
+- _Observation:_ Claude Code exports `CLAUDE_CODE_SESSION_ID` into every Bash tool command's environment, and its value
+  is the session's transcript ID, which hooks receive as `session_id` (observed 2026-10-09). A directed command that
+  enters a checkout — `arc errand open`, `arc start`, a recovery audit — can therefore record which checkout the
+  session works in, keyed by session, and PreCompact can resolve that binding from its payload instead of seeding
+  `CLAUDE_PROJECT_DIR`. Codex's approach does not transfer: Claude Code resets the shell's working directory to the
+  project directory when a command leaves it, so the latest command's directory is not evidence of the working
+  checkout.
+
+- _Approach:_ record the binding at the directed-entry verbs, which already know the allocated checkout, and resolve
+  it in the Claude PreCompact and compact `SessionStart` consumers; keep the existing refusal when no exact binding
+  exists. Subagents share the parent's `session_id`, so a subagent's directed command must not rebind its parent's
+  seed.
+
+- _Drain note (2026-10-11):_ partly duplicates that entry; integrate it as that entry's Claude Code binding key
+  rather than as a separate concern.
+
+- _Captured during:_ `review-risk-criteria` Errand, 2026-10-09, while planning two concurrent Errand sessions in one
+  primary.
+
 ### `[ ]` **Reconcile provably self-produced post-seed drift without weakening recovery**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); captured during a live RED/GREEN marker race.

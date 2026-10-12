@@ -81,6 +81,57 @@
 | Managed-record members, ask: the `_Hold:_` → `_Queued:_` rename                             | dismiss | The contract's Errand queue (`spec-storage-contract.md` D11) replaces execute-bound marks, so queue membership is no inbox flag for this unit |
 | `USER-INBOX`: Give the recommender a capacity mode for when the goal's own path is occupied | fold    | § The recommender, Capacity mode; § Problem / Motivation                                                                                      |
 
+### `[ ]` **Fit the vector design to what the RELEASE-GATES trial could not hold**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § The surfaces (`VECTOR.PROJECT`'s target fields, `VECTOR.USER`'s intents) and § Retires the steering
+  map (its mapping table).
+
+- _Observation:_ `RELEASE-GATES.md` was restructured on 2026-10-11 as a trial of the leaned shape, keeping every
+  item: § Targets (would-be `VECTOR.PROJECT`), § Intents (would-be `VECTOR.USER`), § Stance, and an appendix for what
+  is not direction. What the shape could not hold:
+    - **Targets nest.** `storage-program` is one of `gate-a-private-beta`'s must-haves, and the stream targets are
+      its "Shipping enablement"; realized-by takes work-unit and cohort refs only, so a target cannot name a target.
+    - **Bands inside a target.** Gate A's must-have / strong-prefer / nice-to-have have no field (the mapping
+      table's open row, confirmed).
+    - **Open decisions before a target** have no home (the other open row, confirmed); the trial lists them under
+      the target.
+    - **Holds are not parks.** The mapping table sends "Held and paused" to the readiness record's
+      `scheduling: "parked"`, but the map's holds are Owner choices no `arc park` records —
+      `delivery-rebuild-continuity` is held "in place: no park and no lifecycle action". Solo they read as personal
+      intents (the trial's § Intents, Holds); on a team, a hold others must respect is a project fact.
+    - **Resume instructions** — what to re-validate or re-derive when a hold releases — belong in each work unit's
+      meta, not in direction; the trial kept them under Holds only to keep every item.
+    - **Stream exits fit as done-signals** (review's and decomposition's authored exits), but each stream target
+      wraps one cohort reaching a cut: weigh a cohort-level exit against a wrapping target.
+    - **The stage diagram is derivable** from `Depends On` edges, so drawing it is the horizon render's job; the
+      trial keeps it as a glance, marked derivable.
+    - **"How this map decides" splits:** part is recommender stance (favor completing verified open work), part is
+      project doctrine — hard dependency versus operating order, core versus deferred — whose home is the project's
+      rules or PRD, not a vector.
+    - **Partial refs.** Gate A names parts of work units — `wu-lifecycle-state-model`'s front half, the
+      inventory-guard half of `self-hosting-manifest-freshness`, the high-traffic portion of
+      `instruction-optimization`, the seed of `workflow-eval-harness` — and a tag-defined set (the follow-ons
+      `storage-contract` tags as core). Slug-valued realized-by holds neither: accept a scoped ref, or require the
+      cut first.
+    - **Ordered, ruled realization.** Targets carry an order and rules over their realizing work — delivery's
+      recovery runway and its rules that stand, the review protocol chain, the seam's design order with its
+      spec-approval gating — while realized-by is an unordered set. The seam's order already lives in
+      `cohort-storage-seam.md`, so the trial restates it.
+    - **Placement buckets are not outcomes.** "Post-B by design" places work units past a target; Later holds
+      outcomes, so a deferred-by-design set has no home (the trial keeps it as a Later section).
+    - **Window-scoped rules.** Exclusions and admission rules that hold for a target's duration — never alongside
+      the seam, the pull-forward filter, the storage boundaries on pulled-forward work — are neither stance nor
+      `Depends On` edges, and have no field.
+    - **Resolve-don't-store, confirmed:** the pre-trial map listed `quality-gate-hooks` and `inbound-routing-method`
+      as Active; both had shipped.
+
+- _Approach:_ at post-cutover design, settle each as a field or a deliberate non-goal, and re-run the mapping table
+  against the trial layout rather than the pre-trial one.
+
+- _Captured during:_ the RELEASE-GATES vector-shape trial, 2026-10-11.
+
 ---
 
 ## Problem / Motivation

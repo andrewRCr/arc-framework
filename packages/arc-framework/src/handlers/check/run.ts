@@ -33,6 +33,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
   output?: string;
   reason?: string;
+  /** One line the check's command reported about its run, such as where it ran. */
+  notice?: string;
   divergent?: string[];
   rewritten?: string[];
   logPath?: string;
@@ -71,7 +73,7 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   reports?: CheckReportStore;
   now?(): number;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string }>;
 }
 
 /**
@@ -313,6 +315,7 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(id, result.output, costMs);
   return { ...await finalizeCheckRun(selected, io, request, result, key), costMs,
+    ...(result.notice === undefined ? {} : { notice: result.notice }),
     ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
 
@@ -360,18 +363,22 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
 }) {
   const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
+  const notices = new Set<string>();
+  const ran = (result: { started: boolean; exitCode: number }) => ({ ...result, output: outputs.join("\n"),
+    ...(notices.size > 0 ? { notice: [...notices].join("; ") } : {}) });
   let exitCode = 0;
   try {
     const batches = check.mode === "files" ? batchCheckPaths(command, paths, io.platform) : [[]];
     for (const batch of batches) {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
-      if (!result.started) return { ...result, output: outputs.join("\n") };
+      if (result.notice !== undefined) notices.add(result.notice);
+      if (!result.started) return ran(result);
       if (result.exitCode !== 0) exitCode = result.exitCode;
     }
   } catch (error) {
     outputs.push(String(error));
-    return { started: false, exitCode: 1, output: outputs.join("\n") };
+    return ran({ started: false, exitCode: 1 });
   }
-  return { started: true, exitCode, output: outputs.join("\n") };
+  return ran({ started: true, exitCode });
 }

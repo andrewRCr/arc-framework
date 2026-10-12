@@ -95,6 +95,10 @@ import { startCommandInputPolicyDeclarations, startCommandInputRegistration } fr
 import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } from "./handlers/status.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
 import { userCommandInputPolicyDeclarations, userCommandInputRegistrations } from "./handlers/user.js";
+import {
+  userInboxListCommandInputPolicyDeclarations,
+  userInboxListCommandInputRegistration,
+} from "./handlers/user-inbox-list.js";
 import { userSyncCommandInputPolicyDeclarations } from "./handlers/user-sync.js";
 import type { CommandInputDeclaration } from "./lib/command-input/declaration.js";
 import { viewCommandInputPolicyDeclarations, viewCommandInputRegistration } from "./handlers/view.js";
@@ -127,6 +131,7 @@ export const commandInputRegistrations = [
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
+  userInboxListCommandInputRegistration,
   viewCommandInputRegistration,
   releaseSetupInstallInputRegistration,
   releaseSetupPrintPatternsInputRegistration,
@@ -177,6 +182,7 @@ export const commandInputPolicyDeclarations = [
   ...statusCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,
   ...userCommandInputPolicyDeclarations,
+  ...userInboxListCommandInputPolicyDeclarations,
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,

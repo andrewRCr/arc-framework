@@ -65,6 +65,7 @@ export const V3DecomposeCoreRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.string().min(1),
   locus: z.string().min(1).optional(),
+  message: z.string().min(1).optional(),
   evidence: V3DecomposeRefusalEvidenceSchema.optional(),
   remedy: SpineRemedySchema,
 });
@@ -98,6 +99,7 @@ export interface V3DecomposeRemedyInput {
   invocation: V3DecomposeInvocation;
   reason: string;
   locus?: string;
+  message?: string;
   recovery?: V3DecomposeOperationRecovery;
 }
 
@@ -216,6 +218,11 @@ const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemed
   "managed-path-set-mismatch": {
     invariant: "The composed plan must claim exactly its expected managed-path set.",
     correction: "Correct the reported plan path projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "non-canonical": {
+    invariant: "Execution requires canonical completed cut-map bytes with one trailing newline.",
+    correction: "Serialize the completed map as canonical JSON with one trailing newline, then retry the selected mode",
     command: "invocation",
   },
   "invalid-structure": {
@@ -632,6 +639,11 @@ const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDef
     correction: "Correct the completed map, then retry base advancement",
     command: "invocation",
   },
+  "origin": {
+    invariant: "Base advancement's invoked origin must match the completed map.",
+    correction: "Use the map's authenticated origin, then retry base advancement",
+    command: "invocation",
+  },
   "base-not-descendant": {
     invariant: "The live result base must descend from the decomposition plan's authenticated base.",
     correction: "Land or select a descendant base, then retry base advancement",
@@ -931,8 +943,7 @@ function registeredRemedy(input: V3DecomposeRemedyInput, code: string): SpineRem
   throw new Error(`No decomposition remedy is registered for ${input.reason}.`);
 }
 
-/** Map one stable decomposition refusal to its command-boundary remedy. */
-export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
+function composeV3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
   const code = innermostReason(input.reason);
   const recovery = recoveryRemedy(input);
   if (recovery !== null) return recovery;
@@ -953,4 +964,17 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
   const targetOrContent = targetAndContentRemedy(input, code);
   if (targetOrContent !== null) return targetOrContent;
   return registeredRemedy(input, code);
+}
+
+/**
+ * Map one stable refusal and any decoder detail to corrective guidance.
+ * @param input - Invocation, refusal code, and optional decoder detail.
+ * @returns The selected remedy with the decoder's message and locus preserved.
+ */
+export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
+  const remedy = composeV3DecomposeRemedy(input);
+  return input.message === undefined ? remedy : {
+    ...remedy,
+    text: `${input.locus ?? "Cut map"}: ${input.message} ${remedy.text}`,
+  };
 }

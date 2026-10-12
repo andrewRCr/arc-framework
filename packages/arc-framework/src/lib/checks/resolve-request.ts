@@ -5,7 +5,7 @@ import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
 import { readCheckMergedParents } from "./merged.js";
 import { readMergeCheckPaths } from "./merge.js";
-import { createWorktreeSnapshot, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
+import { createWorktreeSnapshot, stagedIndexTree, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
 
 /** Coordinates retained by a resolved request. An unavailable automatic base is deliberately absent. */
 export interface ResolvedCheckRequest {
@@ -137,7 +137,7 @@ async function checkedContent(git: GitExec, root: string, request: CheckRequest,
   const snapshot = scope.kind !== "staged" && snapshotDirectory !== undefined
     ? await createWorktreeSnapshot(git, root, snapshotDirectory) : undefined;
   const tree = scope.kind === "staged"
-    ? (await git("git", ["write-tree"], { cwd: root, indexFile: request.indexFile })).stdout
+    ? await stagedIndexTree(git, root, request.indexFile)
     : snapshot?.tree ?? await stagedWorktreeTree(git, root);
   return { tree, snapshot };
 }
