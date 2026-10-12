@@ -136,7 +136,7 @@ export async function validateExplicitMarkdownPaths(
   const paths = options.paths.map(validateMarkdownPath);
   for (const path of paths) {
     try {
-      await options.exec("git", ["ls-files", "--error-unmatch", "--", path], { cwd: options.root });
+      await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
     } catch {
       const worktreePaths = await enumerateTrackedMarkdownPaths({
         root: options.root, exec: options.exec, source: "worktree",

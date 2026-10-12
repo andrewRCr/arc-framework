@@ -55,6 +55,13 @@ async function lint(paths: string[]) {
   });
 }
 
+// Invoke the public file entry without npm's script shell expanding glob characters.
+async function lintFileEntry(paths: string[]) {
+  return execa(process.execPath, ["--import", "tsx", "packages/arc-framework/src/scripts/lint-markdown-file.ts", ...paths], {
+    cwd: root, reject: false, timeout: 30_000, env: { FORCE_COLOR: "0" },
+  });
+}
+
 it.each([".arc/user/andrew/WORKING-MEMORY.md", ".arc/user/andrew/nested/USER-INBOX.md", ".arc/temp-probe.md"])(
   "refuses the explicitly excluded path %s", async path => {
     const result = await lint([path]);
@@ -105,4 +112,39 @@ it.each([
   expect(result.stderr).toContain(path);
   expect(result.stderr).toContain(message);
   expect(result.stdout).not.toContain("Linting:");
+});
+
+it("refuses an ignored pattern-character filename and lints it after repairing its ignore", async () => {
+  const path = "docs/ignored-patterns/[a].md";
+  await write("docs/ignored-patterns/.gitignore", "?a?.md\n");
+  await write("docs/ignored-patterns/a.md", "# Neighbor\n");
+  await write(path, "# Literal\n");
+  await execa("git", ["add", "--", ":(literal)docs/ignored-patterns/.gitignore", ":(literal)docs/ignored-patterns/a.md"],
+    { cwd: root });
+  const ignored = await lintFileEntry(["docs/valid.md", path]);
+  expect(ignored.exitCode).toBe(1);
+  expect(ignored.stderr).toContain(path);
+  expect(ignored.stderr).toContain("ignored or excluded");
+  expect(ignored.stdout).not.toContain("Linting:");
+
+  await write("docs/ignored-patterns/.gitignore", "");
+  const repaired = await lintFileEntry([path]);
+  expect(repaired.exitCode).toBe(0);
+  expect(repaired.stdout).toContain("Linting: 1 file(s)");
+});
+
+it("lints only the exact tracked and untracked filenames containing pattern characters", async () => {
+  const tracked = "docs/literal-patterns/[a].md";
+  const untracked = "docs/literal-patterns/[b].md";
+  await write(tracked, "# Tracked literal\n");
+  await write(untracked, "# Untracked literal\n");
+  await write("docs/literal-patterns/a.md", "# Wrong neighbor\n\n\n");
+  await write("docs/literal-patterns/b.md", "# Wrong neighbor\n\n\n");
+  await execa("git", ["add", "--", `:(literal)${tracked}`, ":(literal)docs/literal-patterns/a.md",
+    ":(literal)docs/literal-patterns/b.md"], { cwd: root });
+
+  const result = await lintFileEntry([tracked, untracked]);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Linting: 2 file(s)");
+  expect(result.stderr).not.toContain("MD012");
 });

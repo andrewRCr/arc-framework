@@ -331,7 +331,7 @@ describe("Markdown authority", () => {
       root: "/repo",
       operation: "worktree-read" as const,
       exec: scriptGitExec([
-        { match: ["ls-files", "--error-unmatch", "--", "README.md"],
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)README.md"],
           responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
         { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
           responses: [{ stdout: "" }] },
