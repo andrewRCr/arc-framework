@@ -426,7 +426,9 @@ re-enter status without the coverage option so the still-required complete lane 
 reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
 needs new authority, material cost, or resolution of genuine uncertainty.
 
-Request `arc check gate commit` after every review-driven change. A new target invalidates clearance and merge
+Request `arc check gate commit` after every review-driven change. Before an approved fix's `verifiedFix` replay,
+which attests the approved scope as performed, a `focused` scope also requests `arc check gate push --range --force`
+and a `full` scope `arc check gate merge --force` over the new target. A new target invalidates clearance and merge
 authorization; never rewrite a prior exact-target result as if it ran on the new head.
 
 The WU stays in `**State:** Integrating` throughout this phase. Composition + sweep do not fire here.

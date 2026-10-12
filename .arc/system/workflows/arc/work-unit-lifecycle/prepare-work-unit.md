@@ -198,8 +198,9 @@ arc review respond -
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
 continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`,
-commit atomically, and produce a new target; the advanced Candidate's convergence verification then meets a `focused`
-or `full` scope, so the fix requests no forced gate of its own. Disclose review
+commit atomically, and produce a new target. The `verifiedFix` replay attests the approved scope as performed, so before
+it a `focused` scope also requests `arc check gate push --range --force` and a `full` scope
+`arc check gate merge --force` over that target; the Candidate's convergence verification repeats it. Disclose review
 applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
 `focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
 uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its
