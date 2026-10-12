@@ -3,7 +3,7 @@
   "slug": "check-staged-index",
   "claimId": "d327031bf905f557b60ce67fc48a63b1",
   "createdAt": "2026-10-12T05:21:59.219Z",
-  "updatedAt": "2026-10-12T05:21:59.219Z",
+  "updatedAt": "2026-10-12T12:51:07.146Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep a staged check from rewriting the checkout's real Git index",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep `arc check --staged` from rewriting the checkout's own index",
   "originEntrySourceDigest": "sha256:4c5209b8d170b6ea30677a7493786b526392091994e55fb830e9f921ecacda66",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/check-staged-index",
+    "headSha": "04d1a9c5628e26627d28f5c4ea9f4ed0c01f0177"
+  }
 }
