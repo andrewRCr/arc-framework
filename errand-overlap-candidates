@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-overlap-candidates",
+  "claimId": "b2dbf4fbe325e4f220d14fbfb6616d5d",
+  "createdAt": "2026-10-12T19:37:04.646Z",
+  "updatedAt": "2026-10-12T19:37:04.646Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Project in-flight Errands into the overlap roster so arc errand check and the foreign-write advisory report an Errand touching the same paths; an Errand self-excludes by its own checkout, since its record keys one entry per branch.",
+  "branch": "chore/errand-overlap-candidates",
+  "origin": "inbox",
+  "originEntry": "Let `arc errand check` see in-flight Errands as overlap candidates",
+  "originEntrySourceDigest": "sha256:ecd6d6b5a8156fa30806dbb7aa7d9eec6b3e2ab3b23e8ed89bb26497f926b3d1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
