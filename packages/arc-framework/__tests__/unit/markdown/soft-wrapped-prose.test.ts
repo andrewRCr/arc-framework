@@ -14,6 +14,23 @@ describe("soft-wrapped Markdown prose assertions", () => {
     expect("no indexed or\n\nworking-tree diff").not.toMatch(softWrappedProse(phrase));
   });
 
+  it("locates a later prose anchor without losing its original quote context", () => {
+    const phrase = "approval authorizes merge";
+    const document = "approval authorizes merge\n\n> approval\n> authorizes merge";
+    const later = document.indexOf("> approval") + 2;
+
+    expect(indexOfSoftWrappedProse(document, phrase, later)).toBe(later);
+    expect(indexOfSoftWrappedProse(document, phrase, later + 1)).toBe(-1);
+    expect(indexOfSoftWrappedProse(document, "absent wording", later)).toBe(-1);
+  });
+
+  it("retains heading and blockquote boundaries when searching after an offset", () => {
+    const phrase = "approval authorizes merge";
+    const heading = "## approval authorizes merge\n\n> approval\n> authorizes merge";
+    expect(indexOfSoftWrappedProse(heading, phrase, 3)).toBe(heading.indexOf("> approval") + 2);
+    expect(indexOfSoftWrappedProse(">> approval\n> authorizes merge", phrase, 3)).toBe(-1);
+  });
+
   it("keeps Markdown and command punctuation literal", () => {
     expect("Apply `arc review`\n  after approval").toMatch(
       softWrappedProse("Apply `arc review` after approval"),

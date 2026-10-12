@@ -33,7 +33,7 @@ describe("boundary-fit workflow contract", () => {
       expect(packaged).toMatch(softWrappedProse("compare the evidence semantically"));
       expect(packaged).toMatch(softWrappedProse("material new-evidence delta"));
       expect(packaged).toMatch(softWrappedProse("materially unchanged"));
-      expect(packaged).toMatch(/No CLI\s+parser, fingerprint, schema, or new decision record is introduced/u);
+      expect(packaged).toMatch(/No\s+CLI\s+parser,\s+fingerprint,\s+schema,\s+or\s+new\s+decision\s+record\s+is\s+introduced/u);
       expect(installed).toBe(packaged);
     });
   }

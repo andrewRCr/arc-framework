@@ -13,6 +13,9 @@ export function softWrappedProse(phrase: string): RegExp {
 }
 
 /** Preserve source offsets for ordering checks that locate prose anchors. */
-export function indexOfSoftWrappedProse(document: string, phrase: string): number {
-  return document.search(softWrappedProse(phrase));
+export function indexOfSoftWrappedProse(document: string, phrase: string, fromIndex = 0): number {
+  const prose = softWrappedProse(phrase);
+  const search = new RegExp(prose.source, `${prose.flags}g`);
+  search.lastIndex = fromIndex;
+  return search.exec(document)?.index ?? -1;
 }
