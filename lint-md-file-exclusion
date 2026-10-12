@@ -3,7 +3,7 @@
   "slug": "lint-md-file-exclusion",
   "claimId": "43e8caa0214e22830704ed5655c24a93",
   "createdAt": "2026-10-12T01:09:05.653Z",
-  "updatedAt": "2026-10-12T01:09:05.653Z",
+  "updatedAt": "2026-10-12T04:12:33.967Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make explicitly selected Markdown lint paths refuse excluded files and prevent zero-coverage success.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make `lint:md:file` refuse an excluded path instead of reporting zero files as a pass",
   "originEntrySourceDigest": "sha256:2e6936e70a81a25877929e23b0d189034b3a2c8a00fb9818f13303e976c4fd6f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/lint-md-file-exclusion",
+    "headSha": "99c9acab3905de94cb64b71ab74751134d27d347"
+  }
 }
