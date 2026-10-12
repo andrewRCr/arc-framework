@@ -1,4 +1,4 @@
-/** Clean and regenerated merges defer declared enforcement to the resulting head. */
+/** Clean and regenerated merges defer declared enforcement to the resulting head and flag absorbed lockfiles. */
 import { afterEach, expect, inject, it } from "vitest";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -29,6 +29,7 @@ it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing 
   await git(root, ["push", "origin", "HEAD:refs/heads/main"]);
   await git(root, ["switch", "-c", "incoming"]);
   await writeFile(mode === "clean" ? join(root, "src/0.txt") : roadmap, "incoming\n");
+  if (mode === "clean") await writeFile(join(root, "package-lock.json"), "{}\n");
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "incoming change"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
@@ -42,7 +43,11 @@ it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing 
     ...(mode === "clean" ? [] : ["--regenerate-roadmap"])], root);
   expect(merged.exitCode, merged.stdout + merged.stderr).toBe(0);
   const result = JSON.parse(merged.stdout) as { actualHead: string };
-  expect(result, merged.stdout).toMatchObject({ state: "merged", nextAction: "run-quality-gates" });
+  expect(result, merged.stdout).toMatchObject({
+    state: "merged",
+    nextAction: "run-quality-gates",
+    dependencyChange: mode === "clean" ? { status: "changed", paths: ["package-lock.json"] } : null,
+  });
   expect((await git(root, ["rev-list", "--parents", "-n", "1", "HEAD"])).split(" "))
     .toEqual([result.actualHead, head, base]);
   expect(await git(root, ["status", "--porcelain=v1"])).toBe("");
