@@ -729,6 +729,40 @@ describe("arc errand open", () => {
     }
   });
 
+  it("reports an open Errand's edit to another checkout's check, never to its own", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "errand-overlap-remote");
+    let spawnedPath: string | null = null;
+    try {
+      const isolated = await runArc(["errand", "open", "overlapping-errand", "--isolate", "--json"], tmpDir);
+      expect(isolated.exitCode, isolated.stdout + isolated.stderr).toBe(0);
+      const opened = JSON.parse(isolated.stdout.trim()) as { allocation?: { checkoutPath?: unknown } };
+      spawnedPath = typeof opened.allocation?.checkoutPath === "string" ? opened.allocation.checkoutPath : null;
+      expect(spawnedPath).not.toBeNull();
+      const errandCheckout = spawnedPath ?? "";
+      await mkdir(join(errandCheckout, "docs"), { recursive: true });
+      await writeFile(join(errandCheckout, "docs", "x.md"), "# Edited by the Errand\n", "utf-8");
+      const branch = (await git(errandCheckout, ["symbolic-ref", "--short", "HEAD"])).trim();
+
+      const fromPrimary = await runArc(["errand", "check", "--target", "docs/x.md", "--local", "--json"], tmpDir);
+      expect(fromPrimary.exitCode, fromPrimary.stdout + fromPrimary.stderr).toBe(0);
+      const primaryCheck = JSON.parse(fromPrimary.stdout.trim()) as { overlaps: Array<{ worktreePath?: string }> };
+      expect(primaryCheck.overlaps).toEqual([{ branch, worktreePath: errandCheckout, matchedPaths: ["docs/x.md"] }]);
+
+      const fromErrand = await runArc(["errand", "check", "--target", "docs/x.md", "--local", "--json"], errandCheckout);
+      expect(fromErrand.exitCode, fromErrand.stdout + fromErrand.stderr).toBe(0);
+      expect(JSON.parse(fromErrand.stdout.trim())).toMatchObject({ overlaps: [] });
+    } finally {
+      if (spawnedPath !== null) {
+        await git(tmpDir, ["worktree", "remove", "--force", spawnedPath]).catch(() => undefined);
+        await cleanupTempDir(spawnedPath);
+      }
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
   it("refuses --isolate under partial protection with a retry that opens the free primary", async () => {
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);

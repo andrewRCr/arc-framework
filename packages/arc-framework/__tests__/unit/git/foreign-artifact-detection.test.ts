@@ -1,7 +1,7 @@
 /**
  * Unit tests for detectForeignArtifactOverlap — the deterministic foreign-artifact
  * detection behind the `arc-errand` advisory gate. Given an errand's target path(s)
- * and the originating WU, it reports which *other* in-flight WUs touch the target,
+ * and the originating checkout, it reports which *other* in-flight WUs and Errands touch the target,
  * over the identity-filtered roster + per-worktree git state. Advisory only: it
  * returns facts and never blocks.
  */
@@ -734,13 +734,62 @@ describe("projectInFlightToOverlapRoster", () => {
     });
   });
 
-  it("drops errands — they carry no meta and aren't WU-overlap candidates", async () => {
+  it("projects an in-flight Errand by its slug, wherever its branch is", async () => {
     const roster = projectInFlightToOverlapRoster([
-      oracleWu("feat/x", "x", "/repo.x"),
-      { kind: "errand", branch: "chore/fix", slug: "fix", remoteOnly: true },
+      { kind: "errand", branch: "chore/local", slug: "local", remoteOnly: false, worktreePath: "/repo.local" },
+      { kind: "errand", branch: "chore/unoccupied", slug: "unoccupied", remoteOnly: false },
+      { kind: "errand", branch: "chore/remote", slug: "remote", remoteOnly: true, marks: ["degraded"] },
     ]);
 
-    expect(roster.entries.map((e) => e.branch)).toEqual(["feat/x"]);
+    expect(roster.entries).toEqual([
+      { branch: "chore/local", errand: "local", worktreePath: "/repo.local" },
+      { branch: "chore/unoccupied", errand: "unoccupied", remoteOnly: false },
+      { branch: "origin/chore/remote", errand: "remote", marks: ["degraded"] },
+    ]);
+  });
+
+  it("reports an in-flight Errand that touches the target, committed or uncommitted", async () => {
+    const roster = projectInFlightToOverlapRoster([
+      { kind: "errand", branch: "chore/remote", slug: "remote", remoteOnly: true },
+      { kind: "errand", branch: "chore/local", slug: "local", remoteOnly: false, worktreePath: "/repo.local" },
+    ]);
+    const { exec } = buildExec({
+      "diff main...origin/chore/remote --name-only -- docs/x.md": { stdout: "docs/x.md\n" },
+      "diff main...chore/local --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": { stdout: " M docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "origin/chore/remote", matchedPaths: ["docs/x.md"] },
+      { branch: "chore/local", worktreePath: "/repo.local", matchedPaths: ["docs/x.md"] },
+    ]);
+  });
+
+  it("never reports the Errand whose checkout runs the check", async () => {
+    const roster = projectInFlightToOverlapRoster([
+      { kind: "errand", branch: "chore/self", slug: "self", remoteOnly: false, worktreePath: "/repo.errand-self" },
+    ]);
+    // Any git call would throw on an unmatched key: the originating Errand is skipped before probing.
+    const { exec, calls } = buildExec({});
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.errand-self",
+    });
+
+    expect(result).toEqual({ overlaps: [] });
+    expect(calls).toHaveLength(0);
   });
 
   it("surfaces an overlap from oracle data (refs-only) for a remote-only WU touching the target", async () => {

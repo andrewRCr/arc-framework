@@ -1,4 +1,4 @@
-/** Declared check commands report a one-line notice through a file the process boundary names and removes. */
+/** Declared check commands report a short notice through a file the process boundary names and removes. */
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,9 +22,9 @@ function writesNotice(text: string): string[] {
     `require("node:fs").writeFileSync(process.env.ARC_CHECK_NOTICE, ${JSON.stringify(text)}); console.log(process.env.ARC_CHECK_NOTICE)`];
 }
 
-it("returns the first line a command writes to its notice file, then removes the file", async () => {
-  const result = await runCheckProcess(writesNotice("\n  ran on build-vm  \nsecond line\n"), await checkout());
-  expect(result).toMatchObject({ started: true, exitCode: 0, notice: "ran on build-vm" });
+it("joins every line a command and its runner write to the notice file, then removes the file", async () => {
+  const result = await runCheckProcess(writesNotice("\n  ran locally: build-vm unreachable  \n\nwaited 8m 13s for the heavy-test slot\n"), await checkout());
+  expect(result).toMatchObject({ started: true, exitCode: 0, notice: "ran locally: build-vm unreachable; waited 8m 13s for the heavy-test slot" });
   await expect(access(result.stdout)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
@@ -35,7 +35,7 @@ it("bounds a notice to one short line", async () => {
 
 it("keeps a notice to plain text on one line", async () => {
   const result = await runCheckProcess(writesNotice("connecting\rran\u001b[2K on\tbuild-vm\nsecond line"), await checkout());
-  expect(result.notice).toBe("connecting");
+  expect(result.notice).toBe("connecting; ran [2K on build-vm; second line");
   const later = await runCheckProcess(writesNotice("\r\nran\u001b[2K on\tbuild-vm"), await checkout());
   expect(later.notice).toBe("ran [2K on build-vm");
 });

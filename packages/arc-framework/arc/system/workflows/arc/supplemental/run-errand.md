@@ -83,8 +83,8 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
    arc errand check --target <path>... --json
    ```
 
-   It emits `{overlaps, reachable}` — which in-flight work units touch the same paths, across worktrees and
-   machines, fresher here than at capture. Apply the method's overlap read (the rubric and the all-owner gate:
+   It emits `{overlaps, reachable}` — which in-flight work units and Errands touch the same paths, across worktrees
+   and machines, fresher here than at capture. Apply the method's overlap read (the rubric and the all-owner gate:
    foreign-owned → coordinate); an errand has no design stage, so the design-load read does not apply. **Advisory,
    never a gate:** surface any overlap, coordinate or sequence after the other unit integrates, then proceed. If
    the remote is unreachable the check degrades to local refs and says so.
