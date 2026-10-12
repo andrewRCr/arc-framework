@@ -28,13 +28,13 @@ const BaseMergeContinuationSchema = z.union([
   z.strictObject({ kind: z.literal("remedy"), remedy: SpineRemedySchema }),
   z.strictObject({ kind: z.literal("terminal-explanation"), terminalExplanation: DetailSchema }),
 ]);
-/** Lockfiles whose change means the checkout's installed dependencies may no longer match it. */
+/** Lockfiles not named `*.lock`, whose change means installed dependencies may no longer match the checkout. */
 const DEPENDENCY_LOCKFILES = new Set([
-  "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb", "deno.lock",
-  "poetry.lock", "uv.lock", "Pipfile.lock", "pdm.lock", "Gemfile.lock", "composer.lock", "Cargo.lock", "go.sum",
-  "mix.lock", "pubspec.lock", "packages.lock.json", "Podfile.lock", "Package.resolved", "gradle.lockfile",
+  "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "bun.lockb", "go.sum", "packages.lock.json",
+  "Package.resolved", "gradle.lockfile", ".terraform.lock.hcl",
 ]);
 const REINSTALL_REMEDY = "reinstall dependencies before running checks";
+const isDependencyLockfile = (name: string): boolean => name.endsWith(".lock") || DEPENDENCY_LOCKFILES.has(name);
 const DependencyChangeSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("changed"),
@@ -384,7 +384,7 @@ async function absorbedDependencyChange(
       ),
     };
   }
-  const paths = changed.filter((path) => DEPENDENCY_LOCKFILES.has(path.slice(path.lastIndexOf("/") + 1))).sort();
+  const paths = changed.filter((path) => isDependencyLockfile(path.slice(path.lastIndexOf("/") + 1))).sort();
   if (paths.length === 0) return null;
   return {
     status: "changed",

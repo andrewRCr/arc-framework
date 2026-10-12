@@ -88,7 +88,10 @@ describe("base merge", () => {
 
   it("flags lockfiles the absorbed base changed, at any depth", async () => {
     const { port, state } = repository();
-    state.absorbed = ["src/index.ts", "packages/app/pnpm-lock.yaml", "package.json", "package-lock.json"];
+    state.absorbed = [
+      "src/index.ts", "packages/app/pnpm-lock.yaml", "package.json", "package-lock.json", "flake.lock",
+      "tools/MODULE.bazel.lock", "src/deadlock.ts",
+    ];
     const diffed: string[][] = [];
     const changedPaths = port.changedPaths;
     port.changedPaths = async (fromOid, toOid) => {
@@ -102,7 +105,7 @@ describe("base merge", () => {
       actualHead: oid("d"),
       dependencyChange: {
         status: "changed",
-        paths: ["package-lock.json", "packages/app/pnpm-lock.yaml"],
+        paths: ["flake.lock", "package-lock.json", "packages/app/pnpm-lock.yaml", "tools/MODULE.bazel.lock"],
         detail: expect.stringContaining("reinstall dependencies before running checks"),
       },
     });
