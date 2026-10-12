@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "storage-research-records",
+  "claimId": "e81db9f7a22b1a9f08b32bce3d1b3b5c",
+  "createdAt": "2026-10-12T01:10:58.864Z",
+  "updatedAt": "2026-10-12T01:10:58.864Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Move the storage program's research and spike records into the tracked supplemental corpus",
+  "branch": "chore/storage-research-records",
+  "origin": "inbox",
+  "originEntry": "Move the storage program's research and spike records into the tracked supplemental corpus",
+  "originEntrySourceDigest": "sha256:8cd08858d53747f540007b5a06aff716f1b2db3cd89f93c48f6d7466ad604ca2",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
