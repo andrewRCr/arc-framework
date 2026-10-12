@@ -3,7 +3,7 @@
   "slug": "storage-research-records",
   "claimId": "e81db9f7a22b1a9f08b32bce3d1b3b5c",
   "createdAt": "2026-10-12T01:10:58.864Z",
-  "updatedAt": "2026-10-12T01:10:58.864Z",
+  "updatedAt": "2026-10-12T01:48:12.501Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Move the storage program's research and spike records into the tracked supplemental corpus",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Move the storage program's research and spike records into the tracked supplemental corpus",
   "originEntrySourceDigest": "sha256:8cd08858d53747f540007b5a06aff716f1b2db3cd89f93c48f6d7466ad604ca2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/storage-research-records",
+    "headSha": "fb65b6f0ff07c71c2d7c542137f18ffbf68dc2ab"
+  }
 }
