@@ -8,6 +8,7 @@ arc:
     - review-triage
     - commit-footer
     - review-chunking
+    - route-discovered-work
 ---
 
 # Workflow: Verify Completion
@@ -24,6 +25,24 @@ task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] 
 [integrate-work-unit][integrate-work-unit] begins only after `arc publish` starts public integration.
 
 ## Step 1 — Clean, Self-Review, and Run the Merge Quality Gate
+
+First, run `arc user inbox-list --target {name} --json`. Halt verification while it reports `refused` or `named`: a
+refused listing clears by applying its remedy, and each listed capture, held or not, by its disposition at the Owner's
+pass.
+
+**Method fire-point** · [`route-discovered-work`][route-discovered-work]:
+
+```yaml
+route-discovered-work:
+  entry: each listed capture
+  door: owner's planning pass
+  host: this work unit
+```
+
+On confirmation, carry out each outcome; no outcome holds the capture in this work unit. A `fold` enters
+[`amend-design`][amend-design] over the capture, and any work it adds returns to the task loop before verification
+resumes. Remove each routed capture with `arc user inbox-remove`, or rewrite it in place when its outcome is itself a
+capture. Record each rejection or dismissal, with its reason, in the verification commit body. Then re-run the listing.
 
 Before the Candidate exists, clean the WU content:
 
@@ -176,6 +195,7 @@ verification-task exception). Cover both:
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
 [review-chunking]: ../../../methods/review-chunking.md
+[route-discovered-work]: ../../../methods/route-discovered-work.md
 [prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
 [amend-design]: ../supplemental/amend-design.md

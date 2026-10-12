@@ -30,7 +30,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
   user: [
     ["Inspect and synchronize:", ["status", "sync", "save", "load", "push", "fetch", "pull"]],
     ["Manage workspaces:", ["add", "open", "close"]],
-    ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-mark-execute-bound", "inbox-remove"]],
+    ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-list", "inbox-mark-execute-bound", "inbox-remove"]],
   ],
   errand: [
     ["Find and open work:", ["next", "check", "open", "link", "materialize"]],

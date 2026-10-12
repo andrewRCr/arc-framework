@@ -72,6 +72,7 @@ import type {
 import type { DecomposeOptions } from "./handlers/decompose.js";
 import type { AttestOptions } from "./handlers/lifecycle-delivery-review.js";
 import type {
+  UserInboxListCommandOptions,
   UserInboxRemoveOptions,
   UserReconcileReferencesOptions,
   UserPushOptions,
@@ -1275,6 +1276,18 @@ userCmd
     { machineReadable: () => true },
     async (context, input: string) => {
       await (await import("./handlers/user.js")).handleUserInboxMarkExecuteBound(input, context);
+    },
+  ));
+
+userCmd
+  .command("inbox-list")
+  .description("List the inbox captures whose WU_Target names a work unit, held or not")
+  .requiredOption("--target <slug>", "Work unit slug the captures name")
+  .option("--json", "Emit the typed listing result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: UserInboxListCommandOptions) => {
+      await (await import("./handlers/user.js")).handleUserInboxList(opts, context);
     },
   ));
 
