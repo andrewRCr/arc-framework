@@ -53,6 +53,23 @@ it.each([false, true])("writes a staged tree through a private copy of the index
   }
 });
 
+it("reads a repository-relative supplied index from the repository root", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-check-staged-tree-"));
+  await writeFile(join(cwd, "hook-index"), "original index bytes");
+  const { exec } = scriptGitExec([
+    { match: ["write-tree"], responses: [async ({ options }) => {
+      expect(await readFile(options!.indexFile!, "utf8")).toBe("original index bytes");
+      return { stdout: "d".repeat(40) };
+    }] },
+  ]);
+  try {
+    expect(process.cwd()).not.toBe(cwd);
+    expect(await stagedIndexTree(exec, cwd, "hook-index")).toBe("d".repeat(40));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 it("writes an absent index's staged tree from an empty private index", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-check-staged-tree-"));
   const emptied: (string | undefined)[] = [];

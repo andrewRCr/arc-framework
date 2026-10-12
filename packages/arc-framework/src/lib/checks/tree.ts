@@ -96,11 +96,12 @@ export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent =
  * Compute the tree an index stages without letting Git write back to that index.
  * @param git - Injectable Git process boundary
  * @param cwd - Repository root
- * @param index - The index to read; the checkout's own index when omitted
+ * @param index - The index to read, relative to the repository root unless absolute; the checkout's own index when
+ *   omitted
  * @returns The staged tree's object id
  */
 export async function stagedIndexTree(git: GitExec, cwd: string, index?: string): Promise<string> {
-  const source = index ?? await checkoutIndexPath(git, cwd);
+  const source = index === undefined ? await checkoutIndexPath(git, cwd) : resolve(cwd, index);
   const directory = await mkdtemp(join(tmpdir(), "arc-check-index-"));
   const indexFile = join(directory, "index");
   try {
