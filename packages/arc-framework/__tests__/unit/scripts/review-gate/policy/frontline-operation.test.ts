@@ -510,6 +510,11 @@ describe("frontline operation continuity", () => {
       execute,
       now: () => "2026-07-23T19:01:00Z",
     }, executionBinding())).rejects.toMatchObject({ code: "uncertain-provider-execution" });
+    await expect(executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    }, { ...executionBinding(), retryOfOperationId: resolved.operationId }))
+      .rejects.toMatchObject({ code: "invalid-input", reason: "invalid-retry" });
     expect(execute).not.toHaveBeenCalled();
   });
 

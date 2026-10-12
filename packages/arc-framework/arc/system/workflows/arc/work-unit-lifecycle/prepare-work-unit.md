@@ -172,7 +172,8 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review respond -`. A command error envelope carries no dispatchable state unless it names a `remedy`: then render
 `remedy.text` and continue only through `remedy.argv`, passing any `remedy.stdin` unchanged.
 For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
-Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
+Owner decision. On approval, re-run `arc review frontline resolve -` for a fresh ready resolution, then
+`arc review frontline run -` with that resolution and `retryOfOperationId` from the prior operation.
 
 For every durable producer finding, run [`review-triage`][review-triage] to verify the source and
 [`review-response`][review-response] to compose the complete proposal with the effective policy in

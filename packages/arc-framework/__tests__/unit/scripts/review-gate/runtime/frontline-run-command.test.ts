@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
+import { handleReviewFrontlineRun } from "../../../../../src/handlers/review.js";
+import { FrontlineRunCommandRequestSchema } from "../../../../../src/scripts/review-gate/core/frontline-run-command-schema.js";
+import { FrontlineResolveRequestSchema, resolveFrontlineCommand } from "../../../../../src/scripts/review-gate/policy/frontline-command.js";
+import { FrontlineSourceRegistry } from "../../../../../src/scripts/review-gate/policy/frontline-source.js";
+
 import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { createFrontlineAdmission } from
   "../../../../../src/scripts/review-gate/core/frontline-admission.js";
@@ -21,10 +27,10 @@ import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/poli
 import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gate/runtime/frontline-run-command.js";
 
 const oid = (value: string): string => value.repeat(40);
-const target = (head: string) => createReviewTarget({
+const target = (head: string, kind: "change-set" | "delivery-member" = "change-set") => createReviewTarget({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
-  kind: "change-set",
+  kind,
   repositoryId: "repo-1",
   baseRef: "main",
   diffBaseSha: oid("a"),
@@ -542,9 +548,34 @@ describe("frontline run command", () => {
     }));
   });
 
-  it("requires an explicit retry after timeout and projects it as one source attempt", async () => {
-    const reviewTarget = target("c");
-    const { stores, resolution: firstResolution } = await admittedRun(reviewTarget);
+  it.each(["change-set", "delivery-member"] as const)("recovers a stale %s retry through a fresh resolver admission", async (kind) => {
+    const reviewTarget = target("c", kind);
+    const memberLineage = {
+      kind: "delivery-member" as const, planId: "11111111-1111-4111-8111-111111111111",
+      deliverableId: canonicalDigest({ member: "one" }), workUnitId: SlugSchema.parse("example"),
+    };
+    const lineage = kind === "delivery-member" ? memberLineage : defaultLineage;
+    const vehicle = kind === "delivery-member" ? { ...memberLineage, head: reviewTarget.headSha } : undefined;
+    const stores = memoryStores();
+    const resolverDependencies = {
+      operationStore: stores.operationStore,
+      preferences: { readDeveloperSourceIds: async () => [], readProjectSourceIds: async () => [] },
+      registry: new FrontlineSourceRegistry([{
+        sourceId: source.sourceId, descriptor: { kind: source.kind, executable: source.executable, argv: source.argv },
+      }]),
+      resolveLineage: async () => lineage,
+      resolveSupersessionAncestors: async () => [],
+      withLaneOperationLock: async <T>(_id: string, action: () => Promise<T>) => action(),
+      confirmDispositionSetCurrent: async () => true,
+      readSettledFindingsAdvice: async () => ({ action: "stop" as const, reason: "no-approved-material-fix" }),
+      readMaxPasses: async () => 2,
+      now: () => "2026-08-15T12:00:00Z",
+    };
+    const firstResolution = await resolveFrontlineCommand({
+      schemaVersion: 1, target: reviewTarget, changeSet: routingFacts,
+      invocation: { mode: "force", sourceId: source.sourceId },
+      ...(vehicle === undefined ? {} : { vehicle }),
+    }, resolverDependencies);
     const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => {
       const timedOut = execute.mock.calls.length === 1;
       return {
@@ -580,26 +611,47 @@ describe("frontline run command", () => {
       target: reviewTarget,
       resolution: firstResolution,
     }, dependencies);
-    const retryAdmission = admissionFor(reviewTarget, 2, 1);
-    await recordLaneAttempt(stores.operationStore, {
-      lane: "frontline",
-      repositoryId: reviewTarget.repositoryId,
-      changeRequestId: null,
-      headSha: reviewTarget.headSha,
-      lineage: retryAdmission.lineage,
-      logicalPass: retryAdmission.logicalPass,
-      retryGeneration: retryAdmission.retryGeneration,
-      attemptId: retryAdmission.operationId,
-      sourceId: source.sourceId,
-      outcome: "pending",
-      consumedPass: false,
-      frontline: { admission: retryAdmission, effectiveCoverage: null },
-      now: "2026-08-15T12:01:00Z",
+    const publicTarget = {
+      kind: reviewTarget.kind, baseRef: reviewTarget.baseRef,
+      diffBaseSha: reviewTarget.diffBaseSha, headSha: reviewTarget.headSha,
+    };
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1, target: publicTarget, resolution: firstResolution,
+        retryOfOperationId: timedOut.payload.operationId,
+      }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target: reviewTarget }),
+      run: (request) => runFrontlineReviewCommand(request, dependencies),
+      write, setExitCode,
     });
+    expect(write).toHaveBeenCalledOnce();
+    const refusal = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(refusal).toMatchObject({
+      mode: "review-frontline-run",
+      error: { code: "invalid-input", message: expect.stringContaining("fresh") },
+      remedy: {
+        argv: ["arc", "review", "frontline", "resolve", "-"],
+        stdin: {
+          schemaVersion: 1, target: publicTarget, changeSet: routingFacts,
+          invocation: { mode: "force", sourceId: source.sourceId },
+        },
+      },
+    });
+    expect(refusal.remedy.stdin.vehicle).toEqual(vehicle);
+    expect(setExitCode).toHaveBeenCalledWith(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    const resolveRequest = FrontlineResolveRequestSchema.parse(refusal.remedy.stdin);
+    const retryResolution = await resolveFrontlineCommand({ ...resolveRequest, target: reviewTarget }, resolverDependencies);
+    const retryAdmission = retryResolution.payload.admission;
+    if (retryAdmission === undefined) throw new Error("expected fresh admission");
+    expect(retryAdmission).toMatchObject({ logicalPass: 1, retryGeneration: 1 });
     const retry = await runFrontlineReviewCommand({
       schemaVersion: 1,
       target: reviewTarget,
-      resolution: readyResolution(retryAdmission),
+      resolution: retryResolution,
       retryOfOperationId: timedOut.payload.operationId,
     }, dependencies);
 
@@ -608,7 +660,10 @@ describe("frontline run command", () => {
       code: "frontline-explicit-retry",
       message: expect.stringContaining(timedOut.payload.operationId),
     }]);
+    expect(timedOut.diagnostics[0]?.message).toContain("arc review frontline resolve -");
+    expect(timedOut.diagnostics[0]?.message).toContain("arc review frontline run -");
     expect(retry).toMatchObject({ state: "clean", nextAction: "none" });
+    expect(execute).toHaveBeenCalledTimes(2);
     expect(retry.payload.operationId).not.toBe(timedOut.payload.operationId);
     await expect(stores.operationStore.readOperation(laneProgressOperationId({
       lane: "frontline",
@@ -685,7 +740,7 @@ describe("frontline run command", () => {
       schemaVersion: 1,
       target: reviewTarget,
       resolution: readyResolution(retryAdmission),
-      retryOfOperationId: "wrong-predecessor",
+      retryOfOperationId: canonicalDigest({ unrelated: "predecessor" }),
     }, dependencies)).rejects.toThrow("retry");
     expect(first.state).toBe("timed-out");
     expect(execute).toHaveBeenCalledTimes(1);
