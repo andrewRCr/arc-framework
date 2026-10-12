@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "lint-md-file-exclusion",
+  "claimId": "b82eef00655d38cdf648b7c7a3887bb9",
+  "createdAt": "2026-10-12T01:08:39.089Z",
+  "updatedAt": "2026-10-12T01:08:39.089Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make explicitly selected Markdown lint paths refuse excluded files and prevent zero-coverage success.",
+  "branch": "chore/lint-md-file-exclusion",
+  "origin": "inbox",
+  "originEntry": "Make `lint:md:file` refuse an excluded path instead of reporting zero files as a pass",
+  "originEntrySourceDigest": "sha256:2e6936e70a81a25877929e23b0d189034b3a2c8a00fb9818f13303e976c4fd6f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
