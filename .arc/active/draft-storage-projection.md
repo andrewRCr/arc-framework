@@ -159,7 +159,7 @@ the exits of both kinds — `arc teardown` for a work unit's checkout, and `arc 
 an Errand's — since Git prints the reason in its refusal ("cannot remove a locked working tree, lock reason: …", checked
 on Git 2.55). The reason is also how the removal function tells the projection's lock from anyone else's: it unlocks
 only a lock whose reason matches exactly — one constant, shipped with the function since it lands first, which the
-spawn's lock writes (asked of `seam-lifecycle`, 2026-10-12) — and refuses any other as `locked`, naming
+spawn's lock writes (taken by `seam-lifecycle`, 2026-10-12) — and refuses any other as `locked`, naming
 `git worktree unlock` (§ Coordination, item 2). One reason for both lets promotion, which rewrites a spawned Errand's
 marker to its work unit's (`convertSpawnedMarker`, `lib/errand/promote-runtime.ts`), leave the lock alone, as it must:
 `git worktree lock` refuses a worktree already locked (checked on Git 2.55). The reason names no slug, so a rename
@@ -711,33 +711,34 @@ here. Five interfaces cross:
    and this work unit's check, persist, and release slots: with the folder present it runs the removal check, the
    persist step, `git worktree unlock` when Git lists the checkout as locked with the projection's reason (§ The
    worktree lock), and a plain `git worktree remove`; with the folder missing it unlocks a registration the projection
-   locked and prunes it. Either way a lock carrying any other reason refuses as `locked`, naming `git worktree unlock`:
-   before the projection's lock lands, every lock on a checkout is the person's. It returns `removed`, `pruned`,
-   `refused` with the check's result, or `failed` naming the step (`draft-seam-lifecycle.md` § Lifecycle, "The checkout
-   removal function and its removal check"). The removal check also runs on its own, reading only and taking no lock: it
-   returns `removable`, `missing` when only Git's registration remains, or `refused` as `dirty`, `persist-would-refuse`,
-   `unobservable`, or `locked`. Its Git part is today's `isWorktreeClean` (`lib/git/worktree-cleanup.ts`), with a failed
-   status read reported as `unobservable`; its projection part is a slot this work unit fills, answering
-   `persist-would-refuse` when the persist step would refuse — a file unadopted, held by a conflict, failing to parse,
-   or holding a refused edit — and `unobservable` when a store read it needs fails. The index records neither a parse
-   failure nor a refused edit, so the projection part runs write-back's read path over each file that changed — the
-   settle rule, the parser, the merge against the store, and the kind's write check over the merged content with
-   item 1's views — and writes nothing; the persist step checks again under the lock. Its cost is the stat walk, about 3
-   ms on Linux and 27 ms on Windows at 1,000 files (notes § Spike 2), plus the read of each changed file. Each member
-   moves its callers that remove a checkout onto the function and those that decide or report whether one can be removed
-   onto the removal check. `seam-lifecycle` moves teardown's two removals onto the function —
-   `reconcileWorkUnitWorktree`'s teardown arm, whose clean check is today's live refusal, run before the teardown and
-   again under the locked-retirement driver (`reconcile-work-unit-worktree.ts`), and the decomposition candidate's
-   cleanup (`cleanupGitOwnedDecomposeCandidate`, run from `teardown.ts`) — and has abandon, from Planning or Active, and
-   park from Planning, until the flip retires it, run the removal check before their first write, so a refusal present
-   when the verb starts stops it before it changes anything: today each records the transition and leaves the removal to
-   a later `arc teardown --force`, while park from Active already tears down before it writes its pointer record
-   (`parkActive`, `park-resume.ts`). The `worktree-clean` guard (`makeWorktreeCleanGuard`, `lifecycle-guards.ts`) never
-   runs — the one edge declaring it is park from Active's, which `parkActive` bypasses by calling the teardown directly
-   — and `seam-lifecycle` deletes it. `seam-locus` moves onto the function the Errand's exits through
-   `lib/errand/terminal-occupancy.ts`, one of the register row's two direct `git status` readers, and onto the removal
-   check `stale-worktree-sweep.ts`, `branch-gone-recovery.ts`, `lifecycle-residue-sweep.ts`, and `arc errand leave`'s
-   authorization (`authorizePreservation`, `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout through
+   locked and prunes it. Either way a lock carrying any other reason refuses as `locked`, naming `git worktree unlock`,
+   a missing folder under such a lock included, which reads `locked` rather than `missing`: before the projection's lock
+   lands, every lock on a checkout is the person's. It returns `removed`, `pruned`, `refused` with the check's result,
+   or `failed` naming the step (`draft-seam-lifecycle.md` § Lifecycle, "The checkout removal function and its removal
+   check"). The removal check also runs on its own, reading only and taking no lock: it returns `removable`, `missing`
+   when only Git's registration remains, or `refused` as `dirty`, `persist-would-refuse`, `unobservable`, or `locked`.
+   Its Git part is today's `isWorktreeClean` (`lib/git/worktree-cleanup.ts`), with a failed status read reported as
+   `unobservable`; its projection part is a slot this work unit fills, answering `persist-would-refuse` when the persist
+   step would refuse — a file unadopted, held by a conflict, failing to parse, or holding a refused edit — and
+   `unobservable` when a store read it needs fails. The index records neither a parse failure nor a refused edit, so the
+   projection part runs write-back's read path over each file that changed — the settle rule, the parser, the merge
+   against the store, and the kind's write check over the merged content with item 1's views — and writes nothing; the
+   persist step checks again under the lock. Its cost is the stat walk, about 3 ms on Linux and 27 ms on Windows at
+   1,000 files (notes § Spike 2), plus the read of each changed file. Each member moves its callers that remove a
+   checkout onto the function and those that decide or report whether one can be removed onto the removal check.
+   `seam-lifecycle` moves teardown's two removals onto the function — `reconcileWorkUnitWorktree`'s teardown arm, whose
+   clean check is today's live refusal, run before the teardown and again under the locked-retirement driver
+   (`reconcile-work-unit-worktree.ts`), and the decomposition candidate's cleanup (`cleanupGitOwnedDecomposeCandidate`,
+   run from `teardown.ts`) — and has abandon, from Planning or Active, and park from Planning, until the flip retires
+   it, run the removal check before their first write, so a refusal present when the verb starts stops it before it
+   changes anything: today each records the transition and leaves the removal to a later `arc teardown --force`, while
+   park from Active already tears down before it writes its pointer record (`parkActive`, `park-resume.ts`). The
+   `worktree-clean` guard (`makeWorktreeCleanGuard`, `lifecycle-guards.ts`) never runs — the one edge declaring it is
+   park from Active's, which `parkActive` bypasses by calling the teardown directly — and `seam-lifecycle` deletes it.
+   `seam-locus` moves onto the function the Errand's exits through `lib/errand/terminal-occupancy.ts`, one of the
+   register row's two direct `git status` readers, and onto the removal check `stale-worktree-sweep.ts`,
+   `branch-gone-recovery.ts`, `lifecycle-residue-sweep.ts`, and `arc errand leave`'s authorization
+   (`authorizePreservation`, `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout through
    `terminal-occupancy.ts` before recording its paused or awaiting-merge state and removes the checkout only afterward;
    the primary, which no exit removes, keeps `git status` wherever `terminal-occupancy.ts` inspects it
    (`settleTerminalOccupancy`). The sweep and branch-gone recovery already read
@@ -885,9 +886,10 @@ None.
   names it (§ Protected files).
 - **Refuse a lock the projection did not set, and widen the pre-write check** (sent by `seam-lifecycle`'s draft-design
   session after its first adversarial pass, 2026-10-12) — integrated: the removal check refuses `locked` for a lock
-  carrying any other reason, the function unlocking only the projection's, so the lock's reason is one constant and this
-  repository's one-off locks carry it (§ The worktree lock; § Coordination, item 2); abandon from Active joins the
-  pre-write check. Anchored checkouts keeping their branch, and activation in a checkout on base, change nothing here.
+  carrying any other reason, the function unlocking only the projection's, so the lock's reason is one constant, which
+  `seam-lifecycle` takes, and this repository's one-off locks carry it (§ The worktree lock; § Coordination, item 2);
+  abandon from Active joins the pre-write check. Anchored checkouts keeping their branch, and activation in a checkout
+  on base, change nothing here.
 - **Upgrade the linked-worktree user-surface signpost to a content view** (routed from `operational-state-docs`) —
   rejected as dissolved: the signpost stub is written by `buildSignpostStub` in `lib/user-surface-migration.ts`, which
   retires with the user-surface rooting at the flip (§ Coordination, item 3), and every worktree then holds the real
