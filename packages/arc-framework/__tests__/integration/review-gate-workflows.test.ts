@@ -71,6 +71,7 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
+    expect(workflow).toContain("scripts/classify-change.sh integration --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");
   });
@@ -313,8 +314,19 @@ describe("trusted review-gate workflows", () => {
     const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
       "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
       "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
-    for (const jobName of ["integration", "e2e"]) expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
+    expect(jobValue(workflow, "e2e").if).toBe(broadSuiteCondition);
     expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
+    // A light run still owes the integration suite when the change touches content it reads that the weight leaves
+    // out, so integration and the build it consumes also run on the integration target.
+    const integrationTarget = "needs.classify.outputs.integration_target == 'true'";
+    expect(jobValue(workflow, "integration").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ));
+    expect(jobValue(workflow, "build").if).toBe("${{ !cancelled() && needs.classify.result == 'success' && " +
+      "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
+      `${integrationTarget} || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && ` +
+      "needs.setup.result == 'success' }}");
   });
 
   it("parses every workflow and pins every external action", async () => {

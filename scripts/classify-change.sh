@@ -40,6 +40,7 @@ Commands:
   planning-lane <base> <head>
                             Classify canonical exact-ref changes as planning or reviewed
   portability --stdin0     Print true when a path can affect the portability suite
+  integration --stdin0     Print true when a path can affect the integration suite on a light run
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head
@@ -99,6 +100,18 @@ cmd_portability() {
     return "${EX_USAGE}"
   fi
   node "${CHANGE_FACTS_MODULE}" portability-paths
+}
+
+# integration --stdin0 — print `true` when any changed path carries content the
+# integration suite reads that a light run's weight leaves unverified, such as
+# ARC prose. Empty input is true: an unknown change set must not silently skip
+# the integration suite.
+cmd_integration() {
+  if [[ "${1:-}" != "--stdin0" ]] || [[ "$#" -ne 1 ]]; then
+    echo "integration: paths must be supplied as NUL-delimited standard input" >&2
+    return "${EX_USAGE}"
+  fi
+  node "${CHANGE_FACTS_MODULE}" integration-paths
 }
 
 # Resolve the event-specific exact change set through the canonical TypeScript
@@ -250,6 +263,10 @@ main() {
     portability)
       shift
       cmd_portability "$@"
+      ;;
+    integration)
+      shift
+      cmd_integration "$@"
       ;;
     tree-hash)
       shift
