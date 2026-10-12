@@ -189,8 +189,8 @@ describe("refusal taxonomy", () => {
 });
 
 describe("toAuditWorkUnit — resolver-result mapping", () => {
-  it("returns null for resolver-empty (lite layout — empty name)", () => {
-    expect(toAuditWorkUnit({ name: "" })).toBeNull();
+  it("records the name supplied by the resolver even when empty", () => {
+    expect(toAuditWorkUnit({ name: "" })).toEqual({ name: "" });
   });
 
   it("returns null when input is null", () => {
