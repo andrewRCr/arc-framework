@@ -164,7 +164,6 @@ it.each(["forming", "verifying"])("gives the first index-reading fixer the %s st
   } });
   repositories.push(root);
   await git("git", ["add", "src/a.ts"], { cwd: root });
-  await git("git", ["write-tree"], { cwd: root });
   const ownIndex = await readFile(join(root, ".git/index"));
   await writeFile(join(root, "src/a.ts"), "forming\n");
   const form = purpose === "forming" ? ["run", "inspect"] : ["gate", "commit"];

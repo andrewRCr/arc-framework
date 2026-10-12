@@ -94,6 +94,7 @@ it("reports an inherited object name as an unknown hook skip", async () => {
   const { root, io } = await fixture({});
   io.git = scriptGitExec([
     { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ failure: { exitCode: 128 } }] },
+    { match: ["rev-parse", "--git-path", "index"], responses: [{ stdout: join(root, ".git/index"), stderr: "" }] },
     { match: ["write-tree"], responses: [{ stdout: "b".repeat(40), stderr: "" }] },
   ]).exec;
   await expect(runDeclaredRequest(root, io, { form: { kind: "pre-commit" }, skip: ["constructor"] }))
