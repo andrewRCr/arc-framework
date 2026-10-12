@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "heavy-slot-wait",
+  "claimId": "540090274460ed54f3e696396bfcce3e",
+  "createdAt": "2026-10-12T18:44:55.109Z",
+  "updatedAt": "2026-10-12T18:44:55.109Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Show the heavy-test slot wait beside a check's cost: the admitted tier states its wait in its log and appends it to the check notice, and the notice keeps every line a command and its runner write; cost stays wall-clock everywhere.",
+  "branch": "chore/heavy-slot-wait",
+  "origin": "inbox",
+  "originEntry": "Report a check's wait for the heavy-test slot apart from its cost",
+  "originEntrySourceDigest": "sha256:cbb4400135c2b4c1e3802b3948749bd44dfb2f18c20a2c701055e36859a9a163",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
