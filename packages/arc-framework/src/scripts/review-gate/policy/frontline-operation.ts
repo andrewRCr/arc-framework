@@ -13,6 +13,7 @@ import {
   FrontlineAdmissionSchema,
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
+import type { FrontlineRetryCeilingOverride } from "../core/frontline-retry-contract.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { BoundFrontlineResponseBinding } from "../core/frontline-response-binding.js";
 import {
@@ -255,7 +256,11 @@ export class FrontlineOperationUncertainError extends Error {
 export class FrontlineOperationRetryError extends Error {
   readonly code = "invalid-input" as const;
 
-  constructor(message: string, readonly reason: "invalid-retry" | "stale-admission" = "invalid-retry") {
+  constructor(
+    message: string,
+    readonly reason: "invalid-retry" | "stale-admission" = "invalid-retry",
+    readonly ceilingOverride?: FrontlineRetryCeilingOverride,
+  ) {
     super(message);
     this.name = "FrontlineOperationRetryError";
   }

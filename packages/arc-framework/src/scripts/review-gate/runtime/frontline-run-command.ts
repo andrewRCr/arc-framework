@@ -37,6 +37,8 @@ import {
   executeBoundedFrontlineCarrier,
 } from "./frontline-execution-boundary.js";
 
+import { withFrontlineRetryAuthorization } from "./frontline-retry-remedy.js";
+
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
@@ -187,7 +189,7 @@ export async function runFrontlineReviewCommand(
       await prepared.release();
     }
   };
-  const terminal = await executeFrontlineRun({
+  const terminal = await withFrontlineRetryAuthorization(owner, admission, () => executeFrontlineRun({
     operationStore: dependencies.operationStore,
     outcomeStore: dependencies.outcomeStore,
     withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
@@ -205,7 +207,7 @@ export async function runFrontlineReviewCommand(
       MAX_TIMER_DELAY_MS,
       (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
     ),
-  });
+  }));
   await recordFrontlineAttempt(dependencies.operationStore, {
     admission,
     outcome: terminal.outcome,

@@ -1,6 +1,9 @@
 /** Fresh-admission continuation for an exact frontline retry refused over its old admission. */
 
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
+import type { FrontlineAdmission } from "../core/frontline-admission.js";
+import { frontlineRetryCeilingOverride } from "../core/frontline-retry-contract.js";
+import type { LaneProgressState } from "../core/operation-state-schema.js";
 import { FrontlineRunRequestSchema } from "../core/frontline-run-command-schema.js";
 import { FrontlineResolveRequestSchema } from "../policy/frontline-command-schema.js";
 import { FrontlineOperationRetryError } from "../policy/frontline-operation.js";
@@ -23,6 +26,7 @@ export function frontlineRetryRemedy(error: unknown, submittedRequest: unknown):
     target: request.target,
     changeSet: admission.routing.facts,
     invocation: { mode: "force", sourceId: source.sourceId },
+    ...(error.ceilingOverride === undefined ? {} : { policyJudgment: { ceilingOverride: error.ceilingOverride } }),
     ...(admission.lineage.kind === "delivery-member"
       ? { vehicle: { ...admission.lineage, head: request.target.headSha } } : {}),
   });
@@ -33,4 +37,26 @@ export function frontlineRetryRemedy(error: unknown, submittedRequest: unknown):
     ["arc", "review", "frontline", "resolve", "-"],
     resolverRequest,
   );
+}
+
+/**
+ * Attach existing conditional authority only to a validated stale-admission refusal.
+ * @param owner - The validated lane owner used to admit the run
+ * @param admission - The exact stored admission
+ * @param run - Durable execution and retry validation
+ * @returns The normal run result; refusals retain their original classification
+ */
+export async function withFrontlineRetryAuthorization<T>(
+  owner: LaneProgressState | null,
+  admission: FrontlineAdmission,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof FrontlineOperationRetryError && error.reason === "stale-admission") {
+      throw new FrontlineOperationRetryError(error.message, error.reason, frontlineRetryCeilingOverride(owner, admission));
+    }
+    throw error;
+  }
 }
