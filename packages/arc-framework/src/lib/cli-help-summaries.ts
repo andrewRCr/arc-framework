@@ -42,7 +42,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "repoint-design": "Advance the current design pointer",
   "errand": "Manage Errand lifecycles",
   "errand next": "Find the next inbox Errand without opening it",
-  "errand check": "Report work units touching target paths",
+  "errand check": "Report work units and Errands touching target paths",
   "errand open": "Open an Errand in an available worktree",
   "errand link": "Link an Errand to its inbox capture",
   "errand leave": "Preserve an Errand and release its checkout",
