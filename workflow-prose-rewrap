@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "workflow-prose-rewrap",
+  "claimId": "b7c8ff5d4e7d1102206fa760b4a26363",
+  "createdAt": "2026-10-12T21:24:03.343Z",
+  "updatedAt": "2026-10-12T21:24:03.343Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "workflow-prose-rewrap",
+  "branch": "chore/workflow-prose-rewrap",
+  "origin": "inbox",
+  "originEntry": "Make the workflow prose pins tolerate a rewrap",
+  "originEntrySourceDigest": "sha256:18e33a5f4f243cb497fd9f2adc115c561b49e4839ab6652fc142d9002933b88c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
