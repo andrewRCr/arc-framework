@@ -148,3 +148,41 @@ it("lints only the exact tracked and untracked filenames containing pattern char
   expect(result.stdout).toContain("Linting: 2 file(s)");
   expect(result.stderr).not.toContain("MD012");
 });
+
+it.each([false, true])("refuses a new nested selector and resumes after repair (Git-ignored=%s)", async ignored => {
+  const directory = `docs/new-config-${ignored ? "ignored" : "untracked"}`;
+  const path = `${directory}/page.md`;
+  const configPath = `${directory}/.markdownlint-cli2.jsonc`;
+  await write(path, "# Invalid\n\n\n");
+  await execa("git", ["add", "--", `:(literal)${path}`], { cwd: root });
+  if (ignored) await write(`${directory}/.gitignore`, ".markdownlint-cli2.jsonc\n");
+  await write(configPath, JSON.stringify({ ignores: ["**/*.md"] }));
+
+  const refused = await lint([path]);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stderr).toContain(configPath);
+  expect(refused.stderr).toContain("Nested configuration must not define ignores");
+  expect(refused.stdout).not.toContain("Linting:");
+
+  await write(configPath, JSON.stringify({ config: { MD012: true } }));
+  const findings = await lint([path]);
+  expect(findings.exitCode).toBe(1);
+  expect(findings.stderr).toContain("MD012");
+  await write(path, "# Repaired\n");
+  const repaired = await lint([path]);
+  expect(repaired.exitCode).toBe(0);
+  expect(repaired.stdout).toContain("Linting: 1 file(s)");
+});
+
+it("refuses an untracked executable config before native lint runs", async () => {
+  const path = "docs/new-executable-config/page.md";
+  const configPath = "docs/new-executable-config/.markdownlint-cli2.cjs";
+  await write(path, "# Page\n");
+  await execa("git", ["add", "--", `:(literal)${path}`], { cwd: root });
+  await write(configPath, "module.exports = { ignores: ['**/*.md'] };\n");
+
+  const result = await lint([path]);
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain(`Unsupported Markdown configuration form: ${configPath}`);
+  expect(result.stdout).not.toContain("Linting:");
+});

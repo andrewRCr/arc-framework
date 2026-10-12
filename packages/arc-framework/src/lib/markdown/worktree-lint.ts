@@ -59,7 +59,6 @@ export interface RunExplicitMarkdownlintOptions extends RunWorktreeMarkdownlintO
 export async function runExplicitMarkdownlint(
   options: RunExplicitMarkdownlintOptions,
 ): Promise<WorktreeMarkdownlintResult> {
-  await loadWorktreeMarkdownConfigurations(options);
   const candidates = options.paths.map(path => validateMarkdownPath(
     relative(options.root, resolve(options.root, path)).split(sep).join("/"),
   ));
@@ -72,6 +71,7 @@ export async function runExplicitMarkdownlint(
     }
   }
   const paths = await validateExplicitMarkdownPaths({ ...options, paths: candidates, operation: "worktree-read" });
+  await loadWorktreeMarkdownConfigurations({ ...options, markdownPaths: paths });
   const exitCode = await options.executeLinter(options.root, ["--no-globs", "--", ...paths.map(path => `:${path}`)]);
   return { exitCode, paths };
 }
