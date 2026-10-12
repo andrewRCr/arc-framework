@@ -79,7 +79,9 @@ describe("evidence applicability workflow fire-points", () => {
       workflow,
       "arc integrate merge {name} --checkpoint {payload.checkpointHandle}",
     )).toBe(1);
-    expect(workflow).toMatch(/state(?:(?!\r?\n[ \t]*(?:>[ \t]*)?\r?\n)[\s\S])+nextAction[\s\S]*supplied\s+next\s+action/iu);
+    expect(workflow).toMatch(softWrappedProse(
+      "Dispatch only on its typed `state` / `nextAction`, render the supplied next action",
+    ));
     expect(workflow).toContain("`queue-not-atomic`");
   });
 

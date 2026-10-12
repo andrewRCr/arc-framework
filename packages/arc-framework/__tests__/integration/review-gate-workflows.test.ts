@@ -256,7 +256,7 @@ describe("trusted review-gate workflows", () => {
     expect(triggers?.workflow_dispatch).toMatchObject({
       inputs: { run_portability_pair: { type: "boolean", default: false } },
     });
-    const targetedJob = sectionBetween(workflow, "  portability-cross-platform:", "  ci_ok:");
+    const targetedJob = JSON.stringify(jobValue(workflow, "portability-cross-platform"));
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
