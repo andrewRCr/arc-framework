@@ -3,7 +3,7 @@
   "slug": "workflow-prose-rewrap",
   "claimId": "07edfab05df2841aab86b285d07351d0",
   "createdAt": "2026-10-12T21:24:59.301Z",
-  "updatedAt": "2026-10-12T21:24:59.301Z",
+  "updatedAt": "2026-10-12T23:40:15.524Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "workflow-prose-rewrap",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the workflow prose pins tolerate a rewrap",
   "originEntrySourceDigest": "sha256:18e33a5f4f243cb497fd9f2adc115c561b49e4839ab6652fc142d9002933b88c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/workflow-prose-rewrap",
+    "headSha": "2da75c6fadd374a43bc8e011e3adc7158a64e3f9"
+  }
 }
