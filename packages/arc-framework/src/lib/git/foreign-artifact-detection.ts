@@ -313,8 +313,8 @@ async function committedMatches(
 }
 
 /** Resolve a ref to a commit SHA once so later probes operate on immutable inputs. */
-async function resolveRefSha(exec: GitExec, ref: string): Promise<string> {
-  const { stdout } = await exec("git", ["rev-parse", "--verify", ref]);
+async function resolveRefSha(exec: GitExec, ref: string, cwd?: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--verify", ref], cwd === undefined ? undefined : { cwd });
   const sha = stdout.trim().split(/\s+/u)[0] ?? "";
   if (sha === "") throw new Error(`Unable to resolve ref: ${ref}`);
   return sha;
@@ -334,6 +334,7 @@ async function uncommittedMatches(
   worktreePath: string,
   targetPaths: string[],
 ): Promise<PathProbeResult> {
+  const headBefore = await resolveRefSha(exec, "HEAD", worktreePath);
   const mergingBefore = await hasMergeInProgress(exec, worktreePath);
   const first = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
   const second = mergingBefore ? [] : await readUncommittedPaths(exec, worktreePath, targetPaths);
@@ -341,7 +342,7 @@ async function uncommittedMatches(
     // A merge index includes incoming changes that status cannot attribute to this work unit.
     return { matchedPaths: [], indeterminate: true, reason: "merge-in-progress" };
   }
-  if (!sameStrings(first, second)) {
+  if (!sameStrings(first, second) || headBefore !== await resolveRefSha(exec, "HEAD", worktreePath)) {
     return {
       matchedPaths: [],
       indeterminate: true,

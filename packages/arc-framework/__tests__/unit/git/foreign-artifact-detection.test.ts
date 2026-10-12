@@ -220,6 +220,30 @@ describe("detectForeignArtifactOverlap", () => {
     },
   );
 
+  it("keeps a merge completed between merge-state reads indeterminate", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a", branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md", state: "Active", identity: "andrew",
+    });
+    let headReads = 0;
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md docs/own.md": { stdout: "docs/own.md\n" },
+      "status --porcelain -- docs/x.md docs/own.md": { stdout: "M  docs/x.md\n" },
+      "rev-parse --verify HEAD": () => ({ stdout: `${(++headReads === 1 ? "3" : "b").repeat(40)}\n` }),
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec, roster, targetPaths: ["docs/x.md", "docs/own.md"], baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([{
+      branch: "feat/wu-a", worktreePath: "/repo.wu-a",
+      matchedPaths: ["docs/own.md"], reason: "uncommitted-probe-disagreement",
+    }]);
+  });
+
   it("does not interpret a failed merge-state probe as an absent merge", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a", branch: "feat/wu-a",
