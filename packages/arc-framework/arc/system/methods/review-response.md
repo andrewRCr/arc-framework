@@ -115,7 +115,9 @@ Follow the planner state; do not infer or combine transitions:
 - For `ready-to-fix`, require the planner's exact unconsumed authorization before the first mutation, apply exactly the
   approved `fix` findings as one review increment, run the caller's review-fix request, and return the candidate target
   plus actual verification scope and evidence. The performed scope must equal or exceed `approvedVerification`; do not
-  use that floor to choose fewer checks. Do not persist the candidate inside this method: return control to the caller's
+  use that floor to choose fewer checks. For a fix to a work unit's Candidate, the convergence verification the advanced
+  Candidate then requires meets a `focused` or `full` floor, so the fix runs only the caller's review-fix request and
+  that suite runs once, at convergence. Do not persist the candidate inside this method: return control to the caller's
   commit interlock. Once the fix is committed and the worktree is clean, the caller replays the exact approved request
   with `verifiedFix` (`reentryCommand: respond-verified-fix`), leaving out any `supersedes`: the fix commit moved the
   reviewed head that supersession requires, so carrying it returns `supersession-refused`. A replay over an uncommitted
