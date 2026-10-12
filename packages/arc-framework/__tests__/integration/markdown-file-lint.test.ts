@@ -41,6 +41,8 @@ beforeAll(async () => {
   await symlink(outside, join(root, "docs/escaping-link.md"), "file");
   await execa("git", ["init", "-q"], { cwd: root });
   await execa("git", ["add", "."], { cwd: root });
+  await execa("git", ["-c", "user.name=Test User", "-c", "user.email=test@example.com",
+    "commit", "-q", "-m", "baseline"], { cwd: root });
   await write("docs/new file.md", "# New file\n");
 });
 
@@ -185,4 +187,20 @@ it("refuses an untracked executable config before native lint runs", async () =>
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain(`Unsupported Markdown configuration form: ${configPath}`);
   expect(result.stdout).not.toContain("Linting:");
+});
+
+it.each(["audit:tables", "audit:emphasis"])("%s rejects a final symlink and audits its regular target", async script => {
+  const run = (path: string) => execa("npm", ["run", "-s", script, "--", path], {
+    cwd: root, reject: false, timeout: 30_000, env: { FORCE_COLOR: "0" },
+  });
+  const refused = await run("docs/contained-link.md");
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stderr).toContain("docs/contained-link.md");
+  expect(refused.stderr).toContain("not a regular file");
+  expect(refused.stdout).not.toContain("baseline ");
+
+  const repaired = await run("docs/valid.md");
+  expect(repaired.exitCode).toBe(0);
+  expect(repaired.stdout).toMatch(/baseline [a-f0-9]{40}/u);
+  expect(repaired.stdout).toContain("unchanged docs/valid.md");
 });

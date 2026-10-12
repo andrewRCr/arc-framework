@@ -70,7 +70,7 @@ export async function runExplicitMarkdownlint(
       );
     }
   }
-  const paths = await validateExplicitMarkdownPaths({ ...options, paths: candidates, operation: "worktree-read" });
+  const paths = await validateExplicitMarkdownPaths({ ...options, paths: candidates, operation: "lint-read" });
   await loadWorktreeMarkdownConfigurations({ ...options, markdownPaths: paths });
   const exitCode = await options.executeLinter(options.root, ["--no-globs", "--", ...paths.map(path => `:${path}`)]);
   return { exitCode, paths };

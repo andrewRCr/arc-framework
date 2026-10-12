@@ -38,7 +38,8 @@ export interface MarkdownSelectionValidationResult {
 export interface ValidateExplicitMarkdownPathsOptions {
   readonly root: string;
   readonly paths: readonly string[];
-  readonly operation: "mutate" | "worktree-read";
+  /** Only lint reads may follow a final symlink; migration reads require regular-file Git blobs. */
+  readonly operation: "mutate" | "worktree-read" | "lint-read";
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
   readonly realpath: (path: string) => Promise<string>;
@@ -166,7 +167,9 @@ export async function validateExplicitMarkdownPaths(
       }
       finalStat = stat;
     }
-    if (finalStat === undefined || (!finalStat.isFile() && !finalStat.isSymbolicLink()) || finalStat.isDirectory()) {
+    if (finalStat === undefined
+      || !isSelectedMarkdownFile(finalStat, options.operation)
+      || finalStat.isDirectory()) {
       throw selectionError(`Markdown path is not a regular file: ${path}`, "markdown.not-file");
     }
 
@@ -180,6 +183,13 @@ export async function validateExplicitMarkdownPaths(
     if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;
+}
+
+function isSelectedMarkdownFile(
+  stat: MarkdownPathStat,
+  operation: ValidateExplicitMarkdownPathsOptions["operation"],
+): boolean {
+  return stat.isFile() || (operation === "lint-read" && stat.isSymbolicLink());
 }
 
 async function assertRegularFileTarget(

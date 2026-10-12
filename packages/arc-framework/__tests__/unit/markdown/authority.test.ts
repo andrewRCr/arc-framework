@@ -160,9 +160,9 @@ describe("Markdown authority", () => {
     ["/repo/docs/target.md", "file", null],
     ["/repo/docs", "directory", "markdown.not-file"],
     ["/outside/target.md", "file", "markdown.outside-repository"],
-  ])("validates a read-only file symlink target %s", async (target, kind, code) => {
+  ])("validates a lint-read file symlink target %s", async (target, kind, code) => {
     const options = {
-      root: "/repo", paths: ["docs/link.md"], operation: "worktree-read" as const,
+      root: "/repo", paths: ["docs/link.md"], operation: "lint-read" as const,
       exec: vi.fn().mockResolvedValue({ stdout: "docs/link.md\n" }),
       lstat: async (path: string) => ({
         isFile: () => path === target && kind === "file",
