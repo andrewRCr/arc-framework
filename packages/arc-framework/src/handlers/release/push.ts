@@ -52,7 +52,7 @@ import type {
   PushabilityResult,
 } from "../../lib/git/pushability.js";
 import type { PushInterlock, ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
-import type { WorktreeFetchTimeoutError } from "../../lib/git/worktree-sync.js";
+import type { WorktreeFetchFailedError, WorktreeFetchTimeoutError } from "../../lib/git/worktree-sync.js";
 
 const SET_UPSTREAM_FLAGS: ReadonlySet<string> = new Set(["-u", "--set-upstream"]);
 
@@ -168,14 +168,14 @@ type ReleasePushAuditDeps = Pick<ReleasePushDeps,
   "cwd" | "identity" | "argv" | "settings" | "writeStderr" | "appendAudit">;
 
 /**
- * Audit a fetch timeout that prevented admission to the pushability matrix.
+ * Audit a fetch timeout or failure that prevented admission to the pushability matrix.
  * @param deps - Resolved invocation and audit boundary.
- * @param error - Observed materializing-fetch timeout, including retry guidance.
+ * @param error - Observed materializing-fetch timeout or failure, including retry guidance.
  * @returns The existing pushability-precheck refusal code without attempting publication.
  */
-export async function refuseReleasePushFetchTimeout(
+export async function refuseReleasePushFetchFailure(
   deps: ReleasePushAuditDeps,
-  error: WorktreeFetchTimeoutError,
+  error: WorktreeFetchTimeoutError | WorktreeFetchFailedError,
 ): Promise<ReleasePushResult> {
   const wu = await resolveActiveWu({ cwd: deps.cwd });
   return refuse(
