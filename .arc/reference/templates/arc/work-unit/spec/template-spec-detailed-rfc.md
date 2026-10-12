@@ -38,7 +38,7 @@ What the design must achieve — the outcomes a correct design satisfies. Focus 
 
 ## Non-Goals · `omit-when-paired`
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this design explicitly won't address. Bounds the design space and the review.
 

@@ -15,9 +15,9 @@ and required definition when replacing a planning reference. Preserve technical 
 describe unshipped prerequisites as expected contracts with availability conditions. Apply
 [spec-review][spec-review]'s common reader checks; metadata and amendment anchors supply tracking, not missing design.}
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`. The freeze governs
-the **scope boundary** clause alone — intent and the success signal keep revising in place, and amendment lines
-append below this paragraph._
+_Editable in place until activation, then frozen; changes after that append:
+`Amended YYYY-MM-DD — <delta> — <prompt>`. The freeze governs the **scope boundary** clause alone — intent and the
+success signal keep revising in place, and amendment lines append below this paragraph._
 
 {If the change needs a recorded decision or a scope you'll defend later, it has outgrown the floor — author
 an `outline` instead.}
