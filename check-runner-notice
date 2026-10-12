@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-runner-notice",
+  "claimId": "6069d5f64e99b51e593eb0d034b08a32",
+  "createdAt": "2026-10-12T12:52:02.353Z",
+  "updatedAt": "2026-10-12T12:52:02.353Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let a machine's check runner report where a routed check ran, and show it beside the check's outcome in arc check's summary",
+  "branch": "chore/check-runner-notice",
+  "origin": "inbox",
+  "originEntry": "Show where a routed check ran in `arc check`'s summary",
+  "originEntrySourceDigest": "sha256:450623307ba88bef74a158c7ab1544236ce6fa7a87436a5a05de754a14a67245",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
