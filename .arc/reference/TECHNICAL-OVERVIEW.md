@@ -176,8 +176,9 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at the
-  lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  documentation lint. A change to ARC prose or other content the integration suite reads still runs that suite, which
+  runs at merge rather than at push. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at
+  the lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
   enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
   no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Linux runner fleet**: the repository variable `ARC_CI_LINUX_RUNNER` selects one class at a time. `arc-ci-mini`

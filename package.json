@@ -13,7 +13,7 @@
     "lint:md:markdownlint": "npm run -s lint:md:dependencies && node --import tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
     "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
     "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
-    "lint:md:file": "markdownlint-cli2 --no-globs",
+    "lint:md:file": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-file.ts",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
     "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",

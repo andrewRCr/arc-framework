@@ -57,7 +57,8 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   const cost = renderCost(check);
   const log = check.logPath && failed ? `; log: ${check.logPath}` : "";
   const kind = ci ? "" : ` [${check.kind}]`;
-  const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${difference}${rewrites}${cost}${log}`;
+  const notice = check.notice === undefined ? "" : ` (${check.notice})`;
+  const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${notice}${difference}${rewrites}${cost}${log}`;
   const tail = failed && check.output
     ? `\n${check.output.split(/\r?\n/u).slice(-20).join("\n").slice(-8192)}` : "";
   return `${heading}${tail}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;

@@ -10,6 +10,45 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Declare ghost mode's two families in the ref conformance fixture when it places them**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Settled inputs, "The split" and "The profiles".
+
+- _Observation:_ the ref backend's conformance fixture runs with no exclusions beyond the reference backend's, but for
+  `project-machinery` and `constitution`, which stay tracked in the standard profile and get a ref only when ghost mode
+  stores them (`profiles` in `FAMILY_REGISTRY`) (`draft-storage-ref-backend.md` § Decisions, Verification).
+
+- _Approach:_ when ghost mode places the two families on refs, it adds them to the ref fixture's declared families.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Wire the state-remote designation's ghost cases, so a ghost install never designates the code remote**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Coordination, "`storage-ref-backend` — the state remote's per-clone designation and the local-only
+  backend (C7)", and § Settled inputs, "The install profile".
+
+- _Observation:_ in `storage-ref-backend`'s designation rule, a tracked pointer to a backing repository makes the
+  store's own remote the only candidate, so nothing sets `push` on the code remote or asks about it. Ghost mode's
+  local-only pointer, read from `config-storage-architecture`'s per-machine tier, and a ghost install without one take
+  the same rule, since ghost storage is always the separate directory (D19) (`draft-storage-ref-backend.md` § Decisions,
+  Layouts and remotes).
+
+- _Approach:_ wire both cases with the install profile and the per-machine pointer, and add their tests beside the
+  ref backend's "who designates, case by case" integration tests.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+---
+
 ## Problem / Motivation
 
 ADR-035 moves state off the tracked tree on every backend, which leaves the rest of ARC's footprint: its machinery

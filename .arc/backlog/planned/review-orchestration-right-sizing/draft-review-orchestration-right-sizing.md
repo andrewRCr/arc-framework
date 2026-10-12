@@ -423,6 +423,29 @@
 
 - _Captured during:_ `storage-contract` create-spec, 2026-10-01.
 
+### `[ ]` **Render agent-composed finding reports CLI-side, as code review's already are**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Hold the adversarial-pass recording verb to one call" — the CLI surface planning and
+  verification passes record through, beside which a render verb for their finding reports would sit.
+
+- _Observation:_ `arc review respond -` renders code review's disposition report and evidence text, but planning and
+  verification passes under `adversarial-review`, and author self-review, have the agent compose the same report by
+  hand from the `disposition-report` method's Markdown shape — ordering, labels, grade symbols, and separators
+  included. That is the tension `strategy-procedure-evolution` Principles 1 and 6 name: a Markdown template is
+  untestable, and the agent evaluates a deterministic ordering. The `disposition-report-scan` Errand concentrated the
+  shape in one method, so a later compile has one site to replace, and pinned it to the renderer with a parity test.
+
+- _Approach:_ a neutral render verb that takes the agent's typed finding judgments — title, issue, action, detail,
+  verified grade, verdict, disposition, open questions, locus, verification references — and returns the report and
+  evidence texts, reusing the code-review renderer's core. Keep it free of code-review records and response machinery,
+  which the archived `review-signal-convergence` decision bars planning review from acquiring: the input is
+  caller-supplied, not a durable producer result. Once it ships, the method's shape block documents the verb's output
+  or is generated from it (Principle 4).
+
+- _Captured during:_ `disposition-report-scan` Errand, strategy check before commit, 2026-10-10.
+
 ### `[ ]` **Admit the fix-check finding sets, rounds, and finding origin in the adversarial-pass record**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
@@ -538,6 +561,30 @@
 
 - _Captured during:_ `spec-reader-standard` after PR #790 merged, before archival, 2026-10-03; requested integration
   UX/DX and wall-clock assessment. Hosted clean result: PR #790 issue comment 5975175841; merge `dffe40fb5ec28d5e213c29d3bb83b8c0279154d7`.
+
+### `[ ]` **Let identical-tree host CI evidence discharge the local post-reconcile check**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`),
+  housekeep drain (2026-10-11).
+
+- _Shapes:_ inbound "Make settled singleton integration a short, measurable path to merge".
+
+- _Observation:_ Once check passes persist and CI matches the tree it tested, an overlapping reconcile still verifies
+  one tree twice: host CI on the pull request's test merge, and the local `arc check new-head --from <pre-merge head>`
+  that `DEV-RULES.ARC` § Review-Increment Invariant names. `new-head` now runs the whole push-deadline set (it
+  replaced the earlier fast tier), so the repeat is expensive. Trimming its selection is unsound: every selected
+  check's inputs changed on both sides of the merge. No seam accepts host evidence — `arc check` never reads the host,
+  pass keys include runtime fingerprints a CI runner will not match, host jobs are coarser than check ids, and the
+  pre-push hook would have to accept the same evidence.
+
+- _Approach:_ A host-evidence type bound to the tested tree (declaration digest, workflow identity, required checks
+  green) that the reuse path the hook consults can accept, plus an amendment to the invariant's named local command.
+  Local enforcement accepting a remote attestation is an authority change, so it is design work, not an Errand.
+
+- _Evidence:_ `postmortems/2026-10-10-quality-gate-hooks-bridge/BRIDGE-LANDING/DUPLICATE-MERGED-TREE-EVIDENCE.json`,
+  `NEW-HEAD-CHECKS.json`.
+
+- _Captured during:_ housekeep triage of the `quality-gate-hooks` landing inefficiencies, 2026-10-10.
 
 ### `[ ]` **Make `arc review resolve` and hosted admission recognize a carried Errand review**
 

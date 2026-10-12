@@ -108,6 +108,37 @@
 
 - _Captured during:_ `quality-gate-hooks` task generation, Pass 3 grounding audit, 2026-10-08.
 
+### `[ ]` **Use the harness-design ablation study as a method source for the eval-harness research pass**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: workflow-eval-harness`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Problem's ungrounded design space (fixtures, assertion versus judge scoring, drift tolerance) and
+  § Proposed Direction step 1's survey of evaluation idioms.
+
+- _Observation:_ Fan et al., "An Empirical Study of Harness Design for Coding Agents" (arXiv 2609.20804, Sept
+  2026) is a worked instance of most of what the research pass must settle. It holds a coding harness's loop fixed
+  and ablates one component at a time (planning, action space, context management) across 176 matched settings on
+  SWE-Bench Verified and Terminal-Bench 2.1, reporting success and cost for each setting.
+
+- _Approach:_ read it as a method reference, not as findings about ARC. Transferable pieces:
+    - single-component ablation over a pinned fixture set, because a whole-system comparison conflates mechanisms;
+    - task-paired outcomes scored with an exact McNemar test and Benjamini–Hochberg correction per comparison
+      family;
+    - LLM-judge turn-phase labeling from a closed label set with priority rules and reason-before-label ordering
+      (its Fig. 42), validated against three human annotators (~15.6k labels, 94% agreement, κ≈0.93); an ARC
+      analog could label orientation / ceremony / implementation / verification / gate turns, giving
+      `agent-context-optimization` a behavioral measure beside token counts;
+    - earliest-failed-stage attribution, so a downstream symptom cannot mask an upstream failure;
+    - cost reported beside success, since several of its effects were cost-only.
+
+- _Cautions:_ with 89 Terminal-Bench tasks, most contrasts missed significance and the paper fell back on
+  directional consistency across models and budgets. A small ARC seed suite will be in the same position, so
+  deterministic assertions should carry regression detection and judge scores should be read directionally. Each
+  setting ran once at temperature 0 with no variance estimate; evals over a stochastic agent need repeated runs.
+
+- _Captured during:_ read-only evaluation of the paper for ARC applicability, 2026-10-11; capture requested by the
+  Owner.
+
 ---
 
 ## Problem

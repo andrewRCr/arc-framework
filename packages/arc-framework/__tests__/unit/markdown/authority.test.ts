@@ -156,6 +156,28 @@ describe("Markdown authority", () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["/repo/docs/target.md", "file", null],
+    ["/repo/docs", "directory", "markdown.not-file"],
+    ["/outside/target.md", "file", "markdown.outside-repository"],
+  ])("validates a lint-read file symlink target %s", async (target, kind, code) => {
+    const options = {
+      root: "/repo", paths: ["docs/link.md"], operation: "lint-read" as const,
+      exec: vi.fn().mockResolvedValue({ stdout: "docs/link.md\n" }),
+      lstat: async (path: string) => ({
+        isFile: () => path === target && kind === "file",
+        isDirectory: () => path === target ? kind === "directory" : !path.endsWith("link.md"),
+        isSymbolicLink: () => path.endsWith("link.md"),
+      }),
+      realpath: async () => target,
+    };
+    if (code === null) {
+      await expect(validateExplicitMarkdownPaths(options)).resolves.toEqual(["docs/link.md"]);
+    } else {
+      await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code });
+    }
+  });
+
   it("fails closed when current-install relationship evidence is missing", async () => {
     const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
 
@@ -309,7 +331,7 @@ describe("Markdown authority", () => {
       root: "/repo",
       operation: "worktree-read" as const,
       exec: scriptGitExec([
-        { match: ["ls-files", "--error-unmatch", "--", "README.md"],
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)README.md"],
           responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
         { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
           responses: [{ stdout: "" }] },

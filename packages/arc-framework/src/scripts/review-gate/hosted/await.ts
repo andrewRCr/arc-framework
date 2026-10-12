@@ -25,6 +25,7 @@ import {
   type HostedRequestHandle,
 } from "./request.js";
 import { ReviewAttemptSchema } from "../policy/review-policy-attempt.js";
+import { HostedGitHubReadError } from "./github.js";
 
 const HostedFindingNavigationShape = {
   sourceOrdinal: ReviewFindingSourceOrdinalSchema,
@@ -192,6 +193,13 @@ const HostedObservationSchema = z.discriminatedUnion("kind", [
 ]);
 export type HostedObservation = z.infer<typeof HostedObservationSchema>;
 
+/** A GitHub read that failed while polling; the review it was reading may still be in progress. */
+const HostedReadFailureSchema = z.strictObject({
+  kind: z.enum(["rate-limited", "transient-unavailable"]),
+  detail: z.string().min(1),
+});
+type HostedReadFailure = z.infer<typeof HostedReadFailureSchema>;
+
 const HostedAwaitRequestShape = {
   schemaVersion: z.literal(1),
   handle: HostedRequestHandleSchema,
@@ -268,6 +276,7 @@ const HostedAwaitNonTerminalResultSchema = z.union([
     nextAction: z.literal("await"),
     action: HostedAwaitActionSchema,
     elapsedMs: z.number().nonnegative(),
+    readFailure: HostedReadFailureSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -276,6 +285,7 @@ const HostedAwaitNonTerminalResultSchema = z.union([
     action: HostedAwaitActionSchema,
     ageMs: z.number().nonnegative(),
     attentionAfterMs: z.number().int().positive(),
+    readFailure: HostedReadFailureSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -385,6 +395,7 @@ function attentionRequired(
   handle: HostedRequestHandle,
   ageMs: number,
   attentionAfterMs: number,
+  readFailure: HostedReadFailure | undefined,
 ): HostedAwaitResult {
   return {
     ...base(handle),
@@ -393,7 +404,13 @@ function attentionRequired(
     action: hostedAwaitAction(handle),
     ageMs,
     attentionAfterMs,
+    ...(readFailure === undefined ? {} : { readFailure }),
   };
+}
+
+function retryableReadFailure(error: unknown): HostedReadFailure | undefined {
+  if (!(error instanceof HostedGitHubReadError) || error.kind === "terminal-failure") return undefined;
+  return { kind: error.kind, detail: error.message.trim() || error.kind };
 }
 
 async function observeHostedReview(
@@ -487,26 +504,36 @@ export async function awaitHostedReview(
       nextAction: "stop",
     };
   }
+  // A failed GitHub read keeps the poll going and is reported if the call ends with the review still pending.
+  let readFailure: HostedReadFailure | undefined;
+  const poll = async (signal: AbortSignal): Promise<BoundedWaitAttempt<HostedAwaitResult>> => {
+    try {
+      const observation = await observeHostedReview(observer, request.handle, signal);
+      readFailure = undefined;
+      return observation;
+    } catch (error) {
+      const failure = retryableReadFailure(error);
+      if (failure === undefined) throw error;
+      readFailure = failure;
+      return { kind: "continue" };
+    }
+  };
   const initialAgeMs = requestAgeMs(request.handle, dependencies.clock.now());
   if (initialAgeMs >= attentionAfterMs && request.continueAfterAttention !== true) {
+    const attention = () => attentionRequired(
+      request.handle,
+      requestAgeMs(request.handle, dependencies.clock.now()),
+      attentionAfterMs,
+      readFailure,
+    );
     return boundedWait<HostedAwaitResult>({
       timeoutMs: request.timeoutMs,
       pollIntervalMs: request.pollIntervalMs,
       clock: dependencies.clock,
-      deadline: () => attentionRequired(
-        request.handle,
-        requestAgeMs(request.handle, dependencies.clock.now()),
-        attentionAfterMs,
-      ),
+      deadline: attention,
       attempt: async ({ signal }) => {
-        const observation = await observeHostedReview(observer, request.handle, signal);
-        return observation.kind === "continue"
-          ? { kind: "return", value: attentionRequired(
-              request.handle,
-              requestAgeMs(request.handle, dependencies.clock.now()),
-              attentionAfterMs,
-            ) }
-          : observation;
+        const observation = await poll(signal);
+        return observation.kind === "continue" ? { kind: "return", value: attention() } : observation;
       },
     });
   }
@@ -520,16 +547,16 @@ export async function awaitHostedReview(
     deadline: (elapsedMs): HostedAwaitResult => {
       const ageMs = requestAgeMs(request.handle, dependencies.clock.now());
       return ageMs >= attentionAfterMs
-        ? attentionRequired(request.handle, ageMs, attentionAfterMs)
+        ? attentionRequired(request.handle, ageMs, attentionAfterMs, readFailure)
         : {
             ...base(request.handle),
             state: "pending",
             nextAction: "await",
             action: hostedAwaitAction(request.handle),
             elapsedMs,
+            ...(readFailure === undefined ? {} : { readFailure }),
           };
     },
-    attempt: ({ signal }): Promise<BoundedWaitAttempt<HostedAwaitResult>> =>
-      observeHostedReview(observer, request.handle, signal),
+    attempt: ({ signal }) => poll(signal),
   });
 }

@@ -331,6 +331,39 @@
 - _Captured during:_ `delivery-post-landing-conflict-recovery` pre-publication review, 2026-09-18, after the
   Owner rejected both offered frontline scopes.
 
+### `[ ]` **Confirm before a whole-change review of a change past the chunking thresholds**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Operator Selection Override (D1.5) — where an Owner's source selection binds, so a later call
+  cannot fall to the default — and the held entry "Give an oversized frontline target a typed route instead of
+  operator reasoning", which this extends to the standard lane as a confirmation rather than a refusal.
+
+- _Observation:_ `arc review chunking resolve` is read-only by design, and no command that admits a review consults
+  it. `frontline resolve` has no chunking check. `review resolve` takes the caller's `scopeSelection` and treats a
+  missing one as the whole change (`policy/review-policy-driver.ts:58`), and `review hosted request` does not measure
+  the change. So the threshold holds only if the agent reads one result and obeys it before a call that admits
+  regardless. Seen at least twice for frontline, most recently a resolve in `seam-record-kinds` after chunking
+  resolution had tripped. Also seen, less certainly, for a standard review: without `invocation: force` it fell to the
+  default provider over a change past the thresholds.
+
+- _Approach (Owner framing, 2026-10-11):_ chunking stays advisory — a confirmation, not a block. The human-UI analogue
+  is an "are you sure?" naming the measured size, the thresholds it trips, and that the selected source will review
+  the whole change because it cannot take a chunk or a narrower scope. Examples are a hosted pull-request review and
+  the CodeRabbit CLI's committed diff. A passive diagnostic on a successful result is exactly what agents miss, so the
+  agent-side form is a typed confirmation stop, like `approval-required / obtain-ceiling-override`. Passing it takes
+  one more call with an explicit acknowledgment, which can be given on purpose but not by accident. Record the
+  acknowledgment so the same target does not ask again.
+
+- _Open:_ who may acknowledge — the agent, the Owner, or either depending on vehicle. An Errand has no chunk path at
+  all, since its review scope is always the whole change. Also open: where an Owner's source selection binds, so that
+  a later call without `force` cannot fall to the default; and how this composes with delivery bindings and
+  `chunk-scope-binding`'s automated scopes. Candidate homes: `review-source-authority` first, whose purpose makes
+  operator selection and provider capabilities authoritative and removes unsupported scope rather than advertising
+  it; then `review-request-contracts` (caller-held request derivation) or `review-orchestration-right-sizing`.
+
+- _Captured during:_ the `cli-compile-cache` Errand's close, from a `seam-record-kinds` report, 2026-10-11.
+
 ### `[ ]` **Derive what settled the standard lane for the integration interlock's review line**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30), design half of "Stop the integration interlock

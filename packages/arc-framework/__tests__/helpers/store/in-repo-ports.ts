@@ -1,7 +1,7 @@
 /** Faithful filesystem and Git dependencies for repository-store fixtures. */
 import * as fs from "node:fs/promises";
 import type { GitExec, GitExecInput } from "../../../src/lib/git/exec.js";
-import { atomicWriteFile } from "../../../src/lib/fs.js";
+import { atomicCreateFile, atomicWriteFile } from "../../../src/lib/fs.js";
 import type { StorePorts } from "../../../src/lib/store/ports.js";
 
 export function testStorePorts(checkoutRoot: string, exec: GitExec, execInput: GitExecInput): StorePorts {
@@ -11,7 +11,7 @@ export function testStorePorts(checkoutRoot: string, exec: GitExec, execInput: G
       readFile: (path) => fs.readFile(path, "utf8"),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }),
       lstat: fs.lstat, mkdir: fs.mkdir, writeFile: atomicWriteFile,
-      exclusiveCreate: (path, content) => fs.writeFile(path, content, { flag: "wx", encoding: "utf8" }),
+      exclusiveCreate: atomicCreateFile,
       unlink: fs.unlink,
     },
     clock: () => new Date("2026-01-01T00:00:00Z"),

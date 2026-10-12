@@ -26,6 +26,22 @@
   it obtains that mapping for a conflict-resolving rebase. Captures start at the flip, so the remap is needed only
   from then.
 
+### `[ ]` **Have `carry` lease a rewritten branch on the state push, and keep store history immutable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: history-policy`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its § Open, "The lease" and "The pre-push backstop".
+
+- _Observation:_ `storage-ref-backend`'s `push({ carry? })` names a code ref that rides the state push, and may name the
+  remote tip it expects, pushed as `--force-with-lease=<ref>:<tip>`, so a branch rewritten under `rewrite-with-lease`
+  rides it too; a carried ref's own rejection ends the code leg and the state leg pushes alone. Store history stays
+  immutable (A4), and the pre-push hook treats state refs apart from code (`draft-storage-ref-backend.md` § Decisions,
+  Sync).
+
+- _Approach:_ settle the lease against `carry`'s expected tip, and the backstop's state-ref rule with it.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
 ---
 
 ## Problem / Motivation

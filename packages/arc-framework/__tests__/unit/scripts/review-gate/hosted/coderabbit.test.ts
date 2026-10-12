@@ -1644,8 +1644,9 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
     const rateLimited = new CodeRabbitHostedAdapter(port({
       createIssueComment: () => Promise.resolve({ kind: "rate-limited" }),
     }));
+    const readFailure = new HostedGitHubReadError("transient-unavailable");
     const transient = new CodeRabbitHostedAdapter(port({
-      readReviews: () => Promise.reject(new HostedGitHubReadError("transient-unavailable")),
+      readReviews: () => Promise.reject(readFailure),
     }));
     const malformed = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "" })]),
@@ -1653,7 +1654,8 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
     }));
 
     await expect(rateLimited.request(target, "complete")).resolves.toEqual({ kind: "rate-limited" });
-    await expect(transient.observeHandle(target)).resolves.toEqual({ kind: "transient-unavailable" });
+    // A failed GitHub read is left to the waiting caller; only the provider's own signals conclude a review.
+    await expect(transient.observeHandle(target)).rejects.toBe(readFailure);
     await expect(malformed.observeHandle(target)).resolves.toEqual({
       kind: "terminal-failure",
       reason: "provider-thread-finding-severity-unrecognized: "
