@@ -72,8 +72,17 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
       else temporary.delete(ref);
       return { stdout: "" };
     }
+    if (subcommand === "ls-remote") {
+      if (sides.remoteReachable === false) {
+        throw gitFailure(args, 128, "fatal: unable to access 'origin': connection refused");
+      }
+      return { stdout: sides.remote === null ? "" : `${sides.remote}\trefs/heads/${BRANCH}\n` };
+    }
     if (subcommand === "push") {
-      if (sides.staleLease === true) throw gitFailure(args, 1, "! [rejected] (delete) -> chore (stale info)");
+      if (sides.staleLease === true) {
+        sides.remote = MOVED;
+        throw gitFailure(args, 1, "! [rejected] (delete) -> chore (stale info)");
+      }
       sides.remote = null;
       return { stdout: "" };
     }
