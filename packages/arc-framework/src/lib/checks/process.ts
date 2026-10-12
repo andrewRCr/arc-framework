@@ -49,9 +49,9 @@ async function readNotice(noticeFile: string): Promise<string | undefined> {
 
 /**
  * Spawn a check through the same native executable and environment boundary as local requests. The command, and
- * any runner wrapping it, may write lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
- * names; they are joined into one short notice. The notice is best effort: when no file can be created, the command
- * runs without one.
+ * any runner wrapping it, may append lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
+ * names; each appends rather than replacing the file, so neither erases the other's, and the lines are joined into
+ * one short notice. The notice is best effort: when no file can be created, the command runs without one.
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
