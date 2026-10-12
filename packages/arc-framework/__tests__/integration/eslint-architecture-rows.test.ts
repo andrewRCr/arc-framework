@@ -48,8 +48,8 @@ const staticBlockLoaders = [
 const cases = [
   ["src/handlers/user.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
   ["src/lib/sync-output.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
-  ["src/lib/terminal.ts", 'import "neverthrow";', "arc/architecture-imports"],
-  ["src/lib/command-input/prompt-renderer.ts", 'import "neverthrow";', "arc/architecture-imports"],
+  ["src/lib/terminal.ts", 'import "./layout/schema.js";', "arc/architecture-imports"],
+  ["src/lib/command-input/prompt-renderer.ts", 'import "../layout/schema.js";', "arc/architecture-imports"],
   ["src/lib/kernel/canonical/canonical-json.ts", 'import "zod";', "no-restricted-imports"],
   ["src/lib/config/status-reader.ts", 'parseMetaProjectionRecord("record");', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'parseIdentifierList("identifiers");', "no-restricted-syntax"],
@@ -92,20 +92,20 @@ describe("actual architecture table enforcement", () => {
       ruleId === "arc/architecture-imports" && message.includes("clack"))).toHaveLength(1);
   });
   it.each(staticBlockLoaders)("retains a composed ban across a static block: %s", async (text) => {
-    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "./layout/schema.js"), {
       filePath: resolve(packageRoot, "src/lib/terminal.ts"),
     });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.filter(({ ruleId, message }) =>
-      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toHaveLength(1);
+      ruleId === "arc/architecture-imports" && message.includes("layout-private"))).toHaveLength(1);
   });
   it.each(additionalNodeLoaders)("retains other composed restrictions for a genuine Node loader: %s", async (text) => {
-    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "./layout/schema.js"), {
       filePath: resolve(packageRoot, "src/lib/terminal.ts"),
     });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.some(({ ruleId, message }) =>
-      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toBe(true);
+      ruleId === "arc/architecture-imports" && message.includes("layout-private"))).toBe(true);
   });
   it.each(clackReferences)("confines a supported raw prompt acquisition: %s", async (text) => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });

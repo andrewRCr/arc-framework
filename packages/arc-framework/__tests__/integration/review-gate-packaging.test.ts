@@ -73,7 +73,6 @@ describe("review-gate package boundary", () => {
       "commander",
       "execa",
       "js-yaml",
-      "neverthrow",
       "node-diff3",
       "semver",
       "string-width",
