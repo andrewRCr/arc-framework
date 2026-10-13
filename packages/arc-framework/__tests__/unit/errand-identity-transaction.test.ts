@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { makeGitProcessError, scriptGitExec } from "../helpers/git-exec-fake.js";
-import { reconcileIdentityObjects } from "../../src/lib/errand/identity-transaction.js";
+import { reconcileIdentityObjects } from "../../src/lib/errand/identity-object-reconcile.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import type { ErrandRecordIO } from "../../src/lib/errand/ref-tree.js";
