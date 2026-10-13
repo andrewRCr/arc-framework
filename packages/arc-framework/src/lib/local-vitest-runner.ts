@@ -17,6 +17,19 @@ export const ARC_CONTRACT_SUITES = [
   "pr-open-extensions",
   "review-gate-workflows",
   "ci-check-plumbing",
+  "markdown/descriptor-spacing",
+  "task-list/scanner",
+  "work-unit/boundary-fit-workflow-contract",
+  "work-unit/decompose-doctrine-contract",
+  "work-unit/decompose-workflow-contract",
+  "work-unit/decompose-v3-authority-boundary",
+  "work-unit/decompose-v3-repository-plan",
+  "work-unit/decompose-v3-topology",
+  "work-unit/generate-tasks-delivery-authoring-contract",
+  "work-unit/deliver-stack-entry-contract",
+  "work-unit/delivery-branch-namespace",
+  "scripts/integration/checkpoint-lifecycle-artifacts",
+  "scripts/review-gate/core/disposition-report",
 ] as const;
 
 /**

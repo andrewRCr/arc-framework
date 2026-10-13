@@ -314,6 +314,8 @@ checks:
     gate: push
     inputs:
       - '**'
+      - '!.arc/**/*.md'
+      - '!packages/arc-framework/arc/**/*.md'
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
