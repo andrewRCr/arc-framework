@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdown-underwrap",
+  "claimId": "18656fb5d85572b35ebd75e5ecb8a815",
+  "createdAt": "2026-10-13T20:53:54.415Z",
+  "updatedAt": "2026-10-13T20:53:54.415Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Check changed staged Markdown for avoidable under-wrapping at the commit gate, with min 75/max 120 and the prototype structural exclusions.",
+  "branch": "chore/markdown-underwrap",
+  "origin": "inbox",
+  "originEntry": "Add the changed-file Markdown under-wrap check",
+  "originEntrySourceDigest": "sha256:7c0c12d5313d7671f7f7aa45ee23fe5c7983e17cdaf5f970011afffea762c08a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
