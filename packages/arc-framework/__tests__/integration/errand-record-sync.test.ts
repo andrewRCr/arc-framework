@@ -20,7 +20,7 @@ import {
   execFileAsync,
 } from "../helpers/integration.js";
 import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
-import { errandsRef } from "../../src/lib/errand/ref-tree.js";
+import { errandsRef, readTreeEntries, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import {
@@ -211,6 +211,64 @@ describe("errand-ref reconcile-push", () => {
     expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout)
       .toBe((await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout);
   });
+
+  it("refuses criss-cross bases without resurrecting a deletion and retries after history repair", async () => {
+    const alpha = recordFor("alpha");
+    const beta = recordFor("beta", { claimId: "b".repeat(32) });
+    await writeIdentity(ioA, alpha);
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+    await writeIdentity(ioB, beta);
+    const aRoot = (await ioA.exec("git", ["rev-parse", REF])).stdout.trim();
+    const bRoot = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+    await ioA.exec("git", ["fetch", repoB, `${REF}:refs/test/b-root`]);
+    await ioB.exec("git", ["fetch", "origin", `${REF}:refs/test/a-root`]);
+    const union = new Map([
+      ...await readTreeEntries(ioA.exec, aRoot),
+      ...await readTreeEntries(ioA.exec, bRoot),
+    ]);
+    await writeTreeCommit(ioA, union, "merge alpha and beta", [aRoot, bRoot], aRoot);
+    await writeTreeCommit(ioB, union, "independently merge beta and alpha", [bRoot, aRoot], bRoot);
+    const deletion = await transactTransientIdentities(ioA, {
+      remote: null,
+      message: "delete beta",
+      transform: (basis) => ({
+        kind: "applied",
+        records: new Map([...basis].filter(([slug]) => slug !== "beta")),
+        value: null,
+      }),
+    });
+    expect(deletion.kind).toBe("applied");
+    const updatedAlpha = recordFor("alpha", { intent: "updated remotely" });
+    await writeIdentity(ioB, updatedAlpha);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    const localTip = (await ioA.exec("git", ["rev-parse", REF])).stdout.trim();
+    const remoteTip = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+    await ioA.exec("git", ["fetch", "origin", `${REF}:refs/test/remote-tip`]);
+    const bases = (await ioA.exec("git", ["merge-base", "--all", localTip, remoteTip])).stdout.trim().split("\n");
+    expect(new Set(bases)).toEqual(new Set([aRoot, bRoot]));
+
+    const outcome = await reconcileErrandPush(ioA);
+    expect(outcome.kind).toBe("failed");
+    if (outcome.kind === "failed") {
+      expect(outcome.error.message).toContain("multiple best common ancestors");
+      expect(outcome.error.message).toContain("before retrying arc sync");
+    }
+    expect((await ioA.exec("git", ["rev-parse", REF])).stdout.trim()).toBe(localTip);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim()).toBe(remoteTip);
+    expect(await listRecords(ioA)).toEqual([alpha]);
+
+    // An explicit history repair incorporates the deletion and remote update, making the local tip the sole basis.
+    await ioB.exec("git", ["fetch", repoA, `${REF}:refs/test/local-tip`]);
+    const repairedTree = await readTreeEntries(ioB.exec, remoteTip);
+    repairedTree.delete("beta");
+    await writeTreeCommit(ioB, repairedTree, "reconcile both intended changes", [remoteTip, localTip], remoteTip);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+    expect(await listRecords(ioA)).toEqual([updatedAlpha]);
+    expect(await remoteSlugs(repoA)).toEqual(["alpha"]);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim())
+      .toBe((await ioA.exec("git", ["rev-parse", REF])).stdout.trim());
+  }, 30_000);
 
   it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
     await writeIdentity(ioA, recordFor("from-a"));

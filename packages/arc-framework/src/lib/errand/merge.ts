@@ -175,24 +175,29 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   }
 }
 
-/** Read the common-history tree at one verified object ID; unavailable evidence never becomes an empty basis. */
+/** Read the sole common-history tree; ambiguous or unavailable evidence never becomes an authoritative basis. */
 async function readCommonErrandTree(
   exec: GitExec,
   localTip: string | null,
   remoteTip: string | null,
 ): Promise<Map<string, string>> {
   if (localTip === null || remoteTip === null) return new Map();
-  const args = ["merge-base", localTip, remoteTip];
-  let commonTip: string;
+  const args = ["merge-base", "--all", localTip, remoteTip];
+  let commonTips: string[];
   try {
-    commonTip = (await exec("git", args)).stdout.trim();
+    commonTips = (await exec("git", args)).stdout.trim().split(/\r?\n/u);
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
     if (isCompletedGitFailure(failure) && failure.exitCode === 1) return new Map();
     throw error;
   }
-  if (!isGitObjectId(commonTip)) {
+  const [commonTip, ...otherTips] = commonTips;
+  if (commonTip === undefined || !isGitObjectId(commonTip) || otherTips.some((tip) => !isGitObjectId(tip))) {
     throw new Error("Git merge-base returned a malformed common-ancestor object id");
+  }
+  if (otherTips.length > 0) {
+    throw new Error("Errand histories have multiple best common ancestors. "
+      + "Reconcile these histories to one shared basis before retrying arc sync.");
   }
   return readErrandReconcileTree(exec, commonTip);
 }
