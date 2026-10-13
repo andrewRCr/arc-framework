@@ -76,14 +76,14 @@ lifecycle statements, when authoring the phase structure and its exit criteria.
 ## Generate in the resolved level
 
 The resolved level selects one of the three paths below. **The path is the execution driver:** it names which
-procedures run and where you stop. The procedure sections that follow — **Structural decomposition**, **Content
+procedures run and where a stop can fall. The procedure sections that follow — **Structural decomposition**, **Content
 fill**, **Grounding audit & coherent revision** — are shared reference detail your path invokes; do **not**
 execute them as a standalone linear sequence. Follow your path top to bottom, expanding each procedure as the
 path calls for it.
 
 Every path runs the **same** procedures, artifacts, checks, and review discipline — a lower depth separates
 _less for review_, it does not do _less work_. Depth changes only how the work is sliced into passes and where
-the review stops fall.
+a review stop can fall.
 
 **Surfacing discipline (every stop).** Surface the deliverable with reflection woven in: trace the relevant
 procedure's internal lenses as your own checks and weave observations into the deliverable presentation, rather
@@ -91,6 +91,10 @@ than presenting a separate review section. Clean lenses get a one-line confirmat
 get a brief lean + rationale + explicit ask ("keeping X as one parent because Y — thoughts?"). Surface
 non-obvious judgments where reasonable people might differ. A stop may iterate on user feedback before the path
 proceeds.
+
+**Pass summaries.** A pass or phase that leaves nothing to decide does not stop; it posts a short summary and
+continues. Keep every summary high in signal — lead with anything that needs a look, collapse clean results to a
+line — so it is read, not scanned.
 
 **The task list file lives on disk from the first pass onward.** The **Structural decomposition** procedure
 creates `tasks-{name}.md` at the destination path resolved per Finalize's `Destination path` rule; the later
@@ -114,8 +118,10 @@ Two passes:
   phases (plus the verification phase) as one draft.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the merged draft is written. Surface it with reflection woven in (lenses
-  > from both procedures); await direction before the grounding pass.
+  > `workflow-interlock`: Stop after the merged draft is written only when it leaves a decision the spec does not
+  > settle — a real choice of phase breakdown, task decomposition, or sequencing, or a masked design decision.
+  > Surface the draft with reflection woven in (lenses from both procedures), leading with that decision; await
+  > direction before the grounding pass. Otherwise post the pass summary and continue to the grounding pass.
 
 - **Pass 2 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
   for a phase whose audit leaves something to decide. Audit depth is `full`.
@@ -124,20 +130,25 @@ Then **Finalize the task list**.
 
 ### `high` — full three passes
 
-Three passes, each producing a deliverable the user reviews before the next begins:
+Three passes, each producing a deliverable before the next begins; a pass stops for review only when it leaves
+something to decide:
 
 - **Pass 1 — Structural decomposition.** Run **Structural decomposition** over 3-7 substantive phases (plus the
   dedicated verification phase) — phases and parent-task skeletons only, no content fill.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the skeleton is drafted. Surface the phase decomposition with reflection
-  > woven in (lenses per the procedure); await direction before Pass 2.
+  > `workflow-interlock`: Stop after the skeleton is drafted only when it leaves a decision the spec does not
+  > settle — a real choice of phase breakdown or sequencing, or a masked design decision. Surface the phase
+  > decomposition with reflection woven in (lenses per the procedure), leading with that decision; await direction
+  > before Pass 2. Otherwise post the pass summary and continue to Pass 2.
 
-- **Pass 2 — Content fill.** Run **Content fill** against the reviewed skeleton.
+- **Pass 2 — Content fill.** Run **Content fill** against the skeleton.
 
   > [!IMPORTANT]
-  > `workflow-interlock`: Stop after the Pass 2 draft is written. Surface with reflection woven in; await
-  > direction before Pass 3.
+  > `workflow-interlock`: Stop after the Pass 2 draft is written only when it leaves a decision the spec does not
+  > settle — a real choice of task decomposition, or a masked design decision. Surface the draft with reflection
+  > woven in, leading with that decision; await direction before Pass 3. Otherwise post the pass summary and
+  > continue to Pass 3.
 
 - **Pass 3 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
   for a phase whose audit leaves something to decide. Audit depth is `full`.
@@ -267,8 +278,8 @@ Use the provisional coverage to emit the delivery-aware task shape:
 - Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
   to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
 
-→ **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
-discipline above) before continuing.
+→ **Pass boundary:** if your path places a stop after this procedure, apply it now: stop and surface (per the
+surfacing discipline above) when the pass leaves something to decide; otherwise post the pass summary and continue.
 
 ## Content fill
 
@@ -330,8 +341,8 @@ to introduce the behavior list; the executing agent treats this as the signal to
 - **Meaningful intent** — does each task carry intent the title alone doesn't, or is it just step-shape?
 - **Peer descriptor framing** — where present, do peer descriptors carry framing the Goal can't?
 
-→ **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
-discipline above) before continuing.
+→ **Pass boundary:** if your path places a stop after this procedure, apply it now: stop and surface (per the
+surfacing discipline above) when the pass leaves something to decide; otherwise post the pass summary and continue.
 
 ## Grounding audit & coherent revision
 
