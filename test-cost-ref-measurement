@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "test-cost-ref-measurement",
+  "claimId": "2cc7c8d27a3282e34d7876ee0050a682",
+  "createdAt": "2026-10-13T15:49:09.667Z",
+  "updatedAt": "2026-10-13T15:49:09.667Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let benchmark:test-cost measure a named ref in a temporary worktree running that ref's own schema-v5 entry",
+  "branch": "chore/test-cost-ref-measurement",
+  "origin": "inbox",
+  "originEntry": "Let the test-cost benchmark measure a named ref, so a pre-change baseline stays recoverable",
+  "originEntrySourceDigest": "sha256:3c81c5efca91b0ea45ea7f1e8270456a3de279a0603fc13d5b1bd179aee3f6da",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
