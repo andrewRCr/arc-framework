@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "shipped-markdown-contract-lane",
+  "claimId": "f9159d541beb390b2b309eba2e52c975",
+  "createdAt": "2026-10-13T03:14:34.383Z",
+  "updatedAt": "2026-10-13T03:14:34.383Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "shipped-markdown-contract-lane",
+  "branch": "chore/shipped-markdown-contract-lane",
+  "origin": "inbox",
+  "originEntry": "Gather the unit tests that read shipped Markdown into the contract lane",
+  "originEntrySourceDigest": "sha256:019a43124b8ba2af917e58dfd726b6cb0fd00445ffb3c001530446b5cd14987e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
