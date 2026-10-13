@@ -1349,10 +1349,10 @@ describe("review response command", () => {
   }
 
   it.each([
-    { name: "a local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
-      consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+    { name: "a full-final local Errand's minor fix", build: () => localErrandCase(1), severity: "minor" as const,
+      consequence: { kind: "next-pass", coverage: "complete" },
       text: "Standard pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs standard pass 2 of 2, covering only the fix where its chain is proven." },
+        + "needs standard pass 2 of 2, with complete coverage." },
     { name: "a local Errand's minor fix at the ceiling", build: () => localErrandCase(2), severity: "minor" as const,
       consequence: { kind: "ceiling-decision" },
       text: "Standard pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
