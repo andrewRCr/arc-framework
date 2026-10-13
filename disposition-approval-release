@@ -3,7 +3,7 @@
   "slug": "disposition-approval-release",
   "claimId": "9b9242ce09c15e299014349ff7d3f483",
   "createdAt": "2026-10-13T18:20:54.820Z",
-  "updatedAt": "2026-10-13T18:20:54.820Z",
+  "updatedAt": "2026-10-13T19:15:00.139Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Let the complete-set disposition approval be a review-fix round's structured gate, releasing its commit and, where push release allows, its push and approved hosted settlement",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let one complete-set disposition approval release a review-fix round's commit, push, and settlement",
   "originEntrySourceDigest": "sha256:ef985bd096fbd2aeb9a52e472702ad0ad4ef496d9d7aafd11dbc136d49f57be0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/disposition-approval-release",
+    "headSha": "0dd0545dc18154462060e41cb1df6b9c46054e04"
+  }
 }
