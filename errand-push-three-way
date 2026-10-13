@@ -3,7 +3,7 @@
   "slug": "errand-push-three-way",
   "claimId": "f6c3eda0f319e41b86894dea2a607627",
   "createdAt": "2026-10-13T00:24:01.804Z",
-  "updatedAt": "2026-10-13T00:24:01.804Z",
+  "updatedAt": "2026-10-13T02:14:23.769Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "errand-push-three-way",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Reconcile the Errand push three-way, as the identity transaction does",
   "originEntrySourceDigest": "sha256:e186ee2683788783f07538bbe5ba249c6cf71b8ca67e8ba24c6c7c6c509d1fc0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-push-three-way",
+    "headSha": "209110d54fcfe9bdfc071a12328f7c49fff484f1"
+  }
 }
