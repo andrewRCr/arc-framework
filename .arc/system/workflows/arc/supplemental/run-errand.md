@@ -479,9 +479,11 @@ remote base all name the same exact head. Any tracked change continues through t
    On acceptance, request no further standard-review pass for those exact coordinates and continue to the reviewed
    merge lane below, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to
    the review commands. Recheck the Errand claim, PR, base OID, head, and known review/response state at Step 5 and
-   immediately before release; any movement or new finding voids this decision and returns to this exact offer.
-   This conversational authority is not durable: after a context loss or session re-entry, obtain it again if the
-   exact approval and its coordinates cannot be recovered.
+   immediately before release. A changed claim, PR, or head, or a new finding, voids this decision and returns to this
+   exact offer. A base that alone moved keeps it when `arc base drift --json` reads the exact accepted head with
+   `movement: disjoint` (the disjoint-drift condition); name the new base OID at the next report. Any other drift
+   reading voids it. This conversational authority is not durable: after a context loss or session re-entry, obtain
+   it again if the exact approval and its coordinates cannot be recovered.
 
    On interruption, retain the returned operation ID and follow the last typed `state` / `nextAction`. Resume a
    suspended local operation with `arc review local resume -`; re-invoke the owning idempotent verb for frontline,
@@ -492,8 +494,9 @@ remote base all name the same exact head. Any tracked change continues through t
    classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
    the hosted pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. If an
    adapter reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose
-   the upgrade. Under an Owner-directed review stop, any changed target or base requires a new exact offer describing
-   the changed delta and the returned review-applicability result; never carry the prior acceptance forward.
+   the upgrade. Under an Owner-directed review stop, a changed target, or a base movement the disjoint-drift condition
+   above does not keep, requires a new exact offer describing the changed delta and the returned review-applicability
+   result; never carry the prior acceptance forward.
 
    After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's
    `arc review status --target <targetRef>` before resolving review. A `settled` routed obligation completes the
@@ -564,9 +567,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
-   integration interlock. A changed coordinate (including base OID or Errand claim), new finding, or unfinished fix
-   returns to Step 4 for a new exact offer. Inspect the PR's unresolved conversations as well; the stop clears no
-   host blocker, so obtain separate Owner direction for any dismissal or thread action before proceeding.
+   integration interlock. A changed coordinate (including the Errand claim), new finding, or unfinished fix returns to
+   Step 4 for a new exact offer; a base that alone moved follows Step 4's disjoint-drift condition. Inspect the PR's
+   unresolved conversations as well; the stop clears no host blocker, so obtain separate Owner direction for any
+   dismissal or thread action before proceeding.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
    their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
@@ -597,9 +601,10 @@ composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as
 This separate operation authorizes no merge. Otherwise, continue to the selected lane action.
 
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
-   Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
-   for a new exact offer; required checks and host-native review blockers remain independent stops. Owner acceptance
-   never satisfies a required check.
+   Errand claim, PR, base OID, head, and known review/response state. A base that alone moved follows Step 4's
+   disjoint-drift condition, and the completion report names the new base OID; any other movement or new finding
+   returns to Step 4 for a new exact offer. Required checks and host-native review blockers remain independent stops.
+   Owner acceptance never satisfies a required check.
 
    For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
    project's configured bounded-call defaults apply:
