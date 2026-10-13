@@ -286,10 +286,19 @@ export async function acquireAdvisoryLock(
   }
 }
 
+/** Optional acquisition and release primitives for an advisory critical section. */
+export interface AdvisoryLockScopeDependencies {
+  /** Acquire the exact lock, with the caller's existing I/O seams or wait policy. */
+  acquireLock?: typeof acquireAdvisoryLock;
+  /** Release the acquired handle, retaining any caller-specific release policy. */
+  releaseLock?: typeof releaseAdvisoryLock;
+}
+
 /** Run an operation while holding an advisory lock and release it before returning.
  * @param lockPath - Absolute path of the lock guarding the operation.
  * @param operation - Critical section receiving its held lock path.
  * @param options - Optional filesystem, clock and bounded-wait dependencies.
+ * @param dependencies - Optional acquisition and release primitives.
  * @returns The critical section's result after release succeeds.
  * @throws Acquisition, operation or release errors; simultaneous operation/release errors are aggregated.
  */
@@ -297,8 +306,9 @@ export async function withAdvisoryLock<T>(
   lockPath: string,
   operation: (lockPath: string) => Promise<T>,
   options: AdvisoryLockOptions = {},
+  dependencies: AdvisoryLockScopeDependencies = {},
 ): Promise<T> {
-  const handle = await acquireAdvisoryLock(lockPath, options);
+  const handle = await (dependencies.acquireLock ?? acquireAdvisoryLock)(lockPath, options);
   let result: { readonly kind: "success"; readonly value: T } | { readonly kind: "failure"; readonly error: unknown };
   try {
     result = { kind: "success", value: await operation(lockPath) };
@@ -308,7 +318,7 @@ export async function withAdvisoryLock<T>(
 
   let releaseError: unknown;
   try {
-    await releaseAdvisoryLock(handle, options);
+    await (dependencies.releaseLock ?? releaseAdvisoryLock)(handle, options);
   } catch (error) {
     releaseError = error;
   }
