@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "advisory-lock-wrappers",
+  "claimId": "6954d2598f227bc7d53b92b7742844b6",
+  "createdAt": "2026-10-13T02:30:48.861Z",
+  "updatedAt": "2026-10-13T02:30:48.861Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "advisory-lock-wrappers",
+  "branch": "chore/advisory-lock-wrappers",
+  "origin": "inbox",
+  "originEntry": "Move the hand-rolled advisory-lock wrappers onto one lock-scoped helper",
+  "originEntrySourceDigest": "sha256:9ad182d4315624a6cdb1dadd913fddb6a6047f4d53f2cad07f1d15d043effc1d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
