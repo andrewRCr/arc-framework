@@ -320,6 +320,14 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
     ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
 
+/**
+ * The exit status of a command killed by SIGKILL, as a shell or a runner relaying a remote kill reports it. The
+ * system's out-of-memory killer is the usual sender, so the check did not finish rather than failed. A check that
+ * declares 137 as its no-evidence status keeps that meaning.
+ */
+const KILLED_EXIT_CODE = 137;
+const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
+
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
@@ -327,6 +335,9 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   const { divergent } = selected;
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
+  if (result.exitCode === KILLED_EXIT_CODE && check.no_evidence_exit !== KILLED_EXIT_CODE) {
+    return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
+  }
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
   if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
@@ -381,7 +392,8 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
       if (!result.started) return ran(result);
       if (result.exitCode === check.no_evidence_exit) continue;
       examined = true;
-      if (result.exitCode !== 0) exitCode = result.exitCode;
+      // A kill never hides another batch's failure, which is a verdict where the kill is none.
+      if (result.exitCode !== 0 && (exitCode === 0 || result.exitCode !== KILLED_EXIT_CODE)) exitCode = result.exitCode;
     }
   } catch (error) {
     outputs.push(String(error));

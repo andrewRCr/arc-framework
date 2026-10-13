@@ -114,6 +114,28 @@ it("reports a check's declared no-evidence status as its own non-passing outcome
   expect(result.result.checks[0]).not.toHaveProperty("remedy");
 });
 
+it("reports a check killed before it finished as couldn't run, with a retry and without a pass", async () => {
+  const { root, io, ids } = await fixture({ heavy: {} });
+  io.execute = async () => ({ started: true, exitCode: 137, output: "Killed" });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 2, result: { checks: [{
+    id: "heavy", outcome: "couldn't run", reason: expect.stringContaining("killed before it finished"), output: "Killed",
+    remedy: expect.stringMatching(/^arc check run heavy\b/u),
+  }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks[0]).not.toHaveProperty("record");
+});
+
+it("keeps a declared no-evidence status of 137 as no evidence rather than a kill", async () => {
+  const { root, io, ids } = await fixture({ related: { no_evidence_exit: 137 } });
+  io.execute = async () => ({ started: true, exitCode: 137, output: "" });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 1, result: { checks: [{ id: "related", outcome: "no evidence" }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks[0]).not.toHaveProperty("reason");
+  expect(result.result.checks[0]).not.toHaveProperty("remedy");
+});
+
 it("reports the same status as a failure when the check does not declare it", async () => {
   const { root, io, ids } = await fixture({ related: {} });
   io.execute = async () => ({ started: true, exitCode: 5, output: "" });
