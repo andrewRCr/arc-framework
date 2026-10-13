@@ -3,7 +3,7 @@
   "slug": "advisory-lock-wrappers",
   "claimId": "6954d2598f227bc7d53b92b7742844b6",
   "createdAt": "2026-10-13T02:30:48.861Z",
-  "updatedAt": "2026-10-13T02:30:48.861Z",
+  "updatedAt": "2026-10-13T02:51:02.862Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "advisory-lock-wrappers",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Move the hand-rolled advisory-lock wrappers onto one lock-scoped helper",
   "originEntrySourceDigest": "sha256:9ad182d4315624a6cdb1dadd913fddb6a6047f4d53f2cad07f1d15d043effc1d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/advisory-lock-wrappers",
+    "headSha": "c87b0857bf670ddf38a0c176fa4b8fd8919db4d1"
+  }
 }
