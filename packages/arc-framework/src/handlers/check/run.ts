@@ -392,7 +392,8 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
       if (!result.started) return ran(result);
       if (result.exitCode === check.no_evidence_exit) continue;
       examined = true;
-      if (result.exitCode !== 0) exitCode = result.exitCode;
+      // A kill never hides another batch's failure, which is a verdict where the kill is none.
+      if (result.exitCode !== 0 && (exitCode === 0 || result.exitCode !== KILLED_EXIT_CODE)) exitCode = result.exitCode;
     }
   } catch (error) {
     outputs.push(String(error));
