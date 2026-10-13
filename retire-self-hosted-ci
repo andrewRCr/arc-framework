@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retire-self-hosted-ci",
+  "claimId": "0d7d40fa4e9381b28838ea636b84796c",
+  "createdAt": "2026-10-13T04:26:05.377Z",
+  "updatedAt": "2026-10-13T04:26:05.377Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Delete the self-hosted CI runbook and the Lima runner recipe, drop the ARC_CI_LINUX_RUNNER routing so every CI job runs on GitHub-hosted runners, and describe the hosted fleet in the technical overview",
+  "branch": "chore/retire-self-hosted-ci",
+  "origin": "inbox",
+  "originEntry": "Retire the self-hosted CI runbook and runner recipe now that CI runs on hosted runners",
+  "originEntrySourceDigest": "sha256:df30e19f27bab0b6bd72258b1abce19b8840f5df0af73e606f3dd998cd1f6e9c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
