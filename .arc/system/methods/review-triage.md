@@ -116,15 +116,24 @@ and cost. Every decision the approver is asked to make carries that recommendati
 triggers another pass, the recommendation also covers that pass, as spend the approver may decline. A decline leaves
 the disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
 Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
-dispatched. Keep disposition approval separate from next-pass authorization. A disposition approval alone never grants
-a pass above the ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and
-pass if it returns `approval-required / obtain-ceiling-override`.
+dispatched. Disposition approval and next-pass authorization stay distinct decisions, though one prompt may ask both:
+the approver may approve the set and decline the pass. A disposition approval alone never grants a pass above the
+ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and pass if it
+returns `approval-required / obtain-ceiling-override`.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
 scope, complete dispositions, approving actor, and approval time. Conversational approval need not recite the digest.
 Any changed finding, judgment, scope, disposition, narrative, target, or newly surfaced mismatch requires a new
 proposal and approval. A partial approval may never be widened, and no path may apply an individual fix early.
+
+For a set with a `fix`, the complete-set approval is the fix round's structured gate
+([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Close the report with a prompt that names
+what approval releases under the caller's `arc.commitInterlock` and `arc.pushInterlock` settings, and only that — for
+example `Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?`. After the round, report the
+fix, its commit, the settled threads, and the next pass as information, not a gate. The round returns to the approver
+when the performed fix exceeds the approved scope, a verification or gate failure is not a deterministic same-concern
+correction, host state is ambiguous, or a new finding arrives.
 
 Author self-review remains a non-producer path. Identify its standalone report as author self-review and compose it in
 the [disposition-report][disposition-report] shape, giving each verdict its gating as the command does. Omit rather than
@@ -147,3 +156,4 @@ context footer from `self-review`; its report-local labels do not create a produ
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [deliver-stack]: ../workflows/arc/supplemental/deliver-stack.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
+[review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant

@@ -189,7 +189,10 @@ presentation. Co-present `payload.provisionalPassAssessment.summaryText` and an 
 for stopping or requesting a named next pass. This assessment is provisional until the approved response and policy
 continuation establish the verified action. Keep disposition approval distinct from any later one-pass ceiling
 authorization. Obtain complete-set approval over that exact report and canonical set before any mutation or
-commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
+commitment; the approver need not repeat its canonical digest. That approval is the fix round's structured gate:
+where the configured interlocks release them, the fix's commit, push, and approved settlement follow without another
+stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact approved set
+through a second call:
 
 ```bash
 arc review respond -
@@ -264,3 +267,4 @@ push and change-request creation; do not push from this workflow.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [deliver-stack]: ../supplemental/deliver-stack.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

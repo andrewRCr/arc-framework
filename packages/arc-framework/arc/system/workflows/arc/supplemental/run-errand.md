@@ -312,7 +312,10 @@ remote base all name the same exact head. Any tracked change continues through t
    `remedy.argv`, passing any `remedy.stdin` unchanged. Approval is required before any finding-driven fix,
    durable deferral, channel settlement, or other mutation/commitment. A complete no-action record-only set must
    be approved for its exact target before continuing. Approved fixes request `arc check increment`, commit atomically,
-   push, and create a new target. Never carry clearance or merge authority.
+   push, and create a new target; the complete-set approval is the fix round's structured gate, so where the
+   configured interlocks release them the commit, push, and approved settlement follow without another stop
+   ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Never carry clearance or merge
+   authority.
 
    A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
    another provider invocation requires an explicit Owner decision. On approval, re-run
@@ -445,7 +448,10 @@ remote base all name the same exact head. Any tracked change continues through t
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact
      approved set through the second `arc review respond -` call, and perform only its returned action through
-     [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+     [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below
+     follow without another stop where the configured interlocks release them
+     ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). When the approved call returns
+     `payload.hostedSettlementPlan` for
      `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for
      every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
      actor. Settle each `beforeFixFindingIds`
@@ -741,3 +747,4 @@ idempotent and may return the next file-ordered execute-bound offer.
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

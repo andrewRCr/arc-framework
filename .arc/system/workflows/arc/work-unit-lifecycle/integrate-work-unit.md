@@ -287,8 +287,10 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
-second call:
+then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
+structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
+without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
+approved set through a second call:
 
 ```bash
 arc review respond -
@@ -373,7 +375,9 @@ prior count.
 - `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
   `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
   approved set through the second `arc review respond -` call, and perform only its returned action through
-  [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+  [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below follow
+  without another stop where the configured interlocks release them. When the approved call returns
+  `payload.hostedSettlementPlan` for
   `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for every
   ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor.
   Settle each
@@ -876,3 +880,4 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

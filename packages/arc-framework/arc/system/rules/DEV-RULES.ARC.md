@@ -97,8 +97,14 @@ integration interlock:
   resulting head passes `arc check new-head --from <pre-merge head>` before fresh checkpoint applicability and
   exact-head authorization
 
-An implementation or finding-driven fix still requires its structured approval gate before commit, and no
-provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
+An implementation fix still requires its structured approval gate before commit. For a finding-driven fix, the
+complete-set disposition approval is that gate: it covers applying the approved fixes and committing them, and,
+under `arc.pushInterlock: on-workflow`, pushing them and performing the approved hosted settlement. Release still
+follows `arc.commitInterlock` and `arc.pushInterlock`, so a `manual` setting keeps its own stop. The round returns
+to the approver when the performed fix exceeds the approved scope, a verification or gate failure is not a
+deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
+
+No provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
 authorize autonomous advance to that final interlock, but never prospective merge authority over a head that does
 not yet exist.
 
