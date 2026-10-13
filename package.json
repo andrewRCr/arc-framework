@@ -41,6 +41,7 @@
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:ts:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-lint.ts",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
+    "lint:workflows": "bash scripts/lint-workflows.sh",
     "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",

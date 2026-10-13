@@ -249,6 +249,22 @@ checks:
     runtime_inputs:
       - - shellcheck
         - --version
+  lint:workflows:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:workflows
+    gate: commit
+    inputs:
+      - .github/workflows/**
+      - .github/actionlint.*
+      - scripts/lint-workflows.sh
+    runtime_inputs:
+      - - actionlint
+        - -version
+      - - shellcheck
+        - --version
   check-package-sync:
     command:
       - bash
