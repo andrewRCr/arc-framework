@@ -30,7 +30,6 @@ import { isGitProcessError, normalizeGitRejection } from "../../lib/git/process-
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
-import { detectCommitAmend } from "../../lib/release/destructive-flags.js";
 import { createCommitMessageRetryStore } from "../../lib/release/commit-message-retry-store.js";
 import {
   acquireAdvisoryLock,
@@ -160,7 +159,7 @@ export async function handleReleaseCommit(
 
   const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
   const { argv, wrap } = stripNoWrap(opts.args);
-  const preflightRemedy = renderCommitMessageRemedy({ amend: detectCommitAmend(argv) });
+  const preflightRemedy = renderCommitMessageRemedy(argv);
   const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({

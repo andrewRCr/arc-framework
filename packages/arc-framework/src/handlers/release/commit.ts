@@ -213,8 +213,7 @@ export async function runReleaseCommit(
   }
 
   // Step 1, amend only (one ref read): an amend of a pushed `HEAD` refuses as a destructive flag.
-  const amend = detectCommitAmend(deps.argv);
-  const head = amend ? await readPushedHead(deps) : null;
+  const head = detectCommitAmend(deps.argv) ? await readPushedHead(deps) : null;
   if (head !== null) {
     return refuse(
       { kind: "refuse", code: 12, identifier: "destructive-flag", flag: "--amend", head },
@@ -308,7 +307,7 @@ export async function runReleaseCommit(
   if (spawned.exitCode !== 0 && preflight.kind === "passed") {
     try {
       const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
-      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, { amend })}\n`);
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, deps.argv)}\n`);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
@@ -374,8 +373,7 @@ async function refusePreflight(
         cwd: ctx.deps.cwd,
         bytes: correctedMessageBytes,
       });
-      const amend = detectCommitAmend(ctx.deps.argv);
-      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, { amend })}`;
+      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, ctx.deps.argv)}`;
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       ctx.writeStderr(`warn: corrected commit-message retry could not be persisted: ${detail}\n`);

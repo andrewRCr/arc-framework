@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCommitMessageInput,
   rewriteCommitFileSource,
+  replaceCommitMessageSource,
   rewriteCommitMessagesToFile,
 } from "../../../../src/lib/release/commit-message-source.js";
 
@@ -244,6 +245,25 @@ describe("file-source rewriting", () => {
     { args: ["--file=caller"], expected: ["--file=snapshot"] },
   ])("preserves the option shape for $args", ({ args, expected }) => {
     expect(rewriteCommitFileSource(args, "snapshot")).toEqual(expected);
+  });
+});
+
+describe("replaceCommitMessageSource", () => {
+  it.each([
+    {
+      label: "messages, keeping every other argument",
+      args: ["--amend", "--reset-author", "-m", "subject", "-m", "body", "--", "file-a"],
+      expected: ["--amend", "--reset-author", "-F", "/retry", "--", "file-a"],
+    },
+    { label: "a separated file source", args: ["--amend", "-F", "message.txt"], expected: ["--amend", "-F", "/retry"] },
+    { label: "an attached clustered file source", args: ["-qFmessage.txt"], expected: ["-q", "-F", "/retry"] },
+    { label: "a long file source", args: ["--file=message.txt", "-a"], expected: ["-a", "-F", "/retry"] },
+    { label: "a retry of a retry", args: ["-F", "/retry"], expected: ["-F", "/retry"] },
+    { label: "a reused message", args: ["-C", "HEAD", "--", "file-a"], expected: ["-F", "/retry", "--", "file-a"] },
+    { label: "a template", args: ["--template", "t.txt", "-a"], expected: ["-a", "-F", "/retry"] },
+    { label: "no source", args: ["--amend", "--no-edit"], expected: ["--amend", "--no-edit", "-F", "/retry"] },
+  ])("routes $label through the one file", ({ args, expected }) => {
+    expect(replaceCommitMessageSource(args, "/retry")).toEqual(expected);
   });
 });
 

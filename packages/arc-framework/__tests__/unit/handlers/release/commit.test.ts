@@ -340,7 +340,7 @@ describe("runReleaseCommit — amend", () => {
     expect(result.exitCode).toBe(12);
   });
 
-  it("keeps --amend in a corrected message's retry", async () => {
+  it("keeps an amend's arguments in a corrected message's retry", async () => {
     await writeStatus(fixture.root, "sample");
     const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo/.git/.arc-release-commit-message-retry" });
     const { deps, stderr } = buildDeps(fixture.root, {
@@ -361,11 +361,11 @@ describe("runReleaseCommit — amend", () => {
     );
   });
 
-  it("keeps --amend in the approved message's retry after Git fails", async () => {
+  it("keeps an amend's arguments in the approved message's retry after Git fails", async () => {
     await writeStatus(fixture.root, "sample");
     const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
     const { deps, stderr } = buildDeps(fixture.root, {
-      argv: ["--amend", "-m", "feat(release): a sufficiently long valid subject"],
+      argv: ["--amend", "--reset-author", "-m", "feat(release): a sufficiently long valid subject", "--", "file-a"],
       listRemoteRefsContainingHead: () => Promise.resolve([]),
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
@@ -378,7 +378,7 @@ describe("runReleaseCommit — amend", () => {
     });
 
     expect((await runReleaseCommit(deps)).exitCode).toBe(7);
-    expect(stderr.join("")).toContain("arc release commit --amend -F '/repo/.git/latest-retry'");
+    expect(stderr.join("")).toContain("arc release commit --amend --reset-author -F '/repo/.git/latest-retry' -- 'file-a'");
   });
 
   it("reads remote-tracking refs only for an amend", async () => {
@@ -832,6 +832,26 @@ describe("runReleaseCommit — success path", () => {
     expect(result.exitCode).toBe(7);
     expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: messageBytes });
     expect(stderr.join("")).toContain("arc release commit -F '/repo with spaces/.git/latest-retry'");
+  });
+
+  it("keeps an ordinary commit's pathspec in its retry after Git fails", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject", "--", "file-a"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      persistMessageRetry: () => Promise.resolve({ path: "/repo/.git/latest-retry" }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(7);
+    expect(stderr.join("")).toContain("arc release commit -F '/repo/.git/latest-retry' -- 'file-a'");
   });
 
   it("preserves Git's exit code when retry persistence fails without offering an unusable path", async () => {

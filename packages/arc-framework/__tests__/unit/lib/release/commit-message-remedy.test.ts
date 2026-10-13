@@ -10,7 +10,8 @@ describe("renderCommitMessageRemedy", () => {
     expect(renderCommitMessageRemedy()).not.toContain("<<");
   });
 
-  it("keeps an amend an amend", () => {
-    expect(renderCommitMessageRemedy({ amend: true })).toContain("arc release commit --amend -F <message-file>");
+  it("keeps the refused commit's other arguments around the prepared-file placeholder", () => {
+    expect(renderCommitMessageRemedy(["--amend", "--no-edit", "-m", "subject", "--", "file-a"]))
+      .toContain("arc release commit --amend --no-edit -F <message-file> -- 'file-a'");
   });
 });

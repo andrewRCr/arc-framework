@@ -658,7 +658,7 @@ describe("release commit amend", () => {
       env: { ARC_HOOK_LOG: hookLog },
     });
     expect(unsourced.exitCode).toBe(16);
-    expect(unsourced.stderr).toContain("arc release commit --amend -F <message-file>");
+    expect(unsourced.stderr).toContain("arc release commit --amend --no-edit -F <message-file>");
 
     const amended = await runCli(["release", "commit", "--amend", "-m", "feat(release): add the tracked change"], {
       cwd: repository,

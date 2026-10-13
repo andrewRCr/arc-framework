@@ -22,9 +22,14 @@ describe("renderCommitMessageRetryCommand", () => {
     expect(command).not.toContain("COMMIT_EDITMSG");
   });
 
-  it("keeps an amend an amend", () => {
-    expect(renderCommitMessageRetryCommand("/repo/.git/retry", { amend: true }))
-      .toBe(`arc release commit --amend -F ${quoteShellArgument("/repo/.git/retry")}`);
+  it("keeps the failed commit's other arguments, replacing only its message source", () => {
+    const args = ["--amend", "--reset-author", "--author=A U Thor <a@example.com>", "-m", "subject", "--", "file a"];
+
+    expect(renderCommitMessageRetryCommand("/repo/.git/retry", args)).toBe([
+      "arc release commit --amend --reset-author",
+      quoteShellArgument("--author=A U Thor <a@example.com>"),
+      `-F ${quoteShellArgument("/repo/.git/retry")} -- 'file a'`,
+    ].join(" "));
   });
 
   it.runIf(process.platform !== "win32")(

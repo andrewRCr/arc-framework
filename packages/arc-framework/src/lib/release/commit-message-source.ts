@@ -528,6 +528,22 @@ export function rewriteCommitFileSource(args: readonly string[], path: string): 
   return rewritten;
 }
 
+/** The options that supply a commit message, by short-option role and long name. */
+interface MessageSourceForms {
+  roles: ReadonlySet<CommitShortOptionRole>;
+  longOptions: ReadonlySet<string>;
+}
+
+const MESSAGE_OPERANDS: MessageSourceForms = {
+  roles: new Set(["message"]),
+  longOptions: new Set(["--message"]),
+};
+
+const EVERY_MESSAGE_SOURCE: MessageSourceForms = {
+  roles: new Set(["message", "file", "reuse", "reedit", "template"]),
+  longOptions: new Set(["--message", "--file", "--reuse-message", "--reedit-message", "--template"]),
+};
+
 /**
  * Rewrite `args` by stripping every recognized `-m` / `--message` message
  * operand and routing the commit message through a snapshot file instead.
@@ -537,6 +553,22 @@ export function rewriteCommitFileSource(args: readonly string[], path: string): 
  * @returns A new argv with message operands removed and `-F path` appended.
  */
 export function rewriteCommitMessagesToFile(args: readonly string[], path: string): string[] {
+  return routeMessageSourcesToFile(args, path, MESSAGE_OPERANDS);
+}
+
+/**
+ * Replace every message source in `args` (messages, a message file, a reused message, or a template) with `-F path`
+ * ahead of any `--`, keeping every other argument, so a retry repeats the same commit with a prepared message.
+ *
+ * @param args - The commit's argv.
+ * @param path - Prepared message file to name with `-F`.
+ * @returns A new argv whose only message source is `-F path`.
+ */
+export function replaceCommitMessageSource(args: readonly string[], path: string): string[] {
+  return routeMessageSourcesToFile(args, path, EVERY_MESSAGE_SOURCE);
+}
+
+function routeMessageSourcesToFile(args: readonly string[], path: string, forms: MessageSourceForms): string[] {
   const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -550,11 +582,8 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       return result;
     }
 
-    if (arg === "--message") {
-      index += 1;
-      continue;
-    }
-    if (arg.startsWith("--message=")) {
+    if (arg.startsWith("--") && forms.longOptions.has(splitLongOption(arg).name)) {
+      if (!arg.includes("=")) index += 1;
       continue;
     }
 
@@ -569,8 +598,8 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       continue;
     }
 
-    const messageMember = walk.members.find((member) => member.role === "message");
-    if (messageMember === undefined) {
+    const sourceMember = walk.members.find((member) => forms.roles.has(member.role));
+    if (sourceMember === undefined) {
       result.push(arg);
       if (walk.consumedNext) {
         index += 1;
@@ -580,7 +609,7 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
       continue;
     }
 
-    const truncated = arg.slice(0, messageMember.offset);
+    const truncated = arg.slice(0, sourceMember.offset);
     if (truncated !== "-") result.push(truncated);
     if (walk.consumedNext) index += 1;
   }
