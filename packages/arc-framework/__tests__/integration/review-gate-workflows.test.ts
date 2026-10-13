@@ -873,6 +873,15 @@ describe("trusted review-gate workflows", () => {
     expect(compactReview).toContain("`review-required`: this is Owner acceptance");
     expect(compactReview).toContain("Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride`");
     expect(compactReview).toContain("obtain it again");
+    expect(compactReview).toContain("A changed claim, PR, or head, or a new finding, voids this decision");
+    expect(compactReview).toContain(
+      "A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an ancestor of "
+        + "the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.",
+    );
+    expect(compactReview).toContain("A rewound base or any other drift reading voids it.");
+    expect(compactReview).toContain(
+      "a changed target, or a base movement the disjoint-drift condition above does not keep, requires a new exact offer",
+    );
     expect(compactReview).toContain("the exact Owner-directed review stop above is approved");
     expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
     expect(compactReview).toContain("declines at a disposition turn the pass a fix triggers");
@@ -898,7 +907,12 @@ describe("trusted review-gate workflows", () => {
     const landing = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     const compactLanding = landing.replace(/\s+/gu, " ");
     expect(compactLanding).toContain("`review-required` remains expected");
-    expect(compactLanding).toContain("A changed coordinate (including base OID or Errand claim)");
+    expect(compactLanding).toContain(
+      "A changed coordinate (including the Errand claim), new finding, or unfinished fix returns to Step 4 for a new "
+        + "exact offer; a base that alone moved follows Step 4's disjoint-drift condition.",
+    );
+    expect(compactLanding).toContain("the completion report names the new base OID");
+    expect(compactLanding).not.toContain("including base OID");
     expect(compactLanding).toContain(
       "Read `arc review status --target <targetRef>` once for the final head and surface its `hostReview`",
     );
