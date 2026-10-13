@@ -123,6 +123,7 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
     const root = await freshRepo();
     const footers = [
       'export const taskFooter = "Context: tasks-example.md (Task 1.2)";',
+      'export const contributionFooter = "Context: contribution (explain (legacy) Task 4.2)";',
       'export const integrationFooter = "Context: integration (Phase 2 merge)";',
     ].join("\n");
     await writeRepoFile(root, "src/footer.ts", `${footers}\n`);
@@ -133,7 +134,7 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
     expect(allowed.code).toBe(0);
     expect(allowed.stdout).not.toContain("Meta-project references found in production code");
 
-    await writeRepoFile(root, "src/footer.ts", `${footers} // carried over from Task 3.1\n`);
+    await writeRepoFile(root, "src/footer.ts", `${footers} // carried over from Task 3.1 (rollout)\n`);
     await git(root, ["add", "src/footer.ts"]);
 
     const rejected = await runHook(root);

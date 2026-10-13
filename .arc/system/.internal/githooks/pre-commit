@@ -338,12 +338,14 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
 
         # Broad patterns skip test files (legitimate fixture data). Elsewhere,
         # strip each complete Context footer ("Context: <name> (<description>)")
-        # then re-check, the same per-line way as the strict tokens above.
+        # then re-check, the same per-line way as the strict tokens above. The
+        # description is a balanced group with up to one nested level, so a
+        # reference after the footer on the same line is never swallowed.
         if echo "$file" | grep -qvE "$test_patterns"; then
             broad_refs=$(echo "$added" | grep -nE "$meta_ref_patterns" | while IFS= read -r numbered; do
                 [ -z "$numbered" ] && continue
                 content=${numbered#*:}
-                cleaned=$(printf '%s\n' "$content" | sed -E 's/Context: [A-Za-z0-9-]+(\.md)? \([^)]+\)//g')
+                cleaned=$(printf '%s\n' "$content" | sed -E 's/Context: [A-Za-z0-9-]+(\.md)? \(([^()]|\([^()]*\))+\)//g')
                 if printf '%s\n' "$cleaned" | grep -qE "$meta_ref_patterns"; then
                     printf '%s\n' "$numbered"
                 fi
