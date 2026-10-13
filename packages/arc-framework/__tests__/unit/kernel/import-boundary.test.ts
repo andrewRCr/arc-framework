@@ -29,19 +29,18 @@ describe("kernel import boundary", () => {
 
     expect(values.sort()).toEqual([
       "ArcError", "ArchiveQuarterSchema", "ArchiveSequenceSchema", "CanonicalDigestSchema", "LocusTokenSchema",
-      "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
+      "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema",
       "SLUG_PATTERN", "SchemaError", "SlugSchema",
       "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest", "assertNever",
-      "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
-      "errAsync", "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
-      "okAsync",
+      "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes",
+      "isCanonicalDigest", "isManagedPath", "isSlugSafe",
       "sortByCanonicalBytes", "toArcError", "validateClass", "validateManagedPath", "validatePriority",
       "validateState", "withRemoteEvidence",
     ].sort());
     expect(types.sort()).toEqual([
       "ArcErrorCode", "ArchiveQuarter", "ArchiveSequence", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelProjectionOptions", "KernelRegistry",
       "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "RemoteEvidence",
-      "RemoteFailureReason", "Result", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
+      "RemoteFailureReason", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
     ].sort());
   });
 

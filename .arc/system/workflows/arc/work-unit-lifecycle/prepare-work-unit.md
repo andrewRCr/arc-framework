@@ -172,7 +172,8 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review respond -`. A command error envelope carries no dispatchable state unless it names a `remedy`: then render
 `remedy.text` and continue only through `remedy.argv`, passing any `remedy.stdin` unchanged.
 For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
-Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
+Owner decision. On approval, re-run `arc review frontline resolve -` for a fresh ready resolution, then
+`arc review frontline run -` with that resolution and `retryOfOperationId` from the prior operation.
 
 For every durable producer finding, run [`review-triage`][review-triage] to verify the source and
 [`review-response`][review-response] to compose the complete proposal with the effective policy in
@@ -197,7 +198,9 @@ arc review respond -
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
 continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`,
-commit atomically, and produce a new target. Disclose review
+commit atomically, and produce a new target. The `verifiedFix` replay attests the approved scope as performed, so before
+it a `focused` scope also requests `arc check gate push --range --force` and a `full` scope
+`arc check gate merge --force` over that target; the Candidate's convergence verification repeats it. Disclose review
 applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
 `focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
 uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its

@@ -17,7 +17,26 @@ export const ARC_CONTRACT_SUITES = [
   "pr-open-extensions",
   "review-gate-workflows",
   "ci-check-plumbing",
+  "markdown/descriptor-spacing",
+  "task-list/scanner",
+  "work-unit/boundary-fit-workflow-contract",
+  "work-unit/decompose-doctrine-contract",
+  "work-unit/decompose-workflow-contract",
+  "work-unit/decompose-v3-authority-boundary",
+  "work-unit/decompose-v3-repository-plan",
+  "work-unit/decompose-v3-topology",
+  "work-unit/generate-tasks-delivery-authoring-contract",
+  "work-unit/deliver-stack-entry-contract",
+  "work-unit/delivery-branch-namespace",
+  "scripts/integration/checkpoint-lifecycle-artifacts",
+  "scripts/review-gate/core/disposition-report",
 ] as const;
+
+/**
+ * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
+ * from a failing test. pytest exits with the same status when it collects no tests.
+ */
+export const EMPTY_RELATED_SELECTION_EXIT_CODE = 5;
 
 /**
  * Execute one configured tier through Vitest's supported in-process API.

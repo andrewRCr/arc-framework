@@ -480,7 +480,7 @@ export async function handleErrandCheck(
   p.intro("arc errand check");
   const caveats = formatErrandCheckCaveats(result);
   if (result.overlaps.length === 0 && caveats.length === 0) {
-    p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
+    p.note("No in-flight work unit or Errand touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
       (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,

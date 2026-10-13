@@ -25,10 +25,15 @@ import {
   type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
-import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../../lib/errand/record.js";
+import {
+  projectTransientInFlightRead,
+  readFetchedTransientInFlightIndexes,
+  readTransientInFlightIndexes,
+} from "../../lib/errand/record.js";
 import { readHistoryCompleteness } from "../../lib/git/history-completeness.js";
 import { readObjectAvailability } from "../../lib/git/object-availability.js";
 import {
+  DEFAULT_NETWORK_TIMEOUT_MS,
   fetchRefsBounded,
   readLocalInFlightRefSnapshot,
   readRemoteHeadSnapshot,
@@ -292,8 +297,14 @@ export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
   const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
-  const errandSlugByBranch = projectTransientInFlightRead(
-    await readTransientInFlightIndexes({ exec, identity }),
+  // An online read takes Errand records from the remote identity ref, so an Errand opened on another machine
+  // classifies before its record reaches this machine; the fetched read falls back to the local ref offline,
+  // including when the remote has not answered within the read's network timeout.
+  const errandSlugByBranch = projectTransientInFlightRead(localOnly
+    ? await readTransientInFlightIndexes({ exec, identity })
+    : await readFetchedTransientInFlightIndexes({
+        exec, identity, remote: "origin", timeoutMs: timeoutMs ?? DEFAULT_NETWORK_TIMEOUT_MS,
+      }),
   ).indexes.slugByBranch;
   const result = await deriveInFlight({
     exec,

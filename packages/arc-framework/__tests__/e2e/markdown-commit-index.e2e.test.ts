@@ -23,9 +23,6 @@ async function prepare(): Promise<string> {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await copyFile(join(sourceRoot, path), join(root, path));
   }
-  // Supply the hook's real link checker, which the current init recipe omits.
-  await copyFile(new URL("../../arc/system/.internal/scripts/validate-links.sh", import.meta.url),
-    join(root, ".arc/system/.internal/scripts/validate-links.sh"));
   await writeFile(join(root, ".markdownlint-cli2.jsonc"), JSON.stringify({
     config: { default: false, MD009: true }, ...MARKDOWN_SELECTION, customRules: [],
   }));

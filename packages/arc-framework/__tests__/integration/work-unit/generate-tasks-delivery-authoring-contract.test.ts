@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseWorkflowFrontmatter } from "../../../src/scripts/audit-method-triggers.js";
-import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -26,8 +26,8 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(declarations.methods).toContain("assess-boundary-fit");
     expect(packaged).toMatch(softWrappedProse("exactly one unmarked provisional `## Delivery Plan` locus"));
     expect(packaged).toMatch(softWrappedProse("does not create canonical delivery state"));
-    expect(packaged).toContain("derivation gap");
-    expect(packaged).toContain("orthogonal concerns");
+    expect(packaged).toMatch(softWrappedProse("derivation gap"));
+    expect(packaged).toMatch(softWrappedProse("orthogonal concerns"));
     expect(packaged).toMatch(softWrappedProse("Incubating authoring remains provisional"));
     expect(packaged).toContain("arc delivery plan inventory schema --json");
     expect(packaged).toContain("arc delivery plan from-tasks --task-list");
@@ -41,7 +41,7 @@ describe("generate-tasks delivery authoring contract", () => {
     const reread = packaged.indexOf("Post-settle coherence re-read", compose);
     const interlock = packaged.indexOf("`workflow-interlock`", reread);
     const finalize = packaged.indexOf("arc finalize generate-tasks", interlock);
-    const commit = packaged.indexOf("`commit-interlock` release", finalize);
+    const commit = indexOfSoftWrappedProse(packaged, "`commit-interlock` release", finalize);
     expect(compose).toBeGreaterThan(0);
     expect(reread).toBeGreaterThan(compose);
     expect(interlock).toBeGreaterThan(reread);
@@ -72,8 +72,8 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(method).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
       expect(method).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
       expect(method).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
-      expect(method).toContain("Order segments to retire the dominant residual risk earliest");
-      expect(method).toContain("place the first `slice` as early as its required substrate allows");
+      expect(method).toMatch(softWrappedProse("Order segments to retire the dominant residual risk earliest"));
+      expect(method).toMatch(softWrappedProse("place the first `slice` as early as its required substrate allows"));
     }
 
     for (const workflow of [packaged, installed]) {
@@ -83,8 +83,8 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(segmentationEnd).toBeGreaterThan(segmentationStart);
       const segmentation = workflow.slice(segmentationStart, segmentationEnd);
 
-      expect(segmentation).toContain(
-        "resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes",
+      expect(segmentation).toMatch(
+        softWrappedProse("resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes"),
       );
       expect(segmentation).toContain("[`resolve-plan-segmentation`][arc-methods-rps]");
       expect(parseWorkflowFrontmatter(workflow).methods).toContain("resolve-plan-segmentation");
@@ -109,16 +109,17 @@ describe("generate-tasks delivery authoring contract", () => {
     );
 
     for (const workflow of [packaged, installed]) {
-      const closeOutStart = workflow.indexOf("- End each member's task range");
-      const closeOutEnd = workflow.indexOf("\n- Group Success Criteria", closeOutStart);
+      const closeOutStart = indexOfSoftWrappedProse(workflow, "- End each member's task range");
+      const closeOutEnd = indexOfSoftWrappedProse(workflow, "- Group Success Criteria", closeOutStart);
       expect(closeOutStart).toBeGreaterThan(-1);
       expect(closeOutEnd).toBeGreaterThan(closeOutStart);
+      expect(workflow[closeOutEnd - 1]).toBe("\n");
       const memberCloseOut = workflow.slice(closeOutStart, closeOutEnd);
 
-      expect(memberCloseOut).toContain("member-scope verification parent");
+      expect(memberCloseOut).toMatch(softWrappedProse("member-scope verification parent"));
       expect(memberCloseOut).toContain("— validate criteria at member scope");
-      expect(memberCloseOut).toContain("sole terminal work-unit verification task");
-      expect(memberCloseOut).not.toContain("ordinary implementation parent");
+      expect(memberCloseOut).toMatch(softWrappedProse("sole terminal work-unit verification task"));
+      expect(memberCloseOut).not.toMatch(softWrappedProse("ordinary implementation parent"));
     }
   });
 
@@ -135,8 +136,8 @@ describe("generate-tasks delivery authoring contract", () => {
 
       expect(installed).toBe(packaged);
       expect(packaged).toContain(suffix);
-      expect(packaged).toMatch(/member[^\n]*range[\s\S]*?final[\s\S]{0,160}?(?:parent|task)/iu);
-      expect(packaged).toMatch(/sole terminal\s+work-unit verification\s+task/u);
+      expect(packaged).toMatch(/member(?:(?!\r?\n[ \t]*(?:>[ \t]*)?\r?\n)[\s\S])*range[\s\S]*?final[\s\S]{0,160}?(?:parent|task)/iu);
+      expect(packaged).toMatch(softWrappedPattern(/sole\s+terminal\s+work-unit\s+verification\s+task/u));
     }
   });
 });

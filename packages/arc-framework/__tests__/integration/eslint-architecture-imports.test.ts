@@ -59,31 +59,31 @@ describe("native architecture import predicates", () => {
 
   it("rejects every package reference including aliased and inline returned loaders", async () => {
     const source = [
-      'import "neverthrow";',
-      'export { err } from "neverthrow";',
-      'type Result = import("neverthrow").Result<unknown, unknown>;',
-      'void import("neverthrow");',
-      'void require("neverthrow");',
-      'void module.require("neverthrow");',
+      'import "@clack/prompts";',
+      'export { cancel } from "@clack/prompts";',
+      'type PromptOptions = import("@clack/prompts").TextOptions;',
+      'void import("@clack/prompts");',
+      'void require("@clack/prompts");',
+      'void module.require("@clack/prompts");',
       'import { createRequire as makeRequire } from "node:module";',
       'const load = makeRequire(import.meta.url);',
-      'void load("neverthrow");',
-      'void makeRequire(import.meta.url)("neverthrow");',
+      'void load("@clack/prompts");',
+      'void makeRequire(import.meta.url)("@clack/prompts");',
     ].join("\n");
-    const result = await lint(source, "outside.ts", ["neverthrow"]);
+    const result = await lint(source, "outside.ts", ["clack"]);
     expect(result.messages.map(({ ruleId, line }) => ({ ruleId, line }))).toEqual(
       [1, 2, 3, 4, 5, 6, 9, 10].map((line) => ({ ruleId: "arc/architecture-imports", line })),
     );
   });
 
   it("allows unrelated calls containing the restricted package string", async () => {
-    const result = await lint('const unrelatedLoad = (value: string) => value; unrelatedLoad("neverthrow");',
-      "ordinary.ts", ["neverthrow"]);
+    const result = await lint('const unrelatedLoad = (value: string) => value; unrelatedLoad("@clack/prompts");',
+      "ordinary.ts", ["clack"]);
     expect(result.messages).toEqual([]);
   });
 
-  it("allows the explicit Result module to expose its package seam", async () => {
-    const result = await lint('export { ok } from "neverthrow";', "lib/kernel/result.ts", ["kernel", "neverthrow"]);
+  it("allows kernel modules to expose approved Zod contracts", async () => {
+    const result = await lint('export { z } from "zod";', "lib/kernel/errors.ts", ["kernel"]);
     expect(result.messages).toEqual([]);
   });
 

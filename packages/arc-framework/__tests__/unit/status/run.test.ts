@@ -77,6 +77,7 @@ import {
   type MaterializableWorkUnitDiscoveryResult,
 } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
+import type { HooksPathSessionAdvisory } from "../../../src/lib/session-init/hooks-path-advisory.js";
 import type { SessionRemoteContext } from "../../../src/handlers/status-remote-context.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
@@ -660,6 +661,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     config: vi.fn(async () => configSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
+    hooksPath: vi.fn(async (): Promise<HooksPathSessionAdvisory> => ({ recommendedAction: "none" })),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
     deliveryPosition: vi.fn(async () => null),
     userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
@@ -1118,6 +1120,40 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(result.user.ok).toBe(true);
     expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
+  });
+
+  it("exposes the hooksPath slot so session entry can name an unprovisioned checkout", async () => {
+    const advisory: HooksPathSessionAdvisory = {
+      recommendedAction: "surface",
+      configured: ".husky/_",
+      resolvedPath: "/worktree/.husky/_",
+      recommendedPromptText: "core.hooksPath '.husky/_' does not exist at '/worktree/.husky/_'.",
+    };
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({ hooksPath: vi.fn(async () => advisory) }),
+    });
+    expect(result.hooksPath).toEqual({ ok: true, value: advisory });
+  });
+
+  it("wraps a rejecting hooksPath probe as ok=false runtime error; other slots unaffected", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({
+        hooksPath: async () => {
+          throw new Error("rev-parse failed");
+        },
+      }),
+    });
+    expect(result.hooksPath.ok).toBe(false);
+    if (!result.hooksPath.ok) {
+      expect(result.hooksPath.error.kind).toBe("runtime");
+      expect(result.hooksPath.error.message).toBe("rev-parse failed");
+    }
+    expect(result.dirty.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
 
@@ -2166,6 +2202,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "domainRules",
       "errandState",
       "extensions",
+      "hooksPath",
       "identity",
       "loadSet",
       "locusGuidance",

@@ -35,10 +35,8 @@ export interface ResolveActiveWuOptions {
  * Successful resolution: the unambiguous active WU.
  *
  * `path` is relative to `cwd` and matches the active-status reader's
- * shape. `name` is parsed from the meta filename; it is the empty string
- * for the lite layout (`status.md` directly under the active root), which
- * carries no parseable WU name. `branch` is the repository-owned identity
- * recorded by that meta.
+ * shape. `name` is parsed from the meta filename; `branch` is the
+ * repository-owned identity recorded by that meta.
  */
 export interface ResolvedWu {
   path: string;
@@ -95,8 +93,8 @@ export async function resolveOriginatingMetaPath(cwd: string): Promise<string | 
 
 /**
  * Parse the WU name from the resolved meta-file path. Reads the basename
- * and matches the `meta-{name}.md` shape; anything else — e.g. the
- * lite-layout `status.md` — yields the empty string.
+ * and matches the `meta-{name}.md` shape; an unmatched filename yields
+ * the empty string.
  */
 function parseNameFromPath(candidatePath: string): string {
   const filename = candidatePath.split("/").pop() ?? "";

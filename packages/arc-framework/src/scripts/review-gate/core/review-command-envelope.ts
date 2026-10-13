@@ -998,13 +998,10 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
-  // A response refused over an uncommitted verified fix names the replay that continues it.
-  remedialErrorVariant("review-respond", "invalid-input"),
-  // A lane re-resolved at a new head while carrying the earlier head's attempts names the replay without them.
-  remedialErrorVariant("review-resolve", "invalid-input"),
-  // A producer the driver no longer admits names the read that shows what the lane admits instead.
-  remedialErrorVariant("review-local-prepare", "invalid-input"),
-  remedialErrorVariant("review-hosted-request", "invalid-input"),
+  // Corrective continuations for uncommitted fixes, moved heads, unavailable producers, and stale admissions.
+  ...(["review-respond", "review-resolve", "review-local-prepare",
+    "review-hosted-request", "review-frontline-run"] as const)
+    .map((mode) => remedialErrorVariant(mode, "invalid-input")),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(

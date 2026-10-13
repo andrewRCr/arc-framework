@@ -57,3 +57,17 @@ it("reports an empty gate as none declared with exit 0", async () => {
   expect(result.stdout.trim().split(/\r?\n/u)).toEqual(["none declared", "Checks: none declared."]);
   expect(result.stdout).not.toContain("passed");
 });
+
+it("reports a declared no-evidence status as non-passing on every run, and as a failure when undeclared", async () => {
+  const command = [process.execPath, "-e", "console.log('nothing to examine'); process.exit(5)"];
+  const root = await createDeclaredCheckRepository({ declared: { command, no_evidence_exit: 5 }, undeclared: { command } });
+  repositories.push(root);
+  for (const attempt of [1, 2]) {
+    const result = await runArc(["check", "run", "declared", "undeclared", "--json"], root);
+    expect(result.exitCode, `attempt ${attempt}: ${result.stderr}`).toBe(1);
+    expect(JSON.parse(result.stdout).result.checks).toMatchObject([
+      { id: "declared", outcome: "no evidence", output: "nothing to examine" },
+      { id: "undeclared", outcome: "failed" },
+    ]);
+  }
+});

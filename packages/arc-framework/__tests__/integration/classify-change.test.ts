@@ -259,6 +259,34 @@ describe("classify-change.sh portability", () => {
   });
 });
 
+describe("classify-change.sh integration", () => {
+  async function integration(files: string[]): Promise<string> {
+    const input = files.length === 0 ? Buffer.alloc(0) : Buffer.from(`${files.join("\0")}\0`);
+    const result = await runScript(CLASSIFY_SCRIPT, ["integration", "--stdin0"], { stdin: input });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("targets ARC prose and configuration that a light run would otherwise skip", async () => {
+    expect(await integration(["packages/arc-framework/arc/system/methods/test-first.md"])).toBe("true");
+    expect(await integration([".arc/system/workflows/arc/supplemental/run-errand.md"])).toBe("true");
+    expect(await integration([".arc/system/arc-config.yml"])).toBe("true");
+    expect(await integration([".arc/active/tasks-example.md", ".arc/reference/QUICK-REFERENCE.md"])).toBe("true");
+  });
+
+  it("does not target code the weight covers or planning records", async () => {
+    expect(await integration(["packages/arc-framework/src/lib/config.ts"])).toBe("false");
+    expect(await integration(["packages/arc-framework/arc/reference/templates/template-tasks.md"])).toBe("false");
+    expect(await integration([".arc/active/tasks-example.md", ".arc/completed/2026-q4/01_x/spec-x.md"])).toBe("false");
+    expect(await integration([".arc/system/.internal/transitions/example.json"])).toBe("false");
+  });
+
+  it("fails safe for an empty path set and keeps unusual filenames intact", async () => {
+    expect(await integration([])).toBe("true");
+    expect(await integration([".arc/system/line\nbreak.md"])).toBe("true");
+  });
+});
+
 describe("classify-change.sh duplicate-push", () => {
   const tempDirs: string[] = [];
   const headSha = "1111111111111111111111111111111111111111";
@@ -1502,6 +1530,25 @@ describe("CI verified-tree record", () => {
       for (const entry of jobOf(workflow, id).steps.filter((candidate) => candidate.uses?.startsWith("actions/checkout@"))) {
         expect(entry.with?.ref, `${id} checks out another ref`).toBeUndefined();
       }
+    }
+  });
+
+  it("runs integration for a light pull request that touches content the verified tree leaves out", async () => {
+    const workflow = parseWorkflow(await readWorkflow());
+    const classify = jobOf(workflow, "classify");
+    const decision = stepOf(classify, "c");
+    const target = "needs.classify.outputs.integration_target == 'true'";
+
+    expect(classify.outputs?.integration_target).toBe("${{ steps.c.outputs.integration_target }}");
+    // Without rename detection a moved file reports both endpoints, so moving prose out of a read path still counts.
+    expect(decision.run).toMatch(
+      /git diff --name-only --no-renames -z "\$all_base\.\.\.\$all_head" \\\n\s*\| bash scripts\/classify-change\.sh integration --stdin0/u,
+    );
+    expect(decision.run).toContain('echo "integration_target=$integration_target" >> "$GITHUB_OUTPUT"');
+    expect(jobOf(workflow, "integration").if).toContain(target);
+    expect(jobOf(workflow, "build").if).toContain(target);
+    for (const id of ["unit", "e2e", "portability", "record-verified-tree"]) {
+      expect(jobOf(workflow, id).if, id).not.toContain("integration_target");
     }
   });
 });

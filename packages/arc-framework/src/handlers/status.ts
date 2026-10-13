@@ -65,6 +65,7 @@ import {
 } from "../lib/session-init/materializable-work-units.js";
 import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
 import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
+import { runHooksPathSessionAdvisory } from "../lib/session-init/hooks-path-advisory.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
@@ -507,6 +508,13 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     extensions: () => runExtensionsSessionInitStatus({ cwd }),
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
+    hooksPath: () => runHooksPathSessionAdvisory({
+      cwd,
+      exec: async (command, args, opts) => {
+        const { stdout } = await exec(command, [...args], { cwd: opts.cwd });
+        return { stdout };
+      },
+    }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     currentWuReconcile: async ({ slug, metaPath }) =>
       runCurrentWuReconcileSessionProbe(

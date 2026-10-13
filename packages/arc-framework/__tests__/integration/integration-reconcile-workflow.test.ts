@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const WORKFLOWS = [
   join(
@@ -37,10 +39,10 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("arc candidate applicability resolve {name} -");
     expect(step).toContain("`resolved / commit-selection`");
     expect(step).toContain("`exact-replay / commit-selection`");
-    expect(step).toMatch(/commit-selection[\s\S]*`commit-interlock` release[\s\S]*`push-interlock` release/iu);
-    expect(step).toMatch(/exact-replay \/ continue[\s\S]*already durable[\s\S]*restart/iu);
-    expect(step).toMatch(/machine-proved `applicable`[\s\S]*no attended step/iu);
-    expect(step).toMatch(/explicit `changed`[\s\S]*ordinary scope selection/iu);
+    expect(step).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release[\s\S]*`push-interlock`\s+release/iu));
+    expect(step).toMatch(softWrappedPattern(/exact-replay\s+\/\s+continue[\s\S]*already\s+durable[\s\S]*restart/iu));
+    expect(step).toMatch(softWrappedPattern(/machine-proved\s+`applicable`[\s\S]*no\s+attended\s+step/iu));
+    expect(step).toMatch(softWrappedPattern(/explicit\s+`changed`[\s\S]*ordinary\s+scope\s+selection/iu));
   });
 
   it.each(WORKFLOWS)("rebinds stale terminal state through ordinary delivery reconciliation in %s", async (path) => {
@@ -52,9 +54,9 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("`terminal-rebind-required / reconcile-delivery-state`");
     expect(step).toContain("`remedy.argv`");
     expect(step).toContain("`remedy.stdin`");
-    expect(step).toContain("adds no new operation");
+    expect(step).toMatch(softWrappedProse("adds no new operation"));
     expect(step).toContain("`rebound / rerun-checkpoint`");
-    expect(step).not.toMatch(/terminal[^\n]*recovery operation/iu);
+    expect(step).not.toMatch(softWrappedPattern(/terminal(?:(?!\r?\n[ \t]*(?:>[ \t]*)?\r?\n)[\s\S])*recovery\s+operation/iu));
   });
 
   it.each(WORKFLOWS)("resumes ordinary publication settlement for a newly recognized Candidate in %s", async (path) => {
@@ -67,9 +69,9 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("payload.attestArgv");
     expect(step).toContain("payload.recommendedActionText");
     expect(step).toMatch(/ordinary\s+pre-publication/u);
-    expect(step).toMatch(/resume-pre-publication[\s\S]*`publication-pending` or `hosted-review-pending` locus keeps\s+publication[\s\S]*shared publication-boundary\s+commit/u);
+    expect(step).toMatch(softWrappedPattern(/resume-pre-publication[\s\S]*`publication-pending`\s+or\s+`hosted-review-pending`\s+locus\s+keeps\s+publication[\s\S]*shared\s+publication-boundary\s+commit/u));
     expect(step).toContain("arc publish {name} --json");
-    expect(step).toMatch(/already-open Step 2 review[\s\S]*restart this step/iu);
+    expect(step).toMatch(softWrappedPattern(/already-open\s+Step\s+2\s+review[\s\S]*restart\s+this\s+step/iu));
   });
 
   it.each(WORKFLOWS)("commits a renewed shipped delivery boundary without private review replay in %s", async (path) => {
@@ -80,9 +82,9 @@ describe("integration current-WU reconcile workflow", () => {
 
     expect(step).toContain("`candidate-publication-required / refresh-shipped-delivery`");
     expect(step).toContain("`candidate-publication-commit-required / commit-boundary`");
-    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*payload\.attestArgv[\s\S]*restart this step/iu);
-    expect(step).toMatch(/commit-boundary[\s\S]*refresh publication boundary[\s\S]*restart this step/iu);
-    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*does not enter private pre-publication review/iu);
+    expect(step).toMatch(softWrappedPattern(/refresh-shipped-delivery[\s\S]*payload\.attestArgv[\s\S]*restart\s+this\s+step/iu));
+    expect(step).toMatch(softWrappedPattern(/commit-boundary[\s\S]*refresh\s+publication\s+boundary[\s\S]*restart\s+this\s+step/iu));
+    expect(step).toMatch(softWrappedPattern(/refresh-shipped-delivery[\s\S]*does\s+not\s+enter\s+private\s+pre-publication\s+review/iu));
   });
 
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
@@ -109,9 +111,9 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(4);
-    expect(step.match(/`push-interlock` release/gu)).toHaveLength(4);
-    expect(step.match(/`commit-interlock` release/gu)).toHaveLength(3);
+    expect(step.match(softWrappedPattern(/repeat\s+the\s+Step\s+1\s+push\s+extension\s+contract/giu))).toHaveLength(4);
+    expect(step.match(softWrappedPattern(/`push-interlock`\s+release/gu))).toHaveLength(4);
+    expect(step.match(softWrappedPattern(/`commit-interlock`\s+release/gu))).toHaveLength(3);
     const flatStep = step.replace(/\s+/gu, " ");
     const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
     const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");
@@ -125,7 +127,7 @@ describe("integration current-WU reconcile workflow", () => {
     expect(postMergeRerun).toBeGreaterThan(basePush);
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("review-applicability judgment");
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
-    expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
+    expect(step).toMatch(softWrappedPattern(/`pending`[\s\S]*requires\s+direction/u));
 
     expect(flatStep).toContain("No checkpoint approval carries across the overlapping base-merge arm");
     expect(flatStep).toContain("review carries across it only as the typed applicability result decides");

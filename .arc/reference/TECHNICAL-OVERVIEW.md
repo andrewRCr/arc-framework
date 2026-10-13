@@ -81,7 +81,7 @@ See `arc --help` for the full command list.
 _Architecture_ — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
 
 - **`src/lib/kernel/`** — Bottom-of-graph runtime contracts: Zod-backed shared schema vocabulary, a versioned
-  registry, extensible error primitives, the bounded Result seam, and byte-stable canonical-data utilities. Kernel
+  registry, extensible error primitives, and byte-stable canonical-data utilities. Kernel
   modules import only Node builtins and approved external libraries; every other CLI layer may depend downward on
   the kernel.
 - **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files). No direct side
@@ -158,8 +158,8 @@ _Runtime & environment:_
 _Language & build:_
 
 - **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
-- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; neverthrow provides typed
-  success/failure composition through the kernel's bounded export seam
+- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; plain discriminated unions
+  represent success and failure outcomes
 - **Git process execution**: execa 10 provides the ESM-native subprocess runtime behind the injectable Git executor
 - **Build**: tsup — ESM output, shebang injection, declaration generation
 
@@ -176,15 +176,15 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at the
-  lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  documentation lint. A change to ARC prose or other content the integration suite reads still runs that suite, which
+  runs at merge rather than at push. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at
+  the lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
   enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
   no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
-- **Linux runner fleet**: the repository variable `ARC_CI_LINUX_RUNNER` selects one class at a time. `arc-ci-mini`
-  is an arm64 Lima guest on a dedicated local host running two runner services, defined by the recipe and helpers
-  in `scripts/local-ci/`; `arc-ci-linux` is a pair of x86-64 VPS hosts running four services and stays registered
-  as fallback. An unset variable routes to GitHub-hosted runners. Operations for both live in
-  `.github/self-hosted-ci.md`.
+- **Runners**: every Linux job runs on GitHub-hosted `ubuntu-latest`, and the scheduled portability pair adds
+  `windows-latest` and `macos-latest`. The repository is public, so no job routes to a self-hosted runner while fork
+  pull requests run CI. The repository variable `ARC_CI_VITEST_MAX_WORKERS` retunes Vitest's worker count without a
+  code change.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

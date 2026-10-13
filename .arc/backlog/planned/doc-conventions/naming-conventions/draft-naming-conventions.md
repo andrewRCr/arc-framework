@@ -149,13 +149,14 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 ### `[ ]` **Clarify `arc sync` directionality in naming/expectation terms (publish-only vs. bidirectional)**
 
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
-  planning. (Split capture — the capability angle routed to `cross-machine-sync-coherence`.)
+  planning. (Split capture — the capability angle routed to `stale-state-detect-and-pull`.)
 - _Concern:_ `arc sync` is a smart _publish_ orchestrator, not bidirectional — the worktree leg is push-only
   (detects-and-blocks on `remote-ahead` / `diverged` rather than pulling), so it can't replace `git pull` on
   machine arrival. The name oversells it as bidirectional.
 - _Proposed (naming/expectation angle):_ if it stays publish-only, rename or document the directionality so the
   name doesn't imply bidirectional reconcile.
-- _Scope:_ S — naming/doc decision (the capability question is the sibling note in `cross-machine-sync-coherence`).
+- _Scope:_ S — naming/doc decision (the capability question went to `stale-state-detect-and-pull`, which gave
+  `arc sync` an inbound leg).
 
 ### `[ ]` **H1 styling for the inbox / working-memory / notes file family**
 

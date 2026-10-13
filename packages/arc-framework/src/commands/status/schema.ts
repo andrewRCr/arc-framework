@@ -41,6 +41,7 @@ import {
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
 import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
+import { HooksPathSessionAdvisorySchema } from "../../lib/session-init/hooks-path-advisory.js";
 import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../../lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../lib/session-init/notes-compaction-advisory.js";
@@ -769,6 +770,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   active: probe(ActiveSessionInitResultSchema),
   domainRules: probe(DomainRulesSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueSchema),
+  hooksPath: probe(HooksPathSessionAdvisorySchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),

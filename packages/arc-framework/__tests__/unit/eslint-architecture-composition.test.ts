@@ -10,7 +10,7 @@ const packageRoot = resolve(import.meta.dirname, "../..");
 const outerSyntax = { selector: 'Identifier[name="outerOnly"]', message: "Outer boundary" };
 const innerSyntax = { selector: 'Identifier[name="innerOnly"]', message: "Inner boundary" };
 const rows: ArchitectureBanRow[] = [
-  { files: [`src/${TYPESCRIPT_SCOPE}`], paths: ["outer-only"], patterns: ["blocked/**"], syntax: [outerSyntax], predicates: ["neverthrow"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], paths: ["outer-only"], patterns: ["blocked/**"], syntax: [outerSyntax], predicates: ["clack"] },
   { files: [`src/private/${TYPESCRIPT_SCOPE}`], ignores: ["src/private/allowed.ts"], paths: ["inner-only"], syntax: [innerSyntax], predicates: ["kernel"] },
   { files: [`src/ratchet/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state", "surface-names", "work-unit-paths"] },
 ];
@@ -32,21 +32,21 @@ describe("architecture scope partitions", () => {
     expect(await rules("src/private/future/nested.tsx")).toEqual({
       "no-restricted-imports": [2, { paths: ["outer-only", "inner-only"], patterns: ["blocked/**"] }],
       "no-restricted-syntax": [2, outerSyntax, innerSyntax],
-      "arc/architecture-imports": [2, ["neverthrow", "kernel"]],
+      "arc/architecture-imports": [2, ["clack", "kernel"]],
     });
   });
   it("retains the outer rules at an exact inner exception", async () => {
     expect(await rules("src/private/allowed.ts")).toEqual({
       "no-restricted-imports": [2, { paths: ["outer-only"], patterns: ["blocked/**"] }],
       "no-restricted-syntax": [2, outerSyntax],
-      "arc/architecture-imports": [2, ["neverthrow"]],
+      "arc/architecture-imports": [2, ["clack"]],
     });
   });
   it("reports each ratchet predicate under its own rule beside the shared rule", async () => {
     expect(await rules("src/ratchet/module.ts")).toEqual({
       "no-restricted-imports": [2, { paths: ["outer-only"], patterns: ["blocked/**"] }],
       "no-restricted-syntax": [2, outerSyntax],
-      "arc/architecture-imports": [2, ["neverthrow"]],
+      "arc/architecture-imports": [2, ["clack"]],
       "arc/store-raw-state": [2, ["store-raw-state"]],
       "arc/surface-names": [2, ["surface-names"]],
       "arc/work-unit-paths": [2, ["work-unit-paths"]],
@@ -54,7 +54,7 @@ describe("architecture scope partitions", () => {
   });
   it.each([
     ["architecture-imports", "store-raw-state"],
-    ["store-raw-state", "neverthrow"],
+    ["store-raw-state", "clack"],
     ["surface-names", "store-raw-state"],
     ["work-unit-paths", "surface-names"],
   ])("refuses a predicate routed to another rule: arc/%s with %s", async (rule, predicate) => {

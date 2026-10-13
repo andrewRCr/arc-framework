@@ -103,6 +103,7 @@
     "system/.internal/scripts/arc-lib.sh",
     "system/.internal/scripts/confirm-live-change-pair.sh",
     "system/.internal/scripts/validate-config.sh",
+    "system/.internal/scripts/validate-links.sh",
     "system/.internal/scripts/verify-integrity.sh",
     "system/.internal/scripts/README.md",
     "system/.internal/skills/arc-setup/SKILL.md",

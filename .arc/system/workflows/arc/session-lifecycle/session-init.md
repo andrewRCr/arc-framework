@@ -765,6 +765,14 @@ tracked source documents the work.
 - `userReferenceReconcile.ok == true` AND `userReferenceReconcile.value.recommendedAction == "surface"`:
   render `userReferenceReconcile.value.recommendedPromptText` verbatim.
 
+- `hooksPath.ok == true` AND `hooksPath.value.recommendedAction == "surface"`: Git runs no hooks in this checkout,
+  so a raw commit here skips every commit gate. Render `hooksPath.value.recommendedPromptText` verbatim. Advisory,
+  never gates.
+
+  ```text
+  **Hooks missing:** {hooksPath.value.recommendedPromptText}
+  ```
+
 - `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an
   incomplete push is outstanding (**lag, not loss**: the sibling's work is safe on its own machine; it simply
   hasn't landed at origin). Render one calm, non-gating Aware line per marker, co-located with the base-ref

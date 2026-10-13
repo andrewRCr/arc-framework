@@ -34,13 +34,12 @@ on:
 permissions:
   contents: read
 
-# Local Vitest runs keep their own 50% shared-machine default. In CI, an ordinary
-# GitHub-hosted Linux runner uses native sizing; selecting a custom Linux runner
-# defaults to one worker so multiple jobs and their CLI/Git subprocesses fit a
-# constrained host. The repository variable can retune that fleet without a code
-# change. An unbudgeted sizing mode receives an advisory warning, not a comparison.
+# Local Vitest runs keep their own 50% shared-machine default. In CI, the
+# GitHub-hosted Linux runners use native sizing; the repository variable can retune
+# it without a code change. An unbudgeted sizing mode receives an advisory warning,
+# not a comparison.
 env:
-  VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
+  VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}
 
 # Cancel superseded work for the same ref. Push and pull_request runs never
 # cancel each other, because a branch ref and a pull-request merge ref are
@@ -60,11 +59,14 @@ jobs:
   #            suite in this pull request; light for a docs-only change or an
   #            already-verified tree. A light run skips the code checks, the
   #            integration/e2e suite, and the portability leg.
+  # integration_target keeps the integration suite on a light pull request whose
+  # change touches content that suite reads but the weight's code tree leaves
+  # out, such as ARC prose; the push gate does not run integration.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
     name: Classify lane & weight
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
@@ -74,6 +76,7 @@ jobs:
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
       portability_target: ${{ steps.c.outputs.portability_target }}
+      integration_target: ${{ steps.c.outputs.integration_target }}
       tested_tree: ${{ steps.tested.outputs.tree }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -171,6 +174,28 @@ jobs:
             fi
           fi
           echo "portability_target=$portability_target" >> "$GITHUB_OUTPUT"
+
+          # integration_target reports whether the change touches content the
+          # integration suite reads that the weight's code tree leaves out (an
+          # unreadable PR diff fails safe to true). Rename detection stays off so
+          # moving a file reports both of its paths.
+          integration_target=false
+          if [ "$event" = 'pull_request' ]; then
+            integration_target=true
+            if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
+               && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
+              if ! integration_target="$(git diff --name-only --no-renames -z "$all_base...$all_head" \
+                | bash scripts/classify-change.sh integration --stdin0)"; then
+                echo "::error::integration classifier failed"
+                exit 1
+              fi
+              if [ "$integration_target" != 'true' ] && [ "$integration_target" != 'false' ]; then
+                echo "::error::invalid integration classifier output: $integration_target"
+                exit 1
+              fi
+            fi
+          fi
+          echo "integration_target=$integration_target" >> "$GITHUB_OUTPUT"
           lane=reviewed
           if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
              && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
@@ -214,7 +239,7 @@ jobs:
       actions: write # upload-artifact under workflow-level contents-only defaults
     needs: classify
     if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -273,8 +298,8 @@ jobs:
       contents: read
       actions: write
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -314,7 +339,7 @@ jobs:
     # Documentation and default checks run on light and heavy push/PR runs.
     # The shared build is optional when the classifier selected light weight.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -348,6 +373,8 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-domain-rules
     - id: arc-section-refs
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-section-refs
+    - id: arc-links
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-links
     - id: markdown
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown
     - id: package-sync
@@ -396,7 +423,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2]
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
@@ -462,12 +489,12 @@ jobs:
       contents: read
       actions: write # download runtime and upload writer durations
     needs: [classify, setup, build]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
@@ -539,7 +566,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
@@ -609,7 +636,7 @@ jobs:
       actions: read
     needs: [unit, integration, e2e]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -653,7 +680,7 @@ jobs:
       actions: read # download-artifact of shared dist
     needs: [classify, setup, build]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -699,7 +726,7 @@ jobs:
       contents: read
       actions: read
     needs: setup
-    # The Linux fleet capacity policy does not constrain hosted Windows/macOS.
+    # The Linux sizing variable does not apply to hosted Windows/macOS.
     env:
       VITEST_MAX_WORKERS: ''
     if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule') }}
@@ -743,7 +770,7 @@ jobs:
     permissions: {}
     needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Roll up required jobs
         env:
@@ -768,7 +795,7 @@ jobs:
     permissions: {}
     needs: ci_ok
     if: ${{ always() && github.event_name == 'pull_request' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Mirror ci-ok for required-context compatibility
         env:
@@ -782,7 +809,7 @@ jobs:
 
   # Record that this pull-request run passed every heavy job on the code tree it
   # tested, so a later run of the same pull request that tests an identical tree
-  # can run light. Only a heavy run records: a light run tested nothing. The save
+  # can run light. Only a heavy run records: a light run skips heavy jobs. The save
   # is advisory, so this job stays out of ci-ok's needs and a failed or duplicate
   # save never reddens the required check. A pull request from a fork runs with
   # read-only cache access, where a save writes nothing, so only a same-repository
@@ -792,7 +819,7 @@ jobs:
     permissions: {}
     needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability]
     if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
     - name: Write verified-tree marker
       env:

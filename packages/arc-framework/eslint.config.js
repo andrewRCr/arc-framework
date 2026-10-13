@@ -1,8 +1,10 @@
 import eslint from "@eslint/js";
+import jsdoc from "eslint-plugin-jsdoc";
 import { join } from "node:path";
 import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
+import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -34,7 +36,6 @@ const architectureBans = [
   { files: [`src/${TYPESCRIPT_SCOPE}`],
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
     syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["neverthrow"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },
   { files: [`__tests__/${TYPESCRIPT_SCOPE}`], predicates: ["store-tests"] },
@@ -153,8 +154,11 @@ export default tseslint.config(
   {
     plugins: {
       arc: {
-        rules: Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
-          [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
+        rules: {
+          ...Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
+            [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
+          "module-doc-comment": moduleDocCommentRule,
+        },
       },
     },
   },
@@ -189,6 +193,19 @@ export default tseslint.config(
         "error",
         { considerDefaultExhaustiveForUnions: false, requireDefaultForNonUnion: false },
       ],
+    },
+  },
+  {
+    files: [`src/${TYPESCRIPT_SCOPE}`],
+    plugins: { jsdoc },
+    rules: {
+      // Presence only: tags are written where they say what the name and type do not.
+      "jsdoc/require-jsdoc": ["error", {
+        publicOnly: true,
+        enableFixer: false,
+        require: { FunctionDeclaration: true, ArrowFunctionExpression: true, FunctionExpression: true },
+      }],
+      "arc/module-doc-comment": "error",
     },
   },
   {

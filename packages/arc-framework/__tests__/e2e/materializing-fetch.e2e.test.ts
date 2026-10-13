@@ -1,4 +1,4 @@
-/** Materializing command fetch deadlines, refusal output, and successful retry. */
+/** Materializing command fetch deadlines and failures, refusal output, and successful retry. */
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,6 +9,21 @@ import { git } from "./helpers.js";
 
 const commands = [["sync", "--json"], ["release", "push"], ["user", "sync"]]
   .map(args => ({ label: args.join(" "), args }));
+
+const fetchFailures = [
+  { kind: "authentication", exit: 128, stderr: "fatal: Authentication failed for 'https://example.test/repo.git/'" },
+  { kind: "transport", exit: 128,
+    stderr: "fatal: unable to access 'https://example.test/repo.git/': Could not resolve host: example.test" },
+  { kind: "ref update", exit: 1,
+    stderr: "error: cannot lock ref 'refs/remotes/origin/main': Unable to create lock file: File exists" },
+];
+
+const failureCases = [
+  ...fetchFailures.flatMap(failure => [["sync", "--json"], ["release", "push"]]
+    .map(args => ({ ...failure, args, label: `${args.join(" ")} ${failure.kind}` }))),
+  { ...fetchFailures[1]!, args: ["sync"], label: "sync transport" },
+  { ...fetchFailures[0]!, args: ["sync", "--json", "--dry-run", "--yes"], label: "sync dry run authentication" },
+];
 
 async function auditEntries(root: string): Promise<unknown[]> {
   try {
@@ -42,14 +57,18 @@ async function fixture() {
     'const { delimiter, resolve } = require("node:path");',
     "const args = process.argv.slice(2);",
     'const fetch = args.indexOf("fetch");',
-    'const delayed = fetch >= 0 && args[fetch + 1] === "origin" && args[fetch + 2] === "main";',
+    'const targeted = fetch >= 0 && args[fetch + 1] === "origin" && args[fetch + 2] === "main";',
+    "if (targeted && process.env.ARC_TEST_FETCH_STDERR) {",
+    '  process.stderr.write(process.env.ARC_TEST_FETCH_STDERR + "\\n");',
+    "  process.exit(Number(process.env.ARC_TEST_FETCH_EXIT));",
+    "}",
     'const path = (process.env.PATH ?? "").split(delimiter)',
     "  .filter(entry => resolve(entry) !== resolve(__dirname)).join(delimiter);",
     "function run() {",
     '  const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
     "  process.exit(result.status ?? 1);",
     "}",
-    'if (delayed) setTimeout(run, Number(process.env.ARC_TEST_FETCH_DELAY)); else run();',
+    'if (targeted) setTimeout(run, Number(process.env.ARC_TEST_FETCH_DELAY)); else run();',
     "",
   ].join("\n");
   const driver = join(bin, process.platform === "win32" ? "git-shim.cjs" : "git");
@@ -131,15 +150,66 @@ describe("materializing command fetch", () => {
     },
   );
 
-  it("an unwritable audit log preserves the recoverable sync failure", async () => {
+  it.each(failureCases)(
+    "$label reports Git's failure, audits it once, and succeeds once repaired", async ({ args, exit, stderr }) => {
+      const f = await fixture();
+      try {
+        const before = await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"]);
+        const auditBefore = await auditEntries(f.root);
+        const result = await runCli(args, {
+          cwd: f.root,
+          env: { ...f.env, ARC_TEST_FETCH_STDERR: stderr, ARC_TEST_FETCH_EXIT: String(exit) },
+          timeout: 20_000,
+        });
+        expect(result.exitCode).toBe(args[0] === "release" ? 14 : 1);
+        const diagnostic = args.includes("--json") ? result.stderr : result.stdout + result.stderr;
+        expect(diagnostic).toContain(stderr);
+        expect(diagnostic).toContain("Retry");
+        expect(await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"])).toBe(before);
+        const audited = args[0] === "release" || !args.includes("--dry-run");
+        const audit = await auditEntries(f.root);
+        expect(audit).toHaveLength(auditBefore.length + (audited ? 1 : 0));
+        if (audited) {
+          expect(audit.at(-1)).toMatchObject(args[0] === "release" ? {
+            schemaVersion: 2, command: "release-push", decision: "refused", refusalCode: 14,
+            outcome: { kind: "refused" },
+          } : {
+            schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
+            outcome: { kind: "sync", cell: "worktree-fetch-failed",
+              worktree: "fetch:failed:error", notes: "skip:skipped:worktree-fetch-failed", exitCode: 1 },
+          });
+        }
+        if (args.includes("--json")) {
+          expect(JSON.parse(result.stdout)).toMatchObject({
+            cell: "none", reason: "worktree-fetch-failed", exitCode: 1, branch: "main", remoteBranch: "main",
+            gitFailure: { kind: "nonzero-exit", exitCode: exit, stderr: expect.stringContaining(stderr) },
+            detail: expect.stringContaining(stderr),
+            recommendedSummaryLine: expect.stringContaining("Retry"),
+            remedy: { argv: ["arc", ...args] },
+          });
+        }
+        const retry = await runCli(args, { cwd: f.root, env: { ARC_DISABLE_UPDATE_CHECKS: "1" } });
+        expect(retry.exitCode, retry.stderr).toBe(0);
+      } finally {
+        await f.cleanup();
+      }
+    },
+  );
+
+  it.each([
+    { reason: "worktree-fetch-timeout",
+      failure: (clock: string) => ({ NODE_OPTIONS: `--import=${pathToFileURL(clock).href}` }) },
+    { reason: "worktree-fetch-failed",
+      failure: () => ({ ARC_TEST_FETCH_STDERR: fetchFailures[0]!.stderr, ARC_TEST_FETCH_EXIT: "128" }) },
+  ])("an unwritable audit log preserves the recoverable $reason sync failure", async ({ reason, failure }) => {
     const f = await fixture();
     try {
       await mkdir(join(f.root, ".arc", "user", "test-user", ".internal", ".audit-log.jsonl"), { recursive: true });
       const result = await runCli(["sync", "--json"], {
-        cwd: f.root, env: { ...f.env, NODE_OPTIONS: `--import=${pathToFileURL(f.clock).href}` }, timeout: 20_000,
+        cwd: f.root, env: { ...f.env, ...failure(f.clock) }, timeout: 20_000,
       });
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stdout)).toMatchObject({ reason: "worktree-fetch-timeout", exitCode: 1 });
+      expect(JSON.parse(result.stdout)).toMatchObject({ reason, exitCode: 1 });
       expect(result.stderr).toContain("Retry");
     } finally {
       await f.cleanup();

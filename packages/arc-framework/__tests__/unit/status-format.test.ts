@@ -260,6 +260,7 @@ function makeSessionInitResult(
         },
       },
     },
+    hooksPath: { ok: true, value: { recommendedAction: "none" } },
     active: {
       ok: true,
       value: {
