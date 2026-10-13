@@ -3,7 +3,7 @@
   "slug": "test-cost-json-output",
   "claimId": "40094ba54629f1757482197ca8197225",
   "createdAt": "2026-10-13T02:53:06.627Z",
-  "updatedAt": "2026-10-13T02:53:06.627Z",
+  "updatedAt": "2026-10-13T03:13:51.417Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "test-cost-json-output",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give the test-cost benchmark a clean machine-readable result",
   "originEntrySourceDigest": "sha256:37b6c5ec2be20160ec44577a558d69f7dbae0df610bf8a0f859784edbe363c0d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/test-cost-json-output",
+    "headSha": "a5ad5a6ce2753a1a50d60bf8b68542676dc60d58"
+  }
 }
