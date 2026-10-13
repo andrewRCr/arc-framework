@@ -178,7 +178,6 @@ export default tseslint.config(
   },
   {
     files: ["src/**/*.ts"],
-    plugins: { jsdoc },
     rules: {
       "max-lines-per-function": [
         "error",
@@ -194,6 +193,12 @@ export default tseslint.config(
         "error",
         { considerDefaultExhaustiveForUnions: false, requireDefaultForNonUnion: false },
       ],
+    },
+  },
+  {
+    files: [`src/${TYPESCRIPT_SCOPE}`],
+    plugins: { jsdoc },
+    rules: {
       // Presence only: tags are written where they say what the name and type do not.
       "jsdoc/require-jsdoc": ["error", {
         publicOnly: true,

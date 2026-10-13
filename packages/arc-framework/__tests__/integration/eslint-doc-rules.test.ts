@@ -41,6 +41,12 @@ describe("exported-surface doc enforcement", () => {
     expect(await docFindings(sourcePath, "export const value = 1;\n")).toEqual(["arc/module-doc-comment"]);
   });
 
+  it.each(["mts", "cts", "tsx"])("applies both rules to a .%s source module", async (extension) => {
+    const text = "\nexport function read(): number { return 1; }\n";
+    expect(await docFindings(`src/lib/doc-fixture.${extension}`, text))
+      .toEqual(["arc/module-doc-comment", "jsdoc/require-jsdoc"]);
+  });
+
   it("applies neither rule outside the source tree", async () => {
     const text = "export function read(): number { return 1; }\n";
     expect(await docFindings("__tests__/unit/doc-fixture.test.ts", text)).toEqual([]);
