@@ -377,6 +377,17 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck format-tables
     - id: markdown-staged
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown-staged
+    - id: markdown-underwrap
+      # This check is changed-file-only; the shared merge forecast selects all files.
+      run: |
+        base="$(node --import tsx --input-type=module -e '
+          import {readFileSync} from "node:fs";
+          import {parseCiCheckForecast} from "./packages/arc-framework/src/lib/ci-check-runner.ts";
+          const {base} = parseCiCheckForecast(JSON.parse(readFileSync(".arc-check-forecast.json", "utf8")));
+          if (base === undefined) throw new Error("Under-wrap checking requires the forecast base commit");
+          process.stdout.write(base);
+        ')"
+        node --import tsx packages/arc-framework/src/cli.ts check run lint:md:underwrap --range "$base" --ci
     - id: arc-triggers
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-triggers
     - id: arc-domain-rules
