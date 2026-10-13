@@ -4,7 +4,9 @@
  * Composes the destructive-flag detector, active-WU resolver, and
  * `authorizeRelease` interlock check into a short-circuit cascade
  * (12 → 10 → 13 → 11): cheapest checks fire first to minimize I/O on
- * common refusal paths. Each refusal exits with the matched refusal
+ * common refusal paths. An amend adds one ref read to code 12: it proceeds
+ * only while no remote-tracking ref contains `HEAD`, so it never rewrites a
+ * pushed commit. Each refusal exits with the matched refusal
  * code, prints a `formatRefusal()` message, and writes a
  * `decision: "refused"` audit entry. The wrapped `git commit`
  * subprocess never fires on a refusal path.
@@ -31,7 +33,7 @@ import {
   sanitizeArgs,
   toAuditWorkUnit,
 } from "../../lib/release/audit-log.js";
-import { detectCommitDestructive } from "../../lib/release/destructive-flags.js";
+import { detectCommitAmend, detectCommitDestructive } from "../../lib/release/destructive-flags.js";
 import {
   authorizeRelease,
   formatRefusal,
@@ -42,7 +44,7 @@ import {
   rewriteCommitMessagesToFile,
 } from "../../lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
-import type { AuthorizationDecision } from "../../lib/release/types.js";
+import type { AuthorizationDecision, PushedHeadReading } from "../../lib/release/types.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -76,6 +78,12 @@ export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
  * resolves with `exitCode: 0`.
  */
 export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
+
+/**
+ * Lists the remote-tracking refs that already contain `HEAD`, reading local
+ * refs only. Called only for an amend, which proceeds while the list is empty.
+ */
+export type ListRemoteRefsContainingHead = (opts: { cwd: string }) => Promise<readonly string[]>;
 
 /** Result of classifying and validating deterministic commit-message input. */
 export type CommitMessagePreflightResult =
@@ -168,6 +176,8 @@ export interface ReleaseCommitDeps {
   persistMessageRetry: PersistCommitMessageRetry;
   /** Removes the exact wrapper-owned retry file after successful consumption. */
   cleanupConsumedMessageRetry: CleanupConsumedMessageRetry;
+  /** Remote-tracking refs holding `HEAD`, read before an amend. */
+  listRemoteRefsContainingHead: ListRemoteRefsContainingHead;
   /** Wrapper-only safe prepared-file resubmission guidance. */
   preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
@@ -198,6 +208,16 @@ export async function runReleaseCommit(
   if (flag !== null) {
     return refuse(
       { kind: "refuse", code: 12, identifier: "destructive-flag", flag },
+      { wu: null, deps, writeStderr, appendAudit },
+    );
+  }
+
+  // Step 1, amend only (one ref read): an amend of a pushed `HEAD` refuses as a destructive flag.
+  const amend = detectCommitAmend(deps.argv);
+  const head = amend ? await readPushedHead(deps) : null;
+  if (head !== null) {
+    return refuse(
+      { kind: "refuse", code: 12, identifier: "destructive-flag", flag: "--amend", head },
       { wu: null, deps, writeStderr, appendAudit },
     );
   }
@@ -288,7 +308,7 @@ export async function runReleaseCommit(
   if (spawned.exitCode !== 0 && preflight.kind === "passed") {
     try {
       const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
-      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path)}\n`);
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, { amend })}\n`);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
@@ -354,7 +374,8 @@ async function refusePreflight(
         cwd: ctx.deps.cwd,
         bytes: correctedMessageBytes,
       });
-      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path)}`;
+      const amend = detectCommitAmend(ctx.deps.argv);
+      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, { amend })}`;
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       ctx.writeStderr(`warn: corrected commit-message retry could not be persisted: ${detail}\n`);
@@ -374,6 +395,21 @@ async function refusePreflight(
   });
   surfaceAuditFailure(auditResult, ctx.writeStderr);
   return { exitCode: 16 };
+}
+
+/**
+ * Read where an amend's `HEAD` stands: null while no remote-tracking ref
+ * contains it, so the amend may proceed. A failed read refuses with Git's
+ * message on one line, keeping a retry once the repository is repaired.
+ */
+async function readPushedHead(deps: ReleaseCommitDeps): Promise<PushedHeadReading | null> {
+  try {
+    const refs = await deps.listRemoteRefsContainingHead({ cwd: deps.cwd });
+    return refs.length === 0 ? null : { kind: "pushed", refs };
+  } catch (cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    return { kind: "unreadable", detail: detail.replace(/\s+/gu, " ").trim() };
+  }
 }
 
 /**

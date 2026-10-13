@@ -22,6 +22,11 @@ describe("renderCommitMessageRetryCommand", () => {
     expect(command).not.toContain("COMMIT_EDITMSG");
   });
 
+  it("keeps an amend an amend", () => {
+    expect(renderCommitMessageRetryCommand("/repo/.git/retry", { amend: true }))
+      .toBe(`arc release commit --amend -F ${quoteShellArgument("/repo/.git/retry")}`);
+  });
+
   it.runIf(process.platform !== "win32")(
     "round-trips spaces and shell metacharacters through the host shell",
     async () => {

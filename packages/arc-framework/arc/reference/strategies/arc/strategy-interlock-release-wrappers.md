@@ -53,11 +53,13 @@ flag or harness mode. Three components:
   `arc.pushInterlock`) against the wrapper's command scope on the permissiveness ladder
   (`manual` → `on-{primary}` → `on-workflow`). On scope-mismatch, refuses with exit code 11 and
   an audit entry; never invokes git.
-- **Destructive-flag refusal.** Commit-side: `--amend`, `--allow-empty`, `--no-verify`.
-  Push-side: `--force` / `-f`, `--force-with-lease`, `--delete` / `-d`, `--mirror`, and the
-  `+refspec` force-push pattern. All refuse with exit code 12 regardless of interlock state. The
-  wrapper is a deliberately narrow surface; destructive shapes route through raw `git`, where
-  the harness gate fires explicitly.
+- **Destructive-flag refusal.** Commit-side: `--allow-empty`, `--no-verify`, and `--amend` once
+  `HEAD` is on a remote-tracking ref. Push-side: `--force` / `-f`, `--force-with-lease`,
+  `--delete` / `-d`, `--mirror`, and the `+refspec` force-push pattern. All refuse with exit
+  code 12 regardless of interlock state. The wrapper is a deliberately narrow surface;
+  destructive shapes route through raw `git`, where the harness gate fires explicitly. An amend
+  of an unpushed `HEAD` rewrites nothing published, so the wrapper runs it through the same
+  cascade as any commit.
 - **Audit log.** One JSONL entry per invocation at
   `.arc/user/{identity}/.internal/.audit-log.jsonl` — captures sanitized argv (commit message
   bodies redacted), resolved interlock state, active work-unit pointer, and outcome shape (commit

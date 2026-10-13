@@ -17,8 +17,9 @@ export function quoteShellArgument(value: string): string {
  * Render the exact wrapper command for a persisted latest-retry message.
  *
  * @param path - Absolute wrapper-owned retry path.
+ * @param options - `amend` keeps the retry an amend rather than a new commit.
  * @returns A shell-safe release-commit invocation.
  */
-export function renderCommitMessageRetryCommand(path: string): string {
-  return `arc release commit -F ${quoteShellArgument(path)}`;
+export function renderCommitMessageRetryCommand(path: string, options: { amend?: boolean } = {}): string {
+  return `arc release commit ${options.amend === true ? "--amend " : ""}-F ${quoteShellArgument(path)}`;
 }

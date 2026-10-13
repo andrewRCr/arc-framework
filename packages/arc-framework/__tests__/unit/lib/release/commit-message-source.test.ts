@@ -165,6 +165,31 @@ describe("message-affecting options", () => {
   });
 });
 
+describe("amend forms", () => {
+  it("assembles an amend's explicit message like any commit's", () => {
+    expect(classify(["--amend", "-m", "subject"])).toEqual({
+      kind: "assembled",
+      source: { kind: "messages", values: ["subject"] },
+    });
+  });
+
+  it("refuses an amend that would open the editor without a TTY and passes it with one", () => {
+    expect(classify(["--amend"])).toEqual({ kind: "refused", reason: "editor-required" });
+    expect(classify(["--amend"], { stdinIsTTY: true })).toMatchObject({ kind: "pass-through" });
+  });
+
+  it("leaves an amend that keeps HEAD's message to Git without an editor", () => {
+    expect(classify(["--amend", "--no-edit"])).toEqual({
+      kind: "pass-through",
+      reason: "git-managed-message",
+    });
+  });
+
+  it("still assembles an explicit message beside --no-edit", () => {
+    expect(classify(["-m", "subject", "--no-edit"])).toMatchObject({ kind: "assembled" });
+  });
+});
+
 describe("editor-bound and reuse forms", () => {
   it("refuses a source-free editor path without a TTY and passes it with one", () => {
     expect(classify([])).toEqual({ kind: "refused", reason: "editor-required" });

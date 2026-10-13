@@ -166,6 +166,7 @@ type ScanState = {
 };
 
 const LONG_ORDINARY_OPTIONS: ReadonlySet<string> = new Set([
+  "--amend",
   "--all",
   "--patch",
   "--interactive",
@@ -315,6 +316,12 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
     }
     state.messageModifier = true;
     if (name === "--edit") state.explicitEditor = true;
+    return false;
+  }
+
+  if (name === "--no-edit") {
+    if (attached !== undefined) state.unsupported = true;
+    state.editorFreeMessage = true;
     return false;
   }
 

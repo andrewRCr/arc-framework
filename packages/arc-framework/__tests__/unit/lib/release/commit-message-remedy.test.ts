@@ -9,4 +9,8 @@ describe("renderCommitMessageRemedy", () => {
     expect(renderCommitMessageRemedy()).toContain("arc release commit -F <message-file>");
     expect(renderCommitMessageRemedy()).not.toContain("<<");
   });
+
+  it("keeps an amend an amend", () => {
+    expect(renderCommitMessageRemedy({ amend: true })).toContain("arc release commit --amend -F <message-file>");
+  });
 });
