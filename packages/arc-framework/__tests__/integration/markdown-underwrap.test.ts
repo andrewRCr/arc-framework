@@ -45,7 +45,7 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
-  await rm(root, { recursive: true, force: true });
+  await rm(root, { recursive: true, force: true, maxRetries: 3 });
 });
 
 describe("changed indexed Markdown under-wrap check", () => {
@@ -99,7 +99,7 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(messages.join("")).toContain("Markdown path is excluded");
   });
 
-  it("runs the authored CI step on changed files rather than its full merge forecast", async () => {
+  it.each(["pull_request", "push"])("runs the authored CI step on changed files for %s", async event => {
     await cp(join(repositoryRoot, "packages/arc-framework/src"), join(root, "packages/arc-framework/src"), { recursive: true });
     await write("scripts/run-ci-checks.mjs", await readFile(join(repositoryRoot, "scripts/run-ci-checks.mjs")));
     await write(".github/check-plumbing.yml", await readFile(join(repositoryRoot, ".github/check-plumbing.yml")));
@@ -109,21 +109,38 @@ describe("changed indexed Markdown under-wrap check", () => {
       join(root, "packages/arc-framework/node_modules"), "junction");
     await git("git", ["add", "--all"], { cwd: root });
     await git("git", ["-c", "user.name=Test", "-c", "user.email=t@example.com", "commit", "-qm", "CI source fixture"], { cwd: root });
+    const before = (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
     await write("guide.md", `${good}\nAn added paragraph.\n`);
     await git("git", ["add", "guide.md"], { cwd: root });
+    if (event === "push") await git("git", ["-c", "user.name=Test", "-c", "user.email=t@example.com",
+      "commit", "-qm", "pushed guide change"], { cwd: root });
     const forecast = await git(process.execPath, [join(repositoryRoot, "packages/arc-framework/dist/cli.js"),
       "check", "gate", "merge", "--ci", "--dry-run", "--json"], { cwd: root });
     await write(".arc-check-forecast.json", forecast.stdout);
     const workflow = load(await readFile(join(repositoryRoot, ".github/workflows/ci.yml"), "utf8")) as {
-      jobs: Record<string, { steps: Array<{ id?: string; run?: string }> }>;
+      jobs: Record<string, { steps: Array<{ id?: string; run?: string; env?: Record<string, string> }> }>;
     };
     const step = workflow.jobs["lint-typecheck"]?.steps.find(step => step.id === "markdown-underwrap");
     expect(step?.run).toBeTypeOf("string");
+    const expressions: Record<string, string> = {
+      "${{ github.event_name }}": event, "${{ github.event.before }}": before,
+    };
+    const stepEnv = Object.fromEntries(Object.entries(step?.env ?? {}).map(([key, expression]) => {
+      if (!(expression in expressions)) throw new Error(`Unrecognized workflow expression: ${expression}`);
+      return [key, expressions[expression]];
+    }));
     const result = await git("bash", ["-e", "-o", "pipefail", "-c", step!.run!], {
-      cwd: root, env: { ...process.env, FORCE_COLOR: undefined },
+      cwd: root, env: { ...process.env, ...stepEnv, FORCE_COLOR: undefined },
     }).catch(error => { throw new Error(`${error.stdout}\n${error.stderr}`); });
     expect(result.stdout).toContain("lint:md:underwrap: passed");
     expect(result.stdout + result.stderr).not.toContain("untouched.md");
+    if (event === "push") {
+      for (const invalidBase of ["", "0".repeat(40)]) {
+        await expect(git("bash", ["-e", "-o", "pipefail", "-c", step!.run!], {
+          cwd: root, env: { ...process.env, ...stepEnv, PUSH_BEFORE: invalidBase, FORCE_COLOR: undefined },
+        })).rejects.toThrow();
+      }
+    }
   }, 60_000);
 
   it("selects only changed Markdown inputs even when a global package input changes", async () => {

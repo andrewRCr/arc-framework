@@ -5,7 +5,7 @@ import { underwrapRule } from "../../../src/lib/markdown/underwrap.js";
 
 async function findings(content: string, config: Record<string, number> = {}) {
   const result = await lint({ strings: { example: content }, customRules: [underwrapRule],
-    markdownItFactory: () => new MarkdownIt(),
+    markdownItFactory: () => new MarkdownIt({ html: true }),
     config: { default: false, ARC001: config } });
   return result.example ?? [];
 }
@@ -37,6 +37,9 @@ describe("Markdown under-wrap rule", () => {
     ["blockquote in a list", "- > Short quoted text.\n  > More quoted text.\n"],
     ["space hard break", "Short first line.  \nNext line is separate.\n"],
     ["backslash hard break", "Short first line.\\\nNext line is separate.\n"],
+    ["HTML hard break", "Short text.<br>\nNext line is separate.\n"],
+    ["self-closing HTML hard break", "Short text.<br />\nNext line is separate.\n"],
+    ["uppercase HTML hard break", "Short text.<BR/> \nNext line is separate.\n"],
     ["reference definition", "[manual]: https://example.com\n  \"A deliberately separate title\"\n"],
     ["pipe-table rows", "| Name | Value |\n| One | Two |\n"],
     ["field cluster", "**Owner:** Andrew\n**State:** Active\n"],
@@ -46,6 +49,13 @@ describe("Markdown under-wrap rule", () => {
     ["code block", "```text\nShort code line.\nAnother code line.\n```\n"],
   ])("respects %s", async (_name, content) => {
     expect(await findings(content)).toEqual([]);
+  });
+
+  it.each([
+    ["inline code", "Short text.`<br>`\nNext line is prose.\n"],
+    ["escaped HTML", "Short text.\\<br>\nNext line is prose.\n"],
+  ])("keeps %s subject to soft-wrap checking", async (_name, content) => {
+    expect(await findings(content)).toHaveLength(1);
   });
 
   it("rejects invalid width configuration rather than silently changing it", async () => {

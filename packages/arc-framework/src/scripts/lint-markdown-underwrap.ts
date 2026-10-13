@@ -66,7 +66,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
     await assertIndexedMarkdownCheckerAlignment({ root, readBlob, readFile, runtimePaths });
     await loadIndexedMarkdownDependencies({ root, readBlob, runtimeVersions: markdownRuntimeVersions() });
     await assertParserDependency(root, readBlob);
-    const result = await lint({ strings, customRules: [underwrapRule], markdownItFactory: () => new MarkdownIt(),
+    const result = await lint({ strings, customRules: [underwrapRule], markdownItFactory: () => new MarkdownIt({ html: true }),
       config: { default: false, ARC001: { min: 75, max: 120 } } });
     for (const [path, errors] of Object.entries(result)) {
       for (const error of errors) process.stderr.write(`${path}:${error.lineNumber} ARC001 ${error.errorDetail}\n`);

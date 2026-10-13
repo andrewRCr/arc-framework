@@ -378,15 +378,26 @@ jobs:
     - id: markdown-staged
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown-staged
     - id: markdown-underwrap
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PUSH_BEFORE: ${{ github.event.before }}
       # This check is changed-file-only; the shared merge forecast selects all files.
       run: |
-        base="$(node --import tsx --input-type=module -e '
+        if [ "$EVENT_NAME" = 'push' ]; then
+          base="$PUSH_BEFORE"
+          if [ -z "$base" ]; then
+            echo "::error::Under-wrap checking requires the pre-push commit"
+            exit 1
+          fi
+        else
+          base="$(node --import tsx --input-type=module -e '
           import {readFileSync} from "node:fs";
           import {parseCiCheckForecast} from "./packages/arc-framework/src/lib/ci-check-runner.ts";
           const {base} = parseCiCheckForecast(JSON.parse(readFileSync(".arc-check-forecast.json", "utf8")));
           if (base === undefined) throw new Error("Under-wrap checking requires the forecast base commit");
           process.stdout.write(base);
-        ')"
+          ')"
+        fi
         node --import tsx packages/arc-framework/src/cli.ts check run lint:md:underwrap --range "$base" --ci
     - id: arc-triggers
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-triggers
