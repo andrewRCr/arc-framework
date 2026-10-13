@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "install-link-checker",
+  "claimId": "d848fec3ea19ae8523f48fa602d66214",
+  "createdAt": "2026-10-13T04:36:07.023Z",
+  "updatedAt": "2026-10-13T04:36:07.023Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Install the existing Markdown link checker invoked by the commit hook and verify a real staged Markdown commit after fresh CLI initialization.",
+  "branch": "chore/install-link-checker",
+  "origin": "inbox",
+  "originEntry": "Install the Markdown link checker required by the commit hook",
+  "originEntrySourceDigest": "sha256:1f5ae4b528846d6b378ed42ea49d3c82743c5929c4317b11dddadd5234b3ecce",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
