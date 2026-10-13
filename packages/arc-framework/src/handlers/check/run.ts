@@ -320,6 +320,13 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
     ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
 
+/**
+ * The exit status of a command killed by SIGKILL, as a shell or a runner relaying a remote kill reports it. The
+ * system's out-of-memory killer is the usual sender, so the check did not finish rather than failed.
+ */
+const KILLED_EXIT_CODE = 137;
+const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
+
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
@@ -327,6 +334,7 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   const { divergent } = selected;
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
+  if (result.exitCode === KILLED_EXIT_CODE) return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
   if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
