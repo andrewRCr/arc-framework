@@ -3,7 +3,7 @@
   "slug": "generate-tasks-conditional-confirm",
   "claimId": "2e72cc8c790acdc2badbbfeded6e12e6",
   "createdAt": "2026-10-13T16:56:07.137Z",
-  "updatedAt": "2026-10-13T16:56:07.137Z",
+  "updatedAt": "2026-10-13T17:34:29.243Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make generate-tasks' per-phase confirm gate stop only when the phase audit leaves a correction or decision; a clean phase reports in passing and continues",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop generate-tasks' per-phase confirm gate only when the phase audit leaves something to decide",
   "originEntrySourceDigest": "sha256:2b472f38a8f3b28148309a744dfc9e1fc4ab7947fe0973a9b940b740552c772a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/generate-tasks-conditional-confirm",
+    "headSha": "e201e94910adaf91f7fff439932183f3f838ed7b"
+  }
 }
