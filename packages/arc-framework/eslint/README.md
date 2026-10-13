@@ -1,6 +1,7 @@
-# Architecture lint support
+# Local lint rules
 
-Module-local architecture predicates run through ESLint using its parsed TypeScript source.
+Module-local architecture predicates and the file-level doc comment check run through ESLint using its parsed
+TypeScript source.
 
 Architecture bans live in the ESLint configuration as one table. Rooted directory scopes use
 `**/*.{ts,tsx,cts,mts}`; exact files express narrower scopes and exceptions. Composition partitions those anchors
@@ -20,3 +21,9 @@ rather than per site, so each ratchet reports under its own rule ID, `arc/store-
 raises a file's recorded count fails lint; one that replaces a fixed violation of the same rule in the same file keeps
 the count and passes unseen, as it does for the size limits recorded there. A ratchet counts only the sites it names: a
 module that wraps a helper or the resolver passes what it reads to its own callers uncounted.
+
+`arc/module-doc-comment` requires each `src/` module to open with a `/**` doc block describing its purpose: one among
+the comments before the module's first token, after any shebang. `eslint-plugin-jsdoc`'s `require-jsdoc` covers the
+exported functions; the plugin's own file-overview rule is not used because it demands an `@file` tag. A module whose
+first statement carries its own doc block passes, since nothing in the comment tells the two apart. Modules and
+exported functions that predate both rules are recorded in `eslint-suppressions.json` as a floor.

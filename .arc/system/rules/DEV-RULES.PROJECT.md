@@ -135,8 +135,9 @@ guard-only dead ends.
 - Use `unknown` over `any` for external data; validate and narrow before use
 - Shared helpers return only what they establish; each caller applies its own failure policy
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
-- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
-  describing the module's purpose
+- TSDoc on the exported surface: a doc block on every exported function and a file-level doc comment describing
+  the module's purpose, which lint enforces in `src/**`; add `@param` and `@returns` only where they say what the
+  name and type do not
 - Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
   complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
   ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the

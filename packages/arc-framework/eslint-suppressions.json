@@ -112,6 +112,11 @@
       "count": 1
     }
   },
+  "src/commands/active/schema.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    }
+  },
   "src/commands/active/status.ts": {
     "arc/store-raw-state": {
       "count": 2
@@ -121,6 +126,9 @@
     },
     "complexity": {
       "count": 3
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -172,6 +180,9 @@
     "complexity": {
       "count": 1
     },
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -195,6 +206,11 @@
       "count": 1
     }
   },
+  "src/commands/user/add.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    }
+  },
   "src/commands/user/compact.ts": {
     "arc/store-raw-state": {
       "count": 1
@@ -202,6 +218,11 @@
   },
   "src/commands/user/drift.ts": {
     "arc/surface-names": {
+      "count": 1
+    }
+  },
+  "src/commands/user/format.ts": {
+    "arc/module-doc-comment": {
       "count": 1
     }
   },
@@ -219,12 +240,21 @@
     }
   },
   "src/commands/user/push-fetch.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    },
     "arc/store-raw-state": {
       "count": 1
     }
   },
   "src/commands/user/save-load.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    },
     "arc/surface-names": {
+      "count": 2
+    },
+    "jsdoc/require-jsdoc": {
       "count": 2
     },
     "max-lines": {
@@ -235,17 +265,28 @@
     }
   },
   "src/commands/user/sync-status.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    },
     "arc/store-raw-state": {
       "count": 1
     },
     "complexity": {
       "count": 8
     },
+    "jsdoc/require-jsdoc": {
+      "count": 4
+    },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
       "count": 3
+    }
+  },
+  "src/commands/user/types.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
     }
   },
   "src/commands/view/run.ts": {
@@ -256,6 +297,9 @@
   "src/handlers/active.ts": {
     "arc/store-raw-state": {
       "count": 1
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 3
     }
   },
   "src/handlers/base.ts": {
@@ -273,6 +317,11 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/config.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -343,6 +392,9 @@
     "complexity": {
       "count": 5
     },
+    "jsdoc/require-jsdoc": {
+      "count": 9
+    },
     "max-lines": {
       "count": 1
     },
@@ -350,8 +402,21 @@
       "count": 6
     }
   },
+  "src/handlers/extensions.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/handlers/housekeep.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/handlers/init.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -359,12 +424,18 @@
     }
   },
   "src/handlers/installation.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    },
     "max-depth": {
       "count": 1
     }
   },
   "src/handlers/join.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -409,6 +480,9 @@
       "count": 1
     },
     "arc/work-unit-paths": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -463,6 +537,9 @@
     "complexity": {
       "count": 5
     },
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    },
     "max-lines": {
       "count": 1
     },
@@ -482,6 +559,9 @@
     },
     "complexity": {
       "count": 2
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 2
@@ -520,6 +600,9 @@
     "complexity": {
       "count": 1
     },
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    },
     "max-lines": {
       "count": 1
     },
@@ -530,6 +613,9 @@
   "src/handlers/user-sync.ts": {
     "complexity": {
       "count": 3
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 2
     }
   },
   "src/handlers/user.ts": {
@@ -541,6 +627,9 @@
     },
     "complexity": {
       "count": 2
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 7
     },
     "max-lines": {
       "count": 1
@@ -591,6 +680,9 @@
     },
     "arc/surface-names": {
       "count": 1
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/lib/change-facts.ts": {
@@ -640,6 +732,9 @@
   "src/lib/commit-check/policy.ts": {
     "complexity": {
       "count": 2
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/lib/compaction-seed/emitter.ts": {
@@ -738,6 +833,9 @@
   },
   "src/lib/delivery/git-materialization.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -900,6 +998,9 @@
     "complexity": {
       "count": 4
     },
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 3
     }
@@ -943,6 +1044,9 @@
   },
   "src/lib/errand/abandon-runtime.ts": {
     "arc/store-raw-state": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -1087,12 +1191,25 @@
       "count": 1
     }
   },
+  "src/lib/git/base-drift-register.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 2
+    }
+  },
   "src/lib/git/base-integration-evidence.ts": {
     "complexity": {
       "count": 2
     },
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    },
     "max-depth": {
       "count": 3
+    }
+  },
+  "src/lib/git/base-overlap.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/lib/git/base-sync.ts": {
@@ -1161,6 +1278,11 @@
       "count": 1
     }
   },
+  "src/lib/git/short-hash.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/lib/git/worktree-marker.ts": {
     "complexity": {
       "count": 3
@@ -1172,6 +1294,9 @@
     },
     "arc/surface-names": {
       "count": 2
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/lib/git/worktree-scaffold.ts": {
@@ -1187,6 +1312,16 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/handoff/recommended-summary-line.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/lib/handoff/restate-candidates.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -1212,6 +1347,11 @@
   },
   "src/lib/load-set/projection.ts": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/local-test-admission.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -1257,6 +1397,9 @@
   },
   "src/lib/locus/provisioning-marker.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -1486,6 +1629,11 @@
       "count": 1
     }
   },
+  "src/lib/sync-output.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/lib/task-list/cursor.ts": {
     "complexity": {
       "count": 1
@@ -1522,11 +1670,44 @@
       "count": 1
     }
   },
+  "src/lib/test-cost/cli.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/lib/test-cost/metrics.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
+  "src/lib/test-cost/mode.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
+  "src/lib/test-cost/normalize.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
   "src/lib/test-cost/retained.ts": {
     "complexity": {
       "count": 1
     },
+    "jsdoc/require-jsdoc": {
+      "count": 2
+    },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/test-cost/run.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 4
+    }
+  },
+  "src/lib/test-cost/shard-run.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -1547,6 +1728,11 @@
   },
   "src/lib/user-sync/cas-retry.ts": {
     "arc/store-raw-state": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/compaction-manifest.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -1609,6 +1795,11 @@
   "src/lib/user-sync/sync-state-ref.ts": {
     "arc/store-raw-state": {
       "count": 1
+    }
+  },
+  "src/lib/user-sync/sync-state.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 5
     }
   },
   "src/lib/view-artifact.ts": {
@@ -1714,6 +1905,9 @@
     }
   },
   "src/lib/work-unit/decompose-v3-materializer.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    },
     "complexity": {
       "count": 1
     },
@@ -1771,12 +1965,20 @@
       "count": 1
     }
   },
+  "src/lib/work-unit/decompose-v3-repository-projections.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
   "src/lib/work-unit/decompose-v3-repository-tree.ts": {
     "arc/store-raw-state": {
       "count": 1
     },
     "arc/surface-names": {
       "count": 1
+    },
+    "jsdoc/require-jsdoc": {
+      "count": 13
     }
   },
   "src/lib/work-unit/decompose-v3-retirement-delta.ts": {
@@ -1878,6 +2080,9 @@
     }
   },
   "src/lib/work-unit/git-decompose-v3-preflight.ts": {
+    "arc/module-doc-comment": {
+      "count": 1
+    },
     "arc/store-raw-state": {
       "count": 1
     },
@@ -2206,6 +2411,16 @@
       "count": 1
     }
   },
+  "src/scripts/audit-emphasis.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/scripts/audit-tables.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/scripts/base/merge-composition.ts": {
     "arc/surface-names": {
       "count": 1
@@ -2252,6 +2467,11 @@
       "count": 2
     }
   },
+  "src/scripts/format-tables.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/scripts/integration/candidate-response-confirmation.ts": {
     "arc/store-raw-state": {
       "count": 1
@@ -2279,6 +2499,9 @@
   },
   "src/scripts/integration/checkpoint.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     },
     "max-lines": {
@@ -2342,6 +2565,11 @@
       "count": 1
     }
   },
+  "src/scripts/render-framework.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/scripts/review-gate/core/delivery-binding-lookup.ts": {
     "complexity": {
       "count": 1
@@ -2349,6 +2577,16 @@
   },
   "src/scripts/review-gate/core/execution.ts": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/lane-attempt-validation.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/lane-progress-state-validation.ts": {
+    "jsdoc/require-jsdoc": {
       "count": 1
     }
   },
@@ -2373,6 +2611,11 @@
   "src/scripts/review-gate/core/verdict.ts": {
     "complexity": {
       "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosted/coderabbit-body.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 2
     }
   },
   "src/scripts/review-gate/hosted/coderabbit.ts": {
@@ -2406,6 +2649,31 @@
       "count": 1
     }
   },
+  "src/scripts/review-gate/lane-progress-conditional.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
+  "src/scripts/review-gate/lane-progress-hosted-request.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/lane-progress-hosted-settlement.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
+  "src/scripts/review-gate/lane-progress-seal-recovery.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
+  "src/scripts/review-gate/lane-progress.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 3
+    }
+  },
   "src/scripts/review-gate/policy/assurance.ts": {
     "arc/store-raw-state": {
       "count": 1
@@ -2437,8 +2705,16 @@
       "count": 1
     }
   },
+  "src/scripts/review-gate/policy/frontline-phase.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
+    }
+  },
   "src/scripts/review-gate/policy/hosted-reservation-admission.ts": {
     "complexity": {
+      "count": 1
+    },
+    "jsdoc/require-jsdoc": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -2451,6 +2727,16 @@
     },
     "max-lines-per-function": {
       "count": 3
+    }
+  },
+  "src/scripts/review-gate/policy/hosted-reservation-support.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 11
+    }
+  },
+  "src/scripts/review-gate/policy/local-review-coverage-selection.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/scripts/review-gate/policy/mechanical-review-applicability-carry.ts": {
@@ -2570,6 +2856,11 @@
       "count": 1
     }
   },
+  "src/scripts/review-gate/runtime/local-prepare-retry.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 2
+    }
+  },
   "src/scripts/review-gate/runtime/local-resume-command.ts": {
     "complexity": {
       "count": 1
@@ -2614,6 +2905,11 @@
     },
     "max-lines-per-function": {
       "count": 4
+    }
+  },
+  "src/scripts/review-gate/status-delivery-target.ts": {
+    "jsdoc/require-jsdoc": {
+      "count": 1
     }
   },
   "src/scripts/review-gate/status-errand.ts": {
