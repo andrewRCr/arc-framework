@@ -18,6 +18,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage |
 | `Planning` | storage-ref-backend             | P1       | andrew | —                          | state-storage |
 | `Planning` | seam-lifecycle                  | P1       | andrew | —                          | storage-seam  |
+| `Planning` | seam-locus                      | P1       | andrew | —                          | storage-seam  |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                          | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                          | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                          | —             |
@@ -28,6 +29,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                           | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------------- | -------- | ------ | ---------- | -------------------------- |
+| autonomy-levels                     | P1       | andrew | —          | approval-flow-refinement   |
 | errand-autonomous-advance           | P1       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement        | P1       | andrew | —          | approval-flow-refinement   |
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
@@ -36,7 +38,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
 | seam-decomposition                  | P1       | andrew | —          | storage-seam               |
 | seam-delivery-review                | P1       | andrew | —          | storage-seam               |
-| seam-locus                          | P1       | andrew | —          | storage-seam               |
 | seam-status-roadmap                 | P1       | andrew | —          | storage-seam               |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |

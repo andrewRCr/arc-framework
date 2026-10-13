@@ -23,7 +23,8 @@ import { isGitObjectId } from "./object-id.js";
 
 /** Default remote whose tracking refs back the no-checkout in-flight reads. */
 const DEFAULT_REMOTE = "origin";
-const PASSIVE_REMOTE_INTERACTION = {
+/** Remote reads never prompt, present, or read ambient input, so a bounded read cannot block on a person. */
+export const PASSIVE_REMOTE_INTERACTION = {
   terminalPrompts: "forbidden",
   presenters: "forbidden",
   ambientStdin: "closed",

@@ -23,7 +23,11 @@ import {
   runMaterializingWorktreeInspection,
 } from "../../lib/git/index.js";
 import type { GitExec } from "../../lib/git/exec.js";
-import { WorktreeFetchTimeoutError, type WorktreeMaterializingInspectionResult } from "../../lib/git/worktree-sync.js";
+import {
+  WorktreeFetchFailedError,
+  WorktreeFetchTimeoutError,
+  type WorktreeMaterializingInspectionResult,
+} from "../../lib/git/worktree-sync.js";
 import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
@@ -34,7 +38,7 @@ import {
 } from "../../lib/command-input/interaction-context.js";
 import type { CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
-import { refuseReleasePushFetchTimeout, runReleasePush, type SpawnPush } from "./push.js";
+import { refuseReleasePushFetchFailure, runReleasePush, type SpawnPush } from "./push.js";
 
 export interface HandleReleasePushOptions {
   args: readonly string[];
@@ -128,8 +132,8 @@ async function inspectReleasePushWorktree(input: {
   try {
     return await runMaterializingWorktreeInspection({ exec: input.exec, cwd: input.cwd });
   } catch (error) {
-    if (!(error instanceof WorktreeFetchTimeoutError)) throw error;
-    const result = await refuseReleasePushFetchTimeout(input, error);
+    if (!(error instanceof WorktreeFetchTimeoutError || error instanceof WorktreeFetchFailedError)) throw error;
+    const result = await refuseReleasePushFetchFailure(input, error);
     process.exitCode = result.exitCode;
     return null;
   }

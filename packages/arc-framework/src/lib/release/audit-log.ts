@@ -143,15 +143,14 @@ export function sanitizeArgs(command: AuditCommand, args: readonly string[]): st
 }
 
 /**
- * Map the active-WU resolver result to the audit-entry `wu` field. A
- * resolver result with an empty `name` — the lite layout carries no
- * parseable WU name — maps to `null`; otherwise the name is carried through.
+ * Map the active-WU resolver result to the audit-entry `wu` field.
+ * @param resolved - Resolved work-unit identity, or null when none resolved.
+ * @returns The supplied work-unit name, or null when no work unit resolved.
  */
 export function toAuditWorkUnit(
   resolved: { name: string } | null,
 ): AuditWorkUnit | null {
   if (!resolved) return null;
-  if (resolved.name === "") return null;
   return { name: resolved.name };
 }
 

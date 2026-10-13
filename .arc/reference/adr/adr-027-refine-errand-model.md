@@ -131,7 +131,7 @@ co-mingles execution-intent records with personal session-notes content and mism
   the errand → WU promotion edge, with its deterministic mechanics handled by the CLI (branch preserved, meta
   minted, record retired, routed to the right planning stage), makes a mis-call cheap to correct.
 - The errand ref inherits the partial-push cross-machine visibility gap the user-notes ref already has; closing it
-  is `cross-machine-sync-coherence`'s concern, not this decision's.
+  is `partial-push-marker`'s concern, not this decision's.
 
 ### Risks
 

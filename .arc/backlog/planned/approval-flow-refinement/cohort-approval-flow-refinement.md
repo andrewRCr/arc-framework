@@ -97,11 +97,20 @@ is parallel-able; it shares machinery with both but gates neither.
 
 ### Closeout criteria
 
-Complete when all five members ship **and** the unit-of-approval model is coherent across the review, commit,
+Complete when every member ships **and** the unit-of-approval model is coherent across the review, commit,
 and integration boundaries — the shared vocabulary settled, no boundary's rule still reaching across the others
 by default, and the integration-interlock floor intact.
 
 ## Members
+
+### `autonomy-levels`
+
+_Exposes:_ the unified autonomy-level model the other members are facets of — one ordinal level per work unit
+naming where the agent next stops for the Owner, the kinds of stop it releases, its interlock composition, and the
+staging plan. Its grooming pass re-cuts this cohort around it.
+
+_Consumes:_ every member's design as input; coordinates with `execution-delegation-doctrine` on relays and executor
+assignment.
 
 ### `commit-increments`
 

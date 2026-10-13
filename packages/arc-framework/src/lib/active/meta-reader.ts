@@ -1,7 +1,7 @@
 /**
- * Reader for `arc active status` — resolves checkout-held meta identities,
- * detects Full vs Lite layout, and parses exact record bytes into structured
- * candidates. Lite and contributor roots retain their filesystem scans.
+ * Reader for `arc active status` — resolves checkout-held meta identities
+ * and parses exact record bytes into structured candidates. Contributor and
+ * custom roots use a flat filesystem scan of named meta files.
  *
  * Pure field descriptors and renderers are exported from the meta kind's
  * projection module. Parsing and the filesystem candidate reader live here.
@@ -47,7 +47,6 @@ import {
 export { locateMetaCoreTable, stripInlineCode, type MetaCoreTableLocation } from "../store/kinds/meta/line-reading.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
-const LITE_FILENAME = "status.md";
 const META_PREFIX = "meta-";
 const FULL_SUFFIX = ".md";
 
@@ -68,14 +67,14 @@ export interface ReaderResult {
 /**
  * Scan the active directory and return parsed meta-file candidates.
  *
- * Layout resolution:
- *
- * - If `<root>/status.md` exists, layout is `lite` (at most one candidate).
- * - Otherwise, layout is `full` — enumerate `meta-*.md` files directly at
- *   the active root.
+ * The default project root resolves checkout-held work-unit records. Custom
+ * and contributor roots enumerate `meta-*.md` files directly at their root.
  *
  * A missing root directory is not an error — returns an empty candidate set
  * with a warning naming the supplied root.
+ * @param cwd - Checkout root.
+ * @param options - Optional custom active-root segments.
+ * @returns Parsed meta candidates in the full layout, with reader warnings.
  */
 export async function readActiveMetaCandidates(
   cwd: string,
@@ -97,20 +96,6 @@ export async function readActiveMetaCandidates(
   if (!exists) {
     warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
-  }
-
-  const litePath = join(activeDir, LITE_FILENAME);
-  let liteExists = false;
-  try {
-    const s = await stat(litePath);
-    liteExists = s.isFile();
-  } catch {
-    // Missing file — treat as absent; full-layout scan runs below.
-  }
-
-  if (liteExists) {
-    const candidate = await parseCandidate(cwd, litePath, warnings);
-    return { layout: "lite", candidates: candidate ? [candidate] : [], warnings };
   }
 
   if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd);

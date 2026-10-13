@@ -20,7 +20,7 @@ import {
   execFileAsync,
 } from "../helpers/integration.js";
 import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
-import { errandsRef } from "../../src/lib/errand/ref-tree.js";
+import { errandsRef, readTreeEntries, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import {
@@ -174,6 +174,145 @@ describe("errand-ref reconcile-push", () => {
     expect(await remoteSlugs(repoB)).toEqual(["clash"]);
     expect((await listRecords(ioB))[0]).toMatchObject({ intent: "the B version" });
   });
+
+  it("refuses interrupted or malformed common-basis evidence and retries after repair", async () => {
+    await writeIdentity(ioA, recordFor("shared"));
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+    await execFileAsync("git", ["fetch", "origin", `${REF}:${REF}`], { cwd: repoB });
+    await writeIdentity(ioA, recordFor("local-only", { claimId: "b".repeat(32) }));
+    const remoteRecord = recordFor("shared", { intent: "updated remotely" });
+    await writeIdentity(ioB, remoteRecord);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    const localTip = (await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout;
+    const remoteTip = (await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout;
+
+    for (const fault of ["interrupted", "malformed"] as const) {
+      const failingExec: GitExec = async (cmd, args, options) => {
+        if (args[0] === "merge-base") {
+          if (fault === "malformed") return { stdout: "main\n", stderr: "" };
+          throw makeGitProcessError({ command: cmd, args, exitCode: 1,
+            signal: "SIGTERM", stderr: "merge-base interrupted" });
+        }
+        return ioA.exec(cmd, args, options);
+      };
+      const outcome = await reconcileErrandPush({ ...ioA, exec: failingExec });
+      expect(outcome.kind).toBe("failed");
+      if (outcome.kind === "failed") {
+        expect(outcome.error.message).toContain(fault === "interrupted"
+          ? "merge-base interrupted" : "malformed common-ancestor object id");
+      }
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout).toBe(remoteTip);
+    }
+
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+    expect((await listRecords(ioA)).find((record) => record.slug === "shared")).toEqual(remoteRecord);
+    expect((await listRecords(ioA)).map((record) => record.slug).sort()).toEqual(["local-only", "shared"]);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout)
+      .toBe((await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout);
+  });
+
+  it("refuses criss-cross bases without resurrecting a deletion and retries after history repair", async () => {
+    const alpha = recordFor("alpha");
+    const beta = recordFor("beta", { claimId: "b".repeat(32) });
+    await writeIdentity(ioA, alpha);
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+    await writeIdentity(ioB, beta);
+    const aRoot = (await ioA.exec("git", ["rev-parse", REF])).stdout.trim();
+    const bRoot = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+    await ioA.exec("git", ["fetch", repoB, `${REF}:refs/test/b-root`]);
+    await ioB.exec("git", ["fetch", "origin", `${REF}:refs/test/a-root`]);
+    const union = new Map([
+      ...await readTreeEntries(ioA.exec, aRoot),
+      ...await readTreeEntries(ioA.exec, bRoot),
+    ]);
+    await writeTreeCommit(ioA, union, "merge alpha and beta", [aRoot, bRoot], aRoot);
+    await writeTreeCommit(ioB, union, "independently merge beta and alpha", [bRoot, aRoot], bRoot);
+    const deletion = await transactTransientIdentities(ioA, {
+      remote: null,
+      message: "delete beta",
+      transform: (basis) => ({
+        kind: "applied",
+        records: new Map([...basis].filter(([slug]) => slug !== "beta")),
+        value: null,
+      }),
+    });
+    expect(deletion.kind).toBe("applied");
+    const updatedAlpha = recordFor("alpha", { intent: "updated remotely" });
+    await writeIdentity(ioB, updatedAlpha);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    const localTip = (await ioA.exec("git", ["rev-parse", REF])).stdout.trim();
+    const remoteTip = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+    await ioA.exec("git", ["fetch", "origin", `${REF}:refs/test/remote-tip`]);
+    const bases = (await ioA.exec("git", ["merge-base", "--all", localTip, remoteTip])).stdout.trim().split("\n");
+    expect(new Set(bases)).toEqual(new Set([aRoot, bRoot]));
+
+    const outcome = await reconcileErrandPush(ioA);
+    expect(outcome.kind).toBe("failed");
+    if (outcome.kind === "failed") {
+      expect(outcome.error.message).toContain("multiple best common ancestors");
+      expect(outcome.error.message).toContain("before retrying arc sync");
+    }
+    expect((await ioA.exec("git", ["rev-parse", REF])).stdout.trim()).toBe(localTip);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim()).toBe(remoteTip);
+    expect(await listRecords(ioA)).toEqual([alpha]);
+
+    // An explicit history repair incorporates the deletion and remote update, making the local tip the sole basis.
+    await ioB.exec("git", ["fetch", repoA, `${REF}:refs/test/local-tip`]);
+    const repairedTree = await readTreeEntries(ioB.exec, remoteTip);
+    repairedTree.delete("beta");
+    await writeTreeCommit(ioB, repairedTree, "reconcile both intended changes", [remoteTip, localTip], remoteTip);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+    expect(await listRecords(ioA)).toEqual([updatedAlpha]);
+    expect(await remoteSlugs(repoA)).toEqual(["alpha"]);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim())
+      .toBe((await ioA.exec("git", ["rev-parse", REF])).stdout.trim());
+  }, 30_000);
+
+  it.each(["shallow", "interrupted", "malformed"] as const)(
+    "refuses %s history evidence without restoring a remote deletion and recovers after a full fetch",
+    async (fault) => {
+      await writeIdentity(ioB, recordFor("shared"));
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const basis = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+      const entries = await readTreeEntries(ioB.exec, basis);
+      const localTip = await writeTreeCommit(ioB, entries, "unchanged local record", [basis], basis);
+      await ioB.exec("git", ["push", "origin", `${localTip}:refs/heads/shallow-errand-start`]);
+      await ioA.exec("git", ["fetch", "--depth=1", "origin", `refs/heads/shallow-errand-start:${REF}`]);
+      const remoteTip = await writeTreeCommit(ioB, new Map(), "delete shared remotely", [basis], localTip);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      expect((await ioA.exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim()).toBe("true");
+
+      const exec: GitExec = async (cmd, args, options) => {
+        if (args[0] === "rev-parse" && args[1] === "--is-shallow-repository") {
+          if (fault === "malformed") return { stdout: "unknown\n", stderr: "" };
+          if (fault === "interrupted") throw makeGitProcessError({
+            command: cmd, args, exitCode: 1, signal: "SIGTERM", stderr: "shallow-history probe interrupted",
+          });
+        }
+        return ioA.exec(cmd, args, options);
+      };
+      const outcome = await reconcileErrandPush({ ...ioA, exec });
+      expect(outcome.kind).toBe("failed");
+      if (outcome.kind === "failed") {
+        const expected = fault === "shallow" ? "Fetch complete Errand history before retrying arc sync"
+          : fault === "interrupted" ? "shallow-history probe interrupted" : "malformed shallow-history status";
+        expect(outcome.error.message).toContain(expected);
+      }
+      expect((await ioA.exec("git", ["rev-parse", REF])).stdout.trim()).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim()).toBe(remoteTip);
+      expect((await listRecords(ioA)).map((record) => record.slug)).toEqual(["shared"]);
+
+      await ioA.exec("git", ["fetch", "--unshallow", "origin", REF]);
+      expect((await ioA.exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim()).toBe("false");
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+      expect(await listRecords(ioA)).toEqual([]);
+      expect(await remoteSlugs(repoA)).toEqual([]);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim())
+        .toBe((await ioA.exec("git", ["rev-parse", REF])).stdout.trim());
+    }, 30_000,
+  );
 
   it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
     await writeIdentity(ioA, recordFor("from-a"));

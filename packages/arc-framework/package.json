@@ -32,7 +32,7 @@
     "typecheck:all": "npm run typecheck && npm run typecheck:test",
     "lint:ts": "eslint src/ __tests__/",
     "lint:ts:file": "eslint",
-    "lint:sh": "bash arc/system/.internal/scripts/run-shellcheck.sh arc/system/.internal/githooks/pre-commit arc/system/.internal/githooks/commit-msg arc/system/.internal/githooks/pre-push arc/system/.internal/scripts/*.sh ../../scripts/*.sh ../../scripts/local-ci/*.sh"
+    "lint:sh": "bash arc/system/.internal/scripts/run-shellcheck.sh arc/system/.internal/githooks/pre-commit arc/system/.internal/githooks/commit-msg arc/system/.internal/githooks/pre-push arc/system/.internal/scripts/*.sh ../../scripts/*.sh"
   },
   "engines": {
     "node": ">=24",
@@ -43,7 +43,6 @@
     "commander": "^15.0.0",
     "execa": "^10.0.0",
     "js-yaml": "^4.2.0",
-    "neverthrow": "^8.2.0",
     "node-diff3": "3.2.1",
     "semver": "^7.7.4",
     "string-width": "8.1.0",
@@ -59,6 +58,8 @@
     "bundle-require": "^5.1.0",
     "esbuild": "^0.27.7",
     "eslint": "^10.1.0",
+    "eslint-plugin-jsdoc": "^63.3.3",
+    "eslint-plugin-sonarjs": "^4.2.2",
     "fast-check": "^4.10.2",
     "lefthook": "2.2.1",
     "mdast-util-from-markdown": "^2.0.3",

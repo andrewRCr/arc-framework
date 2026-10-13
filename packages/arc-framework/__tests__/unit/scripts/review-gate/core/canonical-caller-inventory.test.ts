@@ -31,6 +31,7 @@ describe("review-gate canonical serializer inventory", () => {
       .map(name);
     expect(kernelImports).toEqual([
       "core/dispositions.ts",
+      "core/frontline-retry-contract.ts",
       "core/gate-contract-v2-schema.ts",
       "core/gate-contract-v2.ts",
       "core/identity.ts",

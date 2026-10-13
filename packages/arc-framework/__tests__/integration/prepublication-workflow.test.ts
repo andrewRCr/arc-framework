@@ -3,7 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const ROOTS = [
@@ -240,7 +240,7 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(coherentUnit, memberBoundary))
         .toMatch(softWrappedProse("last task assigned to a delivery member"));
       const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
-      const criteriaWalk = memberBoundarySection.indexOf("member's criteria walk");
+      const criteriaWalk = indexOfSoftWrappedProse(memberBoundarySection, "member's criteria walk");
       const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
       expect(criteriaWalk).toBeGreaterThan(-1);
       expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
@@ -251,9 +251,9 @@ describe("prepublication workflow boundary", () => {
       expect(resolvedBranch).toBeGreaterThan(unresolvedBranch);
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch))
         .toMatch(softWrappedProse("leave the closing task `[ ]`"));
-      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
-      expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
-      expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toMatch(softWrappedProse("Mark the task `[x]`"));
+      expect(validateCriteria).toMatch(softWrappedPattern(/do\s+not\s+re-derive\s+member\s+criteria/u));
+      expect(validateCriteria).toMatch(softWrappedPattern(/walk\s+the\s+seam\s+group\s+and\s+union\s+coherence/u));
       expect(validateCriteria).toMatch(
         /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:[\s\S]*?criterion-digest:/u,
       );
@@ -308,13 +308,13 @@ describe("prepublication workflow boundary", () => {
       expect(preparation).not.toMatch(softWrappedProse("execute it against the local aggregate diff"));
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
-      expect(verification.indexOf("mark the single verification task `[x]`")).toBeGreaterThan(-1);
+      expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
       expect(attest)
-        .toBeGreaterThan(verification.indexOf("mark the single verification task `[x]`"));
-      expect(taskLoop).toContain("to prepare-work-unit` (verification complete — execution end)");
-      expect(taskLoop).toContain("prepare-work-unit are all valid retargets");
-      expect(taskLoop).not.toContain("integrate are all valid retargets");
-      expect(taskLoop).toMatch(/When all tasks are marked complete[\s\S]*proceed to Candidate preparation/iu);
+        .toBeGreaterThan(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`"));
+      expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
+      expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
+      expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));
+      expect(taskLoop).toMatch(softWrappedPattern(/When\s+all\s+tasks\s+are\s+marked\s+complete[\s\S]*proceed\s+to\s+Candidate\s+preparation/iu));
     }
   });
 
@@ -325,9 +325,9 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md"), "utf8"),
       ]);
 
-      const cleanContinuation = integrate.indexOf("`clean` continues to the checkpoint below");
-      const appliedRestart = integrate.indexOf("Restart this step. The correction changed the head");
-      const readyCheckpoint = integrate.indexOf("On `ready / request-approval`");
+      const cleanContinuation = indexOfSoftWrappedProse(integrate, "`clean` continues to the checkpoint below");
+      const appliedRestart = indexOfSoftWrappedProse(integrate, "Restart this step. The correction changed the head");
+      const readyCheckpoint = indexOfSoftWrappedProse(integrate, "On `ready / request-approval`");
       expect(cleanContinuation).toBeGreaterThan(-1);
       expect(appliedRestart).toBeGreaterThan(cleanContinuation);
       expect(readyCheckpoint).toBeGreaterThan(appliedRestart);

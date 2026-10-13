@@ -607,6 +607,7 @@ describe("PR-open lifecycle extensions", () => {
       ["fixed-material", "settlement does not rewrite the original pass as converged"],
       ["over-cap", "stop before another evaluator invocation"],
       ["conditional-permission", "replay cannot authorize another pass"],
+      ["local-correction-majors", "not offer the re-entry valve on the count of majors"],
     ] as const;
 
     for (const [name, expectedSignal] of cases) {
@@ -622,6 +623,23 @@ describe("PR-open lifecycle extensions", () => {
       expect(exercise).toContain("Do not read `expected.md`");
       expect(expected.toLowerCase()).toContain(expectedSignal);
       expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+    }
+  });
+
+  it("reads fold tags beside severity for the successor look and the re-entry offer", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("severity decides whether a fix needs a successor look");
+      expect(normalized).toContain("the tags decide which look and whether design is still open");
+      expect(normalized).toContain("never on a count of majors whose folds are local corrections");
+      expect(normalized).toContain("shows the design running deeper than the stage's level assumed — never on the tag alone");
+      expect(normalized).toContain("a scale signal — a correction whose surface runs wider than the stage's level assumed — is its own reason to offer the valve, whatever the tag");
+      expect(normalized).toContain("a new-design fold, a scale signal, or design the loop has not settled holds the stage");
+      expect(normalized).toContain("calls for another fix-check round, not re-entry");
+      expect(normalized).toContain("weigh severity and the fold tags together");
+      expect(normalized).toContain("whether a planning stage may close is the caller's call, and it asks whether the design holds");
+      expect(normalized).toContain("task generation has no later planning stage to absorb a correction");
     }
   });
 

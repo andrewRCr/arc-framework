@@ -11,7 +11,7 @@ const { isSyntaxValueReference, syntaxBindingLookup } = await import(
 const RATCHET_PREDICATES = ["store-raw-state", "surface-names", "work-unit-paths"] as const;
 
 /** Predicate IDs accepted by the native configuration schema. */
-export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
+export const ARCHITECTURE_PREDICATES = ["clack", "kernel", "store-production", "store-tests",
   "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity",
   ...RATCHET_PREDICATES] as const;
 
@@ -153,9 +153,9 @@ function nodeLoaderValue(expression: ts.Expression, context: NodeFactoryContext,
   expression = unparenthesized(expression);
   if (ts.isCallExpression(expression)) return nodeFactoryValue(expression.expression, context, seen);
   const declaration = ts.isIdentifier(expression) ? context.lookup(expression) : undefined;
-  return declaration !== undefined && ts.isVariableDeclaration(declaration)
-    && declaration.initializer !== undefined && ts.isCallExpression(unparenthesized(declaration.initializer))
-    && nodeFactoryValue((unparenthesized(declaration.initializer) as ts.CallExpression).expression, context, seen);
+  return declaration !== undefined && ts.isVariableDeclaration(declaration) && ts.isIdentifier(declaration.name)
+    && declaration.initializer !== undefined && !seen.has(declaration)
+    && nodeLoaderValue(declaration.initializer, context, new Set(seen).add(declaration));
 }
 
 function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
@@ -213,27 +213,15 @@ function nodeFactoryValue(expression: ts.Expression, context: NodeFactoryContext
       || nodeObjectFactoryValue(expression.expression, context, seen));
 }
 
-function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
+function nodeLoaderLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
   const owners: NodeFactoryOwners = { factories: new Set(), namespaces: new Set() };
   for (const statement of source.statements) collectNodeImport(statement, owners);
   const context: NodeFactoryContext = { owners, lookup };
-  return (expression) => nodeFactoryValue(expression, context, new Set());
+  return (expression) => nodeLoaderValue(expression, context, new Set());
 }
 
 function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: string }[] {
-  const lookup = syntaxBindingLookup(source);
-  const factory = nodeFactoryLookup(source, lookup);
-  const loaders = new Set<ts.Node>();
-  const isFactoryCall = (node: ts.Node | undefined): node is ts.CallExpression =>
-    node !== undefined && ts.isCallExpression(node) && factory(node.expression);
-  const isLoader = (node: ts.Expression): boolean => ts.isIdentifier(node) && loaders.has(lookup(node) ?? source);
-  const collect = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isFactoryCall(node.initializer)) {
-      loaders.add(node);
-    }
-    ts.forEachChild(node, collect);
-  };
-  collect(source);
+  const isLoader = nodeLoaderLookup(source, syntaxBindingLookup(source));
 
   const references: { node: ts.Node; specifier: string }[] = [];
   const visit = (node: ts.Node): void => {
@@ -247,7 +235,7 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
       const moduleRequire = ts.isPropertyAccessExpression(node.expression)
         && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === "module"
         && node.expression.name.text === "require";
-      const returnedRequire = isLoader(node.expression) || isFactoryCall(node.expression);
+      const returnedRequire = isLoader(node.expression);
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword || directRequire || moduleRequire || returnedRequire) {
         specifier = literal(node.arguments[0]);
       }
@@ -259,8 +247,9 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
     else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
       || (ts.isIdentifier(node.expression) && node.expression.text === "require") || isLoader(node.expression)
       || (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
-        && node.expression.expression.text === "module" && node.expression.name.text === "require")
-      || isFactoryCall(node.expression))) references.push({ node, specifier: "<computed import>" });
+        && node.expression.expression.text === "module" && node.expression.name.text === "require"))) {
+      references.push({ node, specifier: "<computed import>" });
+    }
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -274,15 +263,10 @@ function within(root: string, file: string): boolean {
 
 function kernelViolations(source: ts.SourceFile, filename: string, sourceRoot: string): ArchitectureImportViolation[] {
   const root = join(sourceRoot, "lib/kernel");
-  const result = join(root, "result.ts");
   const factories = createRequireBindings(source);
   const violations: ArchitectureImportViolation[] = [];
   const report = (node: ts.Node, reason: string): void => { violations.push({ node, predicate: "kernel", reason }); };
   const inspect = (node: ts.Node, specifier: string): void => {
-    if (specifier === "neverthrow") {
-      if (resolve(filename) !== result) report(node, "neverthrow import outside kernel Result seam");
-      return;
-    }
     if (specifier === "zod" || specifier.startsWith("node:")) return;
     if (!specifier.startsWith(".")) {
       report(node, "unapproved external package");
@@ -594,15 +578,11 @@ export function findArchitectureImportViolations(
   predicates: readonly ArchitecturePredicate[],
 ): ArchitectureImportViolation[] {
   const violations = predicates.includes("kernel") ? kernelViolations(source, filename, sourceRoot) : [];
-  const references = predicates.some((predicate) => predicate === "clack" || predicate === "neverthrow" || predicate.startsWith("layout-")
+  const references = predicates.some((predicate) => predicate === "clack" || predicate.startsWith("layout-")
     || predicate === "store-concurrency" || predicate === "store-reference") ? moduleReferences(source) : [];
   if (predicates.includes("clack")) {
     violations.push(...references.filter(({ specifier }) => specifier === "@clack/prompts")
       .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "clack", reason: "raw prompt import outside terminal/renderer owners" })));
-  }
-  if (predicates.includes("neverthrow") && !within(join(sourceRoot, "lib/kernel"), resolve(filename))) {
-    violations.push(...references.filter(({ specifier }) => specifier === "neverthrow")
-      .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "neverthrow", reason: "neverthrow import outside kernel Result seam" })));
   }
   if (predicates.includes("store-production") || predicates.includes("store-tests")) {
     violations.push(...storeViolations(source, filename, sourceRoot, predicates));

@@ -4,7 +4,7 @@ Thanks for your interest in contributing to ARC.
 
 ## Quick Start
 
-**Prerequisites:** Node.js ≥24 (current Active LTS), Git ≥2.28, and `shellcheck`
+**Prerequisites:** Node.js ≥24 (current Active LTS), Git ≥2.45, and `shellcheck`
 installed on your system (`apt-get install shellcheck`, `brew install shellcheck`,
 or equivalent). Shellcheck is invoked by `npm run lint:sh` from the system PATH;
 it is not bundled as an npm dependency.

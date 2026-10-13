@@ -171,6 +171,21 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+  lint:arc:links:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:links
+    gate: commit
+    inputs:
+      - .arc/**
+      - '!.arc/user/**'
+      - '!.arc/completed/**'
+      # Trees outside .arc/ that .arc/ links point into; a link into another tree needs that tree listed here.
+      - docs/**
+      - packages/arc-framework/src/scripts/audit-links.ts
+      - packages/arc-framework/src/scripts/repo-root.ts
   lint:ts:file:
     command:
       - npm
@@ -280,6 +295,7 @@ checks:
       - test:changed
       - --
     mode: files
+    no_evidence_exit: 5
     root: packages/arc-framework
     inputs:
       - packages/arc-framework/src/**/*.ts
@@ -298,9 +314,12 @@ checks:
     gate: push
     inputs:
       - '**'
+      - '!.arc/**/*.md'
+      - '!packages/arc-framework/arc/**/*.md'
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 2
       argument: --shard={index}/{count}
@@ -319,6 +338,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 4
       argument: --shard={index}/{count}
@@ -336,6 +356,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:e2e:
     command:
       - npm
@@ -350,6 +371,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
     shards:
       count: 4
       argument: --shard={index}/{count}
@@ -366,6 +388,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:portability:macos:
     command:
       - npm
@@ -379,6 +402,7 @@ checks:
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
+      - '!.arc/system/.internal/candidates/**'
   test:e2e:local:
     command:
       - bash

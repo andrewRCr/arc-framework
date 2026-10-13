@@ -13,6 +13,7 @@ import {
   FrontlineAdmissionSchema,
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
+import type { FrontlineRetryCeilingOverride } from "../core/frontline-retry-contract.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { BoundFrontlineResponseBinding } from "../core/frontline-response-binding.js";
 import {
@@ -255,7 +256,11 @@ export class FrontlineOperationUncertainError extends Error {
 export class FrontlineOperationRetryError extends Error {
   readonly code = "invalid-input" as const;
 
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly reason: "invalid-retry" | "stale-admission" = "invalid-retry",
+    readonly ceilingOverride?: FrontlineRetryCeilingOverride,
+  ) {
     super(message);
     this.name = "FrontlineOperationRetryError";
   }
@@ -350,18 +355,28 @@ async function readBoundOutcome(
   };
 }
 
-function priorRetryMatches(
+function assertFreshRetryAdmission(
   prior: FrontlineRunState | null,
   binding: FrontlineRunBinding,
   priorOperationId: string,
-): prior is FrontlineRunState {
-  return priorOperationId !== binding.operationId
-    && prior?.kind === "frontline-run"
-    && prior.repositoryId === binding.target.repositoryId
-    && prior.targetId === binding.target.targetId
-    && canonicalize(prior.lineage) === canonicalize(binding.admission.lineage)
-    && prior.logicalPass === binding.admission.logicalPass
-    && prior.retryGeneration < binding.admission.retryGeneration;
+): asserts prior is FrontlineRunState {
+  if (prior === null
+    || prior.repositoryId !== binding.target.repositoryId
+    || prior.targetId !== binding.target.targetId
+    || canonicalize(prior.lineage) !== canonicalize(binding.admission.lineage)
+    || prior.logicalPass !== binding.admission.logicalPass) {
+    throw new FrontlineOperationRetryError("retry does not bind an earlier exact admitted operation");
+  }
+  if (priorOperationId === binding.operationId
+    || prior.retryGeneration >= binding.admission.retryGeneration) {
+    const staleAdmission = ["timed-out", "unavailable", "failed"].includes(prior.outcome);
+    throw new FrontlineOperationRetryError(
+      staleAdmission
+        ? "retry requires a fresh frontline admission from arc review frontline resolve -"
+        : "retry does not bind an earlier exact admitted operation",
+      staleAdmission ? "stale-admission" : "invalid-retry",
+    );
+  }
 }
 
 function recoveredPriorOutcomeMatches(
@@ -389,10 +404,7 @@ async function validateExplicitRetry(
   if (input.retryOfOperationId === undefined) return;
   const prior = await dependencies.operationStore.readOperation(input.retryOfOperationId);
   const priorState = prior.state?.kind === "frontline-run" ? prior.state : null;
-  if (!priorRetryMatches(priorState,
-    binding, input.retryOfOperationId)) {
-    throw new FrontlineOperationRetryError("retry does not bind an earlier exact admitted operation");
-  }
+  assertFreshRetryAdmission(priorState, binding, input.retryOfOperationId);
   if (priorState.outcome === "clean" || priorState.outcome === "findings") {
     throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
   }

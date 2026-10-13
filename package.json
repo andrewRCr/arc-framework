@@ -44,6 +44,7 @@
     "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
+    "lint:arc:links": "node --import tsx packages/arc-framework/src/scripts/audit-links.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
     "prepare": "husky"
   },
@@ -51,7 +52,7 @@
     "husky": "^9.1.7",
     "jsonc-parser": "3.3.1",
     "markdownlint": "0.40.0",
-    "markdownlint-cli2": "0.23.0",
+    "markdownlint-cli2": "0.23.3",
     "tsx": "^4.22.4"
   },
   "allowScripts": {
@@ -60,7 +61,7 @@
   },
   "overrides": {
     "markdownlint-cli2": {
-      "js-yaml": "5.2.2"
+      "smol-toml": "1.9.0"
     }
   }
 }

@@ -25,13 +25,13 @@ These gate behaviors prevent misleading results:
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
 - `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
-  not evidence that the changed code passed.
+  not evidence that the changed code passed; `arc check` reports it as `no evidence`.
 - All supported run-mode tier and focused commands require completed cases. All-skipped selections and unmatched
   name filters are non-passing, and closing or final worker errors retain failure status.
 
 ### Size and complexity baseline
 
-`src/**` gates on function length, file length, cyclomatic complexity, nesting depth, and nested callbacks;
+`src/**` gates on function length, file length, cognitive complexity, nesting depth, and nested callbacks;
 `__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
 The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
 recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
@@ -135,9 +135,10 @@ guard-only dead ends.
 - Use `unknown` over `any` for external data; validate and narrow before use
 - Shared helpers return only what they establish; each caller applies its own failure policy
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
-- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
-  describing the module's purpose
-- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+- TSDoc on the exported surface: a doc block on every exported function and a file-level doc comment describing
+  the module's purpose, which lint enforces in `src/**`; add `@param` and `@returns` only where they say what the
+  name and type do not
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cognitive
   complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
   ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
   authority

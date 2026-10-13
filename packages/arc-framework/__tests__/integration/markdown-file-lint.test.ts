@@ -58,6 +58,12 @@ async function lint(paths: string[]) {
 }
 
 // Invoke the public file entry without npm's script shell expanding glob characters.
+// The file count markdownlint reports linting, independent of how its summary is worded.
+function lintedFileCount(stdout: string): number | null {
+  const match = /^Linting: (\d+) file/m.exec(stdout);
+  return match === null ? null : Number(match[1]);
+}
+
 async function lintFileEntry(paths: string[]) {
   return execa(process.execPath, ["--import", "tsx", "packages/arc-framework/src/scripts/lint-markdown-file.ts", ...paths], {
     cwd: root, reject: false, timeout: 30_000, env: { FORCE_COLOR: "0" },
@@ -83,13 +89,13 @@ it("refuses a mixed included and excluded selection before partial linting", asy
 it("lints included and untracked files with a repair continuation", async () => {
   const included = await lint(["./docs/valid.md", "docs/new file.md"]);
   expect(included.exitCode).toBe(0);
-  expect(included.stdout).toContain("Linting: 2 file(s)");
+  expect(lintedFileCount(included.stdout)).toBe(2);
   const missing = await lint(["docs/missing.md"]);
   expect(missing.exitCode).toBe(1);
   await write("docs/missing.md", "# Repaired\n");
   const repaired = await lint(["docs/missing.md"]);
   expect(repaired.exitCode).toBe(0);
-  expect(repaired.stdout).toContain("Linting: 1 file(s)");
+  expect(lintedFileCount(repaired.stdout)).toBe(1);
 });
 
 it("retains native lint findings for included files", async () => {
@@ -102,7 +108,7 @@ it("retains native lint findings for included files", async () => {
 it("lints a contained regular-file symlink", async () => {
   const result = await lint(["docs/contained-link.md"]);
   expect(result.exitCode).toBe(0);
-  expect(result.stdout).toContain("Linting: 1 file(s)");
+  expect(lintedFileCount(result.stdout)).toBe(1);
 });
 
 it.each([
@@ -132,7 +138,7 @@ it("refuses an ignored pattern-character filename and lints it after repairing i
   await write("docs/ignored-patterns/.gitignore", "");
   const repaired = await lintFileEntry([path]);
   expect(repaired.exitCode).toBe(0);
-  expect(repaired.stdout).toContain("Linting: 1 file(s)");
+  expect(lintedFileCount(repaired.stdout)).toBe(1);
 });
 
 it("lints only the exact tracked and untracked filenames containing pattern characters", async () => {
@@ -147,7 +153,7 @@ it("lints only the exact tracked and untracked filenames containing pattern char
 
   const result = await lintFileEntry([tracked, untracked]);
   expect(result.exitCode).toBe(0);
-  expect(result.stdout).toContain("Linting: 2 file(s)");
+  expect(lintedFileCount(result.stdout)).toBe(2);
   expect(result.stderr).not.toContain("MD012");
 });
 
@@ -173,7 +179,7 @@ it.each([false, true])("refuses a new nested selector and resumes after repair (
   await write(path, "# Repaired\n");
   const repaired = await lint([path]);
   expect(repaired.exitCode).toBe(0);
-  expect(repaired.stdout).toContain("Linting: 1 file(s)");
+  expect(lintedFileCount(repaired.stdout)).toBe(1);
 });
 
 it("refuses an untracked executable config before native lint runs", async () => {

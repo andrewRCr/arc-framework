@@ -118,7 +118,7 @@ describe("retired locus authority closure", () => {
       readFile(resolve(sourceRoot, "lib/compaction-seed/emitter.ts"), "utf8"),
     ]);
 
-    expect(run).toContain("activeExtensions: extensions.isOk() ? extensions.value.active : []");
+    expect(run).toContain("activeExtensions: extensions.ok ? extensions.value.active : []");
     expect(context).toContain("activeExtensions: options.activeExtensions");
     expect(emitter).toContain(
       "activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : []",

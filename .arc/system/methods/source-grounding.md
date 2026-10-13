@@ -13,7 +13,7 @@ override-active: false
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
 >   [generate-tasks.md][generate-tasks], [amend-design.md][amend-design]
 > - **When:** A planning stage grounds its artifact, a pass grounds through its rubric, or a response grounds its
->   changes before a fix check.
+>   repairs before proposing them and its changes before a fix check.
 >
 > - **Signature:** `source-grounding(artifacts, scope)` → findings report
 > - **Contract:** Ground external claims at source by tracing or probing behavior and checking propagation. Report
@@ -34,8 +34,8 @@ override-active: false
 | `scope`     | required | `artifact` or `fold`, as defined below.           |
 
 `artifact` covers the whole artifact, an amendment's footprint, or a task scope. A narrowed target travels in
-`artifacts`. `fold` covers the change since the last review; there `artifacts` also carries the account of that
-change and, when they were kept, the reviewed versions it starts from.
+`artifacts`. `fold` covers the change since the last review, including repairs proposed but not yet landed; there
+`artifacts` also carries the account of that change and, when they were kept, the reviewed versions it starts from.
 
 ```yaml
 source-grounding:
@@ -74,6 +74,12 @@ every case belongs to this sweep.
 configuration, and what shipped rules and methods require. Re-ground inherited claims at source rather than citing
 the upstream artifact. Fidelity to upstream decisions stays with the stage's alignment checks; internal
 cross-references and use of defined terms stay with its coherence checks.
+
+**Proposed repairs.** At `fold` scope, ground a repair before it is proposed, not only once it lands. Check what a
+proposed repair asserts outside the artifact — what code or a tool does, what another artifact covers, how far a
+rule or hold reaches — before the disposition set carrying it is presented, and revise the repair when the check
+refutes it. Hold the evidence for the approver to request by [disposition-report][disposition-report]. This
+grounding is author-run and never stands in for the fix check.
 
 **Procedure.** Enumerate the claims, verify each against source on its own, then cross-check them against what was
 found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can
@@ -130,4 +136,5 @@ counts, and the Owner may still require a rerun. Where subagents are unavailable
 [generate-tasks]: ../workflows/arc/generate-tasks.md
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [adversarial-review]: adversarial-review.md
+[disposition-report]: disposition-report.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope

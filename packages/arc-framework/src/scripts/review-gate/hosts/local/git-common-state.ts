@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/advisory-lock.js";
+import { withAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/advisory-lock.js";
 import { resolveGitCommonDir } from "../../../../lib/git/exec.js";
 
 const RepositoryIdentityRecordSchema = z.strictObject({
@@ -28,12 +28,7 @@ export async function withRepositoryLocalReviewLock<T>(
 ): Promise<T> {
   const root = join(await resolveGitCommonDir(exec, cwd), "arc", "review-gate");
   await mkdir(root, { recursive: true, mode: 0o700 });
-  const lock = await acquireAdvisoryLock(join(root, ".sweep.lock"));
-  try {
-    return await action();
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  return withAdvisoryLock(join(root, ".sweep.lock"), action);
 }
 
 /** Serialize one provider-effectful frontline operation across repository-local callers. */
@@ -50,12 +45,10 @@ export async function withRepositoryReviewOperationLock<T>(
     domain: "arc.review-gate.operation-lock/v1",
     operationId,
   }).slice("sha256:".length);
-  const lock = await acquireAdvisoryLock(join(root, `${lockId}.lock`), { maxWaitMs });
-  try {
-    return await action();
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  return withAdvisoryLock(join(root, `${lockId}.lock`), action, { maxWaitMs }, {
+    // The operation-specific wait has always applied only to acquisition.
+    releaseLock: (handle) => releaseAdvisoryLock(handle),
+  });
 }
 
 /**

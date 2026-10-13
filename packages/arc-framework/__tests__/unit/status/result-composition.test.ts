@@ -1,8 +1,7 @@
-/** Focused Result error and Probe-adapter coverage for status composition. */
+/** Focused slot failures and Probe-adapter coverage for status composition. */
 
 import { describe, expect, it, vi } from "vitest";
 
-import { err, ok } from "../../../src/lib/kernel/index.js";
 import {
   SessionCompositionError,
   SessionIdentityMissingError,
@@ -12,10 +11,9 @@ import {
   safeProbe,
   toProbe,
   userSlot,
-  type SessionStatusError,
 } from "../../../src/commands/status/result-composition.js";
 
-describe("status Result error taxonomy", () => {
+describe("status slot error taxonomy", () => {
   it("retains identity, probe, and composition context", () => {
     const cause = new Error("probe failed");
     const identity = new SessionIdentityMissingError("user");
@@ -51,7 +49,7 @@ describe("status Result error taxonomy", () => {
 describe("toProbe", () => {
   it("adapts success without changing value identity", () => {
     const value = { retained: true };
-    expect(toProbe(ok<typeof value, SessionStatusError>(value))).toEqual({ ok: true, value });
+    expect(toProbe({ ok: true, value })).toEqual({ ok: true, value });
   });
 
   it.each([
@@ -59,7 +57,7 @@ describe("toProbe", () => {
     [new SessionProbeError("worktree", new Error("probe failed")), "runtime"],
     [new SessionCompositionError("resolve-load-set", "loadSet", "composition failed"), "runtime"],
   ] as const)("maps $code through the stable wire error channel", (error, kind) => {
-    expect(toProbe(err<never, SessionStatusError>(error))).toEqual({
+    expect(toProbe({ ok: false, error })).toEqual({
       ok: false,
       error: { kind, message: error.message },
     });
@@ -72,27 +70,27 @@ describe("safeProbe and gatedSlot", () => {
     ["asynchronous", async (): Promise<number> => { throw new Error("async boom"); }],
   ])("maps a %s failure with slot and cause context", async (_kind, probe) => {
     const result = await safeProbe("fixture", probe);
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
+    expect(!result.ok).toBe(true);
+    if (!result.ok) {
       expect(result.error).toMatchObject({ slot: "fixture", originalCause: expect.any(Error) });
     }
   });
 
   it("preserves successful values and non-Error rejection causes", async () => {
     const value = { retained: true };
-    expect(await safeProbe("fixture", async () => value)).toEqual(ok(value));
+    expect(await safeProbe("fixture", async () => value)).toEqual({ ok: true, value });
     const rejected = await safeProbe("fixture", () => Promise.reject("nope"));
-    expect(rejected.isErr() && rejected.error).toMatchObject({
+    expect(!rejected.ok && rejected.error).toMatchObject({
       message: "nope",
       originalCause: "nope",
     });
   });
 
-  it("keeps skipped optional slots outside the Result algebra", async () => {
+  it("keeps skipped optional slots outside the slot union", async () => {
     const probe = vi.fn(async () => 42);
     expect(gatedSlot(false, "fixture", probe)).toBeUndefined();
     expect(probe).not.toHaveBeenCalled();
-    expect((await gatedSlot(true, "fixture", probe)!).isOk()).toBe(true);
+    expect((await gatedSlot(true, "fixture", probe)!).ok).toBe(true);
   });
 });
 
@@ -122,8 +120,8 @@ describe("session remote-context staging", () => {
 
     expect(acquisitions).toBe(1);
     expect(observed).toEqual([context, context]);
-    expect(worktree.isOk() && worktree.value).toBe("worktree-degraded");
-    expect(baseDistance.isOk() && baseDistance.value).toBe("base-degraded");
+    expect(worktree.ok && worktree.value).toBe("worktree-degraded");
+    expect(baseDistance.ok && baseDistance.value).toBe("base-degraded");
   });
 
   it("isolates one unavailable prerequisite as a runtime error on each dependent slot", async () => {
@@ -143,15 +141,15 @@ describe("session remote-context staging", () => {
     // The prerequisite short-circuits: a dependent probe that still ran would have
     // spent its remote work before the typed failure reached the caller.
     expect(dependent).not.toHaveBeenCalled();
-    expect(worktree.isErr() && worktree.error).toMatchObject({
+    expect(!worktree.ok && worktree.error).toMatchObject({
       slot: "worktree",
       message: "Session remote prerequisite failed: remote-configuration.",
     });
-    expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
+    expect(!baseDistance.ok && baseDistance.error).toMatchObject({
       slot: "baseDistance",
       message: "Session remote prerequisite failed: remote-configuration.",
     });
-    expect(dirty.isOk() && dirty.value).toBe("local-clean");
+    expect(dirty.ok && dirty.value).toBe("local-clean");
   });
 
   it("isolates a throwing context read as a runtime error on each dependent slot", async () => {
@@ -166,23 +164,23 @@ describe("session remote-context staging", () => {
       independent,
     ]);
 
-    expect(worktree.isErr() && worktree.error).toMatchObject({
+    expect(!worktree.ok && worktree.error).toMatchObject({
       slot: "worktree",
       message: "ls-remote exploded",
     });
-    expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
+    expect(!baseDistance.ok && baseDistance.error).toMatchObject({
       slot: "baseDistance",
       message: "ls-remote exploded",
     });
-    expect(dirty.isOk() && dirty.value).toBe("local-clean");
+    expect(dirty.ok && dirty.value).toBe("local-clean");
   });
 });
 
-describe("identity-scoped Result slots", () => {
+describe("identity-scoped status slots", () => {
   it("short-circuits a missing user identity without invoking the probe", async () => {
     const probe = vi.fn(async (identity: string) => identity);
     const result = await userSlot(null, probe);
     expect(probe).not.toHaveBeenCalled();
-    expect(result.isErr() && result.error).toBeInstanceOf(SessionIdentityMissingError);
+    expect(!result.ok && result.error).toBeInstanceOf(SessionIdentityMissingError);
   });
 });

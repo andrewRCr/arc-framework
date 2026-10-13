@@ -17,6 +17,7 @@ const CheckSchema = z.strictObject({
   shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
   cache: z.boolean().default(true),
   reads_index: z.boolean().default(false),
+  no_evidence_exit: z.int().min(1).max(255).optional(),
 }).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
@@ -29,6 +30,10 @@ const CheckSchema = z.strictObject({
   }
   if (check.shards !== undefined && !check.shards.argument.includes("{index}")) {
     context.addIssue({ code: "custom", path: ["shards", "argument"], message: "A shard argument must contain {index}." });
+  }
+  if (check.no_evidence_exit !== undefined && check.gate !== undefined) {
+    context.addIssue({ code: "custom", path: ["no_evidence_exit"],
+      message: "A no-evidence exit status requires a check with no gate, since CI plays back gated checks and fails every non-zero status." });
   }
 });
 

@@ -50,7 +50,8 @@ it("retains no passed measurement for a native failed case", async () => {
       'import { it } from "vitest"; it("failed measured case", () => { throw new Error("native measured failure retained"); });');
     const result = await runNativeTestCostFixture(fixture, "unit");
     expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toContain("native measured failure retained");
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("native measured failure retained");
     expect(await readFile(fixture.events, "utf8")).toContain("closing-owned:false:false");
     await expect(access(fixture.output)).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
