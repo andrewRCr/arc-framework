@@ -119,11 +119,6 @@ async function createBuiltCliHookPath(): Promise<{ directory: string; env: Recor
 async function installFixtureHookRuntime(repo: string): Promise<void> {
   await mkdir(join(repo, "packages"), { recursive: true });
   await symlink(packageRoot, join(repo, "packages", "arc-framework"), "dir");
-  await symlink(
-    join(packageRoot, "arc", "system", ".internal", "scripts", "validate-links.sh"),
-    join(repo, ".arc", "system", ".internal", "scripts", "validate-links.sh"),
-    "file",
-  );
 }
 
 /** Whether a path exists on disk. */
