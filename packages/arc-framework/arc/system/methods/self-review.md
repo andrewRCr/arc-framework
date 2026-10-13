@@ -60,6 +60,15 @@ approval is the fix round's structured gate and releases the fix commit where `a
 the approved fixes. Commit finding-driven fixes with the canonical `(code review)`
 context footer; reserve lifecycle-phase footers for ceremony commits rather than the fixes review produced.
 
+> [!CAUTION]
+> `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+```text
+<type>(<scope>): <what the approved fixes change>
+
+Context: <the caller's context> (code review)
+```
+
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.
 

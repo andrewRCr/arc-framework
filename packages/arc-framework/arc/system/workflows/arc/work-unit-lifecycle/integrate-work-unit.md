@@ -380,14 +380,29 @@ prior count.
   `payload.hostedSettlementPlan` for
   `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for every
   ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor.
-  Settle each
-  `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
-  result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
-  fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget`
-  verified for the current head. For a delivery member, require the post-fix response state
-  `delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as
-  that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
-  phase and remains
+  Settle each `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and
+  require every result to complete before any approved fix changes the head. Then apply and verify the approved fixes,
+  then commit and push them:
+
+  > [!CAUTION]
+  > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+  ```text
+  <type>(<scope>): <what the approved fixes change>
+
+  Review disposition set: <identity>
+  - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+  Context: tasks-{name}.md (code review)
+  ```
+
+  > [!CAUTION]
+  > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+  Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
+  for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
+  idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as that `fixTarget`; never
+  reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither phase and remains
   triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
   Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named
   next-pass admission.

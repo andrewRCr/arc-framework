@@ -222,8 +222,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
 2. **Push** the errand branch upstream.
 
-   - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
-     actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
+   - **Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
+     extension is active, run its `.actions`; halt-on-fail surfaces an actionable message, fix-and-retry or
+     explicit-invoke bypasses. Otherwise skip.
 
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
@@ -316,6 +317,21 @@ remote base all name the same exact head. Any tracked change continues through t
    configured interlocks release them the commit, push, and approved settlement follow without another stop
    ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Never carry clearance or merge
    authority.
+
+   > [!CAUTION]
+   > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+   ```text
+   <type>(<scope>): <what the approved fixes change>
+
+   Review disposition set: <identity>
+   - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+   Context: standalone (code review)
+   ```
+
+   > [!CAUTION]
+   > `push-interlock` release — `workflowPush`: `origin <branch>`.
 
    A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
    another provider invocation requires an explicit Owner decision. On approval, re-run
@@ -456,12 +472,28 @@ remote base all name the same exact head. Any tracked change continues through t
      every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
      actor. Settle each `beforeFixFindingIds`
      entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
-     before any approved fix changes the head; then apply, verify, commit, and push the approved fixes; then settle
-     every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified for the
-     current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
-     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
-     Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-     ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
+     before any approved fix changes the head. Then apply and verify the approved fixes, then commit and push them:
+
+     > [!CAUTION]
+     > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+     ```text
+     <type>(<scope>): <what the approved fixes change>
+
+     Review disposition set: <identity>
+     - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+     Context: standalone (code review)
+     ```
+
+     > [!CAUTION]
+     > `push-interlock` release — `workflowPush`: `origin <branch>`.
+
+     Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
+     for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
+     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it. Retain any
+     returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling
+     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
      On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
      mutation; every stop state remains a stop. After the required phases complete, follow the approved response

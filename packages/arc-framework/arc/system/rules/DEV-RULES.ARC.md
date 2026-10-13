@@ -144,6 +144,7 @@ everywhere else, apply this trace as one inline judgment.
 **Concept.** Interlocks gate (stop, await direction); fire sites release (execute the gated operation).
 Each fire pairs with one interlock — `taskCommit` releases commit-interlock at task-interlock approval;
 `workflowCommit` and `workflowPush` release commit- and push-interlock at workflow-interlock approval.
+A review-fix round's complete-set disposition approval releases its `taskCommit` and `workflowPush` sites.
 Class tags name the fire-site type; routing follows § Workflow class-tag routing.
 
 - **Commit and push triggering** · `[configurable]`: follow `arc.commitInterlock` and `arc.pushInterlock`,

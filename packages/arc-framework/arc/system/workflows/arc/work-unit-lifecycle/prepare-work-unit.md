@@ -213,9 +213,21 @@ Candidate-bound private-member fix. Author only in its exact `authoring.checkout
 `authoring.head`; a missing or different locus stops before mutation. Never author this fix in the disposable member
 checkout. After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix`
 carrying the approved applicability and verification evidence. Require `candidate-advanced / continue-review` or
-idempotent
-`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
-before any Candidate-currentness or delivery-preparation read.
+idempotent `candidate-current / continue-review`, then commit its staged Candidate response as `taskCommit` under
+the same approved increment before any Candidate-currentness or delivery-preparation read.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+```text
+<type>(<scope>): <what the approved fixes change>
+
+Review disposition set: <identity>
+- <finding identity>: <verified severity> / <disposition> — <rationale>
+
+Context: tasks-{name}.md (code review)
+```
+
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
 carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction

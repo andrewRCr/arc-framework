@@ -62,6 +62,34 @@ describe("review-fix round release", () => {
     }
   });
 
+  it("routes every review-fix commit and push site through a release class", () => {
+    const commit = "`commit-interlock` release — commit the approved fixes as `taskCommit`:";
+    const errand = shipped("system/workflows/arc/supplemental/run-errand.md");
+    const integrate = shipped("system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md");
+    const prepare = shipped("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
+    const selfReview = shipped("system/methods/self-review.md");
+    const authoring = shipped("reference/strategies/arc/strategy-workflow-authoring.md");
+    const rules = shipped("system/rules/DEV-RULES.ARC.md");
+
+    expect(occurrences(errand, commit)).toBe(2);
+    expect(occurrences(errand, "`push-interlock` release — `workflowPush`: `origin <branch>`.")).toBe(2);
+    expect(errand).toMatch(softWrappedProse(
+      "**Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow",
+    ));
+    expect(errand).not.toMatch(softWrappedProse("**Extensions** · `#pre-push-review`"));
+    expect(errand).toMatch(softWrappedProse("Then apply and verify the approved fixes, then commit and push them:"));
+    expect(occurrences(integrate, commit)).toBe(1);
+    expect(integrate).toMatch(softWrappedProse("Then apply and verify the approved fixes, then commit and push them:"));
+    expect(occurrences(prepare, commit)).toBe(1);
+    expect(prepare).toMatch(softWrappedProse("then commit its staged Candidate response as `taskCommit`"));
+    expect(occurrences(selfReview, commit)).toBe(1);
+    expect(authoring).toMatch(softWrappedProse("and review-fix commits a complete-set disposition approval releases"));
+    expect(authoring).toMatch(softWrappedProse("and review-fix pushes"));
+    expect(rules).toMatch(softWrappedProse(
+      "A review-fix round's complete-set disposition approval releases its `taskCommit` and `workflowPush` sites.",
+    ));
+  });
+
   it("records disposition-approval release beside the other interlock releases", () => {
     const operations = shipped("reference/strategies/arc/strategy-session-operations.md");
     const start = operations.indexOf("### Disposition-Approval Release");
