@@ -153,9 +153,9 @@ function nodeLoaderValue(expression: ts.Expression, context: NodeFactoryContext,
   expression = unparenthesized(expression);
   if (ts.isCallExpression(expression)) return nodeFactoryValue(expression.expression, context, seen);
   const declaration = ts.isIdentifier(expression) ? context.lookup(expression) : undefined;
-  return declaration !== undefined && ts.isVariableDeclaration(declaration)
-    && declaration.initializer !== undefined && ts.isCallExpression(unparenthesized(declaration.initializer))
-    && nodeFactoryValue((unparenthesized(declaration.initializer) as ts.CallExpression).expression, context, seen);
+  return declaration !== undefined && ts.isVariableDeclaration(declaration) && ts.isIdentifier(declaration.name)
+    && declaration.initializer !== undefined && !seen.has(declaration)
+    && nodeLoaderValue(declaration.initializer, context, new Set(seen).add(declaration));
 }
 
 function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
@@ -213,27 +213,15 @@ function nodeFactoryValue(expression: ts.Expression, context: NodeFactoryContext
       || nodeObjectFactoryValue(expression.expression, context, seen));
 }
 
-function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
+function nodeLoaderLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
   const owners: NodeFactoryOwners = { factories: new Set(), namespaces: new Set() };
   for (const statement of source.statements) collectNodeImport(statement, owners);
   const context: NodeFactoryContext = { owners, lookup };
-  return (expression) => nodeFactoryValue(expression, context, new Set());
+  return (expression) => nodeLoaderValue(expression, context, new Set());
 }
 
 function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: string }[] {
-  const lookup = syntaxBindingLookup(source);
-  const factory = nodeFactoryLookup(source, lookup);
-  const loaders = new Set<ts.Node>();
-  const isFactoryCall = (node: ts.Node | undefined): node is ts.CallExpression =>
-    node !== undefined && ts.isCallExpression(node) && factory(node.expression);
-  const isLoader = (node: ts.Expression): boolean => ts.isIdentifier(node) && loaders.has(lookup(node) ?? source);
-  const collect = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isFactoryCall(node.initializer)) {
-      loaders.add(node);
-    }
-    ts.forEachChild(node, collect);
-  };
-  collect(source);
+  const isLoader = nodeLoaderLookup(source, syntaxBindingLookup(source));
 
   const references: { node: ts.Node; specifier: string }[] = [];
   const visit = (node: ts.Node): void => {
@@ -247,7 +235,7 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
       const moduleRequire = ts.isPropertyAccessExpression(node.expression)
         && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === "module"
         && node.expression.name.text === "require";
-      const returnedRequire = isLoader(node.expression) || isFactoryCall(node.expression);
+      const returnedRequire = isLoader(node.expression);
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword || directRequire || moduleRequire || returnedRequire) {
         specifier = literal(node.arguments[0]);
       }
@@ -259,8 +247,9 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
     else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
       || (ts.isIdentifier(node.expression) && node.expression.text === "require") || isLoader(node.expression)
       || (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
-        && node.expression.expression.text === "module" && node.expression.name.text === "require")
-      || isFactoryCall(node.expression))) references.push({ node, specifier: "<computed import>" });
+        && node.expression.expression.text === "module" && node.expression.name.text === "require"))) {
+      references.push({ node, specifier: "<computed import>" });
+    }
     ts.forEachChild(node, visit);
   };
   visit(source);
