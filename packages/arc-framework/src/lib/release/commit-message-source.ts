@@ -539,10 +539,14 @@ const MESSAGE_OPERANDS: MessageSourceForms = {
   longOptions: new Set(["--message"]),
 };
 
+/** Every message source a prepared file can stand in for; a reused message also carries authorship, so it stays. */
 const EVERY_MESSAGE_SOURCE: MessageSourceForms = {
-  roles: new Set(["message", "file", "reuse", "reedit", "template"]),
-  longOptions: new Set(["--message", "--file", "--reuse-message", "--reedit-message", "--template"]),
+  roles: new Set(["message", "file", "template"]),
+  longOptions: new Set(["--message", "--file", "--template"]),
 };
+
+const REUSE_ROLES: ReadonlySet<CommitShortOptionRole> = new Set(["reuse", "reedit"]);
+const REUSE_LONG_OPTIONS: ReadonlySet<string> = new Set(["--reuse-message", "--reedit-message"]);
 
 /**
  * Rewrite `args` by stripping every recognized `-m` / `--message` message
@@ -557,8 +561,9 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
 }
 
 /**
- * Replace every message source in `args` (messages, a message file, a reused message, or a template) with `-F path`
- * ahead of any `--`, keeping every other argument, so a retry repeats the same commit with a prepared message.
+ * Replace every message source in `args` (messages, a message file, or a template) with `-F path` ahead of any `--`,
+ * keeping every other argument, so a retry repeats the same commit with a prepared message. A reused message (`-C`,
+ * `-c`) stays, since it also carries that commit's author and date; see {@link reusesCommitMessage}.
  *
  * @param args - The commit's argv.
  * @param path - Prepared message file to name with `-F`.
@@ -566,6 +571,43 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
  */
 export function replaceCommitMessageSource(args: readonly string[], path: string): string[] {
   return routeMessageSourcesToFile(args, path, EVERY_MESSAGE_SOURCE);
+}
+
+/**
+ * Report whether `args` reuse another commit's message with `-C`, `-c`, or their long forms, which also carry that
+ * commit's author and date. Option operands and tokens after `--` remain data.
+ *
+ * @param args - The commit's argv.
+ * @returns Whether a prepared message file would change the commit's authorship.
+ */
+export function reusesCommitMessage(args: readonly string[]): boolean {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--") return false;
+    if (arg.startsWith("--") && REUSE_LONG_OPTIONS.has(splitLongOption(arg).name)) return true;
+    if (!arg.startsWith("--") && arg.startsWith("-") && arg !== "-") {
+      const walk = walkCommitShortOption(arg, args[index + 1]);
+      if (walk.kind === "recognized" && walk.members.some((member) => REUSE_ROLES.has(member.role))) return true;
+    }
+    if (commitOptionConsumesNext(arg, args[index + 1])) index += 1;
+  }
+  return false;
+}
+
+/**
+ * Copy the long option at `index` into `result` with any separate operand it consumes, or drop it when it is one of
+ * `forms`' message sources.
+ *
+ * @returns How many argv tokens the option spans.
+ */
+function copyLongOption(result: string[], args: readonly string[], index: number, forms: MessageSourceForms): number {
+  const arg = args[index] ?? "";
+  if (forms.longOptions.has(splitLongOption(arg).name)) return arg.includes("=") ? 1 : 2;
+  result.push(arg);
+  const operand = args[index + 1];
+  if (operand === undefined || !commitOptionConsumesNext(arg, operand)) return 1;
+  result.push(operand);
+  return 2;
 }
 
 function routeMessageSourcesToFile(args: readonly string[], path: string, forms: MessageSourceForms): string[] {
@@ -582,12 +624,12 @@ function routeMessageSourcesToFile(args: readonly string[], path: string, forms:
       return result;
     }
 
-    if (arg.startsWith("--") && forms.longOptions.has(splitLongOption(arg).name)) {
-      if (!arg.includes("=")) index += 1;
+    if (arg.startsWith("--")) {
+      index += copyLongOption(result, args, index, forms) - 1;
       continue;
     }
 
-    if (!arg.startsWith("-") || arg.startsWith("--") || arg === "-") {
+    if (!arg.startsWith("-") || arg === "-") {
       result.push(arg);
       continue;
     }

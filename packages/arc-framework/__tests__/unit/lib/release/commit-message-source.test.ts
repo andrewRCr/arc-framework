@@ -6,6 +6,7 @@ import {
   classifyCommitMessageInput,
   rewriteCommitFileSource,
   replaceCommitMessageSource,
+  reusesCommitMessage,
   rewriteCommitMessagesToFile,
 } from "../../../../src/lib/release/commit-message-source.js";
 
@@ -259,11 +260,39 @@ describe("replaceCommitMessageSource", () => {
     { label: "an attached clustered file source", args: ["-qFmessage.txt"], expected: ["-q", "-F", "/retry"] },
     { label: "a long file source", args: ["--file=message.txt", "-a"], expected: ["-a", "-F", "/retry"] },
     { label: "a retry of a retry", args: ["-F", "/retry"], expected: ["-F", "/retry"] },
-    { label: "a reused message", args: ["-C", "HEAD", "--", "file-a"], expected: ["-F", "/retry", "--", "file-a"] },
+    {
+      label: "messages beside a long option whose operand reads like a message option",
+      args: ["--pathspec-from-file", "--message", "-m", "subject"],
+      expected: ["--pathspec-from-file", "--message", "-F", "/retry"],
+    },
     { label: "a template", args: ["--template", "t.txt", "-a"], expected: ["-a", "-F", "/retry"] },
     { label: "no source", args: ["--amend", "--no-edit"], expected: ["--amend", "--no-edit", "-F", "/retry"] },
   ])("routes $label through the one file", ({ args, expected }) => {
     expect(replaceCommitMessageSource(args, "/retry")).toEqual(expected);
+  });
+
+  it("leaves a reused message in place, since it also carries that commit's authorship", () => {
+    expect(replaceCommitMessageSource(["-C", "HEAD"], "/retry")).toEqual(["-C", "HEAD", "-F", "/retry"]);
+  });
+});
+
+describe("reusesCommitMessage", () => {
+  it.each([
+    [["-C", "HEAD"]],
+    [["-qcHEAD"]],
+    [["--reuse-message=HEAD"]],
+    [["--reedit-message", "HEAD", "--", "file-a"]],
+  ])("reports a reused message in %j", (args) => {
+    expect(reusesCommitMessage(args)).toBe(true);
+  });
+
+  it.each([
+    ["no reuse", ["-m", "subject"]],
+    ["a message operand", ["-m", "-C"]],
+    ["a long option's operand", ["--author", "-C"]],
+    ["a pathspec", ["-m", "subject", "--", "-C"]],
+  ])("reports none for %s", (_label, args) => {
+    expect(reusesCommitMessage(args)).toBe(false);
   });
 });
 
@@ -315,6 +344,16 @@ describe("commit-message rewriting to file", () => {
         "/snap",
       ),
     ).toEqual(["commit", "--author", "name", "-F", "/snap", "--", "file.txt"]);
+  });
+
+  it("keeps a long option's separate operand even when it reads like a message option", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "--author", "-m", "-m", "subject"], "/snap")).toEqual([
+      "commit",
+      "--author",
+      "-m",
+      "-F",
+      "/snap",
+    ]);
   });
 
   it("leaves an argv with no -m/--message operands unchanged apart from the appended -F", () => {
