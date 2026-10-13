@@ -1,5 +1,7 @@
 /** Ordinary v3 Errand open composition. */
 
+import { z } from "zod";
+
 import {
   planLocusAllocation,
   type LocusAllocationPlanningRefusalReason,
@@ -102,9 +104,13 @@ export async function openOrdinaryErrand(
   options: OpenOrdinaryErrandOptions,
 ): Promise<ErrandOperationResult> {
   const requestedSlug = options.slug.trim();
-  if (requestedSlug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+  const slugRemedy = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
+    + "and retry `arc errand open`.";
+  if (requestedSlug === "") return openRefusal("identity-conflict", `Errand slug must be non-empty. ${slugRemedy}`);
   const parsedSlug = SlugSchema.safeParse(requestedSlug);
-  if (!parsedSlug.success) return openRefusal("identity-conflict", "Errand slug must be valid.");
+  if (!parsedSlug.success) {
+    return openRefusal("identity-conflict", `Errand slug must be valid. ${z.prettifyError(parsedSlug.error)}\n${slugRemedy}`);
+  }
   const slug = parsedSlug.data;
   const originEntry = options.inbox?.title.trim() || null;
   const originEntrySourceDigest = originEntry === null ? null : options.inbox?.sourceDigest ?? null;
@@ -211,7 +217,11 @@ export async function openOrdinaryErrand(
         changeRequest: null,
       });
       if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
-        return openRefusal("identity-conflict", "The Errand identity request is invalid.");
+        const condition = parsed.success ? "An ordinary Errand identity is required." : z.prettifyError(parsed.error);
+        const remedy = slug.startsWith("groom-")
+          ? "Choose another slug and retry `arc errand open`; the groom-* namespace has no Errand opener."
+          : "Correct the reported input fields and retry `arc errand open`; choose another slug if its derived branch is invalid.";
+        return openRefusal("identity-conflict", `The Errand identity request is invalid.\n${condition}\n${remedy}`);
       }
       record = parsed.data;
       let claimed: ClaimResult;

@@ -312,3 +312,63 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
       updatedAt: "2026-07-20T12:02:00.000Z" }, provisioned: true });
   });
 });
+
+
+function newOpenFixture() {
+  let record: OrdinaryErrandRecord | null = null;
+  let provisioned = false;
+  const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
+    kind: "free-primary", subject: null,
+    checkout: { path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+    lifecycleLocation: null, diagnostics: [],
+  };
+  const options: OpenOrdinaryErrandOptions = {
+    slug: "fix-output", intent: "fix output", protection: "full", base: "main",
+    createdAt: "2026-07-20T12:00:00.000Z", identityName: "andrew", locationTemplate: "../{name}", repo: "repo",
+    dependencies: {
+      mintClaimId: () => "c".repeat(32),
+      readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
+        primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+        identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
+      readIdentity: async () => ({ kind: "ready", record }),
+      claim: async (value) => { record = value; return { kind: "applied", record: value }; },
+      rollbackClaim: async () => { record = null; return { kind: "rolled-back" }; },
+      provision: async (input) => {
+        provisioned = true;
+        return { kind: "provisioned", receipt: {
+          disposition: "applied", allocation: "primary", checkoutPath: "/repo",
+          branch: { name: input.branch, created: true, head: HEAD, base: "main" },
+          worktree: { path: "/repo", created: false, head: HEAD },
+          marker: { state: "ready", bytes: Buffer.from("ready") },
+        } };
+      },
+    },
+  };
+  return {
+    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent">> = {}) =>
+      openOrdinaryErrand({ ...options, ...overrides }),
+    read: () => ({ record, provisioned }),
+  };
+}
+
+describe("invalid ordinary Errand open input remedies", () => {
+  it.each([
+    { name: "empty slug", input: { slug: " " }, condition: "non-empty", remedy: "Choose a valid" },
+    { name: "malformed slug", input: { slug: "fix.output" }, condition: "slug", remedy: "Choose a valid" },
+    { name: "reserved namespace", input: { slug: "groom-alpha" },
+      condition: "groom-* namespace is reserved", remedy: "groom-* namespace has no Errand opener" },
+    { name: "overlong branch", input: { slug: "a".repeat(4091) }, condition: "branch", remedy: "Correct the reported" },
+    { name: "overlong intent", input: { intent: "x".repeat(4097) }, condition: "intent", remedy: "Correct the reported" },
+  ])("reports $name before mutation and opens after the input is corrected", async ({ input, condition, remedy }) => {
+    const fixture = newOpenFixture();
+    const refusal = await fixture.run(input);
+    expect(refusal).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(refusal.recommendedPromptText).toContain(condition);
+    expect(refusal.recommendedPromptText).toContain(remedy);
+    expect(refusal.recommendedPromptText).toContain("arc errand open");
+    expect(fixture.read()).toEqual({ record: null, provisioned: false });
+    expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: { key: "fix-output", state: "open" } });
+    expect(fixture.read()).toMatchObject({ record: { slug: "fix-output" }, provisioned: true });
+  });
+});
