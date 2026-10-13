@@ -102,8 +102,8 @@ then.
 
 One pass, straight through: run **Structural decomposition**, **Content fill**, and **Grounding audit & coherent
 revision** over the single substantive phase (plus the always-present verification phase). There is **no
-inter-pass stop** — the procedures flow into each other. The one review stop is the grounding audit's per-phase
-confirm gate, which fires once for the single substantive phase; resolve it, finish the revision, then
+inter-pass stop** — the procedures flow into each other. The grounding audit's confirm gate stops for the single
+substantive phase only when its audit leaves something to decide; resolve any stop, finish the revision, then
 **Finalize the task list**. Audit depth is `grounding-only`.
 
 ### `medium` — merged draft pass, then grounding pass
@@ -117,8 +117,8 @@ Two passes:
   > `workflow-interlock`: Stop after the merged draft is written. Surface it with reflection woven in (lenses
   > from both procedures); await direction before the grounding pass.
 
-- **Pass 2 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate fires
-  once per substantive phase. Audit depth is `full`.
+- **Pass 2 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
+  for a phase whose audit leaves something to decide. Audit depth is `full`.
 
 Then **Finalize the task list**.
 
@@ -139,8 +139,8 @@ Three passes, each producing a deliverable the user reviews before the next begi
   > `workflow-interlock`: Stop after the Pass 2 draft is written. Surface with reflection woven in; await
   > direction before Pass 3.
 
-- **Pass 3 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate fires
-  once per substantive phase. Audit depth is `full`.
+- **Pass 3 — Grounding audit.** Run **Grounding audit & coherent revision**; its per-phase confirm gate stops only
+  for a phase whose audit leaves something to decide. Audit depth is `full`.
 
 Then **Finalize the task list**.
 
@@ -336,13 +336,15 @@ discipline above) before continuing.
 ## Grounding audit & coherent revision
 
 A per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
-findings and any design decisions, confirm before editing, then revise the phase coherently. The **verification
-phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
+findings and any design decisions, confirm before editing when the audit leaves something to decide, then revise
+the phase coherently. The **verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has
+nothing to ground.
 
-Run **Audit the phase** → **Surface findings + decisions, then confirm** → **Revise the phase coherently** for
-each non-verification phase in order; run **Final suite-coherence pass** once, after the last phase. The
-per-phase confirm gate below is intrinsic — it fires once per substantive phase at **every** depth, the number
-of gates following the substantive phase count rather than the resolved level.
+Run **Audit the phase** → **Surface findings + decisions, confirm what needs deciding** → **Revise the phase
+coherently** for each non-verification phase in order; run **Final suite-coherence pass** once, after the last
+phase. The phase-at-a-time loop is intrinsic at **every** depth: it keeps each audit and revision bounded to one phase.
+The confirm gate is not a per-phase sign-off — it stops only for a phase whose audit leaves something to decide,
+so the number of stops follows what the audits find, not the phase count or the resolved level.
 
 ### Audit the phase
 
@@ -366,13 +368,18 @@ Generation-time framing differs from the audit's typical pre-impl use:
 - **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved. "Carry as
   context" findings can ride.
 
-### Surface findings + decisions, then confirm
+### Surface findings + decisions, confirm what needs deciding
 
 > [!IMPORTANT]
-> `workflow-interlock`: Surface the phase's findings — per-finding (category → severity → finding →
-> recommendation), with reflection woven in — **plus any masked design decisions, each stated with a lean**.
-> Stop and await direction **before editing**. Resolving the decisions first means corrections land coherently
-> in one pass instead of as "(pending)" caveats re-edited later.
+> `workflow-interlock`: When the phase's audit returns a fix-before-starting finding, a masked design decision, or a
+> floor-raising signal for the re-entry valve below, surface the phase's findings — per-finding (category → severity
+> → finding → recommendation), with reflection woven in — **plus any masked design decisions, each stated with a
+> lean**. Stop and await direction **before editing**. Resolving the decisions first means corrections land
+> coherently in one pass instead of as "(pending)" caveats re-edited later.
+
+A phase with nothing to decide does not stop. Report it in passing — the one-line confirmation the surfacing
+discipline gives a clean lens, naming any "carry as context" findings and the home revision gives each — then revise
+the phase and continue to the next.
 
 Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
 
@@ -392,9 +399,9 @@ directly; a corrected mechanism _becomes_ the design statement, not an annotatio
 **Spec-propagation.** When a finding corrects a _spec-level_ assumption — a named mechanism, shape, or interface
 was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
 suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the
-**in-place** sibling of the re-entry valve (Surface findings + decisions, then confirm): an existing decision
-was wrong and is corrected in place — distinct from re-entering the spec to _author_ design that does not yet
-exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
+**in-place** sibling of the re-entry valve (Surface findings + decisions, confirm what needs deciding): an
+existing decision was wrong and is corrected in place — distinct from re-entering the spec to _author_ design
+that does not yet exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
 
 After each bounded batch of substantive Spec-propagation corrections, run [spec-review][spec-review] over the changed
 specification contract. Fold corrections into the coherent revision; surface decisions at the existing phase
@@ -417,8 +424,8 @@ ordering language), suite-level alignment (the spec's Goals / Success Criteria /
 amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads
 as one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase
 revision was clean, heavier when phases interlock tightly. If this pass surfaces a _new design issue_ (not mere
-inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the
-coherence pass is not a second decision venue.
+inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, confirm what needs
+deciding) — the coherence pass is not a second decision venue.
 
 When this pass makes a bounded batch of substantive specification edits, run [spec-review][spec-review]
 over the changed contract before finalizing the corrected plan. Feed findings into this same iteration flow,
@@ -514,7 +521,7 @@ work unit's existing artifacts (lifecycle position first; `pm.mode` only when no
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
 The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
-context over the finished suite (the per-phase gates above audited each phase as authored; this pass attacks
+context over the finished suite (the per-phase audits above checked each phase as authored; this pass attacks
 the whole):
 
 > [!IMPORTANT]
