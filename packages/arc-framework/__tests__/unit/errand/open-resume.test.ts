@@ -338,7 +338,8 @@ function newOpenFixture() {
         provisioned = true;
         return { kind: "provisioned", receipt: {
           disposition: "applied", allocation: "primary", checkoutPath: "/repo",
-          branch: { name: input.branch, created: true, head: HEAD, base: "main" },
+          branch: { name: input.branch, created: input.branch !== null, head: HEAD,
+            base: input.branch === null ? null : "main" },
           worktree: { path: "/repo", created: false, head: HEAD },
           marker: { state: "ready", bytes: Buffer.from("ready") },
         } };
@@ -346,7 +347,7 @@ function newOpenFixture() {
     },
   };
   return {
-    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent">> = {}) =>
+    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection">> = {}) =>
       openOrdinaryErrand({ ...options, ...overrides }),
     read: () => ({ record, provisioned }),
   };
@@ -370,5 +371,26 @@ describe("invalid ordinary Errand open input remedies", () => {
     expect(fixture.read()).toEqual({ record: null, provisioned: false });
     expect(await fixture.run()).toMatchObject({ outcome: "applied", identity: { key: "fix-output", state: "open" } });
     expect(fixture.read()).toMatchObject({ record: { slug: "fix-output" }, provisioned: true });
+  });
+});
+
+
+describe("reserved Errand namespace protection modes", () => {
+  it("qualifies the reserved-namespace refusal to full protection", async () => {
+    const fixture = newOpenFixture();
+    const result = await fixture.run({ slug: "groom-alpha", protection: "full" });
+    expect(result).toMatchObject({ outcome: "refused", reason: "identity-conflict" });
+    expect(result.recommendedPromptText).toContain("groom-* namespace is reserved");
+    expect(result.recommendedPromptText).toContain("no Errand opener under full protection");
+    expect(fixture.read()).toEqual({ record: null, provisioned: false });
+  });
+
+  it("keeps partial protection claim-free and accepts the same slug", async () => {
+    const fixture = newOpenFixture();
+    const result = await fixture.run({ slug: "groom-alpha", protection: "partial" });
+    expect(result).toMatchObject({ outcome: "applied", identity: null,
+      subject: { kind: "errand", key: "groom-alpha", claimId: null },
+      allocation: { kind: "primary", checkoutPath: "/repo" } });
+    expect(fixture.read()).toEqual({ record: null, provisioned: true });
   });
 });

@@ -221,7 +221,8 @@ export async function openOrdinaryErrand(
       if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
         const condition = parsed.success ? "An ordinary Errand identity is required." : z.prettifyError(parsed.error);
         const remedy = slug.startsWith("groom-")
-          ? "Choose another slug and retry `arc errand open`; the groom-* namespace has no Errand opener."
+          ? "Choose another slug and retry `arc errand open`; the groom-* namespace "
+            + "has no Errand opener under full protection."
           : "Correct the reported input fields and retry `arc errand open`; choose another slug if its derived branch is invalid.";
         return openRefusal("identity-conflict", `The Errand identity request is invalid.\n${condition}\n${remedy}`);
       }
