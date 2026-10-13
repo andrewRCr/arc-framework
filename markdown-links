@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdown-links",
+  "claimId": "eb159e82a1dda2625ee7afddd30f4906",
+  "createdAt": "2026-10-13T01:36:42.660Z",
+  "updatedAt": "2026-10-13T01:36:42.660Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse relative links in movable artifacts in the shipped commit-hook link check, and add a project-only lint:arc:links sweep over the installed .arc/ layout for file targets and heading anchors, skipping .arc/completed/",
+  "branch": "chore/markdown-links",
+  "origin": "inbox",
+  "originEntry": "Check relative Markdown links over the installed layout, and refuse them in movable artifacts",
+  "originEntrySourceDigest": "sha256:7b2120cdd454c2cc0e52ed661e3977ba0cb36e19eb8338a73c3058ee7d207094",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
