@@ -3,7 +3,7 @@
   "slug": "collect-review-before-push",
   "claimId": "ab4d689ec60620ce9d129ce47fb496e8",
   "createdAt": "2026-10-13T20:18:28.520Z",
-  "updatedAt": "2026-10-13T20:18:28.520Z",
+  "updatedAt": "2026-10-13T20:51:10.428Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Collect an in-flight hosted review before a head-moving push supersedes it",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Collect an in-flight hosted review before a fix push supersedes its head",
   "originEntrySourceDigest": "sha256:2bf0d02585a8dfe6877736eb5e09aa4599ce5a624a775da788af82593fbae8fd",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/collect-review-before-push",
+    "headSha": "6cb61c6664c9b00571c55c571ba91d724237f9be"
+  }
 }
