@@ -9,9 +9,10 @@
 # - Inline links     [text](target)    — target resolves to an existing file
 # - Reference defs   [ref]: target     — target resolves to an existing file
 # - Reference usages [text][ref]       — ref has a matching definition in this file
-# - Movable artifacts — a `meta-`, `draft-`, `spec-`, `tasks-`, `notes-`, or
-#   `cohort-` file under `active/` or `backlog/` carries no relative link at
-#   all, since it relocates between lifecycle directories
+# - Movable artifacts — a `<prefix>-<name>.md` file with a lowercase prefix
+#   (`meta-`, `draft-`, `notes-`, another companion, or `cohort-`) under
+#   `.arc/active/` or `.arc/backlog/` carries no relative link at all, since it
+#   relocates between lifecycle directories
 #
 # Skips:
 # - External links (http, https, mailto, ftp, ssh, git)
@@ -71,14 +72,11 @@ sanitize() {
 # Determine if a file is a movable artifact: a work unit's or cohort's record
 # inside a lifecycle directory, which moves by rename with no content edit.
 is_movable() {
-    case "$(basename "$1")" in
-        meta-*.md|draft-*.md|spec-*.md|tasks-*.md|notes-*.md|cohort-*.md) ;;
+    case "/$1" in
+        */.arc/active/*|*/.arc/backlog/*) ;;
         *) return 1 ;;
     esac
-    case "/$1" in
-        */active/*|*/backlog/*) return 0 ;;
-    esac
-    return 1
+    [[ "$(basename "$1")" =~ ^[a-z]+-.+\.md$ ]]
 }
 
 # Validate that a resolved target exists.

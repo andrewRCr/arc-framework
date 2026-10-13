@@ -106,6 +106,7 @@ function checkTarget(
   const hashAt = url.indexOf("#");
   const pathEnd = url.search(/[?#]/);
   const resolved = resolveTarget(source, pathEnd === -1 ? url : url.slice(0, pathEnd));
+  if (resolved === ".." || resolved.startsWith("../")) return `link leaves the repository -> ${url}`;
   const kind = io.kind(resolved);
   if (kind === null) return `broken link -> ${url}`;
   if (hashAt === -1 || kind !== "file" || !resolved.endsWith(".md")) return null;

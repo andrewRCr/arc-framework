@@ -293,7 +293,7 @@ describe("validate-links.sh", () => {
     );
   });
 
-  it.each(["draft", "spec", "tasks", "notes", "cohort"])(
+  it.each(["draft", "spec", "tasks", "notes", "cohort", "research", "analysis"])(
     "refuses a relative reference definition in a nested backlog %s artifact",
     async (kind) => {
       const dir = join(tmp, `case-movable-${kind}`);
@@ -323,7 +323,11 @@ describe("validate-links.sh", () => {
     await writeFixture(dir, ".arc/system/rules.md", "# Rules\n");
     await writeFixture(dir, ".arc/reference/guide.md", "See [the rules](../system/rules.md).\n");
     await writeFixture(dir, "docs/meta-overview.md", "See [the rules](../.arc/system/rules.md).\n");
-    const r = await runScript(dir, [".arc/reference/guide.md", "docs/meta-overview.md"]);
+    await writeFixture(dir, "docs/active/notes-release.md", "See [the rules](../../.arc/system/rules.md).\n");
+    await writeFixture(dir, ".arc/backlog/ROADMAP.md", "See [the rules](../system/rules.md).\n");
+    const r = await runScript(dir, [
+      ".arc/reference/guide.md", "docs/meta-overview.md", "docs/active/notes-release.md", ".arc/backlog/ROADMAP.md",
+    ]);
     expect(r.code).toBe(0);
     expect(r.stderr).toBe("");
   });

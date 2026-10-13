@@ -113,6 +113,20 @@ describe("auditLinks", () => {
     ]);
   });
 
+  it("reports a link that leaves the repository without probing outside it", () => {
+    const io = fixtureIo({ ".arc/a/source.md": "See [host file](../../../etc/hosts).\n" });
+    const guarded: LinkAuditIo = {
+      readFile: io.readFile,
+      kind(path) {
+        if (path.startsWith("..")) throw new Error(`probed outside the repository: ${path}`);
+        return io.kind(path);
+      },
+    };
+    expect(auditLinks([".arc/a/source.md"], guarded).diagnostics).toEqual([
+      ".arc/a/source.md:1:5: link leaves the repository -> ../../../etc/hosts",
+    ]);
+  });
+
   it("skips external links, in-file fragments, and code", () => {
     const io = fixtureIo({
       ".arc/a/source.md": [
