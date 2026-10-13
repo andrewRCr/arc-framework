@@ -9,6 +9,9 @@
 # - Inline links     [text](target)    — target resolves to an existing file
 # - Reference defs   [ref]: target     — target resolves to an existing file
 # - Reference usages [text][ref]       — ref has a matching definition in this file
+# - Movable artifacts — a `meta-`, `draft-`, `spec-`, `tasks-`, `notes-`, or
+#   `cohort-` file under `active/` or `backlog/` carries no relative link at
+#   all, since it relocates between lifecycle directories
 #
 # Skips:
 # - External links (http, https, mailto, ftp, ssh, git)
@@ -65,12 +68,26 @@ sanitize() {
     ' "$1"
 }
 
+# Determine if a file is a movable artifact: a work unit's or cohort's record
+# inside a lifecycle directory, which moves by rename with no content edit.
+is_movable() {
+    case "$(basename "$1")" in
+        meta-*.md|draft-*.md|spec-*.md|tasks-*.md|notes-*.md|cohort-*.md) ;;
+        *) return 1 ;;
+    esac
+    case "/$1" in
+        */active/*|*/backlog/*) return 0 ;;
+    esac
+    return 1
+}
+
 # Validate that a resolved target exists.
-# Args: source_file source_dir target
+# Args: source_file source_dir target movable
 validate_target() {
     local source_file="$1"
     local source_dir="$2"
     local target="$3"
+    local movable="$4"
 
     # Trim a trailing title (markdown allows `path "title"` in definitions).
     target="${target%% *}"
@@ -80,6 +97,17 @@ validate_target() {
 
     # Anchor-only link — self-reference, no file to check.
     case "$target" in \#*) return 0 ;; esac
+
+    # A relative link from a movable artifact breaks on its next relocation.
+    if [ "$movable" = 1 ]; then
+        case "$target" in
+            /*) ;;
+            *)
+                diagnostic "$source_file: relative link in movable artifact -> $target"
+                return 0
+                ;;
+        esac
+    fi
 
     local file_part
     file_part=$(strip_anchor "$target")
@@ -134,6 +162,9 @@ validate_file() {
     local source_dir
     source_dir=$(dirname "$source_file")
 
+    local movable=0
+    is_movable "$source_file" && movable=1
+
     local sanitized
     sanitized=$(sanitize "$source_file")
 
@@ -146,7 +177,7 @@ validate_file() {
         [ -z "$line" ] && continue
         local value
         value=$(echo "$line" | sed -nE 's/^\[[^]]+\]:[[:space:]]*(.+)$/\1/p')
-        [ -n "$value" ] && validate_target "$source_file" "$source_dir" "$value"
+        [ -n "$value" ] && validate_target "$source_file" "$source_dir" "$value" "$movable"
     done < <(echo "$defs")
 
     # Validate inline link targets: [text](target).
@@ -154,7 +185,7 @@ validate_file() {
         [ -z "$match" ] && continue
         local target
         target=$(echo "$match" | sed -E 's/.*\(([^)]+)\)$/\1/')
-        validate_target "$source_file" "$source_dir" "$target"
+        validate_target "$source_file" "$source_dir" "$target" "$movable"
     done < <(echo "$sanitized" | grep -oE '\[[^]]*\]\([^)]+\)' || true)
 
     # Validate reference usages: [text][ref]. Skip definition lines which start
