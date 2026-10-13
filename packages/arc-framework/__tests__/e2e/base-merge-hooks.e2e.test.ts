@@ -1,6 +1,6 @@
 /** Clean and regenerated merges defer declared enforcement to the resulting head and flag absorbed lockfiles. */
 import { afterEach, expect, inject, it } from "vitest";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHookManagerRepository, executionReceipt } from "../fixtures/checks/hook-manager.js";
 import { cleanupTempDir, git, runArcNoTty } from "./helpers.js";
@@ -13,9 +13,6 @@ it.each(["clean", "ROADMAP remedy"])("concludes a %s merge and enforces failing 
   roots.push(root);
   const roadmap = join(root, ".arc/backlog/ROADMAP.md");
   await mkdir(join(root, ".arc/backlog"), { recursive: true });
-  // Supply the hook's real link checker, which the current init recipe omits.
-  await copyFile(new URL("../../arc/system/.internal/scripts/validate-links.sh", import.meta.url),
-    join(root, ".arc/system/.internal/scripts/validate-links.sh"));
   await writeFile(roadmap, "# Roadmap\n\ncommon\n");
   await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: { content: {
     gate: "commit", cache: false, inputs: ["**"], command: [process.execPath, "-e",
