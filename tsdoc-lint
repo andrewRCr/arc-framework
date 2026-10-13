@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "tsdoc-lint",
+  "claimId": "7f2208f9cc130897c96110b5fa73a408",
+  "createdAt": "2026-10-13T00:39:15.733Z",
+  "updatedAt": "2026-10-13T00:39:15.733Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Narrow the exported-surface TSDoc rule and enforce its presence with lint: a doc block on every exported function and a file-level doc comment, baselining existing gaps",
+  "branch": "chore/tsdoc-lint",
+  "origin": "inbox",
+  "originEntry": "Enforce the exported-surface TSDoc rule with a scoped lint rule",
+  "originEntrySourceDigest": "sha256:2de6ec8b667bce4f54a24156d6f09fcba5318b776556655922d0502054046cbf",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
