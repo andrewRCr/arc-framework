@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** draft captured after adversarial review; seam asks amended on `main` (#867)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** draft-design Step 1 — once `seam-lifecycle`'s and `seam-locus`'s drafts settle, merge base and
-  refresh the draft against them, then create-spec
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
