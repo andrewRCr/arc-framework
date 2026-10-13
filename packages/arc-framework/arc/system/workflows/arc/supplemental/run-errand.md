@@ -453,6 +453,10 @@ remote base all name the same exact head. Any tracked change continues through t
    that action re-enters hosted await.
    `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This observation does
    not become review settlement, feed the review driver, move the exact head, or release the draft lock.
+   Before any push that moves the reviewed head while this action is pending, including a fix for a failure this
+   observation found, re-enter the action through hosted await until it concludes and handle its result first, so its
+   findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives up
+   that result.
 
    Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
