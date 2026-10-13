@@ -171,6 +171,21 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+  lint:arc:links:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:links
+    gate: commit
+    inputs:
+      - .arc/**
+      - '!.arc/user/**'
+      - '!.arc/completed/**'
+      # Trees outside .arc/ that .arc/ links point into; a link into another tree needs that tree listed here.
+      - docs/**
+      - packages/arc-framework/src/scripts/audit-links.ts
+      - packages/arc-framework/src/scripts/repo-root.ts
   lint:ts:file:
     command:
       - npm

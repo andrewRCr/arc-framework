@@ -374,6 +374,8 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-domain-rules
     - id: arc-section-refs
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-section-refs
+    - id: arc-links
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-links
     - id: markdown
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown
     - id: package-sync
