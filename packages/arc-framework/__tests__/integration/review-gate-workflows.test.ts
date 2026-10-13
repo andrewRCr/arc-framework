@@ -80,9 +80,9 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toContain("changed_all=");
   });
 
-  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+  it("runs the Linux CI graph on GitHub-hosted runners with no self-hosted routing", async () => {
     const workflow = await read("ci.yml");
-    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    expect(workflow).not.toContain("ARC_CI_LINUX_RUNNER");
     const linuxJobs = [
       "classify",
       "setup",
@@ -96,7 +96,7 @@ describe("trusted review-gate workflows", () => {
       "merge-ok",
       "record-verified-tree",
     ];
-    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe("ubuntu-latest");
 
     expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
     for (const name of ["docs.yml", "arc-lane-attestation.yml"]) {
@@ -108,15 +108,13 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("sizes Vitest for the selected Linux runner capacity", async () => {
+  it("sizes Vitest natively on hosted runners unless the repository variable retunes it", async () => {
     const workflow = await read("ci.yml");
     const parsed = load(workflow) as {
       env?: Record<string, unknown>;
       jobs?: Record<string, { env?: Record<string, unknown> }>;
     };
-    expect(parsed.env?.VITEST_MAX_WORKERS).toBe(
-      "${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}",
-    );
+    expect(parsed.env?.VITEST_MAX_WORKERS).toBe("${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}");
     expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
   });
 

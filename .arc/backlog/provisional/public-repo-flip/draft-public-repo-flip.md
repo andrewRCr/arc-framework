@@ -76,8 +76,7 @@ The repository goes public in place, keeping its full history, ahead of the back
   secrets in any ref (gitleaks over every branch, tag, pull-request, notes, and backup ref), and the one
   `pull_request_target` workflow (`arc-lane-attestation.yml`) skips fork pull requests at the job level. Any edit to
   that workflow needs the fork threat model re-checked.
-- **Self-hosted runners** are deregistered before the flip, per `.github/self-hosted-ci.md`; CI runs on
-  GitHub-hosted runners.
+- **Self-hosted runners** are deregistered before the flip; CI runs on GitHub-hosted runners.
 
 What remains here is the coupling the storage register row names: user-scoped state stays off the public remote, and
 private notes sync returns with a backing-repository or local-only backend.
