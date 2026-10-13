@@ -209,3 +209,36 @@ it.each([
   expect(completed.output).not.toContain("Modified task lists not staged");
   expect((await exec("git", ["show", `HEAD:${unstagedPath}`], { cwd })).stdout).toBe(changed);
 });
+
+
+it.each([".arc/active/tasks-example.md", ".arc/active/nested/tasks-example.md"])(
+  "warns for partially staged task-list updates and clears after staging the remainder: %s", async path => {
+    const cwd = await fixture();
+    await exec("git", ["config", "arc.role", "maintainer"], { cwd });
+    await mkdir(dirname(join(cwd, path)), { recursive: true });
+    const original = "# Tasks\n\n- [ ] **1.1.a First subtask**\n";
+    const staged = original.replace("[ ]", "[x]");
+    const worktree = staged + "- [ ] **1.1.b Later subtask**\n";
+    await writeFile(join(cwd, path), original);
+    await exec("git", ["add", path], { cwd });
+    const initial = await commit(cwd);
+    expect(initial.exitCode, initial.output).toBe(0);
+    await writeFile(join(cwd, path), staged);
+    await exec("git", ["add", path], { cwd });
+    await writeFile(join(cwd, path), worktree);
+
+    const warned = await commit(cwd);
+
+    expect(warned.exitCode, warned.output).toBe(0);
+    expect(warned.output).toContain("Modified task lists not staged");
+    expect(warned.output).toContain(path);
+    expect((await exec("git", ["show", `HEAD:${path}`], { cwd })).stdout).toBe(staged);
+    expect(await readFile(join(cwd, path), "utf8")).toBe(worktree);
+    await exec("git", ["add", path], { cwd });
+
+    const completed = await commit(cwd);
+
+    expect(completed.exitCode, completed.output).toBe(0);
+    expect(completed.output).not.toContain("Modified task lists not staged");
+    expect((await exec("git", ["show", `HEAD:${path}`], { cwd })).stdout).toBe(worktree);
+  });
