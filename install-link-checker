@@ -3,7 +3,7 @@
   "slug": "install-link-checker",
   "claimId": "d848fec3ea19ae8523f48fa602d66214",
   "createdAt": "2026-10-13T04:36:07.023Z",
-  "updatedAt": "2026-10-13T04:36:07.023Z",
+  "updatedAt": "2026-10-13T05:17:31.973Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Install the existing Markdown link checker invoked by the commit hook and verify a real staged Markdown commit after fresh CLI initialization.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Install the Markdown link checker required by the commit hook",
   "originEntrySourceDigest": "sha256:1f5ae4b528846d6b378ed42ea49d3c82743c5929c4317b11dddadd5234b3ecce",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/install-link-checker",
+    "headSha": "228a9afe7ae083f20c92f2b693dea712e3880af9"
+  }
 }
