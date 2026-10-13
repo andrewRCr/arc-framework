@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/seam-lifecycle` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
-- **Depends On:** `seam-record-kinds`
+- **Depends On:** [none]
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
 - **Design:** `spec-seam-lifecycle.md`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Merge `origin/main` into the branch, then begin generate-tasks from `spec-seam-lifecycle.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
