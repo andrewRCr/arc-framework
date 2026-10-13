@@ -107,7 +107,8 @@ by default, and the integration-interlock floor intact.
 
 _Exposes:_ the unified autonomy-level model the other members are facets of — one ordinal level per work unit
 naming where the agent next stops for the Owner, the kinds of stop it releases, its interlock composition, and the
-staging plan. Its grooming pass re-cuts this cohort around it.
+staging plan. `draft-autonomy-levels.md` § Cohort Restructure proposes this cohort's re-cut around it, a routing
+change of its own; read it before starting any member.
 
 _Consumes:_ every member's design as input; coordinates with `execution-delegation-doctrine` on relays and executor
 assignment.
