@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "collect-review-before-push",
+  "claimId": "ab4d689ec60620ce9d129ce47fb496e8",
+  "createdAt": "2026-10-13T20:18:28.520Z",
+  "updatedAt": "2026-10-13T20:18:28.520Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Collect an in-flight hosted review before a head-moving push supersedes it",
+  "branch": "chore/collect-review-before-push",
+  "origin": "inbox",
+  "originEntry": "Collect an in-flight hosted review before a fix push supersedes its head",
+  "originEntrySourceDigest": "sha256:2bf0d02585a8dfe6877736eb5e09aa4599ce5a624a775da788af82593fbae8fd",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
