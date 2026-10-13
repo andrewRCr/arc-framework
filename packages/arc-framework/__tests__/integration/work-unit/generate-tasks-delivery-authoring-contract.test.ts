@@ -166,14 +166,51 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(surface).toMatch(softWrappedProse("naming any \"carry as context\" findings and the home revision gives each"));
 
     for (const unchanged of [
-      "Stop after the merged draft is written.",
-      "Stop after the skeleton is drafted.",
-      "Stop after the Pass 2 draft is written.",
       "Stop after a disproportionate provisional skeleton is identified.",
       "Stop after the pre-save checklist passes.",
     ]) {
       expect(packaged).toMatch(softWrappedProse(unchanged));
     }
+  });
+
+  it("stops between planning passes only when the pass leaves something to decide", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    expect(installed).toBe(packaged);
+    const between = (start: string, end: string): string => {
+      const from = packaged.indexOf(start);
+      const to = packaged.indexOf(end, from);
+      expect(from).toBeGreaterThan(-1);
+      expect(to).toBeGreaterThan(from);
+      return packaged.slice(from, to);
+    };
+    const generate = between("## Generate in the resolved level", "### `low`");
+    const medium = between("### `medium`", "### `high`");
+    const high = between("### `high`", "## Structural decomposition");
+    const unsettled = "only when it leaves a decision the spec does not settle";
+
+    expect(medium).toMatch(softWrappedProse(`Stop after the merged draft is written ${unsettled}`));
+    expect(medium).toMatch(softWrappedProse("Otherwise post the pass summary and continue to the grounding pass."));
+    expect(high).toMatch(softWrappedProse(`Stop after the skeleton is drafted ${unsettled}`));
+    expect(high).toMatch(softWrappedProse("Otherwise post the pass summary and continue to Pass 2."));
+    expect(high).toMatch(softWrappedProse(`Stop after the Pass 2 draft is written ${unsettled}`));
+    expect(high).toMatch(softWrappedProse("Otherwise post the pass summary and continue to Pass 3."));
+    expect(high).not.toMatch(softWrappedProse("a deliverable the user reviews before the next begins"));
+    expect(high).not.toMatch(softWrappedProse("against the reviewed skeleton"));
+
+    expect(generate).toMatch(softWrappedProse("lead with anything that needs a look, collapse clean results to a line"));
+    expect(generate).not.toMatch(softWrappedProse("where the review stops fall"));
+    expect(generate).not.toMatch(softWrappedProse("and where you stop."));
+    expect(packaged).not.toMatch(softWrappedProse("stop and surface now (per the surfacing discipline above) before continuing"));
+    const passBoundary = new RegExp(softWrappedProse("otherwise post the pass summary and continue.").source, "gmu");
+    expect([...packaged.matchAll(passBoundary)]).toHaveLength(2);
   });
 
   it("teaches the member verifier shape in every shipped task-authoring reference", () => {
