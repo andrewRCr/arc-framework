@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "storage-register-stale-rows",
+  "claimId": "bb38e8aaa2fcdc8069fc720a98776589",
+  "createdAt": "2026-10-13T02:15:05.549Z",
+  "updatedAt": "2026-10-13T02:15:05.549Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "storage-register-stale-rows",
+  "branch": "chore/storage-register-stale-rows",
+  "origin": "inbox",
+  "originEntry": "Correct three stale rows in the storage-coupling register",
+  "originEntrySourceDigest": "sha256:9c75180b4e0de57cbccb2ea93051878deef367b305cc553a221c76ef5776619b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
