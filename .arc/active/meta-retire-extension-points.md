@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Route the draft's § Coupling captures to `USER-INBOX` (draft close), then begin create-spec
 
 - **PR URL:** [none]
 - **Completed:** [none]
