@@ -493,6 +493,16 @@ describe("trusted review-gate workflows", () => {
         expect(packaged).toMatch(softWrappedPattern(/offered\s+\/\s+obtain-authorization[\s\S]*Approve\s+\(or\s+redirect\)\?/u));
       } else {
         expect(packaged).toContain("arc review frontline resolve -");
+        const frontline = sectionBetween(packaged, "- `ready / run-frontline`", "- `ready / local-prepare`");
+        expect(frontline).toMatch(softWrappedPattern(/offered\s+\/\s+obtain-authorization[\s\S]*Approve\s+\(or\s+redirect\)\?/u));
+        expect(frontline).toMatch(softWrappedProse("On `offered / bind-source`, surface `payload.frontlineReview.promptText` and diagnostics"));
+        expect(frontline).toMatch(softWrappedProse("ask the Owner to select an available source or skip"));
+        expect(frontline).toMatch(softWrappedProse("`invocation.sourceId` set to the selected source, preserving `invocation.mode`"));
+        expect(frontline).toMatch(softWrappedProse("re-invoke the same request"));
+        expect(frontline).toMatch(softWrappedProse("`invocation.mode` set to `force`, preserving any `invocation.sourceId`"));
+        expect(frontline).toMatch(softWrappedProse('on decline, replace `invocation` with `{ "mode": "skip" }`'));
+        expect(frontline).toMatch(softWrappedProse("Dispatch the returned state again"));
+        expect(frontline).toMatch(softWrappedProse("only from `ready / run-frontline`"));
       }
       expect(packaged).toMatch(softWrappedPattern(/runtime-owned\s+bindings/iu));
       expect(packaged).toContain("`findings / respond`");
