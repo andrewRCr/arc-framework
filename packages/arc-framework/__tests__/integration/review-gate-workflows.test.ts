@@ -677,6 +677,16 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toMatch(softWrappedPattern(/same\s+hosted[^.]*action/iu));
       expect(pendingInspection).toMatch(softWrappedPattern(/exact\s+head[^.]*draft\s+lock/iu));
       expect(pendingInspection).toMatch(softWrappedPattern(/does\s+not[^.]*review\s+settlement/iu));
+      const draftLock = packaged.indexOf("release the draft lock.", checksAwait);
+      expect(draftLock).toBeGreaterThan(checksAwait);
+      const pushRule = packaged.slice(draftLock, draftLock + 700);
+      expect(pushRule).toMatch(softWrappedPattern(
+        /before\s+any\s+push\s+that\s+moves\s+the\s+reviewed\s+head\s+while\s+this\s+action\s+is\s+pending/iu,
+      ));
+      expect(pushRule).toMatch(softWrappedPattern(/through\s+hosted\s+await\s+until\s+it\s+concludes/iu));
+      expect(pushRule).toMatch(softWrappedPattern(
+        /`pending \/ inspect-or-extend`,\s+push\s+only\s+on\s+explicit\s+Owner\s+direction/iu,
+      ));
     }
   });
 
