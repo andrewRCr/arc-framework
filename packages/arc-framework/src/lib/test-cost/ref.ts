@@ -62,8 +62,7 @@ export async function measureTestCostAtRef(
 ): Promise<TestCostRefMeasurement> {
   const top = await dependencies.git(["rev-parse", "--show-toplevel"], input.packageRoot);
   const commit = await resolveCommit(input.ref, top, dependencies);
-  const lockAtRef = await dependencies.git(["show", `${commit}:package-lock.json`], top);
-  if (lockAtRef.trim() !== (await dependencies.readText(join(top, "package-lock.json"))).trim()) {
+  if (!(await lockfilesMatch(commit, top, dependencies))) {
     throw new Error(`package-lock.json differs between ${input.ref} and this checkout, so its dependencies cannot be `
       + "shared. Install that commit's dependencies in a checkout of it and run benchmark:test-cost there.");
   }
@@ -96,6 +95,17 @@ async function resolveCommit(ref: string, top: string, dependencies: TestCostRef
     return await dependencies.git(["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`], top);
   } catch {
     throw new Error(`Cannot resolve ${ref} to a commit in this repository; fetch it or name an existing ref.`);
+  }
+}
+
+/** Compare blob identities, so line-ending conversion on checkout never reads as a dependency change. */
+async function lockfilesMatch(commit: string, top: string, dependencies: TestCostRefDependencies): Promise<boolean> {
+  const current = await dependencies.git(["hash-object", "--", "package-lock.json"], top);
+  try {
+    return await dependencies.git(["rev-parse", "--verify", "--end-of-options", `${commit}:package-lock.json`], top)
+      === current;
+  } catch {
+    return false;
   }
 }
 

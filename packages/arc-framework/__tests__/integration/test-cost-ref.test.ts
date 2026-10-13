@@ -11,6 +11,7 @@ import { DEFAULT_TEST_COST_REF_DEPENDENCIES, measureTestCostAtRef } from "../../
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
+const lockfile = '{\n  "lockfileVersion": 3\n}\n';
 const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => removeGitBackedDir(root)));
@@ -25,7 +26,7 @@ async function repositoryWithTwoCommits(): Promise<{ root: string; packageRoot: 
   roots.push(root);
   const packageRoot = join(root, "packages/arc-framework");
   await mkdir(join(packageRoot, "src/scripts"), { recursive: true });
-  await writeFile(join(root, "package-lock.json"), "{}\n");
+  await writeFile(join(root, "package-lock.json"), lockfile);
   await writeFile(join(root, ".gitignore"), "node_modules/\n");
   await writeFile(join(packageRoot, "src/scripts/measure-test-cost.ts"), "// earlier entry\n");
   await git(root, "add", "-A");
@@ -41,6 +42,14 @@ async function repositoryWithTwoCommits(): Promise<{ root: string; packageRoot: 
   await writeFile(hook, `#!/bin/sh\ntouch "${join(root, "hook-fired")}"\n`);
   await chmod(hook, 0o755);
   return { root, packageRoot, earlier };
+}
+
+function retainingCapture(outputPath: string, packageRoot: string) {
+  return async () => {
+    await mkdir(join(packageRoot, ".test-cost-runs"), { recursive: true });
+    await writeFile(outputPath, JSON.stringify({ schemaVersion: 5 }));
+    return { exitCode: 0, stdout: JSON.stringify({ outputPath }) };
+  };
 }
 
 describe("measureTestCostAtRef against a real repository", () => {
@@ -75,5 +84,22 @@ describe("measureTestCostAtRef against a real repository", () => {
     await expect(access(observed.checkout ?? "")).rejects.toThrow();
     await expect(access(join(root, "hook-fired"))).rejects.toThrow();
     expect(await git(root, "worktree", "list", "--porcelain")).not.toContain(observed.checkout ?? "unset");
+  });
+
+  it("matches a lockfile that the checkout's line-ending conversion stores unchanged", async () => {
+    const { root, packageRoot, earlier } = await repositoryWithTwoCommits();
+    await git(root, "config", "core.autocrlf", "true");
+    await writeFile(join(root, "package-lock.json"), lockfile.replaceAll("\n", "\r\n"));
+    const outputPath = join(packageRoot, ".test-cost-runs/run.json");
+
+    const result = await measureTestCostAtRef({
+      packageRoot,
+      ref: "HEAD~1",
+      mode: { condition: "tier-isolated", projectSet: "unit", workerSizing: "1" },
+      outputPath,
+      env: process.env,
+    }, { ...DEFAULT_TEST_COST_REF_DEPENDENCIES, runCapture: retainingCapture(outputPath, packageRoot) });
+
+    expect(result.ref.commit).toBe(earlier);
   });
 });

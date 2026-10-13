@@ -31,15 +31,17 @@ function fake(overrides: {
     git: async (args) => {
       events.push(`git ${args.join(" ")}`);
       if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return top;
+      if (args[0] === "hash-object") return "lock-blob";
+      if (args[0] === "rev-parse" && args.at(-1) === `${commit}:package-lock.json`) {
+        return overrides.lockAtRef ?? "lock-blob";
+      }
       if (args[0] === "rev-parse") {
         if (overrides.resolves === false) throw new Error("fatal: Needed a single revision");
         return commit;
       }
-      if (args[0] === "show") return overrides.lockAtRef ?? "lock";
       return "";
     },
     readText: async (path) => {
-      if (path === join(top, "package-lock.json")) return "lock";
       if (path === outputPath) return JSON.stringify({ schemaVersion: overrides.retainedSchema ?? 5 });
       throw new Error(`unexpected read ${path}`);
     },
@@ -93,7 +95,7 @@ describe("measureTestCostAtRef", () => {
   });
 
   it("refuses a ref whose dependency lockfile differs before creating a checkout", async () => {
-    const { dependencies, events } = fake({ lockAtRef: "older lock" });
+    const { dependencies, events } = fake({ lockAtRef: "older-lock-blob" });
 
     await expect(measureTestCostAtRef(input, dependencies)).rejects.toThrow(/package-lock\.json differs/u);
     expect(events.some((event) => event.includes("worktree add"))).toBe(false);
