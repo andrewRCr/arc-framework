@@ -181,6 +181,8 @@ checks:
     inputs:
       - .arc/**
       - '!.arc/user/**'
+      # Trees outside .arc/ that .arc/ links point into; a link into another tree needs that tree listed here.
+      - docs/**
       - packages/arc-framework/src/scripts/audit-links.ts
       - packages/arc-framework/src/scripts/repo-root.ts
   lint:ts:file:

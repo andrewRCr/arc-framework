@@ -71,13 +71,19 @@ function decode(value: string): string {
 /** The fragment identifiers GitHub renders for a document's headings and HTML anchors. */
 export function headingAnchors(markdown: string): Set<string> {
   const anchors = new Set<string>();
-  const seen = new Map<string, number>();
+  // Like GitHub, a repeated slug takes the next numbered suffix no earlier heading already holds.
+  const occurrences = new Map<string, number>();
   visit(parse(markdown), (node) => {
     if (node.type === "heading") {
       const base = plainText(node).toLowerCase().replace(NON_SLUG_CHARACTER, "").replaceAll(" ", "-");
-      const count = seen.get(base) ?? 0;
-      seen.set(base, count + 1);
-      anchors.add(count === 0 ? base : `${base}-${String(count)}`);
+      let slug = base;
+      while (occurrences.has(slug)) {
+        const count = (occurrences.get(base) ?? 0) + 1;
+        occurrences.set(base, count);
+        slug = `${base}-${String(count)}`;
+      }
+      occurrences.set(slug, 0);
+      anchors.add(slug);
     } else if (node.type === "html" && node.value !== undefined) {
       for (const [, anchor] of node.value.matchAll(HTML_ANCHOR)) {
         if (anchor !== undefined) anchors.add(anchor);
@@ -98,7 +104,8 @@ function checkTarget(
 ): string | null {
   if (url === "" || url.startsWith("#") || EXTERNAL_TARGET.test(url)) return null;
   const hashAt = url.indexOf("#");
-  const resolved = resolveTarget(source, hashAt === -1 ? url : url.slice(0, hashAt));
+  const pathEnd = url.search(/[?#]/);
+  const resolved = resolveTarget(source, pathEnd === -1 ? url : url.slice(0, pathEnd));
   const kind = io.kind(resolved);
   if (kind === null) return `broken link -> ${url}`;
   if (hashAt === -1 || kind !== "file" || !resolved.endsWith(".md")) return null;

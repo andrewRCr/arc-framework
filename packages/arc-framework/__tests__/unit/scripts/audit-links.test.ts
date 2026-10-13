@@ -32,6 +32,12 @@ describe("headingAnchors", () => {
     ]);
   });
 
+  it("skips a numbered slug an earlier heading already holds", () => {
+    expect([...headingAnchors("## Retry\n\n## Retry-1\n\n## Retry\n\n## Retry\n")]).toEqual([
+      "retry", "retry-1", "retry-2", "retry-3",
+    ]);
+  });
+
   it("includes HTML anchor ids and names", () => {
     const anchors = headingAnchors('<a id="custom"></a>\n\nText <a name="legacy"></a> here.\n');
     expect(anchors.has("custom")).toBe(true);
@@ -91,6 +97,20 @@ describe("auditLinks", () => {
       ".arc/a/my target.md": target,
     });
     expect(auditLinks([".arc/a/source.md"], io).pass).toBe(true);
+  });
+
+  it("resolves a path without its query string and still checks the fragment", () => {
+    const io = fixtureIo({
+      ".arc/a/source.md": [
+        "See [raw](target.md?plain=1), [raw section](target.md?plain=1#known-section),",
+        "and [raw missing](target.md?plain=1#unknown).",
+        "",
+      ].join("\n"),
+      ".arc/a/target.md": target,
+    });
+    expect(auditLinks([".arc/a/source.md"], io).diagnostics).toEqual([
+      ".arc/a/source.md:2:5: missing anchor -> target.md?plain=1#unknown",
+    ]);
   });
 
   it("skips external links, in-file fragments, and code", () => {
