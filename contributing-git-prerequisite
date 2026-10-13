@@ -3,7 +3,7 @@
   "slug": "contributing-git-prerequisite",
   "claimId": "a27c96afc2af8586603016c69c42f7b7",
   "createdAt": "2026-10-13T05:18:23.881Z",
-  "updatedAt": "2026-10-13T05:18:23.881Z",
+  "updatedAt": "2026-10-13T12:41:58.730Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Align the CONTRIBUTING Git prerequisite with the package engines supported minimum.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Align CONTRIBUTING’s Git prerequisite with package engines",
   "originEntrySourceDigest": "sha256:c9b549eb73ee6a6de5f4992098a55d7718729aa531a2a184e6f4c7688bc77702",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/contributing-git-prerequisite",
+    "headSha": "f7a5363e27a53eee2f6cbc8a1cbf442161c79436"
+  }
 }
