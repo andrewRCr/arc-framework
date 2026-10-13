@@ -3,7 +3,7 @@
   "slug": "mode-scoped-integrity",
   "claimId": "c97d9379ceb742373a5300a69051ca77",
   "createdAt": "2026-10-12T23:45:45.061Z",
-  "updatedAt": "2026-10-12T23:45:45.061Z",
+  "updatedAt": "2026-10-13T00:20:50.832Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "mode-scoped-integrity",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make integrity verification accurate for mode-scoped installs",
   "originEntrySourceDigest": "sha256:7de4de3befbf8455d856c751aa04bf663f111813fcbceae987ac9f56001683f7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/mode-scoped-integrity",
+    "headSha": "99f397c1325a244814363c9c222d26712615a16d"
+  }
 }
