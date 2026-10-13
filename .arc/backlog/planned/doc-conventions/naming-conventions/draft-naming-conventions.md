@@ -458,6 +458,20 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 - _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
 
+### `[ ]` **Re-check whether `arc sync`'s directionality entry still applies now that it fast-forwards**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the inbound entry "Clarify `arc sync` directionality in naming/expectation terms (publish-only vs.
+  bidirectional)".
+
+- _Observation:_ the entry rests on `arc sync`'s worktree leg being push-only, blocking on `remote-ahead` rather than
+  pulling. `stale-state-detect-and-pull` has since given it an inbound leg: a `remote-ahead` worktree fast-forwards
+  from origin, automatically in a TTY and under `sync.auto_pull` otherwise (`handlers/sync.ts`). Its proposal applies
+  only "if it stays publish-only", so it may now be moot, or narrow to the non-TTY default.
+
+- _Captured during:_ the Errand re-pointing retired `cross-machine-sync-coherence` references, 2026-10-12.
+
 ---
 
 ### `[ ]` **Re-evaluate the `standalone` context-footer anchor and its parenthetical set**

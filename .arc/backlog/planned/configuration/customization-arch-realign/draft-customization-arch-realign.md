@@ -163,6 +163,33 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 
 - _Captured during:_ `.worktreeinclude` Errand scoping, 2026-10-09.
 
+### `[ ]` **Replace agent-fired extension markers with CLI-fired lifecycle events**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Proposed Principle ("Extensions = hook slots with no ARC opinion"; "Extensions stay as-is"), and the
+  inbound entry "Extension firing-proportionality — a context/scope gate, not just enable/disable".
+
+- _Observation:_ extensions fire through agent instructions at every workflow site — check the active list, run
+  `.actions`, halt on fail, otherwise skip — and a corpus audit (`audit-method-triggers`) requires the instruction at
+  every tagged push site. `pre-push-review`'s own contract names the push wrapper as its fire point, an event the CLI
+  already owns, yet it ships inactive with empty `.actions`: each site checks an empty list, and pushes outside
+  workflows are never covered. This runs against `strategy-knowledge-evolution.md` Principle 3 (anchor triggers to
+  operations, not workflows) and `strategy-procedure-evolution.md` Principles 1 and 2 (the CLI computes what it can;
+  agent-interpreted markup grows no control flow).
+
+- _Approach:_ fire lifecycle events from the CLI verbs that drive each advance. Deterministic hooks run there, mostly
+  as checks the declaration already supports at its commit, push, and merge deadlines; hooks needing agent judgment
+  (an external tracker update after a task) return in the verb's result as precomposed directives, so the agent acts
+  when told rather than remembering at every site.
+
+- _Captured during:_ Errand `disposition-approval-release` (PR #955), whose review fix extended `run-errand`'s
+  push-extension contract, 2026-10-13.
+
+- _Drain note:_ `retire-extension-points` removes today's mechanism first, as this decision's separable part.
+  Consumers of the outcome: `composable-workflows` D1's `extensions` declaration family, and the fire points
+  `release-lifecycle` and `session-retitle` propose.
+
 ---
 
 ## Problem / Motivation

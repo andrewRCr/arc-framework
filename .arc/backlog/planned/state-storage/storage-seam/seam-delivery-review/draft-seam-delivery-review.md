@@ -180,6 +180,62 @@
 - _Captured during:_ the `cli-compile-cache` Errand's close, discussing a `seam-record-kinds` frontline report,
   2026-10-11.
 
+### `[ ]` **Use the project ID as the repository of every change-request and landing-commit link**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Members › Delivery and review records, its rows-and-keys item (the review gate's repository ID mapping
+  onto the project ID).
+
+- _Observation:_ `seam-lifecycle` settled that a task capture's and a branch link's `repository` is the project ID
+  (`spec-storage-contract.md` D14), which every clone fetches and which survives moved remotes and re-clones
+  (`draft-seam-lifecycle.md` § Lifecycle, "Repository identity in links"; Owner, 2026-10-12). A remote's address breaks
+  on a moved or host-less remote, and the review gate's repository ID (`resolveRepositoryIdentity`) is minted per
+  machine. A change request and a landing commit carry the same field, so delivery's writers need the same value, or
+  `lookup` by repository splits across link kinds. The hosted review path names a repository as `owner/repo` today.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ `spec-seam-lifecycle.md` § 5.3 and `spec-seam-locus.md` § 8.1 already make every link's repository the
+  project ID; what remains here is delivery's own change-request and landing-commit writers.
+
+### `[ ]` **Refuse `arc attest`'s stage change on a paused work unit**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Members › Delivery and review records, where `arc attest`'s writes are designed.
+
+- _Observation:_ From the flip a paused work unit refuses every verb that advances it — a `State`, placement, or
+  stage change, a task close, an edge reconcile — naming `arc resume` (`draft-seam-lifecycle.md` § Lifecycle, "Pause
+  replaces park"). `arc attest` changes `Current Workflow` on an Active work unit (`ATTESTED_ORIENTATION`,
+  `lib/work-unit/verbs/attest.ts`), so it would advance a paused one unless it reads the pause record too.
+
+- _Approach:_ `arc attest` refuses on a paused work unit with the same remedy, reading the pause record
+  `seam-lifecycle` adds to the meta.
+
+- _Captured during:_ `seam-lifecycle` draft-design, fix-check round 2, 2026-10-12.
+
+- _Drain note:_ the `Current Workflow` writer `arc attest` goes through is decided in `spec-seam-record-kinds.md` §
+  5.4 (shared decisions 1 and 3), not shared decisions 4–5.
+
+### `[ ]` **Row the delivery and review files the consumer map misses**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Continuity's next step (re-verify its consumer-map rows against the current code), and § Members'
+  rows-and-keys item.
+
+- _Observation:_ `seam-lifecycle`'s re-verification at `9f5bce946` found coupled files no row covers:
+  `verbs/attest.ts`, `git-candidate-subject.ts`, `scripts/review-gate/policy/assurance.ts`,
+  `candidate-response-head-continuation.ts`, `scripts/review-gate/core/review-subject.ts`, and the split output
+  `handlers/lifecycle-delivery-review.ts` (#826), shared with lifecycle for publication and the reopen permit; and
+  `handlers/review-locus-context.ts` (#827), shared with `seam-locus`. Evidence: `notes-seam-lifecycle.md` § Files no
+  row covers.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ `seam-locus` already took `handlers/review-locus-context.ts`, so it is not this member's to row.
+
 ---
 
 ## Continuity

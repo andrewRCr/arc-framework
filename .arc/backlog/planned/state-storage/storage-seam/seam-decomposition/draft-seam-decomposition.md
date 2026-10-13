@@ -7,6 +7,28 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### `[ ]` **Row the decomposition files the consumer map misses**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-decomposition`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Continuity's next step (re-verify its consumer-map rows against the current code), and § Members' edges.
+
+- _Observation:_ `seam-lifecycle`'s re-verification at `9f5bce946` found coupled files no row covers:
+  `handlers/decompose.ts` (#826), `decompose-v3-operation.ts`, `decompose-transition-record.ts`,
+  `decompose-v3-repository-projections.ts`, `decompose-v3-materializer.ts`, `decompose-v3-finish-operation.ts`, and
+  `decompose-content.ts`. Shared with lifecycle: `git-owned-decompose-candidate-cleanup.ts`, whose checkout removal
+  lifecycle moves onto the removal function (`draft-seam-lifecycle.md` § Lifecycle), and
+  `terminal-transition-record-writer.ts`. Evidence: `notes-seam-lifecycle.md` § Files no row covers.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ `terminal-transition-record-writer.ts` already has a row; it needs its shared-with column corrected,
+  not a new row.
+
+---
+
 ## Continuity
 
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, from a draft

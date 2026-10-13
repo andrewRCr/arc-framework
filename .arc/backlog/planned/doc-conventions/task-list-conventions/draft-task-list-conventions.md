@@ -273,6 +273,25 @@
 
 - WU_Target: task-list-conventions
 
+### `[ ]` **Re-check the confirm-gate batching gap now that the gate stops only for a decision**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: task-list-conventions`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the inbound entry "Structural task-list-shape conventions for long-running / observational / absorptive
+  WUs", gap 6, and § Scope's "Strengthen `2_generate-tasks.md` Pass 3 interlock language", whose unconditional stop
+  `generate-tasks` reversed in PR #949.
+
+- _Observation:_ the gap's premise is that the grounding audit's confirm gate fires once per substantive phase.
+  `generate-tasks` now stops it only for a phase whose audit returns a fix-before-starting finding, a masked design
+  decision, or a floor-raising signal; a phase with nothing to decide reports in passing and continues. Batching
+  addressed stop count, which the conditional gate already reduces, so the gap may shrink to batching only the
+  phases that do stop, or fall away.
+
+- _Approach:_ at the stub's next planning pass, re-read gap 6 against the current workflow and keep, narrow, or
+  drop it.
+
+- _Captured during:_ the `generate-tasks-conditional-confirm` Errand, 2026-10-13.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

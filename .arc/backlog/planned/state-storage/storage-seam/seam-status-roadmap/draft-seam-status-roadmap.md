@@ -6,6 +6,48 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### `[ ]` **Render paused work in a Paused tier, for Planning and Active alike**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-status-roadmap`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Members › Status and roadmap, its rows-and-keys item (rendering reads the store's typed listings).
+
+- _Observation:_ from the flip `arc pause` replaces park, and a pause is a record on the work item — who, since, reason,
+  what it waits on, resume notes, open to takers — that changes neither `State` nor placement
+  (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle moves from the flip"; Owner, 2026-10-12). The parked position,
+  `State: Active` placed in the backlog, retires, and with it the Parked tier, which shows only work that reached
+  Active; park from Planning lists today as an ordinary Ready or Blocked stub. The tier shows each pause's reason and
+  what it waits on, marks it resumable once that ships, flags it for review after `pause.review_after_days`
+  (`draft-seam-locus.md` § Locus, "Pause, from the flip"), and lists pauses open to takers.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ the tier's resumable and review-due marks are `seam-locus`'s (`pausedWork`, `spec-seam-locus.md` §
+  4.4); this entry routes the tier itself.
+
+### `[ ]` **Row the status and roadmap files the consumer map misses**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-status-roadmap`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Continuity's next step (re-verify its consumer-map rows against the current code).
+
+- _Observation:_ `seam-lifecycle`'s re-verification at `9f5bce946` found coupled files no row covers:
+  `handlers/status/views.ts` (#812), `lib/status/work-unit-purpose.ts`, `lib/view/started-artifacts.ts`, and
+  `lib/markdown/format-plan.ts` with `format-write.ts`, a meta writer outside the executor and the write-context guard;
+  shared with lifecycle, `executor-context-status.ts` (#818; ROADMAP here, the end of `STATUS.USER` writes on
+  transitions there) and `handlers/status/lifecycle.ts` (#812; `arc status <slug>`, with lifecycle's slug-state
+  re-home). Evidence: `notes-seam-lifecycle.md` § Files no row covers.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ three of the files are split from rowed files and fall under `cohort-storage-seam.md`'s re-point
+  instruction; `spec-seam-lifecycle.md` § 1.2 already takes `executor-context-status.ts` and
+  `handlers/status/lifecycle.ts`.
+
+---
+
 ## Continuity
 
 - **Readiness:** maturing. The cut carried this member's section of `storage-seam`'s draft over unchanged, from a draft
