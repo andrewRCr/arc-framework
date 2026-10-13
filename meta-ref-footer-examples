@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "meta-ref-footer-examples",
+  "claimId": "12614d5c35c2bb0fa11f605a33bbe6de",
+  "createdAt": "2026-10-13T03:09:32.943Z",
+  "updatedAt": "2026-10-13T03:09:32.943Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Accept complete Context: footer examples in production code by stripping them before the meta-reference check's broad re-check, while every other planning reference stays refused",
+  "branch": "chore/meta-ref-footer-examples",
+  "origin": "inbox",
+  "originEntry": "Let the meta-reference check accept runtime `Context:` footer examples in code",
+  "originEntrySourceDigest": "sha256:c83ab143f3f5b0c3b68e1f910559e19423f80ccf2f7a9b16b33227f6f2321967",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
