@@ -270,6 +270,50 @@ describe("errand-ref reconcile-push", () => {
       .toBe((await ioA.exec("git", ["rev-parse", REF])).stdout.trim());
   }, 30_000);
 
+  it.each(["shallow", "interrupted", "malformed"] as const)(
+    "refuses %s history evidence without restoring a remote deletion and recovers after a full fetch",
+    async (fault) => {
+      await writeIdentity(ioB, recordFor("shared"));
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const basis = (await ioB.exec("git", ["rev-parse", REF])).stdout.trim();
+      const entries = await readTreeEntries(ioB.exec, basis);
+      const localTip = await writeTreeCommit(ioB, entries, "unchanged local record", [basis], basis);
+      await ioB.exec("git", ["push", "origin", `${localTip}:refs/heads/shallow-errand-start`]);
+      await ioA.exec("git", ["fetch", "--depth=1", "origin", `refs/heads/shallow-errand-start:${REF}`]);
+      const remoteTip = await writeTreeCommit(ioB, new Map(), "delete shared remotely", [basis], localTip);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      expect((await ioA.exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim()).toBe("true");
+
+      const exec: GitExec = async (cmd, args, options) => {
+        if (args[0] === "rev-parse" && args[1] === "--is-shallow-repository") {
+          if (fault === "malformed") return { stdout: "unknown\n", stderr: "" };
+          if (fault === "interrupted") throw makeGitProcessError({
+            command: cmd, args, exitCode: 1, signal: "SIGTERM", stderr: "shallow-history probe interrupted",
+          });
+        }
+        return ioA.exec(cmd, args, options);
+      };
+      const outcome = await reconcileErrandPush({ ...ioA, exec });
+      expect(outcome.kind).toBe("failed");
+      if (outcome.kind === "failed") {
+        const expected = fault === "shallow" ? "Fetch complete Errand history before retrying arc sync"
+          : fault === "interrupted" ? "shallow-history probe interrupted" : "malformed shallow-history status";
+        expect(outcome.error.message).toContain(expected);
+      }
+      expect((await ioA.exec("git", ["rev-parse", REF])).stdout.trim()).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim()).toBe(remoteTip);
+      expect((await listRecords(ioA)).map((record) => record.slug)).toEqual(["shared"]);
+
+      await ioA.exec("git", ["fetch", "--unshallow", "origin", REF]);
+      expect((await ioA.exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim()).toBe("false");
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+      expect(await listRecords(ioA)).toEqual([]);
+      expect(await remoteSlugs(repoA)).toEqual([]);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout.trim())
+        .toBe((await ioA.exec("git", ["rev-parse", REF])).stdout.trim());
+    }, 30_000,
+  );
+
   it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
     await writeIdentity(ioA, recordFor("from-a"));
     await reconcileErrandPush(ioA);

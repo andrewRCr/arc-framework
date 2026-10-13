@@ -188,7 +188,10 @@ async function readCommonErrandTree(
     commonTips = (await exec("git", args)).stdout.trim().split(/\r?\n/u);
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
-    if (isCompletedGitFailure(failure) && failure.exitCode === 1) return new Map();
+    if (isCompletedGitFailure(failure) && failure.exitCode === 1) {
+      await requireCompleteErrandHistory(exec);
+      return new Map();
+    }
     throw error;
   }
   const [commonTip, ...otherTips] = commonTips;
@@ -200,6 +203,16 @@ async function readCommonErrandTree(
       + "Reconcile these histories to one shared basis before retrying arc sync.");
   }
   return readErrandReconcileTree(exec, commonTip);
+}
+
+/** A missing ancestor proves unrelated histories only when Git's history is complete and readable. */
+async function requireCompleteErrandHistory(exec: GitExec): Promise<void> {
+  const shallow = (await exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim();
+  if (shallow === "true") {
+    throw new Error("Errand reconciliation cannot establish a common ancestor from shallow history. "
+      + "Fetch complete Errand history before retrying arc sync.");
+  }
+  if (shallow !== "false") throw new Error("Git returned a malformed shallow-history status");
 }
 
 async function readMutatingTip(exec: GitExec, ref: string): Promise<string | null> {

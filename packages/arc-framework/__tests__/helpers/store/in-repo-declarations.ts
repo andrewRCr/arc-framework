@@ -61,9 +61,10 @@ for (const family of families) {
     const d = KIND_REGISTRY[kind];
     if (d.family !== family || !["personal", "transient-identity"].includes(d.inRepo.substrate)) continue;
     assertions[`publish-and-noop-family-coverage:${kind}`] = "Existing notes save and Errand push report pushed again for existing refs, even with unchanged record bytes.";
-    assertions[`remote-movement-reconciles-by-mechanism:${kind}`] = d.inRepo.substrate === "personal"
-      ? "Notes reconciliation updates and publishes the notes ref without loading personal working files."
-      : "The existing two-way Errand merge reports unequal same-key entries as conflict; distinct entries reconcile.";
+    if (d.inRepo.substrate === "personal") {
+      assertions[`remote-movement-reconciles-by-mechanism:${kind}`] =
+        "Notes reconciliation updates and publishes the notes ref without loading personal working files.";
+    }
   }
   familyExclusions[family] = { items: { 10: "Interim substrates have no newer-format envelope." }, assertions };
 }
