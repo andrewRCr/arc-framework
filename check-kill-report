@@ -3,7 +3,7 @@
   "slug": "check-kill-report",
   "claimId": "72aea790784e0c42dc146bff2be5812c",
   "createdAt": "2026-10-13T20:53:37.685Z",
-  "updatedAt": "2026-10-13T20:53:37.685Z",
+  "updatedAt": "2026-10-13T21:38:01.990Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report a check killed before it finished as couldn't run, not as a failure",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep concurrent whole-project checks from two worktrees from exhausting the VM's memory",
   "originEntrySourceDigest": "sha256:e61615e6b4773a9698f53c450895601c5eeee16a54a3919fc9752fe3cda18f1c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/check-kill-report",
+    "headSha": "e7c1c6fc00af5674c4212b12128a9c99cf586c71"
+  }
 }
