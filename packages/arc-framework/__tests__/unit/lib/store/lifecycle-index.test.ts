@@ -68,3 +68,52 @@ describe("selected lifecycle identities and completeness", () => {
     expect(success(await listLifecycleIndex(empty.store, { asOf }))).toEqual({ status: "absent", asOf });
   });
 });
+
+
+describe("lifecycle record rejection evidence", () => {
+  it.each(["Unknown", null])("diagnoses an unrecognized State and resumes after repair: %s", async state => {
+    const { fixture, store, reference } = await referenceStore();
+    const fields = parseMetaRecord(makeMetaFixture(reference.owner.name));
+    const previous = success(await store.read({ reference }));
+    success(await store.write({ action: "put", reference, expected: previous.version, placement: { kind: "active" },
+      content: JSON.stringify({ ...fields, state }), provenance: testProvenance }));
+    const asOf = await fixture.settle();
+
+    const result = success(await listLifecycleIndex(store, { asOf }));
+
+    expect(result).toMatchObject({ status: "complete", asOf, missed: true,
+      diagnostics: [expect.objectContaining({ kind: "malformed", key: `work-item/meta:${reference.owner.name}` })] });
+    if (result.status !== "complete") throw new Error("Expected rejected record evidence");
+    expect(result.index.entries()).toEqual([]);
+    expect(result.diagnostics[0]?.condition).toContain(reference.owner.name);
+    expect(result.diagnostics[0]?.condition).toContain(`State ${JSON.stringify(state)}`);
+    expect(result.diagnostics[0]?.remedy.text).toMatch(/Repair.*then.*retry/);
+    const broken = success(await store.read({ reference }));
+    success(await store.write({ action: "put", reference, expected: broken.version, placement: { kind: "active" },
+      content: JSON.stringify(fields), provenance: testProvenance }));
+    const repaired = success(await listLifecycleIndex(store));
+    expect(repaired).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+    if (repaired.status !== "complete") throw new Error("Expected repaired record");
+    expect(repaired.index.get(reference.owner)?.fields).toEqual(fields);
+  });
+  it("diagnoses unparseable fields without inventing a lifecycle entry, then resumes after repair", async () => {
+    const { store, reference } = await referenceStore();
+    const previous = success(await store.read({ reference }));
+    success(await store.write({ action: "put", reference, expected: previous.version, placement: { kind: "active" },
+      content: "{}", provenance: testProvenance }));
+
+    const result = success(await listLifecycleIndex(store));
+
+    expect(result).toMatchObject({ status: "complete", missed: true,
+      diagnostics: [expect.objectContaining({ kind: "malformed", key: `work-item/meta:${reference.owner.name}` })] });
+    if (result.status !== "complete") throw new Error("Expected rejected record evidence");
+    expect(result.index.entries()).toEqual([]);
+    expect(result.diagnostics[0]?.condition).toContain(reference.owner.name);
+    expect(result.diagnostics[0]?.condition).toContain("missing metadata H1");
+    expect(result.diagnostics[0]?.remedy.text).toMatch(/Repair.*then.*retry/);
+    const broken = success(await store.read({ reference }));
+    success(await store.write({ action: "put", reference, expected: broken.version, placement: { kind: "active" },
+      content: JSON.stringify(parseMetaRecord(makeMetaFixture(reference.owner.name))), provenance: testProvenance }));
+    expect(success(await listLifecycleIndex(store))).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+  });
+});

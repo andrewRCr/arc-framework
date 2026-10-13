@@ -24,7 +24,7 @@ export interface IdentityLifecycleIndex {
   entries(): readonly LifecycleEntry[];
   get(owner: OwnerIdentity): LifecycleEntry | undefined;
 }
-/** Completeness evidence remains identical to the meta listing that supplied the index. */
+/** Listing completeness evidence plus diagnostics for records the lifecycle projection rejects. */
 export type LifecycleIndexOutcome = Exclude<ListingOutcome, { status: "complete" }> | {
   status: "complete";
   index: IdentityLifecycleIndex;
@@ -37,7 +37,7 @@ export interface LifecycleIndexInput { asOf?: StateVersion }
 /** Build selected lifecycle records from the public meta listing.
  * @param store - Contract implementation.
  * @param input - Optional saved-state anchor.
- * @returns Indexed fields and original listing completeness evidence.
+ * @returns Indexed fields and combined listing and projection completeness evidence.
  */
 export async function listLifecycleIndex(store: Store, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
   return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", ...input }));
@@ -80,28 +80,43 @@ function indexedListing(result: StoreResult<ListingOutcome>): StoreResult<Lifecy
   if (result.status === "refused") return result;
   if (result.result.status !== "complete") return { status: "ok", result: result.result };
   const { records, ...evidence } = result.result;
-  const entries = records.flatMap((record) => { const entry = lifecycleEntry(record); return entry === undefined ? [] : [entry]; });
+  const entries: LifecycleEntry[] = [];
+  const diagnostics = [...evidence.diagnostics];
+  for (const record of records) {
+    const entry = lifecycleEntry(record);
+    if (entry === undefined) continue;
+    if ("reference" in entry) entries.push(entry);
+    else diagnostics.push(entry);
+  }
   const byIdentity = new Map(entries.map((entry) => [identityKey(entry.reference.owner), entry]));
   const index: IdentityLifecycleIndex = {
     entries: () => [...byIdentity.values()],
     get: (owner) => byIdentity.get(identityKey(owner)),
   };
-  return { status: "ok", result: { ...evidence, index } };
+  return { status: "ok", result: { ...evidence, index, diagnostics,
+    missed: evidence.missed || diagnostics.length > evidence.diagnostics.length } };
 }
 function identityKey(owner: OwnerIdentity): string {
   return JSON.stringify([owner.type, owner.type !== "person" && owner.uid !== undefined ? ["uid", owner.uid] : ["name", owner.name]]);
 }
-function lifecycleEntry(record: StoreRecord): LifecycleEntry | undefined {
+function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic | undefined {
   if (record.reference.kind !== "work-item/meta" || record.placement === undefined) return undefined;
   try {
     const decoded = ParsedMetaRecordSchema.safeParse(record.fields);
     const fields = decoded.success ? decoded.data : parseMetaRecord(record.content);
     const phase = validateState(fields.state);
-    if (phase === "unknown") return undefined;
+    if (phase === "unknown") return malformedMeta(record, `Unrecognized State ${JSON.stringify(fields.state)}.`);
     const placement = record.placement;
     const location = placement.kind === "backlog" ? placement.commitment : placement.kind;
     return { reference: record.reference, version: record.version, fields, placement, phase, location };
-  } catch { return undefined; }
+  } catch (error) {
+    return malformedMeta(record, `Metadata could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+function malformedMeta(record: StoreRecord, condition: string): ListingDiagnostic {
+  const name = record.reference.owner.name;
+  return { kind: "malformed", key: `work-item/meta:${name}`, condition: `Meta ${name}: ${condition}`,
+    remedy: { text: `Repair meta ${name}, then retry the lifecycle inventory.` } };
 }
 function agreement(entry: LifecycleEntry): object {
   const fields = entry.fields;
