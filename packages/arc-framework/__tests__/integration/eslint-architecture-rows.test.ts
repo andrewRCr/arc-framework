@@ -8,6 +8,9 @@ import { describe, expect, it } from "vitest";
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
 const additionalNodeLoaders = [
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; void alias("@clack/prompts");',
+  'import { createRequire } from "node:module"; const alias = first; const first = (load); const load = createRequire(import.meta.url); void (alias)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; const owner = alias("node:module"); void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import { createRequire } from "node:module"; const owner = { ["createRequire"]: createRequire }; const load = owner.createRequire(import.meta.url); void load("@clack/prompts");',
   'import { createRequire as acquire } from "module"; const owner = { [`createRequire`]: acquire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import { createRequire } from "node:module"; const owner = { [("createRequire")]: createRequire }; void owner.createRequire(import.meta.url)("@clack/prompts");',

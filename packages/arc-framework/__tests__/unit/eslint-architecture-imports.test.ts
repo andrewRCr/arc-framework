@@ -197,3 +197,46 @@ describe("work-unit path ratchet", () => {
     expect(violations("lib/store/in-repo/paths.ts", text, "work-unit-paths")).toEqual([]);
   });
 });
+
+
+describe("aliased Node loader module references", () => {
+  const targets = [
+    ["handlers/outside.ts", "../lib/active/meta-reader.js", "store-raw-state"],
+    ["handlers/outside.ts", "../lib/layout/index.js", "work-unit-paths"],
+    ["handlers/outside.ts", "@clack/prompts", "clack"],
+    ["lib/layout/consumer.ts", "commander", "layout-dependencies"],
+    ["lib/terminal.ts", "./layout/private.js", "layout-private"],
+    ["commands/consumer.ts", "./layout/index.js", "layout-downward"],
+    ["lib/store/concurrency/consumer.ts", "../../../commands/active.js", "store-concurrency"],
+    ["lib/consumer.ts", "../../__tests__/helpers/store/backend.js", "store-reference"],
+  ] satisfies [string, string, ArchitecturePredicate][];
+  const aliases = [
+    "const load = createRequire(import.meta.url); const alias = load;",
+    "const load = createRequire(import.meta.url); const first = (load); const alias = (first);",
+    "const alias = first; const first = load; const load = createRequire(import.meta.url);",
+  ];
+
+  it.each(targets.flatMap(([path, target, predicate]) =>
+    aliases.map((declarations) => ({ path, target, predicate, declarations }))))(
+    "confines $predicate loader aliases: $declarations", ({ path, target, predicate, declarations }) => {
+      const filename = resolve(sourceRoot, path);
+      const text = [
+        'import { createRequire } from "node:module";',
+        declarations,
+        `const { resolve: extracted } = load; extracted("${target}");`,
+        `function local(alias: (name: string) => string) { const copied = alias; copied("${target}"); }`,
+        `const cycleA = cycleB; const cycleB = cycleA; cycleA("${target}");`,
+        `alias("${target}");`,
+      ].join("\n");
+      const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
+      const calls = findArchitectureImportViolations(source, filename, sourceRoot, [predicate])
+        .filter(({ node }) => ts.isCallExpression(node));
+      expect(calls.map(({ node }) => node.getText(source))).toEqual([`alias("${target}")`]);
+    });
+
+  it("refuses a computed dependency loaded through an alias in concurrency code", () => {
+    const text = 'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; alias(target);';
+    expect(violations("lib/store/concurrency/consumer.ts", text, "store-concurrency"))
+      .toContain("forbidden module reference <computed import>");
+  });
+});
