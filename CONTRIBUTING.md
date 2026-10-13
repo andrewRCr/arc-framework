@@ -9,6 +9,10 @@ installed on your system (`apt-get install shellcheck`, `brew install shellcheck
 or equivalent). Shellcheck is invoked by `npm run lint:sh` from the system PATH;
 it is not bundled as an npm dependency.
 
+Install [actionlint][actionlint-install] on the system PATH as well (`brew install actionlint` on macOS, or use its
+release binary on Linux/Windows). `npm run lint:workflows` requires both actionlint and ShellCheck so inline workflow
+shell is checked alongside GitHub Actions expressions and dependencies. CI installs actionlint 1.7.12.
+
 1. Fork and clone the repository
 2. Install dependencies: `npm install`
 3. Join as a contributor: `npx arc join`
@@ -77,3 +81,4 @@ Full guide: [Contributing to ARC][contributing-docs] | [Report a bug][issues] |
 [check-declaration]: .arc/system/arc-checks.yml
 [issues]: https://github.com/andrewRCr/arc-framework/issues
 [discussions]: https://github.com/andrewRCr/arc-framework/discussions
+[actionlint-install]: https://github.com/rhysd/actionlint/blob/main/docs/install.md
