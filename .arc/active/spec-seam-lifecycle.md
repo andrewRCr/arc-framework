@@ -1057,7 +1057,12 @@ set's walk, `--commit`'s reachability check, and activation's and deactivation's
   even then, the default close refuses, naming that fetch, or, in a clone with no `origin`, a local base branch
   (`git branch <base> <commit>`), since a set with no base would take the branch's whole history. A clone with no
   `origin` computes over its local base and reports nothing about refreshing. `arc release commit --close` runs this
-  fetch before it commits, and its close reuses the result (§ 9.3).
+  fetch before it commits, and its close reuses the result (§ 9.3). Where the refresh empties a set that was not empty
+  over the base refs the clone had before it, the default close refuses, recording nothing, since the fetch has already
+  updated base's remote-tracking ref: it names the commits the refresh found on base, with `arc task close <id>` for
+  the cursor's task, or the IDs it was given, should that task have produced no commit. The rerun finds its set empty
+  from the start and closes the task with no capture. A set the refresh only shrank closes as usual, a close whose
+  fetch fails compares nothing, and `--close` never meets the refusal, since its set holds the commit it made.
 - **A rewritten copy goes to its original.** A hand rewrite that keeps a commit's author line — a rebase, a cherry-pick,
   an interactive squash or fixup, an amend without `--reset-author`, `--author`, or `--date` — copies that line byte for
   byte and takes a new committer time, while a commit Git makes fresh takes one time for both lines (§ 5.2). So the
@@ -1082,7 +1087,8 @@ set's walk, `--commit`'s reachability check, and activation's and deactivation's
   entries by SHA.
 - **The listing agrees.** The listing of commits not yet closed computes the same set (§ 19) over the base refs the
   clone has, fetching nothing, so after a fetch of the branch alone it may show base commits as not yet closed until
-  base is fetched; the close's refresh leaves them out.
+  base is fetched; the close's refresh leaves them out, and where they are all it shows, the close refuses rather than
+  closing the task with nothing (above).
 - **Named residuals.** Copy-key matching recognizes a copy only while its author line and diff are unchanged,
   attribution only a rewrite that keeps its author line and takes a new committer time, base and the branch are only as
   fresh as the clone's last fetch, and the walk reads history as the clone's Git presents it. A commit that reads as new
@@ -1423,6 +1429,7 @@ the repair needs the agent's input or order (`DEV-RULES.PROJECT`, "Recovery-comp
 | The close, or `--close` before committing, for a work item with no branch link (§ 9.2)                                                       | `arc activate`                                                                                                         | text  |
 | The default close, or `--close` before committing, where no base ref resolves after the fetch (§ 9.2)                                        | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`; with no `origin`, `git branch <base> <commit>`       | text  |
 | Adoption or reattachment, refusing, or deactivation, skipping its report, where no base ref resolves (§ 5.2, § 8.8)                          | the same                                                                                                               | text  |
+| The default close where its base refresh emptied a set that was not empty before it (§ 9.2)                                                  | `arc task close <id>`, rerun, for a task that produced no commit, naming the commits the refresh found on base         | text  |
 | The close, or `--close` before committing, naming an ID no task carries, or over a task list that does not read (§ 9.1, § 9.3)               | the task list's IDs, or the line it could not read                                                                     | text  |
 | `--commit` naming a commit not reachable from `HEAD` (§ 9.2)                                                                                 | commits `HEAD` holds, after `git merge --ff --no-edit <sha>` for one activation's report marks                         | text  |
 | Activation's report of the commits it records as excluded, or deactivation's of those no task captured (§ 5.2, § 8.8)                        | `arc task close <ids> --commit <sha>…` for any that is task work, or `arc task close`                                  | text  |
@@ -1831,36 +1838,37 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
    keeps every capture it had; a default close gives a commit that a hand amend, rebase, cherry-pick, or interactive
    squash or fixup of a captured commit left to that commit's task, and one of an excluded commit to the exclusions,
    naming each, and the tasks it closes where it placed its whole set elsewhere, with
-   `arc task close <ids> --commit <sha>…`, and captures the rest to the tasks it closes, while a default close over an
-   empty set reports nothing; a commit made fresh in the same second as a captured one goes to the task the close
-   closes, a commit made with `-C` naming a captured one goes to that commit's task, and a rebase with
-   `--committer-date-is-author-date` that changes a captured commit's diff reads as new, while the default set omits one
-   that keeps the diff; a rewritten copy whose stored patch half differs from the one computed goes to its original's
-   task; no close removes a capture; a change reverted and made again in a later second than it was first made is
-   captured; `--commit` refuses a commit not reachable from `HEAD`; activation reports the commits it records as
-   excluded, a promoted Errand's among them, and deactivation the commits no task captured, neither listing a commit
-   merged in from base, and deactivation skips its report, saying so, where no base ref resolves; the merge activation's
-   report names brings in a commit only the branch's remote-tracking ref held, keeping its SHA, on a branch with no
-   upstream, under `merge.ff=only`, and after that ref is gone; `arc release commit --close` refuses before committing
-   on a checkout with no linked branch out, on a named ID no task carries, and with no IDs and no open task, and its
-   close captures every commit of a multi-commit split; a close with no IDs closes the cursor's leaf; a close on a clone
-   whose base refs predate base commits its branch holds, as after `arc materialize` or a fetch of the branch alone,
-   captures none of them, and one that cannot fetch base says so; a checkout that has not taken ARC's rewrite closes
-   without capturing its old copies; one commit's copy key agrees under each source § 5.2 names — `core.quotePath`,
-   `diff.suppressBlankEmpty`, `diff.indentHeuristic`, a diff driver's algorithm, `core.bigFileThreshold`, `-diff` from
-   `core.attributesFile`, `.git/info/attributes`, and the checkout's `.gitattributes`, `submodule.<name>.ignore`, and
-   `GIT_DIFF_OPTS` — and under a replace ref for it, and a replace ref grafting the branch drops no commit from the
-   default set; with one author line held for each pair, commits differing only in whitespace get different keys, as do
-   two different edits to a UTF-16 file, two commits differing only in a file after one with no final newline, and a
-   commit holding a NUL and one holding the bytes 0x01 0x02 in its place; a commit with neither a NUL nor a 0x01 byte
-   keeps Git's own patch-id; a rebase with `--ignore-date` reads as new; a single-branch clone's close fetches base by
-   its refspec, and with no base ref it refuses before capturing, as `--close` does before committing, running the fetch
-   once; in a partial clone a commit whose objects are absent matches by SHA alone; an Errand open at the flip and
-   promoted after it at the scale floor keeps its commits in the default capture; activation excludes a commit its
-   branch's remote-tracking ref holds that `HEAD` lacks; the close names `arc activate` for a work item with no branch
-   link; closing a parent with open subtasks closes them, recording the captures against each, and a parent the cascade
-   closes records none; and a deferral of a parent's last open subtask closes the parent, `[x]` where a subtask was
-   already `[x]`.
+   `arc task close <ids> --commit <sha>…`, and captures the rest to the tasks it closes, while a default close over a
+   set empty from the start reports nothing, and one whose base refresh emptied a set that was not empty before it
+   refuses, recording nothing, and its rerun closes the task with no capture; a commit made fresh in the same second as
+   a captured one goes to the task the close closes, a commit made with `-C` naming a captured one goes to that commit's
+   task, and a rebase with `--committer-date-is-author-date` that changes a captured commit's diff reads as new, while
+   the default set omits one that keeps the diff; a rewritten copy whose stored patch half differs from the one computed
+   goes to its original's task; no close removes a capture; a change reverted and made again in a later second than it
+   was first made is captured; `--commit` refuses a commit not reachable from `HEAD`; activation reports the commits it
+   records as excluded, a promoted Errand's among them, and deactivation the commits no task captured, neither listing a
+   commit merged in from base, and deactivation skips its report, saying so, where no base ref resolves; the merge
+   activation's report names brings in a commit only the branch's remote-tracking ref held, keeping its SHA, on a branch
+   with no upstream, under `merge.ff=only`, and after that ref is gone; `arc release commit --close` refuses before
+   committing on a checkout with no linked branch out, on a named ID no task carries, and with no IDs and no open task,
+   and its close captures every commit of a multi-commit split; a close with no IDs closes the cursor's leaf; a close on
+   a clone whose base refs predate base commits its branch holds, as after `arc materialize` or a fetch of the branch
+   alone, captures none of them, and one that cannot fetch base says so; a checkout that has not taken ARC's rewrite
+   closes without capturing its old copies; one commit's copy key agrees under each source § 5.2 names —
+   `core.quotePath`, `diff.suppressBlankEmpty`, `diff.indentHeuristic`, a diff driver's algorithm,
+   `core.bigFileThreshold`, `-diff` from `core.attributesFile`, `.git/info/attributes`, and the checkout's
+   `.gitattributes`, `submodule.<name>.ignore`, and `GIT_DIFF_OPTS` — and under a replace ref for it, and a replace ref
+   grafting the branch drops no commit from the default set; with one author line held for each pair, commits differing
+   only in whitespace get different keys, as do two different edits to a UTF-16 file, two commits differing only in a
+   file after one with no final newline, and a commit holding a NUL and one holding the bytes 0x01 0x02 in its place; a
+   commit with neither a NUL nor a 0x01 byte keeps Git's own patch-id; a rebase with `--ignore-date` reads as new; a
+   single-branch clone's close fetches base by its refspec, and with no base ref it refuses before capturing, as
+   `--close` does before committing, running the fetch once; in a partial clone a commit whose objects are absent
+   matches by SHA alone; an Errand open at the flip and promoted after it at the scale floor keeps its commits in the
+   default capture; activation excludes a commit its branch's remote-tracking ref holds that `HEAD` lacks; the close
+   names `arc activate` for a work item with no branch link; closing a parent with open subtasks closes them, recording
+   the captures against each, and a parent the cascade closes records none; and a deferral of a parent's last open
+   subtask closes the parent, `[x]` where a subtask was already `[x]`.
 9. **The reap keeps its rules:** an abandon discards a created branch, an archive's teardown deletes one merge-safe, an
    adopted branch is kept and reported, and an added ref carrying commits of its own is kept and reported.
 10. **The removal function and check** return each of their outcomes, an anchored checkout's kept marker among them, and
