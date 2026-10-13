@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "archive-q3-number",
+  "claimId": "025ace92a7c8ec885a9eb95b58d0249a",
+  "createdAt": "2026-10-13T18:25:54.231Z",
+  "updatedAt": "2026-10-13T18:25:54.231Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Renumber the duplicate Q3 archive entry by moving 31_wu-rename to the next free number without changing artifact contents.",
+  "branch": "chore/archive-q3-number",
+  "origin": "inbox",
+  "originEntry": "Renumber the duplicate 2026-q3 archive entry",
+  "originEntrySourceDigest": "sha256:c9520cf01273ad9324c4889237d4766b5b0e659c07591cf177003ec6fa058ab0",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
