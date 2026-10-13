@@ -175,6 +175,43 @@ describe("errand-ref reconcile-push", () => {
     expect((await listRecords(ioB))[0]).toMatchObject({ intent: "the B version" });
   });
 
+  it("refuses interrupted or malformed common-basis evidence and retries after repair", async () => {
+    await writeIdentity(ioA, recordFor("shared"));
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+    await execFileAsync("git", ["fetch", "origin", `${REF}:${REF}`], { cwd: repoB });
+    await writeIdentity(ioA, recordFor("local-only", { claimId: "b".repeat(32) }));
+    const remoteRecord = recordFor("shared", { intent: "updated remotely" });
+    await writeIdentity(ioB, remoteRecord);
+    expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+    const localTip = (await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout;
+    const remoteTip = (await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout;
+
+    for (const fault of ["interrupted", "malformed"] as const) {
+      const failingExec: GitExec = async (cmd, args, options) => {
+        if (args[0] === "merge-base") {
+          if (fault === "malformed") return { stdout: "main\n", stderr: "" };
+          throw makeGitProcessError({ command: cmd, args, exitCode: 1,
+            signal: "SIGTERM", stderr: "merge-base interrupted" });
+        }
+        return ioA.exec(cmd, args, options);
+      };
+      const outcome = await reconcileErrandPush({ ...ioA, exec: failingExec });
+      expect(outcome.kind).toBe("failed");
+      if (outcome.kind === "failed") {
+        expect(outcome.error.message).toContain(fault === "interrupted"
+          ? "merge-base interrupted" : "malformed common-ancestor object id");
+      }
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout).toBe(remoteTip);
+    }
+
+    expect(await reconcileErrandPush(ioA)).toEqual({ kind: "reconciled" });
+    expect((await listRecords(ioA)).find((record) => record.slug === "shared")).toEqual(remoteRecord);
+    expect((await listRecords(ioA)).map((record) => record.slug).sort()).toEqual(["local-only", "shared"]);
+    expect((await execFileAsync("git", ["rev-parse", REF], { cwd: remoteDir })).stdout)
+      .toBe((await execFileAsync("git", ["rev-parse", REF], { cwd: repoA })).stdout);
+  });
+
   it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
     await writeIdentity(ioA, recordFor("from-a"));
     await reconcileErrandPush(ioA);

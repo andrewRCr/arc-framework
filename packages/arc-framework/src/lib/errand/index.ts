@@ -74,8 +74,9 @@ export type {
   TransientIdentitySnapshot,
 } from "./identity-snapshot.js";
 
+export type { IdentityObjectReconcile } from "./identity-object-reconcile.js";
+
 export type {
-  IdentityObjectReconcile,
   IdentityTransformDecision,
   IdentityTransform,
   IdentityTransactionParams,

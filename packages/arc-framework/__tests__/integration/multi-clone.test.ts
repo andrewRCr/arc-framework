@@ -424,6 +424,71 @@ describe("errand-ref cross-clone sync regression", () => {
     }
   });
 
+  it("arc sync keeps a remote-only record update and an independent local record", async () => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const identity = "test-user";
+    const ref = errandsRef(identity);
+
+    try {
+      const recipe = await loadRecipe();
+      for (const dir of [harness.cloneA, harness.cloneB]) {
+        await runInit({
+          cwd: dir,
+          io: makeIOContext(dir),
+          templateDir: getArcTemplatePath(),
+          internalTemplateDir: getInternalTemplatePath(),
+          recipe,
+          prompts: DEFAULT_PROMPTS,
+          identityResult: identity,
+        });
+      }
+      const ioA = errandIo(harness.cloneA, identity);
+      const ioB = errandIo(harness.cloneB, identity);
+      await writeIdentity(ioA, errandRecord("shared"));
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+      await execFileAsync("git", ["fetch", "origin", `${ref}:${ref}`], { cwd: harness.cloneB });
+
+      const localRecord = TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("local-only"),
+        claimId: "b".repeat(32),
+      });
+      await writeIdentity(ioA, localRecord);
+      const remoteRecord = TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("shared"),
+        intent: "updated on the other machine",
+        updatedAt: "2026-06-19T13:00:00.000Z",
+      });
+      await writeIdentity(ioB, remoteRecord);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+
+      let envelope: SyncEnvelope;
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+      process.chdir(harness.cloneA);
+      try {
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
+      } finally {
+        const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+        stdoutWrite.mockRestore();
+        process.chdir(originalCwd);
+        envelope = JSON.parse(written) as SyncEnvelope;
+      }
+
+      expect(envelope.errand).toEqual({ action: "reconcile", result: "success" });
+      for (const dir of [harness.cloneA, harness.origin]) {
+        const { stdout: tree } = await execFileAsync("git", ["ls-tree", "--name-only", ref], { cwd: dir });
+        expect(tree.trim().split("\n").sort()).toEqual(["local-only", "shared"]);
+        for (const record of [remoteRecord, localRecord]) {
+          const { stdout } = await execFileAsync("git", ["show", `${ref}:${record.slug}`], { cwd: dir });
+          expect(JSON.parse(stdout)).toEqual(record);
+        }
+      }
+    } finally {
+      await harness.cleanup();
+    }
+  }, 30_000);
+
   it("degrades gracefully and records the errand marker when the remote is unavailable", async () => {
     const harness = await setupMultiClone();
     const originalCwd = process.cwd();
