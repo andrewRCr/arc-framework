@@ -416,6 +416,7 @@ checks:
     inputs:
       - packages/arc-framework/__tests__/e2e/**
       - scripts/run-local-e2e.mjs
+      - .arc/system/arc-checks.yml
 global_inputs:
   - package.json
   - scripts/check-runner.sh
