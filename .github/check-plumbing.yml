@@ -1,5 +1,6 @@
 format:tables: [{job: lint-typecheck, step: format-tables}]
 lint:md:staged: [{job: lint-typecheck, step: markdown-staged}]
+lint:md:underwrap: [{job: lint-typecheck, step: markdown-underwrap}]
 lint:md: [{job: lint-typecheck, step: markdown}]
 lint:arc:triggers: [{job: lint-typecheck, step: arc-triggers}]
 lint:arc:domain-rules: [{job: lint-typecheck, step: arc-domain-rules}]

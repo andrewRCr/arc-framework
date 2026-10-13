@@ -163,6 +163,9 @@ quality and merge gates.
   overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
   Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
 
+The commit check `lint:md:underwrap` checks changed indexed Markdown files without widening to the full corpus. It flags
+non-final paragraph lines below 75 columns when the next word would fit within 120; it never rewrites content.
+
 ### Documentation style
 
 - **Collaborative voice**: Commits, task lists, and project docs read as the work's author would write them — an
@@ -246,8 +249,7 @@ concerns freely.
 
 ### Leak patterns to avoid in adopter-facing content
 
-- Transitional framing ("under the old model", "until X ships", "pre-CLI",
-  "now hand-maintained")
+- Transitional framing ("under the old model", "until X ships", "pre-CLI", "now hand-maintained")
 - Project-internal migration concerns for ARC's own evolution ("forward-only migration",
   "backward-compat tooling")
 - Forward-pointers to internal-roadmap scope (active or backlog WUs — planned or provisional) —
