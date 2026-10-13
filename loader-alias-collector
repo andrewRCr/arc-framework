@@ -3,7 +3,7 @@
   "slug": "loader-alias-collector",
   "claimId": "c0463d618b20b5cf2630c99ae2770f36",
   "createdAt": "2026-10-13T13:14:14.004Z",
-  "updatedAt": "2026-10-13T13:14:14.004Z",
+  "updatedAt": "2026-10-13T14:18:27.538Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Follow identifier aliases of createRequire loaders in the shared architecture module-reference collector, with native regression coverage for ratchets and loader predicates.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Follow aliased `createRequire` loaders in the architecture lint's module-reference collector",
   "originEntrySourceDigest": "sha256:1952dfa55d0dcfdeb59efe107b796f5107d3cc632ece2d98f843204602cb89e6",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/loader-alias-collector",
+    "headSha": "89b8aa8c93092b84a6e62dd48f53e9cddd0ac521"
+  }
 }
