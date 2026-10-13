@@ -151,6 +151,8 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
       "// Implements Task 3.1 of the rollout",
       "// See tasks-auth.md for the remaining steps",
       'export const partialFooter = "Context: tasks-auth.md";',
+      'export const unknownFooter = "Context: nonsense (Task 1.2)";',
+      'export const notesFooter = "Context: notes-auth.md (Task 1.2)";',
     ];
     const accepted = 'export const fullFooter = "Context: tasks-auth.md (Task 4.2)";';
     await writeRepoFile(root, "src/plan.ts", `${[...refused, accepted].join("\n")}\n`);
