@@ -3,7 +3,7 @@
   "slug": "actionlint",
   "claimId": "03636347ae55beaef2ebb0dfc59bcc8c",
   "createdAt": "2026-10-13T20:29:16.937Z",
-  "updatedAt": "2026-10-13T20:29:16.937Z",
+  "updatedAt": "2026-10-13T20:52:42.802Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Lint GitHub Actions workflows with actionlint at commit and in quality CI, fixing existing inline-shell findings.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Add an actionlint check for `.github/workflows/`",
   "originEntrySourceDigest": "sha256:3523e47aa0ab2e270bca49f65b7d27b9459a2bb48471dc4398780906784c71bb",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/actionlint",
+    "headSha": "203b28b7fea255c823799e577da305ec19973211"
+  }
 }
