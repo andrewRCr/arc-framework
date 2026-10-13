@@ -336,14 +336,15 @@ discipline above) before continuing.
 ## Grounding audit & coherent revision
 
 A per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
-findings and any design decisions, confirm before editing, then revise the phase coherently. The **verification
-phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
+findings and any design decisions, confirm before editing when the audit leaves something to decide, then revise
+the phase coherently. The **verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has
+nothing to ground.
 
-Run **Audit the phase** → **Surface findings + decisions, then confirm** → **Revise the phase coherently** for
-each non-verification phase in order; run **Final suite-coherence pass** once, after the last phase. The
-phase-at-a-time loop is intrinsic at **every** depth: it keeps each audit and revision bounded to one phase. The
-confirm gate is not a per-phase sign-off — it stops only for a phase whose audit leaves something to decide, so the
-number of stops follows what the audits find, not the phase count or the resolved level.
+Run **Audit the phase** → **Surface findings + decisions, confirm what needs deciding** → **Revise the phase
+coherently** for each non-verification phase in order; run **Final suite-coherence pass** once, after the last
+phase. The phase-at-a-time loop is intrinsic at **every** depth: it keeps each audit and revision bounded to one phase.
+The confirm gate is not a per-phase sign-off — it stops only for a phase whose audit leaves something to decide,
+so the number of stops follows what the audits find, not the phase count or the resolved level.
 
 ### Audit the phase
 
@@ -367,7 +368,7 @@ Generation-time framing differs from the audit's typical pre-impl use:
 - **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved. "Carry as
   context" findings can ride.
 
-### Surface findings + decisions, then confirm
+### Surface findings + decisions, confirm what needs deciding
 
 > [!IMPORTANT]
 > `workflow-interlock`: When the phase's audit returns a fix-before-starting finding, a masked design decision, or a
@@ -398,9 +399,9 @@ directly; a corrected mechanism _becomes_ the design statement, not an annotatio
 **Spec-propagation.** When a finding corrects a _spec-level_ assumption — a named mechanism, shape, or interface
 was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
 suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the
-**in-place** sibling of the re-entry valve (Surface findings + decisions, then confirm): an existing decision
-was wrong and is corrected in place — distinct from re-entering the spec to _author_ design that does not yet
-exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
+**in-place** sibling of the re-entry valve (Surface findings + decisions, confirm what needs deciding): an
+existing decision was wrong and is corrected in place — distinct from re-entering the spec to _author_ design
+that does not yet exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
 
 After each bounded batch of substantive Spec-propagation corrections, run [spec-review][spec-review] over the changed
 specification contract. Fold corrections into the coherent revision; surface decisions at the existing phase
@@ -423,8 +424,8 @@ ordering language), suite-level alignment (the spec's Goals / Success Criteria /
 amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads
 as one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase
 revision was clean, heavier when phases interlock tightly. If this pass surfaces a _new design issue_ (not mere
-inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the
-coherence pass is not a second decision venue.
+inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, confirm what needs
+deciding) — the coherence pass is not a second decision venue.
 
 When this pass makes a bounded batch of substantive specification edits, run [spec-review][spec-review]
 over the changed contract before finalizing the corrected plan. Feed findings into this same iteration flow,

@@ -145,7 +145,8 @@ describe("generate-tasks delivery authoring contract", () => {
     const medium = between("### `medium`", "### `high`");
     const high = between("### `high`", "## Structural decomposition");
     const loop = between("## Grounding audit & coherent revision", "### Audit the phase");
-    const surface = between("### Surface findings + decisions, then confirm", "**Re-entry valve");
+    const surface = between("### Surface findings + decisions, confirm what needs deciding", "**Re-entry valve");
+    const grounding = between("## Grounding audit & coherent revision", "## Finalize the task list");
 
     expect(low).toMatch(softWrappedProse("stops for the single substantive phase only when its audit leaves something to decide"));
     expect(low).not.toMatch(softWrappedProse("The one review stop"));
@@ -156,6 +157,8 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(loop).toMatch(softWrappedProse("The phase-at-a-time loop is intrinsic at **every** depth"));
     expect(loop).toMatch(softWrappedProse("not the phase count or the resolved level"));
     expect(loop).not.toMatch(softWrappedProse("fires once per substantive phase at **every** depth"));
+    expect(loop).toMatch(softWrappedProse("confirm before editing when the audit leaves something to decide"));
+    expect(grounding).not.toMatch(softWrappedProse("then confirm"));
     expect(surface).toMatch(softWrappedProse(
       "When the phase's audit returns a fix-before-starting finding, a masked design decision, or a floor-raising signal",
     ));
