@@ -865,10 +865,10 @@ describe("trusted review-gate workflows", () => {
     expect(compactReview).toContain("obtain it again");
     expect(compactReview).toContain("A changed claim, PR, or head, or a new finding, voids this decision");
     expect(compactReview).toContain(
-      "A base that alone moved keeps it when `arc base drift --json` reads the exact accepted head with "
-        + "`movement: disjoint`",
+      "A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an ancestor of "
+        + "the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.",
     );
-    expect(compactReview).toContain("Any other drift reading voids it.");
+    expect(compactReview).toContain("A rewound base or any other drift reading voids it.");
     expect(compactReview).toContain(
       "a changed target, or a base movement the disjoint-drift condition above does not keep, requires a new exact offer",
     );

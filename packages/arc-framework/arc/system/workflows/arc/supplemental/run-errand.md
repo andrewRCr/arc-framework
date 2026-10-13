@@ -480,10 +480,11 @@ remote base all name the same exact head. Any tracked change continues through t
    merge lane below, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to
    the review commands. Recheck the Errand claim, PR, base OID, head, and known review/response state at Step 5 and
    immediately before release. A changed claim, PR, or head, or a new finding, voids this decision and returns to this
-   exact offer. A base that alone moved keeps it when `arc base drift --json` reads the exact accepted head with
-   `movement: disjoint` (the disjoint-drift condition); name the new base OID at the next report. Any other drift
-   reading voids it. This conversational authority is not durable: after a context loss or session re-entry, obtain
-   it again if the exact approval and its coordinates cannot be recovered.
+   exact offer. A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an
+   ancestor of the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.
+   Name the new base OID at the next report. A rewound base or any other drift reading voids it. This conversational
+   authority is not durable: after a context loss or session re-entry, obtain it again if the exact approval and its
+   coordinates cannot be recovered.
 
    On interruption, retain the returned operation ID and follow the last typed `state` / `nextAction`. Resume a
    suspended local operation with `arc review local resume -`; re-invoke the owning idempotent verb for frontline,
