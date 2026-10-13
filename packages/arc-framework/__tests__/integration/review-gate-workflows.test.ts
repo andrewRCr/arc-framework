@@ -363,7 +363,8 @@ describe("trusted review-gate workflows", () => {
     expect(project).toBe(packaged);
     expect(projectRules).toBe(packagedRules);
     expect(packagedRules).toMatch(softWrappedPattern(/sole\s+bounded\s+exception[\s\S]*provisional\s+integration\s+candidate/iu));
-    expect(packagedRules).toMatch(softWrappedPattern(/implementation\s+or\s+finding-driven\s+fix[\s\S]*structured\s+approval\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/implementation\s+fix\s+still\s+requires\s+its\s+structured\s+approval\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/finding-driven\s+fix,\s+the\s+complete-set\s+disposition\s+approval\s+is\s+that\s+gate/iu));
     expect(packagedRules).toMatch(softWrappedPattern(/exact-head\s+integration\s+authorization/iu));
 
     const candidate = sectionBetween(

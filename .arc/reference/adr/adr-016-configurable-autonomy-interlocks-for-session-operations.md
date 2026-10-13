@@ -261,6 +261,19 @@ surface so the cascade graph reads off config alone.
 
 This is a configuration-shape amendment, not a reversal of the decision.
 
+**2026-10-13 — Disposition approval releases a review-fix round.** The complete-set approval of a review's finding
+dispositions became the structured gate for the fixes it approves. Under `arc.commitInterlock: on-task-approval` or
+`on-workflow` it releases their commit, and under `arc.pushInterlock: on-workflow` their push and the approved hosted
+settlement. A fix round had stopped up to three times — the disposition approval, a gate before the fix commit, then
+a push or next-pass prompt — with nothing new to decide after the first.
+
+This is an instance of this ADR's core axis, how many follow-on operations one approval triggers: the approval itself
+is unchanged, and a `manual` setting keeps its own stop. The round still returns to the approver when the performed
+fix exceeds the approved scope, a gate failure needs judgment, host state is ambiguous, or a new finding arrives,
+and the integration-interlock remains the merge floor.
+
+This is a release-scope amendment, not a reversal of the decision.
+
 ---
 
 [dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

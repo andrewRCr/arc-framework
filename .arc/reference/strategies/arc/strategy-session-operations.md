@@ -602,6 +602,19 @@ When safe-accumulated work returns for review, report the completed range as a c
 surface the accumulated diff for approval. The user then chooses the commit boundary: one batch
 commit, multiple atomic commits, or iteration before committing.
 
+### Disposition-Approval Release
+
+A review-fix round has one structured gate: the complete-set approval of its finding
+dispositions. Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval
+releases the commit-interlock for the approved fixes, and under `arc.pushInterlock: on-workflow`
+it also releases their push and the approved hosted settlement. A `manual` setting keeps its own
+stop. The approval prompt names what it releases — for example
+`Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?` — and the
+round reports its result as information rather than as a new gate. The round returns to the
+approver when the performed fix exceeds the approved scope, a verification or gate failure is
+not a deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
+Merge stays behind the integration-interlock.
+
 ### Push-Timing Reasoning
 
 Push-on-sync fires when an `arc sync` event releases the push interlock; per-commit push release
