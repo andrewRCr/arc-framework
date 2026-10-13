@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "fold-tag-reentry-reading",
+  "claimId": "85d0be8ee2ee1c141231b8a0e8769d89",
+  "createdAt": "2026-10-13T13:29:53.205Z",
+  "updatedAt": "2026-10-13T13:29:53.205Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let adversarial-review read fold tags beside severity when recommending successor looks, the cap call, and the re-entry valve",
+  "branch": "chore/fold-tag-reentry-reading",
+  "origin": "inbox",
+  "originEntry": "Read fold tags, not severity alone, when the planning review loop weighs re-entry and further passes",
+  "originEntrySourceDigest": "sha256:e336eccb13040963e626092c6021f7d7231e857ac30f32367d37bdfc43d02958",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
