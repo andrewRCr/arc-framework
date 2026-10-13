@@ -26,7 +26,7 @@ import {
 } from "../../lib/git/hooks-path.js";
 import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../../lib/git/process-executor.js";
 import type { GitExec } from "../../lib/git/exec.js";
-import { normalizeGitRejection } from "../../lib/git/process-error.js";
+import { isGitProcessError, normalizeGitRejection } from "../../lib/git/process-error.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
@@ -45,6 +45,7 @@ import { declareInteractionSite, type CommandInputDeclaration } from "../../lib/
 import {
   runReleaseCommit,
   type CreateCommitMessageSnapshot,
+  type ListRemoteRefsContainingHead,
   type ResolveHead,
   type SpawnGit,
 } from "./commit.js";
@@ -157,8 +158,8 @@ export async function handleReleaseCommit(
   });
 
   const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
-  const preflightRemedy = renderCommitMessageRemedy();
   const { argv, wrap } = stripNoWrap(opts.args);
+  const preflightRemedy = renderCommitMessageRemedy(argv);
   const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({
@@ -172,6 +173,7 @@ export async function handleReleaseCommit(
     createMessageSnapshot: createRealCommitMessageSnapshot(exec),
     persistMessageRetry: retryStore.persist,
     cleanupConsumedMessageRetry: retryStore.cleanup,
+    listRemoteRefsContainingHead: createRemoteRefsContainingHead(exec),
     preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: context.interaction === "allowed" && context.promptInput.isTTY,
@@ -347,3 +349,28 @@ const realResolveHead = (exec: GitExec): ResolveHead => async ({ cwd }) => {
   const { stdout } = await exec("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 };
+
+/**
+ * List the remote-tracking refs that contain `HEAD`, from local refs only, leaving out symbolic refs such as
+ * `origin/HEAD`. An unborn `HEAD` is on none, so Git reports the missing commit itself.
+ */
+export function createRemoteRefsContainingHead(exec: GitExec): ListRemoteRefsContainingHead {
+  return async ({ cwd }) => {
+    try {
+      await exec("git", ["rev-parse", "--verify", "--quiet", "HEAD"], { cwd });
+    } catch (error: unknown) {
+      if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return [];
+      throw error;
+    }
+    const { stdout } = await exec(
+      "git",
+      ["for-each-ref", "--contains", "HEAD", "--format=%(refname:short)%09%(symref)", "refs/remotes"],
+      { cwd },
+    );
+    return stdout
+      .split("\n")
+      .map((line) => line.split("\t"))
+      .filter(([ref, symref]) => ref !== undefined && ref !== "" && (symref ?? "") === "")
+      .map(([ref]) => ref ?? "");
+  };
+}
