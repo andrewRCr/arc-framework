@@ -1,6 +1,6 @@
 /** The repository's actual CI map consumes the declaration's merge forecast. */
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { load } from "js-yaml";
 import { expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { execa } from "execa";
 import { gitExec } from "../../src/lib/io-context.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { resolveCheckForecast } from "../../src/lib/checks/forecast.js";
+import { selectChangedInputs } from "../../src/lib/checks/matching.js";
 import { selectRequestChecks } from "../../src/lib/checks/gates.js";
 import { CheckPlumbingSchema, validateCheckPlumbing } from "../../src/lib/ci-check-plumbing.js";
 
@@ -56,3 +57,34 @@ it("publishes a forecast whose checked tree exists in another clean checkout", a
       .resolves.toMatchObject({ stdout: "" });
   } finally { await Promise.all([root, runnerTemp].map(path => rm(path, { recursive: true, force: true }))); }
 }, 30_000);
+
+it.each([
+  [".arc/system/methods/test-first.md", false],
+  ["packages/arc-framework/arc/reference/templates/arc/work-unit/template-tasks.md", false],
+  ["packages/arc-framework/src/lib/example.ts", true],
+  ["packages/arc-framework/__tests__/unit/example.test.ts", true],
+  ["packages/arc-framework/__tests__/fixtures/scenario.md", true],
+  ["packages/arc-framework/templates/meta-work-unit.md", true],
+] as const)("routes the real declaration's changed input %s to its owning checks", async (path, unitSelected) => {
+  const sourceRoot = resolve(import.meta.dirname, "../../../..");
+  const declaration = CheckDeclarationSchema.parse(load(await readFile(
+    resolve(sourceRoot, ".arc/system/arc-checks.yml"), "utf8",
+  )));
+  const root = await mkdtemp(resolve(tmpdir(), "arc-check-markdown-input-"));
+  try {
+    const args = [["init", "-b", "main"], ["-c", "user.email=test@example.com",
+      "-c", "user.name=Test", "commit", "--allow-empty", "-qm", "fixture"]];
+    for (const command of args) await gitExec("git", command, { cwd: root });
+    const base = (await gitExec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout;
+    await mkdir(dirname(resolve(root, path)), { recursive: true });
+    await writeFile(resolve(root, path), "changed input\n");
+    await gitExec("git", ["add", "--", path], { cwd: root });
+    const tree = (await gitExec("git", ["write-tree"], { cwd: root })).stdout;
+    for (const [id, selected] of [["test:unit", unitSelected], ["test:arc-contracts", true]] as const) {
+      const result = await selectChangedInputs(gitExec, root, base, tree, declaration.checks[id]!.inputs);
+      expect(result, id).toEqual(selected
+        ? { status: "selected", paths: [expect.objectContaining({ path, status: "A" })] }
+        : { status: "not selected", reason: "inputs unchanged" });
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

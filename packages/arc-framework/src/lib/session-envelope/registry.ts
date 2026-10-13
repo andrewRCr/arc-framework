@@ -28,6 +28,7 @@ import { WorktreeRosterResultSchema } from "../git/worktree-roster.js";
 import { CurrentHuskAdvisorySchema } from "../session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
+import { HooksPathSessionAdvisorySchema } from "../session-init/hooks-path-advisory.js";
 import { InboxStateResultSchema } from "../session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../session-init/notes-compaction-advisory.js";
@@ -52,6 +53,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   domainRulesSessionInit: "domain-rules-session-init",
   errandStalenessSweep: "errand-staleness-sweep",
   extensionsSessionInit: "extensions-session-init",
+  hooksPathSessionAdvisory: "hooks-path-session-advisory",
   inboxState: "inbox-state",
   loadSetAuditVerdict: "load-set-audit-verdict",
   loadSetManifest: "load-set-manifest",
@@ -89,6 +91,7 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict, LoadSetAuditVerdictSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest, LoadSetManifestSchema],

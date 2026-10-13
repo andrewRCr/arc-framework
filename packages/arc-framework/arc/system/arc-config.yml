@@ -164,6 +164,9 @@ hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
 # alternation requires a non-identifier, non-dot character to its left, so a
 # filename that merely embeds an artifact prefix (resolve-plan-segmentation.md)
 # is not read as a work-unit artifact.
+# The pre-commit hook strips each complete commit Context footer ("Context:
+# tasks-foo.md (Task 4.2)") per line before re-check, so footer examples and
+# diagnostics pass while a planning reference elsewhere on the line still flags.
 # Reduce to remove checks that cause false positives for your project (e.g.,
 # tooling that legitimately operates on .arc/ paths). Pipe-separated regex.
 #   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'

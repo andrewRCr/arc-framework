@@ -456,8 +456,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         return failure.stdout;
       });
 
-    // This pm.mode=none fixture intentionally omits files checked by other verifier sections.
-    expect(exitCode).toBe(2);
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toMatch(/^(?:ERROR|WARN) /m);
+    expect(stdout).toContain("Integrity check: all clear");
     expect(stdout).toContain("commit-msg hook: exists and executable");
     const hookSection = stdout.match(/--- Hook Status ---([\s\S]*?)--- Strategy Index ---/)?.[1];
     expect(hookSection).toBeDefined();

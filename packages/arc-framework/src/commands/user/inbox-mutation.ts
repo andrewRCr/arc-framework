@@ -3,8 +3,7 @@
 import { atomicWriteFile } from "../../lib/fs.js";
 import { contentDigest } from "../../lib/canonical/content-digest.js";
 import {
-  acquireAdvisoryLock,
-  releaseAdvisoryLock,
+  withAdvisoryLock,
   type AdvisoryLockHandle,
 } from "../../lib/advisory-lock.js";
 import { getNotesLockPath } from "../../lib/user-sync/notes-lock.js";
@@ -57,10 +56,7 @@ export async function withLockedUserInbox<T>(
   const { cwd, io, identity } = options;
   const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec }))
     .identityGlobalPath("USER-INBOX.md");
-  const acquireLock = dependencies.acquireLock ?? acquireAdvisoryLock;
-  const releaseLock = dependencies.releaseLock ?? releaseAdvisoryLock;
-  const lock = await acquireLock(await getNotesLockPath(io.exec, cwd, identity));
-  try {
+  return withAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity), async () => {
     let content: string | null;
     try {
       content = await io.readFile(inboxPath);
@@ -85,9 +81,7 @@ export async function withLockedUserInbox<T>(
       result: mutation.result,
       postImage: { state: "present", content, digest: contentDigest(Buffer.from(content, "utf8")) },
     };
-  } finally {
-    await releaseLock(lock);
-  }
+  }, {}, dependencies);
 }
 
 /** Apply an exact title/source-digest-qualified mutation batch. */

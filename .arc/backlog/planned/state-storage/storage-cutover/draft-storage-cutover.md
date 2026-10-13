@@ -265,4 +265,158 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
+### `[ ]` **Carry `arc user inbox-list` and the capture exit guards across the flip**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Scope's deletion passes, and the inbound entry "Take `storage-seam`'s flip-rewrite obligations into the
+  cutover's workflow rewrite".
+
+- _Observation:_ `arc user inbox-list --target <slug>` (`handlers/user-inbox-list.ts`, `lib/user-sync/inbox-target.ts`)
+  lists the personal-inbox captures whose `WU_Target` line names a work unit, held or not. `create-spec`'s owner's
+  pass, `activate-work-unit`'s pre-condition gate, and the start of `verify-work-unit` dispatch on it. It reads the
+  inbox file under the notes lock and parses the three target-line spellings in use, like the other `arc user inbox-*`
+  verbs the cutover replaces.
+
+- _Approach:_ at the flip, re-point its reader onto the store's inbox records, keeping the `clear` / `named` /
+  `refused` result and adding the entry ID. D11 routes captures straight into a work unit's inbound list and retires
+  owner adoption, so the three guards should then also read the work unit's pending inbound count, which session-init
+  orientation already carries. Rename the verb with the other inbox verbs if `naming-conventions` moves them.
+
+- _Update (2026-10-12):_ `seam-locus` renames the verb from the flip: `arc inbox <list>` (`personal`, `project`, or a
+  work item's slug) replaces `arc user inbox-list`, and `--target <slug>` keeps the `clear` / `named` / `refused`
+  result with each row's ID and version; `arc inbox <slug>` lists a work unit's inbound list with its pending count and
+  oldest age (`draft-seam-locus.md` § Locus, "One entry listing, `arc inbox`"). The flip rewrite moves the three gates'
+  calls onto it.
+
+- _Captured during:_ the `capture-exit-guards` Errand, 2026-10-11.
+
+- _Drain note:_ the inbound entry "Delete the code `cli-substrate-complete-migration` carves out" and the register's
+  notes-specific sync row keep the inbox writer and the `user inbox` mutations as survivors, while
+  `spec-seam-locus.md` § 1.5 lists `arc user inbox-list --target` among the arms the deletion pass removes; settle
+  which holds.
+
+### `[ ]` **Rewrite the task loop's completion around the task close verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the register row "Workflow steps commit state with `git`" (`cohort-state-storage.md`), whose fate closes
+  the task loop through the close verb, and the inbound entry "Rehearse the flip's workflow rewrite end to end, and
+  quiesce every session holding today's workflow text".
+
+- _Observation:_ from the flip `arc task close` closes tasks after the commit and captures their commits (D16), and
+  `arc release commit --close` runs it at the commit fire site under the approval that covers work and commit
+  (`draft-seam-lifecycle.md` § Lifecycle, "The task close verb"; Owner, 2026-10-12). Today the loop marks `[x]` before
+  the commit, runs the quality request over that completion edit, and removes the `[x]` on red.
+
+- _Approach:_ the loop writes no `[x]`; the red-path removal and the pre-report checklist's "Task marked [x]" line go,
+  the verb's result standing as the record; the completion note stays the agent's hand edit before the gate; deferred
+  review closes its range in one call. Two steps reorder: the `post-task-completion` extension, which syncs an external
+  tracker and today fires before the gate, fires after the close; and delivery's correction acknowledgment, which
+  closes the task mid-protocol and then resumes.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ `spec-seam-lifecycle.md` § 9.5 carries the provider text, including a hand `[~]` becoming `arc task
+  defer`.
+
+### `[ ]` **Rewrite park and resume as pause and resume**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Scope's documentation pass, and the register row "Workflow steps commit state with `git`"
+  (`cohort-state-storage.md`).
+
+- _Observation:_ from the flip `arc pause` and `arc resume` replace `arc park`: a pause is a record on the work item,
+  not a move; the checkout stays unless released (`arc locus release`); the pointer record, park from Planning's
+  landing, and the parked position retire (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle moves from the flip";
+  Owner, 2026-10-12). The two workflows shrink to the verbs.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ `spec-seam-lifecycle.md` § 19 also names QUICK-REFERENCE's verb index, where `arc pause` replaces `arc
+  park`.
+
+### `[ ]` **Let the Locus definition end a work unit's locus at release as well as teardown**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Scope's documentation pass, over the rules the register marks rewritten at cutover.
+
+- _Observation:_ the definition says a WU-owned locus "is exclusive from spawn, materialization, or explicit `--here`
+  entry through exact teardown". From the flip `arc locus release` also ends that role: it releases a paused work
+  unit's checkout for its owner, or a checkout whose work unit another identity owns, and for an anchored checkout
+  releases only the marker (`draft-seam-locus.md` § Locus, "Pause, from the flip"; Owner, 2026-10-12). The sentence
+  becomes "through exact teardown or release".
+
+- _Files:_ `packages/arc-framework/arc/reference/briefs/AGENT-BRIEF.ARC.md`, synced to `.arc/reference/briefs/`.
+
+- _Captured during:_ `seam-locus` draft-design close, 2026-10-12.
+
+- _Drain note:_ `strategy-work-organization.md` and `resume-work-unit.md` carry sibling sentences that end a locus at
+  teardown alone.
+
+### `[ ]` **Rehearse the flip's carry of checkouts claimed in place before it**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Scope's rehearsal.
+
+- _Observation:_ before the flip no in-place arm writes a checkout marker — the cold start, `arc start --here`'s
+  graduation, and `arc materialize --here` all leave none — and the import leaves the marker out as machine-local. From
+  the flip, locus derivation reads only the marker and the store, so every checkout claimed in place before the flip
+  holds its work unit with no marker. `seam-locus` designs the carry: session start offers
+  `arc materialize <slug> --here` for a marker-less checkout that has out a branch an owned in-flight work unit links,
+  and a work unit no checkout holds, one cold-started on base under partial protection among them, takes the ordinary
+  materialize offer (`draft-seam-locus.md` § Locus, "Checkouts claimed in place before the flip").
+
+- _Approach:_ the rehearsal runs both: a pre-flip `arc start --here` checkout on a work branch under full protection,
+  and a cold start on base under partial protection, each carried to an anchored marker after the import.
+
+- _Captured during:_ `seam-locus` draft-design, fourth adversarial pass, 2026-10-12.
+
+- _Drain note:_ `spec-seam-locus.md` § 2.7 now lists more in-place arms than this entry: in-place resume, and
+  promotion on the primary.
+
+### `[ ]` **Rewrite the workflow steps the seam's lifecycle verbs replace**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the register row "Workflow steps commit state with `git`" (`cohort-state-storage.md`), and the inbound
+  entry "Take `storage-seam`'s flip-rewrite obligations into the cutover's workflow rewrite", whose `Class` list this
+  entry partly repeats.
+
+- _Observation:_ `draft-seam-lifecycle.md` (Owner, 2026-10-12) adds verbs and results whose workflow text changes only
+  at the flip, as the seam changes no workflow text before it:
+    - `arc set-class` replaces each step that hand-edits `Class` where no `--class` flag covers it (§ Lifecycle, "The
+      Class verb");
+    - `Owner` turns verb-owned, so the person-to-person handoff's hand edit (`session-handoff.md`'s handoff note,
+      `strategy-team-coordination.md`'s handoff passages) moves to `arc handover`, and `init-work-unit.md`'s step
+      preserving the stub's `Owner` goes, since starting a stub records the starter;
+    - activation's result names the old name's remote deletion as a typed action only for a branch link recorded
+      `created`, so `activate-work-unit.md` Step 5 runs the actions the result names rather than its raw
+      `git push origin --delete`; deactivation keeps the work branch, so `deactivate-work-unit.md` Step 3's remote
+      delete goes;
+    - `arc base sync`'s detached arm lives in `handleBaseSync` (`handlers/base.ts`), whose consumer-map row is this
+      work unit's, so the two serialize on that file.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+### `[ ]` **Drop `resolveCurrentWuName` from the cutover's list of `lib/user-sync/` survivors**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the survivor list in the inbound entry "Delete the code `cli-substrate-complete-migration` carves out",
+  and the register's notes-specific sync row.
+
+- _Observation:_ the draft lists `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) among the symbols that must
+  survive the notes deletion. `spec-seam-locus.md` § 2.2 moves its one caller outside notes sync, the user-reference
+  reconcile (`handleUserReconcileReferences`, `handlers/user.ts`), onto `resolveCurrentWorkUnit`, leaving only the
+  notes-sync commands (`commands/user/sync-status.ts`, `commands/user/save-load.ts`, and `handlers/user.ts`'s notes
+  arms) calling it. Once that lands, the function goes with the notes machinery rather than surviving it.
+
+- _Approach:_ move it from the survivor list to the removed set, after re-checking its callers when the cutover plans.
+
+- _Captured during:_ `seam-locus` create-spec, 2026-10-12.
+
 ---

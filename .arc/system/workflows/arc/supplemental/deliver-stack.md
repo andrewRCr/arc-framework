@@ -370,8 +370,10 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
-second call:
+then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
+structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
+without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
+approved set through a second call:
 
 ```bash
 arc review respond -
@@ -803,3 +805,4 @@ terminal merge. Do not fire a delivery interlock here.
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [validate-criteria]: ../../../methods/validate-criteria.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

@@ -101,6 +101,7 @@ interface SessionInitEnvelope {
     };
   };
   domainRules?: unknown;
+  hooksPath?: { ok: boolean; value?: Record<string, unknown> };
   recommendedCombinedPrompt?: unknown;
   active: {
     ok: boolean;
@@ -461,6 +462,30 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.errandState?.value?.warnings).not.toContain(
       "Errand record `valid-v3` is malformed.",
     );
+  });
+
+  it("names a configured hooks path the checkout lacks, and goes quiet once it exists", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["config", "core.hooksPath", ".unprovisioned-hooks"]);
+
+    const missing = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(missing.exitCode).toBe(0);
+    expect(parseJsonEnvelope(missing.stdout).hooksPath).toEqual({
+      ok: true,
+      value: {
+        recommendedAction: "surface",
+        configured: ".unprovisioned-hooks",
+        resolvedPath: join(await realpath(tmpDir), ".unprovisioned-hooks"),
+        recommendedPromptText: expect.stringContaining("runs no hooks"),
+      },
+    });
+
+    await mkdir(join(tmpDir, ".unprovisioned-hooks"));
+    const provisioned = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(parseJsonEnvelope(provisioned.stdout).hooksPath).toEqual({
+      ok: true, value: { recommendedAction: "none" },
+    });
   });
 
   it("does not invent a planning session from a branch-shaped unoccupied checkout", async () => {

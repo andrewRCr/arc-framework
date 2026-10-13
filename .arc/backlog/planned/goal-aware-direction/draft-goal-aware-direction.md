@@ -132,6 +132,23 @@
 
 - _Captured during:_ the RELEASE-GATES vector-shape trial, 2026-10-11.
 
+### `[ ]` **Read an Owner's holds as pauses**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the inbound entry "Fit the vector design to what the RELEASE-GATES trial could not hold" (its "Holds are
+  not parks" item), and § The recommender › Inputs, its Parked row.
+
+- _Observation:_ from the flip a pause is a project-scope record on the work item holding its reason, what it waits on,
+  resume notes, and whether its owner opens it to takers (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle moves from
+  the flip"; Owner, 2026-10-12). An Owner's hold is a pause, and its resume instructions are the pause's resume notes,
+  so `RELEASE-GATES` § Holds retires into records; the recommender can offer resumable pauses and those open to takers.
+
+- _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
+
+- _Drain note:_ a stub cannot be paused (`spec-seam-lifecycle.md` § 8.1), so a hold on a stub stays something other
+  than a pause.
+
 ---
 
 ## Problem / Motivation

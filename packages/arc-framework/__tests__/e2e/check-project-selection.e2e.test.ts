@@ -30,3 +30,24 @@ it.each(["increment", "segment"] as const)("selects only Markdown checks for an 
   expect(checks.filter(check => check.outcome !== "not selected").map(check => check.id))
     .toEqual(form === "increment" ? ["lint:md:staged"] : ["lint:md:staged", "lint:md"]);
 }, 60_000);
+
+
+it("selects the local E2E tier for a declaration-only change", async () => {
+  const root = await createDeclaredCheckRepository({});
+  repositories.push(root);
+  await git("git", ["restore", "src/a.ts"], { cwd: root });
+  const path = ".arc/system/arc-checks.yml";
+  const declaration = await readFile(resolve(import.meta.dirname, "../../../../.arc/system/arc-checks.yml"), "utf8");
+  await writeFile(join(root, path), declaration);
+  await git("git", ["add", "-A"], { cwd: root });
+  await git("git", ["commit", "-m", "project declaration baseline"], { cwd: root });
+  await writeFile(join(root, path), `${declaration}\n# Declaration-only change\n`);
+  expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(path);
+
+  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const checks = JSON.parse(result.stdout).result.checks;
+  expect(checks).toMatchObject([{ id: "test:e2e:local", outcome: "would run" }]);
+  expect(checks).toHaveLength(1);
+  expect(checks[0].batches.flat()).toContain(path);
+}, 60_000);

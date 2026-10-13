@@ -178,6 +178,41 @@ echo "--- Strategy Index ---"
 
 strategy_index="$ARC_DIR/reference/strategies/STRATEGY-INDEX.md"
 strategy_dir="$ARC_DIR/reference/strategies/arc"
+team_mode=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "team.mode" "false")
+manifest="$ARC_DIR/system/.internal/manifest.json"
+installed_strategies=""
+
+# Keep expecting files recorded by the installer even if configuration has since changed.
+# Without a manifest, the active modes determine the two optional strategy entries.
+if [ -f "$manifest" ]; then
+    if ! installed_strategies=$(node - "$manifest" 2>/dev/null <<'NODE'
+const fs = require("node:fs");
+const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
+    process.exit(1);
+}
+for (const path of Object.keys(manifest.files)) {
+    if (/^reference\/strategies\/arc\/strategy-[a-z0-9-]+\.md$/.test(path)) {
+        console.log(path.slice("reference/strategies/".length));
+    }
+}
+NODE
+    ); then
+        error "Could not read installed strategy inventory from manifest: $manifest"
+    fi
+fi
+
+strategy_expected() {
+    local entry="$1"
+    if printf '%s\n' "$installed_strategies" | grep -Fxq "$entry"; then
+        return 0
+    fi
+    case "$entry" in
+        arc/strategy-planning-module.md) [ "$pm_mode" = "arc-in-git" ] ;;
+        arc/strategy-team-coordination.md) [ "$team_mode" = "true" ] ;;
+        *) return 0 ;;
+    esac
+}
 
 if [ -f "$strategy_index" ] && [ -d "$strategy_dir" ]; then
     # Extract strategy filenames referenced in the index
@@ -186,6 +221,10 @@ if [ -f "$strategy_index" ] && [ -d "$strategy_dir" ]; then
 
     # Check indexed entries exist as files
     for entry in $indexed_files; do
+        if ! strategy_expected "$entry"; then
+            info "Strategy excluded by install mode: $entry"
+            continue
+        fi
         entry_path="$ARC_DIR/reference/strategies/$entry"
         if [ ! -f "$entry_path" ]; then
             error "Strategy indexed but file missing: $entry"

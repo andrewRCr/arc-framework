@@ -222,8 +222,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
 2. **Push** the errand branch upstream.
 
-   - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
-     actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
+   - **Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
+     extension is active, run its `.actions`; halt-on-fail surfaces an actionable message, fix-and-retry or
+     explicit-invoke bypasses. Otherwise skip.
 
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
@@ -281,8 +282,15 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
-   - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane; from
-     its `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
+   - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane.
+     On `offered / bind-source`, surface `payload.frontlineReview.promptText` and diagnostics; ask the Owner to
+     select an available source or skip. On selection, re-invoke the same request with
+     `invocation.sourceId` set to the selected source, preserving `invocation.mode`.
+     On `offered / obtain-authorization`, surface `payload.frontlineReview.promptText` and the exact one-pass
+     consequence, then ask `Approve (or redirect)?`. On acceptance, re-invoke the same request with
+     `invocation.mode` set to `force`, preserving any `invocation.sourceId`. For either offer, on decline, replace
+     `invocation` with `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
+     `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
      offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`; submit
@@ -305,11 +313,31 @@ remote base all name the same exact head. Any tracked change continues through t
    `remedy.argv`, passing any `remedy.stdin` unchanged. Approval is required before any finding-driven fix,
    durable deferral, channel settlement, or other mutation/commitment. A complete no-action record-only set must
    be approved for its exact target before continuing. Approved fixes request `arc check increment`, commit atomically,
-   push, and create a new target. Never carry clearance or merge authority.
+   push, and create a new target; the complete-set approval is the fix round's structured gate, so where the
+   configured interlocks release them the commit, push, and approved settlement follow without another stop
+   ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Never carry clearance or merge
+   authority.
+
+   > [!CAUTION]
+   > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+   ```text
+   <type>(<scope>): <what the approved fixes change>
+
+   Review disposition set: <identity>
+   - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+   Context: standalone (code review)
+   ```
+
+   > [!CAUTION]
+   > `push-interlock` release — `workflowPush`: `origin <branch>`.
 
    A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
-   another provider invocation requires an explicit Owner decision and a new request carrying
-   `retryOfOperationId`. A `review reduce` result with `retryable / operator-repair` supplies that ID.
+   another provider invocation requires an explicit Owner decision. On approval, re-run
+   `arc review frontline resolve -` for a fresh ready resolution, then `arc review frontline run -` with that
+   resolution and `retryOfOperationId` from the prior operation. A `review reduce` result with
+   `retryable / operator-repair` supplies that ID.
 
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
@@ -436,17 +464,36 @@ remote base all name the same exact head. Any tracked change continues through t
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact
      approved set through the second `arc review respond -` call, and perform only its returned action through
-     [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+     [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below
+     follow without another stop where the configured interlocks release them
+     ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). When the approved call returns
+     `payload.hostedSettlementPlan` for
      `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for
      every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
      actor. Settle each `beforeFixFindingIds`
      entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
-     before any approved fix changes the head; then apply, verify, commit, and push the approved fixes; then settle
-     every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified for the
-     current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
-     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
-     Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-     ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
+     before any approved fix changes the head. Then apply and verify the approved fixes, then commit and push them:
+
+     > [!CAUTION]
+     > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+     ```text
+     <type>(<scope>): <what the approved fixes change>
+
+     Review disposition set: <identity>
+     - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+     Context: standalone (code review)
+     ```
+
+     > [!CAUTION]
+     > `push-interlock` release — `workflowPush`: `origin <branch>`.
+
+     Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
+     for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
+     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it. Retain any
+     returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling
+     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
      On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
      mutation; every stop state remains a stop. After the required phases complete, follow the approved response
@@ -477,9 +524,12 @@ remote base all name the same exact head. Any tracked change continues through t
    On acceptance, request no further standard-review pass for those exact coordinates and continue to the reviewed
    merge lane below, not auto-merge. Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride` to
    the review commands. Recheck the Errand claim, PR, base OID, head, and known review/response state at Step 5 and
-   immediately before release; any movement or new finding voids this decision and returns to this exact offer.
-   This conversational authority is not durable: after a context loss or session re-entry, obtain it again if the
-   exact approval and its coordinates cannot be recovered.
+   immediately before release. A changed claim, PR, or head, or a new finding, voids this decision and returns to this
+   exact offer. A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an
+   ancestor of the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.
+   Name the new base OID at the next report. A rewound base or any other drift reading voids it. This conversational
+   authority is not durable: after a context loss or session re-entry, obtain it again if the exact approval and its
+   coordinates cannot be recovered.
 
    On interruption, retain the returned operation ID and follow the last typed `state` / `nextAction`. Resume a
    suspended local operation with `arc review local resume -`; re-invoke the owning idempotent verb for frontline,
@@ -490,8 +540,9 @@ remote base all name the same exact head. Any tracked change continues through t
    classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
    the hosted pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. If an
    adapter reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose
-   the upgrade. Under an Owner-directed review stop, any changed target or base requires a new exact offer describing
-   the changed delta and the returned review-applicability result; never carry the prior acceptance forward.
+   the upgrade. Under an Owner-directed review stop, a changed target, or a base movement the disjoint-drift condition
+   above does not keep, requires a new exact offer describing the changed delta and the returned review-applicability
+   result; never carry the prior acceptance forward.
 
    After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's
    `arc review status --target <targetRef>` before resolving review. A `settled` routed obligation completes the
@@ -562,9 +613,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
-   integration interlock. A changed coordinate (including base OID or Errand claim), new finding, or unfinished fix
-   returns to Step 4 for a new exact offer. Inspect the PR's unresolved conversations as well; the stop clears no
-   host blocker, so obtain separate Owner direction for any dismissal or thread action before proceeding.
+   integration interlock. A changed coordinate (including the Errand claim), new finding, or unfinished fix returns to
+   Step 4 for a new exact offer; a base that alone moved follows Step 4's disjoint-drift condition. Inspect the PR's
+   unresolved conversations as well; the stop clears no host blocker, so obtain separate Owner direction for any
+   dismissal or thread action before proceeding.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
    their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
@@ -595,9 +647,10 @@ composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as
 This separate operation authorizes no merge. Otherwise, continue to the selected lane action.
 
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
-   Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
-   for a new exact offer; required checks and host-native review blockers remain independent stops. Owner acceptance
-   never satisfies a required check.
+   Errand claim, PR, base OID, head, and known review/response state. A base that alone moved follows Step 4's
+   disjoint-drift condition, and the completion report names the new base OID; any other movement or new finding
+   returns to Step 4 for a new exact offer. Required checks and host-native review blockers remain independent stops.
+   Owner acceptance never satisfies a required check.
 
    For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
    project's configured bounded-call defaults apply:
@@ -726,3 +779,4 @@ idempotent and may return the next file-ordered execute-bound offer.
 [auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

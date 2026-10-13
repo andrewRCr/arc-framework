@@ -181,11 +181,10 @@ _CI & configuration:_
   the lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
   enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
   no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
-- **Linux runner fleet**: the repository variable `ARC_CI_LINUX_RUNNER` selects one class at a time. `arc-ci-mini`
-  is an arm64 Lima guest on a dedicated local host running two runner services, defined by the recipe and helpers
-  in `scripts/local-ci/`; `arc-ci-linux` is a pair of x86-64 VPS hosts running four services and stays registered
-  as fallback. An unset variable routes to GitHub-hosted runners. Operations for both live in
-  `.github/self-hosted-ci.md`.
+- **Runners**: every Linux job runs on GitHub-hosted `ubuntu-latest`, and the scheduled portability pair adds
+  `windows-latest` and `macos-latest`. The repository is public, so no job routes to a self-hosted runner while fork
+  pull requests run CI. The repository variable `ARC_CI_VITEST_MAX_WORKERS` retunes Vitest's worker count without a
+  code change.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

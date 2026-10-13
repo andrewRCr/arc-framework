@@ -47,7 +47,7 @@ import { readHistoryCompleteness } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { readObjectAvailability } from "./object-availability.js";
 import { isGitObjectId } from "./object-id.js";
-import { isGitProcessError } from "./process-error.js";
+import { isGitProcessError, normalizeGitRejection, type GitProcessError } from "./process-error.js";
 import {
   readRemoteHeadSnapshot,
   type RemoteHeadSnapshotResult,
@@ -143,6 +143,19 @@ export class WorktreeFetchTimeoutError extends Error {
     super(`Materializing the worktree remote tip timed out after ${timeoutMs}ms. `
       + "Retry the command when the remote responds.");
     this.name = "WorktreeFetchTimeoutError";
+  }
+}
+
+/** A materializing fetch failed before exact remote evidence was acquired. */
+export class WorktreeFetchFailedError extends Error {
+  constructor(
+    readonly branch: string,
+    readonly remoteBranch: string,
+    readonly failure: GitProcessError,
+  ) {
+    super(`Materializing the worktree remote tip failed: ${failure.message}. `
+      + "Retry the command once the condition Git reported is resolved.", { cause: failure });
+    this.name = "WorktreeFetchFailedError";
   }
 }
 
@@ -412,8 +425,9 @@ export async function runMaterializingWorktreeInspection(
     );
   }
   if (fetch.outcome === "error") {
-    if (fetch.error instanceof Error) throw fetch.error;
-    throw new Error("Materializing the worktree remote tip failed.", { cause: fetch.error });
+    throw new WorktreeFetchFailedError(branch, upstreamBranch, normalizeGitRejection(fetch.error, {
+      command: "git", args: ["fetch", "origin", upstreamBranch],
+    }));
   }
 
   const advertisedOid = (await exec(

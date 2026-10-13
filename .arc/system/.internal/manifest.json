@@ -776,6 +776,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "6fa9fa33db3aa7515d04043aa8556758d1fd43d85d3f2aa097409ccbd601f043"
+    },
+    "system/.internal/scripts/validate-links.sh": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "8d5e31b2b433644f8bed5f36893333e2cb4890bc14d605a144c63181dfbcafe1"
     }
   }
 }

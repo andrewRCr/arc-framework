@@ -171,6 +171,21 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+  lint:arc:links:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:arc:links
+    gate: commit
+    inputs:
+      - .arc/**
+      - '!.arc/user/**'
+      - '!.arc/completed/**'
+      # Trees outside .arc/ that .arc/ links point into; a link into another tree needs that tree listed here.
+      - docs/**
+      - packages/arc-framework/src/scripts/audit-links.ts
+      - packages/arc-framework/src/scripts/repo-root.ts
   lint:ts:file:
     command:
       - npm
@@ -299,6 +314,8 @@ checks:
     gate: push
     inputs:
       - '**'
+      - '!.arc/**/*.md'
+      - '!packages/arc-framework/arc/**/*.md'
       - '!.arc/active/**'
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
@@ -399,6 +416,7 @@ checks:
     inputs:
       - packages/arc-framework/__tests__/e2e/**
       - scripts/run-local-e2e.mjs
+      - .arc/system/arc-checks.yml
 global_inputs:
   - package.json
   - scripts/check-runner.sh

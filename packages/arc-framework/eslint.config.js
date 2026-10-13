@@ -1,8 +1,11 @@
 import eslint from "@eslint/js";
+import jsdoc from "eslint-plugin-jsdoc";
+import sonarjs from "eslint-plugin-sonarjs";
 import { join } from "node:path";
 import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
+import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -152,8 +155,11 @@ export default tseslint.config(
   {
     plugins: {
       arc: {
-        rules: Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
-          [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
+        rules: {
+          ...Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
+            [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
+          "module-doc-comment": moduleDocCommentRule,
+        },
       },
     },
   },
@@ -173,13 +179,14 @@ export default tseslint.config(
   },
   {
     files: ["src/**/*.ts"],
+    plugins: { sonarjs },
     rules: {
       "max-lines-per-function": [
         "error",
         { max: 100, skipBlankLines: true, skipComments: true, IIFEs: true },
       ],
       "max-lines": ["error", { max: 1000, skipBlankLines: true, skipComments: true }],
-      complexity: ["error", { max: 15 }],
+      "sonarjs/cognitive-complexity": ["error", 15],
       "max-depth": ["error", { max: 4 }],
       "max-nested-callbacks": ["error", { max: 4 }],
       // A `default` never stands in for an unlisted union member, so adding a member fails every switch that
@@ -188,6 +195,19 @@ export default tseslint.config(
         "error",
         { considerDefaultExhaustiveForUnions: false, requireDefaultForNonUnion: false },
       ],
+    },
+  },
+  {
+    files: [`src/${TYPESCRIPT_SCOPE}`],
+    plugins: { jsdoc },
+    rules: {
+      // Presence only: tags are written where they say what the name and type do not.
+      "jsdoc/require-jsdoc": ["error", {
+        publicOnly: true,
+        enableFixer: false,
+        require: { FunctionDeclaration: true, ArrowFunctionExpression: true, FunctionExpression: true },
+      }],
+      "arc/module-doc-comment": "error",
     },
   },
   {

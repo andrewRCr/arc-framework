@@ -66,6 +66,7 @@ import type { OrphanBranchSweepResult } from "../../lib/session-init/orphan-bran
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { HooksPathSessionAdvisory } from "../../lib/session-init/hooks-path-advisory.js";
 import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { NotesCompactionSessionAdvisoryResult } from "../../lib/session-init/notes-compaction-advisory.js";
 import type { DeliveryPositionView } from "../../lib/session-init/delivery-position.js";
@@ -270,6 +271,12 @@ export interface SessionInitProbeResult {
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
+  /**
+   * Entering checkout's hooks-path advisory. Always present (eager, non-gated);
+   * `surface` names a configured hooks path Git cannot find, under which a raw
+   * commit runs no hooks.
+   */
+  hooksPath: Probe<HooksPathSessionAdvisory>;
   /**
    * Read-only reconcile facts for the single active work unit. Present exactly
    * on the single-WU arm; the workflow renders the precomposed guidance and
@@ -678,6 +685,8 @@ export interface SessionInitProbes {
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
+  /** Hooks-path advisory for the entering checkout. */
+  hooksPath: () => Promise<HooksPathSessionAdvisory>;
   /**
    * In-flight worktree roster scan, identity-filtered (`git worktree list` +
    * per-worktree meta reads). Always provided — the orchestrator owns the

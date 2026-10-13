@@ -1,7 +1,8 @@
-/** Sync's materializing preflight and recoverable timeout presentation. */
+/** Sync's materializing preflight and recoverable fetch-failure presentation. */
 import type { GitExec } from "../lib/git/exec.js";
 import {
   runMaterializingWorktreeInspection,
+  WorktreeFetchFailedError,
   WorktreeFetchTimeoutError,
   type WorktreeMaterializingInspectionResult,
 } from "../lib/git/worktree-sync.js";
@@ -9,10 +10,18 @@ import type { SyncOutput } from "../lib/sync-output.js";
 import type { InterlockState, SyncOptions } from "./sync.js";
 import { writeSyncAuditEntry } from "./sync-audit.js";
 
+interface FetchFailurePresentation {
+  error: WorktreeFetchTimeoutError | WorktreeFetchFailedError;
+  reason: "worktree-fetch-timeout" | "worktree-fetch-failed";
+  legDetail: "timeout" | "error";
+  fields: Record<string, unknown>;
+  remedy: string;
+}
+
 /**
- * Acquire exact worktree evidence or report the fetch deadline without starting sync legs.
+ * Acquire exact worktree evidence or report a failed fetch without starting sync legs.
  * @param input - Invocation's Git boundary, checkout, flags, and output.
- * @returns Exact inspection, or null after a recoverable timeout is reported.
+ * @returns Exact inspection, or null after a recoverable fetch failure is reported.
  */
 export async function inspectSyncWorktree(input: {
   exec: GitExec;
@@ -25,15 +34,17 @@ export async function inspectSyncWorktree(input: {
   const { exec, cwd, opts, output } = input;
   try {
     return await runMaterializingWorktreeInspection({ exec, cwd });
-  } catch (error) {
-    if (!(error instanceof WorktreeFetchTimeoutError)) throw error;
+  } catch (caught) {
+    const failure = presentFetchFailure(caught);
+    if (failure === null) throw caught;
+    const { error, reason } = failure;
     if (!opts.dryRun) {
       await writeSyncAuditEntry({
         cwd, identity: input.identity, interlockState: input.interlockState,
         outcome: {
-          cell: "worktree-fetch-timeout", exitCode: 1,
-          worktree: { action: "fetch", result: "failed", detail: "timeout" },
-          notes: { action: "skip", result: "skipped", detail: "worktree-fetch-timeout" },
+          cell: reason, exitCode: 1,
+          worktree: { action: "fetch", result: "failed", detail: failure.legDetail },
+          notes: { action: "skip", result: "skipped", detail: reason },
         },
       });
     }
@@ -43,12 +54,31 @@ export async function inspectSyncWorktree(input: {
       const argv = ["arc", "sync", "--json",
         ...(opts.dryRun ? ["--dry-run"] : []), ...(opts.yes ? ["--yes"] : [])];
       process.stdout.write(`${JSON.stringify({
-        cell: "none", reason: "worktree-fetch-timeout", exitCode: 1,
-        branch: error.branch, remoteBranch: error.remoteBranch, timeoutMs: error.timeoutMs,
+        cell: "none", reason, exitCode: 1,
+        branch: error.branch, remoteBranch: error.remoteBranch, ...failure.fields,
         detail: error.message, recommendedSummaryLine: `**Sync interrupted:** ${error.message}`,
-        remedy: { text: "Retry the same sync command when the remote responds.", argv },
+        remedy: { text: failure.remedy, argv },
       }, null, 2)}\n`);
     }
     return null;
   }
+}
+
+function presentFetchFailure(error: unknown): FetchFailurePresentation | null {
+  if (error instanceof WorktreeFetchTimeoutError) {
+    return {
+      error, reason: "worktree-fetch-timeout", legDetail: "timeout",
+      fields: { timeoutMs: error.timeoutMs },
+      remedy: "Retry the same sync command when the remote responds.",
+    };
+  }
+  if (error instanceof WorktreeFetchFailedError) {
+    const { kind, exitCode, diagnosticStderr } = error.failure;
+    return {
+      error, reason: "worktree-fetch-failed", legDetail: "error",
+      fields: { gitFailure: { kind, ...(exitCode === undefined ? {} : { exitCode }), stderr: diagnosticStderr } },
+      remedy: "Retry the same sync command once the condition Git reported is resolved.",
+    };
+  }
+  return null;
 }
