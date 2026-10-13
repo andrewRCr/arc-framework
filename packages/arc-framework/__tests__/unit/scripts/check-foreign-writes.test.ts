@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -55,7 +56,7 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): GitExec 
     const direct = lookup(args);
     if (direct !== undefined) {
       const result = typeof direct === "function" ? await direct(args) : direct;
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] !== "--quiet") {
         const ref = args[2] ?? "";
         const sha = result.stdout.trim().split(/\s+/u)[0] ?? "";
         if (ref !== "" && sha !== "") {
@@ -64,6 +65,9 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): GitExec 
         }
       }
       return result;
+    }
+    if (args.join(" ") === "rev-parse --verify --quiet MERGE_HEAD") {
+      throw makeGitProcessError({ command: cmd, args, exitCode: 1 });
     }
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
@@ -102,8 +106,11 @@ async function createActiveFixture(metaName?: string): Promise<string> {
       [
         `# Metadata: ${metaName}`,
         "",
-        "- **State:** Active",
-        `- **Branch:** feat/${metaName}`,
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| Active | — | feat/${metaName} | — | — |`,
+        "",
+        "---",
         "",
       ].join("\n"),
     );

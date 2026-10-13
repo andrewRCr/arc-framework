@@ -515,10 +515,18 @@ export async function handleSync(
   if (opts.json === true) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
   } else {
+    renderErrandFailure(errand, output);
     output.outro("Done.");
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
+  }
+}
+
+/** Surface a failed Errand leg's recovery detail without changing the primary sync result. */
+function renderErrandFailure(errand: LegOutcomeRecord | undefined, output: SyncOutput): void {
+  if (errand?.result === "failed" && errand.detail !== undefined) {
+    output.log.warn(`Errand sync failed: ${errand.detail}`);
   }
 }
 
@@ -620,7 +628,7 @@ function errandPartialPushDetail(
 ): string {
   const detail = outcome.kind === "conflict"
     ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=resolve the same-slug identity conflict before retrying`
-    : outcome.kind;
+    : outcome.kind === "failed" ? `failed:${outcome.error.message}` : outcome.kind;
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 

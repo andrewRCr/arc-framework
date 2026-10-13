@@ -1,15 +1,10 @@
 /**
- * Reader for `arc active status` — resolves checkout-held meta identities,
- * detects Full vs Lite layout, and parses exact record bytes into structured
- * candidates. Lite and contributor roots retain their filesystem scans.
+ * Reader for `arc active status` — resolves checkout-held meta identities
+ * and parses exact record bytes into structured candidates. Contributor and
+ * custom roots use a flat filesystem scan of named meta files.
  *
- * Also home to the canonical meta field set (`META_FIELDS`) and the projection
- * between a meta's structured field record and its markdown form: a hoisted
- * core-block table (`State | Owner | Branch | Class | Priority`) plus ordered
- * bullet groups, under a value-format convention (enum / identifier / sentinel
- * / narrative). `renderMetaFile` emits the markdown from the field set,
- * `parseMetaRecord` recovers the record. Sharing one field definition keeps the
- * rendered and parsed views from disagreeing on structure.
+ * Pure field descriptors and renderers are exported from the meta kind's
+ * projection module. Parsing and the filesystem candidate reader live here.
  *
  * The directory scan does filesystem work only. Mode-specific shaping (full
  * enumeration vs session-init single-path resolution) lives in the probe
@@ -25,19 +20,33 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
   MetaCandidateIdSchema,
+  MetaWorkClassSchema,
   MetaProjectionRecordSchema,
   MetaRecordSchema,
   ParsedMetaRecordSchema,
   type MetaProjectionRecord,
-  type MetaRecord as SemanticMetaRecord,
-  type MetaSemanticKey,
   type ParsedMetaRecord,
 } from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
-import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import { writePreformattedMetaBullet } from "../store/kinds/meta/preformatted-writer.js";
+import {
+  writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
+} from "../store/kinds/meta/writers.js";
+import {
+  META_FIELDS, formatValue, renderCoreTable, parseIdentifierList, PLACEHOLDER, isSentinel,
+  type MetaFieldName, type MetaProjectionOverrides, type MetaRecord,
+} from "../store/kinds/meta/projection.js";
+export * from "../store/kinds/meta/projection.js";
+export { emptyParsedMetaRecord } from "../store/kinds/meta/empty-record.js";
+import {
+  locateMetaCoreTable,
+  locateMetaFieldBlock,
+  readMetaSectionBodies, bulletMarkerRe, extractField, parseCoreTable, stripInlineCode,
+} from "../store/kinds/meta/line-reading.js";
+export { locateMetaCoreTable, stripInlineCode, type MetaCoreTableLocation } from "../store/kinds/meta/line-reading.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
-const LITE_FILENAME = "status.md";
 const META_PREFIX = "meta-";
 const FULL_SUFFIX = ".md";
 
@@ -58,14 +67,14 @@ export interface ReaderResult {
 /**
  * Scan the active directory and return parsed meta-file candidates.
  *
- * Layout resolution:
- *
- * - If `<root>/status.md` exists, layout is `lite` (at most one candidate).
- * - Otherwise, layout is `full` — enumerate `meta-*.md` files directly at
- *   the active root.
+ * The default project root resolves checkout-held work-unit records. Custom
+ * and contributor roots enumerate `meta-*.md` files directly at their root.
  *
  * A missing root directory is not an error — returns an empty candidate set
  * with a warning naming the supplied root.
+ * @param cwd - Checkout root.
+ * @param options - Optional custom active-root segments.
+ * @returns Parsed meta candidates in the full layout, with reader warnings.
  */
 export async function readActiveMetaCandidates(
   cwd: string,
@@ -87,20 +96,6 @@ export async function readActiveMetaCandidates(
   if (!exists) {
     warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
-  }
-
-  const litePath = join(activeDir, LITE_FILENAME);
-  let liteExists = false;
-  try {
-    const s = await stat(litePath);
-    liteExists = s.isFile();
-  } catch {
-    // Missing file — treat as absent; full-layout scan runs below.
-  }
-
-  if (liteExists) {
-    const candidate = await parseCandidate(cwd, litePath, warnings);
-    return { layout: "lite", candidates: candidate ? [candidate] : [], warnings };
   }
 
   if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd);
@@ -223,21 +218,23 @@ export interface ParsedMetaFields {
 }
 
 /**
- * Parse the six session-init-relevant fields from a meta-file body.
+ * Parse the session-init-relevant fields from a meta-file body.
  *
  * Thin projection over {@link parseMetaRecord} — the single reader every meta
  * consumer routes through — selecting the subset the probe runners need. Core
- * fields (`State`, `Branch`) come from the core-block table when present and the
- * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
+ * fields (`State`, `Branch`) come from the required core-block table after the
+ * H1; the rest come from their bullets. Token
  * fields (`State`, `Branch`, `Task List`, `Current Workflow`) come back bare
  * (backticks stripped);
  * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
  * spans and all. Bracket sentinels are preserved; a field whose marker is
  * absent comes back `null`.
  *
- * Throws when the meta carries a structurally malformed core-block table — see
- * {@link parseMetaRecord}. Callers scanning untrusted files (e.g.
- * {@link parseCandidate}) catch and downgrade to a warning.
+ * Callers scanning untrusted files (e.g. {@link parseCandidate}) catch parse
+ * failures and downgrade them to a warning.
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns The projected fields used by session initialization.
+ * @throws When the H1 or core table is missing, or the table is malformed.
  */
 export function parseMetaFile(content: string): ParsedMetaFields {
   const record = parseMetaProjectionRecord(content);
@@ -252,368 +249,12 @@ export function parseMetaFile(content: string): ParsedMetaFields {
   };
 }
 
-/** How a field is laid out in the markdown projection. */
-export type MetaRenderMode = "core-table" | "bullet";
-
-/**
- * The value-formatting class for a field's *real* (non-sentinel) values. This
- * is the proto-schema axis a later code-owned schema maps directly: `enum` →
- * a closed Capitalized token set, `identifier` → a single slug / filename /
- * branch, `identifier-list` → one or more comma-separated identifiers rendered
- * with each element individually backticked (`` `a`, `b` ``), `url` → a
- * navigable locator rendered as a clickable `<…>` autolink when it is an
- * `http(s)` URL, falling back to a backticked identifier for a non-URL reference
- * (an issue ref in `Origin`), `narrative` → free prose. Bracket sentinels
- * (`[none]` / `[internal]` / `[TBD]`) are a cross-cutting form detected at
- * render/parse time and are orthogonal to this class — a field permits a
- * sentinel when its `default` is one.
- */
-export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" | "narrative";
-
-/**
- * A managed-meta field descriptor: the bold-marker label, the value rendered
- * when no override is supplied, the blank-line group the field belongs to, and
- * the two projection axes — where it renders (`render`) and how its value is
- * formatted (`valueClass`). The ordered set in {@link META_FIELDS} is the
- * single definition the markdown projection ({@link renderMetaFile}) and the
- * structured parse ({@link parseMetaRecord}) both derive from.
- */
-export interface MetaFieldDescriptor {
-  /** Bold-marker label, e.g. `"Next Action"` (rendered as `- **Next Action:** …`). */
-  readonly name: string;
-  /** Storage-agnostic code-facing key for this projection label. */
-  readonly key: MetaSemanticKey;
-  /** Value rendered when the caller supplies no override for this field. */
-  readonly default: string;
-  /** Omit the field entirely when its semantic value is absent. */
-  readonly omitWhenAbsent?: boolean;
-  /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
-  readonly group: string;
-  /** Layout: a cell in the hoisted core-block table, or a grouped bullet. */
-  readonly render: MetaRenderMode;
-  /** Value-formatting class for the field's real values (sentinels bypass it). */
-  readonly valueClass: MetaValueClass;
-}
-
-/**
- * The canonical meta field set — ordered, grouped, with per-field defaults and
- * the two projection axes. The core block (`render: "core-table"`) hoists into
- * a single-row table (`State | Owner | Branch | Class | Priority`); the rest
- * render as ordered bullet groups. Declared `as const` so the labels form the
- * {@link MetaFieldName} literal union.
- */
-export const META_FIELDS = [
-  { name: "State", key: "state", default: "—", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Owner", key: "owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Branch", key: "branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
-  { name: "Class", key: "workClass", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Priority", key: "priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
-  { name: "Cohort", key: "cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
-  { name: "Depends On", key: "dependsOn", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", key: "origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
-  { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
-  { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
-  { name: "Review Rubric", key: "reviewRubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
-  {
-    name: "Promotion Receipt",
-    key: "promotionReceipt",
-    default: "[none]",
-    group: "reference",
-    render: "bullet",
-    valueClass: "identifier",
-    omitWhenAbsent: true,
-  },
-  {
-    name: "Candidate",
-    key: "candidateId",
-    default: "[none]",
-    group: "reference",
-    render: "bullet",
-    valueClass: "identifier",
-    omitWhenAbsent: true,
-  },
-  { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
-  { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Blockers", key: "blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
-  { name: "Next Action", key: "nextAction", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
-  { name: "PR URL", key: "prUrl", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
-  { name: "Completed", key: "completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
-] as const satisfies readonly MetaFieldDescriptor[];
-
-const CORE_FIELD_NAMES = META_FIELDS
-  .filter((field) => field.render === "core-table")
-  .map((field) => field.name);
-
-/**
- * Parse a comma-separated identifier-list field value into its elements: split
- * on commas, trim each, and drop empties, with `[none]` / absent (`null`) /
- * empty resolving to no elements. The shared split for the `identifier-list`
- * fields (`Depends On` and the layered `Design` pattern) — driving both the
- * per-element render in {@link formatValue} and every consumer's parse, so the
- * two never disagree on element boundaries. Operates on the bare value: callers
- * reading rendered markdown strip backticks first (the record-side strip is
- * global, so `` `a`, `b` `` recovers as `a, b` before this split).
- */
-export function parseIdentifierList(raw: string | null): string[] {
-  if (raw === null || raw === "[none]") return [];
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item !== "");
-}
-
-/** Union of the legal meta field labels, derived from {@link META_FIELDS}. */
-export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
-
-/**
- * Field→value overrides for {@link renderMetaFile}. A general partial map over
- * the field set, not a fixed signature: a spawn caller supplies State / Owner /
- * Branch / Next Action; a cold-start caller additionally supplies Origin /
- * Design from parsed spec input. Fields absent from the map render at their
- * declared default.
- */
-export type MetaProjectionOverrides = Partial<Record<MetaFieldName, string>>;
-
-/** Partial storage-independent record accepted by the full semantic renderer. */
-export type MetaRenderOverrides = Partial<MetaRecord>;
-
-/** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
-/** Strict durable semantic record type. */
-export type MetaRecord = SemanticMetaRecord;
-
 /** Resolve the optional WU review-rubric overlay to one safe method identity. */
 export function parseReviewRubric(value: string | null): Slug | null {
   if (value === null || value === "[none]") return null;
   const parsed = SlugSchema.safeParse(value);
   if (!parsed.success) throw new Error("Review Rubric must be one safe rubric or method identity");
   return parsed.data;
-}
-
-/** The em-dash placeholder for a required-but-unset field (distinct from a `[…]` sentinel). */
-const PLACEHOLDER = "—";
-
-/** A bracket sentinel token — `[none]`, `[internal]`, `[TBD]`. */
-const SENTINEL_RE = /^\[[^\]]+\]$/;
-
-function isSentinel(value: string): boolean {
-  return SENTINEL_RE.test(value.trim());
-}
-
-function capitalizeFirst(value: string): string {
-  return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
-}
-
-/** Whether a value is an `http(s)` URL — the `url` value class's autolink test. */
-const HTTP_URL_RE = /^https?:\/\//i;
-
-/** Managed bullet lines target the project markdown wrap column. */
-const META_BULLET_WRAP_COLUMN = 120;
-
-/**
- * Format a field value for the markdown projection per its value class. Bracket
- * sentinels and the em-dash placeholder render bare (the bracket is itself the
- * machine signal); enum tokens render Capitalized + backticked, identifiers
- * backticked as-is, identifier-list values render each comma-separated element
- * individually backticked (`` `a`, `b` `` — two discrete tokens, not one
- * compound span), narrative fields as plain prose.
- */
-export function formatValue(value: string, valueClass: MetaValueClass): string {
-  if (value === PLACEHOLDER || isSentinel(value)) return value;
-  switch (valueClass) {
-    case "enum":
-      return `\`${capitalizeFirst(value)}\``;
-    case "identifier":
-      return `\`${value}\``;
-    case "identifier-list":
-      return parseIdentifierList(value)
-        .map((item) => `\`${item}\``)
-        .join(", ");
-    case "url":
-      // A navigable locator: clickable `<…>` autolink for a real URL (lint-safe,
-      // no bare-URL MD034), backticked identifier for a non-URL ref (an issue ref).
-      return HTTP_URL_RE.test(value) ? `<${value}>` : `\`${value}\``;
-    case "narrative":
-      return value;
-  }
-}
-
-/**
- * Render the core block as a single-row, pre-aligned markdown table —
- * `State | Owner | Branch | Class | Priority` — its columns padded so the pipes
- * line up in raw markdown. (`MD013 tables:false` exempts the table from the
- * line-length gate.)
- */
-function renderCoreTable(
-  valueOf: (field: MetaFieldDescriptor) => string,
-  valuesAreRendered = false,
-): string[] {
-  const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
-    // Bold the header so the table's keys read as labels in raw markdown,
-    // matching the `**Field:**` bullet labels (parse strips the bold on read).
-    const header = `**${f.name}**`;
-    const value = valueOf(f);
-    const cell = valuesAreRendered ? value : formatValue(value, f.valueClass);
-    return { header, cell, width: Math.max(displayWidth(header), displayWidth(cell)) };
-  });
-  const headerRow = `| ${columns.map((c) => padToDisplayWidth(c.header, c.width)).join(" | ")} |`;
-  const separatorRow = `| ${columns.map((c) => "-".repeat(c.width)).join(" | ")} |`;
-  const valueRow = `| ${columns.map((c) => padToDisplayWidth(c.cell, c.width)).join(" | ")} |`;
-  return [headerRow, separatorRow, valueRow];
-}
-
-/**
- * Render the non-core fields as ordered bullet groups, blank-line separated.
- * Multi-line values render their first line after the label and indent each
- * continuation two spaces to align under the bullet — list-continuation-valid
- * markdown that {@link parseMetaRecord} recovers unchanged. Identifier lists
- * additionally wrap on item boundaries at the project markdown column.
- */
-function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[] {
-  const lines: string[] = [];
-  let prevGroup: string | null = null;
-  for (const field of META_FIELDS) {
-    if (field.render !== "bullet") continue;
-    const value = valueOf(field);
-    if ("omitWhenAbsent" in field && value === field.default) continue;
-    if (prevGroup !== null && field.group !== prevGroup) lines.push("");
-    const prefix = `- **${field.name}:** `;
-    const [first = "", ...rest] = renderBulletValueLines(field, value, prefix.length);
-    lines.push(`${prefix}${first}`);
-    for (const continuation of rest) lines.push(`  ${continuation}`);
-    prevGroup = field.group;
-  }
-  return lines;
-}
-
-function renderBulletValueLines(
-  field: MetaFieldDescriptor,
-  value: string,
-  firstPrefixLength: number,
-): string[] {
-  if (field.valueClass !== "identifier-list" || value === PLACEHOLDER || isSentinel(value)) {
-    return formatValue(value, field.valueClass).split("\n");
-  }
-
-  const items = parseIdentifierList(value).map((item) => `\`${item}\``);
-  if (items.length === 0) return [formatValue(value, field.valueClass)];
-  return wrapCommaList(items, firstPrefixLength);
-}
-
-function wrapCommaList(items: readonly string[], firstPrefixLength: number): string[] {
-  const lines: string[] = [];
-  let current = "";
-  let prefixLength = firstPrefixLength;
-
-  items.forEach((item, index) => {
-    const segment = index === items.length - 1 ? item : `${item},`;
-    const candidate = current === "" ? segment : `${current} ${segment}`;
-    if (current !== "" && prefixLength + candidate.length > META_BULLET_WRAP_COLUMN) {
-      lines.push(current);
-      current = segment;
-      prefixLength = 2;
-      return;
-    }
-    current = candidate;
-  });
-
-  if (current !== "") lines.push(current);
-  return lines;
-}
-
-/**
- * Render a fresh meta-file markdown projection from {@link META_FIELDS}.
- *
- * Emits `# Metadata: {wuName}`, the hoisted core-block table, the field bullets
- * grouped with a single blank line between groups, and a trailing `---`. Each
- * field takes its override value when present, otherwise its declared default.
- * No instructional comments and no archive-phase sections are emitted — those
- * materialize later in the lifecycle, not at fresh-scaffold time.
- *
- * @param wuName - Work-unit name for the H1.
- * @param overrides - Field→value overrides; absent fields render at their default.
- * @returns The rendered meta markdown, terminated by a single newline.
- */
-export function renderMetaProjectionFile(
-  wuName: string,
-  overrides: MetaProjectionOverrides = {},
-): string {
-  const valueOf = (field: MetaFieldDescriptor): string =>
-    overrides[field.name as MetaFieldName] ?? field.default;
-  const lines: string[] = [`# Metadata: ${wuName}`, ""];
-  lines.push(...renderCoreTable(valueOf), "");
-  lines.push(...renderBullets(valueOf));
-  lines.push("", "---");
-  return `${lines.join("\n")}\n`;
-}
-
-/**
- * Render a complete canonical meta projection from semantic-key overrides.
- * Required semantic values have no display-placeholder default and fail schema
- * validation when omitted; all other fields use their durable semantic defaults.
- *
- * @param wuName - Work-unit name for the H1
- * @param overrides - Partial storage-independent semantic record
- * @returns Canonical full-layout Markdown
- */
-export function renderMetaFile(
-  wuName: string,
-  overrides: MetaRenderOverrides = {},
-): string {
-  const record = MetaRecordSchema.parse({
-    state: undefined,
-    owner: undefined,
-    branch: null,
-    workClass: "TBD",
-    priority: "P3",
-    cohort: null,
-    dependsOn: [],
-    origin: "internal",
-    design: [],
-    taskList: null,
-    reviewRubric: null,
-    promotionReceipt: null,
-    candidateId: null,
-    currentWorkflow: null,
-    lastCompleted: null,
-    nextTask: null,
-    blockers: null,
-    nextAction: null,
-    prUrl: null,
-    completed: null,
-    ...overrides,
-  });
-
-  return renderMetaProjectionFile(wuName, {
-    State: record.state,
-    Owner: record.owner,
-    Branch: renderNullable(record.branch),
-    Class: record.workClass === "TBD" ? "[TBD]" : record.workClass,
-    Priority: record.priority === "TBD" ? "[TBD]" : record.priority,
-    Cohort: renderNullable(record.cohort),
-    "Depends On": renderIdentifierList(record.dependsOn),
-    Origin: record.origin === "internal" ? "[internal]" : record.origin,
-    Design: renderIdentifierList(record.design),
-    "Task List": renderNullable(record.taskList),
-    "Review Rubric": renderNullable(record.reviewRubric),
-    "Promotion Receipt": renderNullable(record.promotionReceipt),
-    Candidate: renderNullable(record.candidateId),
-    "Current Workflow": renderNullable(record.currentWorkflow),
-    "Last Completed": renderNullable(record.lastCompleted),
-    "Next Task": renderNullable(record.nextTask),
-    Blockers: renderNullable(record.blockers),
-    "Next Action": record.nextAction ?? "—",
-    "PR URL": renderNullable(record.prUrl),
-    Completed: renderNullable(record.completed),
-  });
-}
-
-function renderNullable(value: string | null): string {
-  return value ?? "[none]";
-}
-
-function renderIdentifierList(values: readonly string[]): string {
-  return values.length === 0 ? "[none]" : values.join(", ");
 }
 
 /**
@@ -630,7 +271,7 @@ function renderIdentifierList(values: readonly string[]): string {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaState(content: string, state: string): string {
-  return setMetaCoreFields(content, { State: state });
+  return writeMetaState(content, WorkUnitStateSchema.parse(stripInlineCode(state)));
 }
 
 /**
@@ -647,7 +288,8 @@ export function setMetaState(content: string, state: string): string {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaBranch(content: string, branch: string): string {
-  return setMetaCoreFields(content, { Branch: branch });
+  const value = stripInlineCode(branch);
+  return writeMetaBranch(content, value === "[none]" || value === "—" ? null : value);
 }
 
 /**
@@ -659,12 +301,9 @@ export function setMetaBranch(content: string, branch: string): string {
  * @throws When the managed metadata H1 is absent
  */
 export function setMetaTitle(content: string, name: string): string {
-  const lines = content.split("\n");
-  const index = lines.findIndex((line) => /^# Metadata: .+\r?$/u.test(line));
-  if (index === -1) throw new Error("Cannot set metadata title: managed H1 not found.");
-  const line = lines[index];
-  lines[index] = `# Metadata: ${name}${line?.endsWith("\r") === true ? "\r" : ""}`;
-  return lines.join("\n");
+  const heading = /^# Metadata: .+\r?$/mu.exec(content);
+  if (heading === null) throw new Error("Cannot set metadata title: managed H1 not found.");
+  return content.slice(0, heading.index) + writeMetaTitle(content.slice(heading.index), SlugSchema.parse(name));
 }
 
 /**
@@ -684,7 +323,8 @@ export function setMetaTitle(content: string, name: string): string {
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaClass(content: string, value: string): string {
-  return setMetaCoreFields(content, { Class: value });
+  const token = stripInlineCode(value);
+  return writeMetaClass(content, MetaWorkClassSchema.parse(token === "[TBD]" ? "TBD" : token));
 }
 
 /**
@@ -699,13 +339,12 @@ export function setMetaClass(content: string, value: string): string {
  * `Current Workflow` — the named primitive every workflow-pointer write routes
  * through. The `stage` is rendered per the `identifier` value class (backticked,
  * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
- * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
- * `Current Workflow` bullet throws (structural drift, not a no-op).
+ * the field writer's anchor check, inserting an absent bullet in field order.
  *
  * @param content - The meta file's raw markdown.
  * @param stage - The planning-stage basename to write (e.g. `create-spec`), or `[none]` to clear.
  * @returns The rewritten markdown.
- * @throws When the meta carries no `Current Workflow` bullet.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaCurrentWorkflow(content: string, stage: string): string {
   return setMetaBulletFields(content, { "Current Workflow": formatValue(stage, "identifier") });
@@ -724,14 +363,13 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  * composes the bare field value (a single filename, or a comma-joined layered
  * list); this primitive renders it per the `identifier-list` value class (each
  * element backticked, `[none]` left bare) so the written form matches
- * {@link renderMetaFile}, and does not otherwise parse or merge. Inherits
- * {@link setMetaBulletFields}'s fail-loud contract: a meta without the `Design`
- * bullet throws (structural drift, not a no-op).
+ * {@link renderMetaFile}. Inherits
+ * the field writer's anchor check, inserting an absent bullet in field order.
  *
  * @param content - The meta file's raw markdown.
  * @param value - The composed `Design` value (e.g. `spec-demo.md`, `spec-a.md, spec-b.md`), or `[none]`.
  * @returns The rewritten markdown.
- * @throws When the meta carries no `Design` bullet.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
@@ -745,73 +383,27 @@ export function setMetaDesign(content: string, value: string): string {
  * @returns The rewritten markdown.
  */
 export function setMetaCandidate(content: string, candidateId: string): string {
-  const { content: reconciled } = reconcileMetaFields(content, { Candidate: candidateId });
-  return setMetaBulletFields(reconciled, { Candidate: formatValue(candidateId, "identifier") });
+  return writePreformattedMetaBullet(content, "Candidate", candidateId);
 }
 
-/** The finalize-group fields, in render order — written together at archive. */
-const FINALIZE_FIELDS = ["PR URL", "Completed"] as const satisfies readonly MetaFieldName[];
-
-/** The bare value an absent finalize fact resolves to (a sentinel — renders bare). */
-const FINALIZE_DEFAULT = "[none]";
-
 /**
- * Write the archive finalize facts (`PR URL` / `Completed`) to the meta as managed
- * fields — the structured replacement for the hand-appended post-integration prose
- * block. Each fact renders per its value class (`PR URL` as a clickable autolink or
- * the `[none]` placeholder; `Completed` as a bare date), and an absent fact resolves
- * to the `[none]` sentinel.
+ * Write only the archive finalize facts through their field writers. Missing
+ * PR URL and Completed bullets insert in field order, preserving existing
+ * fields and every section; an omitted fact resolves to the null sentinel.
  *
- * Update-or-insert (a localized forward-reconcile): when the meta already carries
- * the finalize group it rewrites both bullets in place; when it lacks them — a meta
- * minted before the finalize fields existed — it inserts the group as its own
- * blank-line-separated block immediately before the field block's closing `---`,
- * leaving the core table, every prior bullet, and any archive-phase H2 sections
- * below the rule byte-stable. Unlike the single-field setters this never throws on
- * an absent bullet — healing the older shape is the point.
- *
- * @param content - The meta file's raw markdown.
+ * @param content - Anchored metadata Markdown.
  * @param facts - The finalize facts; an omitted fact resolves to `[none]`.
- * @returns The rewritten markdown.
+ * @returns Markdown with only the finalize facts edited.
+ * @throws When metadata field-block anchors are missing.
  */
 export function setMetaFinalizeFields(
   content: string,
   facts: { prUrl?: string; completed?: string },
 ): string {
-  const valueOf = (name: (typeof FINALIZE_FIELDS)[number], raw: string | undefined): string => {
-    const field = META_FIELDS.find((f) => f.name === name);
-    return raw === undefined ? FINALIZE_DEFAULT : formatValue(raw, field?.valueClass ?? "narrative");
-  };
-  const rendered: Record<(typeof FINALIZE_FIELDS)[number], string> = {
-    "PR URL": valueOf("PR URL", facts.prUrl),
-    Completed: valueOf("Completed", facts.completed),
-  };
-
-  // Both bullets present → rewrite in place. Absent (a pre-finalize meta) → insert
-  // the group before the field block's `---`. A *partial* group (one bullet present,
-  // the other hand-deleted) would make the in-place rewrite throw on the missing
-  // bullet, so normalize it first via the forward-reconcile (which inserts the absent
-  // bullet at its canonical slot) before the in-place update.
-  const lines = content.split("\n");
-  const hasPrUrl = lines.some((line) => bulletMarkerRe("PR URL").test(line));
-  const hasCompleted = lines.some((line) => bulletMarkerRe("Completed").test(line));
-  if (hasPrUrl && hasCompleted) {
-    return setMetaBulletFields(content, rendered);
-  }
-  if (hasPrUrl || hasCompleted) {
-    const { content: normalized } = reconcileMetaFields(content);
-    return setMetaBulletFields(normalized, rendered);
-  }
-
-  const h1Idx = lines.findIndex((line) => /^# /.test(line));
-  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
-  if (h1Idx === -1 || ruleIdx === -1) {
-    // No field-block rule to anchor against — fall back to the fail-loud update.
-    return setMetaBulletFields(content, rendered);
-  }
-  const group = FINALIZE_FIELDS.map((name) => `- **${name}:** ${rendered[name]}`);
-  lines.splice(ruleIdx, 0, ...group, "");
-  return lines.join("\n");
+  return setMetaBulletFields(content, {
+    "PR URL": facts.prUrl ?? "[none]",
+    Completed: facts.completed ?? "[none]",
+  });
 }
 
 /** The result of a {@link reconcileMetaFields} forward-reconcile pass. */
@@ -851,95 +443,44 @@ export function validateMetaFieldBlockShape(content: string, path: string): stri
 }
 
 /** Build the bullet-marker regex for a field label — the `- **<name>:**` line test. */
-function bulletMarkerRe(name: string): RegExp {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*`);
-}
+
 
 /**
- * Forward-reconcile a meta's bullet fields against {@link META_FIELDS}: insert any
- * managed bullet field whose marker is absent, backfilling its value from
- * `overrides` (the transition-appropriate value) or the field's declared default.
- * The generalization of {@link setMetaFinalizeFields}'s update-or-insert from the
- * finalize group to the whole bullet set — the healing half of "code is the single
- * source of meta shape": a stub minted before a field was added graduates missing
- * that bullet, and this restores it.
+ * Insert absent managed bullet fields in canonical order, using an override
+ * or each field's declared default. Present fields remain byte-identical,
+ * even when an override names them, and all body sections survive. Optional
+ * fields remain omitted unless an override supplies a renderable value.
  *
- * Re-renders only the bullet region (between the core-block table and the field
- * block's closing `---`) from the canonical field order, preserving each present
- * field's value through the {@link parseMetaRecord} ↔ {@link renderMetaFile}
- * round-trip; the core table, the H1, and any section below the rule stay
- * byte-stable. A no-op when every managed bullet is already present (or the field
- * block can't be anchored) — returns the input unchanged with an empty `backfilled`,
- * so a caller gates its write and its notice on a non-empty result.
- *
- * @param content - The meta file's raw markdown.
- * @param overrides - Transition-appropriate backfill values; an absent field falls to its `META_FIELDS` default.
- * @returns The reconciled content and the backfilled field names (empty on a no-op).
+ * @param content - Anchored metadata Markdown.
+ * @param overrides - Transition-appropriate backfill values for absent fields.
+ * @returns Updated content and the names of bullets actually inserted.
+ * @throws When metadata field-block anchors are missing.
  */
 export function reconcileMetaFields(
   content: string,
   overrides: MetaProjectionOverrides = {},
 ): ReconcileMetaResult {
-  const lines = content.split("\n");
-  const h1Idx = lines.findIndex((line) => /^# /.test(line));
-  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
-  if (h1Idx === -1 || ruleIdx === -1) return { content, backfilled: [] };
-
-  const inFieldBlock = (i: number): boolean => i > h1Idx && i < ruleIdx;
-  const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
-  const absent = new Set<MetaFieldName>(
-    bulletFields
-      .filter((f) =>
-        (!("omitWhenAbsent" in f) || Object.prototype.hasOwnProperty.call(overrides, f.name))
-        && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
-      .map((f) => f.name as MetaFieldName),
-  );
-  if (absent.size === 0) return { content, backfilled: [] };
-
-  // Re-render the bullet region from the canonical order: present fields keep their
-  // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
-  // override or the declared default. The core table / H1 / below-`---` are untouched.
-  const record = parseMetaProjectionRecord(content);
-  const valueOf = (field: MetaFieldDescriptor): string => {
-    const name = field.name as MetaFieldName;
-    if (absent.has(name)) return overrides[name] ?? field.default;
-    return record[name] ?? field.default;
-  };
-  const firstBulletIdx = lines.findIndex((line, i) => inFieldBlock(i) && FIELD_MARKER_RE.test(line));
-  const start = firstBulletIdx === -1 ? ruleIdx : firstBulletIdx;
-  lines.splice(start, ruleIdx - start, ...renderBullets(valueOf), "");
-
-  const backfilled = bulletFields.filter((f) => absent.has(f.name as MetaFieldName)).map((f) => f.name);
-  return { content: lines.join("\n"), backfilled };
+  const block = locateMetaFieldBlock(content);
+  const fieldLines = block.lines.slice(block.h1Index + 1, block.fieldEndIndex);
+  const backfilled: MetaFieldName[] = [];
+  for (const field of META_FIELDS) {
+    if (field.render !== "bullet") continue;
+    if ("omitWhenAbsent" in field && !Object.prototype.hasOwnProperty.call(overrides, field.name)) continue;
+    if (fieldLines.some(({ text }) => bulletMarkerRe(field.name).test(text))) continue;
+    const written = writePreformattedMetaBullet(content, field.name, overrides[field.name] ?? field.default);
+    if (written !== content) backfilled.push(field.name);
+    content = written;
+  }
+  return { content, backfilled };
 }
 
-/**
- * Rewrite one or more core-block table cells in place, re-rendering *only* the
- * three core-table rows so column alignment stays correct and leaving every
- * bullet, narrative field, and section below byte-identical. The shared engine
- * behind {@link setMetaState} and {@link setMetaBranch}: an override map supplies
- * the new values for named core fields; unnamed cells keep their current value.
- *
- * @param content - The meta file's raw markdown.
- * @param overrides - Core field → new value; only named core fields are rewritten.
- * @returns The rewritten markdown.
- * @throws When the meta carries no resolvable core-block table.
+/** Normalize the managed three-row core table without changing any field value or surrounding byte.
+ * @param content - Anchored metadata Markdown.
+ * @returns Markdown with only table alignment changed.
+ * @throws When metadata anchors or the core table are missing or malformed.
  */
-function setMetaCoreFields(content: string, overrides: MetaProjectionOverrides): string {
-  const located = locateMetaCoreTable(content);
-  const overrideMap = new Map<string, string>(Object.entries(overrides));
-  const valueOf = (field: MetaFieldDescriptor): string =>
-    overrideMap.get(field.name) ?? located.values.get(field.name) ?? field.default;
-  const rendered = renderCoreTable(valueOf);
-  const replacement = rendered
-    .map((line, index) => `${line}${located.lineEndings[index] ?? ""}`)
-    .join("");
-  return `${content.slice(0, located.startOffset)}${replacement}${content.slice(located.endOffset)}`;
-}
-
-/** Normalize the managed three-row core table without changing any field value or surrounding byte. */
 export function normalizeMetaCoreTable(content: string): string {
+  locateMetaFieldBlock(content);
   const located = locateMetaCoreTable(content);
   const rendered = renderCoreTable(
     (field) => located.renderedValues.get(field.name) ?? formatValue(field.default, field.valueClass),
@@ -967,14 +508,14 @@ export function normalizeMetaCoreTable(content: string): string {
  *
  * The field-value boundary mirrors {@link extractField}: continuations run until
  * a blank line, the next field marker, a heading, a `---` rule, or
- * end-of-section. A targeted field whose marker is absent throws — a managed
- * meta always carries the bullet, so a miss is structural drift, not a silent
- * no-op (matching {@link setMetaState}'s fail-loud contract).
+ * end-of-section. An absent bullet inserts in field order. Preformatted tokens
+ * recover their semantic values before writing; identifier lists wrap at the
+ * bullet width, and a cleared Next Action renders an em dash.
  *
  * @param content - The meta file's raw markdown.
  * @param updates - Field→new-value map; only the named fields are rewritten.
  * @returns The rewritten markdown.
- * @throws When a targeted field's bullet marker is not found.
+ * @throws When anchors are missing, a core field is targeted, or Promotion Receipt is targeted.
  */
 export function setMetaBulletFields(
   content: string,
@@ -983,238 +524,18 @@ export function setMetaBulletFields(
   if (Object.prototype.hasOwnProperty.call(updates, "Promotion Receipt")) {
     throw new Error("Cannot set meta field: `Promotion Receipt` is immutable after initial rendering.");
   }
-  let lines = content.split("\n");
+  locateMetaFieldBlock(content);
   for (const [name, value] of Object.entries(updates)) {
-    lines = replaceBulletField(lines, name, value);
+    content = writePreformattedMetaBullet(content, name as MetaFieldName, value);
   }
-  return lines.join("\n");
-}
-
-/**
- * Replace the `- **<name>:**` bullet's value (plus its continuation lines) with
- * `value`, returning the rewritten line array. Preserves the line's exact label
- * prefix (indent + `**name:**`) and re-wraps a multi-line value as indented
- * continuations.
- */
-function replaceBulletField(lines: string[], name: string, value: string): string[] {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const labelRe = new RegExp(`^([ \\t>*+-]*\\*\\*${escaped}:\\*\\*)[ \\t]*(.*)$`);
-
-  const start = lines.findIndex((line) => labelRe.test(line));
-  if (start === -1) {
-    throw new Error(`Cannot set meta field: \`${name}\` bullet not found.`);
-  }
-  const prefix = labelRe.exec(lines[start] ?? "")?.[1] ?? "";
-
-  // Continuation span: indented, non-boundary lines wrapping the same bullet.
-  let end = start + 1;
-  for (; end < lines.length; end++) {
-    const line = lines[end] ?? "";
-    if (line.trim() === "") break; // blank → field / group boundary
-    if (FIELD_MARKER_RE.test(line)) break; // next field bullet
-    if (/^#{1,6} /.test(line)) break; // heading
-    if (line.trim() === "---") break; // trailing rule
-    if (!/^\s/.test(line)) break; // continuations are indented under the bullet
-  }
-
-  const [first = "", ...rest] = value.split("\n");
-  const replacement = [first === "" ? prefix : `${prefix} ${first}`];
-  for (const continuation of rest) replacement.push(`  ${continuation}`);
-
-  return [...lines.slice(0, start), ...replacement, ...lines.slice(end)];
-}
-
-/** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
-const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
-
-interface MetaSourceLine {
-  readonly text: string;
-  readonly startOffset: number;
-  readonly endOffset: number;
-  readonly lineEnding: string;
-}
-
-/** Exact source span and decoded values for the managed three-row meta table. */
-export interface MetaCoreTableLocation {
-  readonly startOffset: number;
-  readonly endOffset: number;
-  readonly lineEndings: readonly [string, string, string];
-  readonly values: ReadonlyMap<string, string>;
-  readonly renderedValues: ReadonlyMap<string, string>;
-}
-
-function sourceLines(content: string): MetaSourceLine[] {
-  const lines: MetaSourceLine[] = [];
-  const endings = /\r\n|\n|\r/gu;
-  let startOffset = 0;
-  for (const match of content.matchAll(endings)) {
-    const endOffset = match.index;
-    const lineEnding = match[0];
-    lines.push({
-      text: content.slice(startOffset, endOffset),
-      startOffset,
-      endOffset: endOffset + lineEnding.length,
-      lineEnding,
-    });
-    startOffset = endOffset + lineEnding.length;
-  }
-  if (startOffset < content.length) {
-    lines.push({ text: content.slice(startOffset), startOffset, endOffset: content.length, lineEnding: "" });
-  }
-  return lines;
-}
-
-function isTableRow(line: MetaSourceLine | undefined): line is MetaSourceLine {
-  if (line === undefined) return false;
-  const trimmed = line.text.trim();
-  return trimmed.startsWith("|") && trimmed.endsWith("|");
-}
-
-/** Locate and validate the one managed five-column core table before meta bullets. */
-export function locateMetaCoreTable(content: string): MetaCoreTableLocation {
-  const lines = sourceLines(content);
-  const firstFieldIndex = lines.findIndex(({ text }) => FIELD_MARKER_RE.test(text));
-  const scanLimit = firstFieldIndex === -1 ? lines.length : firstFieldIndex;
-  const separatorIndexes = lines
-    .slice(0, scanLimit)
-    .flatMap(({ text }, index) => TABLE_SEPARATOR_RE.test(text.trim()) ? [index] : []);
-
-  if (separatorIndexes.length === 0) {
-    const tableLike = lines.slice(0, scanLimit).some((line) => isTableRow(line));
-    throw new Error(
-      tableLike
-        ? "Malformed meta core-block table: no valid separator row found."
-        : "Cannot locate meta core-block table: no table found before managed fields.",
-    );
-  }
-  if (separatorIndexes.length > 1) {
-    throw new Error("Cannot locate meta core-block table: duplicate tables found before managed fields.");
-  }
-
-  const separatorIndex = separatorIndexes[0] ?? -1;
-  const header = lines[separatorIndex - 1];
-  const separator = lines[separatorIndex];
-  const value = lines[separatorIndex + 1];
-  if (!isTableRow(header) || !isTableRow(separator) || !isTableRow(value)) {
-    throw new Error("Malformed meta core-block table: expected adjacent header, separator, and value rows.");
-  }
-  if (isTableRow(lines[separatorIndex - 2]) || isTableRow(lines[separatorIndex + 2])) {
-    throw new Error("Malformed meta core-block table: expected exactly three rows.");
-  }
-
-  const headers = splitTableRow(header.text).map(stripHeaderLabel);
-  if (!isCoreTableHeader(headers)) {
-    throw new Error("Cannot locate meta core-block table: five-column header not recognized.");
-  }
-  const separators = splitTableRow(separator.text);
-  const cells = splitTableRow(value.text);
-  if (headers.length !== separators.length || headers.length !== cells.length) {
-    throw new Error(
-      `Malformed meta core-block table: column-count mismatch ` +
-        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
-    );
-  }
-
-  const values = new Map<string, string>();
-  const renderedValues = new Map<string, string>();
-  headers.forEach((headerName, index) => {
-    const rendered = cells[index] ?? "";
-    const normalized = normalizeValue(rendered);
-    if (normalized === null) {
-      throw new Error(`Malformed meta core-block table: \`${headerName}\` has no value.`);
-    }
-    values.set(headerName, normalized);
-    renderedValues.set(headerName, rendered);
-  });
-  return {
-    startOffset: header.startOffset,
-    endOffset: value.endOffset,
-    lineEndings: [header.lineEnding, separator.lineEnding, value.lineEnding],
-    values,
-    renderedValues,
-  };
-}
-
-/** Split a `| a | b | c |` row into trimmed cell strings. */
-function splitTableRow(line: string): string[] {
-  const inner = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-  return inner.split("|").map((cell) => cell.trim());
-}
-
-/** Strip surrounding bold markers from a header cell, tolerating plain headers
- *  (the render emits `**State**`; a legacy / hand-edited table may carry `State`). */
-function stripHeaderLabel(cell: string): string {
-  const m = /^\*\*(.*)\*\*$/.exec(cell.trim());
-  return m ? (m[1] ?? "").trim() : cell.trim();
-}
-
-/** Strip a cell/bullet value to bare form: backticks removed, bracket sentinels
- *  preserved, empty → `null`. */
-function normalizeValue(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  return stripInlineCode(trimmed);
-}
-
-/**
- * Recover the core-block fields from the single-row markdown table, keyed by
- * header label so column order is tolerated. Returns `null` when the section
- * carries no table at all — the caller falls back to the legacy flat-bullet
- * scan, so pre-migration metas stay readable. A table that is *present but
- * malformed* inside the core block (a separator row without an adjacent
- * header/value row, or a column-count mismatch across the three rows) throws:
- * structural drift fails loud, never silent-null. Narrative tables below the
- * managed bullet fields are ignored.
- */
-function parseCoreTable(section: string): Record<string, string | null> | null {
-  const lines = section.split("\n");
-  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
-  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
-  const sepIdx = lines.findIndex(
-    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
-  );
-  if (sepIdx === -1) return null;
-
-  const headerLine = lines[sepIdx - 1];
-  const separatorLine = lines[sepIdx];
-  const valueLine = lines[sepIdx + 1];
-  const isRow = (line: string | undefined): line is string =>
-    line !== undefined && line.trim().startsWith("|");
-  if (!isRow(headerLine) || !isRow(separatorLine) || !isRow(valueLine)) {
-    throw new Error(
-      "Malformed meta core-block table: separator row without an adjacent header and value row.",
-    );
-  }
-  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
-  if (!isCoreTableHeader(headers)) return null;
-  const separators = splitTableRow(separatorLine);
-  const cells = splitTableRow(valueLine);
-  if (headers.length !== separators.length || headers.length !== cells.length) {
-    throw new Error(
-      `Malformed meta core-block table: column-count mismatch ` +
-        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
-    );
-  }
-  const out: Record<string, string | null> = {};
-  headers.forEach((header, i) => {
-    const cell = cells[i];
-    out[header] = cell === undefined ? null : normalizeValue(cell);
-  });
-  return out;
-}
-
-function isCoreTableHeader(headers: readonly string[]): boolean {
-  return (
-    headers.length === CORE_FIELD_NAMES.length &&
-    CORE_FIELD_NAMES.every((field) => headers.includes(field))
-  );
+  return content;
 }
 
 /**
  * Recover the structured field record from a meta projection — the single
  * reader every meta consumer routes through. Core-block fields come from the
- * hoisted table when present (keyed by header label, column-order tolerant) and
- * the legacy flat-bullet scan otherwise; the rest come from their bullets.
+ * required table after its H1 (keyed by header label, column-order tolerant);
+ * the rest come from their bullets.
  * Sharing {@link META_FIELDS} makes this the inverse of {@link renderMetaFile}.
  *
  * Backtick stripping is `valueClass`-aware: token fields (`enum` / `identifier`)
@@ -1224,14 +545,17 @@ function isCoreTableHeader(headers: readonly string[]): boolean {
  * document. Bracket sentinels stay verbatim (`[none]` / `[internal]` / `[TBD]`
  * stay distinct, and distinct from a marker-absent `null`). A structurally
  * malformed core-block table throws (see {@link parseCoreTable}).
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns Every managed field in its parsed projection form.
+ * @throws When the H1 or core table is missing, or the table is malformed.
  */
 export function parseMetaProjectionRecord(content: string): MetaProjectionRecord {
-  const section = extractMetadataSection(content) ?? "";
+  const section = extractMetadataSection(content);
   const table = parseCoreTable(section);
+  if (table === null) throw new Error("Cannot parse metadata: missing core-block table after H1.");
   const record = {} as MetaProjectionRecord;
   for (const field of META_FIELDS) {
-    const fromTable = table && field.name in table ? table[field.name] : undefined;
-    const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
+    const raw = field.render === "core-table" ? table[field.name] ?? null : extractField(section, field.name);
     // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
     // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
     // keeps its code spans. (Core table values arrive pre-stripped and are all
@@ -1252,6 +576,9 @@ export function parseMetaProjectionRecord(content: string): MetaProjectionRecord
  * Recover the tolerant storage-independent adapter record from a meta projection.
  * Display sentinels normalize at this boundary; invalid closed-domain tokens stay
  * visible so callers can degrade one field without discarding independent evidence.
+ * @param content - Metadata Markdown with an H1 and core table.
+ * @returns Semantic parsed fields, with display sentinels normalized to absence.
+ * @throws When the H1 or core table is missing, or the core table is malformed.
  */
 export function parseMetaRecord(content: string): ParsedMetaRecord {
   const projection = parseMetaProjectionRecord(content);
@@ -1274,6 +601,12 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     nextTask: nullableProjectionValue(projection["Next Task"]),
     blockers: nullableProjectionValue(projection.Blockers),
     nextAction: nullableProjectionValue(projection["Next Action"]),
+    stateAtHandoff: nullableProjectionValue(projection["State at Handoff"]),
+    commitAtHandoff: nullableProjectionValue(projection["Commit at Handoff"]),
+    sessionType: normalizeSessionType(nullableProjectionValue(projection["Session Type"])),
+    sessionContext: readMetaSectionBodies(content, "Session Context")[0] ?? null,
+    completionNotes: readMetaSectionBodies(content, "Completion Notes"),
+    releaseNotesEntry: readMetaSectionBodies(content, "Release Notes Entry"),
     prUrl: nullableProjectionValue(projection["PR URL"]),
     completed: nullableProjectionValue(projection.Completed),
   });
@@ -1283,6 +616,11 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
 export function toMetaRecord(record: ParsedMetaRecord): MetaRecord | null {
   const parsed = MetaRecordSchema.safeParse(record);
   return parsed.success ? parsed.data : null;
+}
+
+function normalizeSessionType(value: string | null): string | null {
+  const lowered = value?.toLowerCase();
+  return lowered === "planning" || lowered === "execution" ? lowered : value;
 }
 
 function nullableProjectionValue(value: string | null): string | null {
@@ -1311,67 +649,15 @@ function stripAutolink(value: string): string {
  * Extract the H1-bounded preamble body — from immediately after the first
  * `# ...` H1 through the first content `## ...` H2 (or end-of-file). The
  * `extractField` regex underneath is shape-agnostic, so prose between H1
- * and the field bullets does not interfere. Returns `null` when no H1 is
- * present.
+ * and the field bullets does not interfere. Missing H1 content is refused.
  */
-function extractMetadataSection(content: string): string | null {
+function extractMetadataSection(content: string): string {
   const h1Re = /^# .*$/m;
   const h1Match = h1Re.exec(content);
-  if (!h1Match) return null;
+  if (!h1Match) throw new Error("Cannot parse metadata: missing metadata H1 heading.");
   const afterH1 = content.slice(h1Match.index + h1Match[0].length);
   const nextH2Match = /^## /m.exec(afterH1);
   return nextH2Match
     ? afterH1.slice(0, nextH2Match.index)
     : afterH1;
-}
-
-/** Any managed `**Label:**` field marker (bullet, bare, or blockquoted) — the
- *  boundary that ends a preceding field's multi-line value gather. */
-const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
-
-/**
- * Extract a field's full value from the metadata section, label line plus any
- * indented continuation lines that wrap the same bullet. Continuations are
- * gathered until a blank line, the next field marker, a heading, a `---` rule,
- * or end-of-section; each is stripped of its leading indent and joined with
- * `\n`, so a multi-line narrative value (e.g. a wrapped `Next Action`) recovers
- * in full. The value is returned **raw** — inline code spans are preserved here;
- * {@link parseMetaRecord} strips them per `valueClass` (token fields only), so
- * narrative prose keeps its backticks. A field whose marker is absent, or whose
- * value is empty, returns `null`.
- */
-function extractField(content: string, label: string): string | null {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
-  const lines = content.split(/\r?\n/u);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line === undefined) continue;
-    const m = labelRe.exec(line);
-    if (!m) continue;
-    const parts: string[] = [];
-    const first = (m[1] ?? "").trim();
-    if (first !== "") parts.push(first);
-    for (const continuation of lines.slice(i + 1)) {
-      if (continuation.trim() === "") break; // blank → field / group boundary
-      if (FIELD_MARKER_RE.test(continuation)) break; // next field bullet
-      if (/^#{1,6} /.test(continuation)) break; // heading
-      if (continuation.trim() === "---") break; // trailing rule
-      if (!/^\s/.test(continuation)) break; // continuations are indented under the bullet
-      parts.push(continuation.trim());
-    }
-    return parts.length === 0 ? null : parts.join("\n");
-  }
-  return null;
-}
-
-/**
- * Strip `backtick` code spans to their bare token, leaving surrounding prose
- * intact. Applied to token fields (`enum` / `identifier`) so consumers read a
- * bare value (`feat/x`, not `` `feat/x` ``); narrative fields bypass it to keep
- * their authored code spans. Exported for the one consumer that token-matches a
- * narrative field ({@link inferSessionType} on `Next Action`).
- */
-export function stripInlineCode(value: string): string {
-  return value.replace(/`([^`]+)`/g, "$1");
 }

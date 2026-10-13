@@ -3,7 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const ROOTS = [
@@ -111,22 +111,22 @@ describe("prepublication workflow boundary", () => {
         .toMatch(softWrappedProse("approval does not authorize delivery-member advancement"));
 
       const recordedAttention = indexOfSoftWrappedProse(verification, "member-close scale-attention result");
-      const tierThree = indexOfSoftWrappedProse(verification, "Run the complete quality gate suite");
+      const mergeChecks = verification.indexOf("arc check gate merge --force");
       expect(recordedAttention).toBeGreaterThan(-1);
-      expect(recordedAttention).toBeLessThan(tierThree);
+      expect(recordedAttention).toBeLessThan(mergeChecks);
       expect(verification).toContain("    - review-chunking");
-      expect(verification.slice(recordedAttention, tierThree))
+      expect(verification.slice(recordedAttention, mergeChecks))
         .toMatch(/metrics when the resolver\s+supplies them/u);
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);
-      const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
+      const pushChecks = delivery.indexOf("arc check gate push --all", locate);
       expect(materializedScale).toBeGreaterThan(locate);
-      expect(materializedScale).toBeLessThan(tierTwo);
+      expect(materializedScale).toBeLessThan(pushChecks);
       expect(delivery).toContain("    - review-chunking");
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("materialized member scale recheck"));
-      expect(delivery.slice(locate, tierTwo)).toMatch(softWrappedProse("No Tier 2 command starts"));
-      expect(delivery.slice(locate, tierTwo))
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("materialized member scale recheck"));
+      expect(delivery.slice(locate, pushChecks)).toMatch(softWrappedProse("No member push-gate request starts"));
+      expect(delivery.slice(locate, pushChecks))
         .toMatch(softWrappedProse("whole-target choice closes the attention disposition"));
 
       for (const [workflow, carrierCommand] of [
@@ -240,7 +240,7 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(coherentUnit, memberBoundary))
         .toMatch(softWrappedProse("last task assigned to a delivery member"));
       const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
-      const criteriaWalk = memberBoundarySection.indexOf("member's criteria walk");
+      const criteriaWalk = indexOfSoftWrappedProse(memberBoundarySection, "member's criteria walk");
       const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
       expect(criteriaWalk).toBeGreaterThan(-1);
       expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
@@ -251,9 +251,9 @@ describe("prepublication workflow boundary", () => {
       expect(resolvedBranch).toBeGreaterThan(unresolvedBranch);
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch))
         .toMatch(softWrappedProse("leave the closing task `[ ]`"));
-      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
-      expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
-      expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toMatch(softWrappedProse("Mark the task `[x]`"));
+      expect(validateCriteria).toMatch(softWrappedPattern(/do\s+not\s+re-derive\s+member\s+criteria/u));
+      expect(validateCriteria).toMatch(softWrappedPattern(/walk\s+the\s+seam\s+group\s+and\s+union\s+coherence/u));
       expect(validateCriteria).toMatch(
         /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:[\s\S]*?criterion-digest:/u,
       );
@@ -295,26 +295,26 @@ describe("prepublication workflow boundary", () => {
 
       const cleanup = indexOfSoftWrappedProse(verification, "Before the Candidate exists, clean the WU content");
       const selfReview = indexOfSoftWrappedProse(verification, "execute it against the local aggregate diff");
-      const tierThree = verification.indexOf("[quality-gate-commands method][arc-methods-qg]");
+      const mergeChecks = verification.indexOf("arc check gate merge --force");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);
       expect(selfReview).toBeGreaterThan(cleanup);
-      expect(tierThree).toBeGreaterThan(selfReview);
-      expect(attest).toBeGreaterThan(tierThree);
+      expect(mergeChecks).toBeGreaterThan(selfReview);
+      expect(attest).toBeGreaterThan(mergeChecks);
       expect(reRoot).toBeGreaterThan(attest);
       expect(verification).toMatch(softWrappedProse("execute its exact `continuation.argv`"));
       expect(verification).toContain("`attested / re-root`");
       expect(preparation).not.toMatch(softWrappedProse("execute it against the local aggregate diff"));
       expect(integration).not.toMatch(softWrappedProse("After settlement, clean the WU content"));
 
-      expect(verification.indexOf("mark the single verification task `[x]`")).toBeGreaterThan(-1);
+      expect(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`")).toBeGreaterThan(-1);
       expect(attest)
-        .toBeGreaterThan(verification.indexOf("mark the single verification task `[x]`"));
-      expect(taskLoop).toContain("to prepare-work-unit` (verification complete — execution end)");
-      expect(taskLoop).toContain("prepare-work-unit are all valid retargets");
-      expect(taskLoop).not.toContain("integrate are all valid retargets");
-      expect(taskLoop).toMatch(/When all tasks are marked complete[\s\S]*proceed to Candidate preparation/iu);
+        .toBeGreaterThan(indexOfSoftWrappedProse(verification, "mark the single verification task `[x]`"));
+      expect(taskLoop).toMatch(softWrappedProse("to prepare-work-unit` (verification complete — execution end)"));
+      expect(taskLoop).toMatch(softWrappedProse("prepare-work-unit are all valid retargets"));
+      expect(taskLoop).not.toMatch(softWrappedProse("integrate are all valid retargets"));
+      expect(taskLoop).toMatch(softWrappedPattern(/When\s+all\s+tasks\s+are\s+marked\s+complete[\s\S]*proceed\s+to\s+Candidate\s+preparation/iu));
     }
   });
 
@@ -325,9 +325,9 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md"), "utf8"),
       ]);
 
-      const cleanContinuation = integrate.indexOf("`clean` continues to the checkpoint below");
-      const appliedRestart = integrate.indexOf("Restart this step. The correction changed the head");
-      const readyCheckpoint = integrate.indexOf("On `ready / request-approval`");
+      const cleanContinuation = indexOfSoftWrappedProse(integrate, "`clean` continues to the checkpoint below");
+      const appliedRestart = indexOfSoftWrappedProse(integrate, "Restart this step. The correction changed the head");
+      const readyCheckpoint = indexOfSoftWrappedProse(integrate, "On `ready / request-approval`");
       expect(cleanContinuation).toBeGreaterThan(-1);
       expect(appliedRestart).toBeGreaterThan(cleanContinuation);
       expect(readyCheckpoint).toBeGreaterThan(appliedRestart);

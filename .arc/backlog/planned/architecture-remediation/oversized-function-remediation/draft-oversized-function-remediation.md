@@ -76,19 +76,19 @@ whole enclosure away, which is the property the per-function limit was chosen to
 
 Derive the working set rather than reading a list — the recorded floor is generated, so any enumeration here
 goes stale as soon as anyone refactors. The tail is `length > 250` (non-blank, non-comment) **or**
-cyclomatic complexity `> 40`, measured by running the two limits at a reporting threshold and reading the
+cognitive complexity `> 40`, measured by running the two limits at a reporting threshold and reading the
 counts back out of the report.
 
 Worst offenders as of 2026-09-18, for orientation only:
 
-| Lines | Complexity | Unit                                          |
-| ----- | ---------- | --------------------------------------------- |
-| 4377  | 376        | `handlers/delivery-execution.ts:2056`         |
-| 769   | 142        | `handlers/delivery-execution.ts:2663`         |
-| 704   | 201        | `lib/work-unit/verbs/teardown.ts:374`         |
-| 1050  | 46         | `handlers/status.ts:459`                      |
-| 578   | 84         | `scripts/integration/checkpoint.ts:899`       |
-| 498   | 88         | `scripts/integration/merge.ts:576`            |
+| Lines | Cyclomatic | Unit                                    |
+| ----- | ---------- | --------------------------------------- |
+| 4377  | 376        | `handlers/delivery-execution.ts:2056`   |
+| 769   | 142        | `handlers/delivery-execution.ts:2663`   |
+| 704   | 201        | `lib/work-unit/verbs/teardown.ts:374`   |
+| 1050  | 46         | `handlers/status.ts:459`                |
+| 578   | 84         | `scripts/integration/checkpoint.ts:899` |
+| 498   | 88         | `scripts/integration/merge.ts:576`      |
 
 Each reduction is followed by a whole-project lint run and a pruned, committed floor — a per-file run cannot
 detect that a violation is gone.
@@ -121,3 +121,5 @@ detect that a violation is gone.
   elsewhere.
 - Does not evaluate replacing the cyclomatic limit with a different complexity metric; that decision is
   captured separately and would change what the floor measures.
+    - _Amended 2026-10-13:_ that decision replaced the cyclomatic limit with cognitive complexity at the same
+      threshold, so the working set reads cognitive complexity; the dated table keeps its cyclomatic scores.

@@ -5,6 +5,7 @@ import { createMeasurementMode, type MeasurementMode } from "./mode.js";
 export interface TestCostCliInput {
   readonly mode: MeasurementMode;
   readonly outputPath?: string;
+  readonly ref?: string;
 }
 
 export function parseTestCostCli(argv: readonly string[]): TestCostCliInput {
@@ -16,7 +17,7 @@ export function parseTestCostCli(argv: readonly string[]): TestCostCliInput {
       throw new Error("Test-cost arguments must be complete --name value pairs");
     }
     if (values.has(key)) throw new Error(`Duplicate test-cost argument: ${key}`);
-    if (!["--condition", "--project-set", "--workers", "--output"].includes(key)) {
+    if (!["--condition", "--project-set", "--workers", "--output", "--ref"].includes(key)) {
       throw new Error(`Unknown test-cost argument: ${key}`);
     }
     values.set(key, value);
@@ -28,5 +29,6 @@ export function parseTestCostCli(argv: readonly string[]): TestCostCliInput {
       workerSizing: values.get("--workers"),
     }),
     ...(values.has("--output") ? { outputPath: values.get("--output") } : {}),
+    ...(values.has("--ref") ? { ref: values.get("--ref") } : {}),
   };
 }

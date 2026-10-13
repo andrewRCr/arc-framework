@@ -1,6 +1,10 @@
 ---
 purpose: Drain the personal capture inbox to authoritative homes via a gated, phased pass — classify with no writes, confirm the routing plan, route to homes, and hand committed atomic execution to run-errand, leaving no un-triaged entries.
 audience: agent
+arc:
+  methods:
+    - route-discovered-work
+    - assess-parallel-fit
 ---
 
 # Workflow: Drain Inbox
@@ -77,41 +81,42 @@ Classify every entry against the **logical model** — _entry · character · ho
 later structured-record swap leaves the routing intact. This pass **makes no writes**; it produces the routing
 plan the interlock (§ 3) confirms. Resolve, per entry:
 
-- **Verify before routing.** A capture may already be **done or obsolete** — resolved inline by a later commit,
-  or by the host WU itself. Confirm against the current tree before proposing a route; a resolved capture is
-  _dismissed_ (removed at routing), not routed.
-- **Character** — _atomic_ (one indivisible concern, single session — possibly an extended errand) or
-  _multi-step_ (needs durable cross-session decomposition; belongs in a stub).
-- **Scope re-triage.** Capture-time character is intentionally coarse. A `§ Errand` capture whose real scope
-  crosses a wrapper floor — load-bearing infra or a large/intricate surface (scale), or a design worth
-  recording (derivation) — **reclassifies to a stub** here (existing or new), not to standalone execution; a
-  determinate sweep crossing neither floor stays errand-class (atomic, possibly extended), however many
-  passes. This is the at-drain reclassification [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
-- **Home** — an **existing** stub (`active/` or `backlog/`), a **new** stub identifiable now, or **none**
-  (homeless).
-- **In-flight target adoption.** When an entry carries `WU_Target`, resolve the slug with
-  `arc status <slug> --json` before proposing a home. An in-flight target defaults to **owner adoption**: leave
-  the capture in `USER-INBOX`, mark it `_Hold: true` with `_Created:` re-stamped to the adoption date, surface the
-  handoff at the confirmation interlock, and let the target's owning session absorb it. The managed hold keeps the
-  triaged entry out of repeated `housekeepNeeded` offers while retaining the normal delayed reminder. The user may
-  explicitly override the default, but the drain never writes to a graduated stub's main-side ghost. A failed or
-  ambiguous status lookup is a stop-and-surface diagnostic, not permission to fall back to checkout-local path
-  inference.
-- **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate
-  into a **single** stub, not one-per-entry — concern-identity, not entry count (the anti-rider test applied to
-  stub creation). Propose the grouping with rationale.
-- **Commitment (new stubs).** Propose `planned` or `provisional` — the axis is _commitment_ (has a maintainer
-  committed to sequencing the WU?), not maturity. A drain is a mechanical routing, not the maintainer-commitment
-  moment, so an un-vetted capture defaults to `provisional`; a capture the maintainer commits to at the interlock
-  warrants `planned`. The user decides; never hard-default silently.
-- **Execute-now bias.** When an atomic is a genuine quick win and executing it now is cheaper than routing plus a
-  later session, prefer **execute-now** over defer. Keep the bias bounded by errand character: if it crosses a
-  wrapper floor, reclassify to a stub; if context budget cannot carry it now, choose defer or fresh-session
-  execute-bound per § 6.
-- **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
-  acted on in § 5 / § 6.
+**Method fire-point** · [route-discovered-work][route-discovered-work], for each capture:
+
+```yaml
+route-discovered-work:
+  entry: each capture, with its WU_Target and _Shapes_ when present
+  door: drain, routing a capture
+```
+
+For held entries in a backlog stub picked at § 3, run the same method at this re-triage fire-point:
+
+```yaml
+route-discovered-work:
+  entry: each held entry in the picked backlog stub
+  door: drain, re-triaging a backlog stub
+  host: the picked backlog stub
+```
+
+- **Disposition and home.** Use the method's ordered gate and homing: verify against the current tree, re-assess
+  the record floor regardless of capture-time character, and validate coupling and scope boundaries. `WU_Target`
+  is the first candidate to check, never a destination decided by existence. Retain any unclear Errand pair with
+  all four record answers for the Owner at § 3.
+- **In-flight target adoption.** Only a gated `hold` into a started work unit takes the method binding's
+  owner-adoption route. Leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
+  and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at
+  § 3; never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its
+  diagnostic, never with a checkout-local path guess.
+- **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
+  grouping with its rationale. Entry count alone never establishes concern identity.
+- **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,
+  which warrants `planned`. Commitment is distinct from maturity; the Owner decides.
+- **Execute-now bias.** For an `errand` outcome, prefer execute-now when it is a quick win cheaper than routing
+  plus a later session. If this session cannot carry it, defer or propose fresh-session execution through § 6.
+- **Atomic disposition.** An `errand` outcome takes execute-now or defer; retain remains the Owner's escape hatch.
+  Carry the disposition to § 5 or § 6.
 - **Destination-path overlap (advisory).** After destinations resolve and **before** the § 3 confirmation
-  interlock, collect the write paths the plan will touch (stub drafts / notes, shared inbox, errand targets when
+  interlock, collect the write paths the plan will touch (backlog stub drafts, shared inbox, errand targets when
   execute-now). Run the existing overlap read over those paths:
 
   ```bash
@@ -126,13 +131,19 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 ### 3. Confirmation interlock
 
 > [!IMPORTANT]
-> Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
-> in-flight owner-adoption handoffs, atomic dispositions, any destination-path overlap advisories from § 2, and
-> the split plan (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
-> this gate.**
+> `workflow-interlock`: Stop before any write. Present the full routing plan — each concern's outcome or unclear
+> Errand pair with its four record answers, `_Shapes:_` for each fold or hold, the coupled target's CLI horizon
+> advisory verbatim, and any wait named by the binding. Include groupings, new-stub commitment levels, owner-adoption
+> handoffs, atomic dispositions, destination-path overlap advisories, and any split plan (§ 4). Await explicit
+> confirmation before routing (§ 5).
 
-The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
-retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
+For each routed-into backlog stub already holding entries, show one line with its held count, oldest entry's date,
+and an offer to re-triage it this sweep. The Owner picks targets; return their held entries to § 2's re-triage
+fire-point, with the picked stub as `host`, and present the revised routing plan at this same stop before any write.
+
+The Owner may adjust proposals within the method's door and writer bounds: regroup, change a commitment level,
+choose an unclear pair, flip an Errand between execute-now and defer, or retain an entry. A confirmed plan also
+confirms each named wait; it never licenses another writer or a write to a stale backlog copy.
 
 ### 4. Split if the sweep is large
 
@@ -143,42 +154,48 @@ boundaries (there are no routing PRs to split). Surface the split plan at the in
 
 ### 5. Route — write to homes
 
-Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies):
+Carry out each confirmed concern's outcome. For a capture, routing **moves** its source out of `USER-INBOX`:
+complete every split concern's route before removing the original entry, and keep any retained or execute-bound
+residual rewritten in place. For a fully routed capture,
 `arc user inbox-remove <entry-title>` drops it (matched on the title in v1; idempotent); use
-`--inbox-entry-file <path>` (`-` reads stdin) for Markdown- or shell-active titles. Pair the removal with each
-routing write.
+`--inbox-entry-file <path>` (`-` reads stdin) for Markdown- or shell-active titles. Pair the removal with its
+routing writes. Held entries in a picked stub take the re-triage routes below instead of inbox removal.
 
-- **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
-  into that stub's `draft-*` / `notes-*` in one of **two integration modes**:
-    - **Holistic** — weave it into the draft body. Only when the fit is cheap, clear, and within your design
-      authority (you own the WU, or it is a trivially-additive, on-topic addendum).
-    - **Inbound-buffer note (the default)** — append it, with a `routed from <origin>, <date>` provenance line,
-      to the stub's `## Inbound Buffer — Pending Integration` section (an interstitial right after the draft's
-      Origin/Purpose block, set off by `---`; create it on demand). Use whenever integration is costly,
-      design-bearing, or the draft is **foreign-owned** — _how a note fits the scope is the owning WU's design
-      call at its next iteration, not yours mid-drain._ The buffer holds only items already routed to this WU as
-      home, in transit (never at rest) — distinct from the WU's own `Open Questions`; it stays
-      invariant-compliant because the obligation below drains it. An `## Inbound Buffer — Pending Integration`
-      section is **mandatorily** integrated into the body at the WU's next planning iteration (minimal hook:
-      `create-spec.md` § Resolve depth & Class); the richer iteration-time ceremony is `arc-plan-conductor`'s.
-- **In-flight owner adoption** — the default for an entry whose resolved `WU_Target` is in flight. Make no routing
-  write; set `_Hold: true`, re-stamp `_Created:` to the adoption date, and leave the entry in `USER-INBOX` for the
-  owning session to adopt. This reuses the retain route's managed-field grammar without reclassifying the Work Unit
-  entry as atomic. In particular, never append to the stale backlog copy left on the base branch after
-  `backlog/ → active/` graduation. An explicit override may route the entry only through the live target resolved
-  by `arc status`, with owner coordination; it never licenses a write to the main-side ghost.
-- **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
-  Scaffold the stub at the confirmed commitment level (`meta-*`, plus `draft-*` when scope warrants) and write the note
-  in. A `provisional` stub carries no design authority.
-- **Homeless atomic — defer** — an atomic with no determinable home that is **not** being executed now. Flush it
-  to the shared inbox (`ATOMIC-INBOX` under `pm.mode: arc-in-git`; the project's convention otherwise). The
-  shared inbox is atomic-only.
+- **Existing-stub home** — a gated `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's integration
+  modes: the drain folds only a trivially additive, on-topic note; otherwise append the entry to the draft's
+  `## Inbound Buffer — Pending Integration` section, with `routed from <origin>, <date>` and `_Shapes:_`. Create
+  the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
+  before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
+- **In-flight owner adoption** — only a gated `hold` into a started target. Make no routing write; set `_Hold: true`,
+  re-stamp `_Created:` to the adoption date, and keep the target and `_Shapes:_` in the capture for its owning session.
+  Follow the method binding's named gap for another person's started target, with the wait confirmed at § 3.
+  Never append to the base branch's stale backlog copy.
+- **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
+  confirmed commitment level. Always write a `draft-*` beside the meta, carrying the concern and opening with a
+  one-sentence Purpose; name it through `arc stub --design`. A provisional stub carries no design authority.
+- **Homeless atomic — defer** — every deferred `errand` outcome takes this route; an Errand-shaped concern has no
+  work-unit home. Flush it to the shared inbox (`ATOMIC-INBOX` under `pm.mode: arc-in-git`; the project's convention
+  otherwise), which is atomic-only.
 - **Retain (escape-hatch)** — an atomic the user explicitly keeps in `USER-INBOX` (private-until-vetted, or
   imminent self-execution). **Never the default, never agent-suggested.** Set the managed field _Hold:_ to
   `true` and **re-stamp** _Created:_ to the retain date (both values backtick-delimited per the managed-field
   grammar), so the reminder floor (never same-day) applies from now. A retained entry is _triaged_ — it does not
   count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from rotting.
 - **Execute-now atomic** — held aside here; executed in § 6, not written by the drain.
+
+**Picked-stub re-triage.** Carry out the confirmed outcomes in the drain's grooming change:
+
+- `dismiss` removes the held entry.
+- `hold <other>` moves it to another backlog stub's draft with provenance and `_Shapes:_`. For a started target,
+  follow the method binding's in-flight new-home rule: the runner's own target takes a pre-routed `_Hold` capture
+  for owner adoption after removal here; another person's target waits, rewritten here as `hold <host>` naming
+  the decided destination.
+- `new-stub` takes the new-stub route above and removes the old entry.
+- `errand` takes the homeless-atomic route and removes the old entry.
+- `hold <host>` keeps the entry, or rewrites only the residual of a split in place.
+
+Record what moved where in the grooming PR body under full protection or the commit message under partial,
+never as a dispositions table in the target's draft.
 
 **Write mechanics (protection-mode block).** This is the only mode-dependent step; it defers to
 [§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
@@ -303,6 +320,7 @@ in-flight-errand staleness belong to session-init orientation, not the drain.
 ---
 
 [run-errand]: run-errand.md
+[route-discovered-work]: ../../../methods/route-discovered-work.md
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path

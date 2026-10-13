@@ -52,6 +52,7 @@ import {
   openOrdinaryErrandAtRuntime,
   openOrdinaryErrandAtRuntimeWithDisposition,
 } from "../lib/errand/open-runtime.js";
+import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
@@ -480,7 +481,7 @@ export async function handleErrandCheck(
   p.intro("arc errand check");
   const caveats = formatErrandCheckCaveats(result);
   if (result.overlaps.length === 0 && caveats.length === 0) {
-    p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
+    p.note("No in-flight work unit or Errand touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
       (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,
@@ -524,6 +525,11 @@ export interface ErrandOpenOptions {
   inboxTitleFile?: string;
   /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
+  /**
+   * Always provision a transient worktree rather than occupying a free primary,
+   * so the primary stays free for another session. Requires full protection.
+   */
+  isolate?: boolean;
 }
 
 const InboxTitleSourcesSchema = z.object({
@@ -542,6 +548,7 @@ export const ErrandOpenInputSchema = InboxTitleSourcesSchema.extend({
   slug: SlugSchema,
   intent: z.string().min(1).optional(),
   json: z.boolean().optional(),
+  isolate: z.boolean().optional(),
 }).strict().superRefine((value, ctx) => {
   if (titleSourceCount(value) > 1) {
     ctx.addIssue({ code: "custom", message: "Provide at most one inbox title source." });
@@ -567,7 +574,10 @@ export async function handleErrandOpen(
 
   const parsed = ErrandOpenInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    emitErrandOpenFailure("locus.errand-open.input", z.prettifyError(parsed.error), opts.json === true);
+    const remedy = parsed.error.issues.some((issue) => issue.path[0] === "slug") ? ERRAND_SLUG_INPUT_REMEDY : undefined;
+    const detail = z.prettifyError(parsed.error);
+    emitErrandOpenFailure("locus.errand-open.input", remedy === undefined ? detail : `${detail}\n${remedy}`,
+      opts.json === true, remedy);
     return;
   }
   const input = parsed.data;
@@ -610,6 +620,16 @@ async function runErrandOpenHandler(
     return;
   }
   const protection = protectionValue;
+  if (input.isolate === true && protection === "partial") {
+    emitErrandOpenResult(createErrandOperationResult({
+      outcome: "refused",
+      operation: "errand-open",
+      reason: "full-protection-required",
+      recommendedPromptText: "--isolate provisions a transient worktree, which requires branch.protection: full. "
+        + "Retry without --isolate to open in the free primary.",
+    }), opts.json === true);
+    return;
+  }
 
   const base = settings["branch.base"].trim();
   if (base === "") {
@@ -694,6 +714,7 @@ async function runErrandOpenHandler(
       base,
       syncBase: settings["session.remote_sync"] === "enabled"
         && settings["session.init_pull.base"] === "always",
+      isolation: input.isolate === true ? "require-isolation" : "prefer-primary",
       createdAt,
       identity,
       locationTemplate: settings["worktree.location_template"],
@@ -750,12 +771,17 @@ function emitErrandOpenResult(result: ErrandOperationResult, json: boolean): voi
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandOpenFailure(code: ErrandErrorCode, message: string, json: boolean): void {
+function emitErrandOpenFailure(
+  code: ErrandErrorCode,
+  message: string,
+  json: boolean,
+  recommendedPromptText = "Resolve the reported input or configuration error before retrying.",
+): void {
   emitErrandOpenResult(createErrandOperationResult({
     outcome: "error",
     operation: "errand-open",
     error: { code, message },
-    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+    recommendedPromptText,
   }), json);
 }
 
@@ -1764,6 +1790,7 @@ export const errandCommandInputRegistrations = [
       "option.from-inbox": "fromInbox",
       "option.inbox-title-file": "inboxTitleFile",
       "option.inbox-entry-file": "inboxEntryFile",
+      "option.isolate": "isolate",
       "option.json": "json",
     },
   },

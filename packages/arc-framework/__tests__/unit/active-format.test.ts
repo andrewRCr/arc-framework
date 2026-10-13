@@ -84,13 +84,6 @@ describe("buildActiveStatusSummary — counts + layout", () => {
     );
     expect(summary.split("\n")[0]).toBe("2 active work units (layout: full):");
   });
-
-  it("surfaces the lite layout in the headline", () => {
-    const summary = buildActiveStatusSummary(
-      fullResult({ layout: "lite", candidates: [candidate({ filename: "status.md" })] }),
-    );
-    expect(summary.split("\n")[0]).toBe("1 active work unit (layout: lite):");
-  });
 });
 
 describe("buildActiveStatusSummary — per-candidate fields", () => {

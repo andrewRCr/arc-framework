@@ -272,12 +272,14 @@ describe("resolveFileList — actual recipe", () => {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
+    expect(files).toContain("system/methods/route-discovered-work.md");
     expect(files).toContain("system/methods/assess-boundary-fit.md");
     expect(files).not.toContain("system/methods/assess-cohort-fit.md");
     expect(files).toContain("system/methods/assess-design-proportionality.md");
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
     expect(files).toContain("system/methods/design-audit.md");
+    expect(files).toContain("system/methods/disposition-report.md");
     expect(files).toContain("system/methods/review-chunking.md");
     expect(files).toContain("system/methods/resolve-planning-depth.md");
     expect(files).toContain("system/methods/source-grounding.md");
@@ -315,6 +317,7 @@ describe("classifyFile", () => {
     expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
     expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/route-discovered-work.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/methods/design-audit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/review-chunking.md")).toBe("Configurable");
@@ -322,7 +325,6 @@ describe("classifyFile", () => {
     expect(classifyFile("system/methods/source-grounding.md")).toBe("Configurable");
     expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/task-audit.md")).toBe("Configurable");
-    expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/pre-spec-finalization-review.md")).toBe("Configurable");
     expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
     expect(classifyFile("reference/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");

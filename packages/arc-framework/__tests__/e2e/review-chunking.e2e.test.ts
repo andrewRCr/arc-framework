@@ -12,6 +12,7 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runCli } from "../helpers/run-cli.js";
 
@@ -149,7 +150,7 @@ describe("arc review changeset resolve", () => {
 
     const bound = await enabledRepository();
     await mkdir(join(bound.root, ".arc/active"), { recursive: true });
-    await writeFile(join(bound.root, ".arc/active/meta-delivery-plan-record.md"), "# Metadata\n");
+    await writeFile(join(bound.root, ".arc/active/meta-delivery-plan-record.md"), makeMetaFixture("delivery-plan-record"));
     const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), bound.root);
     const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
     const states = new RepositoryDeliveryStateStore(publisher);
@@ -163,7 +164,7 @@ describe("arc review changeset resolve", () => {
 
     const degraded = await enabledRepository();
     await mkdir(join(degraded.root, ".arc/active"), { recursive: true });
-    await writeFile(join(degraded.root, ".arc/active/meta-delivery-plan-record.md"), "# Metadata\n");
+    await writeFile(join(degraded.root, ".arc/active/meta-delivery-plan-record.md"), makeMetaFixture("delivery-plan-record"));
     await mkdir(join(degraded.root, ".git/arc/delivery/plans/unexpected-directory"), { recursive: true });
     expect(JSON.parse((await runStdin(degraded.root, degraded.request)).stdout)).toMatchObject({
       state: "evidence-unavailable",

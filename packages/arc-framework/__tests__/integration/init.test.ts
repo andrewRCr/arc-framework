@@ -302,16 +302,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "assess-draft-readiness.md",
       "assess-evidence-applicability.md",
       "adversarial-review.md",
-      "classify-work-unit.md", "commit-footer.md",
+      "route-discovered-work.md", "classify-review-risk.md", "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
       "design-audit.md",
+      "disposition-report.md",
       "frontline-review.md",
       "standard-review.md",
       "implementation-audit.md",
       "review-chunking.md",
       "self-review.md",
       "issue-triage.md",
-      "quality-gate-commands.md",
       "resolve-plan-segmentation.md",
       "resolve-planning-depth.md",
       "review-response.md",
@@ -338,8 +338,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
-      "post-task-quality.md",
-      "post-unit-quality.md",
       "post-work-unit-activate.md",
       "post-work-unit-archive.md",
       "pre-activation.md",
@@ -374,16 +372,17 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const methodNames = [
         "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
         "assess-evidence-applicability", "adversarial-review",
-        "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
-        "implementation-audit", "review-chunking", "self-review", "design-audit",
-        "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+        "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
+        "frontline-review", "standard-review", "implementation-audit", "review-chunking", "self-review",
+        "design-audit", "disposition-report",
+        "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-response", "review-triage",
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
       const extensionNames = [
-        "post-context-load", "post-task-completion", "post-task-quality",
-        "post-unit-quality", "post-work-unit-activate",
+        "post-context-load", "post-task-completion",
+        "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
         "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
       ];
@@ -457,8 +456,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         return failure.stdout;
       });
 
-    // This pm.mode=none fixture intentionally omits files checked by other verifier sections.
-    expect(exitCode).toBe(2);
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toMatch(/^(?:ERROR|WARN) /m);
+    expect(stdout).toContain("Integrity check: all clear");
     expect(stdout).toContain("commit-msg hook: exists and executable");
     const hookSection = stdout.match(/--- Hook Status ---([\s\S]*?)--- Strategy Index ---/)?.[1];
     expect(hookSection).toBeDefined();

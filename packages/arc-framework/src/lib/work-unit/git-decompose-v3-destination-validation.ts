@@ -1,5 +1,6 @@
 /** Pure destination-state validation for v3 extraction finish. */
 
+import { parseCohortDocument } from "../store/kinds/cohort/index.js";
 import { posix } from "node:path";
 
 import {
@@ -324,7 +325,6 @@ function cohortDocumentFacts(text: string, cohort: string): {
   leaf: string | undefined;
   parent: string | null;
   purpose: string | undefined;
-  parentLines: string[];
   identity: string | undefined;
 } {
   const segments = cohort.split("/");
@@ -332,8 +332,6 @@ function cohortDocumentFacts(text: string, cohort: string): {
     leaf: segments.at(-1),
     parent: segments.length === 2 ? segments[0] ?? null : null,
     purpose: /^\*\*Purpose:\*\*\s*(.+)$/mu.exec(text)?.[1]?.trim(),
-    parentLines: [...text.matchAll(/^\*\*Parent:\*\*\s*(.+)$/gmu)].flatMap((match) =>
-      match[1] === undefined ? [] : [match[1]]),
     identity: /^# Cohort: `([^`\r\n]+)`\r?\n/u.exec(text)?.[1],
   };
 }
@@ -349,7 +347,7 @@ function validateCohortDocumentClaim(
   }
   const text = decodeUtf8(state.bytes);
   if (text === null) return { status: "refused", reason: "topology-claim", locus: path };
-  const { leaf, parent, purpose, parentLines, identity } = cohortDocumentFacts(text, cohort);
+  const { leaf, parent, purpose, identity } = cohortDocumentFacts(text, cohort);
   if (leaf === undefined || identity === undefined) {
     return { status: "refused", reason: "topology-claim", locus: path };
   }
@@ -361,13 +359,14 @@ function validateCohortDocumentClaim(
       evidence: { expected: leaf, actual: identity },
     };
   }
-  const expectedParents = parent === null ? [] : [parent];
-  if (canonicalDigest(parentLines) !== canonicalDigest(expectedParents)) {
+  const parsed = parseCohortDocument(text);
+  if (!parsed.success) return { status: "refused", reason: "topology-claim", locus: path };
+  if (parsed.data.parent !== parent) {
     return {
       status: "refused",
       reason: "topology-claim",
       locus: path,
-      evidence: { expected: expectedParents, actual: parentLines },
+      evidence: { expected: parent, actual: parsed.data.parent },
     };
   }
   return purpose === undefined || purpose === "—"

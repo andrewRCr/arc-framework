@@ -16,13 +16,33 @@ export const ARC_CONTRACT_SUITES = [
   "live-transition-records",
   "pr-open-extensions",
   "review-gate-workflows",
+  "ci-check-plumbing",
+  "markdown/descriptor-spacing",
+  "task-list/scanner",
+  "work-unit/boundary-fit-workflow-contract",
+  "work-unit/decompose-doctrine-contract",
+  "work-unit/decompose-workflow-contract",
+  "work-unit/decompose-v3-authority-boundary",
+  "work-unit/decompose-v3-repository-plan",
+  "work-unit/decompose-v3-topology",
+  "work-unit/generate-tasks-delivery-authoring-contract",
+  "work-unit/deliver-stack-entry-contract",
+  "work-unit/delivery-branch-namespace",
+  "scripts/integration/checkpoint-lifecycle-artifacts",
+  "scripts/review-gate/core/disposition-report",
 ] as const;
+
+/**
+ * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
+ * from a failing test. pytest exits with the same status when it collects no tests.
+ */
+export const EMPTY_RELATED_SELECTION_EXIT_CODE = 5;
 
 /**
  * Execute one configured tier through Vitest's supported in-process API.
  *
  * @param tier - Logical package-script tier.
- * @param forwardedArguments - User-supplied Vitest filters and flags.
+ * @param forwardedArguments - Related source paths for the changed tier, or native Vitest filters and flags.
  * @returns Completion after Vitest has closed its controller resources.
  */
 export async function runLocalVitestTier(
@@ -31,7 +51,7 @@ export async function runLocalVitestTier(
 ): Promise<void> {
   const { filter, options } = parseCLI([
     "vitest",
-    "run",
+    tier === "changed" ? "related" : "run",
     ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
@@ -52,7 +72,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
     case "unit":
       return ["--project", "unit", "--project", "unit-mocks"];
     case "changed":
-      return ["--changed=main", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"];
+      return ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"];
     case "lane":
       return [
         "--project",

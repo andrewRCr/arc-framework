@@ -18,6 +18,7 @@ import {
   runArcNoTty,
   type RunResult,
 } from "./helpers.js";
+import { decodeV3DecomposeCutMap } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
@@ -467,10 +468,42 @@ async function gitReadFailureEnvironment(repo: string): Promise<Record<string, s
   return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
 }
 
+async function editorExcludeFailureEnvironment(repo: string): Promise<Record<string, string>> {
+  const shimDir = join(repo, "editor-exclude-failure-shim");
+  await mkdir(shimDir);
+  const driver = [
+    "#!/usr/bin/env node",
+    'const { spawnSync } = require("node:child_process");',
+    'const { existsSync } = require("node:fs");',
+    'const { delimiter, join, resolve } = require("node:path");',
+    "const args = process.argv.slice(2);",
+    'const marker = join(process.cwd(), ".arc/system/.internal/worktree-marker.json");',
+    'if (args[0] === "rev-parse" && args[1] === "--git-path" && args[2] === "info/exclude" && existsSync(marker)) {',
+    '  process.stderr.write("injected editor exclude read failure\\n");',
+    "  process.exit(97);",
+    "}",
+    "const shim = resolve(__dirname);",
+    'const path = (process.env.PATH ?? "").split(delimiter)',
+    "  .filter((entry) => resolve(entry) !== shim).join(delimiter);",
+    'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
+    "process.exit(result.status ?? 1);",
+    "",
+  ].join("\n");
+  const driverPath = join(shimDir, process.platform === "win32" ? "git-shim.cjs" : "git");
+  await writeFile(driverPath, driver, "utf8");
+  if (process.platform === "win32") {
+    await writeFile(join(shimDir, "git.cmd"), '@node "%~dp0git-shim.cjs" %*\r\n', "utf8");
+  } else {
+    await chmod(driverPath, 0o755);
+  }
+  return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
+}
+
 function parseSingleDecomposeRefusal(result: RunResult): {
   status: string;
   reason: string;
   locus?: string;
+  message?: string;
   remedy: { argv: string[]; text: string };
 } {
   expect(result.exitCode).toBe(1);
@@ -481,6 +514,7 @@ function parseSingleDecomposeRefusal(result: RunResult): {
     status: string;
     reason: string;
     locus?: string;
+    message?: string;
     remedy: { argv: string[]; text: string };
   };
   expect(result.stderr).toBe(`${envelope.reason}\n${envelope.remedy.text}\n`);
@@ -521,6 +555,77 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
   });
+
+  it.each(["--execute", "--extract"] as const)("%s reports the caught occupation cause and retries after repair", async (mode) => {
+    repo = await startedRepository();
+    const cutMapPath = mode === "--execute" ? await writeCompletedCutMap(repo) : await writeExtractionCutMap(repo);
+    const env = await editorExcludeFailureEnvironment(repo);
+    const head = await git(repo, ["rev-parse", "HEAD"]);
+    const sourceHead = await git(repo, ["rev-parse", "refs/heads/plan/origin"]);
+    const index = await git(repo, ["write-tree"]);
+    const refused = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000, env });
+    expect(refused.exitCode, refused.stderr).toBe(1);
+    const envelope = JSON.parse(refused.stdout) as {
+      status: string; stage: string; reason: string; locus: string;
+      recovery: { kind: string }; remedy: { argv: string[]; text: string };
+    };
+    expect(envelope).toMatchObject({
+      status: "refused", stage: "occupation", reason: "occupation-failed",
+      locus: expect.stringContaining("injected editor exclude read failure"), recovery: { kind: "none" },
+      remedy: { argv: ["arc", "decompose", "origin", mode, cutMapPath] },
+    });
+    expect(refused.stderr).toBe(`${envelope.reason}\nCause: ${envelope.locus}\n${envelope.remedy.text}\n`);
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await git(repo, ["rev-parse", "refs/heads/plan/origin"])).toBe(sourceHead);
+    expect(await git(repo, ["write-tree"])).toBe(index);
+
+    const retried = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
+    expect(retried.exitCode, retried.stderr).toBe(0);
+    const result = JSON.parse(retried.stdout) as { status: string; operation: { occupation: { path: string } } };
+    expect(result.status).toBe("staged");
+    await assertEditorDocumentsProvisioned(result.operation.occupation.path);
+    expect(await claimFiles(repo)).toEqual([]);
+  });
+
+  it.each(["--execute", "--extract", "--advance-base"] as const)(
+    "%s preserves decoder detail and succeeds after the map is repaired", async (mode) => {
+      repo = await startedRepository();
+      const cutMapPath = mode === "--extract" ? await writeExtractionCutMap(repo) : await writeCompletedCutMap(repo);
+      const validBytes = await readFile(cutMapPath, "utf8");
+      if (mode === "--advance-base") {
+        const executed = await runArcNoTty(["decompose", "origin", "--execute", cutMapPath], repo, { timeout: 60_000 });
+        expect(executed.exitCode, executed.stderr).toBe(0);
+        const staged = JSON.parse(executed.stdout) as { operation: { occupation: { path: string } } };
+        await git(staged.operation.occupation.path, ["commit", "-m", "commit decomposition transition"]);
+      }
+      const invalid = JSON.parse(validBytes) as { authoring: { shape: string } };
+      invalid.authoring.shape = "bogus";
+      const rootExtra = { ...JSON.parse(validBytes) as Record<string, unknown>, extra: true };
+      for (const [value, locus] of [
+        [null, cutMapPath], [[], cutMapPath], [rootExtra, cutMapPath], [invalid, "authoring.shape"],
+      ] as const) {
+        const decoded = decodeV3DecomposeCutMap(value);
+        if (decoded.status !== "rejected") throw new Error("invalid fixture");
+        await writeFile(cutMapPath, `${canonicalize(value)}\n`);
+        const before = await repositorySnapshot(repo);
+        const result = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
+        const refusal = parseSingleDecomposeRefusal(result);
+        expect(refusal).toMatchObject({
+          status: "refused", reason: "map:invalid-structure", locus,
+          message: decoded.issue.message,
+          remedy: { argv: ["arc", "decompose", "origin", mode, cutMapPath] },
+        });
+        expect(refusal.remedy.text).toContain(refusal.message);
+        expect(refusal.remedy.text).toContain(locus);
+        expect(await repositorySnapshot(repo)).toEqual(before);
+      }
+
+      await writeFile(cutMapPath, validBytes);
+      const retried = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, { timeout: 60_000 });
+      expect(retried.exitCode, retried.stderr).toBe(0);
+      expect(JSON.parse(retried.stdout)).toMatchObject({ status: mode === "--advance-base" ? "unchanged" : "staged" });
+    },
+  );
 
   it("emits one actionable refusal envelope from every selected mode without mutation", async () => {
     repo = await startedRepository();
@@ -960,7 +1065,7 @@ describe("arc decompose command modes", () => {
     expect(JSON.parse(refused.stdout)).toMatchObject({
       status: "refused",
       stage: "repository-plan",
-      reason: "completed-map",
+      reason: "map:placement-cardinality",
       locus: "authoring.placement",
       recovery: { kind: "none" },
     });

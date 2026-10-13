@@ -11,11 +11,13 @@ import {
   gitExecInput,
   prepareGitRefVerification,
   readGitBlobBytes,
+  readGitBlobEntry,
 } from "../../src/lib/io-context.js";
 import { boundedFetch, boundedGitInvocation } from "../../src/lib/git/exec.js";
 import { deleteRemoteBranch } from "../../src/lib/work-unit/mutators/reconcile-branch.js";
 import {
   createExecaGitExec,
+  createExecaRawGitExec,
   createExecaGitExecInput,
   MAX_GIT_OUTPUT_BYTES,
 } from "../../src/lib/git/process-executor.js";
@@ -288,6 +290,37 @@ describe("installation diff adapter", () => {
 });
 
 describe("process-backed IO adapters", () => {
+  it("reads exact blob entries and bytes from an explicitly supplied index", async () => {
+    const root = await createGitRepo("arc-blob-alternate-index-");
+    const indexFile = join(root, ".git", "alternate-index");
+    const gitOptions = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], gitOptions);
+    const bytes = new Uint8Array([0, 10, 128, 255]);
+    await writeFile(join(root, "seed.txt"), bytes);
+    await gitExec("git", ["add", "seed.txt"], gitOptions);
+    const options = { objectAccess: "local-only" as const, indexFile };
+
+    await expect(readGitBlobEntry(root, null, "seed.txt", options)).resolves.toEqual({ mode: "100644", bytes });
+    await expect(readGitBlobBytes(root, null, "seed.txt", options)).resolves.toEqual(bytes);
+    await expect(readGitBlobBytes(root, null, "seed.txt")).resolves.toEqual(new TextEncoder().encode("seed"));
+  });
+
+  it("reads an explicitly supplied index through the raw Git adapter", async () => {
+    const root = await createGitRepo("arc-raw-alternate-index-");
+    const indexFile = join(root, ".git", "alternate-index");
+    const options = { cwd: root, indexFile };
+    await gitExec("git", ["read-tree", "HEAD"], options);
+    await writeFile(join(root, "seed.txt"), "alternate-index-content\n");
+    await gitExec("git", ["add", "seed.txt"], options);
+    vi.stubEnv("GIT_INDEX_FILE", join(root, ".git", "poisoned-index"));
+
+    const raw = createExecaRawGitExec(root);
+    const result = await raw(["diff", "--cached", "--name-only"], options);
+    expect(new TextDecoder().decode(result.stdout)).toBe("seed.txt\n");
+    const ordinary = await raw(["diff", "--cached", "--name-only"]);
+    expect(ordinary.stdout).toHaveLength(0);
+  });
+
   it("preserves terminal execa failures from prepared ref verification", async () => {
     const root = await createGitRepo("arc-ref-verification-failure-");
     const { stdout: head } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });

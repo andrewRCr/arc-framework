@@ -14,6 +14,7 @@ import { prepareViewDocument, type ViewDocumentAnchor } from "../../lib/view/for
 import { isSlugSafe } from "../../lib/kernel/index.js";
 import type { ResolvedViewRenderer, ViewRenderer } from "../../lib/view-renderer.js";
 import type { ResolvedViewClock } from "../../lib/view/clock.js";
+import { readViewArtifactContent, viewArtifactDisplayLabel, viewArtifactFileRefusal } from "../../lib/view/started-artifacts.js";
 
 export interface ViewDependencies {
   resolveArtifact: ViewArtifactResolver;
@@ -59,9 +60,7 @@ export async function runView(
   if (options.editor === true) return openArtifactInEditor(artifact, options, dependencies);
   if (options.path === true) {
     // A path consumer such as `$(arc view <kind> --path)` must never receive the absence message as a path.
-    return artifact.status === "absent"
-      ? { stdout: "", stderr: `${artifact.kind} is not present.\n`, exitCode: 1 }
-      : { stdout: `${resolvePath(options.cwd, artifact.path)}\n`, stderr: "", exitCode: 0 };
+    return artifactPathOutput(artifact, options.cwd);
   }
   if (artifact.status === "absent") {
     return {
@@ -72,7 +71,7 @@ export async function runView(
   }
   let content: string;
   try {
-    content = await dependencies.readFile(artifact.path);
+    content = await readViewArtifactContent(artifact, dependencies.readFile);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
@@ -107,7 +106,7 @@ export async function runView(
     await dependencies.renderWithPager({
       renderer: resolved.renderer,
       content: prepared.content,
-      displayPath: artifact.path,
+      displayPath: viewArtifactDisplayLabel(artifact),
       ...(prepared.anchor === undefined ? {} : { anchor: prepared.anchor }),
     });
     return {
@@ -133,15 +132,27 @@ async function openArtifactInEditor(
   if (artifact.status === "absent") {
     return { stdout: "", stderr: `${artifact.kind} is not present.\n`, exitCode: 1 };
   }
+  const refusal = viewArtifactFileRefusal(artifact);
+  if (refusal !== null) return { stdout: "", stderr: `${refusal}\n`, exitCode: 1 };
   try {
     if (dependencies.launchEditor === undefined) throw new Error("Editor launcher is unavailable");
-    await dependencies.launchEditor(resolvePath(options.cwd, artifact.path));
+    await dependencies.launchEditor(resolvePath(options.cwd, viewArtifactDisplayLabel(artifact)));
     return { stdout: "", stderr: "", exitCode: 0 };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const remedy = message.includes("ARC_EDITOR") ? "" : ". Set ARC_EDITOR to a working editor command.";
     return { stdout: "", stderr: `Unable to open ${artifact.kind} in editor: ${message}${remedy}\n`, exitCode: 1 };
   }
+}
+
+function artifactPathOutput(
+  artifact: Exclude<ViewArtifactResult, { status: "error" }>, cwd: string,
+): ViewOutput {
+  if (artifact.status === "absent") return { stdout: "", stderr: `${artifact.kind} is not present.\n`, exitCode: 1 };
+  const refusal = viewArtifactFileRefusal(artifact);
+  return refusal === null
+    ? { stdout: `${resolvePath(cwd, viewArtifactDisplayLabel(artifact))}\n`, stderr: "", exitCode: 0 }
+    : { stdout: "", stderr: `${refusal}\n`, exitCode: 1 };
 }
 
 /** Refuse option combinations that are invalid before any artifact is resolved. */

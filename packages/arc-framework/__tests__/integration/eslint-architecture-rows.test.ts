@@ -8,6 +8,9 @@ import { describe, expect, it } from "vitest";
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
 const additionalNodeLoaders = [
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; void alias("@clack/prompts");',
+  'import { createRequire } from "node:module"; const alias = first; const first = (load); const load = createRequire(import.meta.url); void (alias)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; const owner = alias("node:module"); void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import { createRequire } from "node:module"; const owner = { ["createRequire"]: createRequire }; const load = owner.createRequire(import.meta.url); void load("@clack/prompts");',
   'import { createRequire as acquire } from "module"; const owner = { [`createRequire`]: acquire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import { createRequire } from "node:module"; const owner = { [("createRequire")]: createRequire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
@@ -48,12 +51,13 @@ const staticBlockLoaders = [
 const cases = [
   ["src/handlers/user.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
   ["src/lib/sync-output.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
-  ["src/lib/terminal.ts", 'import "neverthrow";', "arc/architecture-imports"],
-  ["src/lib/command-input/prompt-renderer.ts", 'import "neverthrow";', "arc/architecture-imports"],
+  ["src/lib/terminal.ts", 'import "./layout/schema.js";', "arc/architecture-imports"],
+  ["src/lib/command-input/prompt-renderer.ts", 'import "../layout/schema.js";', "arc/architecture-imports"],
   ["src/lib/kernel/canonical/canonical-json.ts", 'import "zod";', "no-restricted-imports"],
   ["src/lib/config/status-reader.ts", 'parseMetaProjectionRecord("record");', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'parseIdentifierList("identifiers");', "no-restricted-syntax"],
   ["src/lib/active/meta-reader.ts", 'import type { Store } from "../store/create.js";', "no-restricted-syntax"],
+  ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/registration.js";', "no-restricted-syntax"],
   ["src/lib/errand/promote.ts", 'type Projection = MetaProjectionOverrides;', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'const DEFAULTS = {}; void DEFAULTS;', "no-restricted-syntax"],
   ["src/lib/locus/role-derivation.ts", 'import "../user/index.js";', "no-restricted-imports"],
@@ -78,6 +82,9 @@ const cases = [
   ["src/handlers/view.ts", 'import "../commands/active.js";', "no-restricted-imports"],
   ["src/handlers/view.ts", 'import "../lib/git/index.js";', "no-restricted-imports"],
   ["src/commands/active/status.ts", 'import "../../lib/git/index.js";', "no-restricted-imports"],
+  ["src/handlers/planted.ts", 'import "../lib/active/meta-reader.js";', "arc/store-raw-state"],
+  ["src/handlers/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;', "arc/surface-names"],
+  ["src/handlers/planted.ts", 'import { resolveArcPath } from "../lib/layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });', "arc/work-unit-paths"],
 ] as const;
 
 describe("actual architecture table enforcement", () => {
@@ -88,20 +95,20 @@ describe("actual architecture table enforcement", () => {
       ruleId === "arc/architecture-imports" && message.includes("clack"))).toHaveLength(1);
   });
   it.each(staticBlockLoaders)("retains a composed ban across a static block: %s", async (text) => {
-    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "./layout/schema.js"), {
       filePath: resolve(packageRoot, "src/lib/terminal.ts"),
     });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.filter(({ ruleId, message }) =>
-      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toHaveLength(1);
+      ruleId === "arc/architecture-imports" && message.includes("layout-private"))).toHaveLength(1);
   });
   it.each(additionalNodeLoaders)("retains other composed restrictions for a genuine Node loader: %s", async (text) => {
-    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "./layout/schema.js"), {
       filePath: resolve(packageRoot, "src/lib/terminal.ts"),
     });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.some(({ ruleId, message }) =>
-      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toBe(true);
+      ruleId === "arc/architecture-imports" && message.includes("layout-private"))).toBe(true);
   });
   it.each(clackReferences)("confines a supported raw prompt acquisition: %s", async (text) => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });
@@ -163,6 +170,8 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/in-repo/write-admission.ts", 'parseMetaProjectionRecord("record");'],
     ["src/scripts/validate-meta-spec.ts", 'parseIdentifierList("names");'],
     ["src/lib/active/meta-reader.ts", 'void import("../store/create.js");'],
+    ["src/lib/active/meta-reader.ts", 'import "../store/kinds/meta/projection.js";'],
+    ["src/lib/store/kinds/meta/projection.ts", 'parseIdentifierList("names");'],
     ["src/lib/errand/promote.ts", 'const example = "MetaProjectionOverrides renderMetaProjectionFile"; void example;'],
     ["src/lib/config/status-reader.ts", 'const DEFAULTS_REFERENCE = {}; void DEFAULTS_REFERENCE;'],
     ["src/lib/locus/role-derivation.ts", 'import "../git/worktree-roster.js";'],
@@ -180,6 +189,18 @@ describe("actual architecture table enforcement", () => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.filter(({ ruleId }) => ["arc/architecture-imports", "no-restricted-imports", "no-restricted-syntax"].includes(ruleId ?? ""))).toEqual([]);
+  });
+
+  it.each([
+    ["src/lib/store/planted.ts", 'import "../active/meta-reader.js";'],
+    ["src/lib/work-unit/composed-lifecycle-index.ts", 'import "./lifecycle-index.js";'],
+    ["src/lib/layout/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
+    ["src/lib/store/planted.ts", 'import { resolveArcPath } from "../layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
+    ["src/lib/layout/planted.ts", 'import { resolveArcPath } from "./index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
+  ])("allows the ratchet's owning boundary in %s: %s", async (path, text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId }) => ["arc/store-raw-state", "arc/surface-names", "arc/work-unit-paths"].includes(ruleId ?? ""))).toEqual([]);
   });
 
   it.each([
@@ -201,4 +222,26 @@ describe("actual architecture table enforcement", () => {
     expect(result?.messages.some(({ ruleId }) => ruleId === "no-restricted-syntax")).toBe(true);
   });
 
+});
+
+describe("meta check boundary", () => {
+  it.each([
+    'import { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export { checkMetaWrite } from "../store/kinds/meta/check.js";',
+    'export * from "../store/kinds/meta/registration.js";',
+  ])("refuses a static check or registration edge: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId, message }) => ruleId === "no-restricted-syntax"
+      && message === "Keep the store delegate dynamic")).toBe(true);
+  });
+  it.each(["writers", "projection", "empty-record", "line-reading", "preformatted-writer"])(
+    "admits the helper entry point %s", async (name) => {
+      for (const text of [`import "../store/kinds/meta/${name}.js";`, `export * from "../store/kinds/meta/${name}.js";`]) {
+        const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/lib/active/meta-reader.ts") });
+        expect(result?.fatalErrorCount).toBe(0);
+        expect(result?.messages.filter(({ ruleId }) => ruleId === "no-restricted-syntax")).toEqual([]);
+      }
+    },
+  );
 });

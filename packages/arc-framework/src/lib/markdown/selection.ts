@@ -38,7 +38,8 @@ export interface MarkdownSelectionValidationResult {
 export interface ValidateExplicitMarkdownPathsOptions {
   readonly root: string;
   readonly paths: readonly string[];
-  readonly operation: "mutate" | "worktree-read";
+  /** Only lint reads may follow a final symlink; migration reads require regular-file Git blobs. */
+  readonly operation: "mutate" | "worktree-read" | "lint-read";
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
   readonly realpath: (path: string) => Promise<string>;
@@ -121,7 +122,7 @@ function assertNativePathContained(root: string, candidate: string, path: Manage
 }
 
 /**
- * Validate explicit tracked Markdown paths and physical containment before any content loader runs.
+ * Validate explicit Markdown worktree paths and physical containment before any content loader runs.
  *
  * @param options - Repository root, candidate paths, operation policy, and injected boundaries
  * @returns Canonical repository-relative paths in caller order
@@ -136,9 +137,17 @@ export async function validateExplicitMarkdownPaths(
   const paths = options.paths.map(validateMarkdownPath);
   for (const path of paths) {
     try {
-      await options.exec("git", ["ls-files", "--error-unmatch", "--", path], { cwd: options.root });
-    } catch (error) {
-      throw new ArcError(`Markdown path is not tracked: ${path}`, "markdown.untracked", { cause: error });
+      await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
+    } catch {
+      const worktreePaths = await enumerateTrackedMarkdownPaths({
+        root: options.root, exec: options.exec, source: "worktree",
+      }).catch((error: unknown): readonly ManagedPath[] => {
+        if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
+        throw error;
+      });
+      if (!worktreePaths.includes(path)) {
+        throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
+      }
     }
 
     let native = options.root;
@@ -158,7 +167,9 @@ export async function validateExplicitMarkdownPaths(
       }
       finalStat = stat;
     }
-    if (finalStat === undefined || !finalStat.isFile() || finalStat.isDirectory()) {
+    if (finalStat === undefined
+      || !isSelectedMarkdownFile(finalStat, options.operation)
+      || finalStat.isDirectory()) {
       throw selectionError(`Markdown path is not a regular file: ${path}`, "markdown.not-file");
     }
 
@@ -169,8 +180,32 @@ export async function validateExplicitMarkdownPaths(
       throw new ArcError(`Markdown path cannot be resolved: ${path}`, "markdown.path-unreadable", { cause: error });
     }
     assertNativePathContained(options.root, physical, path);
+    if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;
+}
+
+function isSelectedMarkdownFile(
+  stat: MarkdownPathStat,
+  operation: ValidateExplicitMarkdownPathsOptions["operation"],
+): boolean {
+  return stat.isFile() || (operation === "lint-read" && stat.isSymbolicLink());
+}
+
+async function assertRegularFileTarget(
+  options: ValidateExplicitMarkdownPathsOptions,
+  physical: string,
+  path: ManagedPath,
+): Promise<void> {
+  let target: MarkdownPathStat;
+  try {
+    target = await options.lstat(physical);
+  } catch (error) {
+    throw new ArcError(`Markdown target is missing or unreadable: ${path}`, "markdown.path-unreadable", { cause: error });
+  }
+  if (!target.isFile()) {
+    throw selectionError(`Markdown path is not a regular file: ${path}`, "markdown.not-file");
+  }
 }
 
 /**

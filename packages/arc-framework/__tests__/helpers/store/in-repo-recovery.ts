@@ -65,7 +65,7 @@ export async function produceInRepoRecovery(fixture: ConformanceFixture, exec: G
 async function ambiguous(fixture: ConformanceFixture, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
   const alpha = await seed(fixture, fixture.reference("work-item/meta", "alpha"));
   const beta = await seed(fixture, fixture.reference("work-item/meta", "beta"));
-  await seed(fixture, fixture.reference("lineage/transition", "alpha"), JSON.stringify({ schemaVersion: 1, origin: alpha.reference.owner.name, kind: "rename", successors: [beta.reference.owner.name], edges: [] }));
+  await seed(fixture, fixture.reference("lineage/transition", "alpha"), JSON.stringify({ schemaVersion: 2, origin: { name: alpha.reference.owner.name }, kind: "rename", successors: [{ name: beta.reference.owner.name }], incoming: [] }));
   repairs.set(caseId, async () => { success(await fixture.store.write({ action: "remove", reference: alpha.reference, expected: alpha.version, provenance: testProvenance })); });
   return { run: () => fixture.store.lookup({ kind: "slug", slug: alpha.reference.owner.name }) };
 }

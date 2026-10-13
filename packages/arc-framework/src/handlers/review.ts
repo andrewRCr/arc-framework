@@ -327,6 +327,7 @@ import {
 } from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
+import { frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunCommandError,
@@ -2905,6 +2906,7 @@ export async function handleReviewFrontlineRun(
     requestSchema: FrontlineRunRequestSchema,
     resultSchema: FrontlineRunEnvelopeSchema,
     dependencies,
+    remedyFor: frontlineRetryRemedy,
     execute: async (request, root) => dependencies.run(
       await dependencies.deriveRequest(FrontlineRunRequestSchema.parse(request), root),
       root,

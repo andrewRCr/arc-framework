@@ -33,6 +33,7 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
       AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key }) => key),
     );
 
+    // Keep expected defaults independent of the catalog; a wrong catalog default must still fail.
     expect(
       Object.fromEntries(
         AGENT_CONSUMABLE_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue]),
@@ -52,6 +53,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     });
   });
 
+  // Keep this expected count hand-maintained: a catalog addition or omission must not
+  // change both sides of the completeness check.
   it("enumerates the 35 agent-consumable keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toHaveLength(35);
   });
@@ -104,6 +107,7 @@ describe("readConfigSettings — default fallback", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
+  // Keep these expected values hand-maintained so catalog changes cannot redefine the assertion.
   it("returns documented defaults when arc-config.yml is missing", async () => {
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["pm.mode"]).toBe("none");

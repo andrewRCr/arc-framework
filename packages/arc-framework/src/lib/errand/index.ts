@@ -5,11 +5,7 @@
  * @module
  */
 
-export {
-  errandsRef,
-  type ErrandRecordIO,
-  type GitExecInput,
-} from "./ref-tree.js";
+export type { ErrandRecordIO, GitExecInput } from "./ref-tree.js";
 
 export {
   emptyTransientInFlightIndexes,
@@ -72,22 +68,19 @@ export {
   type TerminalOccupancySettlement,
 } from "./terminal-occupancy.js";
 
-export {
-  readTransientIdentitySnapshot,
-  readTransientIdentitySnapshotAtRef,
-  type IdentitySnapshotIO,
-  type IdentitySnapshotDiagnostic,
-  type TransientIdentitySnapshot,
+export type {
+  IdentitySnapshotIO,
+  IdentitySnapshotDiagnostic,
+  TransientIdentitySnapshot,
 } from "./identity-snapshot.js";
 
-export {
-  reconcileIdentityObjects,
-  transactTransientIdentities,
-  type IdentityObjectReconcile,
-  type IdentityTransformDecision,
-  type IdentityTransform,
-  type IdentityTransactionParams,
-  type IdentityTransactionOutcome,
+export type { IdentityObjectReconcile } from "./identity-object-reconcile.js";
+
+export type {
+  IdentityTransformDecision,
+  IdentityTransform,
+  IdentityTransactionParams,
+  IdentityTransactionOutcome,
 } from "./identity-transaction.js";
 
 export {

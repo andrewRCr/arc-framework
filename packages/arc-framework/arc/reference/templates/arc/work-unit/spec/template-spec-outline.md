@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent — distilled "what + why," not
-  framing prose. Body sections carry the full context.}
+- **Purpose:** {One- to three-line north-star summary of the WU's intent, opening with a one-sentence thesis.
+  Distilled "what + why," not framing prose; body sections carry the full context.}
 
 ---
 
@@ -33,7 +33,7 @@ the work isn't `outline`-ready yet.
 
 ## Scope boundary (No-gos)
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this work explicitly will _not_ do. Be specific about what's out and why — this section is fixed alongside
 Decisions and keeps the work from drifting wider during execution.

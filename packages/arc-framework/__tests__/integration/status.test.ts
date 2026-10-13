@@ -158,13 +158,16 @@ async function writeStatusFile(
   const lines: string[] = [
     "# Metadata: fixture",
     "",
-    `- **State:** ${body.state}`,
-    `- **Branch:** ${body.branch}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${body.state} |  | ${body.branch} |  |  |`,
+    "",
   ];
   if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
   if (body.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${body.currentWorkflow}`);
   if (body.candidateId !== undefined) lines.push(`- **Candidate:** ${body.candidateId}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
+  lines.push("", "---", "");
   await writeFile(join(activeDir, filename), lines.join("\n"));
 }
 
@@ -429,6 +432,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
@@ -516,6 +520,7 @@ function makeResolvedReleaseModeSessionInitProbes(
         resolvedSettings: await resolvedSettings(),
       }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),
@@ -600,7 +605,7 @@ describe("runStatus — clean state", () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge", true);
-    await writeExtension(fixture.extDir, "post-task-quality", false);
+    await writeExtension(fixture.extDir, "post-task-completion", false);
     await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",
@@ -797,9 +802,14 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       [
         "# Metadata: fixture",
         "",
-        "- **State:** Active",
-        "- **Branch:** user/alice/foo",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active |  | user/alice/foo |  |  |",
+        "",
         "- **Task List:** `.arc/user/alice/active/tasks-foo.md`",
+        "",
+        "---",
+        "",
       ].join("\n"),
     );
     await writeFile(join(userActiveDir, "tasks-foo.md"), "# tasks\n");
@@ -848,6 +858,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      hooksPath: async () => ({ recommendedAction: "none" as const }),
       currentWuReconcile: cleanCurrentWuReconcile,
       userReferenceReconcile: cleanUserReferenceReconcile,
       roster: async () => ({ entries: [], warnings: [] }),
@@ -1060,6 +1071,7 @@ function makeRealWorktreeProbes(
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    hooksPath: async () => ({ recommendedAction: "none" as const }),
     currentWuReconcile: cleanCurrentWuReconcile,
     userReferenceReconcile: cleanUserReferenceReconcile,
     roster: async () => ({ entries: [], warnings: [] }),

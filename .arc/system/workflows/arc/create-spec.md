@@ -5,6 +5,7 @@ purpose: >-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - route-discovered-work
     - resolve-planning-depth
     - classify-work-unit
     - assess-boundary-fit
@@ -74,11 +75,25 @@ let its produced shape indicate the form — a rich, fully-shaped draft feeds `d
 determinacy-confirm feeds `brief` / `outline`. With no draft, read the standing `Class` plus the problem
 directly, narrowing to a **brief-vs-outline** disambiguation.
 
-If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
-draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
-feeds the spec, never carried forward as-is. Then assess formalization-readiness via the
-[assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
-them inline (or return to drafting) before investing in spec writing.
+Run `arc user inbox-list --target {name} --json` for the captures that still name this work unit, held or not; a
+`refused` listing stops here until its remedy is applied. If the draft still holds inbound entries or the listing is
+`named`, run [route-discovered-work][route-discovered-work] at this owner's-pass entry-check fire-point before the
+draft feeds the spec:
+
+```yaml
+route-discovered-work:
+  entry: each held inbound entry, and each listed capture
+  door: owner's planning pass
+  host: this work unit
+```
+
+Show each outcome and its `_Shapes:_`, any Owner-decided pair, the coupled target's horizon advisory, and any wait
+the binding names at the Owner's pass. On confirmation, execute through the binding and leave the dispositions
+table; no entry stays held at this ready-making pass. Remove each routed capture with `arc user inbox-remove`, or
+rewrite it in place when its outcome is itself a capture. Re-run the listing, and continue only once it reports
+`clear`. Then assess formalization-readiness via the [assess-draft-readiness][assess-draft-readiness] method; on
+**not-ready**, surface the returned gaps and resolve them inline (or return to drafting) before investing in spec
+writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but
@@ -216,7 +231,7 @@ section body you otherwise replace wholesale — keep it, along with the `brief`
 where that form applies:
 
 ```text
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 ```
 
 **Naming:** The `{name}` descriptor in the spec filename becomes the work unit's identifier across all artifacts
@@ -364,3 +379,4 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
+[route-discovered-work]: ../../methods/route-discovered-work.md

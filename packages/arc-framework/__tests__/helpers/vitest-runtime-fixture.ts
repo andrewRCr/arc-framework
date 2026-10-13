@@ -1,6 +1,7 @@
 /** Native integration/E2E setup fixtures with observable artifact consumption and teardown. */
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { copyLiveDependencies } from "./copy-live-dependencies.js";
 import { makeVitestControllerFixture } from "./vitest-controller-fixture.js";
 
 /**
@@ -19,9 +20,7 @@ export async function makeVitestRuntimeFixture(preParse = false): Promise<Awaite
       + '      { test: { name: "e2e", root: import.meta.dirname, include: ["tests/e2e*.test.mjs"],\n'
       + '        globalSetup: ["tests/e2e-setup.mjs"] } }'));
   for (const tier of ["integration", "e2e"]) {
-    const setupRoot = join(fixture.packageRoot, "__tests__", tier);
-    await mkdir(setupRoot, { recursive: true });
-    await cp(join(sourcePackage, "__tests__", tier, "global-setup.ts"), join(setupRoot, "global-setup.ts"));
+    await copyLiveDependencies(sourcePackage, fixture.packageRoot, [`__tests__/${tier}/global-setup.ts`]);
     await writeFile(join(fixture.packageRoot, "tests", `${tier}-setup.mjs`), `
 import { setup as runtimeSetup } from "../__tests__/${tier}/global-setup.ts";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
@@ -33,7 +32,14 @@ function observe(stage) {
     generation: evidence.generation, owned: existsSync(join(packageRoot, ".arc-build.lock")) }) + "\\n");
 }
 export async function setup(project) {
-  await runtimeSetup(project);
+  // Hook-tool processes are outside this fixture's artifact-ownership contract.
+  const hookToolExec = async (_file, args) => {
+    if (args[0] === "version") return "2.2.1";
+    if (args[0] === "-c") return JSON.stringify({ executable: "fixture-python", version: "3.12.0" });
+    if (args[0] === "--version") return "pre-commit 4.4.0";
+    throw new Error("Unexpected hook-tool provisioning command in runtime fixture");
+  };
+  await runtimeSetup(project, ${tier === "e2e" ? "hookToolExec" : "undefined"});
   observe("setup");
   return () => observe("teardown");
 }

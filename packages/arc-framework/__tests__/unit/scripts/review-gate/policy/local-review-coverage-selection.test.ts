@@ -33,16 +33,18 @@ import { projectGitReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 import { resolveEvidenceBoundReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
+import type { StandardReviewObligationProjection } from
+  "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const digest = (value: string) => canonicalDigest({ value });
 const lineage = { kind: "candidate" as const, candidateId: digest("candidate") };
 const standardReview = {
   obligation: "required" as const,
-  reasons: ["sensitive-change-set" as const],
+  reasons: ["routine-code" as const],
   rubricVersion: "standard-review/v1",
   rubricDigest: digest("rubric"),
-  retrigger: "full-final" as const,
+  retrigger: "incremental" as const,
   count: 1 as const,
 };
 
@@ -116,11 +118,12 @@ function target(headSha: string) {
 
 function completeLocalResult(
   resultLineage: LaneSubjectLineage = lineage,
+  projection: StandardReviewObligationProjection = standardReview,
 ): Extract<ReviewResult, { kind: "attested-local" }> {
   const predecessorTarget = target(objectId("a"));
   const requirement = createReviewRequirement({
     target: predecessorTarget,
-    projection: standardReview,
+    projection,
     acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
     initialAdmission: "checkpoint",
   });
@@ -193,13 +196,13 @@ function dependencies(predecessor: ReviewResult): {
   };
 }
 
-function readyPolicy(headSha: string) {
+function readyPolicy(headSha: string, projection: StandardReviewObligationProjection = standardReview) {
   return resolveReviewPolicy({
     schemaVersion: 1,
     target: { repository: "local/repo-1", pullRequest: null, headSha },
     lane: "standard",
     frontlineActive: false,
-    standardReview,
+    standardReview: projection,
     completedPasses: 1,
     attempts: [],
     sources: ["delegated-agent"],
@@ -269,8 +272,10 @@ describe("local review coverage selection", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("carries exact Candidate coverage through a mechanically proved later correction", async () => {
-    const predecessor = completeLocalResult();
+  it.each([
+    "fresh-subagent", "fresh-subagent/claude-opus-5-5", "Fresh_Subagent:Claude/Opus",
+  ])("carries exact Candidate coverage by review source with evaluator %s", async (evaluatorIdentity) => {
+    const predecessor = { ...completeLocalResult(), sourceIdentity: evaluatorIdentity };
     const selectedTarget = { ...target(objectId("b")), diffBaseSha: objectId("2") };
     const currentTarget = { ...target(objectId("c")), diffBaseSha: objectId("3") };
     const exec = carriedProofExec();
@@ -280,7 +285,7 @@ describe("local review coverage selection", () => {
       repository: "local/repo-1",
       pullRequest: 42,
       lane: "standard" as const,
-      sourceId: predecessor.sourceIdentity,
+      sourceId: "delegated-agent",
       priorAttemptId: predecessor.producerId,
       priorHead: predecessor.target.headSha,
       currentHead: selectedTarget.headSha,
@@ -332,7 +337,9 @@ describe("local review coverage selection", () => {
     })).resolves.toBe("applicable");
   });
 
-  it("proves contribution for a mixed-case origin repository without a Candidate", async () => {
+  it.each([
+    "fresh-subagent/claude-opus-5-5", "Fresh_Subagent:Claude/Opus",
+  ])("proves mixed-case noncandidate contribution with evaluator %s", async (evaluatorIdentity) => {
     const earlierLineage = {
       kind: "head-bound" as const,
       vehicleKind: "errand" as const,
@@ -345,6 +352,7 @@ describe("local review coverage selection", () => {
     void _currentId;
     const predecessor = {
       ...completeLocalResult(earlierLineage),
+      sourceIdentity: evaluatorIdentity,
       target: createReviewTarget({
         ...priorInput,
         diffBaseSha: objectId("1"), diffBaseTree: objectId("4"),
@@ -893,5 +901,37 @@ describe("local review coverage selection", () => {
       state: "coverage-required",
       action: { choices: [{ requestedCoverage: "complete" }] },
     });
+  });
+});
+
+
+describe("full-final local correction coverage", () => {
+  const fullFinal: StandardReviewObligationProjection = {
+    ...standardReview, reasons: ["sensitive-change-set"], retrigger: "full-final",
+  };
+  const owner = { kind: "head-bound" as const, vehicleKind: "errand" as const,
+    vehicleIdentity: "claim-1", headSha: objectId("a") };
+  const currentTarget = target(objectId("c"));
+  const input = (projection: StandardReviewObligationProjection) => ({
+    policy: readyPolicy(currentTarget.headSha, projection), target: currentTarget,
+    sourceId: "delegated-agent", lineage: { ...owner, headSha: currentTarget.headSha },
+    standardReview: projection, predecessorOperationId: "local-predecessor",
+  });
+
+  it("offers and accepts only complete coverage after an Errand head changes", async () => {
+    const predecessor = completeLocalResult(owner, fullFinal);
+    const offered = await resolveLocalReviewCoverageSelection(input(fullFinal), dependencies(predecessor));
+    expect(offered).toMatchObject({ state: "coverage-required", action: { choices: [{ requestedCoverage: "complete" }] } });
+    await expect(resolveLocalReviewCoverageSelection({ ...input(fullFinal), coverageAdmission: { requestedCoverage: "complete" } },
+      dependencies(predecessor))).resolves.toEqual({ state: "ready", coverageSelected: false });
+  });
+
+  it("rejects an incremental choice that no longer matches full-final routing", async () => {
+    const prior = await resolveLocalReviewCoverageSelection(input(standardReview), dependencies(completeLocalResult(owner)));
+    if (prior.state !== "coverage-required") throw new Error("Expected a prior coverage offer");
+    const incremental = prior.action.choices.find(choice => choice.requestedCoverage === "incremental");
+    if (incremental === undefined) throw new Error("Expected the incremental route's choice");
+    await expect(resolveLocalReviewCoverageSelection({ ...input(fullFinal), coverageAdmission: incremental },
+      dependencies(completeLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
   });
 });

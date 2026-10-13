@@ -149,7 +149,7 @@ export type TeardownAuthorizationDecision =
 export interface RetirementAuthorityPort {
   readSnapshot(scope: RetirementAuthorityScope): Promise<
     | { status: "resolved"; snapshot: RetirementAuthoritySnapshot }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
+    | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
   >;
 
   authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision>;

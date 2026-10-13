@@ -33,10 +33,14 @@ describe("arc view", () => {
     await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
       "# Metadata: feature",
       "",
-      "- **State:** Active",
-      "- **Branch:** main",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | main | — | — |",
+      "",
       "- **Task List:** tasks-feature.md",
       "- **Next Action:** Continue implementation",
+      "",
+      "---",
       "",
     ].join("\n"));
     await writeFile(join(cwd, ".arc", "active", "tasks-feature.md"), [
@@ -69,7 +73,16 @@ describe("arc view", () => {
 
   it("uses conventional task fallback and bare lifecycle selection", async () => {
     await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
-      "# Metadata: feature", "", "- **State:** Active", "- **Branch:** main", "- **Task List:** [none]", "",
+      "# Metadata: feature",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active | — | main | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     const forming = await runArcNoTty(["view"], cwd);
     expect(forming.stdout).toContain("# Task List: feature");
@@ -90,14 +103,41 @@ describe("arc view", () => {
     await mkdir(completed, { recursive: true });
     await mkdir(join(planned, "planned"), { recursive: true });
     await writeFile(join(planned, "planned", "meta-planned.md"), [
-      "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+      "# Metadata: planned",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Planning | — | [none] | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     await writeFile(join(planned, "planned", "spec-planned.md"), "# Planned spec\n");
     await writeFile(join(provisional, "meta-provisional.md"), [
-      "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+      "# Metadata: provisional",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Planning | — | [none] | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
     await writeFile(join(completed, "meta-completed.md"), [
-      "# Metadata: completed", "", "- **State:** Shipped", "- **Branch:** feat/completed", "- **Task List:** [none]", "",
+      "# Metadata: completed",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Shipped | — | feat/completed | — | — |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n"));
 
     const active = await runArcNoTty(["view", "meta", "--for", "feature"], cwd);
@@ -134,6 +174,60 @@ describe("arc view", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("identity-global");
   });
+
+  it("reads a started work unit's live checkout and then its ref without using the base backlog", async () => {
+    const slug = "sibling";
+    const branch = `feat/${slug}`;
+    const backlog = join(cwd, ".arc/backlog/planned", slug);
+    const checkout = join(cwd, "sibling-checkout");
+    const specPath = join(checkout, `.arc/active/spec-${slug}.md`);
+    await mkdir(backlog, { recursive: true });
+    await mkdir(join(cwd, ".arc/system"), { recursive: true });
+    await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\n");
+    await writeFile(join(cwd, ".git/info/exclude"), "sibling-checkout/\n");
+    await writeFile(join(backlog, `meta-${slug}.md`), makeMetaFixture(slug, {
+      state: "Planning", branch: null, design: [`spec-${slug}.md`],
+    }));
+    await writeFile(join(backlog, `spec-${slug}.md`), "# Base backlog copy\n");
+    await git(cwd, ["add", ".arc"]);
+    await git(cwd, ["commit", "-m", "seed base backlog"]);
+    await git(cwd, ["worktree", "add", "-b", branch, checkout]);
+    try {
+      await rm(join(checkout, ".arc/backlog/planned", slug), { recursive: true });
+      await writeFile(join(checkout, `.arc/active/meta-${slug}.md`), makeMetaFixture(slug, {
+        branch, design: [`spec-${slug}.md`],
+      }));
+      await writeFile(specPath, "# Started branch copy\n");
+      await git(checkout, ["add", ".arc"]);
+      await git(checkout, ["commit", "-m", "start sibling"]);
+      await writeFile(specPath, "# Uncommitted live copy\n");
+      const live = await runArcNoTty(["view", "spec", "--for", slug], cwd);
+      expect(live.exitCode, live.stderr).toBe(0);
+      expect(live.stdout).toContain("# Uncommitted live copy");
+      expect(live.stdout).not.toContain("Base backlog copy");
+      const liveDesign = await runArcNoTty(["view", "design", "--for", slug], cwd);
+      expect(liveDesign.exitCode, liveDesign.stderr).toBe(0);
+      expect(liveDesign.stdout).toContain("# Uncommitted live copy");
+      const path = await runArcNoTty(["view", "spec", "--for", slug, "--path"], cwd);
+      expect(path).toEqual({ stdout: `${specPath}\n`, stderr: "", exitCode: 0 });
+      expect(live.stdout).toContain(await readFile(path.stdout.trim(), "utf8"));
+      await git(cwd, ["worktree", "remove", "--force", checkout]);
+      const atRef = await runArcNoTty(["view", "spec", "--for", slug], cwd);
+      expect(atRef.exitCode, atRef.stderr).toBe(0);
+      expect(atRef.stdout).toContain("# Started branch copy");
+      expect(atRef.stdout).not.toContain("Base backlog copy");
+      const refDesign = await runArcNoTty(["view", "design", "--for", slug], cwd);
+      expect(refDesign.exitCode, refDesign.stderr).toBe(0);
+      expect(refDesign.stdout).toContain("# Started branch copy");
+      const refused = await runArcNoTty(["view", "spec", "--for", slug, "--path"], cwd);
+      expect(refused).toMatchObject({ stdout: "", exitCode: 1 });
+      expect(refused.stderr).toContain(slug);
+      expect(refused.stderr).toContain(branch);
+      expect(refused.stderr).toContain(`arc view spec --for ${slug}`);
+    } finally {
+      await git(cwd, ["worktree", "remove", "--force", checkout]).catch(() => undefined);
+    }
+  }, 30_000);
 
   it("rejects --for with the shared project inbox", async () => {
     const result = await runArcNoTty(["view", "inbox", "--project", "--for", "feature"], cwd);

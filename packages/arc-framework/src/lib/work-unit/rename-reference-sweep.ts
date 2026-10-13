@@ -3,6 +3,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 
+import { rewriteCohortMemberHeading } from "../store/kinds/cohort/index.js";
 import {
   formatValue,
   parseMetaRecord,
@@ -70,19 +71,6 @@ export interface RenameReferenceEdit {
 /** A deterministic reference-sweep plan and its authority-bound path set. */
 export interface RenameReferencePlan extends RenameReferenceSweepResult {
   edits: RenameReferenceEdit[];
-}
-
-/** Rewrite one member heading only inside a cohort doc's `## Members` section. */
-export function rewriteCohortMemberHeading(content: string, sourceSlug: string, targetSlug: string): string {
-  let inMembers = false;
-  return content.split("\n").map((line) => {
-    const h2 = /^##\s+(.*)$/u.exec(line);
-    if (h2 !== null) {
-      inMembers = (h2[1] ?? "").trim().toLowerCase() === "members";
-      return line;
-    }
-    return inMembers && line === `### \`${sourceSlug}\`` ? `### \`${targetSlug}\`` : line;
-  }).join("\n");
 }
 
 /**

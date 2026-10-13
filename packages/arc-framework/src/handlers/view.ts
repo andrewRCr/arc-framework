@@ -21,7 +21,7 @@ import { gitConfigGet } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { resolveIdentity } from "../lib/git/identity.js";
 import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-path.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createUserIOContext, readGitBlobEntry } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -44,7 +44,13 @@ import {
   declareCliOptionSite, declareInteractionSite, type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
 import { resolveViewClock } from "../lib/view/clock.js";
-import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import type { LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import {
+  isComposedLifecycleSlugIndeterminate, resolveCallerComposedLifecycleIndex,
+  type ComposedLifecycleIndexResult,
+} from "../lib/work-unit/composed-lifecycle-index.js";
+import { resolveStartedViewTarget } from "../lib/view/started-artifacts.js";
+import type { WorkUnitArtifactReaders } from "../lib/status/work-unit-purpose.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { launchViewEditor } from "./view-editor.js";
 
@@ -206,7 +212,7 @@ export async function handleView(
   const io = createUserIOContext(context.subprocess);
   const exec = io.exec;
   const identity = await resolveIdentity({ exec });
-  const dependencies = createViewDependencies(cwd, io.readFile, exec);
+  const dependencies = createViewDependencies(cwd, io.readFile, exec, identity);
   const clock = parsed.data.editor ? undefined : await resolveViewClock({
     cwd,
     exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
@@ -249,6 +255,7 @@ function createViewDependencies(
   cwd: string,
   readUtf8: (path: string) => Promise<string>,
   exec: GitExec,
+  identity: string | null,
 ): ViewArtifactDependencies {
   return {
     resolveAmbientTarget: async ({ identity }) => {
@@ -261,26 +268,69 @@ function createViewDependencies(
       return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd, exec));
     },
     resolveExplicitTarget: async ({ slug }) => {
-      const index = await buildLifecycleIndex({
-        cwd,
+      const composition = await resolveCallerComposedLifecycleIndex({
+        cwd, exec, identity, acquisitionPolicy: "local",
         fs: {
           readdir: (path) => readdir(path, { withFileTypes: true }),
           readFile: readUtf8,
         },
       });
-      return resolveExplicitViewTarget({ cwd, slug, index, readFile: readUtf8 });
+      return resolveComposedViewTarget({
+        cwd, slug, composition,
+        readers: {
+          fs: { readFile: readUtf8 },
+          readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
+        },
+      });
     },
-    resolveCohort: ({ activeMetaPath }) => resolveActiveCohortDocPath({
+    resolveCohort: ({ activeMetaPath, metaContent }) => resolveActiveCohortDocPath({
       cwd,
       activeMetaPath,
-      fs: { readFile: readUtf8, pathExists },
+      fs: { readFile: metaContent === undefined ? readUtf8 : () => Promise.resolve(metaContent), pathExists },
     }),
     resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
       resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
       resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec }),
     pathExists,
+    readFile: readUtf8,
+    readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
   };
+}
+
+/**
+ * Select one explicit viewer target from composed lifecycle truth.
+ * @param input - Composed records and caller-bound metadata readers.
+ * @returns The current target, or the composition's unavailable classification.
+ */
+export async function resolveComposedViewTarget(input: {
+  cwd: string;
+  slug: string;
+  composition: ComposedLifecycleIndexResult;
+  readers: WorkUnitArtifactReaders;
+}): Promise<ViewTargetResult> {
+  if (isComposedLifecycleSlugIndeterminate(input.composition, input.slug)) {
+    const warnings = input.composition.qualityFacts.bySlug.get(input.slug)?.warnings
+      ?? input.composition.qualityFacts.warnings;
+    return {
+      status: "unavailable", slug: input.slug,
+      message: warnings.map((warning) => warning.rendered).join(" ")
+        || `Work unit "${input.slug}" has indeterminate started metadata.`,
+    };
+  }
+  const record = input.composition.recordsBySlug.get(input.slug)?.selected;
+  if (record?.source.kind === "in-flight-meta") {
+    return await resolveStartedViewTarget({
+      record, worktreePath: input.composition.worktreePathBySlug.get(input.slug),
+      readers: input.readers, taskListPath: resolveTaskListPath,
+    });
+  }
+  const target = await resolveExplicitViewTarget({
+    cwd: input.cwd, slug: input.slug, index: input.composition.index,
+    readFile: (path) => input.readers.fs.readFile(path),
+  });
+  return target.status === "resolved"
+    ? { ...target, artifactSource: { kind: "checkout", cwd: input.cwd } } : target;
 }
 
 /** Classify one explicit slug from the checkout-local lifecycle projection. */

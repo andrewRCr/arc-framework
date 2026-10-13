@@ -125,6 +125,20 @@ describe("Errand merge contract", () => {
       continuation,
     },
     {
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      reason: "base-reconcile-required",
+      detail: "The current plan requires an ordinary base reconcile.",
+      coordinates,
+      applicability: {
+        verdict: "supplemental",
+        residual: ["src/index.ts"],
+        reason: "bounded-overlap",
+        judgmentRequired: true,
+      },
+      continuation,
+    },
+    {
       state: "reconcile-regenerable",
       nextAction: "reconcile-regenerable",
       reason: "regenerable-reconcile-required",
@@ -695,12 +709,49 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it.each([true, false])("handles disjoint GitHub recomputation (becomes current: %s) without reconciliation", async (becomesCurrent) => {
+  it("reconciles a substantive overlap the host would merge, carrying its review to the new head", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async () => composeErrandFinalPlan({
+      target: approvedTarget,
+      drift: {
+        verdict: "reconcile", baseOid: oid("b"), headOid: approvedTarget.headSha, movement: "overlapping",
+        integrationEvidence: {
+          coverage: "complete", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 0,
+          truncated: false, limitations: [],
+        },
+        overlap: { status: "available", substantivePaths: ["eslint.config.js"], regenerablePaths: [] },
+      },
+      feasibility: directPlan().observation.feasibility,
+      admission: directPlan().observation.admission,
+    });
+
+    const result = await mergeErrand(request, value);
+    expect(result).toMatchObject({
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      detail: expect.stringContaining("overlapping"),
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+          ],
+        },
+      },
+    });
+    // The merge combines both sides without a conflict, so no review residual passes to the reconciled head.
+    expect(result).not.toHaveProperty("applicability");
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
+  it("merges across disjoint movement without reconciliation while GitHub's test merge lags the base", async () => {
     const { value, state } = dependencies();
     const host = githubMergeLag({
       repository: approvedTarget.repository, changeRequest: approvedTarget.pullRequest,
       baseRef: approvedTarget.baseRef, base: oid("b"), head: approvedTarget.headSha,
-    }, becomesCurrent);
+    });
     value.readFinalPlan = async () => composeErrandFinalPlan({
       target: approvedTarget,
       drift: {
@@ -715,18 +766,9 @@ describe("Errand merge operation", () => {
       admission: await host.observe(),
     });
     const result = await mergeErrand(request, value);
-    if (becomesCurrent) {
-      expect(result).toMatchObject({ state: "merged", approvedTarget });
-      expect(state).toEqual({ held: false, merged: true, mergeCalls: 1 });
-    } else {
-      expect(result).toMatchObject({
-        state: "host-pending", nextAction: "retry", reason: "host-admission-unresolved",
-        detail: expect.stringMatching(/three-read observation limit.*Retry/u),
-        continuation: { kind: "remedy", remedy: { stdin: request } },
-      });
-      expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
-      expect(host.reads()).toBe(3);
-    }
+    expect(result).toMatchObject({ state: "merged", approvedTarget });
+    expect(state).toEqual({ held: false, merged: true, mergeCalls: 1 });
+    expect(host.reads()).toBe(1);
   });
 
   it("returns unresolved host admission as a retryable exact request", async () => {
@@ -829,12 +871,48 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("requires a bounded judgment before a reviewed-lane reconcile", async () => {
+  it.each([
+    ["a bounded", { verdict: "supplemental", residual: ["src/index.ts"], reason: "bounded-overlap", judgmentRequired: true }],
+    ["an unbounded", { verdict: "fresh", residual: null, reason: "unbounded-residual", judgmentRequired: false }],
+  ] as const)("reconciles an overlapping base before judging review, disclosing %s residual", async (_label, applicability) => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
       observation: { ...directPlan().observation, movement: "overlapping" },
       plan: { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" },
+      reviewApplicability: applicability.residual === null
+        ? applicability
+        : { ...applicability, residual: [...applicability.residual] },
+    });
+
+    // The reconcile replaces the head the review covered, so the clearance question belongs to the reconciled
+    // head. Judging it here first answered it for a head about to be discarded, and nothing could feed the
+    // answer back.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      reason: "base-reconcile-required",
+      applicability,
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+          ],
+        },
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
+  it("reports a blocked plan before the review applicability its overlap leaves", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      observation: { ...directPlan().observation, movement: "overlapping" },
+      plan: { state: "blocked", reason: "conflict", paths: ["src/index.ts"] },
       reviewApplicability: {
         verdict: "supplemental",
         residual: ["src/index.ts"],
@@ -844,9 +922,10 @@ describe("Errand merge operation", () => {
     });
 
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
-      state: "applicability-judgment-required",
-      nextAction: "assess-applicability",
-      reason: "bounded-review-residual",
+      state: "conflict",
+      nextAction: "stop",
+      reason: "substantive-conflict",
+      paths: ["src/index.ts"],
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
@@ -1032,7 +1111,8 @@ describe("Errand merge operation", () => {
         }
       : directPlan();
 
-    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+    const result = await mergeErrand(request, value);
+    expect(result).toMatchObject({
       state: "reconcile-base",
       nextAction: "reconcile-base",
       reason: "base-reconcile-required",
@@ -1048,6 +1128,8 @@ describe("Errand merge operation", () => {
         },
       },
     });
+    // Clearance that carries leaves nothing for the reconciled head to settle.
+    expect(result).not.toHaveProperty("applicability");
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });
 
@@ -1070,10 +1152,12 @@ describe("Errand merge operation", () => {
         }
       : directPlan();
 
+    // The host's demand authorizes the reconcile, never the merge: the overlap stays on the result for the
+    // reconciled head's review status to settle.
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
-      state: "applicability-judgment-required",
-      nextAction: "assess-applicability",
-      reason: "bounded-review-residual",
+      state: "reconcile-base",
+      nextAction: "reconcile-base",
+      applicability: { verdict: "supplemental", residual: ["src/index.ts"], judgmentRequired: true },
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });

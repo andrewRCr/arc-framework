@@ -213,6 +213,42 @@
   closeout instead. Design an explicit exception model for WUs whose purpose is itself a release, GA, migration,
   or other gate where post-integration evidence may legitimately define completion.
 
+### `[ ]` **Run inbound re-triage at Concern 1 with the routing method's rubric**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § Concern 1 — Iteration-time Inbound Buffer integration ceremony.
+
+- _Observation:_ `inbound-routing-method` supplies the rubric Concern 1 runs. The owner's planning pass calls
+  `route-discovered-work` with the owner's-pass door, folds or dispositions every inbound entry before the draft is
+  formalization-ready, may not keep an entry held at the pass that makes it ready, and leaves a compact dispositions
+  table, one row per entry, which review reads for "integrated or consciously rejected"
+  (`spec-inbound-routing-method.md` D5, D9). That change already wires the call where a draft's buffer drains today —
+  `draft-design`'s readiness exit, on the criterion-3 gap, and `create-spec`'s buffer hook — and adds no step. Whether
+  an iteration-time drain step runs earlier, and the table's format, are Concern 1's.
+
+- _Approach:_ if Concern 1 adds an iteration-time step, move the `draft-design` readiness-exit call into it and set the
+  table format there.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Make the draft-close routing gate the routing method's cascade-door caller**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the draft-close routing gate its inbound entry "Place coordination routing at draft close, not at task
+  generation" would place.
+
+- _Observation:_ the routing method's cascade door (`spec-inbound-routing-method.md` D6, D9) names that gate as its
+  caller. A cascade item routes only when it names the decision it shapes in the affected work unit, never re-opening
+  that work unit's body mid-pass. The door allows `hold <other>` and `new-stub`, executed as pre-routed captures until
+  the flip; `errand` as a `§ Errand` capture; `capture`; and `dismiss`. Until the gate ships, a draft-close capture is
+  an ordinary capture the drain gates.
+
+- _Approach:_ the gate calls `route-discovered-work` with the cascade door.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---
 
 ### `[ ]` **Let a task plan mark a pin-only task distinctly from a build task**

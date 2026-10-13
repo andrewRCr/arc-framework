@@ -14,10 +14,11 @@ import { mergeContents, storeConflicts } from "./merge.js";
 import { namespaceAdmission, refused, ok } from "./refusals.js";
 import { indexIdentities } from "./identities.js";
 import { publicRecord } from "./read.js";
+import { withStateQueue } from "./state-queue.js";
 import { checkpointMemoryState, transferMemoryHistory } from "./history-transfer.js";
 
 /** Remote transport condition is injected separately from its durable records. */
-export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void }
+export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void | Promise<void> }
 /** One client's common remote ancestor; independent clients keep independent bases. */
 export interface ReferencePublication { remote?: MemoryRemote; base: Map<string, MemoryRecord> }
 
@@ -169,32 +170,38 @@ function reconcileArchivePositions(records: Map<string, MemoryRecord>, remote: M
  * @param publication - Configured remote and this client's last common state.
  * @returns Independent configuration states and one family-scoped publish result.
  */
-export function syncReference(context: ReferenceContext, publication: ReferencePublication): StoreResult<SyncResult> {
-  const admission = namespaceAdmission(context.state);
-  if (admission) return refused(admission);
-  const states: SyncResult["states"] = [];
-  const identityFamilies = FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity");
-  if (context.environment.identity === undefined) states.push({ status: "no-identity", families: identityFamilies,
-    remedy: { text: "Set arc.identity, then retry the identity-scope publishes.", argv: ["git", "config", "arc.identity", "test-user"] } });
-  if (publication.remote === undefined) { states.push({ status: "no-remote" }); return ok({ states, publishes: [] }); }
-  const families = FAMILY_IDS.filter((family) => context.environment.identity !== undefined || FAMILY_REGISTRY[family].scope === "project");
-  const failure = remoteFailure(publication.remote);
-  if (failure) return ok({ states, publishes: [{ status: "failed", families, failure: failure as Extract<SyncResult["publishes"][number], { status: "failed" }>["failure"] }] });
-  const started = context.environment.now();
-  for (let retry = 0; retry < 3; retry++) {
-    const observedRemoteVersion = publication.remote.state.counter;
-    const prepared = prepareReconciliation(context,publication,families);
-    if (prepared.status === "refused") return prepared;
-    publication.remote.beforePublish?.();
-    if (publication.remote.state.counter !== observedRemoteVersion) { context.environment.wait(10); continue; }
-    Object.assign(context.state, prepared.result.state);
-    return finishPublish(publication, states, families, prepared.result);
-  }
-  return ok({ states, publishes: [{ status: "failed", families, failure: {
-    code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs: context.environment.now() - started,
-    condition: "The remote moved before every compare-and-swap publish attempt.",
-    remedy: { text: "Retry at the next firing point or run arc sync after contention subsides.", argv: ["arc", "sync"] },
-  } }] });
+export async function syncReference(context: ReferenceContext, publication: ReferencePublication): Promise<StoreResult<SyncResult>> {
+  return withStateQueue(context.state, async () => {
+    const admission = namespaceAdmission(context.state);
+    if (admission) return refused(admission);
+    const states: SyncResult["states"] = [];
+    const identityFamilies = FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity");
+    if (context.environment.identity === undefined) states.push({ status: "no-identity", families: identityFamilies,
+      remedy: { text: "Set arc.identity, then retry the identity-scope publishes.", argv: ["git", "config", "arc.identity", "test-user"] } });
+    if (publication.remote === undefined) { states.push({ status: "no-remote" }); return ok({ states, publishes: [] }); }
+    const families = FAMILY_IDS.filter((family) => context.environment.identity !== undefined || FAMILY_REGISTRY[family].scope === "project");
+    const failure = remoteFailure(publication.remote);
+    if (failure) return ok({ states, publishes: [{ status: "failed", families, failure: failure as Extract<SyncResult["publishes"][number], { status: "failed" }>["failure"] }] });
+    const started = context.environment.now();
+    for (let retry = 0; retry < 3; retry++) {
+      const observedRemoteVersion = publication.remote.state.counter;
+      const prepared = prepareReconciliation(context,publication,families);
+      if (prepared.status === "refused") return prepared;
+      await publication.remote.beforePublish?.();
+      const published = await withStateQueue(publication.remote.state, () => {
+        if (publication.remote!.state.counter !== observedRemoteVersion) return undefined;
+        Object.assign(context.state, prepared.result.state);
+        return finishPublish(publication, states, families, prepared.result);
+      });
+      if (published !== undefined) return published;
+      context.environment.wait(10);
+    }
+    return ok({ states, publishes: [{ status: "failed", families, failure: {
+      code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs: context.environment.now() - started,
+      condition: "The remote moved before every compare-and-swap publish attempt.",
+      remedy: { text: "Retry at the next firing point or run arc sync after contention subsides.", argv: ["arc", "sync"] },
+    } }] });
+  });
 }
 
 interface Reconciliation extends ReturnType<typeof reconciledRecords> {

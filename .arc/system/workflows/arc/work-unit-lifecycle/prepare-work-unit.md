@@ -3,6 +3,7 @@ purpose: Prepare a verified Candidate for publication through private review, co
 audience: agent
 arc:
   methods:
+    - classify-review-risk
     - self-review
     - frontline-review
     - standard-review
@@ -10,7 +11,6 @@ arc:
     - review-triage
     - review-response
     - commit-footer
-    - quality-gate-commands
 ---
 
 # Workflow: Prepare Work Unit for Publication
@@ -56,6 +56,8 @@ From the local Candidate branch, compose the change-set routing facts — conten
 ownership, and surface authority — as the author judgment the repository cannot read. The lane routing target, the
 routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
 from repository state by the command below; never assemble or restate them here.
+
+**Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact.
 
 Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
@@ -133,12 +135,13 @@ A null `policy` means no lane operation is open — follow the envelope's `nextA
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
 
-For `run-convergence-verification`, use only the typed action: run its `nextAction.verificationKind` at
-`nextAction.requiredScope`, obtain a fresh verification evidence reference, replace only the
+For `run-convergence-verification`, use only the typed action's `nextAction.requiredScope`: `focused` requests
+`arc check gate push --range --force`; `full` requests `arc check gate merge --force`. Retain
+`nextAction.verificationKind`, obtain a fresh verification evidence reference, replace only the
 `{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
-verification scope in prose or substitute the Candidate root task-list reference. Complete final Tier 3 without an
-intervening commit. Keep every projection staged while the returned action re-enters prepublication, through
-`candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
+verification scope in prose or substitute the Candidate root task-list reference. Complete the final forced merge
+check without an intervening commit. Keep every projection staged while the returned action re-enters prepublication,
+through `candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
 
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
@@ -169,7 +172,8 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review respond -`. A command error envelope carries no dispatchable state unless it names a `remedy`: then render
 `remedy.text` and continue only through `remedy.argv`, passing any `remedy.stdin` unchanged.
 For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
-Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
+Owner decision. On approval, re-run `arc review frontline resolve -` for a fresh ready resolution, then
+`arc review frontline run -` with that resolution and `retryOfOperationId` from the prior operation.
 
 For every durable producer finding, run [`review-triage`][review-triage] to verify the source and
 [`review-response`][review-response] to compose the complete proposal with the effective policy in
@@ -185,7 +189,10 @@ presentation. Co-present `payload.provisionalPassAssessment.summaryText` and an 
 for stopping or requesting a named next pass. This assessment is provisional until the approved response and policy
 continuation establish the verified action. Keep disposition approval distinct from any later one-pass ceiling
 authorization. Obtain complete-set approval over that exact report and canonical set before any mutation or
-commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
+commitment; the approver need not repeat its canonical digest. That approval is the fix round's structured gate:
+where the configured interlocks release them, the fix's commit, push, and approved settlement follow without another
+stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact approved set
+through a second call:
 
 ```bash
 arc review respond -
@@ -193,8 +200,10 @@ arc review respond -
 
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
-continuation. The scope does not select fewer checks here. Approved fixes run Tier 1 gates
-([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Disclose review
+continuation. The scope does not select fewer checks here. Approved fixes request `arc check gate commit`,
+commit atomically, and produce a new target. The `verifiedFix` replay attests the approved scope as performed, so before
+it a `focused` scope also requests `arc check gate push --range --force` and a `full` scope
+`arc check gate merge --force` over that target; the Candidate's convergence verification repeats it. Disclose review
 applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
 `focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
 uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its
@@ -204,9 +213,21 @@ Candidate-bound private-member fix. Author only in its exact `authoring.checkout
 `authoring.head`; a missing or different locus stops before mutation. Never author this fix in the disposable member
 checkout. After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix`
 carrying the approved applicability and verification evidence. Require `candidate-advanced / continue-review` or
-idempotent
-`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
-before any Candidate-currentness or delivery-preparation read.
+idempotent `candidate-current / continue-review`, then commit its staged Candidate response as `taskCommit` under
+the same approved increment before any Candidate-currentness or delivery-preparation read.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+```text
+<type>(<scope>): <what the approved fixes change>
+
+Review disposition set: <identity>
+- <finding identity>: <verified severity> / <disposition> — <rationale>
+
+Context: tasks-{name}.md (code review)
+```
+
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
 carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction
@@ -253,8 +274,9 @@ push and change-request creation; do not push from this workflow.
 
 ---
 
+[classify-review-risk]: ../../../methods/classify-review-risk.md
 [review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [deliver-stack]: ../supplemental/deliver-stack.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

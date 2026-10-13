@@ -38,6 +38,9 @@ export function normalizeRetainedTestCostRuns(
 ): NormalizedRetainedCost {
   const [first] = runs;
   if (first === undefined) throw new Error("At least one retained run is required");
+  runs.forEach((run, index) => {
+    requireWarmRunSchema(run.schemaVersion, `normalization sample ${index + 1}`);
+  });
   const summary = normalizeCostRuns(runs);
   const paths = first.files.map((file) => file.path).sort();
   for (const run of runs.slice(1)) {
@@ -119,8 +122,8 @@ export function assertRetainedTestCostRun(
     throw new Error(`Invalid retained test-cost run: ${label}`);
   }
   const candidate = value as Readonly<Record<string, unknown>>;
-  if (candidate["schemaVersion"] !== 4
-    || candidate["outcome"] !== "passed"
+  requireWarmRunSchema(candidate["schemaVersion"], label);
+  if (candidate["outcome"] !== "passed"
     || candidate["unhandledErrorCount"] !== 0
     || typeof candidate["requestedWorkerSizing"] !== "string"
     || candidate["requestedWorkerSizing"].trim().length === 0
@@ -242,6 +245,13 @@ export function assertRetainedTestCostRun(
     || share !== expectedSubstrate.shareFraction
     || !sameMembers(substrate["files"] as string[], expectedSubstrate.files)) {
     invalid(label, "substrate membership");
+  }
+}
+
+function requireWarmRunSchema(schemaVersion: unknown, label: string): void {
+  if (schemaVersion !== 5) {
+    throw new Error(`Retained warm-run protocol requires schema 5: ${label}; remeasure with benchmark:test-cost `
+      + "using an entry that completes a discarded warm-up. Do not relabel older records.");
   }
 }
 

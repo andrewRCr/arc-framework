@@ -2,7 +2,7 @@
  * Unit tests for the active-meta reader.
  *
  * Covers the meta-file parser (field extraction, missing fields,
- * malformed content) and the layout detector (full vs lite, missing
+ * malformed content) and candidate selection (meta files, missing
  * directory) — the behaviors the probe runners and composite status
  * consumer depend on.
  */
@@ -60,13 +60,19 @@ function metaFileBody(fields: {
   currentWorkflow?: string;
   extra?: string;
 }): string {
-  const lines: string[] = ["# Metadata: fixture", ""];
-  if (fields.state !== undefined) lines.push(`- **State:** ${fields.state}`);
-  if (fields.branch !== undefined) lines.push(`- **Branch:** ${fields.branch}`);
+  const lines: string[] = [
+    "# Metadata: fixture",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? ""} | | ${fields.branch ?? ""} | | |`,
+    "",
+  ];
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
   if (fields.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.extra !== undefined) lines.push(fields.extra);
+  lines.push("", "---", "");
   return lines.join("\n");
 }
 
@@ -143,11 +149,10 @@ describe("parseMetaRecord — semantic adapter", () => {
     const record = parseMetaRecord([
       "# Metadata: legacy",
       "",
-      "- **State:** Unexpected-State",
-      "- **Owner:** andrew",
-      "- **Branch:** feat/legacy",
-      "- **Class:** Unclassified",
-      "- **Priority:** Urgent",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Unexpected-State | andrew | feat/legacy | Unclassified | Urgent |",
+      "",
       "- **Next Task:** Task 2.2.a — Preserve",
       "  legacy multiline recovery",
       "- **Next Action:** Continue `carefully`",
@@ -229,7 +234,10 @@ describe("renderMetaFile — semantic record", () => {
     };
 
     const markdown = renderMetaFile("foo", overrides);
-    expect(parseMetaRecord(markdown)).toEqual(overrides);
+    expect(parseMetaRecord(markdown)).toEqual({
+      ...overrides, stateAtHandoff: null, commitAtHandoff: null, sessionType: null,
+      sessionContext: null, completionNotes: [], releaseNotesEntry: [],
+    });
     expect(markdown).toBe(renderMetaProjectionFile("foo", {
       State: "Integrating",
       Owner: "andrew",
@@ -379,7 +387,7 @@ describe("parseMetaFile — happy path", () => {
 
 describe("parseMetaFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseMetaFile("# Metadata: fixture\n\nJust prose.\n");
+    const parsed = parseMetaFile(metaFileBody({ extra: "Just prose." }));
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -388,49 +396,63 @@ describe("parseMetaFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "# Metadata: fixture\n\n- **Branch:** \n- **State:** Active\n";
+    const content = [
+      "# Metadata: fixture",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\n");
     const parsed = parseMetaFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("Active");
   });
 
-  it("returns null for every field when no H1 is present", () => {
+  it("refuses metadata when no H1 is present", () => {
     const content = "- **Branch:** main\n- **State:** Active\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.branch).toBeNull();
-    expect(parsed.state).toBeNull();
+    expect(() => parseMetaFile(content)).toThrow(/missing.*H1/iu);
   });
 
   it("does not parse fields from below a content `## ` heading", () => {
-    const content = "# Metadata: fixture\n\n## Active Work\n\n- **State:** Active\n";
+    const content = metaFileBody({ extra: "## Active Work\n\n- **State:** Active" });
     const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
   });
 });
 
 describe("parseMetaFile — formatting tolerance", () => {
-  it("parses the bare `**Field:** value` form without a list bullet", () => {
+  it("refuses bare core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n**State:** Active\n**Branch:** main\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.state).toBe("Active");
-    expect(parsed.branch).toBe("main");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
-  it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
+  it("refuses quoted core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.state).toBe("Active");
-    expect(parsed.branch).toBe("feature/x");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
-  it("takes the first match when a field is repeated (stable behavior)", () => {
+  it("refuses repeated core bullets without a core table", () => {
     const content = "# Metadata: fixture\n\n- **Branch:** first\n- **Branch:** second\n";
-    const parsed = parseMetaFile(content);
-    expect(parsed.branch).toBe("first");
+    expect(() => parseMetaFile(content)).toThrow(/missing core-block table/iu);
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseMetaFile("# Metadata: fixture\n\n- **Task List:** [none]\n");
+    const parsed = parseMetaFile([
+      "# Metadata: fixture",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
+      "- **Task List:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n"));
     expect(parsed.taskList).toBe("[none]");
   });
 
@@ -452,7 +474,12 @@ describe("parseMetaFile — section boundary", () => {
       "",
       "# Metadata: fixture",
       "",
-      "- **Branch:** real",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  | real |  |  |",
+      "",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -463,7 +490,12 @@ describe("parseMetaFile — section boundary", () => {
     const content = [
       "# Metadata: fixture",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
       "",
       "## Notes",
       "",
@@ -480,11 +512,15 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
-      "- **Branch:** plan/foo",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  | plan/foo |  |  |",
+      "",
       "- **Task List:** `tasks-foo.md`",
       "- **Next Task:** Task 1.1 — kick off (line ~42)",
       "- **Next Action:** Start Task 1.1",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -499,8 +535,12 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
-      "- **Branch:** plan/foo",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  | plan/foo |  |  |",
+      "",
+      "",
+      "---",
       "",
       "## Notes",
       "",
@@ -513,24 +553,13 @@ describe("parseMetaFile — H1-bounded preamble", () => {
     expect(parsed.branch).toBe("plan/foo");
   });
 
-  it("returns all-null when no H1 is present", () => {
-    const parsed = parseMetaFile("just some prose with **Branch:** decoy in it\n");
-    expect(parsed.state).toBeNull();
-    expect(parsed.branch).toBeNull();
-    expect(parsed.nextTask).toBeNull();
-    expect(parsed.taskList).toBeNull();
-    expect(parsed.nextAction).toBeNull();
+  it("refuses prose with no H1", () => {
+    expect(() => parseMetaFile("just some prose with **Branch:** decoy in it\n"))
+      .toThrow(/missing.*H1/iu);
   });
 
   it("returns all-null when the H1-bounded preamble carries no field markers", () => {
-    const content = [
-      "# Metadata: foo",
-      "",
-      "Just narrative prose — no field markers yet.",
-      "",
-      "## Notes",
-      "",
-    ].join("\n");
+    const content = metaFileBody({ extra: "Just narrative prose — no field markers yet.\n\n## Notes\n" });
     const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
@@ -632,20 +661,16 @@ describe("readActiveMetaCandidates — layout detection", () => {
     expect(result.candidates[0]!.path.startsWith(".arc/user/alice/active/")).toBe(true);
   });
 
-  it("detects lite layout when .arc/active/status.md exists", async () => {
+  it("ignores status.md when no meta candidates exist", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       metaFileBody({ state: "Active", branch: "main" }),
     );
     const result = await readActiveMetaCandidates(fixture.root);
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/active/status.md");
-    expect(result.candidates[0]!.filename).toBe("status.md");
-    expect(result.candidates[0]!.state).toBe("Active");
+    expect(result).toEqual({ layout: "full", candidates: [], warnings: [] });
   });
 
-  it("detects lite layout under custom rootSegments", async () => {
+  it("ignores status.md under custom rootSegments", async () => {
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
@@ -656,12 +681,10 @@ describe("readActiveMetaCandidates — layout detection", () => {
     const result = await readActiveMetaCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
     });
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/user/alice/active/status.md");
+    expect(result).toEqual({ layout: "full", candidates: [], warnings: [] });
   });
 
-  it("prefers lite layout when both lite and meta-*.md candidates are present", async () => {
+  it("selects meta candidates when status.md is also present", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       metaFileBody({ state: "Active" }),
@@ -671,9 +694,12 @@ describe("readActiveMetaCandidates — layout detection", () => {
       metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
     const result = await readActiveMetaCandidates(fixture.root);
-    expect(result.layout).toBe("lite");
+    expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("status.md");
+    expect(result.candidates[0]).toMatchObject({
+      filename: "meta-foo.md", path: ".arc/active/meta-foo.md", branch: "technical/foo", state: "Active",
+    });
+    expect(result.warnings).toEqual([]);
   });
 
   it("emits a warning naming the supplied custom root when the directory is absent", async () => {
@@ -922,9 +948,8 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
   });
 
   it("normalizes a partial finalize group (one bullet present) instead of throwing", () => {
-    // A hand-edited meta where `Completed` was deleted but `PR URL` survived. The
-    // in-place rewrite would throw on the missing bullet; the write reconciles the
-    // absent bullet back in first, then updates both.
+    // A hand-edited meta where Completed was deleted but PR URL survived.
+    // Both facts are written without duplicating the present bullet.
     const full = renderMetaProjectionFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
     const partial = full
       .split("\n")
@@ -1060,6 +1085,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "",
       "- **Cohort:** `core/sub`",
       "",
+      "---",
+      "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
@@ -1078,6 +1105,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "| --------- | --------- | ---------- | --------- | ------------ |",
       "| `Active`  | `andrew`  | `feat/bar` | `Heavy`   | `P1`         |",
       "",
+      "---",
+      "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
@@ -1094,6 +1123,8 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "| -------- | ------- | ---------- | -------- | -------- |",
       "| `P2`     | `[TBD]` | `feat/bar` | `andrew` | `Active` |",
       "",
+      "---",
+      "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
     expect(record.State).toBe("Active");
@@ -1102,7 +1133,7 @@ describe("parseMetaProjectionRecord — core-block table", () => {
     expect(record.Branch).toBe("feat/bar");
   });
 
-  it("recovers core fields from a legacy flat-bullet block when no table is present", () => {
+  it("refuses a legacy flat-bullet block when no table is present", () => {
     const content = [
       "# Metadata: foo",
       "",
@@ -1113,11 +1144,7 @@ describe("parseMetaProjectionRecord — core-block table", () => {
       "- **Cohort:** core/sub",
       "",
     ].join("\n");
-    const record = parseMetaProjectionRecord(content);
-    expect(record.State).toBe("Active");
-    expect(record.Branch).toBe("feat/bar");
-    expect(record.Priority).toBe("P1");
-    expect(record.Cohort).toBe("core/sub");
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/missing core-block table/iu);
   });
 });
 
@@ -1130,12 +1157,21 @@ describe("parseMetaProjectionRecord — malformed table fails loud", () => {
       "| -------- | -------- | ------ | ----- | -------- |",
       "| `Active` | `andrew` |",
       "",
+      "---",
+      "",
     ].join("\n");
     expect(() => parseMetaProjectionRecord(content)).toThrow(/column-count mismatch/);
   });
 
   it("throws when a separator row has no adjacent header and value row", () => {
-    const content = ["# Metadata: foo", "", "| --- | --- | --- |", ""].join("\n");
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| --- | --- | --- |",
+      "",
+      "---",
+      "",
+    ].join("\n");
     expect(() => parseMetaProjectionRecord(content)).toThrow(/Malformed meta core-block table/);
   });
 
@@ -1143,11 +1179,16 @@ describe("parseMetaProjectionRecord — malformed table fails loud", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **State:** Active",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
       "- **Next Action:** Compare alternatives:",
       "  | Option | Result |",
       "  | ------ | ------ |",
       "  | A      | keep   |",
+      "",
+      "---",
       "",
     ].join("\n");
 
@@ -1169,6 +1210,8 @@ describe("parseMetaFile — reads the core-block table (session-init path)", () 
       "",
       "- **Task List:** `tasks-foo.md`",
       "- **Next Task:** Task 2.1 — go (line ~5)",
+      "",
+      "---",
       "",
     ].join("\n");
     const parsed = parseMetaFile(content);
@@ -1250,19 +1293,21 @@ describe("Class field — value-set semantics", () => {
     expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES)).Class).toBe("[TBD]");
   });
 
-  it("parses an absent Class to null when the core table omits the column", () => {
+  it("parses an empty Class cell to null in the core table", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "| State    | Owner    | Branch     | Priority |",
-      "| -------- | -------- | ---------- | -------- |",
-      "| `Active` | `andrew` | `feat/bar` | `P1`     |",
+      "| State    | Owner    | Branch     | Class | Priority |",
+      "| -------- | -------- | ---------- | ----- | -------- |",
+      "| `Active` | `andrew` | `feat/bar` |       | `P1`     |",
+      "",
+      "---",
       "",
     ].join("\n");
     expect(parseMetaProjectionRecord(content).Class).toBeNull();
   });
 
-  it("parses an absent Class to null in a legacy flat-bullet meta", () => {
+  it("refuses a legacy flat-bullet meta rather than treating Class as absent", () => {
     const content = [
       "# Metadata: foo",
       "",
@@ -1270,7 +1315,7 @@ describe("Class field — value-set semantics", () => {
       "- **Owner:** andrew",
       "",
     ].join("\n");
-    expect(parseMetaProjectionRecord(content).Class).toBeNull();
+    expect(() => parseMetaProjectionRecord(content)).toThrow(/missing core-block table/iu);
   });
 });
 
@@ -1400,8 +1445,18 @@ describe("Current Workflow field — planning-stage pointer", () => {
     expect(parseMetaProjectionRecord(renderMetaProjectionFile("foo", SPAWN_OVERRIDES))["Current Workflow"]).toBe("[none]");
   });
 
-  it("parses an absent Current Workflow to null in a legacy flat-bullet meta", () => {
-    const content = ["# Metadata: foo", "", "- **State:** Active", "- **Owner:** andrew", ""].join("\n");
+  it("parses an absent Current Workflow to null", () => {
+    const content = [
+    "# Metadata: foo",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| Active | andrew |  |  |  |",
+    "",
+    "",
+    "---",
+    "",
+  ].join("\n");
     expect(parseMetaProjectionRecord(content)["Current Workflow"]).toBeNull();
   });
 
@@ -1447,9 +1502,14 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **Branch:** `feat/x`",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  | `feat/x` |  |  |",
+      "",
       "- **Design:** `spec-foo.md`",
       "- **Next Action:** Run `create-spec.md`, then `generate-tasks.md`",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1462,8 +1522,14 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Next Action:** Author the spec via `create-spec` — a detailed PRD,",
       "  then re-derive the worked example and confirm the boundary tests.",
+      "",
+      "---",
       "",
     ].join("\n");
     expect(parseMetaProjectionRecord(content)["Next Action"]).toBe(
@@ -1476,9 +1542,15 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Last Completed:** Stub created from a routed capture (2026-06-01) from a",
       "  prior inbox sweep.",
       "- **Next Task:** [none]",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1492,10 +1564,16 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
     const content = [
       "# Metadata: foo",
       "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
+      "",
       "- **Blockers:** waiting on review of the upstream change",
       "  and a downstream rebase.",
       "",
       "- **Next Action:** proceed once unblocked",
+      "",
+      "---",
       "",
     ].join("\n");
     const record = parseMetaProjectionRecord(content);
@@ -1508,6 +1586,10 @@ describe("parseMetaProjectionRecord — narrative fidelity", () => {
   it("stops the gather at the trailing `---` rule", () => {
     const content = [
       "# Metadata: foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "|  |  |  |  |  |",
       "",
       "- **Next Action:** finish the migration",
       "  and regen the readiness view.",
@@ -1605,20 +1687,41 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     expect(setMetaBulletFields(META, {})).toBe(META);
   });
 
-  it("throws when a targeted field's bullet is absent (fail-loud, not silent)", () => {
+  it("inserts an absent targeted bullet in field order", () => {
     const noNextTask = META.replace("- **Next Task:** `Task 3.1 — the executor (line ~150)`\n", "");
-    expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
-      /Next Task.*not found/i,
-    );
+    const written = setMetaBulletFields(noNextTask, { "Next Task": "[none]" });
+    expect(written).toContain("- **Next Task:** [none]\n");
+    expect(written.indexOf("**Last Completed:**")).toBeLessThan(written.indexOf("**Next Task:**"));
+    expect(written.indexOf("**Next Task:**")).toBeLessThan(written.indexOf("**Blockers:**"));
   });
 });
 
 describe("setMetaTitle — managed heading rewrite", () => {
   it("rewrites a CRLF heading without changing the document's line endings", () => {
-    const content = "# Metadata: old-name\r\n\r\n- **State:** Active\r\n";
+    const content = [
+      "# Metadata: old-name",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| Active |  |  |  |  |",
+      "",
+      "",
+      "---",
+      "",
+    ].join("\r\n");
 
     expect(setMetaTitle(content, "new-name")).toBe(
-      "# Metadata: new-name\r\n\r\n- **State:** Active\r\n",
+      [
+        "# Metadata: new-name",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Active |  |  |  |  |",
+        "",
+        "",
+        "---",
+        "",
+      ].join("\r\n"),
     );
   });
 });
@@ -1633,6 +1736,9 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "| `Planning` | `andrew` | [none] | `[TBD]` | `P2` |",
       "",
       "- **Cohort:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n");
 
     const after = normalizeMetaCoreTable(before);
@@ -1648,7 +1754,7 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "|---|---|---|---|---|",
       "| `Active` | `開発者` | `feat/表示` | `Heavy` | `P1` |",
     ].join("\r\n");
-    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n" +
+    const suffix = "\r\n\r\n- **Cohort:** `team`\r\n- **Depends On:** `alpha`,\r\n  `beta`\r\n\r\n---\r\n\r\n" +
       "## Narrative\r\n\r\nProse ordering without a final newline.";
     const before = `${prefix}${table}${suffix}`;
     const after = normalizeMetaCoreTable(before);
@@ -1661,16 +1767,16 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
   });
 
   it.each([
-    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n", /no table found/i],
+    ["missing", "# Metadata: demo\n\n- **Cohort:** [none]\n\n---\n", /no table found/i],
     [
       "malformed",
       "# Metadata: demo\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
-        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n",
+        "| --- | --- | --- | --- | --- |\n\n- **Cohort:** [none]\n\n---\n",
       /expected adjacent/i,
     ],
     [
       "unrecognized",
-      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n",
+      "# Metadata: demo\n\n| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |\n\n---\n",
       /header not recognized/i,
     ],
     [
@@ -1679,7 +1785,7 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
         "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
         "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n" +
         "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n" +
-        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n",
+        "| --- | --- | --- | --- | --- |\n| `Active` | `a` | `b` | `Heavy` | `P1` |\n\n---\n",
       /duplicate/i,
     ],
   ])("fails loudly for a %s managed table", (_label, content, pattern) => {
@@ -1695,6 +1801,9 @@ describe("normalizeMetaCoreTable — exact-span normalization", () => {
       "| `活動` | `é` | `feat/👩‍💻` | `✈️` | `1⃣` |",
       "",
       "- **Cohort:** [none]",
+      "",
+      "---",
+      "",
     ].join("\n");
     const after = normalizeMetaCoreTable(before);
     const results = await lint({
@@ -1854,9 +1963,12 @@ describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", 
     expect(tail(written)).toBe(tail(META));
   });
 
-  it("throws when the meta carries no Current Workflow bullet (fail-loud)", () => {
+  it("inserts an absent Current Workflow bullet in field order", () => {
     const noField = META.replace("- **Current Workflow:** `draft-design`\n", "");
-    expect(() => setMetaCurrentWorkflow(noField, "create-spec")).toThrow(/Current Workflow.*not found/i);
+    const written = setMetaCurrentWorkflow(noField, "create-spec");
+    expect(written).toContain("- **Current Workflow:** `create-spec`\n");
+    expect(written.indexOf("**Task List:**")).toBeLessThan(written.indexOf("**Current Workflow:**"));
+    expect(written.indexOf("**Current Workflow:**")).toBeLessThan(written.indexOf("**Next Action:**"));
   });
 });
 
@@ -1908,9 +2020,11 @@ describe("setMetaDesign — in-place Design bullet rewrite", () => {
     expect(tail(written)).toBe(tail(META));
   });
 
-  it("throws when the meta carries no Design bullet (fail-loud)", () => {
+  it("inserts an absent Design bullet in field order", () => {
     const noField = META.replace("- **Design:** `draft-demo-wu.md`\n", "");
-    expect(() => setMetaDesign(noField, "spec-demo-wu.md")).toThrow(/Design.*not found/i);
+    const written = setMetaDesign(noField, "spec-demo-wu.md");
+    expect(written).toContain("- **Design:** `spec-demo-wu.md`\n");
+    expect(written.indexOf("**Design:**")).toBeLessThan(written.indexOf("**Current Workflow:**"));
   });
 });
 

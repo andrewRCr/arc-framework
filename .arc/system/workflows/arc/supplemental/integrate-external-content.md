@@ -37,8 +37,8 @@ that replaces the default pre-merge review, a Skill that provides a better task 
 
 **Does it add behavior at an existing ARC hook point?**
 
-Examples: additional quality checks after each task, a code review tool integration that runs during
-pre-merge review, post-activation setup steps, a Skill that adds checks at a workflow extension point.
+Examples: a code review tool integration that runs during pre-merge review, post-activation setup steps,
+a Skill that adds behavior at a workflow extension point.
 
 → **Arc extension.** Proceed to [Step 3b](#step-3b-wire-as-arc-extension).
 
@@ -80,7 +80,7 @@ the system.
 ## Step 3b: Wire as ARC Extension
 
 1. Identify which extension point in [`system/extensions/`][arc-extensions] this content augments
-   (e.g., `post-task-quality`, `pre-merge`, `post-context-load`)
+   (e.g., `pre-merge`, `post-context-load`)
 2. Read the extension's **contract** — your actions must satisfy the stated constraints
 3. Adapt the content to fit the extension format:
     - Replace `[No extension configured]` in the `## {extension-name}.actions` section
@@ -109,7 +109,7 @@ the system.
 
 ## Step 4: Verify Integration
 
-1. Run Tier 1 quality gate on all modified files
+1. Request `arc check increment` once over the integration changes
 2. Verify the integration works:
     - For method overrides: confirm the agent follows the override during the relevant workflow
     - For extensions: confirm the extension fires at the right hook point

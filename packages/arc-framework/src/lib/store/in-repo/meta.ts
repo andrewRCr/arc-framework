@@ -1,7 +1,5 @@
 /** Meta record source selection shared by reads, listings, and write admission. */
 import { basename, relative, sep } from "node:path";
-import { parseMetaRecord } from "../../active/meta-reader.js";
-import type { ParsedMetaRecord } from "../../active/meta-schema.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import { identifyWorkUnitArtifactPath, resolveArcPath } from "../../layout/index.js";
 import { collectLifecycleMetaFiles, compareLifecycleSources, entryFromMeta } from "../../work-unit/lifecycle-index.js";
@@ -22,7 +20,7 @@ export interface MetaSource {
   location: "active" | "planned" | "provisional" | "completed";
   revision?: string;
   placement?: ReadPlacement;
-  fields?: ParsedMetaRecord;
+  fields?: unknown;
   writable: boolean;
   checkout?: string;
 }
@@ -37,9 +35,10 @@ export function placementFromPath(path: string): ReadPlacement | undefined {
   if (placement.kind === "backlog") return { kind: "backlog", commitment: placement.commitment };
   return { kind: "completed", quarter: placement.quarter, sequence: placement.sequence };
 }
-function parsedFields(content: string | null): ParsedMetaRecord | undefined {
+function parsedFields(context: InRepoContext, content: string | null): unknown {
   if (content === null) return undefined;
-  try { return parseMetaRecord(content); } catch { return undefined; }
+  const parsed = context.registry["work-item/meta"].parser?.(content);
+  return parsed?.success ? parsed.data : undefined;
 }
 /** Read a flat-active record before consulting any Git or cross-branch policy.
  * @param context - Backend dependencies.
@@ -52,7 +51,7 @@ export async function flatActiveMeta(context: InRepoContext, slug: string): Prom
   const content = await readFileAt(context, path);
   if (content === null) return undefined;
   return { slug, path, content, location: "active", placement: { kind: "active" },
-    fields: parsedFields(content), writable: true };
+    fields: parsedFields(context, content), writable: true };
 }
 /** Collect this tree's copies using the existing lifecycle walk and source order.
  * @param context - Backend dependencies.
@@ -92,7 +91,7 @@ async function collectHeldMetaSources(context: InRepoContext, revision?: string,
       content = null;
     }
     candidates.push({ slug, path, content, location: file.location, revision,
-      placement: placementFromPath(path), fields: parsedFields(content), writable: revision === undefined });
+      placement: placementFromPath(path), fields: parsedFields(context, content), writable: revision === undefined });
   }
   return { sources: preferredCopies(candidates), complete: candidates.every((source) => source.content !== null) };
 }
@@ -128,10 +127,7 @@ function preferredCopies(candidates: MetaSource[]): MetaSource[] {
  * @returns Today's composed lifecycle view with no fetch or prospective overlay.
  */
 export async function composedMetas(context: InRepoContext, diagnostics?: ListingDiagnostic[]): Promise<ComposedLifecycleIndexResult> {
-  const [{ resolveComposedLifecycleIndex }, { readConfigSettings }, transient] = await Promise.all([
-    import("../../work-unit/composed-lifecycle-index.js"), import("../../config/status-reader.js"),
-    import("../../errand/record.js"),
-  ]);
+  const { resolveCallerComposedLifecycleIndex } = await import("../../work-unit/composed-lifecycle-index.js");
   const { ports } = context;
   const failures: unknown[] = [];
   const exec: typeof ports.exec = async (command, args, options) => {
@@ -139,13 +135,10 @@ export async function composedMetas(context: InRepoContext, diagnostics?: Listin
     catch (error) { if (!isCompletedGitFailure(error)) failures.push(error); throw error; }
   };
   const identity = await ports.identity();
-  const read = transient.projectTransientInFlightRead(await transient.readTransientInFlightIndexes({ exec, identity }));
-  const { settings } = await readConfigSettings(ports.checkoutRoot);
   const acquisition = metaDiscovery(context, undefined, undefined, diagnostics);
-  const composition = await resolveComposedLifecycleIndex({ cwd: ports.checkoutRoot, fs: acquisition.fs, oracle: {
-    exec, acquisitionPolicy: "local", baseBranch: settings["branch.base"],
-    errandSlugByBranch: read.indexes.slugByBranch, errandRecordsComplete: read.complete,
-  } });
+  const composition = await resolveCallerComposedLifecycleIndex({
+    cwd: ports.checkoutRoot, fs: acquisition.fs, exec, identity, acquisitionPolicy: "local",
+  });
   if (failures.length > 0) throw failures[0];
   acquisition.requireReadable();
   return composition;
@@ -173,7 +166,7 @@ export async function composedMetaSource(context: InRepoContext, slug: string,
   const placementPath = record.selected.location === "planned" && record.currentTree?.location === "planned"
     ? sourceLocation(record.currentTree.source.path ?? "", context).path : operational.path;
   return { slug, ...operational, content, location: record.selected.location,
-    placement: placementFromPath(placementPath), fields: parsedFields(selectedContent),
+    placement: placementFromPath(placementPath), fields: parsedFields(context, selectedContent),
     writable: record.writablePath !== undefined || operational.revision === undefined,
     checkout: composition.worktreePathBySlug.get(slug) ?? selected.revision };
 }

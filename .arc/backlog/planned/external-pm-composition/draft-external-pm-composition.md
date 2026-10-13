@@ -43,6 +43,23 @@
 
 - _Captured during:_ `storage-contract` create-spec, 2026-09-30.
 
+### `[ ]` **Put direction goals in the external-PM authority map**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: external-pm-composition`), housekeep drain (2026-10-11).
+
+- _Shapes:_ § Evaluation Design, 1. ARC fact-and-operation authority map.
+
+- _Observation:_ `goal-aware-direction` (regroomed 2026-10-11) reads goals through one source boundary — a goal is a
+  label plus the work units and cohorts that realize it. Standalone, the goals are `VECTOR.PROJECT`'s targets; a
+  project whose tracker already holds its goals (initiatives, milestones) reads them from there, with no second
+  mutable copy; with neither, the recommender gives graph-only reasons. That work unit keeps the seam and leaves the
+  mapping here (its draft's § The recommender, The goal source).
+
+- _Approach:_ add direction goals — outcome, horizon, accountable owner, realizing work — to the authority map
+  beside milestones, and decide how a tracker's goal items map onto the goal source.
+
+- _Captured during:_ `goal-aware-direction` grooming, 2026-10-11.
+
 ## Planning Continuity
 
 - **Readiness:** rough

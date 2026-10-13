@@ -30,7 +30,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
   user: [
     ["Inspect and synchronize:", ["status", "sync", "save", "load", "push", "fetch", "pull"]],
     ["Manage workspaces:", ["add", "open", "close"]],
-    ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-mark-execute-bound", "inbox-remove"]],
+    ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-list", "inbox-mark-execute-bound", "inbox-remove"]],
   ],
   errand: [
     ["Find and open work:", ["next", "check", "open", "link", "materialize"]],
@@ -211,6 +211,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     examples: [
       ["arc errand open my-fix", "Open an isolated atomic concern"],
       ['arc errand open my-fix --from-inbox "Fix the formatting issue"', "Adopt an existing inbox capture"],
+      ["arc errand open my-fix --isolate", "Open in a new worktree, leaving the primary free"],
     ],
     notes: [["Example context:", "The quoted title must match an existing capture's inner bold title. "
       + "Review and merge require their own approvals."]],

@@ -10,6 +10,7 @@ import {
 
 import type { GitExec } from "../git/exec.js";
 import { isRemoteUnavailableError, uniqueRefToken } from "../git/ref-tree.js";
+import { PASSIVE_REMOTE_INTERACTION } from "../git/remote-ref-reader.js";
 import { gitFailureText, isGitProcessError } from "../git/process-error.js";
 import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
@@ -104,23 +105,26 @@ export async function readTransientInFlightIndexes(
  *
  * The configured local identity ref is never updated. An absent remote ref falls
  * back to the local read so unborn identities retain their established behavior.
+ * With a timeout, the fetch runs without prompts and a remote that has not answered
+ * when it expires counts as unreachable, falling back to the local read too.
  *
- * @param io - Injected Git boundary, identity, and configured remote.
+ * @param io - Injected Git boundary, identity, configured remote, and optional fetch timeout.
  * @returns Remote-backed indexes, local absence, or a typed operational failure.
  */
 export async function readFetchedTransientInFlightIndexes(
-  io: { exec: GitExec; identity: string | null; remote: string },
+  io: { exec: GitExec; identity: string | null; remote: string; timeoutMs?: number },
 ): Promise<TransientInFlightRead> {
   if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
   const sourceRef = errandsRef(io.identity);
   const snapshotRef = `refs/arc/tmp/transient-discovery/${uniqueRefToken()}`;
   const fetchArgs = ["fetch", io.remote, `+${sourceRef}:${snapshotRef}`];
   try {
-    await io.exec("git", fetchArgs);
+    await fetchIdentityRef(io.exec, fetchArgs, io.timeoutMs);
   } catch (error) {
     const detail = gitFailureText(error);
     const absent = isGitProcessError(error) && error.expectedOutcome === "absent-remote-ref";
-    if (absent || isRemoteUnavailableError(detail)
+    const timedOut = isGitProcessError(error) && error.kind === "canceled";
+    if (absent || timedOut || isRemoteUnavailableError(detail)
       || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(detail)) {
       return readTransientInFlightIndexes(io);
     }
@@ -139,6 +143,22 @@ export async function readFetchedTransientInFlightIndexes(
     return { kind: "error", stage: "cleanup", message: errorMessage(error) };
   }
   return outcome;
+}
+
+async function fetchIdentityRef(exec: GitExec, args: string[], timeoutMs: number | undefined): Promise<void> {
+  if (timeoutMs === undefined) {
+    await exec("git", args);
+    return;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    await exec("git", args, { signal: controller.signal, interaction: PASSIVE_REMOTE_INTERACTION });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function projectTransientSnapshot(

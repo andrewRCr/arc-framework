@@ -11,19 +11,26 @@ it("retains a heavy measurement only after owned setup, teardown, and controller
   const fixture = await makeFocusedVitestFixture();
   try {
     await cp(resolve(import.meta.dirname, "../../test-cost-budgets.json"), join(fixture.packageRoot, "test-cost-budgets.json"));
+    await writeFile(join(fixture.packageRoot, "__tests__/integration/runtime.test.mjs"),
+      'import { it } from "vitest"; it("configured case", () => { console.log("measurement progress sentinel"); });');
     const output = join(fixture.packageRoot, "retained.json");
     const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1", "--output", output],
-      { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
+      { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     const events = await readFile(fixture.events, "utf8");
-    expect(events).toContain('"stage":"integration:setup"');
-    expect(events).toContain('"stage":"integration:teardown"');
+    expect(events.match(/"stage":"integration:setup"/gu)).toHaveLength(2);
+    expect(events.match(/"stage":"integration:teardown"/gu)).toHaveLength(2);
     expect(events).toContain('"owned":true');
     expect(events).not.toContain('"owned":false');
     expect(events).toContain("closing-owned:true:false");
     const record = JSON.parse(await readFile(output, "utf8"));
-    expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", unhandledErrorCount: 0,
+    const summary = JSON.parse(result.stdout);
+    expect(summary).toMatchObject({ outputPath: output, capturedAt: record.capturedAt, mode: record.mode,
+      wallClockMs: record.wallClockMs, fileCount: record.fileCount, testCount: record.testCount,
+      budget: { actualMs: record.wallClockMs } });
+    expect(result.stderr.match(/measurement progress sentinel/gu)).toHaveLength(2);
+    expect(record).toMatchObject({ schemaVersion: 5, outcome: "passed", unhandledErrorCount: 0,
       mode: { projectSet: "integration", workerSizing: "1" }, requestedWorkerSizing: "1", fileCount: 1, testCount: 1 });
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
@@ -37,8 +44,13 @@ it("retains qualified runtime generations across default measurement output", as
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await execa(process.execPath, ["--import", "tsx", "src/scripts/measure-test-cost.ts",
         "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1"],
-        { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
+        { cwd: fixture.packageRoot, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
       expect(result, result.stderr).toMatchObject({ exitCode: 0 });
+      const summary = JSON.parse(result.stdout) as { outputPath: string; wallClockMs: number };
+      expect(summary.outputPath).toContain(join(fixture.packageRoot, ".test-cost-runs"));
+      const record: unknown = JSON.parse(await readFile(summary.outputPath, "utf8"));
+      assertRetainedTestCostRun(record, summary.outputPath);
+      expect(summary.wallClockMs).toBe(record.wallClockMs);
       const qualified = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
       expect(qualified).toMatchObject({ status: "qualified" });
       if (qualified.status !== "qualified") throw new Error(qualified.reason);
@@ -74,16 +86,22 @@ it("native metadata case", () => {
     expect(events).toContain("config:true:true:test");
     const closing = events.split("\n").filter((line) => line.startsWith('{"closingStart":'))
       .map((line) => JSON.parse(line) as { closingStart: number; closingEnd: number });
-    const closingMs = Math.max(...closing.map((event) => event.closingEnd))
-      - Math.min(...closing.map((event) => event.closingStart));
-    expect(closingMs).toBeGreaterThanOrEqual(50);
     const record: unknown = JSON.parse(await readFile(output, "utf8"));
     assertRetainedTestCostRun(record, output);
+    expect(JSON.parse(result.stdout)).toMatchObject({ outputPath: output, cliSpawnCount: 2,
+      wallClockMs: record.wallClockMs, budget: { actualMs: record.wallClockMs } });
+    const retainedStart = Date.parse(record.capturedAt);
+    expect(closing.some((event) => event.closingEnd <= retainedStart)).toBe(true);
+    const retainedClosing = closing.filter((event) => event.closingStart >= retainedStart);
+    expect(retainedClosing.length).toBeGreaterThan(0);
+    const closingMs = Math.max(...retainedClosing.map((event) => event.closingEnd))
+      - Math.min(...retainedClosing.map((event) => event.closingStart));
+    expect(closingMs).toBeGreaterThanOrEqual(50);
     expect(record.wallClockMs).toBeGreaterThanOrEqual(closingMs);
-    const lastClosingEnd = Math.max(...closing.map((event) => event.closingEnd));
+    const lastClosingEnd = Math.max(...retainedClosing.map((event) => event.closingEnd));
     expect(Date.parse(record.capturedAt) + record.wallClockMs + (record.admissionWaitMs ?? 0))
       .toBeGreaterThanOrEqual(lastClosingEnd);
-    expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", cliSpawnCount: 2 });
+    expect(record).toMatchObject({ schemaVersion: 5, outcome: "passed", cliSpawnCount: 2 });
     expect(record.files.flatMap((file) => file.tests).find((test) => test.name === "native metadata case"))
       .toMatchObject({ cliSpawnCount: 2, cliTimeoutMs: 1500, vitestTimeoutMs: 5000 });
     expect(normalizeRetainedTestCostRuns([record]).summary).toMatchObject({ sampleCount: 1, cliSpawnCount: 2 });
@@ -128,7 +146,7 @@ it("loads the package measurement configuration when its script starts at reposi
     const output = join(fixture.packageRoot, "retained.json");
     const result = await execa(process.execPath, ["--import", "tsx", "packages/arc-framework/src/scripts/measure-test-cost.ts",
       "--condition", "tier-isolated", "--project-set", "integration", "--workers", "1", "--output", output],
-      { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
+      { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "", FORCE_COLOR: undefined }, reject: false, timeout: 30_000 });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ mode: { projectSet: "integration" }, testCount: 1 });
     expect(await readFile(fixture.events, "utf8")).toContain("closing-owned:true:false");

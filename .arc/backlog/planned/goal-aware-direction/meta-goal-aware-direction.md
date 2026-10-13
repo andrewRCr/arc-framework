@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-goal-aware-direction.md`
@@ -15,8 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume grooming via `--plan goal-aware-direction`: settle entry-grammar detail, verb naming,
-  and sequencing toward formalization-ready — model, vocabulary, scope pair, authority, and recommender posture
-  settled at the 2026-07-02 grooming.
+- **Next Action:** After `storage-cutover` lands, resume grooming via `--plan goal-aware-direction`: re-run the
+  boundary read against the predicted cut, re-derive both surfaces against the storage contract, and integrate the
+  held inbound entries (the draft's § Continuity).
 
 ---

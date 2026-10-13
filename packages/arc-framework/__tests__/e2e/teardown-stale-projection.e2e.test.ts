@@ -130,7 +130,72 @@ describe("arc teardown with stale active lifecycle", () => {
     expect(await git(repo, ["ls-remote", "--heads", "origin", "feat/demo"])).toBe("");
     expect(await git(repo, ["branch", "--list", "feat/demo"])).toBe("");
     expect(await git(worktree, ["rev-parse", "HEAD"])).toBe(head);
+    const removed = await runArc(["teardown", "demo", "--husk", worktree], repo);
+    expect(removed.exitCode, removed.stdout + removed.stderr).toBe(0);
+    await expect(access(worktree)).rejects.toThrow();
+    expect(await git(repo, ["worktree", "list"])).not.toContain(worktree);
   });
+
+  it("replays a leased remote delete after a local ref lock is repaired", async () => {
+    repo = await createTempRepo();
+    parent = await mkdtemp(join(tmpdir(), "arc-stale-teardown-"));
+    const worktree = await prepareArchivedFeature(repo, parent, true);
+    const head = await git(worktree, ["rev-parse", "HEAD"]);
+    const lock = join(repo, ".git", "refs", "heads", "feat", "demo.lock");
+    await writeFile(lock, "held by fixture\n");
+    const created = await runArc(["teardown", "demo"], worktree);
+    expect(created.exitCode, created.stdout + created.stderr).toBe(0);
+    expect(created.stdout + created.stderr).toMatch(/Could not compare-and-delete local branch/iu);
+    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/feat/demo"])).toBe("");
+    expect(await git(repo, ["rev-parse", "feat/demo"])).toBe(head);
+    const marker = await readWorktreeMarker(worktree);
+    expect(marker.kind).toBe("present");
+    await rm(lock);
+
+    const retried = await runArc(["teardown", "demo", "--husk", worktree], worktree);
+    expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+    expect(retried.stdout + retried.stderr).not.toMatch(/Remote branch.*moved/iu);
+    expect(await git(repo, ["branch", "--list", "feat/demo"]), retried.stdout + retried.stderr).toBe("");
+    expect(await git(worktree, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await readWorktreeMarker(worktree)).toEqual(marker);
+    const removed = await runArc(["teardown", "demo", "--husk", worktree], repo);
+    expect(removed.exitCode, removed.stdout + removed.stderr).toBe(0);
+    await expect(access(worktree)).rejects.toThrow();
+    expect(await git(repo, ["worktree", "list"])).not.toContain(worktree);
+  }, 30_000);
+
+  it("preserves a moved leased remote tip and completes cleanup after repair", async () => {
+    repo = await createTempRepo();
+    parent = await mkdtemp(join(tmpdir(), "arc-stale-teardown-"));
+    const worktree = await prepareArchivedFeature(repo, parent, true);
+    const head = await git(worktree, ["rev-parse", "HEAD"]);
+    const lock = join(repo, ".git", "refs", "heads", "feat", "demo.lock");
+    await writeFile(lock, "held by fixture\n");
+    const created = await runArc(["teardown", "demo"], worktree);
+    expect(created.exitCode, created.stdout + created.stderr).toBe(0);
+    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/feat/demo"])).toBe("");
+    await rm(lock);
+    const moved = await git(repo, ["rev-parse", "HEAD"]);
+    expect(moved).not.toBe(head);
+    await git(repo, ["push", "origin", `${moved}:refs/heads/feat/demo`]);
+    const marker = await readWorktreeMarker(worktree);
+
+    const refused = await runArc(["teardown", "demo", "--husk", worktree], repo);
+    expect(refused.exitCode, refused.stdout + refused.stderr).toBe(0);
+    expect(refused.stdout + refused.stderr).toMatch(/Remote branch.*moved/iu);
+    expect(await git(repo, ["rev-parse", "feat/demo"])).toBe(head);
+    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/feat/demo"]))
+      .toBe(`${moved}\trefs/heads/feat/demo`);
+    await expect(access(worktree)).resolves.toBeUndefined();
+    expect(await readWorktreeMarker(worktree)).toEqual(marker);
+
+    await git(repo, ["push", "origin", `--force-with-lease=refs/heads/feat/demo:${moved}`, `${head}:refs/heads/feat/demo`]);
+    const removed = await runArc(["teardown", "demo", "--husk", worktree], repo);
+    expect(removed.exitCode, removed.stdout + removed.stderr).toBe(0);
+    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/feat/demo"])).toBe("");
+    expect(await git(repo, ["branch", "--list", "feat/demo"])).toBe("");
+    await expect(access(worktree)).rejects.toThrow();
+  }, 30_000);
 
   it("reaps stale metadata after Git converts its clean checkout to CRLF", async () => {
     repo = await createTempRepo();

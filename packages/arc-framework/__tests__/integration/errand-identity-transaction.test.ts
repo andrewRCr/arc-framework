@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   TransientIdentityRecordV3Schema,
-  readTransientIdentitySnapshot,
-  transactTransientIdentities,
   type ErrandRecordIO,
   type TransientIdentityRecord,
 } from "../../src/lib/errand/index.js";
+import { readTransientIdentitySnapshot } from "../../src/lib/errand/identity-snapshot.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";

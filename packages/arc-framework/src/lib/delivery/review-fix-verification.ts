@@ -19,12 +19,12 @@ export interface DeliveryReviewFixVerificationContinuation {
   readonly nextAction: "verify-review-fix";
   readonly verification: {
     readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
+    readonly commitGateRequired: true;
     readonly target: {
       readonly head: string;
       readonly tree: string;
     };
-    readonly tier1ReuseCriteria: {
+    readonly commitGateReuseCriteria: {
       readonly kind: "exact-tree";
       readonly targetTree: string;
       readonly requiredResult: "passed";
@@ -71,9 +71,9 @@ export function projectDeliveryReviewFixVerificationContinuation(input: {
     nextAction: "verify-review-fix",
     verification: {
       memberDeliverableIds: pending.memberDeliverableIds,
-      tier1Required: true,
+      commitGateRequired: true,
       target: { head: terminal.head, tree: terminal.tree },
-      tier1ReuseCriteria: {
+      commitGateReuseCriteria: {
         kind: "exact-tree",
         targetTree: terminal.tree,
         requiredResult: "passed",

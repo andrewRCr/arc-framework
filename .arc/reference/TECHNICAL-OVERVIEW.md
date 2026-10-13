@@ -29,7 +29,8 @@ _Key characteristics:_
 - **Self-hosting** — Framework development follows its own ARC methodology, providing continuous real-world
   validation of workflows and conventions
 - **Customization surfaces** — Adopters override behavior without forking via `arc-config.yml` (project settings),
-  `system/methods/` (overridable defaults), and `system/extensions/` (lifecycle hook points)
+  `system/methods/` (overridable defaults), `system/extensions/` (lifecycle hook points), and `system/arc-checks.yml`
+  (project checks and their deadlines)
 
 ## 2. Architecture Components
 
@@ -80,7 +81,7 @@ See `arc --help` for the full command list.
 _Architecture_ — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
 
 - **`src/lib/kernel/`** — Bottom-of-graph runtime contracts: Zod-backed shared schema vocabulary, a versioned
-  registry, extensible error primitives, the bounded Result seam, and byte-stable canonical-data utilities. Kernel
+  registry, extensible error primitives, and byte-stable canonical-data utilities. Kernel
   modules import only Node builtins and approved external libraries; every other CLI layer may depend downward on
   the kernel.
 - **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files). No direct side
@@ -93,17 +94,20 @@ Lib modules compose horizontally (e.g., `files.ts` imports `render.ts`) but neve
 
 ### Customization Surfaces
 
-Three orthogonal mechanisms let teams adapt ARC without forking:
+Four orthogonal mechanisms let teams adapt ARC without forking:
 
 - **`arc-config.yml`** — Flat key-value project settings (branch protection, commit/push interlocks, hook
   toggles, PM mode, session-init pull behavior, user-notes push behavior). The live shape is `system/arc-config.yml`.
-- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, quality
-  gate commands, test-first assessment, session state, branch format, and similar). Each method ships a default
-  and an override slot; teams replace the default in place. See `system/methods/README.md` for the full set.
-- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task, unit,
+- **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, test-first
+  assessment, session state, branch format, and similar). Each method ships a default and an override slot; teams
+  replace the default in place. See `system/methods/README.md` for the full set.
+- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task,
   work-unit activate/archive, commit, push, PR, merge, and context-load. Teams declare `active: true` in the
   extension's frontmatter and supply `.actions` content for team-specific automation. See
   `system/extensions/README.md` for available hook points.
+- **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, and earliest
+  event deadlines. `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the
+  same declaration.
 
 ### Cross-Machine User State
 
@@ -154,8 +158,8 @@ _Runtime & environment:_
 _Language & build:_
 
 - **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
-- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; neverthrow provides typed
-  success/failure composition through the kernel's bounded export seam
+- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; plain discriminated unions
+  represent success and failure outcomes
 - **Git process execution**: execa 10 provides the ESM-native subprocess runtime behind the injectable Git executor
 - **Build**: tsup — ESM output, shebang injection, declaration generation
 
@@ -163,7 +167,7 @@ _Testing & quality tooling:_
 
 - **Test Framework**: Vitest — unit, integration, and E2E test tiers
 - **Documentation Linting**: markdownlint-cli2 (pinned local) — `npm run -s lint:md`
-- **Code Linting**: typescript-eslint (recommended-type-checked) — `npm run lint:ts`
+- **Code Linting**: typescript-eslint (strict-type-checked) — `npm run lint:ts`
 - **Shell Linting**: shellcheck (system-installed) — `npm run lint:sh`
 
 _CI & configuration:_
@@ -172,15 +176,15 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at the
-  lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  documentation lint. A change to ARC prose or other content the integration suite reads still runs that suite, which
+  runs at merge rather than at push. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at
+  the lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
   enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
   no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
-- **Linux runner fleet**: the repository variable `ARC_CI_LINUX_RUNNER` selects one class at a time. `arc-ci-mini`
-  is an arm64 Lima guest on a dedicated local host running two runner services, defined by the recipe and helpers
-  in `scripts/local-ci/`; `arc-ci-linux` is a pair of x86-64 VPS hosts running four services and stays registered
-  as fallback. An unset variable routes to GitHub-hosted runners. Operations for both live in
-  `.github/self-hosted-ci.md`.
+- **Runners**: every Linux job runs on GitHub-hosted `ubuntu-latest`, and the scheduled portability pair adds
+  `windows-latest` and `macos-latest`. The repository is public, so no job routes to a self-hosted runner while fork
+  pull requests run CI. The repository variable `ARC_CI_VITEST_MAX_WORKERS` retunes Vitest's worker count without a
+  code change.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 
@@ -206,9 +210,10 @@ workflow.
 
 - **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
 - **TypeScript type checking** — `tsc --noEmit` with strict mode
-- **Code linting** — typescript-eslint (recommended-type-checked) and shellcheck
+- **Code linting** — typescript-eslint (strict-type-checked) and shellcheck
 - **Test suite** — Vitest with all tests passing
 - **Build verification** — tsup produces working CLI output
 - **CI validation** — GitHub Actions validates all gates on push and PR
-- **Tiered approach** — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR). See
-  `strategy-quality-gates.md` for tier boundaries and escalation guidance.
+- **Event deadlines** — The commit gate, push gate, and merge quality gate require declared checks to pass before
+  their respective events. Increment and segment requests provide earlier feedback; verification and attestation
+  requests force fresh results at their required scope.

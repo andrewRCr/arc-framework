@@ -11,10 +11,7 @@ import {
 import { isGitTransitionOriginOccupied } from
   "../../src/lib/work-unit/git-transition-record-enumeration.js";
 import { createInRepoTerminalTransitionRecordWriter } from "../../src/lib/work-unit/terminal-transition-record-writer.js";
-import {
-  serializeTransitionRecord,
-  type TransitionRecord,
-} from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord, type LineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import {
   resolveTransitionRecordPath,
   resolveTransitionRecordRelativePath,
@@ -23,13 +20,13 @@ import {
 } from "../../src/lib/work-unit/transition-record-store.js";
 
 const roots: string[] = [];
-const record: TransitionRecord = {
-  schemaVersion: 1,
-  origin: "retired-origin",
+const record: LineageRecord = LineageRecordSchema.parse({
+  schemaVersion: 2,
+  origin: { name: "retired-origin" },
   kind: "abandon",
   successors: [],
-  edges: [],
-};
+  incoming: [],
+});
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -66,8 +63,8 @@ describe("terminal transition record writer over Git", () => {
     await writeTransitionRecord(repo.root, record);
     await repo.exec("git", ["add", "."]);
     await repo.exec("git", ["commit", "-m", "record transition"]);
-    const path = resolveTransitionRecordRelativePath(record.origin);
-    await rm(resolveTransitionRecordPath(repo.root, record.origin));
+    const path = resolveTransitionRecordRelativePath(record.origin.name);
+    await rm(resolveTransitionRecordPath(repo.root, record.origin.name));
 
     await expect(writer(repo).record(record)).resolves.toEqual({ status: "origin-occupied" });
 
@@ -77,8 +74,8 @@ describe("terminal transition record writer over Git", () => {
 
   it("preserves a staged record entry that is absent from the worktree", async () => {
     const repo = await repository();
-    const path = resolveTransitionRecordRelativePath(record.origin);
-    const absolute = resolveTransitionRecordPath(repo.root, record.origin);
+    const path = resolveTransitionRecordRelativePath(record.origin.name);
+    const absolute = resolveTransitionRecordPath(repo.root, record.origin.name);
     await mkdir(dirname(absolute), { recursive: true });
     await writeFile(absolute, "prior staged content\n");
     await repo.exec("git", ["add", "--", path]);
@@ -95,39 +92,39 @@ describe("terminal transition record writer over Git", () => {
     const repo = await repository();
     const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/historical-alias.json`;
     await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
-    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(record));
+    await writeFile(join(repo.root, aliasPath), writeLineageRecord(record));
     await repo.exec("git", ["add", "--", aliasPath]);
     await repo.exec("git", ["commit", "-m", "record aliased transition"]);
 
     await expect(writer(repo).record(record)).resolves.toEqual({ status: "origin-occupied" });
 
-    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin))).rejects.toThrow();
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin.name))).rejects.toThrow();
   });
 
   it("refuses staged history whose content claims the origin under another filename", async () => {
     const repo = await repository();
     const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/staged-alias.json`;
     await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
-    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(record));
+    await writeFile(join(repo.root, aliasPath), writeLineageRecord(record));
     await repo.exec("git", ["add", "--", aliasPath]);
 
     await expect(writer(repo).record(record)).resolves.toEqual({ status: "origin-occupied" });
 
-    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin))).rejects.toThrow();
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin.name))).rejects.toThrow();
   });
 
   it("allows a mismatched filename whose content claims a different origin", async () => {
     const repo = await repository();
     const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/historical-alias.json`;
-    const otherRecord: TransitionRecord = { ...record, origin: "other-origin" };
+    const otherRecord: LineageRecord = LineageRecordSchema.parse({ ...record, origin: { name: "other-origin" } });
     await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
-    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(otherRecord));
+    await writeFile(join(repo.root, aliasPath), writeLineageRecord(otherRecord));
     await repo.exec("git", ["add", "--", aliasPath]);
     await repo.exec("git", ["commit", "-m", "record mismatched transition filename"]);
 
     await expect(writer(repo).record(record)).resolves.toEqual({ status: "recorded" });
 
-    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin), "utf8"))
-      .resolves.toBe(serializeTransitionRecord(record));
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin.name), "utf8"))
+      .resolves.toBe(writeLineageRecord(record));
   });
 });

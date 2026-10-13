@@ -94,6 +94,29 @@ Optimization WU.
 
 - _Captured during:_ `storage-contract` create-spec, 2026-10-01.
 
+### `[ ]` **Take the handoff fields `storage-seam` settled for the meta's session context**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the Inbound Buffer entry "Decide which handoff fields the meta's session context keeps", and its expectation
+  that `Commit at Handoff` becomes the state-version anchor.
+
+- _Observation:_ `storage-seam` settled the question before its cut (item 4, 2026-10-09): `seam-record-kinds` builds the
+  meta's schema and keeps the item (`spec-seam-record-kinds.md` § 5.5), and `seam-locus` builds the
+  handoff write. From the flip the session context is a prose section of the meta, beside `State at Handoff`, the
+  contract's anchor, and `Commit at Handoff`, kept as the code-head baseline: handoff restating
+  (`deriveRestateCandidates`) needs it for the code commits a state version cannot see. `Next Action` and an optional
+  `Session Type` stay; `Next Task`, `Last Completed`, `Blockers`, and `Working On` retire, `Blockers` into the prose.
+  Archive clears the section, both anchors, and `Session Type`.
+
+- _Approach:_ adopt item 4's field set rather than re-deciding it, and design the handoff step and the session-init read
+  on top of it.
+
+- _Drain note (2026-10-11):_ this settles the held entry above against its lean (free prose with the anchor as
+  the only field); integrate it as that entry's answer.
+
+- _Captured during:_ `storage-seam` draft close, 2026-10-09.
+
 ---
 
 ## Problem / Motivation

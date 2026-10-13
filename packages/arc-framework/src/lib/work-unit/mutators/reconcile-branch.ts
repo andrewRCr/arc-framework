@@ -142,7 +142,8 @@ export type RemoteBranchDeleteOutcome = "deleted" | "absent" | "stale";
  * refspec): the remote refuses the delete unless the head still points at the
  * proven tip, closing the race where a concurrent push advances the head
  * between the caller's safety proof and the delete. A lease refusal returns
- * `stale` — the head moved, so the caller's proof no longer covers it.
+ * `stale` unless a fresh live-ref observation proves the head already absent.
+ * A nonempty observation preserves the refusal, and observation failures propagate.
  *
  * @param exec - Injected git executor.
  * @param remote - The remote whose head is deleted.
@@ -165,7 +166,11 @@ export async function deleteRemoteBranch(
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });
     if (error.expectedOutcome === "absent-remote-ref") return "absent";
-    if (expectedOid !== undefined && error.expectedOutcome === "stale-lease") return "stale";
+    if (expectedOid !== undefined && error.expectedOutcome === "stale-lease") {
+      // Git also rejects the lease when an earlier delete already removed the ref.
+      const { stdout } = await exec("git", ["ls-remote", "--heads", remote, `refs/heads/${branch}`]);
+      return stdout.trim() === "" ? "absent" : "stale";
+    }
     throw error;
   }
 }

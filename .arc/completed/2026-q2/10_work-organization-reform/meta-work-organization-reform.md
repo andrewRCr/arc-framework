@@ -1,8 +1,8 @@
 # Metadata: Work Organization Reform
 
-- **State:** Shipped
-- **Owner:** andrew
-- **Branch:** technical/work-organization-reform
+| **State** | **Owner** | **Branch**                           | **Class** | **Priority** |
+| --------- | --------- | ------------------------------------ | --------- | ------------ |
+| `Shipped` | `andrew`  | `technical/work-organization-reform` | —         | —            |
 
 - **Origin:** [internal]
 - **Design:** `spec-work-organization-reform.md`

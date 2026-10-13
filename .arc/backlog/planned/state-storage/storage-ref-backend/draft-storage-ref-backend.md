@@ -83,4 +83,50 @@
 - _Approach:_ Add both to the import's scope at this work unit's first planning iteration. Where a squash dropped the
   footers, those tasks keep no capture — a residual to name, not a blocker.
 
+### `[ ]` **Decide which store integration suites survive the cutover, and size what survives for CI**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Scope — the conformance suite that runs once per backend — and `storage-cutover`'s deletion pass,
+  which takes the retirement list.
+
+- _Observation:_ `storage-contract` (#810) added 59 integration test files costing about 131 s of every full CI run;
+  the integration job rose from about 354 s to about 495 s. The largest are `store-in-repo-conformance.test.ts` (942
+  tests, 34 s), `store-tracked-history.test.ts` (16 s), `store-lifecycle-consumers-differential.test.ts` (12 s), and
+  `store-lifecycle-storage.test.ts` (6 s), then smaller `store-notes-*`, `store-transient*`, and `store-sync-*`
+  suites. Several target the interim in-repo backend by name. A per-file comparison against a pre-#810 run shows
+  pre-existing files unchanged, so the lifecycle rescan did not inflate them.
+
+- _Question:_ which suites retire with the in-repo backend at the cutover, which survive as backend-agnostic contract
+  conformance, and whether a conformance suite that runs once per backend should be sized for CI — a representative
+  subset per backend, or a cheaper tier where a case needs no Git process. The retirement list goes to
+  `storage-cutover`'s deletion pass; `storage-ref-backend`, whose backend the conformance suite runs a second time,
+  sizes what survives.
+
+- _Why it matters:_ integration is the largest share of a full CI run. The figures above were measured on the
+  self-hosted runner pool since retired; CI now runs on GitHub-hosted runners, so re-measure there and size for
+  wall time rather than a fixed runner pool.
+
+- _Captured during:_ the 2026-10-05 discussion of CI cost on fixed runner capacity.
+
+### `[ ]` **Convert existing buffer sections and pending owner-adoption holds at import**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ `spec-storage-contract.md` D14's one-time move, which `storage-ref-backend` imports and `storage-cutover`
+  runs.
+
+- _Observation:_ the move lists no conversion of a draft's `## Inbound Buffer — Pending Integration` entries into its
+  inbound list, so readiness that reads an empty list as drained would pass a draft over its stranded entries. Nor
+  does it convert a pending owner-adoption `_Hold` capture into its target's inbound list: D11 retires owner adoption,
+  and the move only stamps each inbox entry's `_Id:_`, so such an entry would rest in the inbox with its home known.
+  `inbound-routing-method` also leaves some entries in place before the flip, rewritten to name another person's
+  started work unit (`spec-inbound-routing-method.md` D5, D8's pre-flip gap); the first re-triage after the flip
+  routes them.
+
+- _Approach:_ the import converts both (`storage-ref-backend`); `storage-cutover`, which runs the move, confirms none
+  is left behind.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
 ---

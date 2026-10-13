@@ -327,9 +327,9 @@ const CandidateSchema = z.strictObject({ deliverableId: DeliveryCanonicalDigestS
 const CoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
 const ReviewFixVerificationSchema = z.strictObject({
   memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-  tier1Required: z.literal(true),
+  commitGateRequired: z.literal(true),
   target: CoordinateSchema,
-  tier1ReuseCriteria: z.strictObject({
+  commitGateReuseCriteria: z.strictObject({
     kind: z.literal("exact-tree"),
     targetTree: GitObjectIdSchema,
     requiredResult: z.literal("passed"),
@@ -790,7 +790,7 @@ const ReviewFixAcknowledgementInputSchema = z.strictObject({
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   continuationDigest: DeliveryCanonicalDigestSchema,
 });
-const ReviewFixTier1VerificationSchema = z.discriminatedUnion("provenance", [
+const ReviewFixCommitGateVerificationSchema = z.discriminatedUnion("provenance", [
   z.strictObject({
     outcome: z.literal("passed"),
     provenance: z.literal("rerun"),
@@ -807,7 +807,7 @@ const ReviewFixAcknowledgeSchema = ReviewFixAcknowledgementInputSchema.extend({
   verification: z.strictObject({
     applicability: z.enum(["targeted", "focused", "full"]),
     target: CoordinateSchema,
-    tier1: ReviewFixTier1VerificationSchema,
+    commitGate: ReviewFixCommitGateVerificationSchema,
     verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
   }),
 });
@@ -1378,7 +1378,7 @@ const ResultSchema = z.union([
     nextAction: z.literal("execute-provider-refresh"),
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
+      commitGateRequired: z.literal(true),
     }),
     recommendedActionText: z.string().min(1),
   }),
@@ -3830,7 +3830,7 @@ async function executeDeliveryCommand(
     if (terminal === null
       || parsed.verification.target.head !== terminal.head
       || parsed.verification.target.tree !== terminal.tree
-      || parsed.verification.tier1.targetTree !== terminal.tree) {
+      || parsed.verification.commitGate.targetTree !== terminal.tree) {
       return { status: "refused", reason: "verification-target-mismatch" };
     }
     try {

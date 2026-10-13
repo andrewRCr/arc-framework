@@ -24,7 +24,7 @@
  */
 
 import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../kernel/schema/vocabulary.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { emptyParsedMetaRecord, parseMetaRecord } from "../active/meta-reader.js";
 import { type ParsedMetaRecord } from "../active/meta-schema.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js";
@@ -1517,7 +1517,7 @@ function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate):
 }
 
 function degradedMetaRecord(): ParsedMetaRecord {
-  return parseMetaRecord("");
+  return emptyParsedMetaRecord();
 }
 
 function degradedMetaCandidate(input: {

@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent. Single sentence preferred; keep it
-  bounded so the core thesis stays visible at a glance. Distilled "what + why," not framing prose — body
+- **Purpose:** {One- to three-line north-star summary of the WU's intent that opens with a one-sentence thesis. Keep
+  it bounded so the core thesis stays visible at a glance. Distilled "what + why," not framing prose — body
   sections carry the full context.}
 
 ---
@@ -53,7 +53,7 @@ For larger scope, prioritize:
 
 ## Non-Goals
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this work explicitly won't include. Critical for scope management — be specific about what's out and why.
 

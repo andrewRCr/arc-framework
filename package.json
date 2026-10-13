@@ -13,7 +13,7 @@
     "lint:md:markdownlint": "npm run -s lint:md:dependencies && node --import tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
     "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
     "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
-    "lint:md:file": "markdownlint-cli2 --no-globs",
+    "lint:md:file": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-file.ts",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
     "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
@@ -41,9 +41,11 @@
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:ts:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-lint.ts",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
+    "lint:workflows": "bash scripts/lint-workflows.sh",
     "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
+    "lint:arc:links": "node --import tsx packages/arc-framework/src/scripts/audit-links.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
     "prepare": "husky"
   },
@@ -51,15 +53,16 @@
     "husky": "^9.1.7",
     "jsonc-parser": "3.3.1",
     "markdownlint": "0.40.0",
-    "markdownlint-cli2": "0.23.0",
+    "markdownlint-cli2": "0.23.3",
     "tsx": "^4.22.4"
   },
   "allowScripts": {
-    "esbuild": true
+    "esbuild": true,
+    "lefthook": false
   },
   "overrides": {
     "markdownlint-cli2": {
-      "js-yaml": "5.2.2"
+      "smol-toml": "1.9.0"
     }
   }
 }

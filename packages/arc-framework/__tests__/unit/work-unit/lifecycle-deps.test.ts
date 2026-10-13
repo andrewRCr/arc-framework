@@ -3,14 +3,22 @@ import { describe, it, expect } from "vitest";
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { resolveDepStates, resolveReverseDeps } from "../../../src/lib/work-unit/lifecycle-deps.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
+/** Minimal valid meta — core table with `State` and an optional `Depends On` edge list. */
 function meta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
+  const lines = [
+    "# Metadata: x",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${state} | — | — | — | — |`,
+    "",
+  ];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
     lines.push(`- **Depends On:** ${value}`);
   }
-  return `${lines.join("\n")}\n`;
+  lines.push("", "---", "");
+  return lines.join("\n");
 }
 
 /** A lifecycle index with one dependent WU plus a shipped and an integrating dependency. */
@@ -81,7 +89,7 @@ describe("resolveReverseDeps", () => {
   });
 
   it("counts only genuine Depends On edges, not an incidental mention of the origin name", () => {
-    const prose = "# Metadata: x\n\n- **State:** Active\n- **Depends On:** [none]\n\nNotes: blocked behind origin earlier.\n";
+    const prose = "# Metadata: x\n\n| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n| --------- | --------- | ---------- | --------- | ------------ |\n| Active | — | — | — | — |\n\n- **Depends On:** [none]\n\n---\n\nNotes: blocked behind origin earlier.\n";
     const reverse = resolveReverseDeps(
       buildLifecycleIndexFromMetas([
         { path: ".arc/active/meta-origin.md", content: meta("Active") },

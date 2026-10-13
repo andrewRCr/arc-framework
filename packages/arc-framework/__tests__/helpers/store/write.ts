@@ -12,6 +12,8 @@ import {
 } from "./model.js";
 import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLock, versionConflict } from "./refusals.js";
 import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
+import { withStateQueue } from "./state-queue.js";
+import { checkPreparedWrites } from "./write-checks.js";
 import { indexIdentities } from "./identities.js";
 
 function detachedWrite(write: WriteInput): WriteInput {
@@ -217,21 +219,26 @@ function validatePlacement(context: ReferenceContext, since: number): StoreRefus
  * @param write - Complete caller write with provenance.
  * @returns Exact new mutation basis or an actionable refusal.
  */
-export function writeReference(context: ReferenceContext, write: WriteInput): StoreResult<WriteResult> {
-  const prepared = { ...context, state: structuredClone(context.state) };
-  const mutation = prepareGenerations(prepared, [detachedWrite(write)])[0]!;
-  const validatedConflicts = new Map<WriteInput, ConflictRecord>();
-  const refusal = preflight(prepared, mutation, validatedConflicts);
-  if (refusal) return refused(refusal);
-  if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
-  const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
-  const placementRefusal = validatePlacement(prepared, context.state.counter);
-  if (placementRefusal) return refused(placementRefusal);
-  const identities = indexIdentities(prepared.state.records);
-  if (identities.status === "refused") return identities;
-  prepared.state.identities = identities.result;
-  Object.assign(context.state, prepared.state);
-  return ok(structuredClone(result));
+export async function writeReference(context: ReferenceContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
+  const write = detachedWrite(input);
+  return withStateQueue(context.state, async () => {
+    const prepared = { ...context, state: structuredClone(context.state) };
+    const mutation = prepareGenerations(prepared, [write])[0]!;
+    const validatedConflicts = new Map<WriteInput, ConflictRecord>();
+    const refusal = preflight(prepared, mutation, validatedConflicts);
+    if (refusal) return refused(refusal);
+    if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
+    const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    const placementRefusal = validatePlacement(prepared, context.state.counter);
+    if (placementRefusal) return refused(placementRefusal);
+    const identities = indexIdentities(prepared.state.records);
+    if (identities.status === "refused") return identities;
+    prepared.state.identities = identities.result;
+    const checkRefusal = await checkPreparedWrites(context, prepared, [result.reference], write.provenance);
+    if (checkRefusal) return refused(checkRefusal);
+    Object.assign(context.state, prepared.state);
+    return ok(structuredClone(result));
+  });
 }
 
 /** Validate every input before publishing the batch's independently prepared namespace.
@@ -239,29 +246,34 @@ export function writeReference(context: ReferenceContext, write: WriteInput): St
  * @param input - Mutations under one caller provenance.
  * @returns Every requested write with one shared batch ID, or no applied write.
  */
-export function batchReference(context: ReferenceContext, input: BatchInput): StoreResult<BatchResult> {
-  const namespace = namespaceAdmission(context.state);
-  if (namespace) return refused(namespace);
-  const writes = input.writes.map((write) => detachedWrite({ ...write, provenance: input.provenance }));
-  const prepared = { ...context, state: structuredClone(context.state) };
-  const mutations = prepareGenerations(prepared, writes);
-  const keys = new Set<string>();
-  for (const write of mutations) {
-    const key = recordKey(canonicalReference(prepared.state,write.reference));
-    if (keys.has(key)) return refused(malformed(write.reference,"An atomic batch must name each canonical record at most once."));
-    keys.add(key);
-  }
-  const validatedConflicts = new Map<WriteInput, ConflictRecord>();
-  for (const write of mutations) { const refusal = preflight(prepared, write, validatedConflicts); if (refusal) return refused(refusal); }
-  const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
-  if (conflicts.length > 0) return refused(versionConflict(conflicts));
-  const batchId = randomUUID();
-  const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
-  const placementRefusal = validatePlacement(prepared, context.state.counter);
-  if (placementRefusal) return refused(placementRefusal);
-  const identities = indexIdentities(prepared.state.records);
-  if (identities.status === "refused") return identities;
-  prepared.state.identities = identities.result;
-  Object.assign(context.state, prepared.state);
-  return ok(structuredClone({ batchId, writes: results }));
+export async function batchReference(context: ReferenceContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
+  const provenance = structuredClone(input.provenance);
+  const writes = input.writes.map((write) => detachedWrite({ ...write, provenance }));
+  return withStateQueue(context.state, async () => {
+    const namespace = namespaceAdmission(context.state);
+    if (namespace) return refused(namespace);
+    const prepared = { ...context, state: structuredClone(context.state) };
+    const mutations = prepareGenerations(prepared, writes);
+    const keys = new Set<string>();
+    for (const write of mutations) {
+      const key = recordKey(canonicalReference(prepared.state,write.reference));
+      if (keys.has(key)) return refused(malformed(write.reference,"An atomic batch must name each canonical record at most once."));
+      keys.add(key);
+    }
+    const validatedConflicts = new Map<WriteInput, ConflictRecord>();
+    for (const write of mutations) { const refusal = preflight(prepared, write, validatedConflicts); if (refusal) return refused(refusal); }
+    const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
+    if (conflicts.length > 0) return refused(versionConflict(conflicts));
+    const batchId = randomUUID();
+    const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
+    const placementRefusal = validatePlacement(prepared, context.state.counter);
+    if (placementRefusal) return refused(placementRefusal);
+    const identities = indexIdentities(prepared.state.records);
+    if (identities.status === "refused") return identities;
+    prepared.state.identities = identities.result;
+    const checkRefusal = await checkPreparedWrites(context, prepared, results.map((result) => result.reference), provenance);
+    if (checkRefusal) return refused(checkRefusal);
+    Object.assign(context.state, prepared.state);
+    return ok(structuredClone({ batchId, writes: results }));
+  });
 }

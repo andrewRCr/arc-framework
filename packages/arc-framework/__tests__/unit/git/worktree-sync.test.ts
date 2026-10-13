@@ -8,6 +8,7 @@ import {
   runMaterializingWorktreeInspection,
   runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
+  WorktreeFetchFailedError,
   WorktreeSyncStatusResultSchema,
   WorktreeSnapshotAnalysisResultSchema,
 } from "../../../src/lib/git/worktree-sync.js";
@@ -879,10 +880,10 @@ describe("runMaterializingWorktreeInspection", () => {
   });
 
   it.each([
-    ["authentication", "fatal: Authentication failed for 'https://example.test/repo.git'"],
-    ["network", "fatal: unable to access remote: Could not resolve host: example.test"],
-    ["metadata write", "error: cannot lock ref 'refs/remotes/origin/main': Permission denied"],
-  ])("fails visibly on %s materialization errors", async (_name, message) => {
+    ["authentication", 128, "fatal: Authentication failed for 'https://example.test/repo.git'"],
+    ["network", 128, "fatal: unable to access remote: Could not resolve host: example.test"],
+    ["ref update", 1, "error: cannot lock ref 'refs/remotes/origin/main': Permission denied"],
+  ])("reports a %s fetch failure with Git's diagnostic and a retry remedy", async (_name, exitCode, message) => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
@@ -891,13 +892,22 @@ describe("runMaterializingWorktreeInspection", () => {
           kind: "nonzero-exit",
           command: "git",
           args: ["fetch", "origin", "main"],
-          exitCode: 128,
+          exitCode,
           stderr: message,
         });
       },
     });
 
-    await expect(runMaterializingWorktreeInspection({ exec })).rejects.toMatchObject({ stderr: message });
+    const failure = await runMaterializingWorktreeInspection({ exec }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(WorktreeFetchFailedError);
+    expect(failure).toMatchObject({
+      name: "WorktreeFetchFailedError",
+      branch: "main",
+      remoteBranch: "main",
+      failure: { kind: "nonzero-exit", exitCode, stderr: message },
+    });
+    expect((failure as Error).message).toContain(message);
+    expect((failure as Error).message).toContain("Retry");
   });
 
   it("fails visibly when the materialized tracking ref does not resolve to a local commit", async () => {

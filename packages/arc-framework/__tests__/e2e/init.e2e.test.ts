@@ -8,13 +8,14 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, access, writeFile } from "node:fs/promises";
-import { join, resolve, dirname } from "node:path";
+import { readFile, access, writeFile, mkdir, symlink } from "node:fs/promises";
+import { join, resolve, dirname, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
 import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -108,6 +109,7 @@ describe("init", () => {
 
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "system", "arc-checks.yml"))).toBe(false);
     expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-draft.md"))).toBe(true);
 
@@ -156,6 +158,32 @@ describe("init", () => {
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 
+  it.each(["valid", "broken"])("fresh init gates a staged Markdown commit with a %s link", async link => {
+    const initialized = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+
+    const binDir = join(tmpDir, "node_modules/.bin");
+    await mkdir(binDir, { recursive: true });
+    await symlink(CLI_PATH, join(binDir, "arc"));
+    await writeFile(join(tmpDir, "target.txt"), "present\n");
+    const target = link === "valid" ? "target.txt" : "missing.txt";
+    await writeFile(join(tmpDir, "README.md"), `# Project\n\n[Target](${target})\n`);
+    await git(tmpDir, ["add", "README.md", "target.txt"]);
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: [binDir, process.env.PATH].join(delimiter), NO_COLOR: "1" };
+    delete env.FORCE_COLOR;
+    const committed = execFileAsync("git", ["commit", "-m", "docs(readme): add project link", "-m",
+      "Context: standalone (documentation)"], { cwd: tmpDir, env, timeout: 30_000 });
+
+    if (link === "broken") {
+      await expect(committed).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("broken link -> missing.txt") });
+      expect(await git(tmpDir, ["diff", "--cached", "--name-only"])).toBe("README.md\ntarget.txt");
+    } else {
+      await committed;
+      expect(await git(tmpDir, ["show", "HEAD:README.md"])).toBe("# Project\n\n[Target](target.txt)");
+      expect(await git(tmpDir, ["diff", "--cached", "--name-only"])).toBe("");
+    }
+  }, 60_000);
+
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
     const result = await runArc(
       ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
@@ -185,15 +213,17 @@ describe("init", () => {
     const methodNames = [
       "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
       "assess-evidence-applicability", "adversarial-review",
-      "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
+      "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
+      "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
-      "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+      "disposition-report",
+      "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
       "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
     const extensionNames = [
-      "post-context-load", "post-task-completion", "post-task-quality",
-      "post-unit-quality", "post-work-unit-activate",
+      "post-context-load", "post-task-completion",
+      "post-work-unit-activate",
       "post-work-unit-archive", "pre-activation", "pre-commit-review",
       "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
     ];

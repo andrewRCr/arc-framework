@@ -15,7 +15,8 @@ let previousExitCode: typeof process.exitCode;
 beforeEach(() => { previousExitCode = process.exitCode; process.exitCode = undefined; });
 afterEach(() => { process.exitCode = previousExitCode; });
 
-function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timing" = "none", project = "unit") {
+function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timing" = "none", project = "unit",
+  onCreation?: () => Promise<void>) {
   let clock = 1_000;
   const events: string[] = [];
   let retained: string | undefined;
@@ -33,6 +34,7 @@ function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timi
   const specification = { project: { name: project }, testModule: undefined as { task: { mode: string } } | undefined };
   const provided: Record<string, unknown> = {};
   const create: typeof createVitest = async () => {
+    await onCreation?.();
     advance("creation", 11);
     return { config: { experimental: { preParse: true } }, projects: [{ config: { exclude: [] } }],
       standalone: async () => { advance("reporting", 13); },
@@ -54,20 +56,28 @@ const input = { cwd: "/repo/packages/arc-framework", env: {}, mode, outputPath: 
 describe("runTestCostMeasurement", () => {
   it("excludes CPU queue, releases and persistence while including artifact wait and qualification", async () => {
     const checkout = await makeFocusedVitestFixture();
-    const fixture = nativeBoundary("none", "integration");
     const cpuPath = join(checkout.root, ".git/arc/test-suite/.local-heavy-tests.lock");
     const artifactPath = join(checkout.packageRoot, ".arc-build.lock");
     await mkdir(join(cpuPath, ".."), { recursive: true });
     let cpuHolder: Awaited<ReturnType<typeof acquireAdvisoryLock>> | undefined;
     let artifactHolder: Awaited<ReturnType<typeof acquireAdvisoryLock>> | undefined;
+    let cpuWait = false;
+    let artifactWait = false;
+    let preparing = true;
+    let controllerCount = 0;
+    const fixture = nativeBoundary("none", "integration", async () => {
+      if (controllerCount++ === 0) return;
+      cpuWait = false;
+      artifactWait = false;
+      preparing = true;
+      cpuHolder = await acquireAdvisoryLock(cpuPath);
+      artifactHolder = await acquireAdvisoryLock(artifactPath);
+    });
     try {
       await execa(process.execPath, ["--import", "tsx", "src/scripts/run-build.ts", "prepare"],
         { cwd: checkout.packageRoot, env: { ARC_E2E_SKIP_BUILD: "" } });
       cpuHolder = await acquireAdvisoryLock(cpuPath);
       artifactHolder = await acquireAdvisoryLock(artifactPath);
-      let cpuWait = false;
-      let artifactWait = false;
-      let preparing = true;
       const run = await runTestCostMeasurement({ ...input, cwd: checkout.packageRoot,
         mode: { ...mode, projectSet: "integration" } }, { ...fixture.dependencies,
         ownership: {
@@ -100,8 +110,9 @@ describe("runTestCostMeasurement", () => {
         },
       });
       expect(run).toMatchObject({ wallClockMs: 243, admissionWaitMs: 43 });
-      expect(fixture.events).toEqual(["creation", "reporting", "discovery", "pre-parsing", "cpu-wait", "artifact-wait",
-        "qualification", "execution", "closing", "capture", "artifact-release", "cpu-release", "persistence"]);
+      const lifecycle = ["creation", "reporting", "discovery", "pre-parsing", "cpu-wait", "artifact-wait",
+        "qualification", "execution", "closing", "capture", "artifact-release", "cpu-release"];
+      expect(fixture.events).toEqual([...lifecycle, ...lifecycle, "persistence"]);
       expect(JSON.parse(fixture.retained() ?? "null")).toEqual(run);
     } finally {
       if (cpuHolder !== undefined) await releaseAdvisoryLock(cpuHolder);

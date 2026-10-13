@@ -7,7 +7,7 @@ import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-asse
 
 import type { BaseMergeResult } from "../../src/scripts/base/merge.js";
 import { RespondVerifiedFixSchema } from "../../src/scripts/review-gate/runtime/respond-command.js";
-import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { indexOfSoftWrappedProse, softWrappedPattern, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
@@ -32,10 +32,14 @@ function stepValue(workflow: string, jobName: string, stepId: string): Record<st
 }
 
 function sectionBetween(content: string, start: string, end?: string): string {
-  const startIndex = content.indexOf(start);
+  const startIndex = start.startsWith("#")
+    ? content.indexOf(start)
+    : indexOfSoftWrappedProse(content, start);
   if (startIndex === -1) throw new Error(`missing section start: ${start}`);
   if (end === undefined) return content.slice(startIndex);
-  const endIndex = content.indexOf(end, startIndex + start.length);
+  const endIndex = end.startsWith("#")
+    ? content.indexOf(end, startIndex + 1)
+    : indexOfSoftWrappedProse(content, end, startIndex + 1);
   if (endIndex === -1) throw new Error(`missing section end after "${start}": ${end}`);
   return content.slice(startIndex, endIndex);
 }
@@ -46,7 +50,7 @@ function expectProducerBackedResponseOrder(content: string, start: string, end: 
   const gatingPolicy = response.indexOf("proposal.severityGatingPolicy", triage);
   const proposalCall = response.indexOf("arc review respond -", gatingPolicy);
   const report = response.indexOf("payload.dispositionReportText", proposalCall);
-  const approval = response.indexOf("complete-set approval", report);
+  const approval = indexOfSoftWrappedProse(response, "complete-set approval", report);
   const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
   const performance = response.indexOf("[`review-response`]", approvedCall);
 
@@ -66,21 +70,23 @@ describe("trusted review-gate workflows", () => {
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
+    expect(workflow).toContain("scripts/classify-change.sh integration --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");
   });
 
-  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+  it("runs the Linux CI graph on GitHub-hosted runners with no self-hosted routing", async () => {
     const workflow = await read("ci.yml");
-    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    expect(workflow).not.toContain("ARC_CI_LINUX_RUNNER");
     const linuxJobs = [
       "classify",
       "setup",
+      "build",
       "lint-typecheck",
       "unit",
       "integration",
@@ -88,8 +94,9 @@ describe("trusted review-gate workflows", () => {
       "portability",
       "ci_ok",
       "merge-ok",
+      "record-verified-tree",
     ];
-    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe("ubuntu-latest");
 
     expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
     for (const name of ["docs.yml", "arc-lane-attestation.yml"]) {
@@ -101,15 +108,13 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
-  it("sizes Vitest for the selected Linux runner capacity", async () => {
+  it("sizes Vitest natively on hosted runners unless the repository variable retunes it", async () => {
     const workflow = await read("ci.yml");
     const parsed = load(workflow) as {
       env?: Record<string, unknown>;
       jobs?: Record<string, { env?: Record<string, unknown> }>;
     };
-    expect(parsed.env?.VITEST_MAX_WORKERS).toBe(
-      "${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}",
-    );
+    expect(parsed.env?.VITEST_MAX_WORKERS).toBe("${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}");
     expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
   });
 
@@ -141,7 +146,7 @@ describe("trusted review-gate workflows", () => {
     const unit = jobValue(await read("ci.yml"), "unit");
     expect(unit.permissions).toMatchObject({ contents: "read", actions: "write" });
     const steps = unit.steps as Array<Record<string, unknown>>;
-    const test = steps.find((step) => typeof step.run === "string" && step.run.startsWith("npm run test:unit"));
+    const test = steps.find((step) => step.id === "test");
     expect(test?.run).toContain("--reporter=default");
     expect(test?.run).toContain("--reporter=github-actions");
     expect(test?.run).toContain("--reporter=json");
@@ -157,19 +162,19 @@ describe("trusted review-gate workflows", () => {
     expect(steps.at(-1)?.name).toBe("Report test budget");
   });
 
-  it("runs four E2E shards with a denominator derived from the matrix", async () => {
+  it("runs four E2E shards from the declaration forecast", async () => {
     const workflow = await read("ci.yml");
     const e2e = jobValue(workflow, "e2e");
     expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
     expect(e2e.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
     const steps = e2e.steps as Array<Record<string, unknown>>;
     const runs = steps.map((step) => step.run)
-      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:e2e"));
-    expect(runs).toEqual(["npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run e2e test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run e2e test --shard ${{ matrix.shard }}"]);
     expect(steps.some((step) => typeof step.run === "string" && step.run.includes("--exclude"))).toBe(false);
   });
 
-  it("runs four integration shards with a denominator derived from the matrix", async () => {
+  it("runs four integration shards from the declaration forecast", async () => {
     const workflow = await read("ci.yml");
     const integration = jobValue(workflow, "integration");
 
@@ -180,8 +185,8 @@ describe("trusted review-gate workflows", () => {
     expect(Array.isArray(steps)).toBe(true);
     const runs = (steps as Array<Record<string, unknown>>)
       .map((step) => step.run)
-      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:"));
-    expect(runs).toEqual(["npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
+      .filter((run): run is string => typeof run === "string" && run.includes("run-ci-checks.mjs run integration test"));
+    expect(runs).toEqual(["node --import tsx scripts/run-ci-checks.mjs run integration test --shard ${{ matrix.shard }}"]);
   });
 
   it("provisions Node before the classifier hashes the code tree", async () => {
@@ -241,17 +246,15 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
-        "github.event_name == 'schedule' }}",
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+        "github.event_name == 'schedule') }}",
     );
-    // The pair consumes no classify output, so it is dependency-free: a `needs`
-    // paired with a custom `if` would let a failed classify start it anyway.
-    expect(jobValue(workflow, "portability-cross-platform")).not.toHaveProperty("needs");
+    expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
     const triggers = (load(workflow) as { on?: Record<string, unknown> }).on;
     expect(triggers?.workflow_dispatch).toMatchObject({
       inputs: { run_portability_pair: { type: "boolean", default: false } },
     });
-    const targetedJob = sectionBetween(workflow, "  portability-cross-platform:", "  ci_ok:");
+    const targetedJob = JSON.stringify(jobValue(workflow, "portability-cross-platform"));
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
     expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
@@ -274,8 +277,8 @@ describe("trusted review-gate workflows", () => {
     expect(productionRegistry).toContain("registerDecomposeSchemas");
     const compactRegistry = productionRegistry.replace(/\s+/gu, " ");
     expect(compactRegistry).toContain(
-      "return registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
-      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), ))));",
+      "return registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
+      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), )))));",
     );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
@@ -302,18 +305,30 @@ describe("trusted review-gate workflows", () => {
     const lintSteps = jobValue(workflow, "lint-typecheck").steps;
     expect(Array.isArray(lintSteps)).toBe(true);
     const focused = (lintSteps as Array<Record<string, unknown>>)
-      .filter((step) => step.run === "npm run test:arc-contracts");
-    expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
+      .filter((step) => step.id === "arc-contracts");
+    expect(focused).toEqual([{ id: "arc-contracts", if: "${{ needs.classify.outputs.weight == 'light' }}",
+      run: "node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts" }]);
 
     const unitCondition = "${{ !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
       "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
-    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
+    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
       "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
       "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
-    for (const jobName of ["integration", "e2e"]) expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
+    expect(jobValue(workflow, "e2e").if).toBe(broadSuiteCondition);
     expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
+    // A light run still owes the integration suite when the change touches content it reads that the weight leaves
+    // out, so integration and the build it consumes also run on the integration target.
+    const integrationTarget = "needs.classify.outputs.integration_target == 'true'";
+    expect(jobValue(workflow, "integration").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ));
+    expect(jobValue(workflow, "build").if).toBe("${{ !cancelled() && needs.classify.result == 'success' && " +
+      "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
+      `${integrationTarget} || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && ` +
+      "needs.setup.result == 'success' }}");
   });
 
   it("parses every workflow and pins every external action", async () => {
@@ -347,9 +362,10 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(projectRules).toBe(packagedRules);
-    expect(packagedRules).toMatch(/sole bounded exception[\s\S]*provisional integration candidate/iu);
-    expect(packagedRules).toMatch(/implementation or finding-driven fix[\s\S]*structured approval gate/iu);
-    expect(packagedRules).toMatch(/exact-head integration authorization/iu);
+    expect(packagedRules).toMatch(softWrappedPattern(/sole\s+bounded\s+exception[\s\S]*provisional\s+integration\s+candidate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/implementation\s+fix\s+still\s+requires\s+its\s+structured\s+approval\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/finding-driven\s+fix,\s+the\s+complete-set\s+disposition\s+approval\s+is\s+that\s+gate/iu));
+    expect(packagedRules).toMatch(softWrappedPattern(/exact-head\s+integration\s+authorization/iu));
 
     const candidate = sectionBetween(
       packaged,
@@ -357,16 +373,16 @@ describe("trusted review-gate workflows", () => {
       "### 10) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
-    expect(candidate).toContain("candidate-entry state");
-    expect(candidate).toContain("never merge readiness");
-    expect(candidate).toMatch(/raw local clean report[\s\S]*unattested/iu);
-    expect(candidate).toMatch(/canonical settled WU change set[\s\S]*completed task outcomes/u);
-    expect(candidate).toMatch(/spec intent and\s+non-goals[\s\S]*success-criteria disposition/u);
-    expect(candidate).toContain("verification evidence");
-    expect(candidate).toMatch(/alignment disagreement|failed quality gate|base conflict|unexpected state/u);
-    expect(candidate).toContain("Recompose its exact target");
-    expect(candidate).toMatch(/pre-composition\s+direction[\s\S]*not\s+prospective merge authority/u);
-    expect(candidate).not.toContain("Stop before composition begins");
+    expect(candidate).toMatch(softWrappedProse("candidate-entry state"));
+    expect(candidate).toMatch(softWrappedProse("never merge readiness"));
+    expect(candidate).toMatch(softWrappedPattern(/raw\s+local\s+clean\s+report[\s\S]*unattested/iu));
+    expect(candidate).toMatch(softWrappedPattern(/canonical\s+settled\s+WU\s+change\s+set[\s\S]*completed\s+task\s+outcomes/u));
+    expect(candidate).toMatch(softWrappedPattern(/spec\s+intent\s+and\s+non-goals[\s\S]*success-criteria\s+disposition/u));
+    expect(candidate).toMatch(softWrappedProse("verification evidence"));
+    expect(candidate).toMatch(softWrappedPattern(/alignment\s+disagreement|failed\s+quality\s+gate|base\s+conflict|unexpected\s+state/u));
+    expect(candidate).toMatch(softWrappedProse("Recompose its exact target"));
+    expect(candidate).toMatch(softWrappedPattern(/pre-composition\s+direction[\s\S]*not\s+prospective\s+merge\s+authority/u));
+    expect(candidate).not.toMatch(softWrappedProse("Stop before composition begins"));
     expect(candidate).not.toMatch(softWrappedProse("proceed to commit + sweep + push"));
   });
 
@@ -379,24 +395,24 @@ describe("trusted review-gate workflows", () => {
       "### 5) Compose Release Notes Entry",
       "### 6) Compose Completion Notes",
     );
-    expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
-    expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
-    expect(releaseNotes).toMatch(/roadmap pointers[\s\S]*internal review or provider machinery/u);
-    expect(releaseNotes).toContain("planned-but-unshipped work");
-    expect(releaseNotes).toMatch(/publicly supported review concepts and configuration[\s\S]*shipped outcome/iu);
+    expect(releaseNotes).toMatch(softWrappedPattern(/shipped\s+reader\/operator-visible\s+outcomes/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/WU\s+names\s+or\s+slugs[\s\S]*task\s+or\s+phase\s+references[\s\S]*branches/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/roadmap\s+pointers[\s\S]*internal\s+review\s+or\s+provider\s+machinery/u));
+    expect(releaseNotes).toMatch(softWrappedProse("planned-but-unshipped work"));
+    expect(releaseNotes).toMatch(softWrappedPattern(/publicly\s+supported\s+review\s+concepts\s+and\s+configuration[\s\S]*shipped\s+outcome/iu));
     expect(releaseNotes).toContain("`### <Category>`");
-    expect(releaseNotes).toMatch(/dash and one space[\s\S]*continuation lines at least two spaces/u);
-    expect(releaseNotes).toMatch(/Infrastructure[\s\S]*externally meaningful[\s\S]*operational change/u);
-    expect(releaseNotes).toMatch(/`### Breaking Changes`[\s\S]*affected stability contract[\s\S]*migration/u);
+    expect(releaseNotes).toMatch(softWrappedPattern(/dash\s+and\s+one\s+space[\s\S]*continuation\s+lines\s+at\s+least\s+two\s+spaces/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/Infrastructure[\s\S]*externally\s+meaningful[\s\S]*operational\s+change/u));
+    expect(releaseNotes).toMatch(softWrappedPattern(/`### Breaking Changes`[\s\S]*affected\s+stability\s+contract[\s\S]*migration/u));
 
     const completionNotes = sectionBetween(
       packaged,
       "### 6) Compose Completion Notes",
       "### 7) Commit completion content",
     );
-    expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
-    expect(completionNotes).toContain("verified evidence");
-    expect(completionNotes).toMatch(/never repeat[\s\S]*(?:task list|git history)/iu);
+    expect(completionNotes).toMatch(softWrappedPattern(/delivered\s+scope[\s\S]*material\s+deviations\s+or\s+supersessions/u));
+    expect(completionNotes).toMatch(softWrappedProse("verified evidence"));
+    expect(completionNotes).toMatch(softWrappedPattern(/never\s+repeat[\s\S]*(?:task\s+list|git\s+history)/iu));
 
     const finalGate = sectionBetween(
       packaged,
@@ -405,8 +421,8 @@ describe("trusted review-gate workflows", () => {
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
-    expect(finalGate).toMatch(/approved responses[\s\S]*already performed[\s\S]*not re-approved/iu);
-    expect(finalGate).not.toContain("exact candidate-tail diff");
+    expect(finalGate).toMatch(softWrappedPattern(/approved\s+responses[\s\S]*already\s+performed[\s\S]*not\s+re-approved/iu));
+    expect(finalGate).not.toMatch(softWrappedProse("exact candidate-tail diff"));
   });
 
   it("discloses the applicability calls, dispositions, and narrowed tail diff at the merge stop", async () => {
@@ -424,12 +440,15 @@ describe("trusted review-gate workflows", () => {
       "### 11) Post-merge worktree cleanup",
     );
     const interlock = finalGate.slice(finalGate.lastIndexOf("`integration-interlock`"));
-    expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
-    expect(interlock).toContain("named rather than diffed");
+    const tailDiff = indexOfSoftWrappedProse(interlock, "candidate-tail diff");
+    const readerNotes = indexOfSoftWrappedProse(interlock, "Release Notes entry and Completion Notes", tailDiff);
+    expect(tailDiff).toBeGreaterThan(-1);
+    expect(readerNotes).toBeGreaterThan(tailDiff);
+    expect(interlock).toMatch(softWrappedProse("named rather than diffed"));
     expect(interlock).toMatch(softWrappedProse("review applicability calls and targeted verification"));
     expect(interlock).toMatch(softWrappedProse("approved responses already performed there and the final dispositions carried by the checkpointed settlement plan"));
-    expect(interlock).not.toContain("proposed final dispositions");
-    expect(interlock).not.toContain("applies final dispositions");
+    expect(interlock).not.toMatch(softWrappedProse("proposed final dispositions"));
+    expect(interlock).not.toMatch(softWrappedProse("applies final dispositions"));
     expect(finalGate).toMatch(softWrappedProse("Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`"));
     expect(interlock).toMatch(softWrappedProse("the Owner direction obtained for any `hostReview` blocker"));
 
@@ -438,8 +457,8 @@ describe("trusted review-gate workflows", () => {
       "### 3) Confirm review coordination",
       "### 4) Spec-presence + alignment checks",
     );
-    expect(reviewCoordination).toContain("approved no-action record-only set");
-    expect(reviewCoordination).toContain("cannot remain merely proposed");
+    expect(reviewCoordination).toMatch(softWrappedProse("approved no-action record-only set"));
+    expect(reviewCoordination).toMatch(softWrappedProse("cannot remain merely proposed"));
   });
 
   it("routes frontline and local review through the public advisory command surface", async () => {
@@ -453,6 +472,7 @@ describe("trusted review-gate workflows", () => {
         readRepositoryFile(`.arc/${path}`),
       ]);
       expect(project).toBe(packaged);
+      expect(packaged).toMatch(softWrappedProse("fresh ready resolution"));
       for (const command of [
         "arc review frontline run -",
         "arc review local prepare -",
@@ -468,21 +488,31 @@ describe("trusted review-gate workflows", () => {
         expect(packaged).toContain("`nextAction.request`");
         expect(packaged).toContain("`nextAction.authorizationRequest`");
         expect(packaged).toContain("`nextAction.resumeCommand`");
-        expect(packaged).toMatch(/JSON stdin/iu);
-        expect(packaged).toMatch(/offered \/ obtain-authorization[\s\S]*Approve \(or redirect\)\?/u);
+        expect(packaged).toMatch(softWrappedPattern(/JSON\s+stdin/iu));
+        expect(packaged).toMatch(softWrappedPattern(/offered\s+\/\s+obtain-authorization[\s\S]*Approve\s+\(or\s+redirect\)\?/u));
       } else {
         expect(packaged).toContain("arc review frontline resolve -");
+        const frontline = sectionBetween(packaged, "- `ready / run-frontline`", "- `ready / local-prepare`");
+        expect(frontline).toMatch(softWrappedPattern(/offered\s+\/\s+obtain-authorization[\s\S]*Approve\s+\(or\s+redirect\)\?/u));
+        expect(frontline).toMatch(softWrappedProse("On `offered / bind-source`, surface `payload.frontlineReview.promptText` and diagnostics"));
+        expect(frontline).toMatch(softWrappedProse("ask the Owner to select an available source or skip"));
+        expect(frontline).toMatch(softWrappedProse("`invocation.sourceId` set to the selected source, preserving `invocation.mode`"));
+        expect(frontline).toMatch(softWrappedProse("re-invoke the same request"));
+        expect(frontline).toMatch(softWrappedProse("`invocation.mode` set to `force`, preserving any `invocation.sourceId`"));
+        expect(frontline).toMatch(softWrappedProse('on decline, replace `invocation` with `{ "mode": "skip" }`'));
+        expect(frontline).toMatch(softWrappedProse("Dispatch the returned state again"));
+        expect(frontline).toMatch(softWrappedProse("only from `ready / run-frontline`"));
       }
-      expect(packaged).toMatch(/runtime-owned bindings/iu);
+      expect(packaged).toMatch(softWrappedPattern(/runtime-owned\s+bindings/iu));
       expect(packaged).toContain("`findings / respond`");
       expect(packaged).toContain("approvedVerification");
-      expect(packaged).toMatch(/does not select fewer checks/iu);
-      expect(packaged).toMatch(/review applicability|applicability from the exact delta/u);
+      expect(packaged).toMatch(softWrappedPattern(/does\s+not\s+select\s+fewer\s+checks/iu));
+      expect(packaged).toMatch(softWrappedPattern(/review\s+applicability|applicability\s+from\s+the\s+exact\s+delta/u));
       expect(packaged).toMatch(applicabilityPattern);
-      expect(packaged).toMatch(/command error\s+envelope/iu);
+      expect(packaged).toMatch(softWrappedPattern(/command\s+error\s+envelope/iu));
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
-      expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
-      expect(packaged).not.toMatch(/project review coordinator|coordinate-pr-review/iu);
+      expect(packaged).not.toMatch(softWrappedPattern(/review-suspension|promoted\s+watcher|scheduled\s+wakeup/iu));
+      expect(packaged).not.toMatch(softWrappedPattern(/project\s+review\s+coordinator|coordinate-pr-review/iu));
     }
   });
 
@@ -510,7 +540,7 @@ describe("trusted review-gate workflows", () => {
     expect(responseCommit).toBeGreaterThan(verifiedResponse);
     expect(candidateReroot).toBeGreaterThan(responseCommit);
     expect(responseSection).toMatch(
-      /candidate-advanced \/ continue-review[\s\S]*candidate-current \/ continue-review/iu,
+      softWrappedPattern(/candidate-advanced\s+\/\s+continue-review[\s\S]*candidate-current\s+\/\s+continue-review/iu),
     );
   });
 
@@ -532,9 +562,9 @@ describe("trusted review-gate workflows", () => {
       "Proceed only from `candidate-publish-ready`",
     );
     expect(convergence).toMatch(/run-convergence-verification[\s\S]*nextAction\.attestArgv/iu);
-    expect(convergence).toMatch(/keep (?:every )?projection staged[\s\S]*`candidate-publish-ready`/iu);
-    expect(convergence).not.toMatch(/commit (?:the )?convergence/iu);
-    expect(packagedVerify).toMatch(/initial Candidate attestation[\s\S]*convergence\s+attestation/iu);
+    expect(convergence).toMatch(softWrappedPattern(/keep\s+(?:every\s+)?projection\s+staged[\s\S]*`candidate-publish-ready`/iu));
+    expect(convergence).not.toMatch(softWrappedPattern(/commit\s+(?:the\s+)?convergence/iu));
+    expect(packagedVerify).toMatch(softWrappedPattern(/initial\s+Candidate\s+attestation[\s\S]*convergence\s+attestation/iu));
   });
 
   it("routes Errand review and re-entry through the public command protocol", async () => {
@@ -552,20 +582,20 @@ describe("trusted review-gate workflows", () => {
     expect(openedTargetExemption).toBeGreaterThan(openedPr);
     expect(finalHead).toBeGreaterThan(openedTargetExemption);
     expect(integrationInterlock).toBeGreaterThan(finalHead);
-    expect(packaged).toMatch(/`exempt \/ none`[\s\S]*both review lanes/iu);
-    expect(packaged).toMatch(/`review-required \/ continue-review`[\s\S]*ordinary review/iu);
-    expect(packaged).toMatch(/`not-eligible \/ continue-review`[\s\S]*ordinary review/iu);
-    expect(packaged).toMatch(/caller-owned[^.]*content kind[^.]*surface authority/iu);
-    expect(packaged).toMatch(/never infer[^.]*planning-lane/iu);
-    expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
+    expect(packaged).toMatch(softWrappedPattern(/`exempt \/ none`[\s\S]*both\s+review\s+lanes/iu));
+    expect(packaged).toMatch(softWrappedPattern(/`review-required \/ continue-review`[\s\S]*ordinary\s+review/iu));
+    expect(packaged).toMatch(softWrappedPattern(/`not-eligible \/ continue-review`[\s\S]*ordinary\s+review/iu));
+    expect(packaged).toMatch(softWrappedPattern(/caller-owned[^.]*content\s+kind[^.]*surface\s+authority/iu));
+    expect(packaged).toMatch(softWrappedPattern(/never\s+infer[^.]*planning-lane/iu));
+    expect(packaged).toMatch(softWrappedPattern(/atomic\s+determinacy[\s\S]*routing\s+fact/iu));
     expect(packaged).toMatch(/arc review resolve -[\s\S]*review-response/iu);
-    expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
-    expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
-    expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
-    expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
-    expect(packaged).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(packaged).toMatch(softWrappedPattern(/On\s+interruption[\s\S]*typed\s+`state`\s+\/\s+`nextAction`/iu));
+    expect(packaged).not.toMatch(softWrappedPattern(/vehicle-neutral\s+response-state\s+store|review-suspension|promoted\s+watcher/u));
+    expect(packaged).toMatch(softWrappedPattern(/merge\s+lane[\s\S]*downstream\s+presentation/u));
+    expect(packaged).toMatch(softWrappedPattern(/Never\s+reconstruct\s+review\s+state[\s\S]*invent\s+WU\s+state/iu));
+    expect(packaged).toMatch(softWrappedPattern(/head\s+movement[^.]*invalidates[^.]*exemption[^.]*return/iu));
     expect(packaged.slice(finalHead, integrationInterlock)).toMatch(
-      /adapter target[^.]*match it/iu,
+      softWrappedPattern(/adapter\s+target[^.]*match\s+it/iu),
     );
   });
 
@@ -606,13 +636,13 @@ describe("trusted review-gate workflows", () => {
     expect(autoMerge).toBeGreaterThan(lockRelease);
     expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
     expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
-    expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
-    expect(fullProtection).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(fullProtection).toMatch(softWrappedPattern(/never\s+infer[^.]*planning-lane/iu));
+    expect(fullProtection).toMatch(softWrappedPattern(/head\s+movement[^.]*invalidates[^.]*exemption[^.]*return/iu));
     expect(fullProtection).toMatch(
-      /after approval[\s\S]*head differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu,
+      softWrappedPattern(/after\s+approval[\s\S]*head\s+differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu),
     );
     expect(fullProtection.slice(mergeMethodResolution, lockRelease)).toMatch(
-      /validated \/ use-method[\s\S]*returned `method`[\s\S]*sole/iu,
+      softWrappedPattern(/validated\s+\/\s+use-method[\s\S]*returned\s+`method`[\s\S]*sole/iu),
     );
   });
 
@@ -641,12 +671,22 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toContain("`unavailable / retry`");
       expect(pendingInspection).toContain("`cause`");
       expect(pendingInspection).toContain("`detail`");
-      expect(pendingInspection).toMatch(/read-only diagnos/iu);
-      expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
+      expect(pendingInspection).toMatch(softWrappedPattern(/read-only\s+diagnos/iu));
+      expect(pendingInspection).toMatch(softWrappedPattern(/inspect-or-extend[\s\S]{0,250}diagnostic\s+below,\s+then\s+stop/iu));
       expect(pendingInspection).toContain("continueAfterAttention: true");
-      expect(pendingInspection).toMatch(/same hosted[^.]*action/iu);
-      expect(pendingInspection).toMatch(/exact head[^.]*draft lock/iu);
-      expect(pendingInspection).toMatch(/does\s+not[^.]*review settlement/iu);
+      expect(pendingInspection).toMatch(softWrappedPattern(/same\s+hosted[^.]*action/iu));
+      expect(pendingInspection).toMatch(softWrappedPattern(/exact\s+head[^.]*draft\s+lock/iu));
+      expect(pendingInspection).toMatch(softWrappedPattern(/does\s+not[^.]*review\s+settlement/iu));
+      const draftLock = packaged.indexOf("release the draft lock.", checksAwait);
+      expect(draftLock).toBeGreaterThan(checksAwait);
+      const pushRule = packaged.slice(draftLock, draftLock + 700);
+      expect(pushRule).toMatch(softWrappedPattern(
+        /before\s+any\s+push\s+that\s+moves\s+the\s+reviewed\s+head\s+while\s+this\s+action\s+is\s+pending/iu,
+      ));
+      expect(pushRule).toMatch(softWrappedPattern(/through\s+hosted\s+await\s+until\s+it\s+concludes/iu));
+      expect(pushRule).toMatch(softWrappedPattern(
+        /`pending \/ inspect-or-extend`,\s+push\s+only\s+on\s+explicit\s+Owner\s+direction/iu,
+      ));
     }
   });
 
@@ -662,9 +702,9 @@ describe("trusted review-gate workflows", () => {
       "- `pending / inspect-or-extend`",
     );
     expect(pendingAwait).toMatch(
-      /retain[^.]*action[^.]*diagnostic[^.]*pass it unchanged[^.]*arc review hosted await[^.]*one more bounded call/iu,
+      softWrappedPattern(/retain[^.]*action[^.]*diagnostic[^.]*pass\s+it\s+unchanged[^.]*arc review hosted await[^.]*one\s+more\s+bounded\s+call/iu),
     );
-    expect(pendingAwait).toMatch(/repeat[^.]*inspect-or-extend[^.]*terminal outcome/iu);
+    expect(pendingAwait).toMatch(softWrappedPattern(/repeat[^.]*inspect-or-extend[^.]*terminal\s+outcome/iu));
   });
 
   it("executes mixed hosted settlement phases in the command-projected order", async () => {
@@ -677,12 +717,12 @@ describe("trusted review-gate workflows", () => {
       expect(workflow).toContain("payload.hostedSettlementPlan");
       expect(workflow).toContain("payload.hostedSettlementPlan.actorIdentity");
       expect(workflow).toMatch(
-        /beforeFixFindingIds[\s\S]*before any\s+approved fix changes the head[\s\S]*afterFixFindingIds/iu,
+        softWrappedPattern(/beforeFixFindingIds[\s\S]*before\s+any\s+approved\s+fix\s+changes\s+the\s+head[\s\S]*afterFixFindingIds/iu),
       );
       expect(workflow).toMatch(
-        /settlement: not-applicable[\s\S]*never invoke[\s\S]*hosted settle[\s\S]*post a reply[\s\S]*resolve anything/iu,
+        softWrappedPattern(/settlement:\s+not-applicable[\s\S]*never\s+invoke[\s\S]*hosted\s+settle[\s\S]*post\s+a\s+reply[\s\S]*resolve\s+anything/iu),
       );
-      expect(workflow).toMatch(/already-settled[\s\S]*exact approved reply[\s\S]*no host\s+mutation/iu);
+      expect(workflow).toMatch(softWrappedPattern(/already-settled[\s\S]*exact\s+approved\s+reply[\s\S]*no\s+host\s+mutation/iu));
     }
   });
 
@@ -692,11 +732,11 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/methods/review-response.md"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toMatch(/two-call supersession.*proposal call.*approval call/isu);
+    expect(packaged).toMatch(softWrappedPattern(/two-call\s+supersession.*proposal\s+call.*approval\s+call/isu));
     expect(packaged).toContain("predecessorDispositionSetId");
     expect(packaged).toContain("expectedFixPaths");
     expect(packaged).toMatch(/carriedFindingIds.*reopenedFindingIds/isu);
-    expect(packaged).toMatch(/supersession-refused.*do not edit.*Git-common/isu);
+    expect(packaged).toMatch(softWrappedPattern(/supersession-refused.*do\s+not\s+edit.*Git-common/isu));
   });
 
   it("re-enters retained hosted findings without spending a replacement review", async () => {
@@ -711,7 +751,7 @@ describe("trusted review-gate workflows", () => {
         "`respond-to-findings` uses",
         path.includes("deliver-stack") ? "On `requested / await`" : "`delivery-correction-required",
       );
-      expect(workflow).toMatch(/never requests another hosted review/iu);
+      expect(workflow).toMatch(softWrappedPattern(/never\s+requests\s+another\s+hosted\s+review/iu));
     }
   });
 
@@ -737,7 +777,7 @@ describe("trusted review-gate workflows", () => {
     ]);
 
     expect(selfReview).toMatch(/arc:[\s\S]*methods:[\s\S]*- review-triage/u);
-    expect(selfReview).toMatch(/author self-review[\s\S]*standalone[\s\S]*complete-set approval/iu);
+    expect(selfReview).toMatch(softWrappedPattern(/author\s+self-review[\s\S]*standalone[\s\S]*complete-set\s+approval/iu));
     expect(selfReview).not.toContain("arc review respond -");
     expect(verification).toMatch(/self-review[\s\S]*review-triage[\s\S]*non-producer/iu);
     expect(verification).not.toContain("arc review respond -");
@@ -752,12 +792,12 @@ describe("trusted review-gate workflows", () => {
     ]);
     expect(project).toBe(packaged);
     expect(packaged).toMatch(
-      /delivery-correction-required \/ continue-delivery-correction[\s\S]*payload\.correctionAction[\s\S]*authoring-required/iu,
+      softWrappedPattern(/delivery-correction-required\s+\/\s+continue-delivery-correction[\s\S]*payload\.correctionAction[\s\S]*authoring-required/iu),
     );
     expect(packaged).toMatch(
       /authoring\.checkoutPath[\s\S]*authoring\.ref[\s\S]*authoringAuthorization[\s\S]*resumeAction/iu,
     );
-    expect(packaged).toMatch(/ready-to-fix \/ apply-fix[\s\S]*ordinary singleton route/iu);
+    expect(packaged).toMatch(softWrappedPattern(/ready-to-fix\s+\/\s+apply-fix[\s\S]*ordinary\s+singleton\s+route/iu));
   });
 
   it("carries an explicit standard-review provider through both review lifecycles", async () => {
@@ -773,12 +813,12 @@ describe("trusted review-gate workflows", () => {
 
     expect(prepare).toMatch(/standard\.invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(prepare).toMatch(
-      /After every lane operation,[\s\S]*typed pre-publication[\s\S]*nextAction\.command[\s\S]*nextAction\.resumeCommand[\s\S]*opaque resume carries judgment/u,
+      softWrappedPattern(/After\s+every\s+lane\s+operation,[\s\S]*typed\s+pre-publication[\s\S]*nextAction\.command[\s\S]*nextAction\.resumeCommand[\s\S]*opaque\s+resume\s+carries\s+judgment/u),
     );
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
-    expect(errand).toMatch(/every policy call for that target/u);
+    expect(errand).toMatch(softWrappedPattern(/every\s+policy\s+call\s+for\s+that\s+target/u));
     expect(integrate).toMatch(
-      /publication-pending \/ continue-publication[\s\S]*arc review status --target[\s\S]*complete hosted request action[\s\S]*arc review hosted request -/u,
+      softWrappedPattern(/publication-pending\s+\/\s+continue-publication[\s\S]*arc review status --target[\s\S]*complete\s+hosted\s+request\s+action[\s\S]*arc review hosted request -/u),
     );
   });
 
@@ -791,12 +831,12 @@ describe("trusted review-gate workflows", () => {
     expect(full).toContain("review applicability");
     expect(full).toMatch(/applicability-judgment-required[\s\S]*supplemental[\s\S]*fresh/u);
     expect(full).toMatch(
-      /When gated local review ran,[\s\S]*include `\*\*Local review:\*\* \{carrier identity\}`/u,
+      softWrappedPattern(/When\s+gated\s+local\s+review\s+ran,[\s\S]*include\s+`\*\*Local review:\*\* \{carrier identity\}`/u),
     );
-    expect(full).toMatch(/otherwise omit the field entirely/u);
-    expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
-    expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
-    expect(full).toMatch(/strict Errand record[\s\S]*exact PR/iu);
+    expect(full).toMatch(softWrappedPattern(/otherwise\s+omit\s+the\s+field\s+entirely/u));
+    expect(full).toMatch(softWrappedPattern(/`vehicle: errand`[\s\S]*outside\s+WU\s+composition-product\s+requirements/u));
+    expect(full).toMatch(softWrappedPattern(/never\s+infer[\s\S]*absent\s+or\s+malformed\s+WU\s+state/iu));
+    expect(full).toMatch(softWrappedPattern(/strict\s+Errand\s+record[\s\S]*exact\s+PR/iu));
 
     const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
@@ -811,13 +851,13 @@ describe("trusted review-gate workflows", () => {
     expect(pinnedInterlockText).toContain("authorizes the exact-head merge");
     expect(pinnedInterlockText).toMatch(/redirect[\s\S]*release-only/iu);
     expect(full).not.toContain("## Review");
-    expect(full).not.toMatch(/`Local`, `Hosted PR`, and `Triage`|`Coverage`/u);
+    expect(full).not.toMatch(softWrappedPattern(/`Local`,\s+`Hosted PR`,\s+and\s+`Triage`|`Coverage`/u));
     expect(full).not.toMatch(softWrappedProse("authorizes the lane action only if"));
-    expect(full).not.toMatch(/changed head[\s\S]*invalidates approval/iu);
+    expect(full).not.toMatch(softWrappedPattern(/changed\s+head[\s\S]*invalidates\s+approval/iu));
     expect(full).not.toContain("gh pr merge");
 
     const partial = sectionBetween(packaged, "### Ship — partial protection", "### Complete");
-    expect(partial).toContain("direct base-branch commit");
+    expect(partial).toMatch(softWrappedProse("direct base-branch commit"));
     expect(partial).not.toContain("pre-merge");
     expect(partial).not.toContain("integration-interlock");
   });
@@ -831,9 +871,9 @@ describe("trusted review-gate workflows", () => {
 
     const review = sectionBetween(packaged, "4. **Enter the open PR.**", "5. **Settle the final head.**");
     const compactReview = review.replace(/\s+/gu, " ");
-    expect(review.indexOf("stop before source dispatch")).toBeLessThan(
-      review.indexOf("`arc review hosted request -`"),
-    );
+    const stopBeforeDispatch = indexOfSoftWrappedProse(review, "stop before source dispatch");
+    expect(stopBeforeDispatch).toBeGreaterThan(-1);
+    expect(stopBeforeDispatch).toBeLessThan(review.indexOf("`arc review hosted request -`"));
     expect(compactReview).toContain("`ready / local-prepare`");
     expect(compactReview).toContain("Owner-directed review stop (open PR only)");
     expect(compactReview).toContain("arc review status --target <targetRef>");
@@ -842,6 +882,15 @@ describe("trusted review-gate workflows", () => {
     expect(compactReview).toContain("`review-required`: this is Owner acceptance");
     expect(compactReview).toContain("Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride`");
     expect(compactReview).toContain("obtain it again");
+    expect(compactReview).toContain("A changed claim, PR, or head, or a new finding, voids this decision");
+    expect(compactReview).toContain(
+      "A base that alone moved keeps it under the disjoint-drift condition: the accepted base OID is an ancestor of "
+        + "the new base OID, and `arc base drift --json` reads the exact accepted head with `movement: disjoint`.",
+    );
+    expect(compactReview).toContain("A rewound base or any other drift reading voids it.");
+    expect(compactReview).toContain(
+      "a changed target, or a base movement the disjoint-drift condition above does not keep, requires a new exact offer",
+    );
     expect(compactReview).toContain("the exact Owner-directed review stop above is approved");
     expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
     expect(compactReview).toContain("declines at a disposition turn the pass a fix triggers");
@@ -857,15 +906,22 @@ describe("trusted review-gate workflows", () => {
 
     const triage = (await readRepositoryFile("packages/arc-framework/arc/system/methods/review-triage.md"))
       .replace(/\s+/gu, " ");
-    expect(triage).toContain("When the set includes a fix, the recommendation also covers the pass the fix will trigger");
-    expect(triage).toContain("its number and the coverage expected for it, complete or incremental");
+    expect(triage).toContain(
+      "When the pass line says a fix triggers another pass, the recommendation also covers that pass",
+    );
+    expect(triage).toContain("the line names the pass the fixed head then needs with its expected coverage");
     expect(triage).toContain("as spend the approver may decline");
     expect(triage).toContain("confirmed there once before any pass is dispatched");
 
     const landing = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     const compactLanding = landing.replace(/\s+/gu, " ");
     expect(compactLanding).toContain("`review-required` remains expected");
-    expect(compactLanding).toContain("A changed coordinate (including base OID or Errand claim)");
+    expect(compactLanding).toContain(
+      "A changed coordinate (including the Errand claim), new finding, or unfinished fix returns to Step 4 for a new "
+        + "exact offer; a base that alone moved follows Step 4's disjoint-drift condition.",
+    );
+    expect(compactLanding).toContain("the completion report names the new base OID");
+    expect(compactLanding).not.toContain("including base OID");
     expect(compactLanding).toContain(
       "Read `arc review status --target <targetRef>` once for the final head and surface its `hostReview`",
     );
@@ -887,26 +943,26 @@ describe("trusted review-gate workflows", () => {
       "Compose the immutable policy target",
       "3. **Resolve the Errand PR**",
     );
-    expect(frontline).toMatch(/Errand atomicity[\s\S]*whole-target/iu);
+    expect(frontline).toMatch(softWrappedPattern(/Errand\s+atomicity[\s\S]*whole-target/iu));
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
-    expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
+    expect(frontline).toMatch(softWrappedPattern(/Approved\s+fixes[\s\S]*arc check increment[\s\S]*new\s+target/iu));
     expect(frontline).not.toContain("`chunk-pending / continue-chunks`");
     expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*whole-target/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
-    expect(frontline).toMatch(/complete no-action record-only set[\s\S]*approved for its exact\s+target/iu);
+    expect(frontline).toMatch(softWrappedPattern(/complete\s+no-action\s+record-only\s+set[\s\S]*approved\s+for\s+its\s+exact\s+target/iu));
 
     const openPr = sectionBetween(
       packaged,
       "4. **Enter the open PR.**",
       "5. **Settle the final head.**",
     );
-    expect(openPr).toMatch(/opened target[\s\S]*whole-target/iu);
-    expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
-    expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
-    expect(openPr).toMatch(/target movement[\s\S]*routed review action[\s\S]*typed continuation/iu);
-    expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
-    expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
+    expect(openPr).toMatch(softWrappedPattern(/opened\s+target[\s\S]*whole-target/iu));
+    expect(openPr).toMatch(softWrappedPattern(/rate-limited\s+\|\s+transient-unavailable\s+\/\s+try-next-source/iu));
+    expect(openPr).toMatch(softWrappedPattern(/ambiguous\s+delivery[\s\S]*terminal\s+failure\s+stops/iu));
+    expect(openPr).toMatch(softWrappedPattern(/target\s+movement[\s\S]*routed\s+review\s+action[\s\S]*typed\s+continuation/iu));
+    expect(openPr).toMatch(softWrappedPattern(/On\s+interruption[\s\S]*typed\s+`state`\s+\/\s+`nextAction`/iu));
+    expect(openPr).not.toMatch(softWrappedPattern(/review-suspension|promoted\s+watcher|bounded\s+schedule/u));
 
   });
 
@@ -926,13 +982,13 @@ describe("trusted review-gate workflows", () => {
     const terminal = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     expect(terminal.match(/arc errand merge <slug> - --json/gu)).toHaveLength(1);
     expect(terminal).toMatch(/errandMergeRequest[\s\S]*integration-interlock[\s\S]*arc errand merge/iu);
-    expect(terminal).toMatch(/approval authorizes[\s\S]*bounded exact-head wait/iu);
-    expect(terminal).toMatch(/green \| not-required \/ complete[\s\S]*pass `errandMergeRequest` unchanged/iu);
-    expect(terminal).toMatch(/pending \/ await[\s\S]*exact\s+`errandMergeRequest`/iu);
-    expect(terminal).toMatch(/awaiting-checks \/ retry[\s\S]*exact continuation/iu);
+    expect(terminal).toMatch(softWrappedPattern(/approval\s+authorizes[\s\S]*bounded\s+exact-head\s+wait/iu));
+    expect(terminal).toMatch(softWrappedPattern(/green\s+\|\s+not-required\s+\/\s+complete[\s\S]*pass\s+`errandMergeRequest`\s+unchanged/iu));
+    expect(terminal).toMatch(softWrappedPattern(/pending\s+\/\s+await[\s\S]*exact\s+`errandMergeRequest`/iu));
+    expect(terminal).toMatch(softWrappedPattern(/awaiting-checks\s+\/\s+retry[\s\S]*exact\s+continuation/iu));
     expect(terminal).toMatch(/reconcile-base[\s\S]*reconcile-regenerable[\s\S]*supplied\s+remedy/iu);
-    expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
-    expect(terminal).toMatch(/arc merge lock release -[\s\S]*separate operation authorizes no merge/iu);
+    expect(terminal).toMatch(softWrappedPattern(/applicability-judgment-required[\s\S]*fresh\s+integration\s+approval/iu));
+    expect(terminal).toMatch(softWrappedPattern(/arc merge lock release -[\s\S]*separate\s+operation\s+authorizes\s+no\s+merge/iu));
     expect(terminal).not.toContain("gh pr merge");
     expect(terminal.match(/arc review checks await/gu)).toHaveLength(1);
     expect(terminal).toContain("--repository <approvedTarget.repository>");
@@ -943,10 +999,10 @@ describe("trusted review-gate workflows", () => {
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
-      /arc errand close <slug> --json[\s\S]*finalizes the exact v3 identity tail[\s\S]*reaps refs[\s\S]*drops only its origin capture/iu,
+      softWrappedPattern(/arc errand close <slug> --json[\s\S]*finalizes\s+the\s+exact\s+v3\s+identity\s+tail[\s\S]*reaps\s+refs[\s\S]*drops\s+only\s+its\s+origin\s+capture/iu),
     );
     expect(complete).toMatch(
-      /conversation[\s\S]*exact next Errand[\s\S]*takes precedence over\s+`nextOffer`[\s\S]*no additional completion offer/iu,
+      softWrappedPattern(/conversation[\s\S]*exact\s+next\s+Errand[\s\S]*takes\s+precedence\s+over\s+`nextOffer`[\s\S]*no\s+additional\s+completion\s+offer/iu),
     );
     expect(complete).toContain("**Post-leave merge.**");
     expect(complete).toMatch(softWrappedProse("identity's owning open or materialize driver"));
@@ -955,12 +1011,12 @@ describe("trusted review-gate workflows", () => {
     const leave = sectionBetween(packaged, "7. **Leave", "### Ship — partial protection");
     expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
     expect(terminal).not.toContain("arc errand leave <slug>");
-    expect(leave).toMatch(/session is ending[\s\S]*moving machines/iu);
+    expect(leave).toMatch(softWrappedPattern(/session\s+is\s+ending[\s\S]*moving\s+machines/iu));
     expect(leave).toMatch(
-      /Do not leave[\s\S]*change request is open[\s\S]*ordinary next-Errand queue advancement/iu,
+      softWrappedPattern(/Do\s+not\s+leave[\s\S]*change\s+request\s+is\s+open[\s\S]*ordinary\s+next-Errand\s+queue\s+advancement/iu),
     );
     expect(leave).toMatch(
-      /another Errand must land before the current one can complete[\s\S]*restoration checkout[\s\S]*Never open a different Errand from an active transient/iu,
+      softWrappedPattern(/another\s+Errand\s+must\s+land\s+before\s+the\s+current\s+one\s+can\s+complete[\s\S]*restoration\s+checkout[\s\S]*Never\s+open\s+a\s+different\s+Errand\s+from\s+an\s+active\s+transient/iu),
     );
   });
 
@@ -983,19 +1039,19 @@ describe("trusted review-gate workflows", () => {
     const documents = Object.fromEntries(entries);
 
     expect(documents.errand).toContain("arc review planning-lane <base-sha> <head-sha>");
-    expect(documents.errand).toMatch(/Only literal `planning`[\s\S]*auto-merge-lane/iu);
+    expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
     expect(documents.errand).toContain("arc errand merge <slug> - --json");
     expect(documents.errand).not.toContain("gh pr merge");
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
     expect(documents.setup).toMatch(/canonical\s+classifier/iu);
-    expect(documents.setup).toMatch(/procedural boundary[\s\S]*never infer merge safety/iu);
-    expect(documents.readme).toMatch(/canonical classifier/iu);
-    expect(documents.initial).toMatch(/planning auto-merge lane[\s\S]*canonical classifier/iu);
-    expect(documents.initial).toMatch(/Draft-state merge lock[\s\S]*merge\.lock:\s*draft/iu);
+    expect(documents.setup).toMatch(softWrappedPattern(/procedural\s+boundary[\s\S]*never\s+infer\s+merge\s+safety/iu));
+    expect(documents.readme).toMatch(/canonical\s+classifier/iu);
+    expect(documents.initial).toMatch(softWrappedPattern(/planning\s+auto-merge\s+lane[\s\S]*canonical\s+classifier/iu));
+    expect(documents.initial).toMatch(softWrappedPattern(/Draft-state\s+merge\s+lock[\s\S]*merge\.lock:\s*draft/iu));
     expect(documents.strategy).toMatch(/merge\.lock:\s*draft/iu);
-    expect(documents.strategy).toMatch(/never infer merge safety from agent-layer discipline alone/iu);
+    expect(documents.strategy).toMatch(softWrappedPattern(/never\s+infer\s+merge\s+safety\s+from\s+agent-layer\s+discipline\s+alone/iu));
   });
 
   it("uses typed procedures for the late authoritative base-reconcile mutation site", async () => {
@@ -1016,7 +1072,7 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name}");
-    const baseMerge = gate.indexOf("checkpoint's supplied `remedy.argv` unchanged");
+    const baseMerge = indexOfSoftWrappedProse(gate, "checkpoint's supplied `remedy.argv` unchanged");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(reconcile).toBeGreaterThan(-1);
@@ -1024,7 +1080,7 @@ describe("trusted review-gate workflows", () => {
     expect(baseMerge).toBeGreaterThan(checkpoint);
     expect(merge).toBeGreaterThan(baseMerge);
     expect(gate).not.toContain("arc review status --target '{targetRef}'");
-    expect(gate).toMatch(/checkpoint now owns Candidate applicability,[\s\S]*review status/u);
+    expect(gate).toMatch(softWrappedPattern(/checkpoint\s+now\s+owns\s+Candidate\s+applicability,[\s\S]*review\s+status/u));
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
     expect(gate).toMatch(softWrappedProse("keeps the checkpoint and draft lock"));
@@ -1032,13 +1088,13 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("`payload.diagnosticFailures`");
     expect(gate).toContain("`payload.detail`");
     expect(gate).toContain("`payload.retry.argv`");
-    expect(gate).toContain("Do not re-invoke recursively");
-    expect(gate).not.toContain("re-invokes this same command immediately");
+    expect(gate).toMatch(softWrappedProse("Do not re-invoke recursively"));
+    expect(gate).not.toMatch(softWrappedProse("re-invokes this same command immediately"));
     expect(gate).not.toContain("payload.elapsedMs");
-    expect(gate).not.toContain("returned deadline");
-    expect(gate).not.toContain("otherwise render `None`");
-    expect(gate).not.toContain("exact-head mutability action");
-    expect(gate).toMatch(/no applicability or review\s+judgment before the checkpoint classifies/iu);
+    expect(gate).not.toMatch(softWrappedProse("returned deadline"));
+    expect(gate).not.toMatch(softWrappedProse("otherwise render `None`"));
+    expect(gate).not.toMatch(softWrappedProse("exact-head mutability action"));
+    expect(gate).toMatch(softWrappedPattern(/no\s+applicability\s+or\s+review\s+judgment\s+before\s+the\s+checkpoint\s+classifies/iu));
     expect(gate).not.toContain("git merge --no-edit");
     expect(gate).not.toContain("gh pr merge");
   });
@@ -1067,7 +1123,7 @@ describe("trusted review-gate workflows", () => {
       expect(gate).toContain(`\`${state} / ${nextAction}\``);
     }
     const stop = gate.search(
-      /`blocked \/ stop`, `conflict \/ stop`, and `regenerable-refused \/ stop` stop before every later\s+fire point/u,
+      softWrappedPattern(/`blocked \/ stop`,\s+`conflict \/ stop`,\s+and\s+`regenerable-refused \/ stop`\s+stop\s+before\s+every\s+later\s+fire\s+point/u),
     );
     expect(stop).toBeGreaterThan(-1);
     expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
@@ -1092,9 +1148,9 @@ describe("trusted review-gate workflows", () => {
     for (const [state, nextAction] of Object.entries(actions)) {
       expect(terminal).toContain(`\`${state} / ${nextAction}\``);
     }
-    expect(terminal).toMatch(/merged \/ run-quality-gates` runs Tier 1[\s\S]*pushes[\s\S]*Step 4/iu);
-    expect(terminal).toMatch(/skipped-clean \/ continue-reconcile[\s\S]*without gates or push/iu);
-    expect(terminal).toMatch(/conflict \/ stop[\s\S]*blocked \/ stop[\s\S]*explanation and stop/iu);
+    expect(terminal).toMatch(softWrappedPattern(/merged\s+\/\s+run-quality-gates`[\s\S]*arc check new-head --from <pre-merge head>[\s\S]*pushes[\s\S]*Step 4/iu));
+    expect(terminal).toMatch(softWrappedPattern(/skipped-clean\s+\/\s+continue-reconcile[\s\S]*without\s+gates\s+or\s+push/iu));
+    expect(terminal).toMatch(softWrappedPattern(/conflict\s+\/\s+stop[\s\S]*blocked\s+\/\s+stop[\s\S]*explanation\s+and\s+stop/iu));
   });
 
   it("passes the exact approved Errand target to release-only lock transition", async () => {
@@ -1159,16 +1215,14 @@ describe("trusted review-gate workflows", () => {
     );
     expect(reviewSettlement).not.toContain("git merge");
     expect(reviewSettlement).toContain("`review-settled`");
-    const advisory = packageIntegration.indexOf("Before spending a hosted pass");
+    const advisory = indexOfSoftWrappedProse(packageIntegration, "Before spending a hosted pass");
     const finalGate = packageIntegration.indexOf("### 10) Behind-base reconcile gate and merge");
+    expect(advisory).toBeGreaterThan(-1);
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
     const advisoryText = packageIntegration.slice(advisory, finalGate);
     expect(advisoryText).toMatch(softWrappedProse("authorizes no merge, commit, push, or target recomposition"));
     expect(advisoryText).not.toContain("use an append-only merge");
-    expect(packageIntegration.indexOf(
-      "checkpoint's supplied `remedy.argv` unchanged",
-      finalGate,
-    )).toBeGreaterThan(finalGate);
+    expect(indexOfSoftWrappedProse(packageIntegration, "checkpoint's supplied `remedy.argv` unchanged", finalGate)).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
 
     const errandAdvisoryText = sectionBetween(
@@ -1195,14 +1249,14 @@ describe("trusted review-gate workflows", () => {
       "not an instruction to invoke merge this turn while those checks are pending",
     ));
     expect(gate).toMatch(
-      /surfaced required checks as not green[\s\S]*do not invoke merge this turn/iu,
+      softWrappedPattern(/surfaced\s+required\s+checks\s+as\s+not\s+green[\s\S]*do\s+not\s+invoke\s+merge\s+this\s+turn/iu),
     );
     expect(gate).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
     expect(gate).not.toMatch(softWrappedProse("head mutation returns to the checkpoint"));
 
     const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
     const preMerge = gate.indexOf("**Extension report** · `#pre-merge`");
-    const approval = gate.indexOf("Approve (or redirect)?");
+    const approval = indexOfSoftWrappedProse(gate, "Approve (or redirect)?");
     const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
     expect(lifecycleReady).toBeLessThan(preMerge);
     expect(preMerge).toBeLessThan(approval);
@@ -1214,12 +1268,12 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
     const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "**Push extension contract**");
-    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 10/u);
-    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 10 tail/u);
+    expect(resume).toMatch(softWrappedPattern(/`shipped`\s+in\s+`completed`;\s+`open`[\s\S]*Step\s+10/u));
+    expect(resume).toMatch(softWrappedPattern(/`merged-at-head`[\s\S]*Verify\s+Phase\s+2\s+products[\s\S]*Step\s+10\s+tail/u));
     expect(resume).toContain("`closed-unmerged`");
     expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
-    expect(resume).toMatch(/`ambiguous`[\s\S]*emitted remedy text/iu);
-    expect(resume).toContain("first incomplete candidate-tail step");
+    expect(resume).toMatch(softWrappedPattern(/`ambiguous`[\s\S]*emitted\s+remedy\s+text/iu));
+    expect(resume).toMatch(softWrappedProse("first incomplete candidate-tail step"));
 
     const creation = sectionBetween(
       packaged,
@@ -1233,21 +1287,21 @@ describe("trusted review-gate workflows", () => {
     expect(proposedTarget).toBeGreaterThan(resolver);
     expect(create).toBeGreaterThan(proposedTarget);
     expect(creation).toMatch(softWrappedProse("`closed-unmerged / reopen-change-request`"));
-    expect(creation).toContain("pre-create exact-head validation");
-    expect(creation).toMatch(/`Local review` field names the carrier[\s\S]*omit it\s+when none ran/u);
+    expect(creation).toMatch(softWrappedProse("pre-create exact-head validation"));
+    expect(creation).toMatch(softWrappedPattern(/`Local review`\s+field\s+names\s+the\s+carrier[\s\S]*omit\s+it\s+when\s+none\s+ran/u));
 
     const gate = sectionBetween(
       packaged,
       "### 10) Behind-base reconcile gate and merge",
       "### 11) Post-merge worktree cleanup",
     );
-    expect(gate).toContain("requested composition correction");
-    expect(gate).toMatch(/Append[\s\S]*never amend/u);
-    expect(gate).toMatch(/rerun affected gates and routing[\s\S]*push[\s\S]*rebuild the checkpoint/u);
+    expect(gate).toMatch(softWrappedProse("requested composition correction"));
+    expect(gate).toMatch(softWrappedPattern(/Append[\s\S]*never\s+amend/u));
+    expect(gate).toMatch(softWrappedPattern(/rerun\s+affected\s+gates\s+and\s+routing[\s\S]*push[\s\S]*rebuild\s+the\s+checkpoint/u));
     expect(gate).toMatch(softWrappedProse("`invalidated / checkpoint` returns to the checkpoint"));
     expect(gate).not.toMatch(softWrappedProse("Any candidate mutation or review action invalidates the checkpoint"));
-    expect(gate).not.toContain("authorizes merge only if");
-    expect(gate).not.toContain("If its `headSha` differs");
+    expect(gate).not.toMatch(softWrappedProse("authorizes merge only if"));
+    expect(gate).not.toMatch(softWrappedProse("If its `headSha` differs"));
   });
 
   it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
@@ -1282,9 +1336,10 @@ describe("trusted review-gate workflows", () => {
       "### Full protection",
       "## 7. Confirm lifecycle readiness and finish",
     );
-    const status = full.indexOf("Surface PR status");
+    const status = indexOfSoftWrappedProse(full, "Surface PR status");
     const interlock = full.indexOf("`integration-interlock`");
-    const merge = full.indexOf("merge according to project policy");
+    const merge = indexOfSoftWrappedProse(full, "merge according to project policy");
+    for (const position of [status, interlock, merge]) expect(position).toBeGreaterThan(-1);
 
     expect(decompose).not.toMatch(/^\s*gh pr merge[^\n]*/gmu);
     expect(partial).not.toContain("`integration-interlock`");
@@ -1305,10 +1360,10 @@ describe("trusted review-gate workflows", () => {
       "**Push extension contract**",
     );
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
-    expect(resumeEntry).toContain("Completion Notes");
-    expect(resumeEntry).toMatch(/under `with-integration`, the resolver reports `shipped` in `completed`/iu);
-    expect(resumeEntry).toMatch(/do not\s+invoke `arc user close` or `arc teardown`/u);
-    expect(resumeEntry).toContain("lifecycle-only repair change request");
+    expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
+    expect(resumeEntry).toMatch(softWrappedPattern(/under\s+`with-integration`,\s+the\s+resolver\s+reports\s+`shipped`\s+in\s+`completed`/iu));
+    expect(resumeEntry).toMatch(softWrappedPattern(/do\s+not\s+invoke\s+`arc user close`\s+or\s+`arc teardown`/u));
+    expect(resumeEntry).toMatch(softWrappedProse("lifecycle-only repair change request"));
   });
 
   it("attests the lane only from trusted pull-request-target code", async () => {
@@ -1485,8 +1540,8 @@ describe("trusted review-gate workflows", () => {
     for (const owners of [repositoryOwners, templateOwners]) {
       expect(owners).not.toContain("/.arc/system/.internal/transitions/*.json");
     }
-    expect(readme).toMatch(/transition-record namespace remains review-owned/iu);
-    expect(setup).toMatch(/transition-record namespace owned/iu);
+    expect(readme).toMatch(softWrappedPattern(/transition-record\s+namespace\s+remains\s+review-owned/iu));
+    expect(setup).toMatch(softWrappedPattern(/transition-record\s+namespace\s+owned/iu));
   });
 
   it("offers review-source and merge-lock setup as independent default-off choices", async () => {
@@ -1497,9 +1552,9 @@ describe("trusted review-gate workflows", () => {
     const [packaged, project] = await Promise.all(paths.map((path) => readRepositoryFile(path)));
     expect(project).toBe(packaged);
     expect(packaged).toContain("### Optional: Choose Review Sources and Merge Guards");
-    expect(packaged).toContain("Frontline sources");
-    expect(packaged).toContain("Standard-review sources");
-    expect(packaged).toContain("Draft-state merge lock");
+    expect(packaged).toMatch(softWrappedProse("Frontline sources"));
+    expect(packaged).toMatch(softWrappedProse("Standard-review sources"));
+    expect(packaged).toMatch(softWrappedProse("Draft-state merge lock"));
     expect(packaged).toMatch(/merge\.lock:\s*draft/iu);
     expect(packaged).toMatch(/independently[\s\S]*default off/iu);
   });

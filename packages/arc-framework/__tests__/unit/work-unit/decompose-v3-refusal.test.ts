@@ -550,6 +550,7 @@ describe("v3 decomposition refusals", () => {
       /complete, internally consistent operands/iu,
     ],
     ["map:invalid-structure", "execute", /closed v3 structure/iu],
+    ["map:origin", "advance", /base advancement.*origin/iu],
     ["source-binding:source-head", "preflight", /exact source commit/iu],
     ["source-plan:source-index-preimage", "finish", /source index path/iu],
     ["git-preflight:missing-blob", "preflight", /source blob.*readable/iu],

@@ -79,6 +79,7 @@ async function handleStagedProjectStatus(
   const transitionOverlays = await resolveStagedTransitionOverlays({ cwd, exec });
   const { result } = await renderRoadmapFromIndexViewResult({
     cwd,
+    includePurpose: true,
     exec,
     baseBranch: resolved.settings["branch.base"],
     ...(transitionOverlays.length === 0
@@ -134,6 +135,7 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   const transient = projectTransientInFlightRead(transientRead);
   const input = await resolveProjectReadinessViewInput({
     cwd,
+    includePurpose: true,
     fs: lifecycleFs,
     oracle: {
       exec,

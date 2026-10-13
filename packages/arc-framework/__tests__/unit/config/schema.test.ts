@@ -1,3 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
@@ -249,12 +253,12 @@ describe("ARC config field catalog", () => {
       ["hooks.test_patterns", "__tests__/|\\.test\\.|\\.spec\\.|/test/|/tests/"],
       [
         "hooks.strict_meta_ref_patterns",
-        "PRD " + "R[0-9]+|\\b[RB][0-9]+\\b|" + String.fromCodePoint(0xa7) + " ",
+        "PRD " + "R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\\b|" + String.fromCodePoint(0xa7) + " ",
       ],
       [
         "hooks.meta_ref_patterns",
         "[Tt]ask [0-9]+\\.[0-9]+|[Pp]hase [0-9]+|\\.arc/|"
-          + "(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
+          + "(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\\.md",
       ],
       ["hooks.subject_max_length", "72"],
       ["hooks.body_max_lines", "100"],
@@ -288,6 +292,20 @@ describe("ARC config field catalog", () => {
 
     expect(ARC_CONFIG_FIELDS.map(({ key, defaultValue }) => [key, defaultValue])).toEqual(expected);
     expect(new Set(ARC_CONFIG_FIELDS.map(({ key }) => key))).toHaveLength(ARC_CONFIG_FIELDS.length);
+  });
+
+  it("reports the meta-reference pattern defaults the pre-commit hook falls back to and the shipped config sets", async () => {
+    const shipped = resolve(dirname(fileURLToPath(import.meta.url)), "../../../arc/system");
+    const hook = await readFile(join(shipped, ".internal/githooks/pre-commit"), "utf8");
+    const config = await readFile(join(shipped, "arc-config.yml"), "utf8");
+
+    for (const key of ["hooks.strict_meta_ref_patterns", "hooks.meta_ref_patterns"]) {
+      const name = key.replaceAll(".", "\\.");
+      const fallback = new RegExp(`arc_config_get "${name}" "([^"]*)"`, "u").exec(hook)?.[1];
+      const configured = new RegExp(`^${name}: '([^']*)'$`, "mu").exec(config)?.[1];
+      expect(fallback, key).toBe(field(key).defaultValue);
+      expect(configured, key).toBe(field(key).defaultValue);
+    }
   });
 
   it("keeps every catalog leaf structurally projectable", () => {

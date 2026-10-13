@@ -39,6 +39,82 @@
   consumers); may instead graduate to its own sibling stub in the cohort — drain decides. Check overlap with
   `schema-introspection-layer` (architecture-remediation) for any config-value introspection it already implies.
 
+### `[ ]` **Repair the configuration reader so `arc-config.yml` reads as the YAML it is**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its inbound-buffer entry "Flexible CLI config probe over the resolver", which asks to check overlap with
+  `schema-introspection-layer` (answered here), its § Scope, and its § Companion ADR; the `configuration` cohort record
+  gives this work unit the file/schema boundary.
+
+- _Observation (format):_ `arc-config.yml` parses as valid YAML (`js-yaml` reads both copies), but ARC does not read
+  it as YAML. `parseArcConfig` (`lib/config/index.ts`) matches `^([\w.]+):\s*(.*)$` per line, strips quotes, keeps the
+  first of duplicate keys, and parses into `RawArcConfigSchema = z.record(z.string(), z.string())`; the githooks read
+  through `arc_config_get` (`arc-lib.sh`, `grep`/`cut`). `ArcConfigSchema` describes that string record, and
+  `ARC_CONFIG_FIELDS` (`lib/config/schema.ts`) records each key's real type as a policy over the string. A YAML parser
+  reads `hooks.subject_max_length: 72` as a number and `review.frontline_sources: []` as a list, strips an inline
+  comment the line reader keeps in the value, and rejects a duplicate key the line reader resolves to the first. The
+  writers are line-based too (`update.ts` `parseConfigLine`, `manifest/apply.ts`).
+
+- _Observation (ADR-003's premise):_ ADR-003 chose the line format so hooks read configuration without a YAML library.
+  That premise has weakened, unevenly. Each hook's gates read in shell — its enable check, and `pre-commit`'s
+  `pm.mode` — and moving them behind the CLI adds a CLI dependency. Past its gate, `commit-msg` already depends on the
+  CLI: it fails the commit when `arc` cannot be resolved, and `arc check commit-msg` reads its own settings
+  (`lib/commit-check/config.ts`). `pre-commit` under `arc-in-git` calls `arc hook-remedy-roadmap-conflict` on every
+  run (from source in the ARC repository), so its other reads (`branch.base`, `branch.protection`, `hooks.*`) could
+  move behind the CLI there at no new cost; outside `arc-in-git` it calls no CLI, and moving them adds that
+  dependency. `pre-push` reads only its enable check.
+
+- _Observation (second file):_ `quality-gate-hooks` adds a check-declaration file beside `arc-config.yml` and a
+  structured-file read to the config layer (its D2). The seam is one shared typed reader for both; whether the files
+  merge is this work unit's call. That session has been told and records the seam.
+
+- _Approach:_ decide whether the reader becomes a YAML parser, with the hooks reading resolved values through the
+  CLI (the `arc config get` probe) beyond their shell gates, and amend ADR-003 accordingly. Typed values come from
+  `ARC_CONFIG_FIELDS`. Once `ArcConfigSchema` describes the real types, it composes into
+  `createProductionSchemaRegistry()`, publishes through `arc schema get`, and can take an editor document by
+  registering with `authored: "editor-document"` (`schema-introspection-layer` D4: parser-faithful, `z.strictObject`
+  where the CLI rejects unknown keys).
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07 (examined at the Owner's direction; that
+  draft leaves `arc-config` unpublished until this repair).
+
+### `[ ]` **Keep a person's identity slug unique and stable across machines**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Approach > Identity bootstrap, and § Coordination — `state-storage`.
+
+- _Observation:_ `storage-seam` stores a work item's owner as the person's identity slug (`arc.identity`), which
+  already keys every identity-scoped path and ref (`.arc/user/<id>/`, `refs/arc/user/<id>/`); see
+  `draft-storage-seam.md` § Shared decisions, item 2 (2026-10-09). Nothing keeps that slug unique or stable. Two
+  teammates choosing the same slug share owner-only edit rights, both personal inboxes, and working memory; one person
+  setting different values on two machines splits into two identities. The seam's locus member warns of a collision
+  at `arc user add`, `arc init`, and `arc join` from the flip, but cannot refuse, since a slug cannot tell the same
+  person's second machine from a second person.
+
+- _Approach:_ decide collision handling and split-identity detection where identity lives. A person UID, if ever
+  needed, would take identity names as its aliases, so stored owner values resolve unchanged with no rewrite. Git
+  `user.name` and `user.email` are not candidates: they vary by machine, and an email in every record would publish
+  addresses into state on a public repository.
+
+- _Captured during:_ `storage-seam` draft-design, shared decision 2, 2026-10-09.
+
+### `[ ]` **Correct the identity entry's premise: the owner falls back to the slugified Git `user.name`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the entry "Keep a person's identity slug unique and stable across machines".
+
+- _Observation:_ that entry takes the owner from `arc.identity` alone and calls Git `user.name` no candidate. The
+  contract resolves identity as `arc.identity` or, when that is unset, the slugified Git `user.name` (`resolveIdentity`,
+  `lib/git/identity.ts`), and the seam stores that slug as the owner (`spec-seam-record-kinds.md` § 4). The fallback
+  makes one person's slug differing between machines likelier. An email stays excluded.
+
+- _Approach:_ correct the entry's premise, and weigh the fallback when deciding split-identity detection.
+
+- _Captured during:_ `storage-seam` draft close, 2026-10-09.
+
 ---
 
 ### `[ ]` **Short identity (`arc.identity.short`) for rendered surfaces**
@@ -66,6 +142,46 @@
 - _Approach:_ Add the designation to § Coordination — `state-storage`, beside the `.local/` tier: which configuration
   tier holds it (per clone, so likely `.local/`), and how `arc init` and the fork prompt write it. Settle it before
   `storage-ref-backend` builds the designation.
+
+### `[ ]` **Keep the state remote's designation in Git config, outside the move of `arc.*` preferences into files**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-11).
+
+- _Shapes:_ its inbound entry "Decide where the state remote's per-clone designation lives".
+
+- _Observation:_ `storage-ref-backend` settles that entry's question. The designation is a fact about Git's remotes and
+  must never sync, so it stays in Git config, outside this work unit's move of the `arc.*` preferences into files; the
+  ref backend builds it and reads it before sync reaches a remote (`draft-storage-ref-backend.md` § Decisions,
+  Ownership and Layouts and remotes).
+
+- _Approach:_ record the answer at that entry, and leave the designation out of the move.
+
+- _Drain note (2026-10-11):_ this settles the held entry above against its lean (`.local/`); integrate it as
+  that entry's answer.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
+
+### `[ ]` **Let a person designate where their own personal state publishes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the held entry "Decide where the state remote's per-clone designation lives" — a designation per
+  scope extends the per-clone one, and this work unit owns user-scope configuration.
+
+- _Observation:_ on the ref backend's default layout, identity-scope refs — `USER-INBOX`, `WORKING-MEMORY`, scratch,
+  claims, the Errand queue — publish with project state, since D14 designates one state remote per clone. A team member
+  therefore cannot keep their personal state off the team's remote. The principled form is a designation per scope:
+  the project's remote is the project's call, and the person's — the code remote by default, a remote of their own, or
+  none — is theirs. The hard part is privacy: kept in the code repository's refs, personal refs share a transaction
+  with project refs but a mirror push still publishes them; in a separate Git directory they are private, but a batch
+  across both cannot commit atomically. The backend composes its push set by scope, so the designation lands
+  additively (`draft-storage-ref-backend.md` § Decisions, The version model).
+
+- _Approach:_ a deferred follow-on, provisional, likely in the `configuration` cohort beside
+  `config-storage-architecture`, which owns user-scope configuration; its tripwire is a person asking to keep personal
+  state off a shared remote.
+
+- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
 ## Problem / Motivation
 

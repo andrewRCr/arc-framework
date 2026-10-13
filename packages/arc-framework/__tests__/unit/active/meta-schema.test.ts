@@ -36,11 +36,42 @@ function validRecord(): Record<string, unknown> {
   };
 }
 
+const handoffDefaults = {
+  stateAtHandoff: null, commitAtHandoff: null, sessionType: null,
+  sessionContext: null, completionNotes: [], releaseNotesEntry: [],
+};
+
+describe("meta handoff schema fields", () => {
+  it.each([MetaRecordSchema, ParsedMetaRecordSchema])("defaults absent handoff and section keys", (schema) => {
+    expect(schema.parse(validRecord())).toEqual({ ...validRecord(), ...handoffDefaults });
+  });
+
+  it.each([MetaRecordSchema, ParsedMetaRecordSchema])("accepts handoff anchors and empty section bodies", (schema) => {
+    const record = { ...validRecord(), stateAtHandoff: "state-version", commitAtHandoff: "abc123",
+      sessionType: "planning", sessionContext: "", completionNotes: ["", "Done"], releaseNotesEntry: [""] };
+    expect(schema.parse(record)).toEqual(record);
+  });
+
+  it("preserves unknown session types only in the tolerant schema", () => {
+    const record = { ...validRecord(), ...handoffDefaults, sessionType: "Investigating" };
+    expect(ParsedMetaRecordSchema.parse(record).sessionType).toBe("Investigating");
+    const result = MetaRecordSchema.safeParse(record);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(["sessionType"]);
+  });
+
+  it("admits and defaults the handoff projection labels", () => {
+    const projection = Object.fromEntries(META_FIELD_KEYS.map(({ name }) => [name, null]));
+    const labels = { "State at Handoff": "state-version", "Commit at Handoff": "abc123", "Session Type": "Planning" };
+    expect(MetaProjectionRecordSchema.parse({ ...projection, ...labels })).toEqual({ ...projection, ...labels });
+  });
+});
+
 describe("MetaRecordSchema", () => {
   it("accepts a complete semantic record", () => {
     const record = validRecord();
 
-    expect(MetaRecordSchema.parse(record)).toEqual(record);
+    expect(MetaRecordSchema.parse(record)).toEqual({ ...record, ...handoffDefaults });
   });
 
   it.each(["Planning", "Active", "Integrating", "Shipped"])(
@@ -166,7 +197,7 @@ describe("MetaProjectionRecordSchema", () => {
       Completed: null,
     };
 
-    expect(MetaProjectionRecordSchema.parse(projection)).toEqual(projection);
+    expect(MetaProjectionRecordSchema.parse(projection)).toEqual({ ...projection, "State at Handoff": null, "Commit at Handoff": null, "Session Type": null });
   });
 
   it("keeps the descriptor semantic keys aligned with the projection authority", () => {
@@ -180,7 +211,7 @@ describe("MetaProjectionRecordSchema", () => {
       Object.entries(complete).filter(([name]) => name !== "Promotion Receipt"),
     );
 
-    expect(Object.keys(complete)).toHaveLength(20);
+    expect(Object.keys(complete)).toHaveLength(23);
     expect(MetaProjectionRecordSchema.parse(historical)["Promotion Receipt"]).toBeNull();
     assertSchemaRefuses(MetaProjectionRecordSchema, missing);
     assertSchemaRefuses(MetaProjectionRecordSchema, { ...complete, Extra: null });
@@ -200,7 +231,7 @@ describe("ParsedMetaRecordSchema", () => {
       design: [],
     };
 
-    expect(ParsedMetaRecordSchema.parse(parsed)).toEqual(parsed);
+    expect(ParsedMetaRecordSchema.parse(parsed)).toEqual({ ...parsed, ...handoffDefaults });
   });
 
   it("preserves independent fields when another token is absent or invalid", () => {

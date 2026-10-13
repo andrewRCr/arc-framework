@@ -5,9 +5,11 @@ arc:
   methods:
     - source-grounding
     - assess-design-proportionality
+    - disposition-report
 related:
   - source-grounding
   - assess-design-proportionality
+  - disposition-report
   - frontline-review
   - implementation-audit
   - review-chunking
@@ -231,6 +233,9 @@ reads.
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
 verification and obtains approval for the complete set before any finding-driven response.
 
+**Presenting the set.** Present the verified set by the [disposition-report][disposition-report] method, with a fix in
+place as `FIX`, a durable carry-forward as `DEFER`, a drop as `REJECT`, and a refuted finding as `Not supported`.
+
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
 fourth severity, and no disposition flattens a confirmed `critical` or `major` into `minor`.
@@ -276,9 +281,32 @@ pass's assessment no longer holds. Otherwise, the caller's response check verifi
 one is offered. This is a recommendation input, never a trigger or authorization; the share of majors landing in a
 previous pass's fixes may inform its cost-and-signal rationale.
 
+**Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
+Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
+convergence whatever its tag. The tags decide which look and whether design is still open: a local correction needs
+checking only where it stands, while a new-design fold weighs toward a fresh full pass, as the re-inspection test
+does. Within the loop, the tags locate the derivation signal for re-entry: offer
+[resolve-planning-depth][resolve-planning-depth]'s re-entry valve when a new-design fold, or one locus that keeps
+needing new design across passes or rounds, shows the design running deeper than the stage's level assumed — never on
+the tag alone, and never on a count of majors whose folds are local corrections. A new-design fold's proportionality
+read may already have raised that floor. A scale signal — a correction whose surface runs wider than the stage's
+level assumed — is its own reason to offer the valve, whatever the tag. A material finding that a correction is
+incomplete calls for another fix-check round, not re-entry.
+
+**Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
+close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
+are all local corrections may advance on a non-converged result, including at `cap-exhausted`; that is the design
+holding, not an accepted risk. A wrong rule or missing case is fixed where it stands; a remaining finding confined to
+implementation-level detail or minor grounding may be deferred to the next stage, which corrects in place. A
+new-design fold, a scale signal, or design the loop has not settled holds the stage. Task generation has no later
+planning stage to absorb a correction, so nothing is deferred past it: each correction is pinned before the stage
+closes.
+
 **Cap recommendation.** At `cap-exhausted` with material signal remaining, state a clear recommendation — another
-pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. The cap bounds
-autonomy, not advice; it never settles whether review is done or permits another pass without approval.
+pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. With fold
+verification on, weigh severity and the fold tags together: material signal from new-design folds argues for another
+pass or the re-entry offer, while signal confined to local corrections argues for a fix-check round or stopping. The
+cap bounds autonomy, not advice; it never settles whether review is done or permits another pass without approval.
 
 When another pass may yield useful fresh signal, the primary may recommend it with a cost-and-signal rationale in the
 same turn as the complete disposition report. A recommendation is not authorization. Disposition approval alone
@@ -315,8 +343,17 @@ With `fold-verification: on`, a **fold** is a change landed in a reviewed planni
 reads it: an approved fix, a correction made while grounding those fixes, or another change the Owner approved.
 This input enables author grounding, the offered fix check, kept reviewed versions, fold tags, and runner labels.
 
-**Author grounding.** As part of performing the approved response, run [source-grounding][source-grounding] at
-`fold` scope over the folds before the fix check:
+**Author grounding.** Ground repairs before proposing them and folds once they land, both by
+[source-grounding][source-grounding] at `fold` scope. Before presenting a disposition set carrying a fix, ground its
+proposed repairs, and revise a repair the check refutes before presenting it:
+
+```yaml
+source-grounding:
+  artifacts:  # reviewed artifacts + upstream chain + proposed repairs
+  scope: fold
+```
+
+Then, as part of performing the approved response, ground the folds before the fix check:
 
 ```yaml
 source-grounding:
@@ -338,7 +375,7 @@ For a new-design fold, run [assess-design-proportionality][assess-design-proport
 disposition set; prefer removing the constraint that caused the defect over adding repair machinery. It may also
 raise the caller's re-entry floor. The Owner settles the tags by approving the tagged set. If the Owner retags a
 fold as new design, run that method before it lands; a `revise` result returns as a changed disposition for approval.
-Tags are recommendation inputs and a record, never the fix check's gate.
+Tags are recommendation inputs and a record, never the fix check's gate; § Exit gate reads them beside severity.
 
 **Fix check — standing and timing.** A fix check is an independent review of the folds after author grounding,
 before a successor pass launches, including after the last pass before its post-settle re-read. It is not a pass:
@@ -579,5 +616,6 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [source-grounding]: source-grounding.md
 [assess-design-proportionality]: assess-design-proportionality.md
+[disposition-report]: disposition-report.md
 [resolve-planning-depth]: resolve-planning-depth.md
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard

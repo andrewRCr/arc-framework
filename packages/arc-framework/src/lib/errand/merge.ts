@@ -3,11 +3,9 @@
  * reconciles around a concurrent remote.
  *
  * The ref holds independent per-slug blobs, so two machines that each create an
- * errand diverge cleanly: the merge **unions** distinct slugs and treats a slug
- * present on both sides as idempotent when its blob is byte-identical (the git
- * blob sha *is* the byte-identity check, since blobs are content-addressed). A
- * slug present on both sides with differing content is a **same-slug
- * collision** — surfaced, never silently resolved.
+ * errand diverge cleanly. The merge compares each blob against the common
+ * ancestor, retaining independent updates and deletions. Byte-identical changes
+ * are idempotent; divergent changes to the same slug are surfaced as collisions.
  *
  * Unlike `git notes merge`, an orphan state-ref inherits no built-in union, so
  * the reconcile is realized explicitly: on a non-fast-forward push, fetch the
@@ -32,6 +30,8 @@ import {
   type ErrandRecordIO,
 } from "./ref-tree.js";
 import type { GitExec } from "../git/exec.js";
+import { isGitObjectId } from "../git/object-id.js";
+import { reconcileIdentityObjects } from "./identity-object-reconcile.js";
 
 /** The temp tracking ref a remote errand ref is fetched into before merging. */
 export function incomingErrandRef(ref: string): string {
@@ -44,31 +44,22 @@ export type ErrandTreeMerge =
   | { kind: "collision"; slugs: string[] };
 
 /**
- * Merge two per-slug trees. A slug on only one side unions in; a slug on both
- * sides survives once when byte-identical (equal blob sha) and is reported as a
- * collision when divergent.
+ * Reconcile per-slug trees against their common-history entries.
  *
- * @param local - Local slug → blob-sha entries.
- * @param remote - Remote slug → blob-sha entries.
- * @returns The merged entries, or the colliding slugs (sorted) when any diverge.
+ * @param local - Tip-pinned local slug to blob-OID entries.
+ * @param remote - Tip-pinned remote slug to blob-OID entries.
+ * @param base - Common-history entries, or an empty map for unrelated histories.
+ * @returns Independent changes, or sorted slugs changed divergently on both sides.
  */
 export function mergeErrandTrees(
-  local: Map<string, string>,
-  remote: Map<string, string>,
+  local: ReadonlyMap<string, string>,
+  remote: ReadonlyMap<string, string>,
+  base: ReadonlyMap<string, string>,
 ): ErrandTreeMerge {
-  const merged = new Map(local);
-  const collisions: string[] = [];
-  for (const [slug, remoteSha] of remote) {
-    const localSha = local.get(slug);
-    if (localSha === undefined) {
-      merged.set(slug, remoteSha);
-    } else if (localSha !== remoteSha) {
-      collisions.push(slug);
-    }
-    // Equal shas: identical content already present in `merged` (idempotent).
-  }
-  if (collisions.length > 0) return { kind: "collision", slugs: collisions.sort() };
-  return { kind: "merged", entries: merged };
+  const result = reconcileIdentityObjects(base, local, remote);
+  return result.kind === "conflict"
+    ? { kind: "collision", slugs: result.keys }
+    : { kind: "merged", entries: result.objects };
 }
 
 /** Discriminated outcome of {@link reconcileErrandPush}. */
@@ -91,8 +82,9 @@ class RemoteReconcileError extends Error {
  * returns `pushed`. On a non-fast-forward rejection — another machine pushed
  * an errand between this machine's write and push — the remote is fetched,
  * the per-slug trees merged, the result committed onto both tips, and the push
- * retried (`reconciled`). A divergent same-slug entry stops the reconcile and
- * surfaces `conflict`; the local ref is left intact and nothing is pushed.
+ * retried (`reconciled`). Divergent changes to the same slug on both sides stop
+ * the reconcile and surface `conflict`; the local ref is left intact and nothing
+ * is pushed.
  *
  * @param io - Injected git seams and identity.
  * @returns The push outcome.
@@ -151,7 +143,7 @@ function terminalPushFailure(error: unknown, attempt: number): ErrandPushOutcome
 /**
  * Fetch the remote ref, merge it into the local tree, and (when clean) commit
  * the union onto both tips so the next push fast-forwards. Leaves the local ref
- * untouched and returns the collision on a divergent same-slug entry.
+ * untouched and returns a collision when both sides changed the same slug differently.
  */
 async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTreeMerge> {
   // Per-reconcile-unique tracking ref: a shared identity-scoped one lets a concurrent
@@ -171,7 +163,8 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
     const incomingTip = await readMutatingTip(io.exec, incoming);
     const local = localTip ? await readErrandReconcileTree(io.exec, localTip) : new Map<string, string>();
     const remote = incomingTip ? await readErrandReconcileTree(io.exec, incomingTip) : new Map<string, string>();
-    const result = mergeErrandTrees(local, remote);
+    const base = await readCommonErrandTree(io.exec, localTip, incomingTip);
+    const result = mergeErrandTrees(local, remote, base);
     if (result.kind === "collision") return result;
 
     const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
@@ -180,6 +173,46 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   } finally {
     await deleteRef(io, incoming);
   }
+}
+
+/** Read the sole common-history tree; ambiguous or unavailable evidence never becomes an authoritative basis. */
+async function readCommonErrandTree(
+  exec: GitExec,
+  localTip: string | null,
+  remoteTip: string | null,
+): Promise<Map<string, string>> {
+  if (localTip === null || remoteTip === null) return new Map();
+  const args = ["merge-base", "--all", localTip, remoteTip];
+  let commonTips: string[];
+  try {
+    commonTips = (await exec("git", args)).stdout.trim().split(/\r?\n/u);
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (isCompletedGitFailure(failure) && failure.exitCode === 1) {
+      await requireCompleteErrandHistory(exec);
+      return new Map();
+    }
+    throw error;
+  }
+  const [commonTip, ...otherTips] = commonTips;
+  if (commonTip === undefined || !isGitObjectId(commonTip) || otherTips.some((tip) => !isGitObjectId(tip))) {
+    throw new Error("Git merge-base returned a malformed common-ancestor object id");
+  }
+  if (otherTips.length > 0) {
+    throw new Error("Errand histories have multiple best common ancestors. "
+      + "Reconcile these histories to one shared basis before retrying arc sync.");
+  }
+  return readErrandReconcileTree(exec, commonTip);
+}
+
+/** A missing ancestor proves unrelated histories only when Git's history is complete and readable. */
+async function requireCompleteErrandHistory(exec: GitExec): Promise<void> {
+  const shallow = (await exec("git", ["rev-parse", "--is-shallow-repository"])).stdout.trim();
+  if (shallow === "true") {
+    throw new Error("Errand reconciliation cannot establish a common ancestor from shallow history. "
+      + "Fetch complete Errand history before retrying arc sync.");
+  }
+  if (shallow !== "false") throw new Error("Git returned a malformed shallow-history status");
 }
 
 async function readMutatingTip(exec: GitExec, ref: string): Promise<string | null> {

@@ -7,7 +7,7 @@ Accepted (2026-06-19).
 The operational conventions (the concurrency gate, the lighter merge gate, the cheap-branch mechanism, the
 tier-model reconciliation) were validated by their shipped cohort work units — Worktree Foundation, Concurrent
 Work Doctrine, Agile WU Lifecycle — satisfying the promotion condition. The errand model is subsequently refined
-by [ADR-027][adr-027] (2026-06-19 amendment below), which leaves ADR-021's work-class taxonomy intact.
+by [ADR-027][adr-027] and [ADR-037][adr-037] (amendments below), which leave ADR-021's work-class taxonomy intact.
 
 ## Context
 
@@ -224,9 +224,14 @@ Errand as one character with a `branch.protection`-scaled mechanism, and gives t
 retiring the `errandSlugOf` branch-parse). ADR-021 is **not superseded** — its work-class taxonomy stands; ADR-027
 corrects the threshold basis and identity model it left in place. Full design: `spec-errand-lattice.md`.
 
+**Amendment (2026-10-09):** [ADR-037][adr-037] refines this decision. ADR-037 retires the create rule and threshold
+criterion 3; the work classes stand.
+Neither record is superseded.
+
 ---
 
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
 [adr-027]: adr-027-refine-errand-model.md
 [cohort]: ../../completed/2026-q3/18a_cohort-agile-parallelism/cohort-agile-parallelism.md
+[adr-037]: adr-037-decide-errand-boundary-by-record-test.md

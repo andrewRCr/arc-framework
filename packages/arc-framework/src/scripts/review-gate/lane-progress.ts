@@ -571,7 +571,7 @@ export async function recordLaneAttempt(
 
 export { readHostedRequestAdmissionReplay, recordHostedRequestAdmission, acknowledgeHostedRequest,
   readHostedAcknowledgedRequest, readHostedAwaitReplay, resolveHostedAwaitResult,
-  recordHostedAwaitAttempt } from "./lane-progress-hosted-request.js";
+  recordHostedAwaitAttempt, HostedAwaitEndedError } from "./lane-progress-hosted-request.js";
 export type { HostedRequestAdmissionDecision } from "./lane-progress-hosted-request.js";
 
 /** Persist one admitted local producer before its executable inputs leave the runtime. */

@@ -7,18 +7,18 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 **Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
-**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —
+**On-demand sections**: `Command Patterns`, `ARC CLI Commands` —
 load on demand when workflow steps reference them.
 
 ### Critical Path Reference
 
 <!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
 
-| Resource        | Location from Repo Root | Why It Matters            |
-|-----------------|-------------------------|---------------------------|
-| [Resource name] | `[path]`                | [brief explanation]       |
-| [Resource name] | `[path]`                | [brief explanation]       |
-| ARC docs        | `.arc/`                 | Development documentation |
+| Resource         | Location from Repo Root | Why It Matters            |
+| ---------------- | ----------------------- | ------------------------- |
+| \[Resource name] | `[path]`                | \[brief explanation]      |
+| \[Resource name] | `[path]`                | \[brief explanation]      |
+| ARC docs         | `.arc/`                 | Development documentation |
 
 ### Runtime Environment
 
@@ -107,63 +107,6 @@ All commands from **repository root**.
 
 ---
 
-## Quality Gate Commands
-
-Reference commands for DEV-RULES.PROJECT quality gates. See
-[Quality Gates Strategy](strategies/arc/strategy-quality-gates.md) for the tiered approach
-(when to run which level of checks).
-
-### Incremental — Tier 1 (per-task)
-
-<!-- Targeted commands for modified files only. Run after completing each task. -->
-
-```bash
-# Lint specific file
-[lint_command_single]
-
-# Type check specific file
-[type_check_command_targeted]
-
-# Run specific test
-[test_command_single]
-```
-
-### Integration — Tier 2 (coherent unit)
-
-<!-- Project-scoped checks. Run after completing a parent task or coherent unit. -->
-
-```bash
-# Full markdown lint
-[md_lint_command_all]
-
-# Full code lint + type check
-[lint_command_all]
-[type_check_command_all]
-
-# Full test suite (or relevant subset)
-[test_command_all]
-```
-
-### Full Suite — Tier 3 (per-phase / pre-PR)
-
-<!-- All checks at full project scope. Run after completing a phase or before creating a PR. -->
-
-```bash
-# 1. [Quality gate name]
-[command]
-
-# 2. [Quality gate name]
-[command]
-
-# 3. Markdown Linting
-[md_lint_command_all]
-
-# 4. Git Status Check
-git status
-```
-
----
-
 ## ARC CLI Commands
 
 ### Command Prerequisites and Remote Access
@@ -202,9 +145,16 @@ the command existed.
 
 ### Artifact Viewing
 
-`arc view [kind]` renders an artifact using the existing selectors. With no kind, it checks
-**tasks → spec → draft → meta**. `--path` prints the selected file's absolute path; `--editor` or `-e` opens
-that same real file in the configured editor. Kind, `--for`, and `inbox --project` selection stays the same.
+`arc view [kind]` renders an artifact. With no kind, it checks **tasks → spec → draft → meta**. The `design` kind
+follows the meta's `Design` list: the first entry with a Purpose field, or the first readable entry when none has one.
+`--path` prints the selected file's absolute path; `--editor` or `-e` opens that same real file in the configured editor.
+
+`--for <slug>` selects the named work unit through its composed lifecycle. For a started work unit, it reads the
+registered checkout's file, including uncommitted edits, or otherwise the selected ref this clone already holds.
+A start whose branch this clone has never fetched reads as its backlog copy until a fetch brings the ref in.
+Without a registered checkout, `--path` and `--editor` refuse with the work unit and ref; render the artifact to read
+it instead. The work unit's own artifacts and cohort metadata follow the selected copy; the cohort document and
+session notes remain local to the invoking checkout. `inbox --project` selects the shared project inbox.
 
 Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
 delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,
@@ -313,7 +263,7 @@ arc plan check
 
 # Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
 arc errand next [--json]
-arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--isolate] [--json]
 arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
 arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
 arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
@@ -417,10 +367,10 @@ ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
 Azure DevOps, or another platform, replace these commands with your team's CLI
 equivalents.
 
-| Operation    | Command                                           |
-|--------------|---------------------------------------------------|
-| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
-| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
-| View PR/MR   | `gh pr view --json number,url,state`              |
-| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
-| Create issue | `gh issue create`                                 |
+| Operation    | Command                                      |
+| ------------ | -------------------------------------------- |
+| Create PR/MR | `gh pr create --base {base} --head {branch}` |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`   |
+| View PR/MR   | `gh pr view --json number,url,state`         |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`            |
+| Create issue | `gh issue create`                            |

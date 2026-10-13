@@ -6,7 +6,7 @@ import { createStore } from "../../src/lib/store/create.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { LookupInputSchema } from "../../src/lib/store/lookup.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { serializeTransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { testStorePorts } from "../helpers/store/in-repo-ports.js";
@@ -56,9 +56,9 @@ describe("tracked lookup", () => {
     const repo = await repository();
     await repo.put(".arc/active/meta-current.md", makeMetaFixture("current"));
     for (const [origin, successor] of [["former", "middle"], ["middle", "current"]]) {
-      await repo.put(`.arc/system/.internal/transitions/${origin}.json`, serializeTransitionRecord({
-        schemaVersion: 1, origin: origin!, kind: "rename", successors: [successor!], edges: [],
-      }));
+      await repo.put(`.arc/system/.internal/transitions/${origin}.json`, writeLineageRecord(LineageRecordSchema.parse({
+        schemaVersion: 2, origin: { name: origin! }, kind: "rename", successors: [{ name: successor! }], incoming: [],
+      })));
     }
     const input = handle === "claim"
       ? { kind: "claim" as const, claim: { kind: "work-unit" as const, slug: SlugSchema.parse("current") } }
@@ -67,18 +67,19 @@ describe("tracked lookup", () => {
   });
   it.each(["decompose", "abandon"] as const)("resolves a %s origin's lineage independently of any surviving meta", async (kind) => {
     const repo = await repository();
-    await repo.put(".arc/system/.internal/transitions/retired.json", serializeTransitionRecord({
-      schemaVersion: 1, origin: "retired", kind, successors: kind === "decompose" ? ["child"] : [], edges: [],
-    }));
+    await repo.put(".arc/system/.internal/transitions/retired.json", writeLineageRecord(LineageRecordSchema.parse({
+      schemaVersion: 2, origin: { name: "retired" }, kind, successors: (kind === "decompose" ? ["child"] : []).map((name) => ({ name })), incoming: [],
+      ...(kind === "decompose" ? { outgoing: [] } : {}),
+    })));
     expect(success(await repo.store.lookup({ kind: "lineage", origin: "retired" })))
       .toEqual({ reference: recordReferences["lineage/transition"](owner("retired")) });
   });
   it("conserves both candidates when a former slug is reused by a new live work unit", async () => {
     const repo = await repository();
     for (const name of ["alpha", "beta"]) await repo.put(`.arc/active/meta-${name}.md`, makeMetaFixture(name));
-    await repo.put(".arc/system/.internal/transitions/alpha.json", serializeTransitionRecord({
-      schemaVersion: 1, origin: "alpha", kind: "rename", successors: ["beta"], edges: [],
-    }));
+    await repo.put(".arc/system/.internal/transitions/alpha.json", writeLineageRecord(LineageRecordSchema.parse({
+      schemaVersion: 2, origin: { name: "alpha" }, kind: "rename", successors: [{ name: "beta" }], incoming: [],
+    })));
     expect(await repo.store.lookup({ kind: "slug", slug: SlugSchema.parse("alpha") })).toMatchObject({
       status: "refused", refusal: { code: "ambiguous-match", class: "recoverable", candidates: [meta("alpha"), meta("beta")], remedy: { text: expect.any(String) } },
     });

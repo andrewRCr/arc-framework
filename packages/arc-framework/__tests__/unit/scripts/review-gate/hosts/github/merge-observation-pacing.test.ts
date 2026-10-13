@@ -36,11 +36,24 @@ const clockWait = (milliseconds: number) => new Promise<void>((resolve) => { set
 afterEach(() => { vi.useRealTimers(); });
 
 describe("GitHub merge-observation pacing", () => {
-  it.each(["stale", "pending"] as const)("allows %s recomputation to finish between reads", async (initial) => {
+  it("reports a stale test merge after one read without pausing", async () => {
     vi.useFakeTimers();
     const start = Date.now();
     const port = createGhChangeRequestMergeObservationPort(
-      recomputingHost(initial, () => Date.now() - start >= 2_000), { wait: clockWait },
+      recomputingHost("stale", () => Date.now() - start >= 2_000), { wait: clockWait },
+    );
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
+      ...coordinates, state: "unresolved", condition: "stale-base-test-merge",
+      evidenceRef: `github:test-merge:${oid("c")}`,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("allows pending recomputation to finish between reads", async () => {
+    vi.useFakeTimers();
+    const start = Date.now();
+    const port = createGhChangeRequestMergeObservationPort(
+      recomputingHost("pending", () => Date.now() - start >= 2_000), { wait: clockWait },
     );
     let settled = false;
     const result = port.observe(coordinates, { baseContained: false }).then((value) => { settled = true; return value; });
@@ -52,9 +65,9 @@ describe("GitHub merge-observation pacing", () => {
     });
   });
 
-  it.each(["stale", "pending"] as const)("waits only between the three %s reads on expiry", async (initial) => {
+  it("waits only between the three pending reads on expiry", async () => {
     vi.useFakeTimers();
-    const port = createGhChangeRequestMergeObservationPort(recomputingHost(initial, () => false), { wait: clockWait });
+    const port = createGhChangeRequestMergeObservationPort(recomputingHost("pending", () => false), { wait: clockWait });
     let settled = false;
     const result = port.observe(coordinates, { baseContained: false }).then((value) => { settled = true; return value; });
     await vi.advanceTimersByTimeAsync(3_999);
@@ -62,14 +75,13 @@ describe("GitHub merge-observation pacing", () => {
     await vi.advanceTimersByTimeAsync(1);
     await expect(result).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("three-read observation limit"),
-      ...(initial === "stale" ? { condition: "stale-base-test-merge" } : {}),
     });
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each(["stale", "pending"] as const)("cancels the production pause after a %s read", async (initial) => {
+  it("cancels the production pause after a pending read", async () => {
     const controller = new AbortController();
-    const port = createGhChangeRequestMergeObservationPort(recomputingHost(initial, () => false));
+    const port = createGhChangeRequestMergeObservationPort(recomputingHost("pending", () => false));
     const result = port.observe(coordinates, { baseContained: false, signal: controller.signal }).then(
       (value) => ({ state: "completed", value }),
       (error: unknown) => ({ state: "cancelled", error }),

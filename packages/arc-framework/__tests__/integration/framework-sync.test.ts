@@ -28,6 +28,7 @@ import { readManifest } from "../../src/lib/manifest/index.js";
 import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
 import { classifyFile, resolveFileList } from "../../src/lib/classification.js";
 import { resolveTemplateOutputPath } from "../../src/lib/layout/index.js";
+import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
 import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 import type { Manifest, Recipe } from "../../src/lib/types.js";
 
@@ -165,7 +166,9 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/assess-design-proportionality.md",
       "system/methods/assess-evidence-applicability.md",
       "system/methods/adversarial-review.md",
+      "system/methods/classify-review-risk.md",
       "system/methods/design-audit.md",
+      "system/methods/disposition-report.md",
       "system/methods/source-grounding.md",
       "system/methods/spec-review.md",
       "system/methods/task-audit.md",
@@ -247,6 +250,21 @@ describe("framework sync (self-hosting drift check)", () => {
     }
   });
 
+  it("ships discovered-work routing as a configurable core method", async () => {
+    const methodPath = "system/methods/route-discovered-work.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({
+      classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex"),
+    });
+  });
+
   it("keeps residual evidence assessment registered across every shipment surface", async () => {
     const methodPath = "system/methods/assess-evidence-applicability.md";
     const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
@@ -291,5 +309,17 @@ describe("framework sync (self-hosting drift check)", () => {
       const outputPath = resolveTemplateOutputPath(templatePath);
       expect(manifest.files[outputPath]?.classification, outputPath).toBe(classifyFile(templatePath));
     }
+  });
+});
+
+
+describe("project check declaration setup", () => {
+  it("starts the authored declaration with the registered editor reference", async () => {
+    const content = await readFile(join(PKG_ARC_DIR, "system/workflows/arc/initial-setup/02_define-project.template.md"), "utf8");
+    const reference = editorDocumentReference("check-declaration", ".arc/system/arc-checks.yml");
+    expect(reference.status).toBe("found");
+    if (reference.status !== "found") return;
+    const declaration = /```yaml\n([\s\S]*?)```/u.exec(content)?.[1];
+    expect(declaration?.split("\n")[0]).toBe(reference.reference);
   });
 });

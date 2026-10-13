@@ -3,6 +3,9 @@
 import { matchesGlob } from "node:path";
 import type { Linter } from "eslint";
 import type { ArchitecturePredicate } from "./architecture-imports.ts";
+// Native ESLint loads source TypeScript; production imports keep emitted .js paths.
+const { architectureRuleFor } = await import(new URL("./architecture-imports.ts", import.meta.url).href) as
+  typeof import("./architecture-imports.js");
 
 export const TYPESCRIPT_SCOPE = "**/*.{ts,tsx,cts,mts}";
 
@@ -32,13 +35,17 @@ function unionOptions(rows: ArchitectureBanRow[]): Linter.RulesRecord {
   const paths = [...new Set(rows.flatMap((row) => row.paths ?? []))];
   const patterns = [...new Set(rows.flatMap((row) => row.patterns ?? []))];
   const syntax = [...new Set(rows.flatMap((row) => row.syntax ?? []))];
-  const predicates = [...new Set(rows.flatMap((row) => row.predicates ?? []))];
+  const predicates = new Map<string, ArchitecturePredicate[]>();
+  for (const predicate of new Set(rows.flatMap((row) => row.predicates ?? []))) {
+    const rule = `arc/${architectureRuleFor(predicate)}`;
+    predicates.set(rule, [...(predicates.get(rule) ?? []), predicate]);
+  }
   return {
     ...(paths.length || patterns.length ? {
       "no-restricted-imports": ["error", { paths, patterns }],
     } : {}),
     ...(syntax.length ? { "no-restricted-syntax": ["error", ...syntax] } : {}),
-    ...(predicates.length ? { "arc/architecture-imports": ["error", predicates] } : {}),
+    ...Object.fromEntries([...predicates].map(([rule, ids]) => [rule, ["error", ids]])),
   };
 }
 

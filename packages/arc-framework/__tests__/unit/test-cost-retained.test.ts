@@ -31,7 +31,7 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     }],
   };
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     outcome: "passed",
     unhandledErrorCount: 0,
     requestedWorkerSizing: "12",
@@ -57,6 +57,25 @@ describe("normalizeRetainedTestCostRuns", () => {
         substrate: { durationMs: 0, shareFraction: 0, files: [] },
         waits: { observedCount: 2, medianMs: 40 },
       });
+  });
+
+  it.each([3, 4, undefined, 6])("rejects schema %s and accepts a newly measured sample", (schemaVersion) => {
+    const current = run(100);
+    const previous = { ...current, schemaVersion };
+    expect(() => assertRetainedTestCostRun(previous, "previous.json"))
+      .toThrow(/warm-run.*schema 5.*benchmark:test-cost/u);
+    expect(() => assertRetainedTestCostRun(current, "current.json")).not.toThrow();
+  });
+
+  it("rejects old-protocol samples even when normalization bypasses the file reader", () => {
+    const current = run(100);
+    const previous = { ...current, schemaVersion: 4 } as unknown as RetainedTestCostRun;
+    for (const samples of [[previous], [current, previous], [previous, current]]) {
+      expect(() => normalizeRetainedTestCostRuns(samples))
+        .toThrow(/warm-run.*schema 5.*benchmark:test-cost/u);
+    }
+    expect(normalizeRetainedTestCostRuns([current, run(110)]).summary)
+      .toMatchObject({ sampleCount: 2, wallClockMs: 105 });
   });
 
   it("refuses runs whose file membership differs", () => {
@@ -113,8 +132,8 @@ describe("normalizeRetainedTestCostRuns", () => {
       .toThrow(/substrate/u);
   });
 
-  it("refuses legacy cost arithmetic under the new schema", () => {
+  it("refuses legacy measurements without the warm-run protocol", () => {
     expect(() => assertRetainedTestCostRun({ ...run(100), schemaVersion: 3 }, "legacy.json"))
-      .toThrow(/successful outcome/u);
+      .toThrow(/warm-run.*schema 5/u);
   });
 });

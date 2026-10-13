@@ -10,10 +10,11 @@ For ARC methodology rules (commit discipline, task execution, session management
 
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
+**Zero Tolerance Policy:** Every declared gate is zero-tolerance: all checks due at that commit, push, or merge
+must pass. Failed enforcement holds that gate, no exceptions · `[invariant]`.
 
-**Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
-Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
+Checks and deadlines live in `.arc/system/arc-checks.yml`. `arc check` owns selection, reuse, and re-run decisions
+and reports measured cost. See [Quality Gates Strategy][quality-gates] for deadline guidance.
 
 These gate behaviors prevent misleading results:
 
@@ -24,13 +25,13 @@ These gate behaviors prevent misleading results:
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
 - `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
-  not evidence that the changed code passed.
+  not evidence that the changed code passed; `arc check` reports it as `no evidence`.
 - All supported run-mode tier and focused commands require completed cases. All-skipped selections and unmatched
   name filters are non-passing, and closing or final worker errors retain failure status.
 
 ### Size and complexity baseline
 
-`src/**` gates on function length, file length, cyclomatic complexity, nesting depth, and nested callbacks;
+`src/**` gates on function length, file length, cognitive complexity, nesting depth, and nested callbacks;
 `__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
 The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
 recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
@@ -61,35 +62,18 @@ unit can grow worse while its count stays put. And a swap is invisible: fix one 
 while adding another of the same rule to the same file, and the bucket stays exactly full — the run stays green
 and pruning finds nothing to report.
 
-### Selecting what to run
+### Increment feedback
 
-Zero tolerance governs what must **pass**, not how often each check is **re-executed**. Two conditions narrow a
-run, and both resolve mechanically from `git diff --name-only` — never from a judgment call about blast radius.
-When neither settles it cleanly, run everything: the deciding is not worth more than the checks cost.
+At each increment boundary, run `arc check increment`, then request related unit and local E2E feedback together:
 
-**Relevance — run what the change reaches.** Deliberately asymmetric. Skip the expensive checks a change
-provably cannot affect; never spend thought on the cheap ones.
+```bash
+arc check run test:changed test:e2e:local --changed
+```
 
-| Changed paths                  | Run                                     | Skip                                     |
-| ------------------------------ | --------------------------------------- | ---------------------------------------- |
-| Markdown only                  | Markdown lint + the ARC contract checks | the code checks (~100s of them at T2/T3) |
-| No Markdown touched            | The code checks                         | nothing — the Markdown side costs ~7.6s  |
-| Mixed, config, or unrecognized | Everything                              | nothing — fail closed                    |
+Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
+to gates still have to pass by their declared deadlines.
 
-**Test-lane selection — derive it from changed paths.** Changes confined to one test lane run that lane's command:
-`test:changed` selects both `unit` and `unit-mocks`, while integration and E2E have separate commands. Source or
-tooling changes reach every tier through the routine local lane plus required CI.
-
-| Changed paths                                     | Local test command            | Required remainder                 |
-| ------------------------------------------------- | ----------------------------- | ---------------------------------- |
-| `__tests__/unit/**` or isolated unit-mock files   | `npm run -s test:changed`     | none                               |
-| `__tests__/integration/**` only                   | `npm run -s test:integration` | none                               |
-| `__tests__/e2e/**` only                           | `npm run -s test:e2e`         | none                               |
-| `src/**`, build/test config, or unrecognized code | `npm test`                    | E2E and portability in required CI |
-
-`npm test` is the routine local lane: unit, unit-mocks, and integration in one admitted run. E2E is enforced by
-the heavy CI lane before merge; run it locally only when E2E files changed or when explicitly requested. Run
-`npm run test:full` when a deliberate whole-project local test pass is useful.
+### Test execution
 
 For incremental checks, root `test:file` selects exact existing repository-relative files/directories through one
 npm separator; each operand must contribute an eligible specification. Broad tier and package-local filters remain
@@ -107,23 +91,6 @@ the full `npm run build` declaration gate and both type checks remain required. 
 and qualifies or repairs them in a consumer-local preflight before setting `ARC_E2E_SKIP_BUILD=1`. Skip-build requires
 matching context and files and forbids generation; repair installation with `npm ci` when required, then prepare
 outside that prohibited run before retrying.
-
-The ARC contract checks (`lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`) validate
-methodology artifacts rather than code, are corpus-wide by design, and cost ~0.7s combined — so they ride with
-any Markdown change and never earn a relevance carve-out of their own. They are also required in CI: omitting
-them locally produces a false green rather than a saving.
-
-Build and tooling config (`package.json`, `tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`) counts as
-code: it reaches every check.
-
-**Unchanged tree — a completed tier is not re-executed over an unchanged tree.** A green result stays valid
-until an input it covers changes. When a boundary calls for a tier that already ran green and the delta since
-reaches nothing that tier covers, report it as already satisfied instead of re-running it; a skip that goes
-unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier; complete every
-project-designated check in the selected gate.
-
-Re-running **is** warranted after a base merge, after any review-driven fix, and at the first composed-work
-attestation — each introduces state no prior run saw.
 
 ## Testing Requirements
 
@@ -168,9 +135,10 @@ guard-only dead ends.
 - Use `unknown` over `any` for external data; validate and narrow before use
 - Shared helpers return only what they establish; each caller applies its own failure policy
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
-- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
-  describing the module's purpose
-- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+- TSDoc on the exported surface: a doc block on every exported function and a file-level doc comment describing
+  the module's purpose, which lint enforces in `src/**`; add `@param` and `@returns` only where they say what the
+  name and type do not
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cognitive
   complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
   ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
   authority
@@ -339,7 +307,6 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 
 [dev-rules-arc]: DEV-RULES.ARC.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
-[quick-ref]: ../../reference/QUICK-REFERENCE.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
 [commit-format]: ../methods/commit-format.md
 [commit-footer]: ../methods/commit-footer.md

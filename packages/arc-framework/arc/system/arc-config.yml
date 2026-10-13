@@ -53,6 +53,10 @@ worktree.post_create: ""
 # Comma-separated list of top-level gitignored harness directories to copy
 # from the primary checkout into ARC-created linked worktrees. ARC copies only
 # entries that exist on the primary checkout and skips absent entries.
+# For individual files such as `.env`, list gitignore-syntax patterns in a
+# `.worktreeinclude` file at the primary checkout's root instead: before the
+# post-create script runs, ARC copies each matching untracked, gitignored file
+# outside `.arc/` into the new worktree, leaving files already there in place.
 worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 
 # --- Commit Discipline ---
@@ -114,9 +118,9 @@ hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 
 # Pre-push hook.
-#   enabled  - Advisory warning before a force-push that rewrites published
-#              history; never blocks the push (default)
-#   disabled - Skips the force-push advisory
+#   enabled  - Runs declared push checks and warns before a force-push that
+#              rewrites published history; only the checks block (default)
+#   disabled - Skips the push gate and force-push advisory
 hooks.pre_push: enabled
 
 # Task numbering format check in pre-commit hook.
@@ -160,6 +164,9 @@ hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
 # alternation requires a non-identifier, non-dot character to its left, so a
 # filename that merely embeds an artifact prefix (resolve-plan-segmentation.md)
 # is not read as a work-unit artifact.
+# The pre-commit hook strips each complete commit Context footer ("Context:
+# tasks-foo.md (Task 4.2)") per line before re-check, so footer examples and
+# diagnostics pass while a planning reference elsewhere on the line still flags.
 # Reduce to remove checks that cause false positives for your project (e.g.,
 # tooling that legitimately operates on .arc/ paths). Pipe-separated regex.
 #   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'

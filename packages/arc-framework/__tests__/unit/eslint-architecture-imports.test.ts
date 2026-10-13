@@ -1,4 +1,4 @@
-/** Store import decisions below the native lint engine. */
+/** Store, raw state helper, surface name, and work-unit path decisions below the native lint engine. */
 
 import { resolve } from "node:path";
 import ts from "typescript";
@@ -18,8 +18,225 @@ describe("store import predicate exceptions", () => {
     ["../__tests__/public-store.ts", 'import "../src/lib/store/create.js";', "store-tests"],
     ["../__tests__/store-type.ts", 'import type { Shape } from "../src/lib/store/in-repo/private.js";', "store-tests"],
   ] satisfies [string, string, ArchitecturePredicate][])("allows the established store exception in %s: %s", (path, text, predicate) => {
-    const filename = resolve(sourceRoot, path);
-    const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
-    expect(findArchitectureImportViolations(source, filename, sourceRoot, [predicate])).toEqual([]);
+    expect(violations(path, text, predicate)).toEqual([]);
+  });
+});
+
+function violations(path: string, text: string, predicate: ArchitecturePredicate): string[] {
+  const filename = resolve(sourceRoot, path);
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
+  return findArchitectureImportViolations(source, filename, sourceRoot, [predicate]).map(({ reason }) => reason);
+}
+
+describe("raw state helper ratchet", () => {
+  it("keeps Errand registration behind the store boundary", () => {
+    expect(violations("handlers/outside.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "../lib/store/kinds/errand-record/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/errand-record/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { ERRAND_RECORD_REGISTRATION } from "./errand-record/registration.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps cohort registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { COHORT_REGISTRATION } from "../lib/store/kinds/cohort/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/cohort/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { COHORT_REGISTRATION } from "./cohort/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseCohortDocument } from "../lib/store/kinds/cohort/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps design registration behind the store while exposing the pure Purpose reader", () => {
+    expect(violations("handlers/outside.ts",
+      'import { DESIGN_REGISTRATIONS } from "../lib/store/kinds/design/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/design/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { DESIGN_REGISTRATIONS } from "./design/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { readDesignPurpose } from "../lib/store/kinds/design/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps task-list registration behind the store while exposing its pure parser", () => {
+    expect(violations("handlers/outside.ts",
+      'import { TASK_LIST_REGISTRATION } from "../lib/store/kinds/task-list/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/task-list/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { TASK_LIST_REGISTRATION } from "./task-list/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseTaskListRecord } from "../lib/store/kinds/task-list/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it("keeps lineage registration behind the store while exposing its pure codec", () => {
+    expect(violations("handlers/outside.ts",
+      'import { LINEAGE_REGISTRATION } from "../lib/store/kinds/lineage/registration.js";', "store-raw-state"))
+      .toEqual(["raw state helper lib/store/kinds/lineage/registration.ts outside the store"]);
+    expect(violations("lib/store/kinds/registrations.ts",
+      'import { LINEAGE_REGISTRATION } from "./lineage/registration.js";', "store-raw-state")).toEqual([]);
+    expect(violations("handlers/outside.ts",
+      'import { parseLineageRecord, writeLineageRecord } from "../lib/store/kinds/lineage/index.js";', "store-raw-state")).toEqual([]);
+  });
+  it.each([
+    ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
+    ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
+    ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
+    ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
+    ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
+    ["handlers/outside.ts", 'void import("../lib/errand/identity-transaction.js");', "lib/errand/identity-transaction.ts"],
+    ["handlers/outside.ts", 'void require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'void module.require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import meta = require("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); void load("../lib/active/meta-reader.js");', "lib/active/meta-reader.ts"],
+    ["lib/delivery/plan-resolution.ts", 'import { enumerateGitTransitionRecords } from "../work-unit/git-transition-record-enumeration.js";', "lib/work-unit/git-transition-record-enumeration.ts"],
+  ])("refuses a value reference outside the store in %s: %s", (path, text, helper) => {
+    expect(violations(path, text, "store-raw-state")).toEqual([`raw state helper ${helper} outside the store`]);
+  });
+
+  it.each([
+    ["handlers/outside.ts", 'import type { MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'import { type MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'export { type MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'type Reader = import("../lib/active/meta-reader.js").MetaRecord;'],
+    ["handlers/outside.ts", 'import "../lib/active/meta-schema.js";'],
+    ["lib/store/in-repo/context.ts", 'import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";'],
+    ["lib/store/kinds/registrations.ts", 'import { META_REGISTRATION } from "./meta/registration.js";'],
+    ["lib/store/current-work-unit.ts", 'import { parseMetaFile } from "../active/meta-reader.js";'],
+    ["lib/store/in-repo/meta.ts", 'import { buildComposedLifecycleIndex } from "../../work-unit/composed-lifecycle-index.js";'],
+    ["lib/work-unit/composed-lifecycle-index.ts", 'import { buildLifecycleIndex } from "./lifecycle-index.js";'],
+    ["lib/work-unit/git-transition-record-enumeration.ts", 'import { TRANSITION_RECORD_NAMESPACE } from "./transition-record-store.js";'],
+  ])("allows a type reference, an unlisted module, the store, or another helper in %s: %s", (path, text) => {
+    expect(violations(path, text, "store-raw-state")).toEqual([]);
+  });
+});
+
+describe("surface name ratchet", () => {
+  it.each([
+    ['const inbox = "USER-INBOX.md";', "USER-INBOX"],
+    ['const kind = "ATOMIC-INBOX";', "ATOMIC-INBOX"],
+    ['throw new Error("ROADMAP drifted");', "ROADMAP"],
+    ['type Surface = "STATUS.USER";', "STATUS.USER"],
+    ["const path = `${root}/.arc/active/${name}`;", ".arc/active/"],
+    ["const meta = `meta-${slug}.md`;", "meta-"],
+    ["const matcher = /^meta-(.+)\\.md$/u;", "^meta-"],
+    ['const path = "backlog/meta-x.md";', "/meta-"],
+  ])("refuses the literal %s", (text, name) => {
+    expect(violations("handlers/outside.ts", text, "surface-names")).toEqual([`surface name ${name} outside the layout resolver`]);
+  });
+
+  it.each([
+    'const code = "meta-read-failed";',
+    'const flag = "--meta-path";',
+    'import { parseMetaFile } from "./meta-reader.js";',
+    'export { parseMetaFile } from "./meta-reader.js";',
+    'void import("./meta-reader.js");',
+    'type Reader = import("./meta-reader.js").Reader;',
+    "// The USER-INBOX and ROADMAP stay in comments.\nconst roadmap = true;",
+  ])("allows a code, module specifier, or comment: %s", (text) => {
+    expect(violations("handlers/outside.ts", text, "surface-names")).toEqual([]);
+  });
+});
+
+describe("work-unit path ratchet", () => {
+  const named = 'import { resolveArcPath } from "../lib/layout/index.js"; ';
+  const namespace = 'import * as layout from "../lib/layout/index.js"; ';
+  const unread = "layout address without a literal kind outside the store";
+  const loaded = "layout module loaded by require or dynamic import outside the store";
+  const handedOn = "layout namespace passed on outside the store";
+
+  it.each([
+    [`${named}resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });`, "work-unit path work-unit-artifact outside the store"],
+    ['import { resolveArcPath as project } from "../lib/layout/projection.js"; project({ kind: "placement-root", tier: "active" });', "work-unit path placement-root outside the store"],
+    [`${namespace}layout.resolveArcPath({ kind: "cohort-document", cohort: [slug], placement });`, "work-unit path cohort-document outside the store"],
+    [`${namespace}layout["resolveArcPath"]({ kind: "transition-record", origin: slug });`, "work-unit path transition-record outside the store"],
+    [`${named}resolveArcPath({ placement, slug, kind: "work-unit-container" as const });`, "work-unit path work-unit-container outside the store"],
+    [`${named}resolveArcPath(address);`, unread],
+    [`${named}resolveArcPath({ kind: "arc-root", ...address });`, unread],
+    [`${named}resolveArcPath({ [field]: "arc-root" });`, unread],
+    [`${named}const project = resolveArcPath;`, "layout resolver passed on outside the store"],
+    [`${named}export { resolveArcPath };`, "layout resolver passed on outside the store"],
+    ['export { resolveArcPath as project } from "../lib/layout/index.js";', "layout resolver re-exported outside the store"],
+    ['export * from "../lib/layout/index.js";', "layout resolver re-exported outside the store"],
+    ['const { resolveArcPath } = await import("../lib/layout/index.js");', loaded],
+    ['const { resolveArcPath } = require("../lib/layout/index.js");', loaded],
+    ['import layout = require("../lib/layout/index.js"); void layout;', loaded],
+    ['import { createRequire } from "node:module"; const { resolveArcPath } = createRequire(import.meta.url)("../lib/layout/index.js");', loaded],
+    [`${namespace}const { resolveArcPath } = layout; resolveArcPath({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}const alias = layout; alias.resolveArcPath({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}layout[member]({ kind: "work-unit-artifact" });`, handedOn],
+    [`${namespace}use((layout));`, handedOn],
+    [`${namespace}export { layout };`, handedOn],
+  ])("refuses %s", (text, reason) => {
+    expect(violations("handlers/outside.ts", text, "work-unit-paths")).toEqual([reason]);
+  });
+
+  it("counts the raw state helpers, which sit outside the store", () => {
+    const text = `${named}resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });`;
+    expect(violations("lib/active/meta-reader.ts", text.replace("../lib/", "../"), "work-unit-paths"))
+      .toEqual(["work-unit path work-unit-artifact outside the store"]);
+  });
+
+  it.each([
+    [`${named}resolveArcPath({ kind: "arc-root" });`],
+    [`${named}resolveArcPath({ kind: "procedure-root", family: "workflows" });`],
+    [`${named}resolveArcPath({ kind: "project-document", document: "roadmap" });`],
+    [`${named}resolveArcPath({ kind: "inbox", scope: { kind: "project" } });`],
+    [`${named}resolveArcPath({ kind: "user-document", identity, document: { kind: "working-memory" } });`],
+    [`${named}resolveArcPath({ ...address, kind: "editor-document-root" });`],
+    [`${named}type Path = ReturnType<typeof resolveArcPath>;`],
+    ['import type * as layout from "../lib/layout/index.js"; type Path = ReturnType<typeof layout.resolveArcPath>;'],
+    [`${namespace}class Path implements layout.resolveArcPath {}`],
+    [`${namespace}void layout.LayoutError; void layout["ArcLayoutAddressSchema"]; void (layout).resolveArcPath({ kind: "arc-root" });`],
+    ['type Address = import("../lib/layout/index.js").ArcLayoutAddress;'],
+    ['import { resolveArcPath } from "./elsewhere.js"; resolveArcPath({ kind: "work-unit-artifact" });'],
+    ['function resolveArcPath(address: unknown): unknown { return address; } resolveArcPath({ kind: "work-unit-artifact" });'],
+    ['export { LayoutError, type ArcLayoutAddress } from "../lib/layout/index.js";'],
+    ['export type * from "../lib/layout/index.js";'],
+  ])("allows a system, configuration, project, or personal address, a type, or another resolver: %s", (text) => {
+    expect(violations("handlers/outside.ts", text, "work-unit-paths")).toEqual([]);
+  });
+
+  it("leaves the store to project work-unit paths", () => {
+    const text = 'import { resolveArcPath } from "../../layout/index.js"; resolveArcPath({ kind: "placement-root", tier: "planned" });';
+    expect(violations("lib/store/in-repo/paths.ts", text, "work-unit-paths")).toEqual([]);
+  });
+});
+
+
+describe("aliased Node loader module references", () => {
+  const targets = [
+    ["handlers/outside.ts", "../lib/active/meta-reader.js", "store-raw-state"],
+    ["handlers/outside.ts", "../lib/layout/index.js", "work-unit-paths"],
+    ["handlers/outside.ts", "@clack/prompts", "clack"],
+    ["lib/layout/consumer.ts", "commander", "layout-dependencies"],
+    ["lib/terminal.ts", "./layout/private.js", "layout-private"],
+    ["commands/consumer.ts", "./layout/index.js", "layout-downward"],
+    ["lib/store/concurrency/consumer.ts", "../../../commands/active.js", "store-concurrency"],
+    ["lib/consumer.ts", "../../__tests__/helpers/store/backend.js", "store-reference"],
+  ] satisfies [string, string, ArchitecturePredicate][];
+  const aliases = [
+    "const load = createRequire(import.meta.url); const alias = load;",
+    "const load = createRequire(import.meta.url); const first = (load); const alias = (first);",
+    "const alias = first; const first = load; const load = createRequire(import.meta.url);",
+  ];
+
+  it.each(targets.flatMap(([path, target, predicate]) =>
+    aliases.map((declarations) => ({ path, target, predicate, declarations }))))(
+    "confines $predicate loader aliases: $declarations", ({ path, target, predicate, declarations }) => {
+      const filename = resolve(sourceRoot, path);
+      const text = [
+        'import { createRequire } from "node:module";',
+        declarations,
+        `const { resolve: extracted } = load; extracted("${target}");`,
+        `function local(alias: (name: string) => string) { const copied = alias; copied("${target}"); }`,
+        `const cycleA = cycleB; const cycleB = cycleA; cycleA("${target}");`,
+        `alias("${target}");`,
+      ].join("\n");
+      const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
+      const calls = findArchitectureImportViolations(source, filename, sourceRoot, [predicate])
+        .filter(({ node }) => ts.isCallExpression(node));
+      expect(calls.map(({ node }) => node.getText(source))).toEqual([`alias("${target}")`]);
+    });
+
+  it("refuses a computed dependency loaded through an alias in concurrency code", () => {
+    const text = 'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const alias = load; alias(target);';
+    expect(violations("lib/store/concurrency/consumer.ts", text, "store-concurrency"))
+      .toContain("forbidden module reference <computed import>");
   });
 });

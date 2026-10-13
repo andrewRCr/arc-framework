@@ -3,9 +3,9 @@
 Behavioral rules for human-AI collaboration under the ARC methodology. These rules apply to every
 ARC project regardless of technology stack.
 
-Your project-specific standards — quality gate commands, testing requirements, architecture rules,
-documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contributors
-(`arc.role = contributor`) work within different boundaries throughout — see
+Your project-specific standards — testing requirements, architecture rules, and documentation style — live in
+[DEV-RULES.PROJECT][dev-rules-project]. Project checks are declared in `.arc/system/arc-checks.yml` and run with
+`arc check`. Contributors (`arc.role = contributor`) work within different boundaries throughout — see
 [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 > Rules marked `[configurable]` follow the project's configured override; see [Configurability
@@ -94,10 +94,17 @@ integration interlock:
 - archive composition and closeout
 - lifecycle sweep and readiness regeneration
 - a typed base reconcile selected from complete host-admission evidence, whose overlap is disclosed and whose
-  resulting head passes Tier 1 before fresh checkpoint applicability and exact-head authorization
+  resulting head passes `arc check new-head --from <pre-merge head>` before fresh checkpoint applicability and
+  exact-head authorization
 
-An implementation or finding-driven fix still requires its structured approval gate before commit, and no
-provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
+An implementation fix still requires its structured approval gate before commit. For a finding-driven fix, the
+complete-set disposition approval is that gate: it covers applying the approved fixes and committing them, and,
+under `arc.pushInterlock: on-workflow`, pushing them and performing the approved hosted settlement. Release still
+follows `arc.commitInterlock` and `arc.pushInterlock`, so a `manual` setting keeps its own stop. The round returns
+to the approver when the performed fix exceeds the approved scope, a verification or gate failure is not a
+deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
+
+No provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
 authorize autonomous advance to that final interlock, but never prospective merge authority over a head that does
 not yet exist.
 
@@ -137,6 +144,7 @@ everywhere else, apply this trace as one inline judgment.
 **Concept.** Interlocks gate (stop, await direction); fire sites release (execute the gated operation).
 Each fire pairs with one interlock — `taskCommit` releases commit-interlock at task-interlock approval;
 `workflowCommit` and `workflowPush` release commit- and push-interlock at workflow-interlock approval.
+A review-fix round's complete-set disposition approval releases its `taskCommit` and `workflowPush` sites.
 Class tags name the fire-site type; routing follows § Workflow class-tag routing.
 
 - **Commit and push triggering** · `[configurable]`: follow `arc.commitInterlock` and `arc.pushInterlock`,
@@ -169,7 +177,7 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
       wrapper refuses them by design.
     - `arc sync` handles its own internal push and does not re-route through `arc release push`.
 
-- **Never use `--no-verify`** · `[invariant]` to bypass commit hooks — hooks exist to catch errors.
+- **Never use `--no-verify` or set `ARC_SKIP`** · `[invariant]` to bypass commit hooks or skip declared checks.
 
 - **Amend scope:** `git commit --amend` only for same-concern fixups to the most recent unpushed commit (typo,
   lint, missing file from the same logical change); anything else is a new commit. **Never amend pushed commits
@@ -301,9 +309,11 @@ Before implementing any task, assess whether tests come first; the [test-first m
 When you encounter an issue — in a file you're editing, during analysis, anywhere in the course of work —
 take responsibility for it. Never silently drop an observation that should be fixed or captured.
 
-**The core invariant.** A work unit's stub/draft is the single authoritative source for its domain concerns;
-capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
-item with a known home may rest in a capture surface** · `[invariant]`.
+**The core invariant.** A work unit's stub/draft is the single authoritative source for the decisions it owns;
+capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. An item's
+home is the work unit whose decision it shapes — shared domain alone makes a neighbor, not a home, and an
+Errand-shaped item has none: it runs as an Errand or waits as an Errand capture. Place it by the
+[route-discovered-work][arc-methods-rdw] method. **No item with a known home may rest in a capture surface** · `[invariant]`.
 
 ### Leave it cleaner
 
@@ -519,15 +529,13 @@ Load these documents when you reach the relevant work — not during session ini
 - **For method defaults and overrides:** At a direct fire-point, load the relevant
   [`system/methods/`][arc-methods-dir] files on-demand
 
-- **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
-  Tier 1/2/3 boundaries, escalation guidance
-
 ---
 
 [dev-rules-project]: DEV-RULES.PROJECT.md
 [arc-methods-cf]: ../../system/methods/commit-format.md
 [arc-methods-ccf]: ../../system/methods/commit-footer.md
 [arc-methods-it]: ../../system/methods/issue-triage.md
+[arc-methods-rdw]: ../../system/methods/route-discovered-work.md
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
@@ -538,6 +546,5 @@ Load these documents when you reach the relevant work — not during session ini
 [process-task-loop]: ../../system/workflows/arc/process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
-[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [contributor-briefing]: ../../reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md
 [session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md

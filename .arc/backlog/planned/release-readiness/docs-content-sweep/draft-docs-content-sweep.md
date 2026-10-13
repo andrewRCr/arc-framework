@@ -27,6 +27,55 @@ WU activation.
   rewrites the state doctrine the public documentation describes, and its documentation pass lands after the flip.
 - _Approach:_ Decide at next planning whether the sweep follows the cutover's documentation pass.
 
+### `[ ]` **Add check-declaration examples for common stacks, and harness edit-hook examples, to the docs site**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its draft's § Items to Sweep > Content Contributions — a new numbered item.
+
+- _Observation:_ `quality-gate-hooks` ships no stack defaults: a project declares its own checks, and initial setup
+  proposes declarations from what the project already has. Worked declarations for common stacks (JS/TS, Rust, Go,
+  Python) belong on the docs site, not in shipped content. So do examples of an agent harness's edit hook calling the
+  gate verb, which that work unit leaves out of scope.
+
+- _Approach:_ author the examples against the shipped declaration schema once `quality-gate-hooks` lands. Its draft
+  routed them to `notes-docs-content-sweep.md`, but that file stages verbatim extractions from existing sources; these
+  are new content, so a Content Contributions item fits better.
+
+- _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07.
+
+### `[ ]` **Move the docs site's quality-gate prose and task-execution demos from tiers to gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its draft's § Items to Sweep > Drift Items — a new numbered item.
+
+- _Observation:_ `quality-gate-hooks` replaces the Tier 1/2/3 model with gates named by event (commit, push, merge),
+  one `arc check` verb, and a check declaration. It retires `quality-gate-commands`, `post-task-quality`,
+  `post-unit-quality`, and `QUICK-REFERENCE.md` § Quality Gate Commands. That work unit leaves `docs/` out of scope,
+  so the site keeps teaching per-task tiers until this sweep.
+
+- _Files:_ found by sense at `6521bcb4c`; re-run the search before editing, since the site may have moved:
+    - `docs/reference/quality-gates.md`; the glossary's quality-gate entries (`docs/reference/glossary.md`);
+    - the `quality-gate-commands`, `post-task-quality`, and `post-unit-quality` rows and the `post-task-quality` worked
+      example in `docs/customization/methods.md`;
+    - the tier overview, the per-task gate step, and the deferred-review gate sentence in `docs/the-framework.md`;
+    - the quality-gates row in `docs/reference/index.md`; the zero-tolerance sentence and check table in
+      `docs/contributing.md`;
+    - the tier-definitions convention in `docs/methodology/principles.md`; the per-increment verification paragraph in
+      `docs/methodology/index.md`; the feedback-controls paragraph in `docs/methodology/rationale.md`; the methods
+      sentence offering to swap in quality gate commands in `docs/index.md`;
+    - the task-execution demos (`docs/demos/task-execution.sh`, `docs/demos/task-execution-readme.sh`), which narrate
+      the per-task tier and its extension firing. Their GIFs appear in `docs/the-framework.md` and the repository
+      `README.md`; re-render them as `docs/demos/README.md` describes.
+
+  The site's principle, convention, and escape-hatch tiers are an unrelated sense and stay.
+
+- _Approach:_ write against the shipped gate model once `quality-gate-hooks` lands: its `AGENT-BRIEF.ARC.md`
+  vocabulary entry, the reduced `strategy-quality-gates.md`, and `arc check --help`.
+
+- _Captured during:_ `quality-gate-hooks` task generation, Pass 3 grounding audit, 2026-10-08.
+
 ---
 
 ## Why a Dedicated Plan

@@ -16,10 +16,10 @@ async function architectureOptions(filename: string): Promise<unknown> {
 
 describe("composed architecture configuration", () => {
   it("resolves the global package restriction for a source module", async () => {
-    expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["clack", "neverthrow", "store-production", "store-reference", "layout-private", "configured-identity"]]);
+    expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["clack", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   }, ESLINT_CONFIG_LOAD_TIMEOUT);
   it("unions predicates across global and kernel scopes", async () => {
-    expect(await architectureOptions("src/lib/kernel/result.ts")).toEqual([2, ["clack", "neverthrow", "kernel", "store-production", "store-reference", "layout-private", "configured-identity"]]);
+    expect(await architectureOptions("src/lib/kernel/errors.ts")).toEqual([2, ["clack", "kernel", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   });
 
   it.each([
@@ -33,6 +33,25 @@ describe("composed architecture configuration", () => {
     ["src/lib/config/status-reader.ts", "configured-identity"],
   ])("resolves the migrated predicate for %s: %s", async (path, predicate) => {
     expect(await architectureOptions(path)).toEqual([2, expect.arrayContaining([predicate])]);
+  });
+
+  it.each([
+    ["src/lib/config/status-reader.ts", {
+      "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]], "arc/work-unit-paths": [2, ["work-unit-paths"]],
+    }],
+    ["src/lib/store/in-repo/meta.ts", {
+      "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]], "arc/work-unit-paths": [2, ["work-unit-paths"]],
+    }],
+    ["src/lib/layout/projection.ts", {
+      "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined, "arc/work-unit-paths": undefined,
+    }],
+  ])("resolves the ratchet rules for %s", async (path, expected) => {
+    const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, path)) as { rules: Record<string, unknown> };
+    expect({
+      "arc/store-raw-state": configuration.rules["arc/store-raw-state"],
+      "arc/surface-names": configuration.rules["arc/surface-names"],
+      "arc/work-unit-paths": configuration.rules["arc/work-unit-paths"],
+    }).toEqual(expected);
   });
 
   it.each([
@@ -74,7 +93,7 @@ describe("composed architecture configuration", () => {
         2, expect.objectContaining({ paths: expect.arrayContaining(["@clack/prompts"]) }),
       ]);
       expect(await architectureOptions(path)).toEqual([2, expect.arrayContaining([
-        "neverthrow", "store-production", "store-reference", "layout-private", "configured-identity",
+        "store-production", "store-reference", "layout-private", "configured-identity",
       ])]);
     },
   );
@@ -82,7 +101,10 @@ describe("composed architecture configuration", () => {
   it.each([
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseMetaProjectionRecord"]'],
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseIdentifierList"]'],
-    ["src/lib/active/meta-reader.ts", 'ImportDeclaration[source.value=/\\/store\\//]'],
+    [
+      "src/lib/active/meta-reader.ts",
+      'ImportDeclaration[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])',
+    ],
     ["src/lib/errand/promote.ts", 'Identifier[name=/^(MetaProjectionOverrides|renderMetaProjectionFile)$/]'],
     ["src/lib/config/status-reader.ts", 'VariableDeclaration[kind="const"] > VariableDeclarator[id.name="DEFAULTS"]'],
     ["src/lib/view-renderer.ts", 'MemberExpression[object.name="process"][computed=false]'],

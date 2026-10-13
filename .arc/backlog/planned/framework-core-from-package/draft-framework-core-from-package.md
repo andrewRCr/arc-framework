@@ -10,6 +10,58 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Add generated editor documents to the projection's path list; consolidate the managed `.gitignore` lists**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ the ignore strategy's path list, which the storage program keeps open for this work unit.
+
+- _Observation (editor documents):_ `schema-introspection-layer` generates per-schema editor documents at
+  `.arc/system/.internal/schemas/<id>.schema.json`: derived, never stored, written by one writer at `arc init`,
+  `arc update`, `arc join`, and every ARC-owned worktree provisioning site, refreshed by `arc schema install`, with no
+  `init-recipe.json` entry. The writer ignores the directory per clone through the shared `info/exclude`, as
+  `ensureWorktreeMarkerIgnored` does, and leaves the tracked `.gitignore` block untouched.
+
+- _Observation (`.gitignore` block):_ the managed block is written from five identical hand-copied entry lists
+  (`init.ts`, `update.ts`, `reconfigure.ts`, and twice in `join.ts`). No layout address covers today's entries
+  (`pristine.json`, `worktree-marker.json`, the `.arc/user/*/` glob, harness skill paths), and the ARC repository's
+  own block, which no command maintains there, already lacks `worktree-marker.json`.
+
+- _Approach:_ join the schemas directory to the projection's path list, ignored per clone as the storage direction
+  sets, and derive the block's entries from one list.
+
+- _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
+
+### `[ ]` **Leave the projection's machine-local files alone when the package projects `.arc/system/`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: framework-core-from-package`), housekeep drain (2026-10-11).
+
+- _Shapes:_ the package as a second projection source with read-only copies (`storage-contract`'s D13, More than one
+  source), and the path list the projection's exclude writer accepts `.arc/system/` paths into.
+
+- _Observation:_ three per-worktree machine-local things sit under `.arc/system/.internal/`, inside the tree a package
+  source would project: the projection's aside folder, `.arc/system/.internal/projection/`, which holds aside copies,
+  staged files, and the racy-timestamp reference stamp; the checkout marker, `worktree-marker.json`
+  (`lib/git/worktree-marker.ts`); and the pristine store, `pristine.json`. A source that writes, refreshes, or prunes
+  `.arc/system/` as a whole would delete or overwrite them. `storage-projection` registers the aside folder in
+  `MACHINE_LOCAL_PATHS` under a checkout-relative root with the pattern `.arc/system/.internal/projection/**` — never
+  all of `.internal/`, which also holds stored records — while the marker and the pristine store are not listed yet
+  (`cohort-storage-seam.md` § Soft coordination, "The machine-local set").
+
+- _Approach:_ have the package source skip every path `MACHINE_LOCAL_PATHS` lists, and list the marker and the
+  pristine store there before it lands, rather than hand-keeping exclusions in the source.
+
+- _Drain note (2026-10-11):_ the machine-local path list (`MACHINE_LOCAL_PATHS`) is `storage-projection`'s
+  planned addition, not yet on `main`.
+
+- _Captured during:_ `storage-projection` draft close, 2026-10-10.
+
+---
+
 ## Problem
 
 `arc update` rewrites up to 103 Framework-class files that `strategy-file-classification` says never to edit, and

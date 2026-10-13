@@ -26,6 +26,7 @@ import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { resolveTaskListPath } from "../commands/active/status.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -132,10 +133,12 @@ export function validateSpec(content: string, path: string): string[] {
  * codified four values (`Planning, Active, Integrating, Shipped`).
  *
  * The canonical value comes from the shared meta reader, so State is recovered
- * from the hoisted core-block table as well as the legacy flat-bullet form
- * (with inline backticks stripped). The legacy duplicate-`- **State:**`-line
- * diagnostic still scans bullets directly — a malformation possible only in the
- * flat form, which the table layout cannot express.
+ * from the required core-block table after its H1, with inline backticks
+ * stripped. Duplicate State bullets are diagnosed separately, including
+ * stray bullets beside a valid table.
+ * @param content - Complete metadata Markdown.
+ * @param path - User-facing metadata path included in diagnostics.
+ * @returns Missing-table, malformed-table, or invalid-State diagnostics.
  */
 export function validateLifecycleFields(content: string, path: string): string[] {
   const diagnostics: string[] = [];
@@ -276,7 +279,7 @@ function readStagedFile(path: string): string {
   return execFileSync("git", ["show", `:${path}`], {
     cwd: process.cwd(),
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
 }
 

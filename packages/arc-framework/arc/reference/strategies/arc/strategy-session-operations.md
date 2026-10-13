@@ -35,11 +35,11 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 
 ARC organizes agent context into three tiers based on when the content becomes relevant:
 
-| Tier | Name           | When Loaded                          | Content Type                                              |
-| ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
-| T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
-| T2   | State          | Session initialization               | Work status, session notes, task overview                 |
-| T3   | Procedural     | On-demand at declared fire-points    | Method defaults/overrides, strategies, detailed workflows |
+| Tier | Name           | When Loaded                       | Content Type                                              |
+| ---- | -------------- | --------------------------------- | --------------------------------------------------------- |
+| T1   | Constitutional | Session initialization            | Principles, identity, constraints, navigation             |
+| T2   | State          | Session initialization            | Work status, session notes, task overview                 |
+| T3   | Procedural     | On-demand at declared fire-points | Method defaults/overrides, strategies, detailed workflows |
 
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
@@ -65,19 +65,19 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
 - Workflow documents (prepare-commits, prepare-work-unit, integrate-work-unit)
-- arc-extensions steps (post-task-quality, pre-merge, etc.)
+- arc-extensions steps (post-task-completion, pre-merge, etc.)
 
 ### State-Conditional Promotion
 
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content             | State Signal                                              | Promotes When                           |
-| ------------------- | --------------------------------------------------------- | --------------------------------------- |
-| process-task-loop   | `sessionType: execution` with a found task cursor         | Executable task work is active          |
-| verify-work-unit    | `sessionType: execution` with `no-open-task`              | Candidate attestation remains           |
-| prepare-work-unit   | Resolved `sessionType: prepublication`                    | Private Candidate preparation is active |
-| integrate-work-unit | Resolved `sessionType: integration`                       | Public integration is active            |
+| Content             | State Signal                                      | Promotes When                           |
+| ------------------- | ------------------------------------------------- | --------------------------------------- |
+| process-task-loop   | `sessionType: execution` with a found task cursor | Executable task work is active          |
+| verify-work-unit    | `sessionType: execution` with `no-open-task`      | Candidate attestation remains           |
+| prepare-work-unit   | Resolved `sessionType: prepublication`            | Private Candidate preparation is active |
+| integrate-work-unit | Resolved `sessionType: integration`               | Public integration is active            |
 
 Planning and prepublication may retain a task-list pointer without loading execution context. The resolved session
 type plus canonical task cursor selects one lifecycle workflow. Task detail loads only for open-task execution;
@@ -394,7 +394,6 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | Method                        | Trigger Workflow             | Session Applicability                                |
 | ----------------------------- | ---------------------------- | ---------------------------------------------------- |
 | issue-triage                  | process-task-loop            | Universal — every task execution session             |
-| quality-gate-commands         | process-task-loop            | Universal — every task execution session             |
 | test-first                    | process-task-loop            | Conditional — tasks with test-first marker           |
 | commit-format                 | prepare-commits              | User-triggered commit events                         |
 | commit-footer                 | prepare-commits              | User-triggered commit events                         |
@@ -404,6 +403,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric              |
 | review-triage                 | prepare / integrate          | Prepublication and integration findings              |
 | assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual |
+| classify-review-risk          | prepare / errand             | Every review routing-fact composition                |
 | session-state                 | session-handoff              | Session end only                                     |
 
 ### Review enforcement boundary
@@ -497,8 +497,8 @@ state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is speci
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
 For ARC, integration means merge-to-base; downstream production deployment is outside ARC's scope.
 
-**Quality-gate failures hold regardless of mode.** Approval releases the work, not the gate. A failed
-quality gate engages the interlock until the failure is resolved.
+**Enforcement failures hold regardless of mode.** Approval releases the work, not the quality gate. Failed
+enforcement engages the interlock until the failure is resolved; feedback failures remain part of the report.
 
 ### Orthogonal Ceremony
 
@@ -602,6 +602,19 @@ When safe-accumulated work returns for review, report the completed range as a c
 surface the accumulated diff for approval. The user then chooses the commit boundary: one batch
 commit, multiple atomic commits, or iteration before committing.
 
+### Disposition-Approval Release
+
+A review-fix round has one structured gate: the complete-set approval of its finding
+dispositions. Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval
+releases the commit-interlock for the approved fixes, and under `arc.pushInterlock: on-workflow`
+it also releases their push and the approved hosted settlement. A `manual` setting keeps its own
+stop. The approval prompt names what it releases — for example
+`Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?` — and the
+round reports its result as information rather than as a new gate. The round returns to the
+approver when the performed fix exceeds the approved scope, a verification or gate failure is
+not a deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
+Merge stays behind the integration-interlock.
+
 ### Push-Timing Reasoning
 
 Push-on-sync fires when an `arc sync` event releases the push interlock; per-commit push release
@@ -634,7 +647,7 @@ the boundary. Classify failures by the state they leave behind before choosing a
 | Mode | Category  | Trigger                                                        | Recovery path                                                              |
 | ---- | --------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
-| 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
+| 2    | Bad state | Push or merge quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
 | 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |
 | 4    | Transit   | Partial multi-commit or multi-push cascade                     | Preserve landed work, surface exact partial state, retry remaining transit |
 | 5    | Process   | Agent/session crash mid-cascade                                | Run crash-recovery scan; prompt continue or rollback                       |
@@ -660,7 +673,7 @@ is non-obvious, staged content spans multiple concerns, or the hook failure impl
 choice, stop and report that commit-on-task-approval fell back to manual-with-prompt. Ask whether
 to investigate, revise staging, or defer the commit.
 
-**Mode 2 — quality gate fails after an auto-released commit.** Detection: Tier 1/Tier 2 gates fail
+**Mode 2 — quality gate fails after an auto-released commit.** Detection: the push or merge quality gate fails
 after a commit produced by commit-on-task-approval. Do not continue to the next task. If the fix is
 obvious and local, apply a follow-up fix commit under the same task context. If reverting the
 auto-released commit is the proposed remedy, present a cascade-undo plan first: identify commits to
@@ -892,8 +905,9 @@ workspace root, cross-WU scope.
   No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
   retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
 - **`## Work Unit`** — spec-worthy entries that need draft-doc / PRD treatment before scheduling. Each
-  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
-  destination stub — existence at drain decides route-vs-create.
+  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming a candidate
+  for the drain's routing gate to check. Existence alone does not establish a home; the concern must shape a
+  decision in that work unit's actual design.
 
 **Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
@@ -926,9 +940,10 @@ the retention. The drain therefore closes on **no un-triaged entries**, not nece
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — _not_ at the integration ceremony; destinations vary by PM mode:
 
-- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Errand` items to their
-  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Work Unit` items to an
-  existing stub or a new _provisional_ stub (there is no shared Work-Unit inbox). See
+- **`pm.mode: arc-in-git`** — housekeep routes every capture through the drain's routing gate. Every
+  Errand-shaped item takes the homeless-atomic route — execution, shared `backlog/ATOMIC-INBOX.md` deferral, or
+  explicit Owner retention — since none has a work-unit home. Work-unit-shaped concerns take the gate's existing
+  or new stub outcome; `WU_Target` remains a candidate, and there is no shared Work-Unit inbox. See
   `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
   details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration

@@ -26,6 +26,7 @@ import { WorktreeRosterResultSchema } from "../../../src/lib/git/worktree-roster
 import { CurrentHuskAdvisorySchema } from "../../../src/lib/session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import { HooksPathSessionAdvisorySchema } from "../../../src/lib/session-init/hooks-path-advisory.js";
 import { InboxStateResultSchema } from "../../../src/lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../../src/lib/session-init/notes-compaction-advisory.js";
@@ -58,6 +59,7 @@ describe("session-envelope schema registry", () => {
       "domain-rules-session-init",
       "errand-staleness-sweep",
       "extensions-session-init",
+      "hooks-path-session-advisory",
       "inbox-state",
       "load-set-audit-verdict",
       "load-set-manifest",
@@ -110,6 +112,7 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.worktreeRoster, WorktreeRosterResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.worktreeSync, WorktreeSnapshotAnalysisResultSchema],

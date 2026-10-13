@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -48,7 +49,7 @@ async function runHook(cwd: string): Promise<{ code: number; stdout: string; std
   try {
     const { stdout, stderr } = await execFileAsync("bash", [hookPath], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, PATH: await restrictedGitPath(cwd), NO_COLOR: "1" },
     });
     return { code: 0, stdout, stderr };
   } catch (err) {
@@ -91,6 +92,78 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain("Meta-project references found in production code");
     expect(result.stdout).toContain("src/domain.ts");
+  });
+
+  it("exempts quoted Git name-status scores without hiding a same-line planning ID", async () => {
+    const root = await freshRepo();
+    const renameScore = ["R", "100"].join("");
+    const singleQuotedRenameScore = ["R", "075"].join("");
+    const requirement = ["R", "12"].join("");
+    const scores = `export const scores = ["${renameScore}", '${singleQuotedRenameScore}'];`;
+    await writeRepoFile(root, "src/domain.ts", `${scores}\n`);
+    await git(root, ["add", "src/domain.ts"]);
+
+    const allowed = await runHook(root);
+
+    expect(allowed.code).toBe(0);
+    expect(allowed.stdout).not.toContain("Meta-project references found in production code");
+
+    await writeRepoFile(root, "src/domain.ts", `${scores} export const requirement = "${requirement}";\n`);
+    await git(root, ["add", "src/domain.ts"]);
+
+    const rejected = await runHook(root);
+
+    expect(rejected.code).toBe(1);
+    expect(rejected.stdout).toContain("Meta-project references found in production code");
+    expect(rejected.stdout).toContain("src/domain.ts");
+    expect(rejected.stdout).toContain(requirement);
+  });
+
+  it("accepts complete Context footer examples without hiding a planning ID beside them", async () => {
+    const root = await freshRepo();
+    const footers = [
+      'export const taskFooter = "Context: tasks-example.md (Task 1.2)";',
+      'export const contributionFooter = "Context: contribution (explain (legacy) Task 4.2)";',
+      'export const integrationFooter = "Context: integration (Phase 2 merge)";',
+    ].join("\n");
+    await writeRepoFile(root, "src/footer.ts", `${footers}\n`);
+    await git(root, ["add", "src/footer.ts"]);
+
+    const allowed = await runHook(root);
+
+    expect(allowed.code).toBe(0);
+    expect(allowed.stdout).not.toContain("Meta-project references found in production code");
+
+    await writeRepoFile(root, "src/footer.ts", `${footers} // carried over from Task 3.1 (rollout)\n`);
+    await git(root, ["add", "src/footer.ts"]);
+
+    const rejected = await runHook(root);
+
+    expect(rejected.code).toBe(1);
+    expect(rejected.stdout).toContain("src/footer.ts");
+    expect(rejected.stdout).toContain("carried over from Task 3.1");
+    expect(rejected.stdout).not.toContain("taskFooter");
+  });
+
+  it("still rejects planning references outside a complete Context footer", async () => {
+    const root = await freshRepo();
+    const refused = [
+      "// Implements Task 3.1 of the rollout",
+      "// See tasks-auth.md for the remaining steps",
+      'export const partialFooter = "Context: tasks-auth.md";',
+      'export const unknownFooter = "Context: nonsense (Task 1.2)";',
+      'export const notesFooter = "Context: notes-auth.md (Task 1.2)";',
+    ];
+    const accepted = 'export const fullFooter = "Context: tasks-auth.md (Task 4.2)";';
+    await writeRepoFile(root, "src/plan.ts", `${[...refused, accepted].join("\n")}\n`);
+    await git(root, ["add", "src/plan.ts"]);
+
+    const result = await runHook(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("src/plan.ts");
+    for (const line of refused) expect(result.stdout).toContain(line);
+    expect(result.stdout).not.toContain("fullFooter");
   });
 
   it("does not re-trigger on incoming merge content that already landed", async () => {

@@ -76,10 +76,10 @@ function oracleMeta(
   return [
     "# Metadata: oracle",
     "",
-    `- **State:** ${fields.state ?? "Active"}`,
-    `- **Owner:** ${fields.owner ?? "andrew"}`,
-    `- **Branch:** ${fields.branch}`,
-    `- **Priority:** ${fields.priority ?? "[none]"}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| ${fields.state ?? "Active"} | ${fields.owner ?? "andrew"} | ${fields.branch} | — | ${fields.priority ?? "[none]"} |`,
+    "",
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     "",
@@ -1151,7 +1151,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: readyProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "independent-facts",
         dependencySatisfaction: "unsatisfied",
@@ -1180,7 +1182,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: blockingProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "provider-blocked",
         dependencySatisfaction: "satisfied",

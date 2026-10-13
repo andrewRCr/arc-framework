@@ -25,6 +25,40 @@
   composition to one ephemeral harness-session locus. Cover parent WU plus spawned Errand, expiry, teardown, and a
   clear refusal if an exact binding cannot be established; do not mint a canonical locus store.
 
+- _Folded in:_ the Claude Code side, observed at the housekeep drain (2026-10-09) while planning two concurrent Errand
+  sessions. Claude Code's PreCompact and compact `SessionStart` hooks run in `CLAUDE_PROJECT_DIR`, the directory
+  the session launched in, and the seed path is that checkout's `.arc/user/<id>/.internal/compaction-seed.json`
+  (`resolveCompactionSeedPath`). A session launched in the primary therefore seeds the primary's frame even while
+  it works in a spawned Errand worktree; Codex instead resolves the checkout of its latest command
+  (`resolveCodexExecutionCheckout`). With a second session executing in the primary, both write one seed file, and
+  either session's recovery can rehydrate the other's Errand. Bind the Claude seed to the working checkout too.
+
+### `[ ]` **Key the Claude Code compaction seed to its session through `CLAUDE_CODE_SESSION_ID`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-10-11).
+
+- _Shapes:_ "Bind compaction recovery to the live directed-worktree locus" — the binding key for its Claude Code
+  fold-in.
+
+- _Observation:_ Claude Code exports `CLAUDE_CODE_SESSION_ID` into every Bash tool command's environment, and its value
+  is the session's transcript ID, which hooks receive as `session_id` (observed 2026-10-09). A directed command that
+  enters a checkout — `arc errand open`, `arc start`, a recovery audit — can therefore record which checkout the
+  session works in, keyed by session, and PreCompact can resolve that binding from its payload instead of seeding
+  `CLAUDE_PROJECT_DIR`. Codex's approach does not transfer: Claude Code resets the shell's working directory to the
+  project directory when a command leaves it, so the latest command's directory is not evidence of the working
+  checkout.
+
+- _Approach:_ record the binding at the directed-entry verbs, which already know the allocated checkout, and resolve
+  it in the Claude PreCompact and compact `SessionStart` consumers; keep the existing refusal when no exact binding
+  exists. Subagents share the parent's `session_id`, so a subagent's directed command must not rebind its parent's
+  seed.
+
+- _Drain note (2026-10-11):_ partly duplicates that entry; integrate it as that entry's Claude Code binding key
+  rather than as a separate concern.
+
+- _Captured during:_ `review-risk-criteria` Errand, 2026-10-09, while planning two concurrent Errand sessions in one
+  primary.
+
 ### `[ ]` **Reconcile provably self-produced post-seed drift without weakening recovery**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); captured during a live RED/GREEN marker race.
@@ -233,6 +267,31 @@
   liveness gate, durable locus record, or trust bypass.
 
 - _Captured during:_ the `noop-json-flag-retirement` errand, PR #652, 2026-09-18.
+
+### `[ ]` **Gate post-compaction recovery on the primary session only, in both harnesses**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Design 1. Forcing function — a PreToolUse recovery gate (core); the buffer entry "Re-assert
+  post-compaction recovery on Claude Code until it is discharged"; and the open Codex question in § Unknowns
+  and Assumptions, which this answers.
+
+- _Observation:_ hooks run inside subagents in both supported harnesses, and the hook stdin carries the parent's
+  `session_id` there. Only `agent_id` and `agent_type` mark a subagent; a primary session's payload has neither.
+  Claude Code documents this for tool events, and its `SessionStart` does not fire for subagents. Codex's hooks
+  source carries the same optional subagent context, and third-party probes on 0.147.0 and 0.160.0 confirm it. A
+  `PreToolUse` recovery gate or Claude re-assertion keyed only on `session_id` would therefore block or re-instruct
+  every delegated subagent of a compacted session.
+
+- _Observation:_ the draft's open research question is answered: Codex exposes a blocking `PreToolUse`, denying
+  through `permissionDecision: "deny"` or exit code 2, so the universal gate needs no other Codex primitive.
+
+- _Approach:_ reuse the subagent predicate the hook guard Errand introduces (`agent_id` present → subagent) in the
+  gate and any re-assertion channel, so enforcement binds only the session that compacted. Re-verify the field on
+  the harness versions the gate targets.
+
+- _Captured during:_ the subagent recovery research for the post-compaction injection Errand, 2026-10-08 (Codex
+  0.160.1, Claude Code 2.1.294 installed).
 
 ## Problem / Motivation
 

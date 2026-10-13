@@ -22,7 +22,7 @@ import type {
 } from "../direct-retirement-driver.js";
 import { validateManagedPath } from "../../kernel/canonical/managed-path.js";
 import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../transition-record.js";
+import { LineageRecordSchema, type LineageRecord } from "../../store/kinds/lineage/index.js";
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
@@ -190,7 +190,7 @@ async function runTrackedRename(
 
   const snapshot = await ctx.retirement.authority.readSnapshot(source.scope);
   if (snapshot.status === "refused") {
-    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.reason}` };
+    return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.diagnostic ?? snapshot.reason}` };
   }
 
   let readinessAdvisory: string | undefined;
@@ -210,13 +210,13 @@ async function runTrackedRename(
     return { status: "rejected", reason: `rename conservation failed: ${errorMessage(error)}` };
   }
 
-  const transitionRecord: TransitionRecord = {
-    schemaVersion: 1,
-    origin: plan.sourceSlug,
+  const transitionRecord: LineageRecord = LineageRecordSchema.parse({
+    schemaVersion: 2,
+    origin: { name: plan.sourceSlug },
     kind: "rename",
-    successors: [plan.targetSlug],
-    edges: [],
-  };
+    successors: [{ name: plan.targetSlug }],
+    incoming: [],
+  });
   const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
   if (transitionRecorded.status !== "recorded") {
     const rollback = await ctx.retirement.rollbackRefusedCommit(source);

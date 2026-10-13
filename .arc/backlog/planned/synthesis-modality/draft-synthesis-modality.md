@@ -79,7 +79,7 @@ unchanged.
 ## Three modalities
 
 | Modality      | Synthesis activity                                                                               | Best for                                                                         |
-|---------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| ------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | **Document**  | Iterate `draft-*` through collaborative refinement passes (`draft-design`)                       | Conceptual unknowns; integration shape known; "do I understand the problem?"     |
 | **Prototype** | Build bounded code spikes, capture learnings between iterations (`refine-prototype-loop`)        | Empirical unknowns; integration shape unclear; "will this work the way I think?" |
 | **Hybrid**    | Spikes inform document iteration; planning flips loop per pass based on next unknown's character | Most genuinely novel work — mix of conceptual and empirical unknowns             |
@@ -151,7 +151,7 @@ suggestion rather than switching silently — same posture as depth-selection mi
 Three canonical stances for spike code:
 
 | Disposition             | When it applies                                                               | Mechanics                                                                                                             |
-|-------------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| ----------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | **Throwaway** (default) | Empirical question answered; code's value was the learning                    | Code dropped at the `graduation-cleanup` ceremony; learnings preserved in `draft-*` findings + ADRs                   |
 | **Evolutionary**        | Spike code has validated value AND a stabilization contract is committed      | Code carries into implementation; stabilization contract enumerates refactoring + tests + docs requirements pre-merge |
 | **Reference**           | Spike's investigation path itself has documentation value beyond the decision | Code archived on a non-merging branch or tag; main implementation rewritten fresh                                     |
@@ -169,7 +169,7 @@ This default actively prevents **spike calcification** (spike code drifts into p
 Spike learnings flow through ARC's existing artifact surfaces, depth-dependent:
 
 | Depth    | Capture pipeline                                                                                                     |
-|----------|----------------------------------------------------------------------------------------------------------------------|
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
 | Minimum  | Spike findings → ADRs (for significant decisions); spec written directly from learnings; no `draft-*`                |
 | Standard | Spike findings → `draft-*` findings section + ADRs for significant decisions; `draft-*` graduates to spec normally   |
 | Expanded | Spike findings → `draft-*` (promoted structure with findings register) + ADRs; per-spike pointer for loop continuity |

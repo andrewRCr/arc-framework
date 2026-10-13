@@ -3,12 +3,14 @@
  */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_PROMPTS, initInTempRepo } from "../../helpers/integration.js";
+import { runScript } from "../../helpers/run-script.js";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -72,6 +74,97 @@ describe("verify-integrity.sh", () => {
       tmpDir = undefined;
     }
   });
+
+  it.each([
+    ["none", false],
+    ["none", true],
+    ["external", false],
+    ["external", true],
+    ["arc-in-git", false],
+    ["arc-in-git", true],
+  ] as const)("reports a completely clean fresh install for pm=%s, team=%s", async (pm_mode, team_mode) => {
+    tmpDir = await initInTempRepo({ ...DEFAULT_PROMPTS, pm_mode, team_mode });
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.stdout).not.toMatch(/^ERROR |^WARN /m);
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Integrity check: all clear");
+  }, 30_000);
+
+  it.each([
+    "strategy-work-organization.md",
+    "strategy-planning-module.md",
+    "strategy-team-coordination.md",
+  ])("still reports a missing installed strategy: %s", async (strategy) => {
+    tmpDir = await initInTempRepo({ ...DEFAULT_PROMPTS, pm_mode: "arc-in-git", team_mode: true });
+    await rm(join(tmpDir, ".arc/reference/strategies/arc", strategy));
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout).toContain(`ERROR Strategy indexed but file missing: arc/${strategy}`);
+  }, 30_000);
+
+  it("retains manifest expectations when the current mode changes", async () => {
+    tmpDir = await initInTempRepo({ ...DEFAULT_PROMPTS, pm_mode: "arc-in-git", team_mode: true });
+    const configPath = join(tmpDir, ".arc/system/arc-config.yml");
+    const config = await readFile(configPath, "utf-8");
+    await writeFile(configPath, config
+      .replace("pm.mode: arc-in-git", "pm.mode: none")
+      .replace("team.mode: true", "team.mode: false"));
+    for (const strategy of ["strategy-planning-module.md", "strategy-team-coordination.md"]) {
+      await rm(join(tmpDir, ".arc/reference/strategies/arc", strategy));
+    }
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout).toContain("ERROR Strategy indexed but file missing: arc/strategy-planning-module.md");
+    expect(result.stdout).toContain("ERROR Strategy indexed but file missing: arc/strategy-team-coordination.md");
+  }, 30_000);
+
+  it("requires newly enabled mode strategies even when the manifest excludes them", async () => {
+    tmpDir = await initInTempRepo(DEFAULT_PROMPTS);
+    const configPath = join(tmpDir, ".arc/system/arc-config.yml");
+    const config = await readFile(configPath, "utf-8");
+    await writeFile(configPath, config
+      .replace("pm.mode: none", "pm.mode: arc-in-git")
+      .replace("team.mode: false", "team.mode: true"));
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout).toContain("ERROR Strategy indexed but file missing: arc/strategy-planning-module.md");
+    expect(result.stdout).toContain("ERROR Strategy indexed but file missing: arc/strategy-team-coordination.md");
+  }, 30_000);
+
+  it("uses the active modes when an installation has no manifest", async () => {
+    tmpDir = await initInTempRepo(DEFAULT_PROMPTS);
+    await rm(join(tmpDir, ".arc/system/.internal/manifest.json"));
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Integrity check: all clear");
+  }, 30_000);
+
+  it.each(["{", '{"files":null}'])("reports an unreadable manifest instead of a clean result: %s", async (contents) => {
+    tmpDir = await initInTempRepo(DEFAULT_PROMPTS);
+    await writeFile(join(tmpDir, ".arc/system/.internal/manifest.json"), contents);
+    const result = await runScript(join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh"), [], {
+      cwd: tmpDir,
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout).toContain("ERROR Could not read installed strategy inventory from manifest");
+  }, 30_000);
 
   it("flags lifecycle metas missing the closing metadata rule", async () => {
     tmpDir = await mkdtemp(join(tmpdir(), "arc-verify-integrity-"));

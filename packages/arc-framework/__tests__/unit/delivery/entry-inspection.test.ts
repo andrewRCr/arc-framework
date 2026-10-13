@@ -7,10 +7,8 @@ import {
   inspectDeliveryReopen,
   selectOutstandingNonTerminalDeliveryMember,
 } from "../../../src/lib/delivery/entry-inspection.js";
-import {
-  DELIVERY_PLAN_START_SENTINEL,
-  renderDeliveryPlanSection,
-} from "../../../src/lib/delivery/task-list-render.js";
+import { renderDeliveryPlanSection } from "../../../src/lib/delivery/task-list-render.js";
+import { DELIVERY_PLAN_START_SENTINEL } from "../../../src/lib/store/kinds/task-list/index.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
@@ -772,9 +770,9 @@ describe("delivery entry inspection", () => {
         selectedDeliverableId,
         verification: {
           memberDeliverableIds,
-          tier1Required: true,
+          commitGateRequired: true,
           target: { head: terminal.head, tree: terminal.tree },
-          tier1ReuseCriteria: {
+          commitGateReuseCriteria: {
             kind: "exact-tree",
             targetTree: terminal.tree,
             requiredResult: "passed",

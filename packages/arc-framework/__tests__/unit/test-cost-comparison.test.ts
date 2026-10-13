@@ -7,7 +7,7 @@ import type { RetainedTestCostRun } from "../../src/lib/test-cost/run.js";
 
 function run(valueMs: number, workerSizing: string = "12"): RetainedTestCostRun {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     outcome: "passed",
     unhandledErrorCount: 0,
     capturedAt: "2026-09-11T00:00:00.000Z",
@@ -65,6 +65,23 @@ describe("analyzeRetainedTestCost", () => {
         },
       },
     });
+  });
+
+  it("refuses old-protocol groups for levers and sweeps and resumes with new samples", () => {
+    const current = run(100);
+    const previous = { ...current, schemaVersion: 4 } as unknown as RetainedTestCostRun;
+    expect(() => analyzeRetainedTestCost({ kind: "lever", before: [previous], after: [run(80)] }))
+      .toThrow(/warm-run.*schema 5.*benchmark:test-cost/u);
+    expect(() => analyzeRetainedTestCost({ kind: "lever", before: [current], after: [previous] }))
+      .toThrow(/warm-run.*schema 5.*benchmark:test-cost/u);
+    expect(() => analyzeRetainedTestCost({ kind: "sizing-sweep", groups: [[previous], [run(80, "6")]] }))
+      .toThrow(/warm-run.*schema 5.*benchmark:test-cost/u);
+    expect(analyzeRetainedTestCost({ kind: "lever", before: [current], after: [run(80)] }))
+      .toMatchObject({ comparison: { kind: "measured", wallClockMs: { deltaMs: -20 } } });
+    expect(analyzeRetainedTestCost({ kind: "sizing-sweep", groups: [[current], [run(80, "6")]] }))
+      .toMatchObject({ kind: "sizing-sweep", wallClockMs: { points: [
+        { valueMs: 100 }, { valueMs: 80, deltaFromFirst: { deltaMs: -20 } },
+      ] } });
   });
 
   it("refuses a lever whose normalized modes differ", () => {

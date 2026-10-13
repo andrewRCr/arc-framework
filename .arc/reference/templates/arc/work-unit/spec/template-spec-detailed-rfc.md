@@ -2,8 +2,8 @@
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-- **Purpose:** {One- to three-line north-star summary of the WU's intent — distilled "what + why," not framing
-  prose. Body sections carry the full context.}
+- **Purpose:** {One- to three-line north-star summary of the WU's intent, opening with a one-sentence thesis.
+  Distilled "what + why," not framing prose; body sections carry the full context.}
 
 ---
 
@@ -38,7 +38,7 @@ What the design must achieve — the outcomes a correct design satisfies. Focus 
 
 ## Non-Goals · `omit-when-paired`
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 What this design explicitly won't address. Bounds the design space and the review.
 

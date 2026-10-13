@@ -10,7 +10,7 @@ import { resolveArcPath } from "../../../src/lib/layout/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { serializeCandidateManagedRecord, createCandidateAttestation } from "../../../src/lib/work-unit/candidate-attestation.js";
-import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
+import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { parseIntegrationBoundaryLocus } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { makeMetaFixture } from "../meta-fixture.js";
 import { candidateFixture, boundaryFixture } from "./tracked-write-fixture.js";
@@ -43,7 +43,7 @@ export function inRepoContent(reference: RecordReference, variant = "valid"): st
     boundary.nextAction.interactionText = `Run pre-publication review ${value}.`;
     return canonicalize(parseIntegrationBoundaryLocus(boundary));
   }
-  if (reference.kind === "lineage/transition") return serializeTransitionRecord({ schemaVersion: 1, origin: name, kind: "abandon", successors: [], edges: [] });
+  if (reference.kind === "lineage/transition") return writeLineageRecord({ schemaVersion: 2, origin: { name: name }, kind: "abandon", successors: [], incoming: [] });
   if (reference.kind === "project-inbox/inbox") return `# Inbox\n\n## Inbox\n\n### **First**\n\nLegacy content ${value}\n`;
   return `opening\n${value === 1 ? "base" : value === 2 ? "changed" : "another change"}\nclosing\n`;
 }

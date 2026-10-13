@@ -101,6 +101,7 @@ interface SessionInitEnvelope {
     };
   };
   domainRules?: unknown;
+  hooksPath?: { ok: boolean; value?: Record<string, unknown> };
   recommendedCombinedPrompt?: unknown;
   active: {
     ok: boolean;
@@ -334,9 +335,10 @@ async function writeUserReferenceStatusFixture(
   const lines: string[] = [
     `# Metadata: ${stem}`,
     "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    `- **Branch:** ${category}/${stem}`,
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| Active | test-user | ${category}/${stem} | — | — |`,
+    "",
   ];
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
@@ -345,6 +347,7 @@ async function writeUserReferenceStatusFixture(
   lines.push("- **Current Workflow:** [none]");
   lines.push("- **Last Completed:** [none]");
   lines.push(`- **Next Action:** ${fields.nextAction}`);
+  lines.push("", "---", "");
   await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
 
@@ -459,6 +462,30 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.errandState?.value?.warnings).not.toContain(
       "Errand record `valid-v3` is malformed.",
     );
+  });
+
+  it("names a configured hooks path the checkout lacks, and goes quiet once it exists", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["config", "core.hooksPath", ".unprovisioned-hooks"]);
+
+    const missing = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(missing.exitCode).toBe(0);
+    expect(parseJsonEnvelope(missing.stdout).hooksPath).toEqual({
+      ok: true,
+      value: {
+        recommendedAction: "surface",
+        configured: ".unprovisioned-hooks",
+        resolvedPath: join(await realpath(tmpDir), ".unprovisioned-hooks"),
+        recommendedPromptText: expect.stringContaining("runs no hooks"),
+      },
+    });
+
+    await mkdir(join(tmpDir, ".unprovisioned-hooks"));
+    const provisioned = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(parseJsonEnvelope(provisioned.stdout).hooksPath).toEqual({
+      ok: true, value: { recommendedAction: "none" },
+    });
   });
 
   it("does not invent a planning session from a branch-shaped unoccupied checkout", async () => {
@@ -1670,7 +1697,16 @@ describe("session-init E2E — current detached husk advisory", () => {
       const completedDir = join(repo, ".arc", "completed", "2026-q3", "shipped-widget");
       const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
       await mkdir(completedDir, { recursive: true });
-      await writeFile(join(repo, completedPath), "# Metadata: shipped-widget\n");
+      await writeFile(join(repo, completedPath), [
+        "# Metadata: shipped-widget",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| Shipped | — | — | — | — |",
+        "",
+        "---",
+        "",
+      ].join("\n"));
       await git(repo, ["add", completedPath]);
       await git(repo, ["commit", "-m", "record shipped widget"]);
       await git(repo, ["push", "-u", "origin", "main"]);

@@ -121,4 +121,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+The CLI and this repository are licensed under the Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+The methodology content that `arc init` and `arc update` install into your project — `packages/arc-framework/arc/`
+and `packages/arc-framework/templates/` — is licensed under MIT No Attribution (MIT-0); see
+[LICENSE-CONTENT](LICENSE-CONTENT). Your installed copy is yours to edit and republish without carrying a license
+notice.

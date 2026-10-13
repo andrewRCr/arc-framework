@@ -37,7 +37,7 @@ describe("repository fixture existing sync behavior", () => {
     }
   });
 
-  it("conflicts after only the remote edits an existing transient entry", async () => {
+  it("reconciles after only the remote edits an existing transient entry", async () => {
     const fixture = await createInRepoFixture();
     const remote = fixture.remote(true);
     if (!remote) throw new Error("Expected an actual remote store");
@@ -45,8 +45,8 @@ describe("repository fixture existing sync behavior", () => {
     const base = success(await remote.read({ reference: local.reference }));
     const changed = fixture.content(local.reference, "changed");
     success(await remote.write(update(fixture, base, changed)));
-    expect(success(await fixture.store.sync()).publishes[1]).toMatchObject({ status: "conflict", families: ["work-item", "claims"], condition: expect.stringContaining(local.reference.owner.name) });
-    expect(success(await fixture.store.read({ reference: local.reference })).content).toBe(local.content);
+    expect(success(await fixture.store.sync()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"] });
+    expect(success(await fixture.store.read({ reference: local.reference })).content).toBe(changed);
     expect(success(await remote.read({ reference: local.reference })).content).toBe(changed);
   });
 

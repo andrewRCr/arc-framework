@@ -188,17 +188,6 @@ describe("makeWorktreeOccupancyGuard", () => {
     });
     expect(await guard(guardCtx(index, "demo", inPlaceInputs("feat/demo")))).toEqual({ ok: true });
   });
-
-  it("treats a lite-layout same-branch candidate as the target, not a collision (in-place)", async () => {
-    const guard = makeWorktreeOccupancyGuard({
-      cwd: "/repo",
-      readActiveMetaCandidates: fakeReader([
-        candidate({ path: ".arc/active/status.md", filename: "status.md", branch: "plan/demo" }),
-      ]),
-    });
-    // The re-attach takes `plan/demo`; the lite candidate backs the same branch.
-    expect(await guard(guardCtx(index, "demo", inPlaceInputs("plan/demo")))).toEqual({ ok: true });
-  });
 });
 
 describe("makeWorktreeCleanGuard", () => {

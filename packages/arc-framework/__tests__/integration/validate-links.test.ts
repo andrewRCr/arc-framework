@@ -281,4 +281,54 @@ describe("validate-links.sh", () => {
     expect(r.stderr).toContain("missing-one.md");
     expect(r.stderr).toContain("missing-two.md");
   });
+
+  it("refuses a relative link in a movable artifact even when its target exists", async () => {
+    const dir = join(tmp, "case-movable-inline");
+    await writeFixture(dir, ".arc/reference/guide.md", "# Guide\n");
+    await writeFixture(dir, ".arc/active/meta-example.md", "See [the guide](../reference/guide.md).\n");
+    const r = await runScript(dir, [".arc/active/meta-example.md"]);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain(
+      ".arc/active/meta-example.md: relative link in movable artifact -> ../reference/guide.md",
+    );
+  });
+
+  it.each(["draft", "spec", "tasks", "notes", "cohort", "research", "analysis"])(
+    "refuses a relative reference definition in a nested backlog %s artifact",
+    async (kind) => {
+      const dir = join(tmp, `case-movable-${kind}`);
+      const source = `.arc/backlog/planned/group/item/${kind}-example.md`;
+      await writeFixture(dir, ".arc/README.md", "# ARC\n");
+      await writeFixture(dir, source, "See [the index][index].\n\n[index]: ../../../../README.md\n");
+      const r = await runScript(dir, [source]);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toContain(`${source}: relative link in movable artifact -> ../../../../README.md`);
+    },
+  );
+
+  it("allows external and in-file links in a movable artifact", async () => {
+    const dir = join(tmp, "case-movable-allowed");
+    await writeFixture(
+      dir,
+      ".arc/active/draft-example.md",
+      "See [the docs](https://example.com) and [below](#below).\n\n## Below\n",
+    );
+    const r = await runScript(dir, [".arc/active/draft-example.md"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  it("leaves relative links alone outside the lifecycle directories", async () => {
+    const dir = join(tmp, "case-movable-stable");
+    await writeFixture(dir, ".arc/system/rules.md", "# Rules\n");
+    await writeFixture(dir, ".arc/reference/guide.md", "See [the rules](../system/rules.md).\n");
+    await writeFixture(dir, "docs/meta-overview.md", "See [the rules](../.arc/system/rules.md).\n");
+    await writeFixture(dir, "docs/active/notes-release.md", "See [the rules](../../.arc/system/rules.md).\n");
+    await writeFixture(dir, ".arc/backlog/ROADMAP.md", "See [the rules](../system/rules.md).\n");
+    const r = await runScript(dir, [
+      ".arc/reference/guide.md", "docs/meta-overview.md", "docs/active/notes-release.md", ".arc/backlog/ROADMAP.md",
+    ]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
 });

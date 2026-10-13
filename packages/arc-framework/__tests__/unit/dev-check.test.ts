@@ -27,7 +27,7 @@ function deps(overrides: Partial<DevCheckDeps>): DevCheckDeps {
     newestSrc: () => null,
     distMtimeMs: () => null,
     now: () => 1_000_000_000_000,
-    runtimeQualified: () => false,
+    runtimeQualification: () => ({ status: "unqualified", reason: "Build input identity does not match." }),
     ...overrides,
   };
 }
@@ -77,6 +77,7 @@ describe("checkDevBuildStaleness", () => {
     expect(result).toEqual({
       kind: "stale",
       basis: "content-hash",
+      qualificationReason: "Build input identity does not match.",
       srcAge: 12,
       distAge: 7200,
       newestSrc: "src/lib/foo.ts",
@@ -103,7 +104,7 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/lib/foo.ts" }),
         distMtimeMs: () => NOW - 7_200_000,
         now: () => NOW,
-        runtimeQualified: () => true,
+        runtimeQualification: () => ({ status: "qualified" }),
       }),
     );
 
@@ -118,13 +119,14 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
         distMtimeMs: () => NOW - 60_000,
         now: () => NOW,
-        runtimeQualified: () => false,
+        runtimeQualification: () => ({ status: "unqualified", reason: "Build input identity does not match." }),
       }),
     );
 
     expect(result).toEqual({
       kind: "stale",
       basis: "content-hash",
+      qualificationReason: "Build input identity does not match.",
       srcAge: 600,
       distAge: 60,
       newestSrc: "src/cli.ts",
@@ -135,7 +137,7 @@ describe("checkDevBuildStaleness", () => {
     expect(checkDevBuildStaleness(deps({
       newestSrc: () => ({ mtimeMs: NOW + 10_000, path: "src/cli.ts" }),
       distMtimeMs: () => NOW - 60_000,
-      runtimeQualified: () => true,
+      runtimeQualification: () => ({ status: "qualified" }),
     }))).toEqual({ kind: "fresh" });
   });
 });
@@ -144,6 +146,7 @@ describe("refreshStaleDevBuild", () => {
   const stale = {
     kind: "stale" as const,
     basis: "content-hash" as const,
+    qualificationReason: "Build input identity does not match.",
     srcAge: 1,
     distAge: 10,
     newestSrc: "src/cli.ts",

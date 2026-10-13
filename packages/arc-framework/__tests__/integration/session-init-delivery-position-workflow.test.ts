@@ -51,7 +51,7 @@ describe("session-init delivery-position workflow", () => {
   it.each(WORKFLOWS)("renders only the CLI-precomposed line in %s", async (path) => {
     const content = await readFile(path, "utf8");
 
-    expect(content).toContain("`deliveryPosition.value.line` verbatim exactly once");
+    expect(content).toMatch(softWrappedProse("`deliveryPosition.value.line` verbatim exactly once"));
     expect(content).toMatch(softWrappedProse("Do not re-read delivery state or derive coordinates, counts,"));
     expect(content).toMatch(softWrappedProse("Omit an `ok + null` slot"));
   });

@@ -86,7 +86,7 @@ Three design choices shape the skill, validated through pre-planning iteration:
    risks unintended over-add ratchet.
 
 3. **Skill carries the routing decision; workflow carries procedural scaffolding.** Mirrors the
-   [arc-commit][arc-commit] / [prepare-commits][prepare-commits] split. Skill is genuinely useful
+   arc-commit / prepare-commits split. Skill is genuinely useful
    in isolation for simple cases (single artifact, obvious destination); workflow loads only when
    the chosen destination requires multi-step execution that doesn't fit inline.
 
@@ -100,11 +100,11 @@ lists.
 
 ### Axis 1 — Scope
 
-| Value     | Meaning                                                | Shipped | Dev |
-|-----------|--------------------------------------------------------|---------|-----|
-| framework | Ships to all adopters via package source               | —       | ✓   |
-| project   | This adopter only; lives in `.arc/`                    | ✓       | ✓   |
-| personal  | Per-developer; gitignored under `user/{identity}/`     | ✓       | ✓   |
+| Value     | Meaning                                            | Shipped | Dev |
+| --------- | -------------------------------------------------- | ------- | --- |
+| framework | Ships to all adopters via package source           | —       | ✓   |
+| project   | This adopter only; lives in `.arc/`                | ✓       | ✓   |
+| personal  | Per-developer; gitignored under `user/{identity}/` | ✓       | ✓   |
 
 Shipped `arc-reinforce` constrains Axis 1 to `{project, personal}`. Dev variant
 `arc-reinforce-dev` adds `framework`, plus the package-sync workflow handoff trigger that fires
@@ -112,19 +112,19 @@ when framework × any × durable lands.
 
 ### Axis 2 — Form
 
-| Value     | Meaning                                          | Anchor destinations                        |
-|-----------|--------------------------------------------------|--------------------------------------------|
-| rule      | Constraint on what to do or avoid                | DEV-RULES.{ARC,PROJECT,DOMAIN}             |
-| procedure | Sequence of steps                                | system/project workflows                   |
-| reference | Stable fact about what something is or where     | AGENT-BRIEF.{ARC,PROJECT}, QUICK-REFERENCE |
-| trigger   | When/where a behavior fires                      | method override, extension activation      |
+| Value     | Meaning                                      | Anchor destinations                        |
+| --------- | -------------------------------------------- | ------------------------------------------ |
+| rule      | Constraint on what to do or avoid            | DEV-RULES.{ARC,PROJECT,DOMAIN}             |
+| procedure | Sequence of steps                            | system/project workflows                   |
+| reference | Stable fact about what something is or where | AGENT-BRIEF.{ARC,PROJECT}, QUICK-REFERENCE |
+| trigger   | When/where a behavior fires                  | method override, extension activation      |
 
 ### Axis 3 — Persistence
 
-| Value     | Meaning                                          | Implication                              |
-|-----------|--------------------------------------------------|------------------------------------------|
-| durable   | Lives until superseded by future change          | Default for codified guidance            |
-| temporary | Active for bounded period, with removal trigger  | SESSION-NOTES persistent context entry   |
+| Value     | Meaning                                         | Implication                            |
+| --------- | ----------------------------------------------- | -------------------------------------- |
+| durable   | Lives until superseded by future change         | Default for codified guidance          |
+| temporary | Active for bounded period, with removal trigger | SESSION-NOTES persistent context entry |
 
 Personal × temporary always lands as a SESSION-NOTES persistent context entry with explicit
 removal trigger (by definition of the section).
@@ -260,7 +260,7 @@ skill.
 - **Multi-destination orchestration:** sequence for edits across multiple files (rule + cross-link
   from QUICK-REFERENCE; rule + supporting strategy doc; rule + workflow body).
 - **Package-sync workflow handoff:** when destination is framework-owned (dev variant only),
-  invoke existing package-sync discipline per [Package-Project Sync Strategy][package-sync].
+  invoke existing package-sync discipline per Package-Project Sync Strategy.
   Workflow handoff, not duplication.
 - **Method-override scaffolding:** patterns for when destination requires creating a project-level
   method override of a framework default. File path layout, frontmatter shape.
@@ -440,7 +440,3 @@ Small items deferred to PRD or implementation contact (not blockers for the plan
 - Documentation-hook placement and wording.
 
 ---
-
-[arc-commit]: ../../../system/.internal/skills/arc-commit/SKILL.md
-[prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
-[package-sync]: ../../../reference/strategies/project/strategy-package-project-sync.md

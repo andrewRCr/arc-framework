@@ -114,6 +114,7 @@ export interface InitOptions {
 
 /** Result from a successful init run. */
 export interface InitResult {
+  hookSetupMessages?: string[];
   filesWritten: string[];
   tools: string[];
   team_mode: boolean;
@@ -256,7 +257,7 @@ export async function runInit(
     await applyExecutableInstallPermissions(arcDir, filesWritten, io.chmod);
 
     // Git integration (hooks path)
-    await configureGitIntegration({
+    const hookSetupMessages = await configureGitIntegration({
       cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
       enableRoadmapConflictRemedy: prompts.pm_mode === "arc-in-git",
     });
@@ -293,6 +294,7 @@ export async function runInit(
     });
 
     return {
+      ...(hookSetupMessages.length > 0 ? { hookSetupMessages } : {}),
       filesWritten,
       tools: prompts.tools,
       team_mode: prompts.team_mode,
@@ -327,6 +329,7 @@ export function buildPostInitMessage(result: InitResult): string {
 
   const fileCount = result.filesWritten.length;
   lines.push(`ARC installed in .arc/ (${fileCount} ${fileCount === 1 ? "file" : "files"})`);
+  for (const message of result.hookSetupMessages ?? []) lines.push("", message);
 
   if (result.tools.length > 0) {
     lines.push("");

@@ -10,7 +10,7 @@ import { parseExtensionFrontmatter } from "../../../src/lib/frontmatter/extensio
 
 const validExtension = [
   "---",
-  "name: post-task-quality",
+  "name: post-task-completion",
   "description: Additional quality checks after each task",
   "active: false",
   "---",
@@ -19,10 +19,10 @@ const validExtension = [
 
 describe("parseExtensionFrontmatter", () => {
   it("returns the typed frontmatter with no errors when all fields are valid", () => {
-    const result = parseExtensionFrontmatter(validExtension, "post-task-quality");
+    const result = parseExtensionFrontmatter(validExtension, "post-task-completion");
     expect(result.errors).toEqual([]);
     expect(result.frontmatter).toEqual({
-      name: "post-task-quality",
+      name: "post-task-completion",
       description: "Additional quality checks after each task",
       active: false,
     });
@@ -34,14 +34,14 @@ describe("parseExtensionFrontmatter", () => {
       "name: pre-merge",
       "description: Review ceremony",
       "related:",
-      "  - post-task-quality",
+      "  - post-task-completion",
       "active: true",
       "---",
       "",
     ].join("\n");
     const result = parseExtensionFrontmatter(content, "pre-merge");
     expect(result.errors).toEqual([]);
-    expect(result.frontmatter?.related).toEqual(["post-task-quality"]);
+    expect(result.frontmatter?.related).toEqual(["post-task-completion"]);
   });
 
   it("reports missing-field diagnostics for each required field", () => {
@@ -73,7 +73,7 @@ describe("parseExtensionFrontmatter", () => {
       "override-active: false",
     ].join("\n"));
 
-    expect(parseExtensionFrontmatter(content, "post-task-quality").errors)
+    expect(parseExtensionFrontmatter(content, "post-task-completion").errors)
       .toContain("unknown frontmatter field `override-active`");
   });
 
@@ -82,7 +82,7 @@ describe("parseExtensionFrontmatter", () => {
       "---",
       "name: example",
       "description: Example",
-      "related: post-task-quality",
+      "related: post-task-completion",
       "active: false",
       "---",
       "",
@@ -95,7 +95,7 @@ describe("parseExtensionFrontmatter", () => {
   it("rejects `name` that does not match the file basename", () => {
     const content = [
       "---",
-      "name: post-task-quality",
+      "name: post-task-completion",
       "description: Example",
       "active: false",
       "---",

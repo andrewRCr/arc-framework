@@ -95,15 +95,15 @@ member closeout. Dispatch only on the typed result:
 - `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
   result stop before gate execution.
 
-No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
-selection for the calling pre-publication review. This recheck governs the current materialization only; later target
-movement requires another exact check.
+No member push-gate request starts until every exact member target has a closed result and disposition. Retain each
+exact-target selection for the calling pre-publication review. This recheck governs the current materialization only;
+later target movement requires another exact check.
 
 ```bash
 arc delivery eligibility prepare -
 ```
 
-Run the complete Tier 2 command set in every returned checkout. For each zero-exit run, report one result in the
+Request `arc check gate push --all` in every returned checkout. For each zero-exit run, report one result in the
 returned member order, bound to that member's exact coordinates:
 
 ```json
@@ -161,7 +161,7 @@ arc delivery publish -
 ```
 
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
-work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact Tier 2 result
+work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact push-gate result
 admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts
 every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and
 ordinary top-branch push, then
@@ -370,8 +370,10 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
-second call:
+then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
+structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
+without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
+approved set through a second call:
 
 ```bash
 arc review respond -
@@ -417,7 +419,10 @@ hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
 that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
 action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
-release the draft lock.
+release the draft lock. Before any push that moves the reviewed head while this action is pending, including a fix for a
+failure this observation found, re-enter the action through hosted await until it concludes and handle its result first,
+so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives
+up that result.
 
 Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
 finding settlement, execute the returned settlement plan in phase order through:
@@ -740,14 +745,14 @@ conflict route remain authoritative.
 continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
 `memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
 conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
-arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind Tier 1 to
-`verification.target`. Rerun by default. Reuse is admissible only under `tier1ReuseCriteria` when
-an existing passed result names exactly `targetTree` and every covered input is unchanged; inconclusive evidence
-reruns the tier.
+arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind
+`arc check gate commit --all --force` to `verification.target` in its own checkout. Rerun by default. Reuse is
+admissible only under `commitGateReuseCriteria` when an existing passed result names exactly `targetTree` and every covered
+input is unchanged; inconclusive evidence reruns the commit gate.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
 describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the
-member-criteria and Tier 1 results, and records Tier 1 as passed with `provenance: rerun` or
+member-criteria and commit-gate results, and records the commit gate as passed with `provenance: rerun` or
 `provenance: exact-tree-reuse`. The reuse arm also records `coveredInputs: unchanged`; both arms echo the exact target
 tree. This is verification evidence for the exact correction delta, not a review verdict or signal-convergence
 decision.
@@ -803,3 +808,4 @@ terminal merge. Do not fire a delivery interlock here.
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [validate-criteria]: ../../../methods/validate-criteria.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

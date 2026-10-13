@@ -8,7 +8,7 @@
 
 import { fileURLToPath } from "node:url";
 
-import { Command, Option } from "commander";
+import { Command, CommanderError, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
@@ -20,6 +20,7 @@ import {
 } from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { isDecomposeMachineReadableInvocation } from "./lib/work-unit/decompose-command-routing.js";
+import { throwCheckParserResult, writeCheckParserDiagnostic } from "./lib/checks/usage.js";
 import type { InitOptions } from "./handlers/init.js";
 import type { JoinOptions } from "./handlers/join.js";
 import type { StartOptions } from "./handlers/start.js";
@@ -71,6 +72,7 @@ import type {
 import type { DecomposeOptions } from "./handlers/decompose.js";
 import type { AttestOptions } from "./handlers/lifecycle-delivery-review.js";
 import type {
+  UserInboxListCommandOptions,
   UserInboxRemoveOptions,
   UserReconcileReferencesOptions,
   UserPushOptions,
@@ -130,7 +132,127 @@ program
 
 const checkCmd = program
   .command("check")
-  .description("Run standalone repository checks");
+  .description("Run standalone repository checks")
+  .configureOutput({ writeErr: writeCheckParserDiagnostic })
+  .exitOverride(throwCheckParserResult);
+
+checkCmd
+  .command("run")
+  .description("Run declared checks by id")
+  .argument("<ids...>", "Declared check identifiers")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, ids: string[], opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckRun(ids, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("gate")
+  .description("Run a declared check gate")
+  .argument("<gate>", "commit, push, or merge")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .option("--staged", "Check the index against HEAD")
+  .option("--changed", "Check the staged worktree against HEAD")
+  .option("--range [base]", "Check the staged worktree from a base")
+  .option("--all", "Run every requested check")
+  .option("--paths <paths...>", "Check named repository-relative paths")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, gate: string, opts: import("./commands/check.js").CheckScopeOptions) => {
+      await (await import("./commands/check.js")).handleCheckGate(gate, opts, context);
+    },
+  ));
+
+checkCmd
+  .command("segment")
+  .description("Run checks over the unpublished segment")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckSegment(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("new-head")
+  .description("Run checks over a newly committed head")
+  .requiredOption("--from <ref>", "Earlier head to compare")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions & { from: string }) => {
+      await (await import("./commands/check.js")).handleCheckNewHead(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("increment")
+  .description("Run checks reached by the current increment")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .option("--ci", "Include CI-only checks and apply no fixes")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckIncrement(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("pre-commit")
+  .description("Run declared checks over the commit index")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPreCommit(opts, context);
+    },
+  ));
+
+checkCmd
+  .command("pre-push")
+  .description("Run declared checks over the checked-out branch's pushed range")
+  .argument("<remote>", "Pushed remote name, or empty under a hook manager")
+  .argument("<url>", "Pushed remote URL, or empty under a hook manager")
+  .option("--json", "Emit a versioned JSON envelope")
+  .option("--force", "Run selected checks without reusing passes")
+  .option("--dry-run", "Forecast checks without executing them")
+  .option("--serial", "Run checks one at a time")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, remote: string, url: string, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckPrePush(remote, url, opts, context);
+    },
+  ));
 
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
@@ -598,7 +720,7 @@ errand
 
 errand
   .command("check")
-  .description("Report which in-flight work units touch the target path(s) — advisory, never blocks")
+  .description("Report which in-flight work units and Errands touch the target path(s) — advisory, never blocks")
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
   .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
@@ -617,6 +739,7 @@ errand
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--isolate", "Always provision a transient worktree, leaving the primary free (full protection only)")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -1157,6 +1280,18 @@ userCmd
   ));
 
 userCmd
+  .command("inbox-list")
+  .description("List the inbox captures whose WU_Target names a work unit, held or not")
+  .requiredOption("--target <slug>", "Work unit slug the captures name")
+  .option("--json", "Emit the typed listing result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: UserInboxListCommandOptions) => {
+      await (await import("./handlers/user.js")).handleUserInboxList(opts, context);
+    },
+  ));
+
+userCmd
   .command("inbox-remove [slug]")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
@@ -1397,16 +1532,21 @@ program
   .description("View an artifact from the current ARC work context")
   .argument(
     "[kind]",
-    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox",
+    "Artifact kind: tasks | spec | draft | meta | design | notes | cohort | session-notes | working-memory | inbox",
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
-  .option("--path", "Print the artifact's absolute path instead of rendering it")
-  .option("-e, --editor", "Open the artifact's real file in the configured editor")
-  .option("--for <slug>", "Override ambient context with the named work-unit slug")
+  .option("--path", "Print the selected file's absolute path; refuse ref-only artifacts")
+  .option("-e, --editor", "Open the selected real file in the configured editor; refuse ref-only artifacts")
+  .option("--for <slug>", "Select a work unit's registered checkout or a ref this clone holds")
   .addHelpText("after", [
     "",
-    "Bare selection: tasks -> spec -> draft -> meta. Ordinary view renders the file.",
+    "Bare selection: tasks -> spec -> draft -> meta.",
+    "Ordinary view renders the selected copy.",
+    "--for reads a started work unit's registered checkout, including uncommitted",
+    "edits; otherwise it renders its selected ref. It reads only refs this clone",
+    "already holds. Without a registered checkout, --path and --editor refuse;",
+    "use rendering to read it.",
     "Editor handoff:",
     "  --editor / -e opens the same real absolute file as --path.",
     "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",
@@ -2207,6 +2347,10 @@ function formatCommandPath(cmd: Command): string {
 
 applyArcHelp(program);
 program.parseAsync().catch((err: unknown) => {
+  if (err instanceof CommanderError) {
+    process.exitCode = err.exitCode;
+    return;
+  }
   console.error(formatUnexpectedError(err));
   process.exitCode = 1;
 });

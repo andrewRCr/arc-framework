@@ -214,7 +214,15 @@ describe("base merge composition", () => {
         return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");
       }
       if (args[0] === "diff" && args.includes("--quiet")) return ok();
+      if (args[0] === "merge" && args[1] === "--abort") {
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
       if (args[0] === "commit") {
+        if (args.join(" ") !== "commit --no-edit --no-verify") {
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "commit gate failed" });
+        }
         state.head = oid("d");
         state.clean = true;
         state.merging = false;
@@ -320,5 +328,17 @@ describe("base merge composition", () => {
     expect(state).toEqual({
       head: oid("c"), mergeHead: oid("e"), clean: true, merging: false, remedied: true,
     });
+  });
+
+  it("lists every path the merge changed, read without rename pairing", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      calls.push([...args]);
+      return { stdout: "package-lock.json\0docs/a file.md\0", stderr: "" };
+    };
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
+      .changedPaths(oid("c"), oid("d")))
+      .resolves.toEqual(["package-lock.json", "docs/a file.md"]);
+    expect(calls).toEqual([["diff", "--name-only", "-z", "--no-renames", oid("c"), oid("d")]]);
   });
 });

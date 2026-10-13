@@ -1,12 +1,12 @@
-/** Backend-neutral hooks and named exclusions used by the sixteen-item conformance suite. */
+/** Backend-neutral hooks and named exclusions used by the seventeen-item conformance suite. */
 
 import type {
-  FamilyId, KindId, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
+  FamilyId, KindId, KindDefinition, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
   UnsupportedCase, WriteInput, WriteResult, EntryConfig, StoreRecord, WritePlacement,
 } from "../../../src/lib/store/index.js";
 
 /** The numbered contract item, kept stable across every backend fixture. */
-export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+export type SuiteItem = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 /** One refusal scenario; interim unsupported cases and missing identity have their own names. */
 export type RecoveryCaseId = Exclude<RefusalCode, "unsupported" | "not-found">
   | `unsupported:${UnsupportedCase}` | "not-found:name" | "not-found:identity"
@@ -24,7 +24,10 @@ export interface FamilyExclusions {
 /** Fixture facts belong to tests, rather than the production capability report. */
 export interface FixtureDeclarations {
   families: readonly FamilyId[];
+  /** Reason for each family left out of `families`; the suite reports every one as a named skip. */
+  unservedFamilies: Partial<Record<FamilyId, string>>;
   mergesConcurrentWrites: boolean;
+  runsWriteChecks: boolean;
   substrates: readonly string[];
   stateOffBranch: boolean;
   liveListingStateVersion: boolean;
@@ -67,5 +70,5 @@ export interface ConformanceFixture {
 /** Registration pairs static declarations with a fresh isolated fixture for each assertion. */
 export interface ConformanceRegistration {
   declarations: FixtureDeclarations;
-  create(): ConformanceFixture | Promise<ConformanceFixture>;
+  create(registryOverrides?: Partial<Record<KindId, Partial<KindDefinition>>>): ConformanceFixture | Promise<ConformanceFixture>;
 }

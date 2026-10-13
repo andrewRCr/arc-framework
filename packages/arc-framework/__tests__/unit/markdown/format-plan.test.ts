@@ -38,6 +38,8 @@ describe("explicit Markdown format planning", () => {
           "",
           "- **Cohort:** [none]",
           "",
+          "---",
+          "",
         ].join("\n"),
       ],
     ]);

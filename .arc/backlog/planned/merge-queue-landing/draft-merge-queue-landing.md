@@ -7,6 +7,47 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Fold Owner direction and the cost of repeated CI runs into merge-queue landing's design**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09). Re-grounded there: the capture's fixed-capacity
+  premise went with the self-hosted runners.
+
+- _Shapes:_ its Planning Seed entry "Land through a configured merge queue": which checks run on the merge group and
+  which on the head, and whether a green result carries across heads.
+
+- _Owner direction (2026-10-05):_ ARC should align with merge queues and compose with them without friction, as the
+  industry's answer to integration churn. The work comes after the storage cutover. The draft's "not urgent" reads
+  as timing only, not as doubt about whether the capability matters.
+
+- _Observation:_ PR #812 ran the full CI suite three times — its implementation, a warranted reconcile with
+  `storage-contract` (#810/#811: 266 files, one overlapping path), and a forced reconcile on #813 + #814, which shared
+  no path with it. The execute-bound Errand "Proceed on disjoint base movement while GitHub's test merge lags, instead
+  of forcing a reconcile" removes the forced case. A queue answers the overlapping case: it tests the projected base
+  once per change instead of having every branch chase `main`.
+
+- _Design questions to add:_
+    - Cost. GitHub's queue runs required checks on a `merge_group` event in addition to the pull-request head, so
+      without batching, or replacing the full head run (for example light checks on the head and the full suite on
+      the merge group), it adds a full run per change. CI now runs on GitHub-hosted runners in a public repository,
+      so the cost is wall time and landing latency rather than a fixed runner pool. Decide which checks run where,
+      and whether a green result on an identical code tree carries across heads; `scripts/classify-change.sh`'s
+      verified-tree lookback reuses results only within one pull request.
+    - `.github/workflows/ci.yml` has no `merge_group` trigger, and its required `ci-ok` roll-up (with `merge-ok` as a
+      thin compatibility alias) runs only on `pull_request` and pushes to `main`, so a queue here would wait on a
+      check that never reports.
+
+- _Retired at the drain:_ the capture's runner-capacity figures (about 26 runner-minutes per full run on two
+  self-hosted runners) and its settled-first priority question, both specific to that fixed pool.
+
+- _Captured during:_ the 2026-10-05 discussion of CI reruns after base movement and of contention between
+  concurrent landings.
+
+---
+
 ## Planning Seed
 
 ### `[ ]` **Land through a configured merge queue**

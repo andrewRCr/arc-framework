@@ -7,7 +7,7 @@
  * @module
  */
 
-import { mkdir as fsMkdir } from "node:fs/promises";
+import { appendFile, mkdir as fsMkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createGitExec } from "./io-context.js";
@@ -27,6 +27,9 @@ export { resolveProcessVisibilityScope } from "./lease-process.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
+
+/** Names the file where `arc check` collects lines to show beside a check's outcome and cost. */
+const CHECK_NOTICE_VARIABLE = "ARC_CHECK_NOTICE";
 
 /** Local tiers whose subprocess load must be admitted through the shared slot. */
 export type LocalHeavyTestTier =
@@ -71,6 +74,7 @@ interface LocalTestAdmissionDependencies {
     path: string,
     options?: AdvisoryLockOptions,
   ) => Promise<AdvisoryLockHandle>;
+  readonly appendNotice: (path: string, line: string) => Promise<void>;
   readonly git: GitExec;
   readonly mkdir: (path: string) => Promise<void>;
   readonly now: () => number;
@@ -91,6 +95,8 @@ interface LocalTestAdmissionDependencies {
 const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
   ...NATIVE_LEASE_PROCESS,
   acquireLock: acquireAdvisoryLock,
+  // A leading break keeps the line apart from one a runner wrote without its own; empty lines are dropped on read.
+  appendNotice: async (path, line) => { await appendFile(path, `\n${line}\n`); },
   git: createGitExec(),
   mkdir: async (path) => { await fsMkdir(path, { recursive: true, mode: 0o700 }); },
 };
@@ -174,8 +180,10 @@ export async function withLocalHeavyTestAdmission<T>(
     ? dependencies.now() - admissionStartedAt
     : undefined;
 
-  if (waitState.observed) {
-    dependencies.writeLine(`Local heavy-test slot acquired after waiting; starting ${tierLabel(input.tier)} tests.`);
+  if (admissionWaitMs !== undefined) {
+    const waited = formatDuration(admissionWaitMs);
+    dependencies.writeLine(`Local heavy-test slot acquired after waiting ${waited}; starting ${tierLabel(input.tier)} tests.`);
+    await reportWait(input.env[CHECK_NOTICE_VARIABLE], `waited ${waited} for the heavy-test slot`, dependencies);
   }
 
   const result = await withRenewableLease(handle, admissionStartedAt, async () => await action(), dependencies, {
@@ -185,6 +193,20 @@ export async function withLocalHeavyTestAdmission<T>(
     result,
     ...(admissionWaitMs === undefined ? {} : { waitMs: admissionWaitMs }),
   };
+}
+
+/** Add the wait to the check's notice; the notice is best effort, so a failed write never stops the tests. */
+async function reportWait(
+  noticeFile: string | undefined,
+  line: string,
+  dependencies: LocalTestAdmissionDependencies,
+): Promise<void> {
+  if (noticeFile === undefined || noticeFile === "") return;
+  try {
+    await dependencies.appendNotice(noticeFile, line);
+  } catch {
+    // The wait is already in the run's own output.
+  }
 }
 
 function renderInitialWait(contention: AdvisoryLockContention): string {

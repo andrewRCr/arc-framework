@@ -101,8 +101,7 @@ ARC has two additional customization surfaces worth knowing about:
   Example: a team using Jira populates the `.override` section in
   `commit-footer.md` to reference tickets instead of task lists.
 - **`system/extensions/`** — one file per extension point, each adding _extra steps_ at
-  workflow points. Example: populate `.actions` in `post-task-quality.md` to run a security
-  scan after every task, or `post-task-completion.md` to sync task completion to an external
+  workflow points. Example: populate `.actions` in `post-task-completion.md` to sync task completion to an external
   tracker.
 
 Both ship with placeholders that work out of the box. They're configured on-demand as

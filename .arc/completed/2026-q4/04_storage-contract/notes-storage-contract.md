@@ -969,9 +969,10 @@ That work unit has shipped, and this design builds on what it landed:
   the research on the hard problems in § 11.1 and what stayed open in § 11.7).
 - `research-local-mode.md` and `research-storage-landscape-2026-07.md` in `.arc/reference/supplemental/research/`. Both
   predate ADR-035, which governs wherever they disagree.
-- The Owner's personal spike and research records, gitignored in the primary checkout's `.arc/user/andrew/`:
-  `spike-concurrency.md`, `spike-editor-ergonomics.md`, and `research-storage-hard-problems.md`. Their scripts live
-  outside the repository under `~/dev/scratch/arc-storage-spike/`.
+- The spike records, `analysis-storage-concurrency-spike.md` and `analysis-storage-editor-ergonomics-spike.md` in
+  `.arc/reference/supplemental/analysis/`, and the research they tested, `research-storage-hard-problems.md` in
+  `.arc/reference/supplemental/research/`. Their scripts live outside the repository under
+  `~/dev/scratch/arc-storage-spike/`.
 - **Precedent.** Refs as a state store run at scale in Gerrit NoteDb (Android and Chromium), git-bug, Radicle, and
   beads. The invented part is the projection — editable copies kept current across worktrees with base-checked
   write-back, which has no close precedent — so the bet is the projection, not the refs.

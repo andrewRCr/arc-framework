@@ -11,7 +11,6 @@ arc:
     - review-triage
     - review-response
     - commit-footer
-    - quality-gate-commands
   extensions:
     - pre-pr-open
     - post-pr-open
@@ -191,7 +190,8 @@ must match the current Candidate and carries the ordered sources and exact oblig
   owed. Invoke `integrationBoundary.nextAction.command`; after it settles and the exact PR is open, re-enter the
   singleton status route above.
 
-Every other boundary action stops. Dispatch only on `nextAction` from the status result.
+Every other boundary action stops. Dispatch only on `nextAction` from the status result; `continue-pre-publication`
+carries the boundary's own pre-publication `action`, so handle it as that boundary action, never as a review request.
 
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
@@ -287,8 +287,10 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
-then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
-second call:
+then obtain complete-set approval over that exact report and canonical set. That approval is the fix round's
+structured gate: where the configured interlocks release them, the fix's commit, push, and approved settlement follow
+without another stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact
+approved set through a second call:
 
 ```bash
 arc review respond -
@@ -359,7 +361,10 @@ hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
 that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
 action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
-release the draft lock.
+release the draft lock. Before any push that moves the reviewed head while this action is pending, including a fix for a
+failure this observation found, re-enter the action through hosted await until it concludes and handle its result first,
+so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives
+up that result.
 
 Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
 through status after each concluded result; do not reconstruct `completedPasses` or route the public member back
@@ -373,17 +378,34 @@ prior count.
 - `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
   `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
   approved set through the second `arc review respond -` call, and perform only its returned action through
-  [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+  [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below follow
+  without another stop where the configured interlocks release them. When the approved call returns
+  `payload.hostedSettlementPlan` for
   `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for every
   ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor.
-  Settle each
-  `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
-  result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
-  fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget`
-  verified for the current head. For a delivery member, require the post-fix response state
-  `delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as
-  that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
-  phase and remains
+  Settle each `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and
+  require every result to complete before any approved fix changes the head. Then apply and verify the approved fixes,
+  then commit and push them:
+
+  > [!CAUTION]
+  > `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+  ```text
+  <type>(<scope>): <what the approved fixes change>
+
+  Review disposition set: <identity>
+  - <finding identity>: <verified severity> / <disposition> — <rationale>
+
+  Context: tasks-{name}.md (code review)
+  ```
+
+  > [!CAUTION]
+  > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+  Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
+  for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
+  idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as that `fixTarget`; never
+  reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither phase and remains
   triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
   Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named
   next-pass admission.
@@ -426,8 +448,10 @@ re-enter status without the coverage option so the still-required complete lane 
 reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
 needs new authority, material cost, or resolution of genuine uncertainty.
 
-Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
-never rewrite a prior exact-target result as if it ran on the new head.
+Request `arc check gate commit` after every review-driven change. Before an approved fix's `verifiedFix` replay,
+which attests the approved scope as performed, a `focused` scope also requests `arc check gate push --range --force`
+and a `full` scope `arc check gate merge --force` over the new target. A new target invalidates clearance and merge
+authorization; never rewrite a prior exact-target result as if it ran on the new head.
 
 The WU stays in `**State:** Integrating` throughout this phase. Composition + sweep do not fire here.
 
@@ -513,8 +537,8 @@ unlike Step 5's Release Notes. Leave it uncommitted until Step 7.
 
 ### 7) Commit completion content
 
-Run the applicable quality gates ([`quality-gate-commands`][arc-methods-qg]) and stop on failure. Bundle the
-composition edits under the provisional-candidate exception; this commit does not make the branch merge-ready.
+Request `arc check increment` and stop on failure. Bundle the composition edits under the provisional-candidate
+exception; this commit does not make the branch merge-ready.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -573,8 +597,8 @@ arc wu reconcile {name} --apply --json
 ```
 
 `pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
-rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, run Tier 1
-over the staged correction, then commit:
+rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, request
+`arc check gate commit` over the staged correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -622,7 +646,7 @@ After an explicit `covered`, `targeted-check`, or `changed` choice, compose the 
 `payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
 check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
 For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
-Candidate selection staged. Run Tier 1 over that correction, then commit:
+Candidate selection staged. Request `arc check gate commit` over that correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -646,8 +670,9 @@ rerun. Every stale, conflicting, invalid, or unavailable resolution follows its 
 substituting a selection in prose.
 
 `candidate-publication-required / resume-pre-publication` renders its supplied reason, detail, coordinates, and
-`payload.recommendedActionText` verbatim and
-invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
+`payload.recommendedActionText` verbatim and invokes `payload.attestArgv` unchanged. A returned
+`publication-pending` or `hosted-review-pending` locus keeps publication; continue at the shared publication-boundary
+commit below. For any other locus, invoke the returned `locus.nextAction.command` and follow that ordinary
 pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
 Integrating result, then complete the already-open Step 2 review for any carried reservation. Continue at the shared
 publication-boundary commit below.
@@ -663,7 +688,8 @@ This reuses ordinary delivery reconciliation and adds no new operation.
 `candidate-publication-commit-required / commit-boundary` renders `payload.recommendedActionText` verbatim and
 requires the staged path to equal `payload.boundaryPath`, then continues below.
 
-For either staged publication route, run Tier 1 over the exact new head and boundary correction, then commit:
+For either staged publication route, request `arc check gate commit` over the exact new head and boundary correction,
+then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -684,9 +710,10 @@ supplies neither verdict.
 
 `recompose-required / rerun-checkpoint` invokes its supplied remedy and restarts this step.
 
-`candidate-convergence-pending / run-convergence-verification` uses only the supplied action: run
-`action.verificationKind` at `action.requiredScope`, obtain a fresh verification evidence reference, replace only
-the `{verificationEvidenceRef}` operand in `action.attestArgv`, invoke that exact argv, then restart this step. Never
+`candidate-convergence-pending / run-convergence-verification` uses only the supplied `action.requiredScope`:
+`focused` requests `arc check gate push --range --force`; `full` requests `arc check gate merge --force`. Retain
+`action.verificationKind`, obtain a fresh verification evidence reference, replace only the `{verificationEvidenceRef}`
+operand in `action.attestArgv`, invoke that exact argv, then restart this step. Never
 invoke the placeholder-bearing argv unchanged or substitute the Candidate root verification reference.
 
 `blocked / stop` renders its supplied reason, detail, and structured remedy, then stops. The delivery-native
@@ -708,8 +735,9 @@ Candidate head; only the regenerable arm carries `--regenerate-roadmap`.
 `blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point. Before
 stopping, render the supplied semantic reason, detail, decisive coordinates, and `continuation` remedy or terminal
 explanation.
-`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
-over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
+`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, request
+`arc check new-head --from <pre-merge head>`, using the returned `expectedHead`; when the result's
+`dependencyChange` is not null, reinstall the project's dependencies first. Make no applicability or review
 judgment before the checkpoint classifies the exact target.
 
 For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
@@ -718,9 +746,9 @@ For `merged / run-quality-gates` only, repeat the Step 1 push extension contract
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 Restart this step. The checkpoint now owns Candidate applicability, ordinary publication settlement, delivery
-rebind, review status, and final readiness over the pushed exact head. Clearance never carries across the
-overlapping base-merge arm; disjoint movement follows the typed applicability result without a fresh review by
-default.
+rebind, review status, and final readiness over the pushed exact head. No checkpoint approval carries across the
+overlapping base-merge arm, and review carries across it only as the typed applicability result decides;
+disjoint movement follows the typed applicability result without a fresh review by default.
 Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
@@ -767,8 +795,8 @@ unchanged. `invalidated / checkpoint` returns to the checkpoint. `invalidated / 
 When settlement reports `fix-not-performed`, complete the approved fix and submit its exact `verifiedFix` response
 at the approved verification scope before re-checkpointing the resulting head; the prior merge approval does not
 carry to a changed head.
-Dispatch the typed base-merge result through the same result arms above, including fresh Tier 1, push, checkpoint,
-and approval after `merged / run-quality-gates`. `blocked / stop` stops.
+Dispatch the typed base-merge result through the same result arms above, including the new-head check, push,
+checkpoint, and approval after `merged / run-quality-gates`. `blocked / stop` stops.
 Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather
 than deriving a continuation from its evidence fields.
 The integration interlock is the sole merge authority.
@@ -864,10 +892,10 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
-[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

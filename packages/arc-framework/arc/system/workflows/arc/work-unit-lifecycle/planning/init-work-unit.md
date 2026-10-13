@@ -271,15 +271,19 @@ A bounded few in-session review passes alone do **not** cross a floor — that s
 floor, the name/type) plus deterministic CLI.
 
 It promotes an errand already in motion; it does not start one (cold errands enter via `arc-session --errand`).
-Under **partial** protection there is no errand branch — stop the direct base-branch edits, start a normal work
-unit from the base, and carry any landed errand commit as context in the new WU's spec or notes.
+Under **partial** protection there is no errand branch — stop the direct base-branch edits and start a normal work
+unit from the base at the floor's stage: derivation enters `draft-design`; scale enters `Active` for a `brief` +
+task-list backfill. Carry any landed errand commit as context in the new WU's spec or notes.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before promotion. Surface the floor crossed and its reason, the proposed
-> `{type}/{name}`, and the originating `USER-INBOX` capture (if any); await approval before running the verb.
+> `workflow-interlock`: Stop before promotion. Show the four record answers, identify which flipped, and name the
+> resulting floor. Surface the proposed `{type}/{name}` and the originating `USER-INBOX` capture (if any); await
+> approval before running the verb.
 
-1. **Identify the crossing.** Confirm the current derived subject is the in-flight Errand and name the floor —
-   **derivation** or **scale**. This is the judgment `arc errand promote` cannot make; the rest is deterministic.
+1. **Identify the crossing.** Confirm the current derived subject is the in-flight Errand and apply
+   [classify-work-unit][classify-work-unit] boundary test 1. Question 1 names `scale`; questions 2–4 name
+   `derivation`, which wins when both flip. Name the floor from the answers that flipped. This is the judgment
+   `arc errand promote` cannot make; the rest is deterministic.
 
 2. **Stabilize.** The verb renames the branch, so commit any in-progress errand work as a normal errand checkpoint
    first; never fold implementation into the promotion.

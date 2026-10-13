@@ -11,8 +11,8 @@
   - **Origin** — default `[internal]`; external tracker URL when applicable. Matches the corresponding
     `meta-*.md` `Origin:` value at WU creation. May be replaced with narrative prose describing where the work
     originated.
-  - **Purpose** — substantive opening carrying the plan's own thesis (pre-PRD synthesis statement). May
-    reference Origin from within prose.
+  - **Purpose** — substantive opening carrying the plan's own thesis (pre-PRD synthesis statement). Opens
+    with a one-sentence thesis; may reference Origin from within prose.
 -->
 
 - **Origin:** [internal]

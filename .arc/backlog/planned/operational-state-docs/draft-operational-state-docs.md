@@ -375,7 +375,7 @@ origin WU retires into the cohort, its draft content and buffer distributing per
   WU extends to the remaining surfaces.
 - Coordinates with `roadmap-tooling` (the `STATUS.*` renderer is an instance of the render engine),
   `storage-contract` (the record-family parsers and where each surface is stored), and
-  `cross-machine-sync-coherence` (transport hardening for notes-synced members).
+  `partial-push-marker` (transport hardening for notes-synced members).
 - **`knowledge-lint`** (boundary, settled at its 2026-07-02 grooming) — standing consistency enforcement over
   `.arc/` splits by document class: this WU owns record-schema conformance (round-trip harness + corpus gate)
   over the managed class; `knowledge-lint` owns the durable prose corpus no schema governs. Resolve-don't-store

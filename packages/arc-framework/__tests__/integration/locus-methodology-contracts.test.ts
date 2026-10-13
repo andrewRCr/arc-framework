@@ -20,7 +20,7 @@ describe("locus methodology contracts", () => {
       expect(reference).toContain("arc errand next [--json]");
       expect(reference).toContain(
         "arc errand open <slug> [--intent <text>] [--from-inbox <entry>] "
-          + "[--inbox-title-file <path|->] [--json]",
+          + "[--inbox-title-file <path|->] [--isolate] [--json]",
       );
       expect(reference).toContain(
         "arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]",

@@ -108,6 +108,70 @@
   semantics plus CLI/record support and failure-path coverage; this WU owns routing/re-home semantics, while OSD
   owns deterministic entry I/O and arc-backend supplies the long-term cross-store consistency contract.
 
+### `[ ]` **Take the routing-disposition rubric as the one `route-discovered-work` method**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ its § Routing disposition (over-routing / under-execution), its references to an `assess-wu-target`
+  method family there and in § Consumption wiring item 4, and the aging-enforced retain in § The retention line.
+
+- _Observation:_ `inbound-routing-method` settles the rubric this stub hands it: a four-test disposition gate — still
+  live, Errand-shaped stays an Errand, coupling (`_Shapes:_`), scope boundary (`spec-inbound-routing-method.md` D2).
+  Test 2 sends an Errand-shaped concern to the execute lane whatever its target's horizon, which covers the
+  under-execution failure, so the horizon test becomes an advisory to the Owner rather than a gate. It ships as one
+  method, `route-discovered-work`, not an `assess-wu-target` family (D9). The aging-enforced retain is the
+  `USER-INBOX` analog of its re-triage at touch (D5).
+
+- _Approach:_ point the references at the one method and the advisory horizon test.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Run the discovery-at-start sweep through the routing method's existing doors**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
+
+- _Shapes:_ § Consumption wiring item 4, the Discovery-at-WU-start sweep, which "may land via
+  `inbound-routing-method`'s `assess-wu-target` family".
+
+- _Observation:_ the sweep runs in the starting work unit's checkout. `inbound-routing-method` gives it existing
+  doors rather than a new one: an item the work unit's own change already covers is pulled in without the gate,
+  anything else it brings into that work unit takes the owner's-pass door, and anything it would change in a sibling
+  stub follows the until-the-flip writer line — only a routing change off the base writes another work unit's draft;
+  otherwise a pre-routed capture goes (`spec-inbound-routing-method.md` D2, D8, D9). Whether to keep
+  the sweep, and where it sits, stays this stub's call.
+
+- _Approach:_ if kept, call `route-discovered-work` once per candidate entry with those doors.
+
+- _Captured during:_ `inbound-routing-method` draft close, 2026-10-07.
+
+### `[ ]` **Let a session ask for the next queued Errand of its kind**
+
+- _Routed from:_ Owner direction at the housekeep drain (2026-10-09), routed directly.
+
+- _Shapes:_ the decision its buffer entry "Re-base the shared-inbox model on the storage contract's inbox and Errand
+  decisions" leaves here: how a session and its person agree the Errand queue and how the next Errand is offered
+  from it.
+
+- _Observation:_ the Owner runs design-nuanced Errands with one model family and routine, mechanical ones with
+  another, in two concurrent sessions over one Errand queue — a preference many people hold about which models they
+  trust with which work. The queue is one ordered list with nothing to select on, so the split rides queue order and
+  a stop title handed to the routine session: it runs `arc-session --errand --next` until it reaches the first
+  design-nuanced title. Before the flip two gaps sit beside it: no verb takes an entry off the queue short of running
+  or abandoning its Errand, and the next offer does not skip an entry whose Errand is already open.
+
+- _Approach:_ a binary label on each queued Errand — design-nuanced or mechanical; names to decide — set when the
+  drain queues the entry, and a filter on the next offer so each session asks for the next of its kind. Keep it
+  forward-compatible with the storage contract's Errand queue (`spec-storage-contract.md` D6, D11): the queue is
+  entry-ID references, set whole through `arc errand queue set` and merged by entry, and the next offer takes the
+  first entry a start would accept. The label is then either a queue-member field, where a re-label on both sides is
+  a same-entry clash, or an entry field the offer reads; decide which beside how the next Errand is offered. The
+  contract already closes the two pre-flip gaps: setting the queue whole removes a member, and starting an Errand
+  moves its entry out of the inbox, one live Errand per entry. Neither earns a pre-flip fix.
+
+- _Boundary:_ the person chooses the model; ARC records the label and filters on it, and never selects a model.
+  Running sessions in parallel also needs each session's compaction seed bound to its own working checkout —
+  evidence routed to `recovery-hardening`.
+
 ---
 
 ### `[ ]` **Give USER-INBOX a managed amend path so enrichment does not bypass the write lock**

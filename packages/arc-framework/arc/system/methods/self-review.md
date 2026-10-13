@@ -53,12 +53,21 @@ git diff {parent-branch}...HEAD
 aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
 code systematically underperforms on error cases and edge conditions.
 
-**Process findings** using the [review-triage method](review-triage.md). Present the author self-review as a standalone
-non-producer report with report-local `F` labels, faithful claims and loci, source-verification evidence, ARC judgment,
-proposed action, and open questions. Obtain complete-set approval before applying fixes. This path does not fabricate
-a distinct reviewer grade, native label, producer ordinal, receipt, or canonical producer identity. Run Tier 3 quality
-gates on modified files. Commit finding-driven fixes with the canonical `(code review)` context footer; reserve lifecycle-phase
-footers for ceremony commits rather than the fixes review produced.
+**Process findings** using the [review-triage method](review-triage.md). Present the author self-review as the
+standalone non-producer report that method describes, and obtain complete-set approval before applying fixes. That
+approval is the fix round's structured gate and releases the fix commit where `arc.commitInterlock` allows
+([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Request `arc check increment` once over
+the approved fixes. Commit finding-driven fixes with the canonical `(code review)`
+context footer; reserve lifecycle-phase footers for ceremony commits rather than the fixes review produced.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+```text
+<type>(<scope>): <what the approved fixes change>
+
+Context: <the caller's context> (code review)
+```
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.
@@ -66,3 +75,4 @@ preflight as independent evidence.
 ---
 
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
+[review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant

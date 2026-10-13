@@ -91,9 +91,9 @@ it("retains full producer and platform-local declaration gates before preparatio
   expect(await readFile(join(producer.packageRoot, "dist/cli.d.ts"), "utf8")).toContain("marker");
   const steps = await ciBuildSteps("portability-cross-platform");
   const install = steps.findIndex((step) => step.run === "npm ci");
-  const full = steps.findIndex((step) => step.run === "npm run build");
+  const full = steps.findIndex((step) => step.id === "build");
   const prepared = steps.findIndex((step) => step.id === "runtime-preflight");
-  const consume = steps.findIndex((step) => step.run === "npm run test:portability");
+  const consume = steps.findIndex((step) => step.id === "test");
   expect(install).toBeGreaterThanOrEqual(0);
   expect(full).toBeGreaterThan(install);
   expect(prepared).toBeGreaterThan(full);

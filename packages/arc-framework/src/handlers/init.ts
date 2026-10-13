@@ -4,6 +4,7 @@
  * @module
  */
 
+import { checkBootstrapSummary } from "../lib/checks/bootstrap.js";
 import * as p from "../lib/terminal.js";
 import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
@@ -334,6 +335,8 @@ async function handleReconfigure(
           p.log.info(`  .arc/${path}`);
         }
       }
+
+      for (const line of checkBootstrapSummary(result.checkBootstrap)) p.log.info(line);
 
       if (result.keptByUser.length > 0) {
         p.log.info("Kept on disk (removed from ARC tracking):");

@@ -219,7 +219,7 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
     verification: {
       applicability: response.applicability,
       target: input.target,
-      tier1: {
+      commitGate: {
         outcome: "passed",
         provenance: "exact-tree-reuse",
         targetTree: input.target.tree,
@@ -338,7 +338,7 @@ export function pendingDeliveryReviewFixCanResumeFromIntegrationStatus(
 type VerificationResult = {
   readonly applicability: "targeted" | "focused" | "full";
   readonly target: { readonly head: string; readonly tree: string };
-  readonly tier1:
+  readonly commitGate:
     | {
         readonly outcome: "passed";
         readonly provenance: "rerun";
@@ -515,7 +515,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     }
     if (request.verification.target.head !== entry.verification.target.head
       || request.verification.target.tree !== entry.verification.target.tree
-      || request.verification.tier1.targetTree !== entry.verification.target.tree) {
+      || request.verification.commitGate.targetTree !== entry.verification.target.tree) {
       return { status: "refused" as const, reason: "verification-target-mismatch" };
     }
     return dispatch({

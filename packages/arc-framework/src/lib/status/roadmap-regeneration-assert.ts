@@ -15,7 +15,7 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
-import { parseTransitionRecord } from "../work-unit/transition-record.js";
+import { parseLineageRecord } from "../store/kinds/lineage/index.js";
 import {
   resolveTransitionRecordRelativePath,
   TRANSITION_RECORD_NAMESPACE,
@@ -75,6 +75,8 @@ export interface IndexProjectViewFsOptions {
 
 /** Options for rendering the staged-index ROADMAP view. */
 export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions {
+  /** Opt into typed purpose facts while retaining the exact same Markdown render. */
+  includePurpose?: boolean;
   /** Optional H1 text without the leading `#`. */
   title?: string;
   /** Base branch for the local-ref oracle. */
@@ -232,19 +234,19 @@ export async function resolveStagedTransitionOverlays(
   const recordPaths = stdout.split("\0").filter((path) => TRANSITION_RECORD_PATH_RE.test(path));
   const overlays = (await Promise.all(recordPaths.map(async (path) => {
     const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
-    const record = parseTransitionRecord(content);
-    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin)) {
+    const record = parseLineageRecord(content);
+    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin.name)) {
       return null;
     }
     if (await readHeadTransitionRecord(options, path) !== null) return null;
     if (record.kind === "decompose") {
-      return createValidatedTransitionOverlay({ origin: record.origin, sourceBranch: `plan/${record.origin}` });
+      return createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch: `plan/${record.origin.name}` });
     }
     const { stdout: paths } = await options.exec("git", [
       "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".arc/active", ".arc/backlog",
     ], { cwd: options.cwd });
     const metaPaths = paths.split("\0").filter((candidate) =>
-      posix.basename(candidate) === `meta-${record.origin}.md`);
+      posix.basename(candidate) === `meta-${record.origin.name}.md`);
     if (metaPaths.length !== 1 || metaPaths[0] === undefined) return null;
     const { stdout: metaContent } = await options.exec(
       "git",
@@ -254,7 +256,7 @@ export async function resolveStagedTransitionOverlays(
     const sourceBranch = parseMetaRecord(metaContent).branch;
     return sourceBranch === null
       ? null
-      : createValidatedTransitionOverlay({ origin: record.origin, sourceBranch });
+      : createValidatedTransitionOverlay({ origin: record.origin.name, sourceBranch });
   }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
   return overlays;
 }
@@ -281,6 +283,7 @@ export async function renderRoadmapFromIndexViewResult(
   ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
+    includePurpose: options.includePurpose === true,
     ...(options.title !== undefined ? { title: options.title } : {}),
     fs,
     localRefs: {
