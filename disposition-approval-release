@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "disposition-approval-release",
+  "claimId": "9b9242ce09c15e299014349ff7d3f483",
+  "createdAt": "2026-10-13T18:20:54.820Z",
+  "updatedAt": "2026-10-13T18:20:54.820Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let the complete-set disposition approval be a review-fix round's structured gate, releasing its commit and, where push release allows, its push and approved hosted settlement",
+  "branch": "chore/disposition-approval-release",
+  "origin": "inbox",
+  "originEntry": "Let one complete-set disposition approval release a review-fix round's commit, push, and settlement",
+  "originEntrySourceDigest": "sha256:ef985bd096fbd2aeb9a52e472702ad0ad4ef496d9d7aafd11dbc136d49f57be0",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
