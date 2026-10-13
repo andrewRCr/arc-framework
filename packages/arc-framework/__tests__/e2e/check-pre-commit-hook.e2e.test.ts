@@ -173,3 +173,39 @@ it.each([".arc/active/tasks-example.md", ".arc/active/nested/tasks-example.md"])
     expect(staged.output).not.toContain("Modified task lists not staged");
     expect((await exec("git", ["show", `HEAD:${path}`], { cwd })).stdout).toBe(changed);
   });
+
+
+it.each([
+  [".arc/active/tasks-flat.md", ".arc/active/nested/tasks-nested.md"],
+  [".arc/active/nested/tasks-nested.md", ".arc/active/tasks-flat.md"],
+])("warns about %s's unstaged peer %s", async (stagedPath, unstagedPath) => {
+  const cwd = await fixture();
+  await exec("git", ["config", "arc.role", "maintainer"], { cwd });
+  const original = "# Tasks\n\n- [ ] **1.1.a First subtask**\n";
+  const changed = original + "- [ ] **1.1.b Second subtask**\n";
+  for (const path of [stagedPath, unstagedPath]) {
+    await mkdir(dirname(join(cwd, path)), { recursive: true });
+    await writeFile(join(cwd, path), original);
+  }
+  await exec("git", ["add", stagedPath, unstagedPath], { cwd });
+  const initial = await commit(cwd);
+  expect(initial.exitCode, initial.output).toBe(0);
+  for (const path of [stagedPath, unstagedPath]) await writeFile(join(cwd, path), changed);
+  await exec("git", ["add", stagedPath], { cwd });
+
+  const warned = await commit(cwd);
+
+  expect(warned.exitCode, warned.output).toBe(0);
+  expect(warned.output).toContain("Modified task lists not staged");
+  expect(warned.output).toContain(unstagedPath);
+  expect(warned.output).not.toContain(stagedPath);
+  expect((await exec("git", ["show", `HEAD:${stagedPath}`], { cwd })).stdout).toBe(changed);
+  expect((await exec("git", ["show", `HEAD:${unstagedPath}`], { cwd })).stdout).toBe(original);
+  await exec("git", ["add", unstagedPath], { cwd });
+
+  const completed = await commit(cwd);
+
+  expect(completed.exitCode, completed.output).toBe(0);
+  expect(completed.output).not.toContain("Modified task lists not staged");
+  expect((await exec("git", ["show", `HEAD:${unstagedPath}`], { cwd })).stdout).toBe(changed);
+});

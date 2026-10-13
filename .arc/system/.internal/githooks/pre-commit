@@ -221,9 +221,13 @@ if [ "$arc_role" != "contributor" ]; then
     modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '^\.arc/active/(.*/)?tasks-.*\.md$' || true)
     staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '^\.arc/active/(.*/)?tasks-.*\.md$' || true)
 
-    if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
+    unstaged_task_lists=$(LC_ALL=C comm -23 \
+        <(printf '%s\n' "$modified_task_lists" | LC_ALL=C sort) \
+        <(printf '%s\n' "$staged_task_lists" | LC_ALL=C sort))
+
+    if [ -n "$unstaged_task_lists" ]; then
         echo -e "${YELLOW}Warning: Modified task lists not staged:${NC}"
-        echo "$modified_task_lists" | sed 's/^/   /'
+        echo "$unstaged_task_lists" | sed 's/^/   /'
         echo "   If completing tasks, remember to stage task list updates"
         warnings=$((warnings + 1))
     fi
