@@ -1,5 +1,7 @@
 /** Ordinary v3 Errand open composition. */
 
+import { z } from "zod";
+
 import {
   planLocusAllocation,
   type LocusAllocationPlanningRefusalReason,
@@ -30,6 +32,10 @@ import type {
 import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.js";
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
+
+/** Accepted slug format and retry guidance shared by core and CLI input refusals. */
+export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
+  + "and retry `arc errand open`.";
 
 type ClaimResult =
   | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
@@ -102,9 +108,11 @@ export async function openOrdinaryErrand(
   options: OpenOrdinaryErrandOptions,
 ): Promise<ErrandOperationResult> {
   const requestedSlug = options.slug.trim();
-  if (requestedSlug === "") return openRefusal("identity-conflict", "Errand slug must be non-empty.");
+  if (requestedSlug === "") return openRefusal("identity-conflict", `Errand slug must be non-empty. ${ERRAND_SLUG_INPUT_REMEDY}`);
   const parsedSlug = SlugSchema.safeParse(requestedSlug);
-  if (!parsedSlug.success) return openRefusal("identity-conflict", "Errand slug must be valid.");
+  if (!parsedSlug.success) {
+    return openRefusal("identity-conflict", `Errand slug must be valid. ${z.prettifyError(parsedSlug.error)}\n${ERRAND_SLUG_INPUT_REMEDY}`);
+  }
   const slug = parsedSlug.data;
   const originEntry = options.inbox?.title.trim() || null;
   const originEntrySourceDigest = originEntry === null ? null : options.inbox?.sourceDigest ?? null;
@@ -211,7 +219,12 @@ export async function openOrdinaryErrand(
         changeRequest: null,
       });
       if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") {
-        return openRefusal("identity-conflict", "The Errand identity request is invalid.");
+        const condition = parsed.success ? "An ordinary Errand identity is required." : z.prettifyError(parsed.error);
+        const remedy = slug.startsWith("groom-")
+          ? "Choose another slug and retry `arc errand open`; the groom-* namespace "
+            + "has no Errand opener under full protection."
+          : "Correct the reported input fields and retry `arc errand open`; choose another slug if its derived branch is invalid.";
+        return openRefusal("identity-conflict", `The Errand identity request is invalid.\n${condition}\n${remedy}`);
       }
       record = parsed.data;
       let claimed: ClaimResult;

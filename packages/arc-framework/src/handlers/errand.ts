@@ -52,6 +52,7 @@ import {
   openOrdinaryErrandAtRuntime,
   openOrdinaryErrandAtRuntimeWithDisposition,
 } from "../lib/errand/open-runtime.js";
+import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
@@ -573,7 +574,10 @@ export async function handleErrandOpen(
 
   const parsed = ErrandOpenInputSchema.safeParse({ slug, ...opts });
   if (!parsed.success) {
-    emitErrandOpenFailure("locus.errand-open.input", z.prettifyError(parsed.error), opts.json === true);
+    const remedy = parsed.error.issues.some((issue) => issue.path[0] === "slug") ? ERRAND_SLUG_INPUT_REMEDY : undefined;
+    const detail = z.prettifyError(parsed.error);
+    emitErrandOpenFailure("locus.errand-open.input", remedy === undefined ? detail : `${detail}\n${remedy}`,
+      opts.json === true, remedy);
     return;
   }
   const input = parsed.data;
@@ -767,12 +771,17 @@ function emitErrandOpenResult(result: ErrandOperationResult, json: boolean): voi
   process.exitCode = formatted.exitCode;
 }
 
-function emitErrandOpenFailure(code: ErrandErrorCode, message: string, json: boolean): void {
+function emitErrandOpenFailure(
+  code: ErrandErrorCode,
+  message: string,
+  json: boolean,
+  recommendedPromptText = "Resolve the reported input or configuration error before retrying.",
+): void {
   emitErrandOpenResult(createErrandOperationResult({
     outcome: "error",
     operation: "errand-open",
     error: { code, message },
-    recommendedPromptText: "Resolve the reported input or configuration error before retrying.",
+    recommendedPromptText,
   }), json);
 }
 
