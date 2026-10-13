@@ -658,6 +658,13 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("there the re-entry offer comes before another pass");
       expect(normalized).toContain("and for the offer under sustained non-convergence, where another pass would review the last one's design");
       expect(normalized).toContain("any re-entry or boundary offer with the owner's settlement");
+      expect(normalized).toContain("the re-entry and boundary offers in this gate belong to planning stages");
+      expect(normalized).toContain("routes the same signals through its own depth read and its ceiling, never a planning-workflow re-entry");
+
+      const declared = method.match(/^arc:\n {2}methods:\n((?: {4}- .+\n)+)/mu)?.[1];
+      if (declared === undefined) throw new Error("missing adversarial-review arc.methods");
+      expect(declared).toContain("- resolve-planning-depth");
+      expect(declared).toContain("- assess-boundary-fit");
     }
   });
 

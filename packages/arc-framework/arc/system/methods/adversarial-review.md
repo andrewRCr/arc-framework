@@ -6,6 +6,8 @@ arc:
     - source-grounding
     - assess-design-proportionality
     - disposition-report
+    - resolve-planning-depth
+    - assess-boundary-fit
 related:
   - source-grounding
   - assess-design-proportionality
@@ -303,7 +305,9 @@ recommendation, and offer [assess-boundary-fit][assess-boundary-fit] as well whe
 concerns that could stand apart. Material findings whose fixes are local corrections do not raise it, whatever their
 origin. Name the signal in the primary-facing report apart from the stop reason, so a stop at the cap never reads as
 the cap running out. A declined offer that lets the stage advance is an Owner-accepted risk with the signal named,
-never the design holding.
+never the design holding. The re-entry and boundary offers in this gate belong to planning stages: in an amendment,
+[amend-design][amend-design] routes the same signals through its own depth read and its ceiling, never a
+planning-workflow re-entry.
 
 **Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
 close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
