@@ -80,7 +80,7 @@ surfaces, and defines the grammar every entry list shares.
   while a routing removed it: the removal takes out only the version it observed, so the edit survives in place
   (`lib/store/concurrency/entries.ts`).
 - **Slot** — one field of the session-init envelope (`arc status --session-init --json`), each a `Probe` failing alone.
-- **Floor** — as § 11 defines it for the commits a work branch carries.
+- **Exclusions** and **copy key** — as § 11 defines them for the commits a work branch carries.
 
 ## Shared decisions
 
@@ -111,7 +111,7 @@ The storage seam's other plans cite this shared-decision number. It resolves to 
 
 ## Non-Goals
 
-_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 This change does not:
 
@@ -120,8 +120,8 @@ This change does not:
 - **build the ref backend, its import, the projection, write-back, `arc save`, or the projection's worktree lock,** or
   perform the flip or the deletion pass. It fills none of the projection's slots (§ 16).
 - **build the lifecycle verbs it calls** — the checkout removal function and its check, the pause and its verbs, the
-  task close verb, the widened `arc materialize`, `arc handover`, branch links' created-or-adopted record and floor, the
-  prepared-write protocol, or the cold start's seed handling (§ 16).
+  task close verb, the widened `arc materialize`, `arc handover`, branch links' created-or-adopted record and
+  exclusions, the prepared-write protocol, or the cold start's seed handling (§ 16).
 - **reroute the notes-sync machinery** — the `arc user` push, fetch, compaction, sync-status, save, load, and pull
   commands and their handlers — which the deletion pass removes with notes.
 - **change `lib/work-unit/transition-overlay.ts`,** which reads and writes nothing; its composition consumers are the
@@ -186,8 +186,9 @@ Paths are under `packages/arc-framework/src/`.
 - **Errands:** under `lib/errand/`, `open-runtime.ts`, `close-runtime.ts`, `abandon-runtime.ts`, `leave-runtime.ts`,
   `link-runtime.ts`, `partial-settle-runtime.ts`, `terminal-occupancy.ts`, `identity-claims.ts` (its claim rollback's
   call of the identity transaction) and `identity-transitions.ts` (the transition rules the runtimes compute, § 8),
-  `record.ts`'s index projection and the locus consumers' listing protocols, and `promote-runtime.ts`'s marker
-  settlement, shared with the change rerouting promotion's write (§ 1.3); and `handlers/errand.ts`'s
+  `record.ts`'s index projection and the locus consumers' listing protocols, and `promote-runtime.ts`'s selection of
+  promotion's steps on the capability and its marker settlement, shared with the change rerouting promotion's write
+  (§ 1.3); and `handlers/errand.ts`'s
   `arc errand materialize` (`handleErrandMaterialize`), its Errand read (§ 8).
 - **The personal surfaces and entry lists:** `lib/user-sync/parser.ts`, `lib/user-sync/inbox-writer.ts`,
   `lib/user-sync/inbox-target.ts`, `lib/user-sync/execution-offer.ts`, `commands/user/inbox-list.ts`,
@@ -196,9 +197,10 @@ Paths are under `packages/arc-framework/src/`.
   `handlers/errand.ts`), `commands/user/add.ts`, `commands/user/open.ts`, `commands/user/close.ts`, and `lib/setup.ts`'s
   seeding of the personal surfaces (`runPostInitSetup`); the entry kinds' declarations in `lib/store/registry.ts` and
   their modules under `lib/store/kinds/`; and the heading arm of `stampEntryIds` (`lib/store/concurrency/stamp.ts`).
-- **The cold start and the spawn's scaffold:** `commands/start.ts`'s cold start (`runColdStart`,
-  `coldStartOccupancyRefusal`, `rollbackColdStart`) and its call of the scaffold (`lib/git/worktree-scaffold.ts`), whose
-  create arm from the flip is the transition-write-path change's (§ 2.8).
+- **The cold start:** `commands/start.ts`'s cold start (`runColdStart`, `coldStartOccupancyRefusal`,
+  `rollbackColdStart`), with its sequence from the flip, the anchored marker among it, and its rollback's removal of
+  that marker (§ 2.5); its call of the scaffold (`lib/git/worktree-scaffold.ts`) stays, the scaffold's arm from the flip
+  being the transition-write-path change's (§ 2.8).
 - **Handoff:** the new `arc handoff write` command and its handler, and the tripwire report beside it under
   `lib/handoff/` (§ 9.1, § 9.3).
 - **The new verbs and settings, and the changed forms:** their registrations in `cli.ts` — the new verbs, and from the
@@ -213,12 +215,12 @@ result shape, so they change only where a call must.
 #### 1.3 Order and shared files
 
 This change follows the change that reroutes the transition write path, whose removal function and check, prepared-write
-protocol, pause, task close verb, branch links, widened `arc materialize`, and seed handling it calls (§ 16). Three
-files serialize with it: `commands/start.ts`, where the cold start's seed handling lands first and this change's reroute
-of `runColdStart` follows; `lib/git/worktree-scaffold.ts`, where that change's create arm lands and this change reroutes
-the cold start onto it (§ 2.8); and `lib/errand/promote-runtime.ts`, where that change's one-write promotion lands and
-this change moves the runtime's marker settlement onto it (§ 8.3). A file both changes rewrite carries one change's
-edits at a time.
+protocol, pause, task close verb, branch links, widened `arc materialize`, and seed handling it calls (§ 16). Two files
+serialize with it: `commands/start.ts`, where the cold start's seed handling lands first and this change's reroute of
+`runColdStart` follows; and `lib/errand/promote-runtime.ts`, where this change has the runtime select that change's
+promotion steps on the capability, with its marker settlement (§ 8.3). A file both changes rewrite carries one change's
+edits at a time. The scaffold (`lib/git/worktree-scaffold.ts`), whose arm from the flip is that change's, this change
+leaves alone, the cold start keeping its call (§ 2.8).
 
 #### 1.4 Before the flip
 
@@ -250,9 +252,10 @@ These run only while `capabilities.stateOffBranch` is false, and the deletion pa
 
 - **Locus from the checkout's active meta** for a checkout with no marker (§ 2.1), and the cold start's own occupancy
   check (`coldStartOccupancyRefusal`), with Git's refusal to check out one branch twice guarding the rest (§ 2.4).
-- **The cold start's branch and seed:** the protected-base cut of `plan/<name>`, its rollback's branch deletion
-  (`rollbackColdStart`), and the `SESSION-NOTES` seed (§ 2.5); and `arc user open` (§ 2.8). The scaffold's meta write by
-  path and its `runUserOpen` call are the transition-write-path change's in-repo arm (§ 16).
+- **The cold start's branch and `arc user open`:** the protected-base cut of `plan/<name>`, and its rollback's branch
+  deletion and clean of the meta's file (`rollbackColdStart`, § 2.5); and `arc user open` (§ 2.8). The scaffold's meta
+  write by path and its `runUserOpen` call, which seeds the cold start's `SESSION-NOTES`, are the transition-write-path
+  change's in-repo arm (§ 16).
 - **Promotion's runtime settlement,** its branch rename and commit (§ 8.3).
 - **Identity setup's unconditional seeding** of the personal files (§ 10.1), and the user-surfaces resolver and its
   migration, which the in-repo implementation imports (§ 10.3).
@@ -295,12 +298,13 @@ builds the path by hand today and the resolver's addresses name only files benea
 
 `resolveActiveWu`'s body (`lib/release/wu-resolution.ts`) resolves through the contract's resolver
 (`resolveCurrentWorkUnit`), and this change's own callers of `readActiveMetaCandidates` call that resolver directly and
-take its result: the cold start's occupancy check (`coldStartOccupancyRefusal`, `commands/start.ts`) and
-`resolveOriginatingMetaPath`. For the default root `readActiveMetaCandidates` already delegates to the resolver
-(`readHeldCandidates`, `lib/active/meta-reader.ts`), so the move changes the result's shape, not the read; the function
-stays for its other callers. The user-reference reconcile's current-work-unit read
-(`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves onto `resolveCurrentWorkUnit` too,
-leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the notes-sync commands as callers.
+take its result: the cold start's occupancy check (`coldStartOccupancyRefusal`, `commands/start.ts`), which also reads
+the marker's `spawnedByArc` itself (§ 2.5), and `resolveOriginatingMetaPath`. For the default root
+`readActiveMetaCandidates` already delegates to the resolver (`readHeldCandidates`, `lib/active/meta-reader.ts`), so the
+move changes the result's shape, not the read; the function stays for its other callers. The user-reference reconcile's
+current-work-unit read (`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves onto
+`resolveCurrentWorkUnit` too, leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the notes-sync
+commands as callers.
 
 #### 2.3 The anchored marker
 
@@ -323,15 +327,19 @@ when `createdByArc` is false), and the cleanup decision keys on whether a marker
 
 #### 2.4 The marker's exclusivity
 
-Branchless planning gives up Git's refusal to check out one branch twice, so from the flip the marker carries the
-guard. The roster exposes one exclusivity check: given a work unit and the checkout about to hold it, it reads the
-derived roster and refuses when another registered checkout's marker names the same work unit, naming that checkout.
-Every verb that writes a work-unit marker runs it first: `arc start --here` in both its arms, the spawn, `arc materialize`
-in either arm, and Errand promotion, whose fresh slug never collides (`convertSpawnedMarker`,
-`lib/errand/promote-runtime.ts`). This change runs it in the cold start and in promotion; the spawn, graduation in
-place, and `arc materialize` call it (§ 16). The guard is per machine, as markers are; across machines the work unit's
-owner governs. Until the flip, Git's refusal and the cold start's own check, which inspects only its own checkout
-(`coldStartOccupancyRefusal`), stay as today.
+Branchless planning gives up Git's refusal to check out one branch twice, so from the flip the marker carries the guard.
+The roster exposes two reads: the exclusivity check, and the lookup of the checkout whose marker names a given work
+unit, which `arc locus release` (§ 5), the transition-write-path change's rename, and `arc materialize`'s candidates
+read. The exclusivity check, given a work unit and the checkout about to hold it, reads the derived roster and refuses
+when another registered checkout's marker names the same work unit, naming that checkout and the repair: work there, or
+release it there with `arc locus release`. Every verb that writes a work-unit marker runs it first: `arc start --here`
+in both its arms, the spawn, `arc materialize` in either arm, and Errand promotion, whose fresh slug never collides
+(`convertSpawnedMarker`, `lib/errand/promote-runtime.ts`). This change runs it in the cold start and in promotion; the
+spawn, graduation in place, and `arc materialize` call it, and rename and `arc materialize` the lookup, through ports
+the transition-write-path change injects, each defaulting to the behavior until the flip, and the change landing second
+binds them to these reads, by § 1.3's order this one (§ 16). The guard is per machine, as markers are; across machines
+the work unit's owner governs. Until the flip, Git's refusal and the cold start's own check, which inspects only its own
+checkout (`coldStartOccupancyRefusal`), stay as today.
 
 #### 2.5 The cold start
 
@@ -339,13 +347,31 @@ owner governs. Until the flip, Git's refusal and the cold start's own check, whi
 (§ 1.3): `--from` sets `Origin` for an issue reference and passes every other seed through for the agent to read, and the
 cold start enters at `draft-design` (§ 16).
 
-- **Its occupancy check** reads the current work unit from the marker plus the store (§ 2.2).
+- **Its occupancy check** reads the current work unit from the marker plus the store (§ 2.2), and the marker's
+  `spawnedByArc` itself, which that resolver does not read (`readClaimedCurrentWorkUnit`,
+  `lib/store/current-work-unit-marker.ts`): from the flip, a spawned marker naming a work unit the store holds no record
+  of is a spawn's residue, and the cold start refuses there, naming `arc locus release <slug>`, which removes that
+  checkout (§ 5).
 - **Its meta** is written through the store by the meta kind's creation writer (`renderMetaFile`,
   `lib/store/kinds/meta/projection.ts`), with no `SESSION-NOTES` seed from the flip (§ 2.8).
-- **From the flip `arc start --here` writes only the marker and the store's records and never moves `HEAD`.** The
-  protected-base cut of `plan/<name>` and its rollback's branch deletion (`rollbackColdStart`) retire on the
-  capability, with the `plan/` prefix, since a planning work unit holds no branch. It writes the anchored marker (§ 2.6).
-- **Until the flip** both stay as today.
+- **From the flip `arc start --here` writes no tracked file, cuts no branch, seeds no `SESSION-NOTES`, and never moves
+  `HEAD`.** Its records go through the store, and in its checkout it writes only the anchored marker and the editor
+  documents, each with its entry in the clone's exclude file. The protected-base cut of `plan/<name>` and its rollback's
+  branch deletion retire on the capability, with the `plan/` prefix, since a planning work unit holds no branch.
+- **Its sequence from the flip,** after the occupancy and exclusivity checks (§ 2.4), puts its one record write last, so
+  nothing in the store ever needs undoing:
+    1. the marker's ignore rule (`ensureWorktreeMarkerIgnored`), registered as every marker creator registers it;
+    2. the editor documents (`writeEditorDocuments`), which are checkout-local and read nothing from the meta;
+    3. the anchored marker (§ 2.6);
+    4. the call of the scaffold, whose arm from the flip writes the meta through the store, the one record write (§ 2.8).
+- **A failure** at any step leaves no record, and removes the marker where step 3 wrote it (`rollbackColdStart`, whose
+  branch deletion and clean of the meta's file serve only the in-repo arm). A hard crash between steps 3 and 4 leaves an
+  anchored marker naming a work unit the store holds no record of, which derivation reports unresolved (§ 2.1), with its
+  repairs (§ 4.3): the cold start rerun in that checkout reads such a marker, on a complete read of the store and
+  `lookup`, as no occupancy and replaces it, and `arc locus release` clears it (§ 5). Only a crashed cold start leaves
+  one: every other writer of an anchored marker has its work unit's record first, and a spawned marker naming no record
+  is a spawn's residue, which the occupancy check refuses (above).
+- **Until the flip** the cold start runs as today and writes no marker (§ 2.7).
 
 #### 2.6 Every in-place arm writes an anchored marker
 
@@ -394,11 +420,14 @@ from the flip a checkout claimed in place before it holds its work unit with no 
   `SESSION-NOTES.md`. The load set's meta and task-list paths come from the layout resolver, where callers supply them
   today.
 - **The spawn's scaffold** (`scaffoldIntoWorktree`, `lib/git/worktree-scaffold.ts`), which create-new and the cold start
-  share, writes the meta, calls `runUserOpen` (`commands/user/open.ts`) for the workspace and its `SESSION-NOTES` seed,
-  and writes the marker. From the flip its create arm writes the meta and its session context through the store and
-  calls no `runUserOpen`, an arm the transition-write-path change builds (§ 16); this change reroutes the cold start
-  onto it, and the marker stays machine-local. `arc user open` (`handlers/user.ts`) refuses `unsupported` from the flip,
-  naming the meta's session context; until then it runs as today.
+  share, writes the meta and calls `runUserOpen` (`commands/user/open.ts`) for the workspace and its `SESSION-NOTES`
+  seed. Its marker write, gated by `createdByArc`, writes nothing for either caller: create-new's marker is the spawn's
+  (`reconcileWorkUnitWorktree`), and the cold start passes `false`. From the flip the scaffold itself branches on the
+  capability, creating the meta through the store and calling no `runUserOpen`, so it seeds no `SESSION-NOTES`, an arm
+  the transition-write-path change builds (§ 16). The cold start keeps its call, as the last step of its sequence, and
+  writes its anchored marker itself before it, its ignore rule first (§ 2.5), so the marker stays machine-local.
+  `arc user open` (`handlers/user.ts`) refuses `unsupported` from the flip, naming the meta's session context; until
+  then it runs as today.
 - **Scratch.** The projection creates `.arc/user/<identity>/scratch/work-unit/<slug>/`, empty, for the checkout's own
   work unit. From the flip session start reconciles the person's folders there through `lookup`: a folder whose work
   unit was renamed follows its current slug; one whose work unit has ended is removed and reported; and a name
@@ -560,15 +589,15 @@ running it as given repairs the condition — plus an optional `checkout`, below
 slot reuses it, where today `currentWuReconcile` carries a bare `recommendedCommand` and the residue sweep a `remedy`.
 
 - **Typed or text.** An action with an argv is typed. One with text alone names the command with its arguments where the
-  repair needs the agent's or the owner's input or order: the commits a lost floor leaves to be named (§ 11), the
+  repair needs the agent's or the owner's input or order: which task a rewritten commit belongs to (§ 11), the
   decisions a re-triage or a survivor's carry takes (§ 4.6, § 7.4), or a ceremony that runs under its own interlocks, as
   an archive or an integration does. A condition that wants no repair carries no action. Whether an action runs unasked
   is the slot's own `recommendedAction`, which the CLI computes as today — `recovery`'s `switch` for an exact, clean
   switch and `userReferenceReconcile`'s `apply` among them; an action no slot marks to run unasked is an offer the
   workflow runs only on the person's approval. Typed means runnable as given.
 - **The checkout to run in.** An action whose verb works on, or writes from, the checkout it runs in carries that
-  checkout: the task close, which takes no slug and captures that checkout's `HEAD`; the reconcile's apply, which
-  refuses unless that checkout's branch owns the slug (`resolveOwnedTarget`, `handlers/reconcile.ts`);
+  checkout: the task close, which takes no slug and computes its set from that checkout's `HEAD`; the reconcile's apply,
+  which refuses unless that checkout's branch owns the slug (`resolveOwnedTarget`, `handlers/reconcile.ts`);
   `arc materialize <slug> --here` for a branch a checkout with no marker has out; and, from the flip, any writer of a
   work unit's meta or task list, which writes only from the work unit's own checkout. Each slot sets the checkout from
   its verb's own rule; an action without one runs from any checkout.
@@ -584,55 +613,57 @@ slot reuses it, where today `currentWuReconcile` carries a bare `recommendedComm
 - **The notes channel's recommendations** (`inferUser`, `lib/session-init/recommended-action.ts`) are the envelope's
   recommendation rather than a slot's action; they keep today's shape until they retire at the flip (§ 4.7).
 
-| Slot and condition                                                                                                                         | Action                                                                                                                                    | Form  |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `currentWuReconcile`: tracked repairs pending                                                                                              | `arc wu reconcile <slug> --apply --json`, in the work unit's checkout                                                                     | typed |
-| `currentWuReconcile`: advisory or conflicted                                                                                               | `arc wu reconcile <slug> --json`, to inspect, as today                                                                                    | typed |
-| `userReferenceReconcile`: rewrites pending                                                                                                 | `arc user reconcile-references --apply --json`, as today                                                                                  | typed |
-| `userReferenceReconcile`: advisory references                                                                                              | `arc user reconcile-references --json`, to inspect, as today                                                                              | typed |
-| `userReferenceReconcile`: rename evidence unavailable or in conflict                                                                       | its precomposed text                                                                                                                      | text  |
-| `workUnitState`: `merged-needs-archival`                                                                                                   | the archive, in the work unit's checkout                                                                                                  | text  |
-| `workUnitState`: `mergeable`                                                                                                               | the integration, after merging base in where `behindBase` is known true                                                                   | text  |
-| `workUnitState`: `mergeability-unavailable`                                                                                                | its precomposed guidance (`mergeabilityGuidance`)                                                                                         | text  |
-| `workUnitState`: `blocked`                                                                                                                 | the open pull request's requested changes or failing checks, which its owner answers                                                      | text  |
-| `workUnitState`: `stale`                                                                                                                   | its once-a-day nudge                                                                                                                      | text  |
-| `errandState`: an Errand to materialize                                                                                                    | `arc errand materialize <slug> --claim-id <id> --expected-head <head> --json`                                                             | typed |
-| `errandState`: the current branch's Errand to resume, or residue                                                                           | its precomposed text                                                                                                                      | text  |
-| `inboxState`: routable captures (`housekeepNeeded`)                                                                                        | the drain, `arc-session --housekeep`                                                                                                      | text  |
-| `inboxState`: the person's survivors (§ 7.4)                                                                                               | `arc inbox personal`, then the drain's carry                                                                                              | text  |
-| `sweep`: a removable worktree                                                                                                              | `arc teardown <name>`                                                                                                                     | typed |
-| `sweep`: a work unit's husk, on the primary                                                                                                | `arc teardown <name>`, as today                                                                                                           | typed |
-| `sweep`: a work unit's husk, from a linked checkout                                                                                        | `arc teardown <name> --husk <path>`, as today                                                                                             | typed |
-| `sweep`: a branch's husk, on the primary                                                                                                   | `arc teardown --branch <ref>`, as today                                                                                                   | typed |
-| `sweep`: an Errand's husk, a branch's from a linked checkout, or a manual-only stamp                                                       | its text, for manual cleanup, as today                                                                                                    | text  |
-| `sweep`: a landed retirement's residue                                                                                                     | `arc teardown <slug>`, its teardown remedy, as today                                                                                      | typed |
-| `sweep`: a landed retirement's one ready successor                                                                                         | `arc start <slug>`, its successor remedy, as today                                                                                        | typed |
-| `sweep`: a missing folder whose registration is locked                                                                                     | `git worktree unlock <path>`, then `git worktree prune`                                                                                   | text  |
-| `sweep`: a checkout whose work unit another identity owns (§ 5)                                                                            | `arc locus release <slug>`                                                                                                                | typed |
-| The residue sweep's deferred rename move                                                                                                   | `git worktree move -f -f <from> <to>`                                                                                                     | typed |
-| `orphanBranchSweep`: a shipped work unit's branch                                                                                          | `arc teardown <name>`                                                                                                                     | typed |
-| `orphanBranchSweep`: a branch whose commits all landed (§ 12.4)                                                                            | `git branch -D <name>`                                                                                                                    | typed |
-| `orphanBranchSweep`: an adopted branch not landed                                                                                          | `git branch -D <name>`, as its owner's step                                                                                               | text  |
-| `materializableWorkUnits`: a work unit no checkout here holds                                                                              | `arc materialize <slug>`                                                                                                                  | typed |
-| `materializableWorkUnits`: its branch out in a checkout with no marker                                                                     | `arc materialize <slug> --here`, in that checkout                                                                                         | typed |
-| `materializableWorkUnits`: discovery pending a fetch                                                                                       | `arc active in-flight --json`, its refresh remedy, as today                                                                               | typed |
-| `recovery`: branch-gone's removable candidate                                                                                              | `arc teardown <name>`                                                                                                                     | typed |
-| `recovery`: a checkout to switch to                                                                                                        | that checkout's path, to continue there                                                                                                   | text  |
-| `recovery`: the in-flight tier pending a fetch                                                                                             | `arc active in-flight --json`, its refresh remedy, as today                                                                               | typed |
-| `recovery`: an exact, clean switch to a branch with no checkout                                                                            | `git switch <branch>`, after `git fetch` where only its remote holds it                                                                   | text  |
-| `recovery`: a candidate's folder missing, unlocked: `missing` (§ 12.1)                                                                     | `git worktree prune`                                                                                                                      | typed |
-| `recovery`: a candidate's folder missing, locked: `locked` (§ 12.1)                                                                        | `git worktree unlock <path>`, then `git worktree prune`                                                                                   | text  |
-| `recovery`: any other outcome — main-fallback, surface, unproven, an external candidate, or a prompted switch to a branch with no checkout | its precomposed text, as today                                                                                                            | text  |
-| `pausedWork`: a review-due item (§ 4.4)                                                                                                    | its review prompt, naming `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open`, and `arc abandon <slug>` | text  |
-| `pausedWork`: each item (§ 4.4)                                                                                                            | `arc resume <slug>`, or a materialize as the two rows above                                                                               | typed |
-| `inboundBackPressure` past a threshold (§ 4.6)                                                                                             | `arc inbox <slug>`, then the owner's re-triage                                                                                            | text  |
-| `derivedLocusState`: commits not yet closed (§ 11)                                                                                         | `arc task close`, in the work unit's checkout                                                                                             | typed |
-| `derivedLocusState`: an Active work unit with no linked branch out (§ 11)                                                                  | the work branch to switch to                                                                                                              | text  |
-| `derivedLocusState`: the floor behind (§ 11)                                                                                               | `git pull` of the work branch, in the work unit's checkout                                                                                | typed |
-| `derivedLocusState`: the floor diverged (§ 11)                                                                                             | `git pull --no-rebase` and the close again where nothing was rewritten, or the lost floor's explicit close where pushed commits were      | text  |
-| `derivedLocusState`: the floor missing (§ 11)                                                                                              | `git fetch`, then a push of the work branch from the checkout that holds it, or the lost floor's explicit close where none does           | text  |
-| `derivedLocusState`: the floor lost (§ 11)                                                                                                 | a task's re-close, `arc task close <id> --commit <sha>…`, or `arc task close <ids> --commit <sha>…`                                       | text  |
-| `user`: the store needs a designation (§ 4.8)                                                                                              | the store's remedy argv                                                                                                                   | typed |
+| Slot and condition                                                                                                                         | Action                                                                                                                                          | Form  |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `currentWuReconcile`: tracked repairs pending                                                                                              | `arc wu reconcile <slug> --apply --json`, in the work unit's checkout                                                                           | typed |
+| `currentWuReconcile`: advisory or conflicted                                                                                               | `arc wu reconcile <slug> --json`, to inspect, as today                                                                                          | typed |
+| `userReferenceReconcile`: rewrites pending                                                                                                 | `arc user reconcile-references --apply --json`, as today                                                                                        | typed |
+| `userReferenceReconcile`: advisory references                                                                                              | `arc user reconcile-references --json`, to inspect, as today                                                                                    | typed |
+| `userReferenceReconcile`: rename evidence unavailable or in conflict                                                                       | its precomposed text                                                                                                                            | text  |
+| `workUnitState`: `merged-needs-archival`                                                                                                   | the archive, in the work unit's checkout                                                                                                        | text  |
+| `workUnitState`: `mergeable`                                                                                                               | the integration, after merging base in where `behindBase` is known true                                                                         | text  |
+| `workUnitState`: `mergeability-unavailable`                                                                                                | its precomposed guidance (`mergeabilityGuidance`)                                                                                               | text  |
+| `workUnitState`: `blocked`                                                                                                                 | the open pull request's requested changes or failing checks, which its owner answers                                                            | text  |
+| `workUnitState`: `stale`                                                                                                                   | its once-a-day nudge                                                                                                                            | text  |
+| `errandState`: an Errand to materialize                                                                                                    | `arc errand materialize <slug> --claim-id <id> --expected-head <head> --json`                                                                   | typed |
+| `errandState`: the current branch's Errand to resume, or residue                                                                           | its precomposed text                                                                                                                            | text  |
+| `inboxState`: routable captures (`housekeepNeeded`)                                                                                        | the drain, `arc-session --housekeep`                                                                                                            | text  |
+| `inboxState`: the person's survivors (§ 7.4)                                                                                               | `arc inbox personal`, then the drain's carry                                                                                                    | text  |
+| `sweep`: a removable worktree                                                                                                              | `arc teardown <name>`                                                                                                                           | typed |
+| `sweep`: a work unit's husk, on the primary                                                                                                | `arc teardown <name>`, as today                                                                                                                 | typed |
+| `sweep`: a work unit's husk, from a linked checkout                                                                                        | `arc teardown <name> --husk <path>`, as today                                                                                                   | typed |
+| `sweep`: a branch's husk, on the primary                                                                                                   | `arc teardown --branch <ref>`, as today                                                                                                         | typed |
+| `sweep`: an Errand's husk, a branch's from a linked checkout, or a manual-only stamp                                                       | its text, for manual cleanup, as today                                                                                                          | text  |
+| `sweep`: a landed retirement's residue                                                                                                     | `arc teardown <slug>`, its teardown remedy, as today                                                                                            | typed |
+| `sweep`: a landed retirement's one ready successor                                                                                         | `arc start <slug>`, its successor remedy, as today                                                                                              | typed |
+| `sweep`: a missing folder whose registration is locked                                                                                     | `git worktree unlock <path>`, then `git worktree prune`                                                                                         | text  |
+| `sweep`: a checkout whose work unit another identity owns (§ 5)                                                                            | `arc locus release <slug>`                                                                                                                      | typed |
+| `sweep`: another checkout whose marker names a work unit with no record (§ 2.5)                                                            | `arc locus release <slug>`                                                                                                                      | typed |
+| The residue sweep's deferred rename move                                                                                                   | `git worktree move -f -f <from> <to>`                                                                                                           | typed |
+| `orphanBranchSweep`: a shipped work unit's branch                                                                                          | `arc teardown <name>`                                                                                                                           | typed |
+| `orphanBranchSweep`: a branch whose commits all landed (§ 12.4)                                                                            | `git branch -D <name>`                                                                                                                          | typed |
+| `orphanBranchSweep`: an adopted branch not landed                                                                                          | `git branch -D <name>`, as its owner's step                                                                                                     | text  |
+| `materializableWorkUnits`: a work unit no checkout here holds                                                                              | `arc materialize <slug>`                                                                                                                        | typed |
+| `materializableWorkUnits`: its branch out in a checkout with no marker                                                                     | `arc materialize <slug> --here`, in that checkout                                                                                               | typed |
+| `materializableWorkUnits`: discovery pending a fetch                                                                                       | `arc active in-flight --json`, its refresh remedy, as today                                                                                     | typed |
+| `recovery`: branch-gone's removable candidate                                                                                              | `arc teardown <name>`                                                                                                                           | typed |
+| `recovery`: a checkout to switch to                                                                                                        | that checkout's path, to continue there                                                                                                         | text  |
+| `recovery`: the in-flight tier pending a fetch                                                                                             | `arc active in-flight --json`, its refresh remedy, as today                                                                                     | typed |
+| `recovery`: an exact, clean switch to a branch with no checkout                                                                            | `git switch <branch>`, after `git fetch` where only its remote holds it                                                                         | text  |
+| `recovery`: a candidate's folder missing, unlocked: `missing` (§ 12.1)                                                                     | `git worktree prune`                                                                                                                            | typed |
+| `recovery`: a candidate's folder missing, locked: `locked` (§ 12.1)                                                                        | `git worktree unlock <path>`, then `git worktree prune`                                                                                         | text  |
+| `recovery`: any other outcome — main-fallback, surface, unproven, an external candidate, or a prompted switch to a branch with no checkout | its precomposed text, as today                                                                                                                  | text  |
+| `pausedWork`: a review-due item (§ 4.4)                                                                                                    | its review prompt, naming `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open`, and `arc abandon <slug>`       | text  |
+| `pausedWork`: each item (§ 4.4)                                                                                                            | `arc resume <slug>`, or a materialize as the two rows above                                                                                     | typed |
+| `inboundBackPressure` past a threshold (§ 4.6)                                                                                             | `arc inbox <slug>`, then the owner's re-triage                                                                                                  | text  |
+| `derivedLocusState`: commits not yet closed, every one made fresh (§ 11)                                                                   | `arc task close`, in the work unit's checkout                                                                                                   | typed |
+| `derivedLocusState`: commits not yet closed, one of them not made fresh (§ 11)                                                             | the bare close where the open task's work is among them; otherwise a closed task's re-close, `arc task close <id>`; in the work unit's checkout | text  |
+| `derivedLocusState`: an Active work unit with no linked branch out (§ 11)                                                                  | the work branch to switch to                                                                                                                    | text  |
+| `derivedLocusState`: no base ref, with `origin` (§ 11)                                                                                     | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`                                                                                | typed |
+| `derivedLocusState`: no base ref, no `origin` (§ 11)                                                                                       | `git branch <base> <commit>`, a base commit chosen                                                                                              | text  |
+| `derivedLocusState`: the entering checkout's anchored marker names a work unit with no record (§ 2.5)                                      | `arc start <slug> --here` in that checkout, to finish the cold start, or `arc locus release <slug>`, to clear the marker                        | text  |
+| `derivedLocusState`: the entering checkout's spawned marker names a work unit with no record (§ 2.5)                                       | `arc locus release <slug>`, which removes the checkout                                                                                          | typed |
+| `user`: the store needs a designation (§ 4.8)                                                                                              | the store's remedy argv                                                                                                                         | typed |
 
 The session-init workflow keeps rendering each slot from its own text until the flip's rewrite dispatches the actions;
 these slots are what that rewrite consumes, without reopening them.
@@ -728,7 +759,9 @@ inspect command (`handleLocus`), which keeps working unchanged.
   identity owns — the handover case, which the stale-worktree sweep reports with `arc locus release <slug>`, runnable
   from any checkout (§ 4.3). It refuses on a work unit this identity owns that is not paused, so it never strands a live
   locus, naming the remedy its state takes: `arc pause <slug> --reason <text>` for a Planning or Active one; its
-  integration, then teardown, for an Integrating one; and `arc teardown <slug>` for one that has ended.
+  integration, then teardown, for an Integrating one; and `arc teardown <slug>` for one that has ended. A checkout whose
+  marker names a work unit with no record, a crashed cold start's or a spawn's residue (§ 2.5), it releases for anyone,
+  since no owner governs it.
 - **Before the flip** it refuses `unsupported`, naming `arc park` and `arc teardown`, which serve it until then.
 
 ### 6. The entry grammar (shared decision 9)
@@ -1073,24 +1106,27 @@ deletion.
 
 From the flip `arc errand open` (`lib/errand/open-runtime.ts`), under full protection, where it cuts the Errand's branch
 (`chore/<slug>`, `lib/errand/open.ts`) — in place by `git checkout -b` (`lib/locus/provisioning-runtime.ts`) or in a
-spawned worktree — writes the Errand's branch link recorded `created` and, as every branch link records, its floor: the
-commit it cut the branch from (§ 11, § 16). Under partial protection it cuts no branch and writes no link, as an Errand
-there has no portable record (§ 7.7). Until the flip no branch link is stored.
+spawned worktree — writes the Errand's branch link recorded `created`, with no exclusions, since an Errand has no tasks
+for them to serve (§ 11, § 16). Under partial protection it cuts no branch and writes no link, as an Errand there has no
+portable record (§ 7.7). Until the flip no branch link is stored.
 
 #### 8.3 Promotion
 
 Promotion's one write and its branch are the transition-write-path change's (§ 16): from the flip, at either floor, it
 cuts the work branch `<type>/<name>` (`--type`, default `feat`) at the Errand's tip, switches the checkout onto it, and
-links it beside the Errand's branch, recorded `created` with the Errand link's floor. At the scale floor the work unit
-is Active at once, so the Errand's commits stay in the close's default capture for the tasks it backfills, which
-promotion's `Next Action` asks for (`metaOverrides`, `lib/errand/promote-runtime.ts`); a derivation-floor promotion's
-work unit, in Planning, meets them in its activation's report, since activation moves the floor to the branch's tip
-(§ 16). Today a derivation-floor promotion renames the Errand branch to `plan/<name>` (`promotionBranch`).
+links it beside the Errand's branch, recorded `created` with the Errand link's exclusions, which are none. At the scale
+floor the work unit is Active at once, so the Errand's commits stay in the close's default capture for the tasks it
+backfills, which promotion's `Next Action` asks for (`metaOverrides`, `lib/errand/promote-runtime.ts`); a
+derivation-floor promotion's work unit, in Planning, meets them in its activation's report, since activation adds the
+branch's default set to its exclusions and reports them with the close that captures any that are task work (§ 16).
+Today a derivation-floor promotion renames the Errand branch to `plan/<name>` (`promotionBranch`).
 
-This change moves the promotion runtime (`promoteOrdinaryErrandAtRuntime`) onto that write, with its marker settlement
-(`settlePromotedOccupancy`): on a spawned checkout it converts the transient marker (`convertSpawnedMarker`), as today;
-on the primary, from the flip, it writes an anchored work-unit marker in place of the transient one (§ 2.6); and either
-way it runs the exclusivity check first (§ 2.4). Until the flip the runtime keeps today's settlement, commit included.
+That change builds the write and the Git step as steps `promoteOrdinaryErrand` composes (`lib/errand/promote.ts`), in a
+module of their own beside it. This change has the promotion runtime (`promoteOrdinaryErrandAtRuntime`) select those
+steps on the capability, with its marker settlement (`settlePromotedOccupancy`): on a spawned checkout it converts the
+transient marker (`convertSpawnedMarker`), as today; on the primary, from the flip, it writes an anchored work-unit
+marker in place of the transient one (§ 2.6); and either way it runs the exclusivity check first (§ 2.4). Until the flip
+the runtime keeps today's steps and settlement, commit included.
 
 ### 9. Handoff and continuity
 
@@ -1192,42 +1228,48 @@ migration until the flip.
 
 ### 11. Commits not yet closed
 
-From the flip a task's commits are captured by the task close verb (§ 16). A work branch's **floor** is the commit its
-branch link records, at or below which every commit is captured or is no task's work: activation, an Errand's open,
-promotion, and the import set it where they write the link, and closes move it up (§ 16).
+From the flip a task's commits are captured by the task close verb (§ 16). A branch link records **exclusions**, the
+commits on its branch that are no task's work — an adopted branch's from before its activation, a kept branch's from its
+time back in Planning, and a carried branch's from before moving state onto the ref store — which activation and the
+import write (§ 16). Each capture and exclusion carries its commit's SHA and its **copy key**, which one function
+computes (`lib/git/copy-key.ts`, § 16), so a copy of a commit that keeps its author line and diff, as a rebase that
+changes neither makes, matches it.
 
 - **The listing.** While an Active work unit has open tasks — a Planning one's wait for activation, which cuts or links
   its branch (§ 16) — the derived frame's work-unit context carries the set the close's default capture takes, computed
-  by the same code: the non-merge commits reachable from `HEAD` and from none of the floor, base, and base's
-  remote-tracking ref, less every commit already captured for the work item, a difference by commit. Session start
-  (`derivedLocusState`) and recovery both list them beside the task cursor with `arc task close` as the typed action,
-  run in the work unit's checkout (§ 4.3). The listing and the close therefore agree: a base merge adds none, an adopted
-  branch's earlier commits stay out, a promoted Errand's commits stay in, no captured commit lists again, and the floor
-  that moving state onto the ref store records stands for every commit before the move.
+  by the same code: the non-merge commits reachable from `HEAD` and from neither base nor base's remote-tracking ref,
+  less every commit matching, by SHA or copy key, one of the work item's captures or one of the branch link's
+  exclusions. Its copy keys come from that one function, since keys computed any other way never match. Session start
+  (`derivedLocusState`) and recovery both list them beside the task cursor, with the close as the action, run in the
+  work unit's checkout (§ 4.3). The listing and the close therefore agree: a base merge adds none, an adopted branch's
+  earlier commits stay out, a scale-floor promotion's Errand commits stay in, no captured or excluded commit lists
+  again, and the exclusions the import writes stand for every commit before the move. A checkout behind its branch, or
+  lacking commits another machine made, lists over the commits it holds, as the close computes.
+- **Where the listing and the close differ.** The listing fetches nothing and computes over the base refs the clone has,
+  where the close refreshes base first, so after a fetch of the work branch alone it may list base commits the close
+  then leaves out. Where those are all it lists, the close's refresh empties its set, so the close refuses, recording
+  nothing and naming the commits the refresh found on base, and the next listing, over the refreshed ref, shows none of
+  them. And the listing does not attribute: a rewritten copy of a captured or excluded commit, its author line kept and
+  its diff changed, lists until a close takes it to its original's task or the exclusions (§ 16).
+- **The listing's action.** The close with no IDs closes the cursor's task, and it takes to another task, or to the
+  exclusions, only a commit whose committer time differs from its author time (§ 16). So the action is the bare close,
+  `arc task close`, typed, only where every listed commit is one Git made fresh, its committer and author times equal,
+  read from the commit header its copy key's author half is read from. Otherwise it is text naming both repairs, since
+  only the agent knows whether the open task's work is among the commits: the bare close where it is, which also takes
+  each rewritten copy of a captured or excluded commit to its original's task or the exclusions; where it is not, as
+  after a hand amend of a closed task's commit, that task's re-close, `arc task close <id>`, which closes nothing new. A
+  rewrite that writes a new author line — `--reset-author`, `rebase --ignore-date`, a squash by `git reset --soft` that
+  names no commit to `-C` or `-c` — reads as fresh, as the close's own named residuals have it, so the typed bare close
+  captures it to the cursor's task and closes that task, a named residual.
 - **No linked branch out.** The close reads the branch link whose ref the checkout has out and refuses on a detached
   checkout or one with no linked branch out, so the listing there reports that refusal, naming the work branch to
   switch to, rather than listing.
-- **A floor not in `HEAD`'s history.** The listing reports the case the close tells apart, with the close's repair, in
-  place of the set, the cases and repairs being the close's (§ 16):
-    - **Behind:** the work branch's remote-tracking ref holds the floor and `HEAD` is an ancestor of that ref, as for a
-      checkout kept through a handover's round trip; `git pull` of the work branch fast-forwards it to the ref, which
-      holds the floor.
-    - **Diverged:** the remote-tracking ref holds the floor and `HEAD` holds commits it lacks. Only the agent can tell a
-      checkout that worked while the branch moved on elsewhere from one that rewrote commits it had pushed, so the
-      listing reports the commits since base that no task captured and names both repairs: where nothing here was
-      rewritten, a merge of the work branch's remote (`git pull --no-rebase`) and the close again; where this checkout
-      rewrote pushed commits, the lost floor's explicit close.
-    - **Missing:** this clone lacks the floor's commit, as a checkout materialized before that commit was pushed does;
-      the repair is `git fetch`, and where that does not bring it in, a push of the work branch from the checkout that
-      holds it, or, where no checkout holds it any longer, the lost floor's explicit close. The listing reports the
-      commits since base that no task captured, which need no floor, for that close to pick from.
-    - **Lost:** the commit is here and reachable from neither `HEAD` nor the remote-tracking ref, as after an amend or a
-      rebase ARC did not make with no remote-tracking copy left. The listing reports the commits since base that no task
-      captured, and its text names the repair, since the agent picks the commits: where the lost floor is a commit a
-      closed task captured, as after an amend of the last closed increment, that task's re-close,
-      `arc task close <id> --commit <sha>…`; otherwise an explicit close of the increment's own commits among those
-      listed, `arc task close <ids> --commit <sha>…`. Either moves the floor to the named commit every other named
-      commit is an ancestor of.
+- **No base ref.** Where neither base nor base's remote-tracking ref resolves, the set would take the branch's whole
+  history, so the listing reports the condition in place of the set, with the repair the close names where its own fetch
+  brings in no base ref: base fetched by its explicit refspec,
+  `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`, which writes the ref even where the clone's
+  configured refspec omits base, as a single-branch clone's does; or, in a clone with no `origin`, a local base branch,
+  `git branch <base> <commit>` (§ 4.3).
 - **A paused work unit.** The close refuses on one, naming `arc resume`, so the listing there takes `arc resume <slug>`
   as its action, its text naming `arc task close` to follow (§ 4.3).
 - **Recovery lists them beside a matching cursor** rather than stopping: a compaction between a commit and its close
@@ -1323,7 +1365,8 @@ actions; the verbs' refusals are these:
 | An Errand's start from an entry that is gone (§ 7.6)                                                                                       | where its latest receipt says it went                                                                                                                           | text   |
 | An Errand's start from an entry an open Errand holds (§ 7.6)                                                                               | that Errand, to resume in its own checkout                                                                                                                      | text   |
 | `arc errand queue set` naming both entries of one ID (§ 6.3)                                                                               | both entries, to queue one now and the other once the first starts                                                                                              | text   |
-| A marker write while another checkout's marker names the work unit                                                                         | that checkout (§ 2.4)                                                                                                                                           | text   |
+| A marker write while another checkout's marker names the work unit (§ 2.4)                                                                 | work in that checkout, or release it there with `arc locus release`                                                                                             | text   |
+| The cold start from the flip in a checkout whose spawned marker names a work unit with no record (§ 2.5)                                   | `arc locus release <slug>`, which removes that checkout                                                                                                         | typed  |
 | `arc locus release` on a work unit this identity owns, not paused (§ 5)                                                                    | `arc pause <slug> --reason <text>` for a Planning or Active one; its integration, then teardown, for an Integrating one; `arc teardown <slug>` for an ended one | text   |
 | `arc locus release` on a checkout holding a transient role (§ 5)                                                                           | the role's exits, as handoff's locus plan names them                                                                                                            | text   |
 | `arc handoff write` where the checkout holds no work unit (§ 9.1)                                                                          | the work unit's checkout; a handoff between work units writes no session context                                                                                | text   |
@@ -1394,23 +1437,32 @@ holds until then is stated with it.
       apply in one batch with expected versions (§ 4.1);
     - the pause record on the work item, `arc pause`, `arc resume`, and `arc handover`, and the refusal of every verb
       that advances a paused work unit's work, naming `arc resume` (§ 4.3, § 4.4);
-    - `arc task close`, its default capture over the floor less the work item's captures, closes moving the floor up,
-      its refusal on a checkout with no linked branch out, and its refusal and named repair for a floor behind,
-      diverged, missing, or lost (§ 11);
-    - branch links' record of whether ARC created or adopted the branch and their floor (§ 8.2, § 11, § 12.4), and an
-      abandon's and a teardown's report of a kept adopted branch (§ 12.4);
+    - `arc task close`, its default capture — the non-merge commits from `HEAD` on neither base nor base's
+      remote-tracking ref, less those matching a capture or the branch link's exclusions by SHA or copy key, computed
+      after its best-effort refresh of base — its attribution of a rewritten copy, its committer time differing from its
+      author time, to its original's task or the exclusions, and its refusals on a checkout with no linked branch out
+      and where no base ref resolves, naming their repairs, and where its refresh empties a set that was not empty
+      before it, naming the commits the refresh found on base (§ 11);
+    - the one function computing a commit's copy key (`lib/git/copy-key.ts`), which the listing calls, since keys
+      computed any other way never match, a key computed only for a commit no stored SHA matches and from local objects
+      alone (`GIT_NO_LAZY_FETCH`), so the computation never fetches (§ 11);
+    - branch links' record of whether ARC created or adopted the branch and their exclusions (§ 8.2, § 11, § 12.4), and
+      an abandon's and a teardown's report of a kept adopted branch (§ 12.4);
     - the widened `arc materialize` in both arms, the spawn, and graduation in place, each running the exclusivity check
-      and the in-place arms writing the anchored marker (§ 2.4, § 2.6, § 4.5);
+      through a port that change injects and this change binds (§ 2.4), and the in-place arms writing the anchored
+      marker (§ 2.6, § 4.5);
     - teardown releasing an anchored marker and keeping its checkout, and rename moving only a spawned checkout (§ 2.3);
     - the cold start's seed handling, landing before this change reroutes `runColdStart` (§ 2.5);
-    - promotion's one write and its work branch (§ 8.3);
+    - promotion's one write and its work branch, built as steps `promoteOrdinaryErrand` composes, in their own module
+      (§ 8.3);
     - the rule that an Active work unit is no default routing home, and the record kinds' write check refusing the move
       to Active while the inbound list holds an entry (§ 7.8);
-    - the scaffold's create arm from the flip, writing the meta and its session context through the store with no
-      `runUserOpen`, which the cold start reroutes onto (§ 2.8);
+    - the scaffold's arm from the flip, branching on the capability itself, creating the meta through the store with no
+      `runUserOpen` and so no `SESSION-NOTES` seed, and keeping the cold start's call (§ 2.8);
     - the current-work-unit reconcile's store-backed prepare, with its executor and command bindings (§ 4.1);
     - dependency discharge reading lifecycle through the store (§ 3.6);
-    - activation moving the floor to the branch's tip and reporting the uncaptured commits that hides (§ 8.3).
+    - activation adding the default set of a branch it adopts or reattaches to that link's exclusions and reporting
+      them with the close that captures any that are task work (§ 8.3, § 11).
 
   Until it lands none of these exist, so this change lands after it.
 - **Status and ROADMAP** (the change rendering them from typed listings): the readiness composition's record merge
@@ -1425,14 +1477,15 @@ holds until then is stated with it.
   `maintain()`'s ref measurements and the push's retry count and time waited (§ 9.3); the unresolvable-state-version
   refusal naming the history refs a clone lacks, and `pull` of them by name (§ 9.2); the refusal of writes to a kind no
   declaration homes (§ 6.6); the project ID as every capture's repository (§ 8.1); and the import, which carries each
-  open Errand's and live work unit's branch link with its record and floor (§ 8.2, § 11), stamps every entry's `_Id:_`,
-  carries each open Errand's origin entry into its description, moves each draft's held entries — its buffer section —
-  and each pending owner-adoption `_Hold:_` capture into its work unit's inbound list, an entry from a buffer section
-  taking as its `_Created:_` the latest date its `_Routed from:_` line carries, or the import's date where it carries
-  none, and that line moving unchanged into the entry's prose as a plain paragraph, and one from a held capture keeping
-  the capture's `_Created:_` and taking the `_Routed from:_` a route from its inbox would write, so every
-  `_Routed from:_` line from the flip has § 6.2's form (§ 4.6, § 7.8), turns each person's execute-bound marks into
-  their Errand queue in file order (§ 7.6), and writes no `State at Handoff` (§ 9.2) and no marker (§ 2.7).
+  open Errand's and live work unit's branch link with its record, a work unit's with its exclusions (§ 8.2, § 11),
+  stamps every entry's `_Id:_`, carries each open Errand's origin entry into its description, moves each draft's held
+  entries — its buffer section — and each pending owner-adoption `_Hold:_` capture into its work unit's inbound list, an
+  entry from a buffer section taking as its `_Created:_` the latest date its `_Routed from:_` line carries, or the
+  import's date where it carries none, and that line moving unchanged into the entry's prose as a plain paragraph, and
+  one from a held capture keeping the capture's `_Created:_` and taking the `_Routed from:_` a route from its inbox
+  would write, so every `_Routed from:_` line from the flip has § 6.2's form (§ 4.6, § 7.8), turns each person's
+  execute-bound marks into their Errand queue in file order (§ 7.6), and writes no `State at Handoff` (§ 9.2) and no
+  marker (§ 2.7).
 - **The cutover:** the flip; the workflow rewrite, which dispatches the slots' actions (§ 4.3), moves the capture gates
   onto `arc inbox --target` (§ 7.1), moves hold-and-route's binding and hand-off sites onto `arc route` (§ 7.9), drops
   `session-init.md`'s `-d` offer for the slot's action (§ 12.4) and activation's workspace step (§ 2.8), replaces
@@ -1524,8 +1577,9 @@ handoff, consumes these results and verbs without reshaping them.
 
 **Performance.** Session-init binds `currentWuReconcile`'s reads once where it binds them twice today. In-flight
 derivation lists placement once rather than reading a meta at each eligible ref. The listing of commits not yet closed
-is one revision walk from `HEAD` excluding three bounds, less the work item's captures, and the back-pressure slot reads
-the current work unit's inbound list once.
+is one revision walk from `HEAD` excluding base and its remote-tracking ref, less the captures and exclusions it
+matches, a copy key computed only for a commit no stored SHA matches, from local objects alone (§ 16); and the
+back-pressure slot reads the current work unit's inbound list once.
 
 **Security and trust.** Anyone may insert into an entry list, but only a started work unit's owner removes from its
 inbound list, a rule the host cannot enforce, as it enforces no ARC writer rule. A person's personal-inbox receipts live
@@ -1560,13 +1614,14 @@ through `arc handoff write`, and the commits not yet closed are listed with thei
    and its `--here` arm (§ 4.5); the notes policies having no effect (§ 4.7); session start's pull and its designation
    line (§ 4.8); the close's capture, the Errand's branch link, and promotion's branch and marker (§ 8.1–8.3);
    `arc handoff write`'s write with the anchors it computes (§ 9.1) and each case of § 9.2; identity setup writing only
-   absent records and warning on one in use (§ 10.1, § 10.2); the cold start writing only its marker and the store's
-   records (§ 2.5); Errands and claims acquired apart, review admission taking both complete (§ 3.2); former slugs
-   resolved through `lookup` (§ 3.5); the queue's offer and a start's refusals (§ 7.6); removal by ID and version, and
-   `--from-inbox` taking the inbox (§ 7.7); an adopted branch never offered `arc teardown` (§ 12.4); `retiredSubdirs`
-   resolving `skip` (§ 4.2); `arc user open` refusing (§ 2.8); and a paused work unit's slot actions taking `arc resume`
-   (§ 4.3). The tripwire report, whose figures neither implementation produces, passes over scripted measurements and
-   push outcomes, showing each figure past its bound and none below (§ 9.3).
+   absent records and warning on one in use (§ 10.1, § 10.2); the cold start writing its records only through the store
+   and, in its checkout, only the marker and the editor documents, with their entries in the clone's exclude file and
+   `HEAD` unmoved (§ 2.5); Errands and claims acquired apart, review admission taking both complete (§ 3.2); former
+   slugs resolved through `lookup` (§ 3.5); the queue's offer and a start's refusals (§ 7.6); removal by ID and version,
+   and `--from-inbox` taking the inbox (§ 7.7); an adopted branch never offered `arc teardown` (§ 12.4);
+   `retiredSubdirs` resolving `skip` (§ 4.2); `arc user open` refusing (§ 2.8); and a paused work unit's slot actions
+   taking `arc resume` (§ 4.3). The tripwire report, whose figures neither implementation produces, passes over scripted
+   measurements and push outcomes, showing each figure past its bound and none below (§ 9.3).
 6. **The verbs this design adds** — `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`,
    `arc errand queue set`, and `arc handoff write` — pass on their success paths and on each refusal they name, a
    recoverable refusal also on its continuation once repaired, and each refuses `unsupported` before the flip, naming
@@ -1579,10 +1634,11 @@ through `arc handoff write`, and the commits not yet closed are listed with thei
    destination holds is reported or refused as § 7.2 states; a survivor lists with its home and is carried in both
    forms, a crash leaving the survivor or its carry and never both; each abandon return in § 7.5 lands where it states;
    and the latest receipt is decided across the two refs by time.
-9. **The commits not yet closed** equal the close's default capture on an adopted, a re-activated, and a promoted work
-   unit's branch; a floor behind, diverged, missing, or lost is reported with its repair, a diverged, missing, or lost
-   one with the commits since base no task captured, in place of the listing; a paused work unit takes
-   `arc resume <slug>`; and recovery lists them beside a matching cursor.
+9. **The commits not yet closed** equal the close's default set over the same base refs on an adopted, a re-activated,
+   and a promoted work unit's branch, a rebased copy of a captured or excluded commit matching by its copy key; where no
+   base ref resolves, the condition is reported with the close's repair in place of the listing; the action is the bare
+   close only where every listed commit is one Git made fresh; a paused work unit takes `arc resume <slug>`; and
+   recovery lists them beside a matching cursor.
 10. **Back-pressure trips on each threshold,** and below both the slot reports its figures with no action.
 11. **The quality gates pass** at every gate the project declares.
 
