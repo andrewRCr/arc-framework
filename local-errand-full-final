@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-errand-full-final",
+  "claimId": "cd77d5b51dc1c73c836ec37641b7c082",
+  "createdAt": "2026-10-13T17:54:30.205Z",
+  "updatedAt": "2026-10-13T17:54:30.205Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Honor full-final routing for local Errand correction coverage and the disposition pass line.",
+  "branch": "chore/local-errand-full-final",
+  "origin": "inbox",
+  "originEntry": "Keep a local Errand's post-fix pass complete when routing says `full-final`",
+  "originEntrySourceDigest": "sha256:60c58dce2ed68531e973f5fac75802b6643ca2630425eac69aa7da19936ba7f1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
