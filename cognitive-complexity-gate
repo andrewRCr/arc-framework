@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "cognitive-complexity-gate",
+  "claimId": "c9f4593cb5759dcdb81f836f1e24c97c",
+  "createdAt": "2026-10-13T12:43:05.820Z",
+  "updatedAt": "2026-10-13T12:43:05.820Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Replace the cyclomatic complexity limit in src/** with SonarSource cognitive complexity at 15, re-recording the size-gate floor",
+  "branch": "chore/cognitive-complexity-gate",
+  "origin": "inbox",
+  "originEntry": "Decide whether cognitive complexity replaces the cyclomatic limit",
+  "originEntrySourceDigest": "sha256:325ab573cc9eb2c1344633a0fd61950a2ecd78a98d764c18741c2f15f7abc237",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
