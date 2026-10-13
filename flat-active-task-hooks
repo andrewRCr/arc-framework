@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "flat-active-task-hooks",
+  "claimId": "08418eda146d6f1776ce05dcaab7c6df",
+  "createdAt": "2026-10-13T14:20:31.618Z",
+  "updatedAt": "2026-10-13T14:20:31.618Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Match flat and nested active task lists in pre-commit numbering and staging checks, with real-Git installed-hook regressions.",
+  "branch": "chore/flat-active-task-hooks",
+  "origin": "inbox",
+  "originEntry": "Make the pre-commit task-list checks match flat active task lists",
+  "originEntrySourceDigest": "sha256:d616f834de2cd381eecf1e6533e436d296210030d0fc9ab8eff5396f332aaadd",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
