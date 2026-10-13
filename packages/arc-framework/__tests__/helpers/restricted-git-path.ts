@@ -14,7 +14,7 @@ export async function restrictedGitPath(root: string): Promise<string> {
   const bin = await mkdtemp(join(parent, "cli-absence-"));
   const directories = [...new Set([...(process.env.PATH ?? "").split(delimiter)
     .map(raw => raw.replace(/^"(.*)"$/u, "$1")), "/usr/bin", "/bin"])];
-  for (const name of ["git", "bash", "sh", "env", "cat", "dirname", "basename", "cut", "grep", "head", "sed", "sort", "comm", "wc", "tr", "node"]) {
+  for (const name of ["git", "bash", "sh", "env", "awk", "cat", "dirname", "basename", "cut", "grep", "head", "sed", "sort", "comm", "wc", "tr", "node"]) {
     const executable = process.platform === "win32" ? `${name}.exe` : name;
     let source: string | undefined;
     for (const directory of directories) {

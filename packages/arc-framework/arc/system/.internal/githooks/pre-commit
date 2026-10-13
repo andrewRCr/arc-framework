@@ -218,8 +218,8 @@ fi
 # If committing code changes, check if related task lists should also be staged.
 # Skipped for contributors — they don't manage task lists.
 if [ "$arc_role" != "contributor" ]; then
-    modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
-    staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+    modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '^\.arc/active/(.*/)?tasks-.*\.md$' || true)
+    staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '^\.arc/active/(.*/)?tasks-.*\.md$' || true)
 
     if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
         echo -e "${YELLOW}Warning: Modified task lists not staged:${NC}"
@@ -240,7 +240,7 @@ task_numbering_mode=$(arc_config_get "hooks.task_numbering" "error")
 
 if [ "$arc_role" != "contributor" ] && [ "$task_numbering_mode" != "off" ]; then
     task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
-        grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
+        grep -E '^\.arc/(active/(.*/)?|backlog/.*/)tasks-.*\.md$' | \
         while IFS= read -r file; do
             # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
             # Pattern: checkbox followed by optional bold, then three numeric segments
