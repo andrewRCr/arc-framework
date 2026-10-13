@@ -285,19 +285,21 @@ previous pass's fixes may inform its cost-and-signal rationale.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
 convergence whatever its tag. The tags decide which look and whether design is still open: a local correction needs
 checking only where it stands, while a new-design fold weighs toward a fresh full pass, as the re-inspection test
-does. Within the loop, only the tags speak to re-entry: offer [resolve-planning-depth][resolve-planning-depth]'s
-re-entry valve when folds carry new design or one locus keeps needing new design across passes or rounds, never on a
-count of majors whose folds are local corrections. Recommend from those folds' proportionality reads, which may
-already have raised the re-entry floor. A material finding that a correction is incomplete calls for another
-fix-check round, not re-entry.
+does. Within the loop, the tags carry the derivation signal for re-entry: offer
+[resolve-planning-depth][resolve-planning-depth]'s re-entry valve when folds carry new design or one locus keeps
+needing new design across passes or rounds, never on a count of majors whose folds are local corrections. Recommend
+from those folds' proportionality reads, which may already have raised the re-entry floor. A scale signal — a
+correction whose surface runs wider than the stage's level assumed — is its own reason to offer the valve, whatever
+the tag. A material finding that a correction is incomplete calls for another fix-check round, not re-entry.
 
 **Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
 close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
 are all local corrections may advance on a non-converged result, including at `cap-exhausted`; that is the design
 holding, not an accepted risk. A wrong rule or missing case is fixed where it stands; a remaining finding confined to
 implementation-level detail or minor grounding may be deferred to the next stage, which corrects in place. A
-new-design fold, or design the loop has not settled, holds the stage. Task generation has no later planning stage to
-absorb a correction, so nothing is deferred past it: each correction is pinned before the stage closes.
+new-design fold, a scale signal, or design the loop has not settled holds the stage. Task generation has no later
+planning stage to absorb a correction, so nothing is deferred past it: each correction is pinned before the stage
+closes.
 
 **Cap recommendation.** At `cap-exhausted` with material signal remaining, state a clear recommendation — another
 pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. With fold
