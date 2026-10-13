@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "owner-stop-base-movement",
+  "claimId": "96cd683364adb5fbdcf89da76623dcb4",
+  "createdAt": "2026-10-13T03:57:45.995Z",
+  "updatedAt": "2026-10-13T03:57:45.995Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep an Owner-directed review stop through base-only movement that base drift reads as disjoint, while a changed head, claim, or PR, any overlap, or a new finding still voids it",
+  "branch": "chore/owner-stop-base-movement",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
