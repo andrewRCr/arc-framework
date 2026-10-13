@@ -3,7 +3,7 @@
   "slug": "flat-active-task-hooks",
   "claimId": "08418eda146d6f1776ce05dcaab7c6df",
   "createdAt": "2026-10-13T14:20:31.618Z",
-  "updatedAt": "2026-10-13T14:20:31.618Z",
+  "updatedAt": "2026-10-13T16:48:32.612Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Match flat and nested active task lists in pre-commit numbering and staging checks, with real-Git installed-hook regressions.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the pre-commit task-list checks match flat active task lists",
   "originEntrySourceDigest": "sha256:d616f834de2cd381eecf1e6533e436d296210030d0fc9ab8eff5396f332aaadd",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/flat-active-task-hooks",
+    "headSha": "3a95921997fbd4a535ec676686f2f512a8e30b4f"
+  }
 }
