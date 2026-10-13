@@ -20,6 +20,7 @@ import {
   withLockedUserInbox,
   type UserIOContext,
 } from "../../src/commands/user.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../src/lib/advisory-lock.js";
 import { contentDigest } from "../../src/lib/canonical/content-digest.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
@@ -149,6 +150,35 @@ describe("runUserInboxRemove", () => {
 });
 
 describe("runUserInboxMutation", () => {
+  it("preserves replacement and release failures, leaves the preimage intact, and permits retry", async () => {
+    const operation = new Error("atomic inbox replacement failed");
+    const release = new Error("inbox lock release reported a failure");
+    const mutation = {
+      kind: "mark" as const, title: "Keep me", sourceDigest: inboxEntrySourceDigest(INBOX, "Keep me"),
+    };
+    const options = { cwd, io: io(), identity: IDENTITY, mutations: [mutation] };
+    let lockPath: string | undefined;
+    const failure = await runUserInboxMutation(options, {
+      acquireLock: async (path) => {
+        const handle = await acquireAdvisoryLock(path, { token: "inbox-failure-owner" });
+        lockPath = handle.path;
+        return handle;
+      },
+      atomicReplace: async () => {
+        if (lockPath === undefined) throw new Error("expected the injected acquisition");
+        expect(JSON.parse(await readFile(lockPath, "utf8"))).toMatchObject({ token: "inbox-failure-owner" });
+        throw operation;
+      },
+      releaseLock: async (handle) => { await releaseAdvisoryLock(handle); throw release; },
+    }).then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toMatchObject({ errors: [operation, release], message: operation.message, cause: operation });
+    expect(await readFile(inboxPath, "utf8")).toBe(INBOX);
+    await expect(runUserInboxMutation(options)).resolves.toMatchObject({ changed: true });
+    expect(await readFile(inboxPath, "utf8")).toContain("- _Disposition:_ `execute-bound`");
+  });
+
   it("digests an exact locked post-image without interpreting its contents", async () => {
     const malformed = "# User Inbox\n\n## Errand\n\n### malformed managed entry\n";
     await writeFile(inboxPath, malformed, "utf-8");
