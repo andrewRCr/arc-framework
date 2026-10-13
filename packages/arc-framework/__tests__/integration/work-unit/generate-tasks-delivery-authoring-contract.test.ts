@@ -123,6 +123,56 @@ describe("generate-tasks delivery authoring contract", () => {
     }
   });
 
+  it("stops the grounding audit's confirm gate only for a phase that leaves something to decide", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    expect(installed).toBe(packaged);
+    const between = (start: string, end: string): string => {
+      const from = packaged.indexOf(start);
+      const to = packaged.indexOf(end, from);
+      expect(from).toBeGreaterThan(-1);
+      expect(to).toBeGreaterThan(from);
+      return packaged.slice(from, to);
+    };
+    const low = between("### `low`", "### `medium`");
+    const medium = between("### `medium`", "### `high`");
+    const high = between("### `high`", "## Structural decomposition");
+    const loop = between("## Grounding audit & coherent revision", "### Audit the phase");
+    const surface = between("### Surface findings + decisions, then confirm", "**Re-entry valve");
+
+    expect(low).toMatch(softWrappedProse("stops for the single substantive phase only when its audit leaves something to decide"));
+    expect(low).not.toMatch(softWrappedProse("The one review stop"));
+    for (const path of [medium, high]) {
+      expect(path).toMatch(softWrappedProse("stops only for a phase whose audit leaves something to decide"));
+      expect(path).not.toMatch(softWrappedProse("fires once per substantive phase"));
+    }
+    expect(loop).toMatch(softWrappedProse("The phase-at-a-time loop is intrinsic at **every** depth"));
+    expect(loop).toMatch(softWrappedProse("not the phase count or the resolved level"));
+    expect(loop).not.toMatch(softWrappedProse("fires once per substantive phase at **every** depth"));
+    expect(surface).toMatch(softWrappedProse(
+      "When the phase's audit returns a fix-before-starting finding, a masked design decision, or a floor-raising signal",
+    ));
+    expect(surface).toMatch(softWrappedProse("A phase with nothing to decide does not stop."));
+    expect(surface).toMatch(softWrappedProse("naming any \"carry as context\" findings and the home revision gives each"));
+
+    for (const unchanged of [
+      "Stop after the merged draft is written.",
+      "Stop after the skeleton is drafted.",
+      "Stop after the Pass 2 draft is written.",
+      "Stop after a disproportionate provisional skeleton is identified.",
+      "Stop after the pre-save checklist passes.",
+    ]) {
+      expect(packaged).toMatch(softWrappedProse(unchanged));
+    }
+  });
+
   it("teaches the member verifier shape in every shipped task-authoring reference", () => {
     const suffix = "— validate criteria at member scope";
     const references = [
