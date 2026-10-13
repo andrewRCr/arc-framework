@@ -316,11 +316,14 @@ describe("trusted review-gate workflows", () => {
     const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
       "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
       "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
-    expect(jobValue(workflow, "e2e").if).toBe(broadSuiteCondition);
-    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
-    // A light run still owes the integration suite when the change touches content it reads that the weight leaves
-    // out, so integration and the build it consumes also run on the integration target.
     const integrationTarget = "needs.classify.outputs.integration_target == 'true'";
+    const contentSuiteCondition = broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    );
+    expect(jobValue(workflow, "e2e").if).toBe(contentSuiteCondition);
+    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
+    // Both suites read content outside the verified code tree, and the shared target also requests their build.
     expect(jobValue(workflow, "integration").if).toBe(broadSuiteCondition.replace(
       "needs.classify.outputs.weight != 'light')",
       `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
