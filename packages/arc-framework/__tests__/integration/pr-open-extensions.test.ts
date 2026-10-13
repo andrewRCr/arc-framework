@@ -608,6 +608,7 @@ describe("PR-open lifecycle extensions", () => {
       ["over-cap", "stop before another evaluator invocation"],
       ["conditional-permission", "replay cannot authorize another pass"],
       ["local-correction-majors", "not offer the re-entry valve on the count of majors"],
+      ["sustained-nonconvergence", "offer the re-entry valve rather than another pass"],
     ] as const;
 
     for (const [name, expectedSignal] of cases) {
@@ -640,6 +641,23 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("weigh severity and the fold tags together");
       expect(normalized).toContain("whether a planning stage may close is the caller's call, and it asks whether the design holds");
       expect(normalized).toContain("task generation has no later planning stage to absorb a correction");
+    }
+  });
+
+  it("names review that keeps authoring its own design as a re-entry signal, not cap exhaustion", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("most of a pass's material findings originate in an earlier pass's or round's new-design fold, and their approved fixes are new design again");
+      expect(normalized).toContain("another pass extends that chain instead of closing it");
+      expect(normalized).toContain("a floor-raising derivation signal at any pass count");
+      expect(normalized).toContain("[assess-boundary-fit][assess-boundary-fit] as well when the design written in folds spans concerns that could stand apart");
+      expect(normalized).toContain("material findings whose fixes are local corrections do not raise it, whatever their origin");
+      expect(normalized).toContain("so a stop at the cap never reads as the cap running out");
+      expect(normalized).toContain("an owner-accepted risk with the signal named, never the design holding");
+      expect(normalized).toContain("there the re-entry offer comes before another pass");
+      expect(normalized).toContain("and for the offer under sustained non-convergence, where another pass would review the last one's design");
+      expect(normalized).toContain("any re-entry or boundary offer with the owner's settlement");
     }
   });
 
