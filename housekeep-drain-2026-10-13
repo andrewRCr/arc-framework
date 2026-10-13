@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-drain-2026-10-13",
+  "claimId": "95cec128b0eb31765e115ff462f54681",
+  "createdAt": "2026-10-13T19:46:44.127Z",
+  "updatedAt": "2026-10-13T19:46:44.127Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the 2026-10-13 housekeep drain's confirmed USER-INBOX captures to their backlog homes and mint four stubs",
+  "branch": "chore/housekeep-drain-2026-10-13",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
