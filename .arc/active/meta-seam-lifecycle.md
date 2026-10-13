@@ -8,11 +8,11 @@
 - **Depends On:** `seam-record-kinds`
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
-- **Design:** `draft-seam-lifecycle.md`
+- **Design:** `spec-seam-lifecycle.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
