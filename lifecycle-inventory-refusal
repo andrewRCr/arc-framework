@@ -3,7 +3,7 @@
   "slug": "lifecycle-inventory-refusal",
   "claimId": "0c3beafe1846ec032d54947a199e2eda",
   "createdAt": "2026-10-13T17:14:45.055Z",
-  "updatedAt": "2026-10-13T17:14:45.055Z",
+  "updatedAt": "2026-10-13T17:48:59.757Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse incomplete lifecycle inventories instead of silently dropping unrecognized or unparseable meta records.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse the lifecycle inventory when a meta's `State` is unrecognized, instead of dropping the meta",
   "originEntrySourceDigest": "sha256:6e3db60134cf8cb95e5f5b8f80196a5ea578fe37724e659aa632b64a4aef38dd",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/lifecycle-inventory-refusal",
+    "headSha": "f36eef237e570645e3ad4f7b17882ec4dd974edd"
+  }
 }
