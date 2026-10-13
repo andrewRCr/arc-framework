@@ -33,6 +33,10 @@ import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.
 import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 
+/** Accepted slug format and retry guidance shared by core and CLI input refusals. */
+export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
+  + "and retry `arc errand open`.";
+
 type ClaimResult =
   | { kind: "applied" | "idempotent"; record: OrdinaryErrandRecord }
   | { kind: "refused"; reason: string }
@@ -104,12 +108,10 @@ export async function openOrdinaryErrand(
   options: OpenOrdinaryErrandOptions,
 ): Promise<ErrandOperationResult> {
   const requestedSlug = options.slug.trim();
-  const slugRemedy = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
-    + "and retry `arc errand open`.";
-  if (requestedSlug === "") return openRefusal("identity-conflict", `Errand slug must be non-empty. ${slugRemedy}`);
+  if (requestedSlug === "") return openRefusal("identity-conflict", `Errand slug must be non-empty. ${ERRAND_SLUG_INPUT_REMEDY}`);
   const parsedSlug = SlugSchema.safeParse(requestedSlug);
   if (!parsedSlug.success) {
-    return openRefusal("identity-conflict", `Errand slug must be valid. ${z.prettifyError(parsedSlug.error)}\n${slugRemedy}`);
+    return openRefusal("identity-conflict", `Errand slug must be valid. ${z.prettifyError(parsedSlug.error)}\n${ERRAND_SLUG_INPUT_REMEDY}`);
   }
   const slug = parsedSlug.data;
   const originEntry = options.inbox?.title.trim() || null;
