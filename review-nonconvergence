@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-nonconvergence",
+  "claimId": "79a912a5d8d6e68885757ef5679c116b",
+  "createdAt": "2026-10-13T23:32:21.330Z",
+  "updatedAt": "2026-10-13T23:32:21.330Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name planning review that keeps generating its own findings as a re-entry signal at adversarial-review's exit gate, not cap exhaustion",
+  "branch": "chore/review-nonconvergence",
+  "origin": "inbox",
+  "originEntry": "Treat planning review that never converges as a re-entry signal, not cap exhaustion",
+  "originEntrySourceDigest": "sha256:fef2cf7b6e52749654f7c0885496225c7f2790683569c1cb97bc6ec59d710018",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
