@@ -25,9 +25,11 @@ Each entry routed in before this pass, folded at the owner's planning pass (2026
   fix check's nine, and the fourth pass's seven, their fix check's six, and its second round's seven folded, the third
   and fourth passes over the cap at the Owner's direction; the loop then stopped at the Owner's direction, leaving the
   second round's repairs and lifecycle's folds beside them, chiefly the survivor and receipt rules, unreviewed; the
-  post-settle re-read then ran. The 2026-10-12 pass re-verified the inherited rows (`notes-seam-locus.md`), folded both
-  inbound entries, took every sibling decision and ask that had landed, settled this member's own open items with the
-  Owner, and checked the design against the storage, procedure, and knowledge evolution strategies.
+  post-settle re-read then ran; at `create-spec`'s entry a third round checked those repairs, and its six were folded,
+  with no further round, since the spec's finalization pass attacks the same rules. The 2026-10-12 pass re-verified
+  the inherited rows (`notes-seam-locus.md`), folded both inbound entries, took every sibling decision and ask that had
+  landed, settled this member's own open items with the Owner, and checked the design against the storage, procedure,
+  and knowledge evolution strategies.
 - **Resolved (2026-10-12):** item 9's executing arm, onto lifecycle's routing answer; the tripwire bounds; one inbox
   listing; the six entry grammars and the ID's placement; the cold start and the anchored marker; key 55's Errands and
   its state-target overlap; the removal callers, against lifecycle's approved removal function and check; the pause,
@@ -48,7 +50,10 @@ Each entry routed in before this pass, folded at the owner's planning pass (2026
   lifecycle's fourth pass, promotion's work branch at both floors, the listing's lost-bound report, and the
   orphan-branch sweep's offer for an adopted branch; and, from the second round, a survivor whose home takes nothing
   listing as ordinary work, `_Cites:_` dropped on a move, the receipt keyed to the list its reader names, in-place
-  resume among the arms that write no marker, and the slot rule's text arm for a repair needing the agent's input.
+  resume among the arms that write no marker, and the slot rule's text arm for a repair needing the agent's input; and,
+  from the third round, a retired home listing as ordinary work, the floors a rebase can drop, the orphan sweep's
+  `git branch -D` for every merged branch, the listing actions named in text, and a cross-inbox move's receipt in each
+  inbox's ref.
 - **Open:** two row placements wait for spec (§ Unknowns and Assumptions).
 - **Next:** `create-spec`, whose review attacks the survivor and receipt rules first. Under `cohort-storage-seam.md`
   § Coordination's safety net, this spec is approved only after lifecycle's, with a re-read of what it consumes: the
@@ -56,7 +61,8 @@ Each entry routed in before this pass, folded at the owner's planning pass (2026
   and its marker lookup, branch adoption's rename, the prepared-write protocol, the pause and the verbs it refuses, the
   task close verb and its capture set, the floor the branch link records, and the lost bound's refusal, with
   deactivation's report of commits not yet closed, promotion's work branch at both floors, an adopted branch never
-  deleted, the widened `arc materialize` with its in-place marker and branch-held refusal, the base-branch activation
+  deleted, the widened `arc materialize` with its in-place marker and its refusal while any checkout with no marker
+  holds the branch, the floors a rebase can drop, the base-branch activation
   arm, one marker per work unit with graduation's in-place marker (`atomicGraduate`'s in-place occupation), and
   `arc handover`'s and `arc pause`'s optional slug.
 
@@ -321,8 +327,9 @@ item's consumers.
       this machine holds it. A checkout with no marker that still has the work branch out, released or claimed in place
       before the flip (§ The cold start), takes `arc materialize <slug> --here` run from it, where a spawn would meet
       Git's refusal, so that item's action carries the checkout to run in beside its argv (§ Every rebuilt slot carries
-      an executable action); materialize refuses that case naming the checkout and that argv (lifecycle's, "Pause
-      replaces park").
+      an executable action); a plain `arc materialize <slug>` refuses whenever a checkout with no marker has the work
+      branch out, released or claimed in place, naming that checkout and that argv, where lifecycle's text names only a
+      released checkout (asked of lifecycle, "Pause replaces park").
     - **Entering a paused checkout.** The derived frame's work-unit context carries the pause record, and
       `locusGuidance` renders the pause, its reason, and the resume notes before any work starts; orientation is then
       not bare-clean, so `--next` never fires past it.
@@ -370,16 +377,17 @@ item's consumers.
   the row carries the home that receipt names, the `_Routed:_` of D11 derived rather than stored, so the drain carries
   the survivor's new content there (D11) and no stored line can clash with the person's edit; an entry an abandon or a
   route returned reads by its return's receipt, so it lists as unstarted work (D11), and a row whose latest receipt
-  names a home that now takes nothing — an ended Errand, or a work unit Integrating or completed, the homes the routing
-  verb refuses — lists as ordinary work, not a survivor, since a survivor of finished work is ordinary work (D11). Where
-  D11's line told the person why an entry came back, session start reports the person's survivors with
-  `arc inbox personal` as the action, whose rows name each one's home; the projected file shows nothing. Each row
-  carries the entry's `_Id:_` and version, `--target <slug>` filters an inbox to the entries naming that target and
-  keeps today's `clear`, `named`, and `refused` result, on which the three capture gates branch, and for a work unit's
-  inbound list the result also carries its pending count and oldest age (§ Inbound back-pressure), so the drain, the
-  exit gates, session start, and the routing verb's callers read through one listing. The gates' calls move to it in
-  `storage-cutover`'s flip rewrite (`USER-INBOX § Work Unit`, "Carry `arc user inbox-list` and the capture exit guards
-  across the flip").
+  names a home that now takes nothing — an ended Errand, a work unit Integrating or completed, or one retired by
+  abandonment or a cut, the homes the routing verb refuses — lists as ordinary work, not a survivor, since a survivor of
+  finished work is ordinary work (D11). Where D11's line told the person why an entry came back, session start reports
+  the person's survivors, naming `arc inbox personal` in its text, whose rows name each one's home, since carrying a
+  survivor takes the drain's decisions (§ Every rebuilt slot carries an executable action); the projected file shows
+  nothing. Each row carries the entry's `_Id:_` and version, `--target <slug>` filters an inbox to the entries naming
+  that target and keeps today's `clear`, `named`, and `refused` result, on which the three capture gates branch, and for
+  a work unit's inbound list the result also carries its pending count and oldest age (§ Inbound back-pressure), so the
+  drain, the exit gates, session start, and the routing verb's callers read through one listing. The gates' calls move
+  to it in `storage-cutover`'s flip rewrite (`USER-INBOX § Work Unit`, "Carry `arc user inbox-list` and the capture exit
+  guards across the flip").
 - **The entry grammars (Owner, 2026-10-12).** The entry-field module admits, per kind, a shape, the sections that hold
   entries, and the managed fields beyond `_Id:_` (`EntryConfig`, `KIND_MECHANISMS`, `lib/store/registry.ts`):
     - `personal/inbox` — heading; `Errand` and `Work Unit`; `_Created:_`, `_Remind:_`, `_Hold:_`, `_WU_Target:_`, and
@@ -429,9 +437,10 @@ item's consumers.
   Errand's, whose description does. The version is the entry's as the caller read it, which the listing reports for
   every list (§ One entry listing), so the source's removal is compare-and-swap and refuses, leaving the entry in place,
   when it changed since, as the drain's removal does (D11). Each runs as one `batch` — the destination's insert, the
-  source's removal, and a routing receipt — and reports the entry's ID and destination (D11). A receipt goes to the ref
-  of the inbox the move leaves or enters — the person's own ref for their personal inbox, which only they write, and the
-  project inbox's otherwise — whichever verb moves the entry: `arc route`, an insert included, an Errand's start,
+  source's removal, and its routing receipts — and reports the entry's ID and destination (D11). A receipt goes to the
+  ref of each inbox the move leaves or enters — the person's own ref for their personal inbox, which only they write,
+  and the project inbox's for the project inbox, so a move between the two writes one to each in the same batch, which
+  already writes both refs — whichever verb moves the entry: `arc route`, an insert included, an Errand's start,
   `arc errand link`, or the Errand's abandon (D11's routing receipts). The receipt kinds admit today only `route` among
   the moving verbs (`writerVerbs`, `KIND_MECHANISMS`, `lib/store/registry.ts`), so with the declarations they gain the
   Errand's start, link, and abandon, as D6 has it: a receipt is written by "the verb that moves an entry". An entry's
@@ -454,7 +463,8 @@ item's consumers.
   and writes a receipt, so a crash leaves the survivor or its carry, never both, and a carried survivor no longer lists.
   Anyone inserts; only a started work unit's owner removes an entry from its list, and anyone a backlog stub's (D11's
   writer rule; `inbound-routing-method`'s D5). It refuses a work unit that takes nothing, Integrating or completed,
-  naming a follow-on or `arc reopen` (§ Shared decisions, item 9), and an ended Errand, closed or abandoned, naming the
+  naming a follow-on or `arc reopen` (§ Shared decisions, item 9); a work unit retired by abandonment or a cut, naming
+  the inbox and, for a cut, the successors its lineage record names; and an ended Errand, closed or abandoned, naming the
   inbox, since a survivor of finished work is ordinary work (D11). It drops the managed fields the destination's kind
   does not admit, an Errand's description admitting the capture's fields whole, and `_Cites:_` on every move, and
   restamps `_Created:_` on every route except into a description (§ Shared decisions, item 9). Before the flip it
@@ -472,8 +482,9 @@ item's consumers.
   `arc route` and lifecycle's route-out to an Errand no longer do.
 - **Inbound back-pressure.** One per-work-unit computation, built with the inbound kind, reports the pending inbound
   count and the oldest entry's age against thresholds, and two places read it. Session-init's orientation carries the
-  current work unit's (D11), in a slot with its full schema, and past a threshold recommends its owner's re-triage with
-  `arc inbox <slug>` as the argv, which lists the work unit's inbound list (§ One entry listing). The drain reads it
+  current work unit's (D11), in a slot with its full schema, and past a threshold recommends its owner's re-triage,
+  naming in its text `arc inbox <slug>`, which lists the work unit's inbound list (§ One entry listing), since the
+  re-triage takes the owner's decisions (§ Every rebuilt slot carries an executable action). The drain reads it
   through the same listing, and its routing plan gives each backlog stub it routes into that already holds entries one
   line with the count and oldest date and the precomposed offer to re-triage it (`inbound-routing-method`'s D5), since
   the drain grooms only backlog stubs and a started work unit's entries are its owner's. `inbound-routing-method`
@@ -489,11 +500,12 @@ item's consumers.
   session start's materialize offer (`materializableWorkUnits`, `handlers/status.ts`) and the orphan-branch sweep
   (`orphanBranchSweep`) — carries its recommended action as a typed, executable action (argv) beside its precomposed
   text, never the text alone, where running it as given repairs the condition, as `currentWuReconcile`'s
-  `recommendedCommand` and the residue sweep's `remedy.argv` already do; where the repair needs the agent's input, as
-  the commits a lost bound leaves it to name (§ Commits not yet closed), the slot names the command with its arguments
-  in its text, as lifecycle's refusals do (`draft-seam-lifecycle.md` § Lifecycle, "Refusals name their remedy as a
-  command"). Each slot registers its schema with the contract registry (`arc schema`), as `session-init-envelope` does,
-  never a hand-written copy. An action whose verb works on, or writes from, the checkout it runs in carries that
+  `recommendedCommand` and the residue sweep's `remedy.argv` already do; where the repair needs the agent's or the
+  owner's input — the commits a lost bound leaves it to name (§ Commits not yet closed), or the decisions a re-triage or
+  a survivor's carry takes (§ Inbound back-pressure; § One entry listing) — the slot names the command with its
+  arguments in its text, as lifecycle's refusals do (`draft-seam-lifecycle.md` § Lifecycle, "Refusals name their remedy
+  as a command"). Each slot registers its schema with the contract registry (`arc schema`), as `session-init-envelope`
+  does, never a hand-written copy. An action whose verb works on, or writes from, the checkout it runs in carries that
   checkout beside its argv: the task close, which takes no slug and captures that checkout's `HEAD`; the reconcile's
   apply, which refuses unless that checkout's branch owns the slug (`resolveOwnedTarget`, `handlers/reconcile.ts`); the
   branch-held `arc materialize <slug> --here`, in the paused-work slot and session start's materialize offer (§ Pause,
@@ -563,9 +575,11 @@ item's consumers.
   verb"). It is the set the close captures, with the same exclusions, so the listing and the close agree. Where the
   latest bound — the last capture, or the floor before any — is not an ancestor of `HEAD`, as after a rebase ARC did not
   make, the close's default capture refuses, so the listing reports that bound rather than listing, naming
-  `arc task close --commit <sha>…` in its text, since the agent picks the commits; on a branch ARC created the floor is
-  a base commit no rebase drops, so there the bound such a rewrite loses is the last capture, and one explicit close
-  repairs it, since the capture it records becomes the latest bound (the same section, "The agent does no bookkeeping").
+  `arc task close --commit <sha>…` in its text, since the agent picks the commits; one explicit close repairs either lost
+  bound, since the capture it records becomes the latest bound (the same section, "The agent does no bookkeeping"). The
+  floor is a base commit no rebase drops only where activation cut the branch at base's tip or an Errand cut it; an
+  adopted branch's floor, a re-activated kept branch's, and the import's are commits on the branch, which such a rewrite
+  can drop too.
   A kept branch's commits never closed before a deactivation would fall under the next activation's floor, so
   deactivation reports them, naming `arc task close` in its text, since the agent supplies the task IDs, or reports the
   bound lost, naming `arc task close --commit <sha>…`, and proceeds (`draft-seam-lifecycle.md` § Lifecycle, "Lifecycle
@@ -591,11 +605,15 @@ item's consumers.
   `lib/session-init/orphan-branch-sweep.ts`) never offers `arc teardown <name>` for a branch whose link is recorded
   `adopted`, since teardown never deletes an adopted branch, so that offer would repeat at every session start
   (`draft-seam-lifecycle.md` § Lifecycle, "Which branches ARC reaps"). When the branch's commits all landed in base by
-  patch identity, its `merged` verdict (`isLandedInBase`, `lib/git/branch-containment.ts`), it offers
-  `git branch -D <name>` as its gated action, since `git branch -d` refuses the rebased or squash-merged branch that
-  verdict admits; otherwise it reports the branch kept, its owner's, naming `git branch -D <name>` in its text, the step
-  lifecycle's abandon and teardown name. A branch ARC created keeps today's offers, and until the flip no link carries
-  the record, so the sweep offers as today.
+  patch identity, its `merged` verdict (`git cherry`, through `isLandedInBase`, or `isLandedInBaseStrict` on the
+  local-only read, `lib/git/branch-containment.ts`), it offers `git branch -D <name>` as its gated action, since
+  `git branch -d` tests reachability and so refuses a rebased branch, or one squash-merged from a single commit, which
+  that verdict admits; otherwise it reports the branch kept, its owner's, naming `git branch -D <name>` in its text, the
+  step lifecycle's abandon and teardown name. A branch ARC created keeps today's offers but one: where the `merged`
+  verdict holds, the slot's action is the same `git branch -D <name>`, for the same reason, where today's offer is
+  `git branch -d`; the slot carries it from its rebuild, and `session-init.md`'s offer text keeps `-d` until the flip
+  rewrite dispatches the slot's action. Until the flip no link carries the record, so the sweep reads every branch as
+  one ARC created.
 - **Shipped-work readers onto placement (item 10).** The locus and session-init readers of the archive index
   (`completed-index.ts`) — the sweeps, retired-subdirectory detection, `lib/session-init/locus-classification.ts`, and
   the derived locus evidence (`lib/locus/derived-evidence.ts`), whose read the derived lifecycle evidence and roster
