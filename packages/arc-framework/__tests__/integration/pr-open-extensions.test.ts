@@ -633,6 +633,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("severity decides whether a fix needs a successor look");
       expect(normalized).toContain("the tags decide which look and whether design is still open");
       expect(normalized).toContain("never on a count of majors whose folds are local corrections");
+      expect(normalized).toContain("shows the design running deeper than the stage's level assumed — never on the tag alone");
       expect(normalized).toContain("a scale signal — a correction whose surface runs wider than the stage's level assumed — is its own reason to offer the valve, whatever the tag");
       expect(normalized).toContain("a new-design fold, a scale signal, or design the loop has not settled holds the stage");
       expect(normalized).toContain("calls for another fix-check round, not re-entry");

@@ -285,12 +285,13 @@ previous pass's fixes may inform its cost-and-signal rationale.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
 convergence whatever its tag. The tags decide which look and whether design is still open: a local correction needs
 checking only where it stands, while a new-design fold weighs toward a fresh full pass, as the re-inspection test
-does. Within the loop, the tags carry the derivation signal for re-entry: offer
-[resolve-planning-depth][resolve-planning-depth]'s re-entry valve when folds carry new design or one locus keeps
-needing new design across passes or rounds, never on a count of majors whose folds are local corrections. Recommend
-from those folds' proportionality reads, which may already have raised the re-entry floor. A scale signal — a
-correction whose surface runs wider than the stage's level assumed — is its own reason to offer the valve, whatever
-the tag. A material finding that a correction is incomplete calls for another fix-check round, not re-entry.
+does. Within the loop, the tags locate the derivation signal for re-entry: offer
+[resolve-planning-depth][resolve-planning-depth]'s re-entry valve when a new-design fold, or one locus that keeps
+needing new design across passes or rounds, shows the design running deeper than the stage's level assumed — never on
+the tag alone, and never on a count of majors whose folds are local corrections. A new-design fold's proportionality
+read may already have raised that floor. A scale signal — a correction whose surface runs wider than the stage's
+level assumed — is its own reason to offer the valve, whatever the tag. A material finding that a correction is
+incomplete calls for another fix-check round, not re-entry.
 
 **Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
 close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
