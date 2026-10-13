@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "loader-alias-collector",
+  "claimId": "c0463d618b20b5cf2630c99ae2770f36",
+  "createdAt": "2026-10-13T13:14:14.004Z",
+  "updatedAt": "2026-10-13T13:14:14.004Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Follow identifier aliases of createRequire loaders in the shared architecture module-reference collector, with native regression coverage for ratchets and loader predicates.",
+  "branch": "chore/loader-alias-collector",
+  "origin": "inbox",
+  "originEntry": "Follow aliased `createRequire` loaders in the architecture lint's module-reference collector",
+  "originEntrySourceDigest": "sha256:1952dfa55d0dcfdeb59efe107b796f5107d3cc632ece2d98f843204602cb89e6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
