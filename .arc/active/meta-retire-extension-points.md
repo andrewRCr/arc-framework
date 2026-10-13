@@ -1,8 +1,8 @@
 # Metadata: retire-extension-points
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ---------- | --------- | ------------------------------ | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/retire-extension-points` | `Light`   | `P2`         |
 
 - **Cohort:** `configuration`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
