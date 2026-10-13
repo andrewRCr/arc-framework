@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "release-commit-amend",
+  "claimId": "cc3a5a6a29d782616b590e441b108812",
+  "createdAt": "2026-10-13T21:38:39.346Z",
+  "updatedAt": "2026-10-13T21:38:39.346Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let the release commit wrapper amend an unpushed HEAD and refuse a pushed one",
+  "branch": "chore/release-commit-amend",
+  "origin": "inbox",
+  "originEntry": "Let `arc release commit` accept `--amend` on an unpushed `HEAD`",
+  "originEntrySourceDigest": "sha256:37f22f6488fbb9ae8cd6ce4f914e428c67a2e5f17c78a4190a4789685b415814",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
