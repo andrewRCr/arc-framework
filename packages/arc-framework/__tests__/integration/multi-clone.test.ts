@@ -50,7 +50,8 @@ import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
 import { reconcileErrandPush, type ErrandRecordIO } from "../../src/lib/errand/index.js";
-import { errandsRef } from "../../src/lib/errand/ref-tree.js";
+import { errandsRef, readTreeEntries, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
+import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 import {
   TransientIdentityRecordV3Schema,
   type TransientIdentityRecord,
@@ -485,6 +486,102 @@ describe("errand-ref cross-clone sync regression", () => {
         }
       }
     } finally {
+      await harness.cleanup();
+    }
+  }, 30_000);
+
+  it.each([
+    { json: true, mode: "JSON" },
+    { json: false, mode: "human" },
+  ])("surfaces ambiguous-history guidance in $mode sync and recovers after repair", async ({ json }) => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const originalExitCode = process.exitCode;
+    const identity = "test-user";
+    const ref = errandsRef(identity);
+    try {
+      await runInit({
+        cwd: harness.cloneA,
+        io: makeIOContext(harness.cloneA),
+        templateDir: getArcTemplatePath(),
+        internalTemplateDir: getInternalTemplatePath(),
+        recipe: await loadRecipe(),
+        prompts: DEFAULT_PROMPTS,
+        identityResult: identity,
+      });
+      const ioA = errandIo(harness.cloneA, identity);
+      const ioB = errandIo(harness.cloneB, identity);
+      const alpha = errandRecord("alpha");
+      await writeIdentity(ioA, alpha);
+      expect(await reconcileErrandPush(ioA)).toEqual({ kind: "pushed" });
+      await writeIdentity(ioB, TransientIdentityRecordV3Schema.parse({
+        ...errandRecord("beta"), claimId: "b".repeat(32),
+      }));
+      const aRoot = (await ioA.exec("git", ["rev-parse", ref])).stdout.trim();
+      const bRoot = (await ioB.exec("git", ["rev-parse", ref])).stdout.trim();
+      await ioA.exec("git", ["fetch", harness.cloneB, `${ref}:refs/test/b-root`]);
+      await ioB.exec("git", ["fetch", "origin", `${ref}:refs/test/a-root`]);
+      const union = new Map([
+        ...await readTreeEntries(ioA.exec, aRoot), ...await readTreeEntries(ioA.exec, bRoot),
+      ]);
+      await writeTreeCommit(ioA, union, "merge alpha and beta", [aRoot, bRoot], aRoot);
+      await writeTreeCommit(ioB, union, "independently merge beta and alpha", [bRoot, aRoot], bRoot);
+      expect((await transactTransientIdentities(ioA, {
+        remote: null,
+        message: "delete beta",
+        transform: (basis) => ({
+          kind: "applied", records: new Map([...basis].filter(([slug]) => slug !== "beta")), value: null,
+        }),
+      })).kind).toBe("applied");
+      const updatedAlpha = TransientIdentityRecordV3Schema.parse({ ...alpha, intent: "updated remotely" });
+      await writeIdentity(ioB, updatedAlpha);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const localTip = (await ioA.exec("git", ["rev-parse", ref])).stdout.trim();
+      const remoteTip = (await ioB.exec("git", ["rev-parse", ref])).stdout.trim();
+      process.chdir(harness.cloneA);
+      process.exitCode = undefined;
+      async function runSync(): Promise<{ text: string; warnings: string[] }> {
+        const capture = makeCapturingSyncOutput();
+        const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+        try {
+          await handleSync({ json, yes: true }, { ...capture.output, jsonMode: json },
+            makeInteractionContext({ noInput: true, yes: "authority", machineReadable: json }));
+          return { text: stdoutWrite.mock.calls.map((call) => String(call[0])).join(""), warnings: capture.stderr };
+        } finally {
+          stdoutWrite.mockRestore();
+        }
+      }
+      const failed = await runSync();
+      const diagnostic = json ? (JSON.parse(failed.text) as SyncEnvelope).errand?.detail : failed.warnings.join("\n");
+      expect(diagnostic).toContain("multiple best common ancestors");
+      expect(diagnostic).toContain("before retrying arc sync");
+      if (json) expect((JSON.parse(failed.text) as SyncEnvelope).errand?.result).toBe("failed");
+      else expect(failed.text).toBe("");
+      expect(process.exitCode).toBeUndefined();
+      expect((await ioA.exec("git", ["rev-parse", ref])).stdout.trim()).toBe(localTip);
+      expect((await execFileAsync("git", ["rev-parse", ref], { cwd: harness.origin })).stdout.trim()).toBe(remoteTip);
+      const markerPath = join(harness.cloneA, ".arc", "user", identity, ".internal", ".sync-state.json");
+      expect((JSON.parse(await readFile(markerPath, "utf8")) as { partialPushErrand?: unknown }).partialPushErrand)
+        .toBeDefined();
+
+      await ioB.exec("git", ["fetch", harness.cloneA, `${ref}:refs/test/local-tip`]);
+      const repaired = await readTreeEntries(ioB.exec, remoteTip);
+      repaired.delete("beta");
+      await writeTreeCommit(ioB, repaired, "reconcile intended changes", [remoteTip, localTip], remoteTip);
+      expect(await reconcileErrandPush(ioB)).toEqual({ kind: "pushed" });
+      const recovered = await runSync();
+      if (json) expect((JSON.parse(recovered.text) as SyncEnvelope).errand?.result).toBe("success");
+      expect(recovered.warnings.join("\n")).not.toContain("Errand sync failed");
+      expect(process.exitCode).toBeUndefined();
+      expect((JSON.parse(await readFile(markerPath, "utf8")) as { partialPushErrand?: unknown }).partialPushErrand)
+        .toBeUndefined();
+      expect(JSON.parse((await ioA.exec("git", ["show", `${ref}:alpha`])).stdout)).toEqual(updatedAlpha);
+      expect((await ioA.exec("git", ["ls-tree", "--name-only", ref])).stdout.trim()).toBe("alpha");
+      expect((await execFileAsync("git", ["rev-parse", ref], { cwd: harness.origin })).stdout.trim())
+        .toBe((await ioA.exec("git", ["rev-parse", ref])).stdout.trim());
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = originalExitCode;
       await harness.cleanup();
     }
   }, 30_000);
