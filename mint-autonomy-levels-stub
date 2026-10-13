@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "mint-autonomy-levels-stub",
+  "claimId": "824484fa42d6c18078888a4214580f7d",
+  "createdAt": "2026-10-13T16:04:38.825Z",
+  "updatedAt": "2026-10-13T16:04:38.825Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Mint the planned backlog stub autonomy-levels in the approval-flow-refinement cohort, with a seed draft carrying the unified autonomy-level model",
+  "branch": "chore/mint-autonomy-levels-stub",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
