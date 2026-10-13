@@ -1,11 +1,17 @@
 /** Shared include-file, post-create, and registered-harness setup for linked worktrees. */
 
+import { cp } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { GitExec } from "./exec.js";
 import { parseRegisteredHarnessDirs } from "./worktree-harness-dirs.js";
 import { copyWorktreeIncludes, type WorktreeIncludeFs } from "./worktree-include.js";
 import { resolvePrimaryWorktreePath } from "./worktree-roster.js";
+
+/** Recursively copy a worktree directory without rewriting symlink targets. */
+export async function nodeCopyWorktreeDirectory(source: string, destination: string): Promise<void> {
+  await cp(source, destination, { recursive: true, force: true, verbatimSymlinks: true });
+}
 
 export interface LinkedWorktreeSetupFs extends WorktreeIncludeFs {
   directoryExists(path: string): Promise<boolean>;

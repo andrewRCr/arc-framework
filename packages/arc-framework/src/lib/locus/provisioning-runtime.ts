@@ -1,12 +1,12 @@
 /** Production filesystem and Git boundaries for transient-locus provisioning. */
 
-import { access, cp } from "node:fs/promises";
+import { access } from "node:fs/promises";
 
 import {
   createLinkedWorktree,
   type LinkedWorktreeCreationReceipt,
 } from "../git/linked-worktree.js";
-import { setupLinkedWorktree } from "../git/linked-worktree-setup.js";
+import { nodeCopyWorktreeDirectory, setupLinkedWorktree } from "../git/linked-worktree-setup.js";
 import { nodeCopyFileIfAbsent } from "../git/worktree-include.js";
 import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
@@ -76,7 +76,7 @@ export function createNodeProvisioningDependencies(
           pathExists: async (path) => access(path).then(() => true, () => false),
           copyFileIfAbsent: nodeCopyFileIfAbsent,
           directoryExists: async (path) => access(path).then(() => true, () => false),
-          copyDirectory: (source, destination) => cp(source, destination, { recursive: true }),
+          copyDirectory: nodeCopyWorktreeDirectory,
         },
       }, {
         worktreePath,

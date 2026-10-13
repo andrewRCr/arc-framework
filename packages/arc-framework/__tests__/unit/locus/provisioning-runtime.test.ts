@@ -1,6 +1,8 @@
 /** Production provisioning adapter contracts over real exact-generation storage. */
 
-import { rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -28,6 +30,36 @@ describe("node provisioning runtime", () => {
       registeredHarnessDirs: "",
     });
   }
+
+  it("keeps copied relative skill links inside the destination checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-provision-harness-"));
+    roots.push(root);
+    const primary = join(root, "primary");
+    const destination = join(root, "linked");
+    const relativeTarget = "../../.arc/system/.internal/skills/arc-inbox";
+    const sourceSkill = join(primary, ".arc/system/.internal/skills/arc-inbox");
+    const destinationSkill = join(destination, ".arc/system/.internal/skills/arc-inbox");
+    await mkdir(sourceSkill, { recursive: true });
+    await mkdir(destinationSkill, { recursive: true });
+    await mkdir(join(primary, ".claude/skills"), { recursive: true });
+    await writeFile(join(sourceSkill, "SKILL.md"), "primary\n");
+    await writeFile(join(destinationSkill, "SKILL.md"), "linked\n");
+    await symlink(relativeTarget, join(primary, ".claude/skills/arc-inbox"), "dir");
+    const runtime = createNodeProvisioningDependencies({
+      exec: async () => { throw new Error("unexpected Git invocation"); },
+      base: "main",
+      branch: "chore/sample",
+      postCreateScript: "",
+      registeredHarnessDirs: ".claude",
+    });
+
+    await runtime.setupWorktree(destination, primary);
+
+    const copiedLink = join(destination, ".claude/skills/arc-inbox");
+    expect(await readlink(copiedLink)).toBe(relativeTarget);
+    expect(await realpath(copiedLink)).toBe(await realpath(destinationSkill));
+    expect(await readFile(join(copiedLink, "SKILL.md"), "utf8")).toBe("linked\n");
+  });
 
   describe("spawned rollback", () => {
     const receipt = {
