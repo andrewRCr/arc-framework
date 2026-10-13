@@ -282,10 +282,13 @@ remote base all name the same exact head. Any tracked change continues through t
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
    - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane.
+     On `offered / bind-source`, surface `payload.frontlineReview.promptText` and diagnostics; ask the Owner to
+     select an available source or skip. On selection, re-invoke the same request with
+     `invocation.sourceId` set to the selected source, preserving `invocation.mode`.
      On `offered / obtain-authorization`, surface `payload.frontlineReview.promptText` and the exact one-pass
      consequence, then ask `Approve (or redirect)?`. On acceptance, re-invoke the same request with
-     `invocation.mode` set to `force`, preserving any `invocation.sourceId`; on decline, replace `invocation` with
-     `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
+     `invocation.mode` set to `force`, preserving any `invocation.sourceId`. For either offer, on decline, replace
+     `invocation` with `{ "mode": "skip" }` and re-invoke the same request. Dispatch the returned state again; only from
      `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
