@@ -288,7 +288,10 @@ fi
 #     flags.
 #   - Broad (non-test files only): patterns that legitimately appear in test
 #     fixtures (Context-footer parsers consume "Context: tasks-foo.md (Task
-#     4.2)" strings). The test_patterns exemption preserves those.
+#     4.2)" strings). The test_patterns exemption preserves those. In other
+#     files, each complete Context footer is stripped per line before
+#     re-check, so footer examples and diagnostics pass while a planning
+#     reference elsewhere on the line still flags.
 skip_extensions=$(arc_config_get "hooks.skip_extensions" "md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile")
 test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
 strict_meta_ref_patterns=$(arc_config_get "hooks.strict_meta_ref_patterns" "PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ ")
@@ -333,9 +336,18 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
             fi
         done || true)
 
-        # Broad patterns skip test files (legitimate fixture data).
+        # Broad patterns skip test files (legitimate fixture data). Elsewhere,
+        # strip each complete Context footer ("Context: <name> (<description>)")
+        # then re-check, the same per-line way as the strict tokens above.
         if echo "$file" | grep -qvE "$test_patterns"; then
-            broad_refs=$(echo "$added" | grep -nE "$meta_ref_patterns" || true)
+            broad_refs=$(echo "$added" | grep -nE "$meta_ref_patterns" | while IFS= read -r numbered; do
+                [ -z "$numbered" ] && continue
+                content=${numbered#*:}
+                cleaned=$(printf '%s\n' "$content" | sed -E 's/Context: [A-Za-z0-9-]+(\.md)? \([^)]+\)//g')
+                if printf '%s\n' "$cleaned" | grep -qE "$meta_ref_patterns"; then
+                    printf '%s\n' "$numbered"
+                fi
+            done || true)
         else
             broad_refs=""
         fi

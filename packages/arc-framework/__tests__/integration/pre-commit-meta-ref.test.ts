@@ -119,6 +119,50 @@ describe("pre-commit CHECK[meta-project-references] (meta-project references)", 
     expect(rejected.stdout).toContain(requirement);
   });
 
+  it("accepts complete Context footer examples without hiding a planning ID beside them", async () => {
+    const root = await freshRepo();
+    const footers = [
+      'export const taskFooter = "Context: tasks-example.md (Task 1.2)";',
+      'export const integrationFooter = "Context: integration (Phase 2 merge)";',
+    ].join("\n");
+    await writeRepoFile(root, "src/footer.ts", `${footers}\n`);
+    await git(root, ["add", "src/footer.ts"]);
+
+    const allowed = await runHook(root);
+
+    expect(allowed.code).toBe(0);
+    expect(allowed.stdout).not.toContain("Meta-project references found in production code");
+
+    await writeRepoFile(root, "src/footer.ts", `${footers} // carried over from Task 3.1\n`);
+    await git(root, ["add", "src/footer.ts"]);
+
+    const rejected = await runHook(root);
+
+    expect(rejected.code).toBe(1);
+    expect(rejected.stdout).toContain("src/footer.ts");
+    expect(rejected.stdout).toContain("carried over from Task 3.1");
+    expect(rejected.stdout).not.toContain("taskFooter");
+  });
+
+  it("still rejects planning references outside a complete Context footer", async () => {
+    const root = await freshRepo();
+    const refused = [
+      "// Implements Task 3.1 of the rollout",
+      "// See tasks-auth.md for the remaining steps",
+      'export const partialFooter = "Context: tasks-auth.md";',
+    ];
+    const accepted = 'export const fullFooter = "Context: tasks-auth.md (Task 4.2)";';
+    await writeRepoFile(root, "src/plan.ts", `${[...refused, accepted].join("\n")}\n`);
+    await git(root, ["add", "src/plan.ts"]);
+
+    const result = await runHook(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("src/plan.ts");
+    for (const line of refused) expect(result.stdout).toContain(line);
+    expect(result.stdout).not.toContain("fullFooter");
+  });
+
   it("does not re-trigger on incoming merge content that already landed", async () => {
     const root = await freshRepo();
     await git(root, ["checkout", "-b", "incoming"]);
