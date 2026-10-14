@@ -124,7 +124,7 @@ adopted the branch, and which commits are no task's work.
    Purpose, `seam-decomposition`'s scaffold copies drafts and specs, and `seam-lifecycle`'s rename sweep rewrites them.
 9. **Entry managed fields** — `seam-locus`, with the entry-field module and the inbound list and Errand description
    kinds; `seam-lifecycle` settles where an executing work unit integrates its inbound entries, and `seam-record-kinds`'
-   write check refuses a work unit leaving with entries held. Provisional on `inbound-routing-method`.
+   write check refuses a work unit leaving with entries held.
 10. **The archive sequence** — `seam-lifecycle`, whose archive names the quarter; `seam-status-roadmap`'s archive
     listing reads it, and `seam-locus` and `seam-lifecycle` move the shipped-work readers onto placement and `lookup`.
 11. **The write check** — `seam-record-kinds`, the registry's slot and its kinds' checks; every member whose verbs write
@@ -328,8 +328,6 @@ are named by mechanism.
 - **The map's classifications were spot-checked, not re-derived**, and six areas were not covered in depth (its § Sweep
   and verification). Members re-verify their rows when they plan, and the counts in § Six members are seam-owned rows in
   the landed map.
-- **Entries marked provisional** rest on `inbound-routing-method`, Active since 2026-10-09 against its approved spec; if
-  its design moves before the members plan, they re-read its spec rather than these summaries.
 
 ### Scope boundary (Won't Do)
 
