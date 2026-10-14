@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-output-once",
+  "claimId": "138ebedc01e76633707a982e144c6574",
+  "createdAt": "2026-10-14T01:32:26.157Z",
+  "updatedAt": "2026-10-14T01:32:26.157Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Stop arc check's human output listing every check twice",
+  "branch": "chore/check-output-once",
+  "origin": "inbox",
+  "originEntry": "Stop `arc check`'s human output listing every check twice",
+  "originEntrySourceDigest": "sha256:e0874d715e8f5741fce4e9170d61f829d7c77ac77a7af3a702d097816684139b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
