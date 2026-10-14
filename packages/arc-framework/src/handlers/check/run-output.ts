@@ -43,12 +43,14 @@ const COUNT_ORDER = { failed: 0, "couldn't run": 1, "no evidence": 2, skipped: 3
 /**
  * Outcomes a human report counts without listing, unless the check has more to say than its outcome. An unselected
  * check is quiet only when nothing changed for it to examine; any other reason names what the request did not cover.
+ * A dry run's rows carry a forecast and are always listed, since showing each check is what a dry run is for.
  */
 const QUIET_OUTCOMES: ReadonlySet<DeclaredCheckResult["outcome"]> = new Set(["passed", "reused", "not selected"]);
 const UNCHANGED_INPUTS = "inputs unchanged";
 
 function isListed(check: DeclaredCheckResult): boolean {
-  const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS);
+  const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS)
+    && check.batches === undefined;
   return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0;
 }
 

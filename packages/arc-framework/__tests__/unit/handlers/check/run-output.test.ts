@@ -105,6 +105,20 @@ it("shows a forecast's last measured cost without presenting it as a new executi
   expect(result).toContain("last run: 10 ms");
 });
 
+it("lists every forecast row in a dry run, reused and unchanged ones included, with its last measured cost", () => {
+  const forecast = { cwd: ".", mode: "project" as const, shell: false, ciOnly: false, fixes: false, batches: [["lint"]] };
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [
+      { id: "lint", kind: "enforcement", outcome: "would run", lastCostMs: 10, ...forecast },
+      { id: "types", kind: "enforcement", outcome: "reused", lastCostMs: 20, ...forecast },
+      { id: "shell", kind: "enforcement", outcome: "not selected", reason: "inputs unchanged", lastCostMs: 30, ...forecast },
+    ],
+  } }, false);
+  expect(result).toContain("types: reused [enforcement] (last run: 20 ms)");
+  expect(result).toContain("shell: not selected [enforcement] (inputs unchanged) (last run: 30 ms)");
+  expect(result.trimEnd().split("\n").at(-1)).toBe("Checks: 1 would run, 1 reused, 1 not selected.");
+});
+
 it("warns once per record directory when passes could not be recorded for later gates", () => {
   const unavailable = { status: "unavailable", cause: "read-only-filesystem", directory: "/repo/.git/arc-checks" } as const;
   const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
