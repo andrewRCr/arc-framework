@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Pass `arc start --from` seeds through, and refuse `--from` on the spawning arm
+- **Last Completed:** Task 7.6 — The task close verb; Phase 7 complete
+- **Next Task:** Task 8.1 — Complete verification (line ~895 in `tasks-seam-lifecycle.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — the cold start takes a `draft-` or `spec-` seed as a document (Task 1.1.a)
+- **Next Action:** Fresh session: begin Task 8.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
