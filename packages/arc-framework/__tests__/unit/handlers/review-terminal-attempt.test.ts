@@ -46,14 +46,14 @@ function fixture() {
 }
 
 async function resolve(submitted: unknown, fault?: (result: ReviewResult) => ReviewResult,
-  sources: readonly string[] = ["codex-pr", "coderabbit-pr"]) {
+  sources: readonly string[] = ["codex-pr", "coderabbit-pr"], maxPasses = 2) {
   const { reader, target } = fixture();
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewResolve("-", {
     resolveRoot: () => "/trusted-repository", readText: async () => JSON.stringify(submitted),
     resolve: parsed => resolveEvidenceBoundReviewPolicy(parsed, {
-      sources, maxPasses: 2,
+      sources, maxPasses,
       resultReader: { readResult: async id => { const result = await reader.readResult(id); return fault?.(result) ?? result; } },
       confirmTarget: async () => target,
       dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("not used"); } },
@@ -122,6 +122,26 @@ describe("terminal review attempt input recovery", () => {
         result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
     },
   );
+
+  it.each(["pass count", "lane"])("preserves matching-lane authorizations while correcting %s", async mismatch => {
+    const { request } = fixture();
+    const terminal = request.attempts[0];
+    if (terminal?.outcome !== "clean") throw new Error("expected a clean terminal producer");
+    const grants = {
+      ceilingOverride: { target: request.target, lane: "standard", exhaustedPassCount: 1, nextPass: 2 },
+      additionalPassAuthorization: { target: request.target, lane: "standard",
+        precedingProducerId: terminal.reviewOperationId, completedPasses: 2, nextPass: 3 },
+    };
+    const refusal = await resolve({ ...request, ...grants,
+      ...(mismatch === "lane" ? { lane: "frontline", invocation: undefined } : { completedPasses: 1 }) }, undefined, undefined, 1);
+    const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
+    expect(error.error.code).toBe("invalid-input");
+    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
+    expect(corrected).toMatchObject(grants);
+    await expect(resolve(corrected, undefined, undefined, 1)).resolves.toMatchObject({ exitCodes: [],
+      result: { state: "ready", nextAction: "hosted-request", payload: { lane: "standard", pass: 3 } } });
+  });
 
   it.each([
     ["identity", (result: ReviewResult): ReviewResult => ({ ...result, producerId: "hosted/wrong-id" })],

@@ -134,7 +134,7 @@ function correctedTerminalRequest(
 ): ReviewPolicyCommandRequest {
   const lane = result.kind === "frontline" ? "frontline" : "standard";
   const scope = resultScope(result);
-  const { invocation, terminus, ...retained } = request;
+  const { invocation, terminus, ceilingOverride, additionalPassAuthorization, ...retained } = request;
   const preceding = lane === request.lane ? reconcileReviewFallbackAttempts({
     attempts: request.attempts.slice(0, -1), sources, terminalSourceId: producerSource(result),
     lane, scope, pullRequest: request.target.pullRequest,
@@ -152,6 +152,8 @@ function correctedTerminalRequest(
     standardReview: result.kind === "frontline" ? request.standardReview : standardProjection(result),
     ...(lane === request.lane && invocation !== undefined ? { invocation } : {}),
     ...(lane === "standard" && terminus !== undefined ? { terminus } : {}),
+    ...(ceilingOverride?.lane === lane ? { ceilingOverride } : {}),
+    ...(additionalPassAuthorization?.lane === lane ? { additionalPassAuthorization } : {}),
   });
 }
 
@@ -199,7 +201,7 @@ function validateTerminalResult(
   if ((result.originalOutcome === "clean") !== (result.findings.length === 0)) {
     throw new Error("review producer outcome does not match its complete finding set");
   }
-  if (result.kind === "frontline" ? result.outcome.maxPasses !== dependencies.maxPasses
+  if (result.kind === "frontline" ? request.lane === "frontline" && result.outcome.maxPasses !== dependencies.maxPasses
     : result.admission.policyVersion !== result.requirement.policyVersion) {
     throw new Error("review producer policy or rubric does not match the policy request");
   }

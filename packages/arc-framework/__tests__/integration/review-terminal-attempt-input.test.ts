@@ -12,6 +12,9 @@ import { deriveLocalReviewTarget } from "../../src/scripts/review-gate/hosts/loc
 import { laneProgressOperationId } from "../../src/scripts/review-gate/lane-progress.js";
 import { ReviewPolicyCommandRequestSchema } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
+import { createCleanFrontlineFixture } from "../fixtures/frontline-review.js";
+import { LocalFrontlineOutcomeStore } from "../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
+import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { createHostedTerminalAttemptFixture, publishHostedTerminalProgressFixture } from "../fixtures/hosted-review.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { runCli } from "../helpers/run-cli.js";
@@ -87,4 +90,55 @@ describe("terminal attempt recovery through the CLI and repository records", () 
       payload: { completedPasses: 2, verifiedTerminalSignal: { coverageAdequate: true, confirmedFindingCount: 0 } } });
     expect(await store.readOperation(operationId)).toEqual(before);
   });
+
+  it("replays a lane correction using its own configured ceiling and no wrong-lane grants", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-terminal-lane-", identity: "andrew" });
+    roots.push(root);
+    const exec = makeGitExec(root);
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"),
+      "review.standard_sources: [codex-pr]\nreview.standard_max_passes: 3\n"
+      + "review.frontline_sources: [coderabbit-cli]\nreview.frontline_max_passes: 2\n");
+    await exec("git", ["add", "."]);
+    await exec("git", ["commit", "-m", "base"]);
+    await exec("git", ["switch", "-c", "feature"]);
+    await exec("git", ["commit", "--allow-empty", "-m", "review target"]);
+    const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const target = await deriveLocalReviewTarget({ exec, cwd: root, baseRef: "main", repositoryId });
+    const { admission, run, lane, outcomeRecord } = createCleanFrontlineFixture(target);
+    const store = new LocalReviewOperationStateStore(publisher);
+    const outcomes = new LocalFrontlineOutcomeStore(publisher);
+    await store.publishOperation(run, 0);
+    await store.publishOperation(lane, 0);
+    await outcomes.appendOutcome(outcomeRecord, 0);
+    const request = responsePolicyRequestFixture({ headSha: target.headSha,
+      sourceId: "codex-pr", reviewOperationId: admission.operationId });
+    const input = join(root, ".git/terminal-request.json");
+    await writeFile(input, JSON.stringify({ ...request, frontlineActive: true,
+      attempts: request.attempts.map(attempt => ({ ...attempt, outcome: "clean" })),
+      ceilingOverride: { target: request.target, lane: "standard", exhaustedPassCount: 0, nextPass: 1 },
+      additionalPassAuthorization: { target: request.target, lane: "standard",
+        precedingProducerId: admission.operationId, completedPasses: 1, nextPass: 2 } }));
+    const before = await store.readOperationSnapshot();
+    const outcomeBefore = await outcomes.readOutcome(admission.operationId);
+    const refusal = await runCli(["review", "resolve", input], { cwd: root });
+    expect(refusal.exitCode, refusal.stderr).toBe(1);
+    const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
+    expect(error.error.code).toBe("invalid-input");
+    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    expect(error.remedy.stdin).toMatchObject({ lane: "frontline", completedPasses: 1,
+      attempts: [{ sourceId: "coderabbit-cli", reviewOperationId: admission.operationId, outcome: "clean" }] });
+    expect(error.remedy.stdin).not.toHaveProperty("ceilingOverride");
+    expect(error.remedy.stdin).not.toHaveProperty("additionalPassAuthorization");
+    await writeFile(input, JSON.stringify(error.remedy.stdin));
+    const replay = await runCli(["review", "resolve", input], { cwd: root });
+    expect(replay.exitCode, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ state: "pass-complete", nextAction: "none",
+      payload: { lane: "frontline", completedPasses: 1,
+        verifiedTerminalSignal: { confirmedFindingCount: 0, coverageAdequate: true } } });
+    expect(await store.readOperationSnapshot()).toEqual(before);
+    expect(await outcomes.readOutcome(admission.operationId)).toEqual(outcomeBefore);
+  });
+
 });
