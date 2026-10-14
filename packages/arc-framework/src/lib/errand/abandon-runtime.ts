@@ -34,18 +34,29 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
   readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
-  readonly clearExecuteBound: (record: OrdinaryErrandRecord) => Promise<AbandonStepResult>;
+  readonly clearExecuteBound: (
+    record: OrdinaryErrandRecord,
+    settlementCheckoutPath: string,
+  ) => Promise<AbandonStepResult>;
 }
 
 /** Abandon one exact ordinary identity and its marker-derived local occupancy. */
 export async function abandonOrdinaryErrandAtRuntime(
   options: AbandonOrdinaryErrandRuntimeOptions,
 ): ReturnType<typeof abandonOrdinaryErrand> {
-  const identityIO = { exec: options.exec, execInput: options.execInput, identity: options.identity };
-  const remote = await configuredIdentityRemote(options.exec);
-  const lifecyclePort = createGhChangeRequestLifecyclePort(options.exec);
-  let preservedHead: string | null = null;
   let primaryCheckoutPath: string | null = null;
+  const exec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    ...(execOptions?.cwd === undefined && primaryCheckoutPath !== null ? { cwd: primaryCheckoutPath } : {}),
+  });
+  const execInput: GitExecInput = (args, input, execOptions) => options.execInput(args, input, {
+    ...execOptions,
+    ...(execOptions?.cwd === undefined && primaryCheckoutPath !== null ? { cwd: primaryCheckoutPath } : {}),
+  });
+  const identityIO = { exec, execInput, identity: options.identity };
+  const remote = await configuredIdentityRemote(exec);
+  const lifecyclePort = createGhChangeRequestLifecyclePort(exec);
+  let preservedHead: string | null = null;
   return abandonOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
@@ -65,26 +76,29 @@ export async function abandonOrdinaryErrandAtRuntime(
       },
       readLifecycle: async (record) => {
         if (record.state !== "awaiting-merge") throw new Error("Errand is not awaiting merge");
-        const configured = await resolveChangeRequestLifecycleConfiguration(options.exec, options.base)
+        const configured = await resolveChangeRequestLifecycleConfiguration(exec, options.base)
           ?? { repositoryRef: "", hostRef: "", baseRef: "" };
         return lifecyclePort.read(configured, record.changeRequest);
       },
       cleanupResidue: async (record) => {
-        const preservation = await proveOrdinaryErrandAbandonmentPreservation(options.exec, options.base, record);
+        const preservation = await proveOrdinaryErrandAbandonmentPreservation(exec, options.base, record);
         if (preservation.kind !== "ready") return preservation;
         const frame = await options.readFrame();
         const primary = primaryPath(frame);
         if (primary === null) {
           return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
         }
-        const settled = await cleanupOccupancy(options, record, frame, primary);
+        const settled = await cleanupOccupancy({ ...options, exec, execInput }, record, frame, primary);
         if (settled.kind === "applied" || settled.kind === "idempotent") {
           preservedHead = preservation.head;
           primaryCheckoutPath = primary;
         }
         return settled;
       },
-      clearExecuteBound: options.clearExecuteBound,
+      clearExecuteBound: async (record) => {
+        if (primaryCheckoutPath === null) return { kind: "error", message: "Settlement checkout is unavailable." };
+        return options.clearExecuteBound(record, primaryCheckoutPath);
+      },
       retire: async (record, lifecycle) => {
         const result = await transactTransientIdentities(identityIO, {
           remote,
@@ -99,7 +113,7 @@ export async function abandonOrdinaryErrandAtRuntime(
           : { kind: "error", message: result.message };
       },
       reapZeroDeltaBranch: (record) => reapZeroDeltaBranch(
-        options.exec, options.execInput, options.base, record, preservedHead, primaryCheckoutPath,
+        exec, execInput, options.base, record, preservedHead, primaryCheckoutPath,
       ),
     },
   });
