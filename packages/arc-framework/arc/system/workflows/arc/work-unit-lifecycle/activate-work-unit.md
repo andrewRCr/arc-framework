@@ -7,10 +7,6 @@ arc:
     - branch-format
     - classify-work-unit
     - route-discovered-work
-  extensions:
-    - pre-activation
-    - pre-push-review
-    - post-work-unit-activate
 ---
 
 # Workflow: Activate Work Unit
@@ -58,13 +54,7 @@ task list and its success criteria; no outcome holds the capture in this work un
 `arc user inbox-remove`, or rewrite it in place when its outcome is itself a capture. Record each rejection or
 dismissal, with its reason, in the activation commit body. Then re-run the gate.
 
-### 2) Fire `pre-activation` extension
-
-If `pre-activation` appears in the active-extensions list (established at session init), load and execute its
-`.actions`. Halt-on-fail surfaces an actionable message; user can fix-and-retry or explicit-invoke bypass.
-Otherwise, skip.
-
-### 3) Supplementary alignment checks
+### 2) Supplementary alignment checks
 
 #### PROJECT-PRD
 
@@ -85,7 +75,7 @@ re-checks overlap, which may have drifted since the WU was scoped at pick/scaffo
 surface any overlap (a foreign-owned collision can warrant parking the WU until that unit integrates) and proceed
 unless the operator redirects.
 
-### 4) Run the `activate` transition + settle Class + draft-doc removal
+### 3) Run the `activate` transition + settle Class + draft-doc removal
 
 Compose the activation inputs (judgment — never fabricated):
 
@@ -128,14 +118,9 @@ chore(arc): activate {work-name} work unit
 Context: meta-{name}.md (activation)
 ```
 
-### 5) Push the rotated branch · 2-step routing
+### 4) Push the rotated branch · 2-step routing
 
-The local branch rename landed in Step 4 (executor-owned); only the remote legs remain.
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the `workflowPush` push.
-  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
-  Otherwise, skip.
+The local branch rename landed in Step 3 (executor-owned); only the remote legs remain.
 
 ```bash
 git push -u origin {type}/{name}            # workflowPush
@@ -152,7 +137,7 @@ covers paths that activated without going through `init-work-unit` first):
 arc user open {name}
 ```
 
-### 6) Absorption-source cleanup · `arc-in-git` only
+### 5) Absorption-source cleanup · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
@@ -179,14 +164,14 @@ Context: meta-{name}.md (activation)
 
 See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for the capture-routing table.
 
-### 7) ROADMAP regen · `arc-in-git` only
+### 6) ROADMAP regen · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
 Re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the WU is already In Flight from
 initialization, so this refreshes the ROADMAP rather than changing its tier.
 
-Default: dedicated `chore(arc):` commit. May ride the activation commit (Step 4) only when the regen is a
+Default: dedicated `chore(arc):` commit. May ride the activation commit (Step 3) only when the regen is a
 trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
 
 > [!CAUTION]
@@ -199,12 +184,6 @@ chore(arc): refresh roadmap for {name} activation
 
 Context: meta-{name}.md (activation)
 ```
-
-### 8) Fire `post-work-unit-activate` extension
-
-If `post-work-unit-activate` appears in the active-extensions list, load and execute its
-[`.actions`][arc-ext-post-activate]. Otherwise, skip. Stage any extension-produced changes as a dedicated
-commit (`workflowCommit`) per the extension's contract.
 
 ---
 
@@ -229,7 +208,6 @@ With activation complete, proceed to task execution:
 [branch-format]: ../../../methods/branch-format.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [route-discovered-work]: ../../../methods/route-discovered-work.md
-[arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [dev-rules-discovered-routing]: ../../../../system/rules/DEV-RULES.ARC.md#discovered-work-routing

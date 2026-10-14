@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - commit-footer
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Reopen Work Unit
@@ -110,10 +108,6 @@ Context: meta-{name}.md (maintenance)
 
 The branch is already upstream (the PR was open). Push the state-flip commit so the remote reflects `Active` — and,
 under `--keep-pr`, so the draft PR carries it.
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list (established at
-  session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an actionable message; user
-  fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.

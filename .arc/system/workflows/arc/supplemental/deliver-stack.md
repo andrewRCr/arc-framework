@@ -11,9 +11,6 @@ arc:
     - review-response
     - review-chunking
     - validate-criteria
-  extensions:
-    - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Deliver Stack

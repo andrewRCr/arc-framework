@@ -6,7 +6,7 @@ audience: agent
 # Workflow: Session Initialization — Contributor Path
 
 Loaded from `session-init.md` Step 3 when `identity.role === "contributor"`. Steps 1–2 and Step 3 items
-1–6 are universal — they load via `session-init.md` before this file is consulted. Steps 4 and 7 are
+1–6 are universal — they load via `session-init.md` before this file is consulted. Steps 4 and 6 are
 also universal — return to `session-init.md` for those. This file covers only the divergent surface:
 Step 3 item 7+ load shape, Step 4 freshness, and Step 5 orientation format.
 

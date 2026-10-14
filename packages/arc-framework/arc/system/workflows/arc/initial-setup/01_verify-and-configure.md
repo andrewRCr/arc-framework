@@ -95,17 +95,13 @@ the file's inline comments) are a better fit.
 
 ### Customization Beyond Config
 
-ARC has two additional customization surfaces worth knowing about:
+Method overrides customize how ARC performs an operation:
 
 - **`system/methods/`** — one file per method, each replacing _how_ ARC does something.
   Example: a team using Jira populates the `.override` section in
   `commit-footer.md` to reference tickets instead of task lists.
-- **`system/extensions/`** — one file per extension point, each adding _extra steps_ at
-  workflow points. Example: populate `.actions` in `post-task-completion.md` to sync task completion to an external
-  tracker.
-
-Both ship with placeholders that work out of the box. They're configured on-demand as
-specific workflows reference them — not during initial setup.
+Methods ship with working defaults. Overrides are configured on demand as specific workflows reference them —
+not during initial setup.
 
 Teams also extend ARC through project-owned content: project strategies
 (`strategies/project/`), project workflows (`workflows/project/`), and

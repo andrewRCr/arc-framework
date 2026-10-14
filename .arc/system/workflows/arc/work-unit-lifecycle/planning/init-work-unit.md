@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - classify-work-unit
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Initialize Work Unit
@@ -243,10 +241,6 @@ edit is trivial (a single-row add into In Flight) — see [DEV-RULES.ARC § Atom
 
 Set upstream for the planning branch.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
-  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
@@ -330,9 +324,6 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
    ```
 
 5. **Push the WU branch; retire the old remote ref.**
-
-   - **Extensions** · `#pre-push-review`: If `pre-push-review` is active, run its `.actions` before the push —
-     halt-on-fail surfaces an actionable message; fix-and-retry or explicit-invoke bypasses. Otherwise skip.
 
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.

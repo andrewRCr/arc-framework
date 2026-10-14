@@ -1,9 +1,6 @@
 ---
 purpose: Park a started work unit off the active set — shelve it for resumable later pickup, preserving an Active branch as the durable shelf.
 audience: agent
-arc:
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Park Work Unit
@@ -106,9 +103,6 @@ ROADMAP advisory but mints no ROADMAP — the renderer is downstream. Default: a
 commit, riding the park commit only when the delta is trivial.
 
 Under full protection, push the grooming branch and open the PR:
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` is in the active-extensions list, load and execute its
-  `.actions` before the push. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/park-{name}`.

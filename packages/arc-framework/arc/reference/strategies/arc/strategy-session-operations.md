@@ -723,7 +723,7 @@ guards so re-entry is safe.
 - **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
   branch starts, with `**State:** Planning` and the draft-doc filename in `**Design:**`.
   Idempotent: existing file → skip.
-- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
+- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 3 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
   direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
   path (Planning → Active, populate execution fields).

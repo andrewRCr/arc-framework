@@ -547,8 +547,8 @@ remote base all name the same exact head. Any tracked change continues through t
    vehicle is explicitly outside WU composition-product requirements. **Never infer the exemption from absent or
    malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
-   After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
-   rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
+   After any fix, request action, or append-only base reconcile changes the head, push through the configured
+   release route, rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
    `openedChangeRequest`, require any planning-grooming adapter target to match it, and retain the exact strict Errand
    identity and selected lane.
 

@@ -744,7 +744,7 @@ dismiss it or request re-review before merge. `approval-required` names a host a
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
-push through the workflow contract, and rebuild the checkpoint over the new head.
+push through the configured release route, and rebuild the checkpoint over the new head.
 
 After approval, if the interlock surfaced required checks as not green, do not invoke merge this turn. Retain the
 authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:

@@ -102,18 +102,14 @@ _Mode:_ `replication` through Phase 5 — closes on the complete live mechanism 
   delivery correction ordering remain covered. Rendered the changed source templates and refreshed derived harness
   skills.
 
-### `[ ]` **3.3 Retire lifecycle and setup fire points and repair citations — D3, D6, D8**
+### `[x]` **3.3 Retire lifecycle and setup fire points and repair citations — D3, D6, D8**
 
 - _Goal:_ Lifecycle and setup procedures retain all independent transitions and references after numbered hook steps disappear.
 
-    - Sweep activation/archive, init/deactivate/park/reopen/resume/decompose/delivery/handoff lifecycle paths and other
-      workflow callers. Preserve transition prerequisites, absorption/cohort/ROADMAP work, review stops, and push rules.
-    - Remove external setup's tracker-notify step and external-content integration's extension-adaptation substep;
-      keep `Origin` linkage and independent setup/capture procedures.
-    - Renumber/reletter activation, archive, and external setup/integration successors. Resolve local and cross-file
-      `Step N` / `§ N` citations and heading links by target meaning, including the stale archival-commit citation.
-    - Include workflow templates, contributor/companion documents, session-operations/work-organization references,
-      and source comments; complete the live `arc.extensions` declaration sweep before Task 4.1.
+- _Outcome:_ Removed remaining lifecycle/setup declarations and firing instructions, retaining transitions,
+  push/review/merge controls, and tracker capture/method customization. Renumbered activation/archive and external-
+  content/setup steps; repaired local, cross-file, and contributor citations by target meaning. Synchronized
+  installed and static counterparts and preserved mixed release/reconcile coverage.
 
 ## **Phase 4:** Installation membership and structural cleanup
 
