@@ -502,3 +502,5 @@ describe("appendAuditEntry — I/O failure returns {ok: false}", () => {
     }
   });
 });
+
+it("maps refusal code17 to close-precheck-failed", () => { expect(REFUSAL_IDENTIFIERS[17]).toBe("close-precheck-failed"); });

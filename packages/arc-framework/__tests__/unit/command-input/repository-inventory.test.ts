@@ -60,6 +60,18 @@ describe("repository command-input inventory", () => {
       expect.objectContaining({ identity: "pause:option.no-open", schemaField: "open" }),
       expect.objectContaining({ identity: "handover:option.to", schemaField: "to" }),
       expect.objectContaining({
+        identity: "task close:operand.ids",
+        schemaField: "ids",
+      }),
+      expect.objectContaining({
+        identity: "task close:option.commit",
+        schemaField: "commit",
+      }),
+      expect.objectContaining({
+        identity: "task defer:operand.id",
+        schemaField: "id",
+      }),
+      expect.objectContaining({
         identity: "init:option.name",
         schemaField: "projectName",
       }),
@@ -346,6 +358,7 @@ describe("repository command-input inventory", () => {
       "pause",
       "promote",
       "publish",
+      "release commit",
       "rename",
       "reopen",
       "repoint-design",
@@ -362,6 +375,8 @@ describe("repository command-input inventory", () => {
       "start",
       "status",
       "stub",
+      "task close",
+      "task defer",
       "teardown",
       "user reconcile-references",
       "wu reconcile",
@@ -432,6 +447,8 @@ describe("repository command-input inventory", () => {
       "repoint-design",
       "pause",
       "handover",
+      "task close",
+      "task defer",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

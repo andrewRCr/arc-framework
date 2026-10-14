@@ -3,7 +3,7 @@
  *
  * Composes the destructive-flag detector, active-WU resolver, and
  * `authorizeRelease` interlock check into a short-circuit cascade
- * (12 → 10 → 13 → 11): cheapest checks fire first to minimize I/O on
+ * (12 → 10 → 13 → 11 → 16 → optional 17): cheapest checks fire first to minimize I/O on
  * common refusal paths. An amend adds one ref read to code 12: it proceeds
  * only while no remote-tracking ref contains `HEAD`, so it never rewrites a
  * pushed commit. Each refusal exits with the matched refusal
@@ -45,6 +45,7 @@ import {
 } from "../../lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
 import type { AuthorizationDecision, PushedHeadReading } from "../../lib/release/types.js";
+import type { Remedy } from "../../lib/store/refusal.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -152,7 +153,16 @@ export type AppendAudit = (opts: {
   entry: AuditEntry;
 }) => Promise<{ ok: true } | { ok: false; error: Error }>;
 
+/** Optional task close ports supplied only when the wrapper receives --close. */
+export interface ReleaseTaskClose {
+  precheck(): Promise<{ status: "ready" } | { status: "refused"; check: string; remedy: Remedy }>;
+  close(): Promise<{ status: "closed" } | { status: "refused"; reason: string; remedy: Remedy }>;
+  continuation: Remedy;
+}
+
 export interface ReleaseCommitDeps {
+  /** Optional precommit check and postcommit capture, after message authorization. */
+  taskClose?: ReleaseTaskClose;
   cwd: string;
   identity: string;
   argv: readonly string[];
@@ -188,6 +198,8 @@ export interface ReleaseCommitDeps {
 
 export interface ReleaseCommitResult {
   exitCode: number;
+  committed?: string;
+  continuation?: Remedy;
 }
 
 /**
@@ -253,6 +265,11 @@ export async function runReleaseCommit(
     return refusePreflight(preflight.reason, preflight.message, {
       deps, wu: wuAudit, writeStderr, appendAudit,
     }, preflight.correctedMessageBytes);
+  }
+
+  if (deps.taskClose !== undefined) {
+    const check = await deps.taskClose.precheck();
+    if (check.status === "refused") return refuseClosePrecheck(check.check, check.remedy, { deps, wu: wuAudit, writeStderr, appendAudit });
   }
 
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
@@ -351,7 +368,28 @@ export async function runReleaseCommit(
   });
   surfaceAuditFailure(auditResult, writeStderr);
 
+  if (spawned.exitCode === 0 && deps.taskClose !== undefined) {
+    let failure: string | undefined;
+    try {
+      const closed = await deps.taskClose.close();
+      if (closed.status === "refused") failure = closed.reason;
+    } catch (error) { failure = error instanceof Error ? error.message : String(error); }
+    if (failure !== undefined) {
+      const committed = outcome.kind === "commit" ? outcome.hash : "unknown";
+      writeStderr(`Commit ${committed} landed, but task close failed: ${failure}\n${deps.taskClose.continuation.text}\n`);
+      return { exitCode: 1, committed, continuation: deps.taskClose.continuation };
+    }
+  }
   return { exitCode: spawned.exitCode };
+}
+
+async function refuseClosePrecheck(check: string, remedy: Remedy, ctx: RefuseContext): Promise<ReleaseCommitResult> {
+  ctx.writeStderr(`${formatRefusal({ kind: "refuse", code: 17, identifier: "close-precheck-failed", check, remedy: remedy.text })}\n`);
+  const result = await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry: buildAuditEntry({
+    deps: ctx.deps, wu: ctx.wu, decision: "refused", refusalCode: 17, outcome: { kind: "close-precheck-failed", check },
+  }) });
+  surfaceAuditFailure(result, ctx.writeStderr);
+  return { exitCode: 17 };
 }
 
 async function refusePreflight(

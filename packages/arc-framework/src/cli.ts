@@ -635,6 +635,22 @@ program
     await (await import("./handlers/lifecycle.js")).handleHandover(slug, opts, context);
   }));
 
+const task = program.command("task").description("Close or defer work-unit tasks");
+task
+  .command("close [ids...]")
+  .description("Close tasks and capture the increment's code commits")
+  .option("--commit <sha>", "Capture an explicit commit (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[] }) => {
+    await (await import("./handlers/task.js")).handleTaskClose(ids, opts, context);
+  }));
+task
+  .command("defer <id>")
+  .description("Defer a task and cascade its parent marker")
+  .action(withInteractionContext({}, async (context, id: string) => {
+    await (await import("./handlers/task.js")).handleTaskDefer(id, context);
+  }));
+
 program
   .command("set-class <class> [slug]")
   .description("Set a work unit's Class at any lifecycle placement: Light | Heavy | Novel")

@@ -74,6 +74,8 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "materialize", args: ["materialize", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "pause", args: ["pause", "matrix", "--reason", "blocked", "--no-waits-on", "--no-resume-notes", "--no-open"], expected: { exitCode: 1 } },
   { commandPath: "handover", args: ["handover", "matrix", "--to", "other"], expected: { exitCode: 1 } },
+  { commandPath: "task close", args: ["task", "close"], expected: { exitCode: 1 } },
+  { commandPath: "task defer", args: ["task", "defer", "1.1"], expected: { exitCode: 1 } },
   { commandPath: "park", args: ["park", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "promote", args: ["promote", "matrix"], setup: "provisional-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Missing required input: --class <value>" } },
   { commandPath: "release commit", args: ["release", "commit"], expected: { exitCode: 11, outputIncludes: "interlock-not-authorized" } },

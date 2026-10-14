@@ -24,6 +24,7 @@ import { handleStoreAbandon } from "./abandon-store.js";
 import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
 export { handlePause, handleHandover } from "./lifecycle-collaboration.js";
 import { linkedWorkBranch } from "../lib/work-unit/linked-work-branch.js";
+import { taskCommandInputRegistrations } from "./task.js";
 import { basename, join, posix, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 import * as p from "../lib/terminal.js";
@@ -416,6 +417,7 @@ export const RenameCommandInputSchema = z.object({
 
 /** Registry contributions owned by lifecycle backlog commands. */
 export const lifecycleCommandInputRegistrations = [
+  ...taskCommandInputRegistrations,
   ...collaborationCommandInputRegistrations,
   {
     commandPath: "stub",

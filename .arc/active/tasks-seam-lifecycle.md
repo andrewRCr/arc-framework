@@ -824,194 +824,71 @@ captures an increment's commits, a raw commit followed by `arc task close` captu
 Criterion 8 names passes, the cases that rest on what Git does to a rewritten commit at the integration tier over real
 repositories.
 
-### `[ ]` **7.1 Add `arc task close` and `arc task defer` — § 9.1**
+### `[x]` **7.1 Add `arc task close` and `arc task defer` — § 9.1**
 
 - _Goal:_ From the flip `arc task close [<ids>…] [--commit <sha>…]` closes the cursor's leaf or the named tasks,
   re-closing a closed one, cascading through parents, and records their captures and any matched exclusions' removal
   in one batch, captures only ever growing, while `arc task defer <id>` defers an open task with its open subtasks;
   before the flip both refuse `unsupported`, naming the hand `[x]` or `[~]`.
 
-    - `[ ]` **7.1.a The verbs and their targets**
+    - `[x]` **7.1.a The verbs and their targets**
 
-        - Register an `arc task` group in `src/cli.ts` with `close` and `defer`, their input schemas in
-          `lifecycleCommandInputRegistrations` (`handlers/lifecycle.ts`), which `commandInputRegistrations`
-          (`command-input-registrations.ts`) collects and the repository inventory test reconciles against every live
-          option and operand, with their entries in that test's lists, as 3.4 gives its own.
-        - With no IDs the close takes `resolveTaskListCursor`'s leaf (`lib/task-list/cursor.ts`), refusing where no
-          task is open and naming a deferred task's close, `arc task close <id>`, or a new task; a named ID no task
-          carries, or a task list that does not read, refuses, naming the IDs or the line.
-        - Both check the pause first (task 6.2) and run in the work unit's checkout.
+        - Registered task close/defer inputs resolve the stored cursor or explicit IDs, reject malformed structures
+        and pause, and preserve exact task IDs through typed refusals.
 
-    - `[ ]` **7.1.b The writes**
+    - `[x]` **7.1.b The writes**
 
-        - Each task's marker goes through the task-list kind's `writeTaskMarker`; closing a parent closes its open
-          subtasks, recording the captures against each, deferring a parent defers its open subtasks, and a parent the
-          cascade closes — `[x]` when any subtask is `[x]`, `[~]` when all were deferred — records none of its own.
-        - Subtasks are written before their parent: `writeTaskMarker` rescans after each write and throws on a
-          malformed result, and the scanner rejects an open subtask beneath an `[x]` parent
-          (`lib/task-list/scanner.ts`). The verb first scans the task list itself (`scanTaskListStructure`), since
-          `writeTaskMarker`'s throws carry no line: a task list that does not scan refuses naming the line the scan
-          reports, and an ID on other than one line refuses naming its lines, before any write lands; a throw the
-          writer still raises becomes the verb's refusal with nothing written.
-        - Captures go into the work item's links (`taskCaptures`) keyed by task ID, never removing one; every exclusion
-          a named commit matches by SHA or copy key leaves the branch link; all of it lands in one batch.
-        - `--commit <sha>` names commits instead of the default set (task 7.2), one per occurrence: a repeatable option
-          its parser collects, never a variadic one, which would take the IDs after it. It combines with IDs and refuses
-          a commit `HEAD` does not hold, its reachability read run with `--no-replace-objects` in Git's global position,
-          as the set's walk is (task 2.3), so a replace ref cannot make a commit reachable or hide one.
+        - Kind marker writes run children before parents; one batch grows task captures and removes matching
+        exclusions. Explicit commits require replacement-free HEAD reachability and parent cascades acquire no
+        captures of their own.
 
-    - Build `test-first` (one behavior at a time):
-        - a bare close closes the cursor's leaf; named IDs close a set
-        - a re-close adds a new commit and keeps every capture; one with nothing new changes nothing and says so
-        - closing a parent closes its open subtasks with their captures; a cascade-closed parent records none
-        - a deferral of a parent's last open subtask closes the parent, `[x]` where a subtask was already `[x]`
-        - an explicit close of an excluded commit captures it and removes every exclusion it matches
-        - `--commit` refuses a commit not reachable from `HEAD`, and, at the integration tier over a real repository,
-          one a replace ref grafts onto `HEAD`'s history
-        - deferring a parent defers its open subtasks, and a parent with a subtask already `[x]` closes `[x]`
-        - `arc task defer` refuses a task that is not open
-        - before the flip, both refuse `unsupported`
-
-### `[ ]` **7.2 Capture the default set after refreshing base — § 9.2**
+### `[x]` **7.2 Capture the default set after refreshing base — § 9.2**
 
 - _Goal:_ With no `--commit` the close refreshes base, captures the default set (task 2.3), and refuses — recording
   nothing — a set the refresh emptied that was not empty over the base refs held before it, naming the rerun for a task
   that produced no commit, while refusing on a detached checkout, an unlinked branch, or a work item with no link.
 
-    - It reads the branch link whose ref the checkout has out through task 2.3.c's resolver, refusing on `detached` or
-      `unlinked`, naming the work branch, and on `no-link`, naming `arc activate` for a Planning work item and, for an
-      Active one, which the import leaves where a meta's `Branch` was empty or named base (task 5.7),
-      `arc deactivate <slug>`, then `arc activate`, since activation moves only Planning to Active and deactivation
-      keeps whatever link there is.
-    - The emptied-set refusal names the commits the refresh found on base and `arc task close <id>` for the cursor's
-      task or the IDs given; the rerun finds its set empty from the start and closes with no capture. A set the
-      refresh only shrank closes as usual, and a failed fetch compares nothing.
-    - The catch-up's remap is the history policy's (spec § 19), so the cases after ARC's own rewrite seed its output
-      over the reference backend: each capture and exclusion keeps its old entry, with the new commit's SHA and copy key
-      beside it.
+- _Outcome:_ Default close uses the bounded base refresh and shared capture set, refusing a newly emptied set without
+  writes and accepting its repaired rerun. Detached, unlinked, and linkless work have distinct repairs. Qualified refs
+  normalize to the branch names Git switch accepts.
 
-    - The cases that rewrite or move commits — a rebase by hand, `git pull --rebase` — run at the integration tier over
-      real repositories, as 2.3's do, since a scripted repository would pass them without showing what Git does.
-
-    - Build `test-first` (one behavior at a time):
-        - a default close after an explicit close of an earlier commit captures only the rest
-        - after a rebase by hand that keeps diffs, on an adopted, a re-activated, and a created branch, the default
-          capture takes only the increment's commits
-        - after ARC's own catch-up, its remap seeded, the default capture takes only the increment's commits
-        - a checkout behind its branch, and one that takes another machine's rebase with `git pull --rebase`, capture
-          only their own new commits
-        - a checkout that has not taken ARC's rewrite, its remap seeded, closes without capturing its old copies
-        - a refresh that empties a set refuses with nothing recorded, and the rerun closes the task with no capture
-        - a detached checkout, an unlinked branch, and a work item with no link each refuse, naming their repairs, a
-          Planning and an Active work item with no link each naming its own
-
-### `[ ]` **7.3 Give a rewritten copy to its original's task or the exclusions — § 9.2**
+### `[x]` **7.3 Give a rewritten copy to its original's task or the exclusions — § 9.2**
 
 - _Goal:_ Before capturing, the default close compares each commit whose committer time differs from its author time,
   by its author half, with the captures and exclusions, giving one to each task holding a commit with that half, or to
   the exclusions, and the rest to the tasks it closes, all in its batch, its result naming each attribution and any
   task left with nothing.
 
-    - Attribution runs on every default close, a re-close's included, which is how a rerun after an amend takes the
-      amended commit; a set empty from the start closes its tasks with no capture and no report.
-    - The cases that rewrite a commit — an amend, a rebase with or without its date options, a cherry-pick, a squash or
-      fixup, a raw `git commit -C` — run at the integration tier over real repositories, as 2.3's do, since the
-      residuals spec § 5.2 and § 9.2 state rest on what Git does to the author line and the diff.
+- _Outcome:_ Author-half attribution places rewritten commits with original tasks or exclusions before capturing
+  residual work. Reports identify each attribution and tasks receiving no commits; captures remain append-only.
 
-    - Build `test-first` (one behavior at a time):
-        - a hand amend, rebase, cherry-pick, and interactive squash or fixup of a captured commit go to its task, and of
-          an excluded one to the exclusions, each named
-        - where attribution places the whole set elsewhere, the result names the tasks closed as receiving nothing, with
-          `arc task close <ids> --commit <sha>…`
-        - after a message-only amend of the last closed increment the set is empty; after a content edit, the task's
-          re-close adds the new commit and keeps every capture
-        - a commit made fresh in a captured one's second goes to the task the close closes
-        - a commit made with a raw `git commit -C` naming a captured one, since the wrapper refuses `-C` run
-          non-interactively (`createCommitMessagePreflight`), goes to that commit's task
-        - a rebase with `--committer-date-is-author-date` that changes a captured commit's diff reads as new, and the
-          set omits one that keeps the diff; a rebase with `--ignore-date` reads as new
-        - a copy whose stored patch half differs from the one computed goes to its original's task
-        - a change reverted and made again in a later second than it was first made is captured
-        - an Errand promoted at the scale floor keeps its commits in the default capture
-
-### `[ ]` **7.4 Add `arc release commit --close` — § 9.3**
+### `[x]` **7.4 Add `arc release commit --close` — § 9.3**
 
 - _Goal:_ From the flip `arc release commit --close[=<ids>]` checks, before committing, the pause, a linked branch out,
   a base ref after the close's bounded fetch, and the tasks it would close, each refusal recorded in the release audit
   log, then commits and runs the close on the fetch's result, exiting 1 and naming `arc task close <ids>` where the
   close fails after the commit; before the flip `--close` refuses `unsupported`.
 
-    - `handleReleaseCommit` (`handlers/release/commit-cli.ts`) strips `--close[=<ids>]` with `--no-wrap`, both read
-      only as the argv's leading tokens, in either order — `stripNoWrap` reads only the first — and the IDs only
-      through `=`, so a `--close` past git's first argument stays git's; the strip runs before `runReleaseCommit`.
-    - The checks run inside `runReleaseCommit` (`handlers/release/commit.ts`) through an optional close dependency on
-      `ReleaseCommitDeps` that only `handleReleaseCommit` supplies — delivery's fix-release caller
-      (`handlers/delivery-review-fix-release-effects.ts`) omits it — after the message preflight returns `passed` or
-      `pass-through` (`CommitMessagePreflightResult`), the second for a message git manages, and before the message
-      snapshot and `git commit`, so a commit the interlock or the preflight refuses fetches nothing. The linked-branch
-      check reads task 2.3.c's resolver, as the close does.
-    - A failed check refuses through the audited refusal path as code 17, `close-precheck-failed`, its reason the
-      check that failed, `unsupported` before the flip. In `lib/release/schema.ts`, `RefusalCodeSchema` takes it, a
-      `close-precheck-failed` outcome carrying the check joins `AuditOutcomeSchema`, and an `AuditEntrySchema` arm
-      pairs the two, as code 16 pairs `preflight-failed`; `RefusalIdentifier`, `REFUSAL_IDENTIFIERS`, and
-      `AuthorizationDecision` (`lib/release/types.ts`), and `formatRefusal` (`lib/release/interlock-validation.ts`)
-      take it too. Each refusal names the repair its check's section names, and nothing is committed.
-    - The code's other sites move with it: the refusal-code domain in `__tests__/unit/release/schema.test.ts`, the
-      identifier mapping in `__tests__/unit/release/audit-log.test.ts`, a code 17 case among `formatRefusal`'s
-      three-line-shape cases (`__tests__/unit/release/interlock-validation.test.ts`), and the refusal codes and cascade
-      in `handleReleaseCommit`'s and `commit.ts`'s docs. ADR-017 gains a dated amendment naming code 17, as its
-      2026-07-14 amendment named 16; its decision text and ADR-018's, which name codes `10–14`, stay as written.
-    - After git exits 0 the close runs on the check's fetch result. Where it then fails, the wrapper exits 1, its output
-      naming the commit and carrying `arc task close <ids>` as a typed action (§ 16): a `Remedy`
-      (`lib/store/refusal.ts`) with its argv beside the text, on `ReleaseCommitResult`, which the handler renders as a
-      `Run:` line. It never names the wrapper, whose rerun finds nothing staged and may not pass `--allow-empty`.
-    - QUICK-REFERENCE's refusal-code line gains code 17, in the installed copy and `QUICK-REFERENCE.template.md`, in
-      the same commit.
+- _Outcome:_ Leading --close and --no-wrap compose before message preflight. Audited code 17 refuses close checks
+  before Git; success commits then closes on the prepared refresh facts, and post-commit failure prints the typed
+  task-close continuation.
 
-    - Build `test-first` (one behavior at a time):
-        - `--close` commits and captures the increment's commit to the cursor's task
-        - a multi-commit split's close captures every commit of it
-        - each pre-commit check refuses with code 17 and an audit entry, without committing: no linked branch, a named
-          ID no task carries, no open task with no IDs, no base ref, a paused work unit
-        - a Planning work item with no link refuses naming `arc activate`, and an Active one naming
-          `arc deactivate <slug>`, then `arc activate`
-        - `--close` and `--no-wrap` strip in either order, and a `--close` after git's first argument reaches git
-        - a refusal the interlock or the message preflight makes runs no fetch, and a `pass-through` preflight runs the
-          checks before committing
-        - a close that fails after the commit exits 1 with `arc task close <ids>` as its typed action, and that rerun
-          captures the commit
-        - before the flip, `--close` refuses `unsupported` with code 17
-
-### `[ ]` **7.5 Name the close and the deferral in `task-list.close`'s remedy — § 9.4**
+### `[x]` **7.5 Name the close and the deferral in `task-list.close`'s remedy — § 9.4**
 
 - _Goal:_ `task-list.close` refuses a hand edit changing a task's marker to or from closed with remedy text naming the
   repair for that change: the close in both its forms for `[x]`, `arc task defer <id>` for `[ ]` to `[~]`, and a new
   task for any other change to a closed marker — as text, never an argv run as given.
 
-    - `checkTaskListClose` (`lib/store/kinds/task-list/authority-rules.ts`) returns one broken rule however many
-      markers an edit changes, so its one remedy text names each change's repair by the marker the edit wrote, grouped
-      by the change, with the task IDs; a task line the edit adds already `[x]` or `[~]` takes the repair its marker
-      names, as one from `[ ]` does.
-    - The rule passes a verb's write (`writer.kind === "verb"`), which is how the close and the deferral write the
-      markers it refuses by hand.
+- _Outcome:_ Hand marker edits receive grouped text remedies naming close, defer, or corrective tasks; verb-owned
+  writes remain admitted and no multi-action remedy becomes executable argv.
 
-    - Build `test-first` (one behavior at a time):
-        - a hand `[x]` names `arc release commit --close=<ids>` and the commit, then `arc task close <ids>`
-        - a hand `[ ]` to `[~]` names `arc task defer <id>`
-        - a hand change from `[x]` to `[~]` or `[ ]`, or from `[~]` to `[ ]`, says a closed task stays closed and
-          corrective work takes a new task
-        - one edit closing one task and deferring another names both repairs, each with its IDs
-        - an added task line already `[x]` names the close, and one already `[~]` names the deferral
-
-### `[ ]` **7.6 The task close verb** — validate exit criterion at segment scope
+### `[x]` **7.6 The task close verb** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Commit and close one increment through `arc release commit --close`, and another by a raw commit and
-      `arc task close`, over the reference backend and a scripted repository, and request `arc check segment`.
-    - Confirm no ratchet floor grew, and that each remaining entry in this change's rerouted files sits in an in-repo
-      arm.
+- _Outcome:_ On merged base ee0bae813, wrapper commit-and-close and raw commit followed by close capture equivalent
+  increments. Real-Git rewrite, replacement, missing-object, refresh, and attribution cases exercise the capture
+  policy.
 
 ## **Phase 8:** Verification
 

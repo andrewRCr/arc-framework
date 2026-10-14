@@ -411,3 +411,11 @@ describe("formatRefusal — three-line shape", () => {
     expect(lines[0]).toBe("Refused: arg-grammar-fallthrough (code 15)");
   });
 });
+
+it("code17 names its failed close check and ordered repair in three lines", () => {
+  const lines = formatRefusal({ kind: "refuse", code: 17, identifier: "close-precheck-failed", check: "branch-unlinked", remedy: "Run arc activate." }).split("\n");
+  expect(lines).toHaveLength(3);
+  expect(lines[0]).toBe("Refused: close-precheck-failed (code 17)");
+  expect(lines[1]).toContain("branch-unlinked");
+  expect(lines[2]).toBe("Run arc activate.");
+});
