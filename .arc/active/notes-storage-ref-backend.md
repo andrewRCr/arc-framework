@@ -5,6 +5,8 @@
 - [Prior art](#prior-art)
 - [Probes behind the design](#probes-behind-the-design)
 - [The first model check](#the-first-model-check)
+- [The second model check](#the-second-model-check)
+- [The move model check](#the-move-model-check)
 - [CI cost history](#ci-cost-history)
 - [A designation per scope](#a-designation-per-scope)
 
@@ -85,6 +87,73 @@ The rules as first written failed four ways, each now a rule and an integration 
 With those rules, two machines explore clean in full and three clean to 1.5 million states. After a mirror push,
 machines restore differing copies: a stale ancestor read as divergence until the ancestry rule took it as a loss, a
 stale copy with its own pushes still diverges, and two ends both published read as two. No case lost a write.
+
+## The second model check
+
+A second round (2026-10-12) extended the first model with another worktree's fetch moving the shared tracking refs, one
+lineage path per item, per-ref pull batches, and an old remote that becomes unreadable after a move's switch, and added
+a designation model and a property test of `history`'s order. Two clones, one item, one remote, budgets two to four;
+every fold on, the first model's own bound reran clean over 6.5 million states. Each finding is now a rule and an
+integration case, the shortest failing prefix being the case's script where one is given:
+
+- **A delete under a moved tracking tip** (§ 6.7 step 3): a delete has no local tip to descend from, so it pushes nothing
+  and the loop repeats, as for a lost race. With another worktree's fetch: `A.write B.lineage B.push A.pull B.remove
+  B.push A.fetch A.push`.
+- **The reopen reading** (§ 6.4): another worktree's by-name fetch moves the history tracking ref before this worktree's
+  pull, so whether a live ref is this clone's own reopen, and whether an end is past it, are read from the clone's own
+  live ref. A clone that never reopened then ignored a published abandon: `A.abandon A.push B.fetch`.
+- **This clone's own unpublished end** (§§ 6.4–6.6): an end this clone made whose record it still holds and no tracking
+  ref of the item reaches. Reading it from the history tracking ref alone published a live ref's delete with no end
+  record: `A.archive A.push A.reopen B.write B.pull`, and `A.archive A.push A.reopen B.archive B.pull`.
+- **Two abandons, and lineage first** (§ 6.6): without the withdrawal rule, a withdrawn lineage publishes and a history
+  ref stands with no end record.
+- **`history`'s order** (§ 3.6): 20,000 random two- and three-clone graphs pass the rule, while following first parents
+  only, or comparing a merge with its first parent alone, fails.
+- **The pointer read at a designation** (§ 9.4): it applies wherever no `backing` carries `push`, so a fresh clone of a
+  project whose state lives in a backing repository cannot publish it onto the code remote. A checkout whose pointer
+  predates the backing repository reads none and can still do so: a named residual, every such state with a route back.
+- **The `backing` repoint** (§ 9.4), for a clone whose old backing repository went before any forwarding record reached
+  it: keeping its tracking refs failed eleven ways (`A.mv3 B.archive B.push O.GONE`), and replacing them with the new
+  URL's tips lost a reopen's owed delete (`A.archive A.push A.mv3 B.pull B.reopen O.GONE`). Copying its last view of the
+  old repository onto the new one, as a follow copies its listing, closes all but one residual: an interrupted move's
+  rerun reading the old repository in the instant before its deletion while a repointed teammate publishes a competing
+  end. Closing that changes § 10.4's copy rule, which needs its own modeling round.
+
+## The move model check
+
+A third model (2026-10-13) ran several clones moving one project's state among up to three remotes, and a fork that
+copies one remote once outside ARC; each clone may write, pull, push, move, follow, be killed between any two steps,
+and rerun from its record. Every delete must land on a remote carrying a forwarding record and never destroy a ref's
+only copy; from every reachable state, finishing each step and rerunning each record must leave every clone on one
+remote holding every write, with no other remote holding state but beside a forwarding record. Each rule below is now
+an integration case of § 14.7:
+
+- **A rerun meeting a move back** (§ 10.3): A moves O to K and is killed in step 4; B follows and moves the state back to
+  O, its copy deleting A's record there. A's rerun read O's missing record as "before step 3" and sent every clone to K.
+  Step 3's license also reads the old remote's registry, which a move back's copy carries this move's commit onto.
+- **The record before the copy** (§ 10.3): a move back killed between its copy and its record left no record anywhere,
+  splitting the clones that had followed from those that had not.
+- **Forward, then switch** (§ 10.3): two clones moving off one remote at once each switched before either forwarding
+  record landed, one ending alone. The switch is licensed by a read showing this move's own record.
+- **The follow judges by the record it fetches** (§ 10.6): a follow run without a pull judged candidates by a stale
+  tracking record, so a fork that copied the registry between two moves passed as the state's home.
+- **The registry as each remote's move version** (§ 10.3): license reads and the writes they license could be split by
+  another move's write. The forwarding record's push lands a registry commit leased on the tip step 1 read, a copy or
+  forward losing its lease runs again from step 1, and a move's own commit on its old remote means a move back only once
+  the new remote carries a forwarding record.
+- **A move ended before its switch** (§ 10.3): with three clones, one never pulling, a move back ended by another
+  clone's record stranded that clone on a copy with no record. The ended move puts the record that ended it wherever its
+  copy deleted one.
+- **A copy deletes only records from its own line of moves** (§ 10.2): a rerun's copy deleted a newer move's record at
+  its destination, splitting the two movers.
+- **Gone remotes** (§ 10.6): `--leave-source` ends a record on either side of its switch, and each delete round reads
+  the new remote first, so a destination deleted mid-move never has the old remote emptied after it.
+- **A named residual:** deleting a remote while two moves run onto or off it can split clones, since the deleted remote
+  held the only record of which move won. Closing it would keep a registry ref on every remote the state leaves.
+
+Configurations reached up to 16 million states each, with two and three clones, kills, a fork, and remote deletion.
+Not modeled, and left to the integration cases over real Git: layout moves, the project check, a pointer naming one
+backing repository, several worktrees of one clone, per-ref leases, and the push loop's own pull.
 
 ## CI cost history
 

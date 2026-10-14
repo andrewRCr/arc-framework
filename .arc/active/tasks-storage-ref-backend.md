@@ -1,0 +1,3362 @@
+# Task List: Storage Ref Backend
+
+- **Design:** `spec-storage-ref-backend.md`
+
+---
+
+## **Phase 1:** Contract changes
+
+_Purpose:_ Part A's types take `pull`, `push`, and `maintain`, the new results and refusal, the hunk record's base
+version and side counts, `RefHome`, and `ReadOnlyStore`, and the in-repo implementation, the reference backend, and the
+shared suite follow, a cohort's archive placement among them as seam-lifecycle ships it, and a companion keyed by its
+path, so the contract is settled before any ref-backend code builds on it.
+
+_Mode:_ `layer` through Phase 2 — closes on the settled substrate the ref backend builds on: the amended contract over
+both existing backends, and the Git access the engine calls.
+
+### `[ ]` **1.1 Baseline the test-cost rows the new files touch — § 14.12**
+
+- _Goal:_ The unit, integration, and `lane` tier rows and the CI-job rows that the ref backend's test files will move
+  carry a baseline taken before the first such file lands, so the cost they add reads as a delta.
+
+    - Tier rows measured on this branch through `benchmark:test-cost` and its normalize companion, run from the
+      repository root with `-w packages/arc-framework`, in the modes `test-cost-budgets.json` records; the `lane` row's
+      project set is unit, unit-mocks, and integration together (`src/lib/test-cost/run.ts`), so every new unit or
+      integration file moves it
+    - CI-job rows exist only inside a CI job (`report-test-budget.ts`) and CI runs on `main` and its pull requests, so
+      their baseline is `main`'s latest CI run at this branch's base, which holds no test file this change adds
+    - Method and figures recorded in `notes-storage-ref-backend.md` § CI cost history; touches no test file, so it
+      precedes every task below that adds one
+
+### `[ ]` **1.2 The sync inputs and results — § 2.1, § 2.2**
+
+- _Goal:_ Every input and result `pull`, `push`, and `maintain` carry is a schema a caller parses, and both existing
+  backends' publish outcomes carry the retry figures, so the operations that follow change no result type.
+
+    - In `lib/store/sync.ts`: `PullInput`, `PushInput` with `carry`, the five new `SyncState` arms, `PullResult`,
+      `PullOutcome` with its `candidate` role, the eight `PullNotice` kinds, `PushResult`, `CarryOutcome` and
+      `CarryRefusal`, `MaintainResult`, and `retryCount` and `waitedMs` on every `pushed`, `noop`, `reconciled`, and
+      `failed` publish outcome; the in-repo-only statuses keep their shape
+    - `HistoryRefSchema` in `lib/store/refusal.ts`, which `sync.ts` and `read.ts` already import, so the refusal arm
+      of 1.4 reads it with no import cycle
+    - The required figures reach both producers in this task: the in-repo outcome literals (`sync-outcomes.ts`) carry a
+      retry count of zero and the elapsed time they already measure as `waitedMs`, and the reference backend's
+      (`__tests__/helpers/store/sync.ts`) the same; exact-shape assertions over publish outcomes gain the two fields
+    - Build `test-first` (one behavior at a time):
+        - each new state parses with its remedy, and a result reporting one state twice refuses
+        - a `HistoryRef` parses for each ref form, and refuses an unknown field
+        - each `PullNotice` kind parses with its fields, and an unknown kind refuses
+        - a `failed` pull outcome carries only an `unreachable` or `refused` failure, and only a `failed` one may take
+          the `candidate` role
+        - a carry outcome parses in each of its three statuses, and `MaintainResult` with measurements and with `null`
+        - a publish outcome without `retryCount` or `waitedMs` refuses
+
+### `[ ]` **1.3 `pull`, `push`, and `maintain` on `Store` and both backends — § 2.1**
+
+- _Goal:_ `Store` exposes `pull`, `push`, and `maintain` and no `sync`, and both existing backends serve them with
+  today's behavior mapped onto the new results.
+
+- _Note:_ The three subtasks type-check only together, since `Store` and both backends change at once: propose
+  reviewing the parent as one increment.
+
+    - `[ ]` **1.3.a The in-repo implementation**
+        - `pull` for the `personal` family alone composes `runUserFetch` (`commands/user/push-fetch.ts`) and `runUserLoad`
+          (`commands/user/save-load.ts`), which `runUserPull` composes but whose fetch kind and tips it drops; the load
+          runs after every successful fetch, as today's pull does
+        - Its outcome reads the fetch: a created ref, or a moved one whose tips differ, then its load, is `pulled`;
+          equal tips, a load finding no note, local notes ahead, and a fetch failing `absent-remote-ref` are `noop`;
+          diverged notes are `failed` `refused`, terminal, with the remedy `arc sync`; every other fetch failure,
+          `classifyGuardedFetchUpdateFailure`'s included, is `failed` `unreachable` with `classifyRemoteFailure`'s
+          cause; a failure of the load itself, a local fault, rethrows; no notices
+        - `no-remote` and `no-identity` report before any fetch, as `syncInRepo` reports them, `no-identity` naming
+          `personal`; a `PullInput.history` names refs this backend holds none of, so it is ignored
+        - `push` is today's `syncInRepo` (`lib/store/in-repo/sync.ts`) renamed, `pulls` empty; `maintain` returns
+          `{ measurements: null }`
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, over real notes refs
+            - a remote note this clone lacks pulls as `pulled`, and loads to disk
+            - a repeated pull, a remote with no notes ref, and local notes ahead each report `noop`
+            - diverged notes report `failed` `refused` naming `arc sync`, and an unreachable remote `unreachable`
+              with its cause
+            - a clone with no remote reports `no-remote`, and one with no identity `no-identity`, fetching nothing
+
+    - `[ ]` **1.3.b The reference backend**
+        - `pull` reconciles against its memory remote (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`) and
+          publishes nothing; `push` is today's `sync`, `pulls` empty; `maintain` returns no measurements
+
+    - `[ ]` **1.3.c The contract and its callers**
+        - `lib/store/contract.ts` gains the three and drops `sync`, with no alias, under the pre-release posture;
+          `createStore` (`lib/store/create.ts`) delegates them; no production code calls `sync` today
+        - Every test and helper calling `.sync()` moves to `.push()`: the suite's helpers (`suite-sync.ts`,
+          `suite-recovery.ts`, `suite-primary-role.ts`, `in-repo-remote.ts`, `in-repo-remote-recovery.ts`,
+          `reference-recovery.ts`), the `store-sync*` and `store-notes-*` integration files with
+          `store-in-repo-fixture-sync.test.ts`, the `reference-*` unit files with `envelopes.test.ts`, and seam-lifecycle's
+          `__tests__/unit/work-unit/verbs/task-close.test.ts`, whose `Store` facade also gains the three; exact-shape
+          assertions gain `pulls: []`
+        - Type-checked and exercised by the suite (1.9)
+
+### `[ ]` **1.4 The `state-unresolvable` refusal and its recovery case — § 2.3, § 14.2**
+
+- _Goal:_ A read, write, or listing that names a state version or ended item's history this clone cannot resolve
+  refuses recoverably with what it needs, and every backend produces or excludes the case by name.
+
+    - `LocalRefusalSchema` (`lib/store/refusal.ts`) gains the strict arm with `stateVersion?`, `historyRefs`,
+      `reference?`, and `field?`; it stays distinct from `unsupported`'s `uncovered-state-version`
+    - In the same task, since `refusalRecoveryTable` (`__tests__/helpers/store/recovery.ts`) is keyed by every refusal
+      code: its entry, the reference backend's produce and repair, refusing for a version it holds no snapshot
+      of (`recordsAt`, `changesReference`), where it throws today, and the in-repo fixture's exclusion
+    - Build `test-first` (one behavior at a time):
+        - the arm parses with no history refs and with several, and refuses an unknown field
+        - it classifies `recoverable`
+        - the recovery case reads a state version the backend holds nothing for, refuses, and after the remedy reads
+          from the current state
+
+### `[ ]` **1.5 A cohort's archive placement — § 2.4**
+
+- _Goal:_ A cohort's document closes by a `completed` placement write and reads back with its sequence and closeout
+  letter, as seam-lifecycle ships it, and each backend serves or refuses it by name.
+
+- _Note:_ The schemas are seam-lifecycle's and used as they ship: `MutationSchema` (`lib/store/write.ts`) admits a
+  `completed` placement on a `cohort/document` put, `CohortReadPlacementSchema` (`lib/store/placement.ts`) reads
+  `closeout: "a" | "b"`, `StoreRecordSchema` (`lib/store/read.ts`) checks it on cohort documents, and the reference
+  backend assigns both coordinates (`assignCompletedCohorts`, `__tests__/helpers/store/cohort-placement.ts`) where the
+  cohort kind's parser is registered, since it parses every cohort document's fields.
+
+    - `[ ]` **1.5.a The in-repo implementation refuses it**
+        - A `cohort/document` put carrying a placement refuses `unsupported` `placement-move`, terminal, naming archive
+          as what serves it until the flip
+        - Build `test-first` (one behavior at a time):
+            - a cohort put carrying `completed` refuses as above and changes nothing
+
+    - `[ ]` **1.5.b The reference backend's renumbering and the suite**
+        - The reference backend's sync reconciliation (`reconcileArchivePositions`, `__tests__/helpers/store/sync.ts`)
+          renumbers a closed cohort's folder with the work unit whose number it took, and one that took the quarter's
+          next as a work unit
+        - The suite item opens its fixture with the cohort kind's parser, `parseCohortDocument`
+          (`lib/store/kinds/cohort/parser.ts`), installed through the registration's registry overrides, as
+          `suite-write-checks.ts` installs a kind's parser (`__tests__/helpers/store/`), since the reference fixture
+          registers none for a prose kind
+        - Build `test-first` (one behavior at a time):
+            - item 1's `cohort-close-placement`: a lone close reads back with the quarter's next sequence and closeout
+              `a`, and a close of a cohort another cohort's document names as its parent reads `b`; the in-repo fixture
+              excludes it by `placement-move`
+            - Unit tier, over the reference backend: a pull whose merge renumbers an archived work unit renumbers the
+              cohort folder that took its number
+
+### `[ ]` **1.6 Hunk conflict records carry their base version and side counts — § 3.7**
+
+- _Goal:_ Any clone can place a hunk conflict against the record version its base range counts in and draw each side's
+  exact line count, an empty side apart from one blank line, on every backend that merges.
+
+- _Note:_ The schema, the merge library, and the reference backend's merge type-check only together: propose reviewing
+  the parent as one increment.
+
+    - `[ ]` **1.6.a The record and the merge library**
+        - The `hunk` arm of `TextConflictRecordSchema` (`lib/store/conflict.ts`) gains `baseVersion` (a record version
+          or null), `currentLines`, and `incomingLines`
+        - `MergeTextInput` (`lib/store/concurrency/line-merge.ts`) takes the base's version, null where the caller
+          holds none; `mergeLineText` copies it into each hunk record, an entry merge's prose hunks among them
+          (`mapConflicts`, `entry-merge.ts`), and counts each side's lines from the clash
+        - Build `test-first` (one behavior at a time):
+            - a hunk record parses with a base version and with null, and refuses without `baseVersion` or either count
+            - a line merge's hunk carries the input's base version, and null where the input gives null
+            - a side that is empty counts 0 lines and one blank line counts 1, for current and incoming alike
+            - an entry merge's prose hunk spanning an entry carries the base version and its sides' counts
+
+    - `[ ]` **1.6.b The reference backend's merges and the suite**
+        - `mergeContents` (`__tests__/helpers/store/merge.ts`) passes the base's version; a write's clash records its
+          expected version, a pull's the record's version at the merge base, and a pull whose two sides each created
+          the record null (`reconciledRecords`)
+        - Merge items skip on a fixture whose backend does not merge concurrent writes (`mergesConcurrentWrites`), the
+          in-repo fixture among them
+        - Build `test-first` (one behavior at a time):
+            - a write's clash records its expected version as `baseVersion`, a pull's the merge base's, and a pull over
+              two creations null
+            - clashes whose current side is empty or one blank line count 0 and 1, and likewise for the incoming side
+
+### `[ ]` **1.7 `RefHome` and `ReadOnlyStore` — § 3.2, § 9.6**
+
+- _Goal:_ Every kind whose family has a ref names where the ref backend stores it, and a store over another remote's
+  state has a type offering the read operations alone.
+
+    - `RefHome` and `KindMechanism.ref?` in `lib/store/registry.ts`, filled from § 3.2's table for every kind of a
+      family with a ref; `project-machinery`, `constitution`, and the reserved families carry none
+    - `ReadOnlyStore`, `Pick<Store, "capabilities" | "read" | "list" | "version" | "history" | "changes" | "lookup">`,
+      exported from `lib/store/contract.ts`
+    - Build `test-first` (one behavior at a time):
+        - every kind of a family with a ref carries a `RefHome`, and no kind of a family without one does
+        - each table path names only the placeholders its kind's key and owner supply
+
+### `[ ]` **1.8 The suite: write admission, merges, and listings — § 14.2**
+
+- _Goal:_ The suite's new write, merge, and listing assertions hold on the reference backend, and the in-repo fixture
+  excludes each it cannot serve by the refusal that stops it.
+
+    - Reference backend changes in `__tests__/helpers/store/write.ts`, `merge.ts`, and `read.ts`; suite items in
+      `suite-records.ts`, `suite-merges.ts`, and `suite-listings.ts`; `indexIdentities` (`identities.ts`) already
+      refuses both live holders and treats a completed cohort as not live, so it is unchanged
+    - Each new case below names the suite item and assertion it lands in, so a fixture excludes it by that name; item
+      3's three register through the merge items' skip (`mergingKind`, `suite-merges.ts`), so a fixture declaring
+      `mergesConcurrentWrites: false` skips them as § 14.2 has it
+    - Build `test-first` (one behavior at a time):
+        - item 1's `rename-and-reopen-onto-live-slug`: a rename onto a live item's slug and a reopen whose slug a live
+          item has taken each refuse `ambiguous-match` naming both; a fixture whose backend refuses the move itself
+          excludes it by that refusal
+        - item 1's `primary-put-without-placement`: a primary's put without placement at its current version refuses
+          `record-malformed`, the reference backend parsing each write through `WriteInputSchema` and each batch through
+          `BatchInputSchema`, the refusal's rule derived from the failing arm; the in-repo fixture excludes it by
+          `placement-move`
+        - item 3's `stale-base-clash-conflict-record`: a write whose stale-base merge clashes files a conflict record
+          whose `history` names the verb `merge`, and a put of the stored content naming that record in `resolves`
+          removes it
+        - item 3's `entry-id-repeat`: an entry-kind put whose entries repeat an `_Id:_` refuses `record-malformed` naming
+          it, with a stale base and without, where the reference merge throws today
+        - item 3's `stale-merge-parser-refusal`: a stale put whose merged content the kind's parser refuses, through a
+          parser the registry override installs, refuses `record-malformed` (`land`)
+        - `keyed-independence` seeds a foreign owner only for work items, cohorts, and people, and checks two keys under
+          the store's one project for a project-owned kind (`suite-records.ts`)
+        - `diagnostic-oversized` selects only the kinds the size cap reaches, through `everyKind`'s `select`
+          (`suite-listings.ts`); the in-repo declarations drop their now-unused exclusions for never-projected kinds,
+          which `validateUsedAssertionExclusions` would otherwise refuse
+
+### `[ ]` **1.9 The suite: `pull`, `push`, and `maintain` — § 2.1, § 14.2**
+
+- _Goal:_ The shared suite holds every backend to `pull`, `push`, and `maintain`, and the reference backend passes it as
+  the model the ref backend is held to.
+
+    - Suite items in `__tests__/helpers/store/suite-sync.ts`; in-repo exclusions in
+      `__tests__/helpers/store/in-repo-declarations.ts`
+    - Build `test-first` (one behavior at a time):
+        - every existing sync assertion runs through `push`, the declared `syncRetryCount` and `syncWaitedMs` still
+          compared against the contended failure's figures, and every shared outcome carrying a retry count and a time
+          waited
+        - `pull` merges another clone's write for each sync family, and the remote holds no new state after it; the
+          in-repo fixture excludes the item for `work-item` and `claims` by name
+        - `push` returns `pulls` empty on the two existing backends, reporting reconciliation through `publishes`, and a
+          backend whose loop pulls keeps them in the order it ran them
+        - `maintain()` returns measurements or `null`, and both existing backends return `null`
+
+### `[ ]` **1.10 The contract specification's Amendments log — § 2.6**
+
+- _Goal:_ The contract specification describes the types the code has: its Amendments log carries one row per row of
+  the amendments table, in the change that alters Part A's types.
+
+    - Append to `spec-storage-contract.md`'s `## Amendments`, in `.arc/completed/2026-q4/04_storage-contract/`, ten rows
+      numbered on from the last row the base carries, after any seam-lifecycle lands, in the log's own grammar —
+      ``**A{n}** — <date> — design: <the amendment>. _Supersedes:_ <decision>. _Trigger:_ <the section of
+      `spec-storage-ref-backend.md` carrying it>. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend
+      1.10.`` — one per amended decision row: D1, D2, D4 twice, D4 with D6, D6, D6 with D10, D10, D12, and D14
+    - Documentation only; no test
+
+### `[ ]` **1.11 A companion keyed by its path — § 2.5, § 14.2**
+
+- _Goal:_ Any file among a work item's records can be a companion, keyed by its path, while every name key today's
+  callers build keeps its meaning and both existing backends serve what they served.
+
+    - `KIND_SHAPES["work-item/companion"]` (`lib/store/catalog.ts`) becomes `keyed("work-item", "path")`, its key
+      validated through `keySchemas`' `path` (`lib/store/identity.ts`); each caller that builds a companion reference
+      passes a name, which that schema admits (`recordReferences` in `kinds/meta/reference-rules.ts`,
+      `RecordReferenceSchema` in `in-repo/list.ts`)
+    - The in-repo implementation is unchanged: `companionPath` (`lib/store/in-repo/paths.ts`) refuses a key whose file
+      name `artifactMatcher` rejects
+    - `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) places a companion where § 2.5 stores it, below its
+      meta's folder — a name at `<key>-<slug>.md`, a paired spec's half as the in-repo implementation names it, and any
+      other key at its path — and its callers that match by file name, `renameProjection`
+      (`lib/store/lifecycle-rename.ts`) and `readLifecycleDesign` (`lib/store/lifecycle-design.ts`), match by that path
+      instead, so a companion in a folder never shares a projected path with another record
+    - Each fixture's `reference` hook builds a companion's key as a name, where its `path` arm builds
+      `scratch-<suffix>.md` (`in-repo-fixture.ts`) or `scratch/<suffix>.md` (`reference-fixture.ts`), so every assertion
+      `everyKind` runs keeps keying companions as it does today
+    - Build `test-first` (one behavior at a time):
+        - item 1's `companion-path-key`: a companion keyed `diagram.svg`, and one keyed `sub/notes.md`, writes, reads,
+          and lists under its key on the reference backend, and the in-repo fixture excludes it by its `unhomed-kind`
+          refusal
+        - item 1's `companion-path-key-through-rename`: such a companion keeps its key through its owner's rename, and
+          the in-repo fixture excludes it alike
+        - the in-repo implementation refuses a put of a companion keyed `sub/notes.md` `unsupported` `unhomed-kind`, as
+          it refuses one keyed `notes-extra`, and one keyed `research` stores at `research-<slug>.md` as before
+        - `lifecycleRecordPath` places a companion keyed `research` at `research-<slug>.md`, the paired spec's halves at
+          `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`, and one keyed `sub/notes.md` at that path below the meta's
+          folder
+        - on the reference backend, a rename of a work item holding companions keyed `sub/notes.md` and `other/notes.md`
+          sweeps both, and its Design lookup finds the draft beside a companion keyed `sub/draft-<slug>.md`
+
+## **Phase 2:** Git access
+
+_Purpose:_ The executor capabilities the engine calls — cancellation that ends a whole process tree on every variant,
+the 2.47 floor with its failure-time check, the ref-transaction helper and its lock waits, and the push helper — so the
+write path and the push loop read typed outcomes rather than Git's text; and the two host properties the sync design
+rests on, checked by hand before it is built.
+
+_Exit criterion:_ The in-repo implementation, the reference backend, and the shared suite pass the amended contract's
+cases, the transaction helper, the push helper, cancellation, and the floor check pass theirs, and GitHub and GitLab are
+recorded holding the two load-bearing host properties.
+
+### `[ ]` **2.1 Cancellation that ends the call — § 6.1, § 11.8**
+
+- _Goal:_ A Git call whose signal aborts settles promptly on every variant, with the transport helper or hook it
+  started ended too, so the existing bounded reads and every deadline built on them hold.
+
+    - The stdin and byte variants (`GitExecInput`, `RawGitExec`, `lib/git/exec.ts`) gain an optional `signal`, passed
+      as the plain variant passes `cancelSignal` (`lib/git/process-executor.ts`); `createSpawnRawGitExec`
+      (`lib/change-facts.ts`), a second `RawGitExec` binding, honors it too
+    - On every variant an abort ends the call's whole process tree and settles without waiting on a descendant's
+      output, which today keeps an aborted HTTP fetch unsettled while its `git-remote-http` helper holds the call's
+      pipe: at the abort the executor ends the child's descendants, then the child — on POSIX the descendants a
+      `ps -A -o pid=,ppid=` walk finds from the child's pid, on Windows `taskkill /T /F` on that pid
+    - No call's spawn changes, so a call keeps the caller's process group and terminal, and a credential prompt and
+      Ctrl-C behave as today: `boundedFetch` and `boundedGitInvocation` (`lib/git/exec.ts`) already pass a signal with
+      no interaction setting
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, beside the plain executor's cancellation cases; the stdin and byte variants spawn `git` by
+          name, so each waits on a ref lock another process holds under a long `core.filesRefLockTimeout`
+        - an aborted signal ends a stdin call, rejecting with a `GitProcessError` of kind `canceled`, and the same for a
+          byte call
+        - an aborted fetch from an HTTP endpoint that accepts and never answers settles within a second of the abort,
+          leaving no helper running
+        - an aborted push whose pre-push hook sleeps settles likewise
+        - a call whose signal never fires completes as before
+        - a call with no signal, and a call with one, spawn with today's options, the child in the caller's process
+          group
+
+### `[ ]` **2.2 ARC's Git floor is 2.47 — § 11.3**
+
+- _Goal:_ Every place ARC states its Git floor reads 2.47, and a store failure an older Git would explain names the
+  version found and the floor, at no cost to a command that succeeds.
+
+    - `[ ]` **2.2.a The six sites**
+        - `packages/arc-framework/package.json` engines, the `packages/arc-framework` entry of `package-lock.json`,
+          `packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md` synced to `.arc/reference/QUICK-REFERENCE.md`
+          through the package-project sync rule, the pin in `__tests__/unit/git/capability-contract.test.ts` with its
+          test retitled for the floor's reason, and `CONTRIBUTING.md`'s Prerequisites
+        - The template and the synced reference are shipped content: state the floor as fact, with no transitional
+          framing
+
+    - `[ ]` **2.2.b The failure-time check**
+        - In `lib/git/`: a version parser over `git --version`, and a wrapper over an executor port that, on a
+          `nonzero-exit` with exit code 129 from any call, runs `git --version` and, below 2.47, throws naming the
+          version found and the floor; the ref backend installs the wrapper over its executor ports at construction
+          (3.1.a), and the transaction helper (2.3) calls the same check on a failure with every ref matching
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, over a stubbed executor
+            - the parser reads `2.47.0`, `2.47.1.windows.1`, an `(Apple Git-…)` suffix, and an `rc` suffix, and a
+              failing `git --version` leaves Git's own error standing
+            - under 2.45, a wrapped call exiting 129 throws naming 2.45 and 2.47
+            - under 2.47, the same failure throws with Git's own text
+            - a call that succeeds runs no `git --version`
+
+### `[ ]` **2.3 The ref-transaction helper — § 11.1, § 11.2**
+
+- _Goal:_ One `update-ref --stdin` transaction applies every ref change with its expected old value, and a failure comes
+  back as a typed lost race naming each ref's actual tip, or as Git's own error where nothing raced.
+
+    - `[ ]` **2.3.a The transaction and its outcomes**
+        - A module beside the executor seam in `lib/git/`: `RefChange` and `RefTransactionOutcome` as § 11.1 gives them;
+          never `--batch-updates`; a failure re-reads every named ref with one `for-each-ref`, filtering its output by
+          exact name since a prefix pattern also lists refs below it, and returns `lost-race` for each ref off its
+          expected value, an absent one with `actual: null`, else runs 2.2.b's check and rethrows with Git's text
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, in both ref formats
+            - a create, an update, and a delete each commit with their expected values
+            - a create meeting an existing ref, and an update or delete meeting another tip, return `lost-race` with
+              each ref's actual tip, and leave every ref in the transaction unchanged
+            - an update or delete meeting an absent ref returns `lost-race` with `actual: null`
+            - a failure with every ref matching — a stale lock file, or a ref name colliding with a folder of refs —
+              rethrows with Git's text
+            - Unit tier, over a stubbed executor: reporting Git 2.45, a failure with every ref matching throws naming
+              2.45 and 2.47, and reporting 2.47 it rethrows with Git's text
+
+    - `[ ]` **2.3.b Lock waits**
+        - One shared argument set, `-c reftable.lockTimeout=5000 -c core.filesRefLockTimeout=5000`, that every store
+          write and every fetch into the tracking namespace passes; the wait is a parameter, so the stale-lock case
+          above runs with a short one
+        - Build `test-first` (one behavior at a time):
+            - a transaction meeting a lock another process holds for less than the wait commits, in both ref formats
+
+### `[ ]` **2.4 The push helper — § 11.5**
+
+- _Goal:_ A push with explicit `<oid>:<ref>` pairs, leases, and `--atomic` returns a typed outcome per ref and for the
+  whole push, reading Git's porcelain lines and exit code, and its cause from `classifyRemoteFailure`, never prose.
+
+    - `[ ]` **2.4.a Parsing the porcelain**
+        - A pure parser in `lib/git/` over `git push --porcelain` output and exit code: every flag — ` `, `+`, `*`, `-`,
+          and `=` for a ref the remote already held at that tip — reads `ok`, a successful delete's `:<ref>` and a
+          rejected one's `(delete):<ref>` among them; `!` reads `rejected` with Git's reason, `remote-rejected` with the
+          server's message, or `atomic-collateral`; `To` and `Done` lines frame them; the whole push reads
+          `atomic-unsupported` by its text, checked before `unreachable`, `hook-declined` as exit 1 with no per-ref
+          line, and `unreachable` otherwise; every `remote:` line and a pre-push hook's stderr kept verbatim
+        - Its typed outcome is the helper's only classification: the helper ignores `expectedOutcome`
+          (`GitExpectedOutcome`, `lib/git/process-error.ts`), whose stderr regexes miss what `--porcelain` moves to
+          stdout
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, over recorded output
+            - each flag parses, with the reason or message it carries, `=` as `ok`
+            - `atomic push failed` and `atomic push failure` lines read as collateral
+            - a hook's refusal with no per-ref lines reads `hook-declined`, carrying its text verbatim, as does any
+              refusal Git raises before sending, a residual the outcome names
+            - `the receiving end does not support --atomic push` reads `atomic-unsupported`, though Git also prints the
+              hung-up line and exits 128 as for an unreachable remote
+
+    - `[ ]` **2.4.b Running the push**
+        - Runs under `LC_ALL=C` (`diagnosticLocale: "stable"`) and `PASSIVE_REMOTE_INTERACTION`
+          (`lib/git/remote-ref-reader.ts`), so a credential prompt fails as `auth` rather than waiting; `--porcelain`,
+          `--atomic` when more than one ref, and `--force-with-lease=<ref>:<oid>` or absence leases; a push the deadline
+          aborts reads `unreachable` with cause `timeout` from the executor's `canceled` failure while the signal has
+          fired, as `boundedFetch` does
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, against a bare remote
+            - an atomic push of two refs lands both, and one losing its lease lands neither
+            - a delete leased on the remote's tip lands, and one leased on another tip reads `stale info`
+            - a push of a tip the remote already holds reads `ok`
+            - a receiver with `receive.advertiseAtomic=false` reads `atomic-unsupported`
+            - a pre-receive hook's refusal reads `remote-rejected` with the hook's `remote:` lines kept
+            - an unreachable remote reads `unreachable` with `classifyRemoteFailure`'s cause, and an aborted push with
+              cause `timeout`
+
+### `[ ]` **2.5 The two load-bearing host properties — § 14.8**
+
+- _Goal:_ Before the sync design is built on them, GitHub and GitLab are shown to narrow a protocol v2 ref advertisement
+  to a command-line refspec's prefixes and to keep the `atomic` capability over HTTP, or the specification learns that
+  they do not.
+
+    - A hand-run script under `__tests__/benchmarks/`, the host kit's first piece (18.4.a), in raw Git alone against a
+      scratch repository on each host: a protocol v2 fetch with one `refs/arc/` refspec, traced with `GIT_TRACE_PACKET`,
+      shows the advertisement held to that prefix, and a push over HTTP shows `atomic` among the receiver's capabilities
+    - Results, with each host's date and the Git version run, recorded in `notes-storage-ref-backend.md` beside the host
+      kit's; a host failing either check returns to the specification as a design defect before Phase 9 begins
+    - Never in a tier, a CI job, or the shipped package; touches no test file
+
+## **Phase 3:** Encoding and the read path
+
+_Purpose:_ The ref backend's module and construction and the half of its first path that decodes refs into records:
+stored paths, then the read path — the four-process listing with its decode, metadata files, record versions, and
+diagnostics — and the manifest a state version names, each tested through `lib/store/create.ts` over refs planted with
+plumbing.
+
+_Mode:_ `slice` through Phase 4 — closes on records written, read, listed, and versioned through real refs in the
+default layout.
+
+### `[ ]` **3.1 The backend module and its construction — § 1.2**
+
+- _Goal:_ `lib/store/ref/` builds one backend from one ports object without running a command or reading a file, is
+  reachable only through `lib/store/create.ts`, and can be tested before its write path exists.
+
+    - `[ ]` **3.1.a Construction**
+        - `createRefBackend(ports)` in `lib/store/ref/backend.ts`, the module's entry, takes the Git executor and its
+          stdin and byte variants, file access, the clock, a sleep port whose waits and bounds a signal ends, a random
+          source, the checkout root, the identity, the actor, the kind registry (built from `PRODUCTION_REGISTRATIONS`
+          by default), and the lock factory; `createRefStore(ports)` in `lib/store/create.ts` is the export tests build
+          with; the store's `capabilities` report `stateOffBranch: true` (§ 1.3)
+        - The identity port is read at each operation, never kept, so a test can switch identity between operations; the
+          actor port resolves on first use (3.1.d); the lock factory takes a lock path and a wait and returns a release
+          (4.1); the floor check's wrapper (2.2.b) wraps each executor port here
+        - The sleep port has two calls, each taking a duration and a signal and resolving when the duration passes or
+          the signal ends it: a wait, which its caller awaits — a retry's backoff (9.5) — and a bound, raced against a
+          call its end aborts — the deadline (9.5) and a network read's bound (12.2.b); every wait and bound the backend
+          makes goes through it
+        - Its fake, which the fixtures and every deadline case share, keeps a virtual clock the clock port reads: each
+          read of the clock advances it a fixed tick, so a push's measured duration is never zero; a wait advances the
+          clock to its wake, first firing every pending bound that ends earlier, in end order, so a deadline due before
+          a retry's wake fires first; a bound never moves the clock, firing only once a later wait or a test's explicit
+          advance passes its end; and a case whose call never returns advances the clock past the deadline once its
+          server holds the connection
+        - `history`, `changes`, `lookup`, and `maintain` throw naming the operation until their tasks build them, the
+          shared suite's items over them excluded meanwhile (4.4.d)
+            - _Retired in:_ Phase 8
+        - `pull` and `push` throw likewise until Phase 9 builds them
+            - _Retired in:_ Phase 11
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, through `createRefStore` over ports that record their calls
+            - construction calls no port
+            - on the fake, a bound pending under a later wait fires before that wait resolves, and a bound alone stays
+              pending until the test advances the clock past its end
+
+    - `[ ]` **3.1.b The store import rules**
+        - `storeViolations` (`eslint/architecture-imports.ts`) extends its `store-production` and `store-tests` rules
+          from `lib/store/in-repo/` to `lib/store/ref/`, the entry check naming `lib/store/ref/backend.ts` as it names
+          `lib/store/in-repo/backend.ts`, so only `lib/store/create.ts` imports the entry, nothing outside `lib/store/`
+          imports the module, and no test does
+        - Every later test of the backend therefore runs through `lib/store/create.ts`'s exports; pure Git-output
+          parsers the backend needs live in `lib/git/`, and helpers both the backend and a contract-core module need
+          live in `lib/store/`
+        - Build `test-first` (one behavior at a time):
+            - Beside the rule's existing cases (`eslint-architecture-imports.test.ts`)
+            - an import of `lib/store/ref/` from outside `lib/store/`, of its entry from any file but `create.ts`, and
+              from a test each report a violation, and a type-only import from a test does not
+
+    - `[ ]` **3.1.c The Git directories without a Git call**
+        - A reader in `lib/git/` that finds the worktree's own Git directory from its `.git` — a directory in the main
+          checkout, a file naming the worktree's Git directory in a linked one — and the common Git directory from the
+          `commondir` file that leads to, resolving relative paths against the file that holds them, as Git lays out a
+          linked worktree (§ 4.2), and returns both; storage-projection's working copy reads the first, so whichever of
+          the two changes builds it first, the other takes it
+        - `resolveGitCommonDir` (`lib/git/exec.ts`) spawns `git rev-parse`, which § 4.2's one-process `version` cannot
+          afford
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, over directories the test lays out
+            - the main checkout's `.git` directory is both its own Git directory and its common directory
+            - a linked worktree's `.git` file names its Git directory, and its `commondir` leads to the main Git
+              directory, with relative paths in either
+            - a `.git` file whose Git directory holds no `commondir` names that directory for both
+            - Integration tier, since the unit tier spawns no process (`UNIT_PROCESS_ALLOWLIST`): on a real repository and
+              a real linked worktree, the common directory equals `resolveGitCommonDir`'s answer and the worktree's own
+              equals `git rev-parse --absolute-git-dir`'s
+
+    - `[ ]` **3.1.d The machine ID and the actor**
+        - `lib/store/machine-id.ts` reads `arc/user/<identity>/.internal/.machine-id` in the common Git directory (3.1.c)
+          or creates it through `exclusiveCreateFile` (`lib/fs.ts`), a lost create adopting the winner's ID
+        - Notes sync's `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) keeps its legacy adoption of a
+          checkout-local or `.sync-state.json` ID, which retires with notes, and calls the store's reader with the
+          candidate it adopts, so its importers keep their import and both name one ID for one identity
+        - The actor resolves lazily at the first write that needs it; a clone with no identity has none
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, beside `save-load.test.ts`'s machine-ID cases
+            - two worktrees of one clone read one machine ID, and a fresh clone mints its own
+            - a lost create adopts the winner's ID
+            - notes sync's call and the store's name the same ID for one identity
+
+    - `[ ]` **3.1.e The planting helper**
+        - A helper in `__tests__/helpers/store/` that writes blobs, trees (gitlinks, metadata files, and quarter folders
+          among them), and commits with plumbing, and moves refs, in a test repository: the read path's tests use it
+          before the write path exists, the conformance fixture's `plant` hook uses it (4.4), and later phases build
+          states only another clone's sync would leave with it
+        - It writes through Git, never through `lib/store/ref/`, except for the states Git refuses to make: a ref naming
+          an object the clone lacks is written into files-format ref storage directly, and a tip, tree, or blob the
+          clone must lack is removed from the object store after it is written, the only route under reftable
+        - The test repositories it builds carry a code remote whose `arc-state` is `push`, so their store stays in the
+          code repository's refs once a write that finds no store follows the designation (8.1, § 9.7)
+
+### `[ ]` **3.2 Stored paths — § 3.2**
+
+- _Goal:_ Every record maps to exactly one ref and one stored path, through one expansion every caller shares.
+
+    - One expansion in `lib/store/`, beside the registry, over 1.7's `RefHome`s, maps a reference to its ref and stored
+      path — each family's root, a paired spec's halves as `companionPath` (`lib/store/in-repo/paths.ts`) names them, a
+      companion keyed by a name at `<key>-<slug>.md` and any other at its key verbatim (§ 2.5), which a template cannot
+      express, a completed item's quarter folder, each ref's metadata file and manifest — so the serialization rules
+      (5.1) and the backend's codec (3.3.b) expand one way
+    - Build `test-first` (one behavior at a time):
+        - Unit tier
+        - every kind with a home expands at its table path, and a paired spec's halves keyed `spec-prd` and `spec-rfc` at
+          `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`
+        - each family's root: the ref's root, `review/` and `lineage/`, and `<person>/` on a personal ref
+        - a companion keyed `notes-extra` expands at `notes-extra-<slug>.md`, and ones keyed `diagram.svg` and
+          `sub/notes.md` at those paths among the work item's records, in its quarter folder once it ends
+        - the project's refs take fixed names, and its owner is named `project`
+        - each ref's metadata file and manifest path, by ref kind
+        - a quarter's folder names: a work unit's `<sequence>_<slug>/`, a closed Errand's `<slug>-<suffix>/` with its
+          UID's first eight hex characters, and a closed cohort's `<sequence><a|b>_cohort-<slug>/`
+        - no two kinds' paths collide within a ref, compared as expanded instances, and a path two refs share embeds its
+          owner or a random key, as `conflicts/<key>.json` does on five ref kinds
+
+### `[ ]` **3.3 The read path — § 3.1, § 3.2, § 3.3, § 3.4, § 3.7, § 11.6, § 13.1**
+
+- _Goal:_ `read` and `list` decode records, with their metadata, versions, and open conflicts, in a fixed number of
+  one-shot Git processes; every tree entry maps back to one record, its ref's metadata file, its manifest, or a
+  diagnostic, and a fault in one entry or ref is a diagnostic beside every other record rather than a failed listing.
+
+- _Note:_ 3.3.a builds the thinnest decode, metadata parse, and version its first `read` and `list` need — a record at
+  its table path, its owner's slug, and its version — and 3.3.b to 3.3.e complete each, every case running through
+  `read` and `list`.
+
+    - `[ ]` **3.3.a The processes and the tip read**
+        - The tip read: one `for-each-ref` of `refs/arc/` as a single pattern with `--exclude=refs/arc/history/`, which
+          also reads `refs/arc/tmp/version` for the state version (3.4.b); then one `cat-file --batch-check` of each tip's
+          root tree, one `git diff-tree --stdin -r -z` pairing each tree with the empty tree, and one `cat-file --batch`
+          of the metadata and record blobs; every read with `objectAccess: "local-only"`; a `cat-file --batch` failing
+          `output-limit` runs again over halves until each fits
+        - The first decode: a record at its kind's table path (3.2) reads as that kind and key, its owner's slug from the
+          ref's metadata file, and its version by 3.3.d's digest
+        - A reference without a UID resolves among live owners by § 8's metadata scan, once per call, which 4.2.a's
+          write resolution shares, 5.3 extends through the registry's lineage map, and Phase 7 extends to ended owners
+        - A record's `conflicts` lists the open conflict records on its ref whose content names it: a list reads them
+          from its own batch; a read requests the family root's `conflicts` tree in its first batch and reads their blobs
+          in a second only where that tree exists (§ 11.6)
+        - The byte executor rewrites `GIT_SSH_COMMAND` only for a call that can reach a remote:
+          `applyNonInteractiveSshEnvironment` (`lib/git/process-executor.ts`) throws before spawning on a command such as
+          `ssh -i ~/.ssh/k`, so a call under `objectAccess: "local-only"` skips it
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, through `createRefStore` over planted refs, as every case of 3.3 is
+            - a record planted at its table path reads and lists as its kind and key, under its owner's slug
+            - a live `read` by UID spawns two processes, and three on a ref holding an open conflict record, which its
+              `conflicts` lists; a reference without a UID adds the scan's four and returns the owner's UID
+            - a `list` spawns four where the manifest is unchanged, and lists each record's open conflicts
+            - a listing whose blobs pass an injected output cap (`createExecaRawGitExec(cwd, maxBuffer)`) splits and
+              returns every record
+            - two records sharing one blob both list
+            - a path holding a non-ASCII byte, `"`, or `\` lists under its exact name
+            - a read under a `GIT_SSH_COMMAND` holding `~` reads
+            - with no identity configured, a read of a person-owned record refuses `not-found` naming `arc.identity`, and
+              a listing of `personal` or `claims` is `absent`, with no identity ref named, as the contract has it
+
+    - `[ ]` **3.3.b The decode**
+        - The backend's codec in `lib/store/ref/` maps a ref and tree entry back to a reference, taking the owner's slug
+          from the ref's metadata file (3.3.c), by this precedence: a paired spec's half, `spec-<ref slug>-prd.md` or
+          `spec-<ref slug>-rfc.md`; then a name `<key>-<ref slug>.md` whose key `SlugSchema` admits, a kind's fixed form
+          or a companion's name key, which may hold a hyphen; then a kind's fixed form whose slug, UID, or person is not
+          its ref's or its metadata file's, `key-mismatch`; then an entry mapping to no `RefHome`, the metadata file and
+          manifest aside, `malformed` — among a work item's records one under `review/`, since any other entry there, at
+          the root or in a folder, is a companion keyed by its path (§ 2.5); then an entry whose decoded key § 3.2
+          refuses, `malformed`
+        - Build `test-first` (one behavior at a time):
+            - a record planted at every kind's table path lists and reads as that kind and key
+            - a paired spec's half at `spec-<slug>-prd.md`, and a companion keyed `notes-extra` at `notes-extra-<slug>.md`,
+              each read as its own record
+            - an entry naming another owner lists `key-mismatch`, and an entry under `review/` that maps to no kind
+              `malformed`, beside the other records
+            - entries at `diagram.svg` and `sub/notes.md` on a work item's ref read as companions keyed by those paths,
+              and a cohort ref's entry at `diagram.svg` lists `malformed`
+            - on a work item's ref, entries at `conflicts/notes.md` and at a root `review` list `malformed`, while one
+              at `README-<slug>.md` reads as a companion keyed by that path and one under `lineage/` as a companion too
+
+    - `[ ]` **3.3.c The metadata file**
+        - `RefMetadata` as § 3.3 gives it, `lineage` among it, parsed strictly and read through `canonicalize`: a file
+          at another `formatVersion` or with an unknown field does not parse, which § 3.3's missing-or-unparseable rule
+          covers
+        - Each `formats` key is the canonical JSON of the record's kind and key, so an object key, an adversarial pass's,
+          reads back whole and a rename leaves it; a record absent from `formats` is at the initial format version
+        - Build `test-first` (one behavior at a time):
+            - a record missing from `formats` reads the initial version, and one listed there reads its own
+            - a ref whose primary was removed, its placement, role, and links kept in `primary`, reads its other records
+              with that placement
+            - a lineage record lists under the owner slug the registry's metadata names for its UID
+
+    - `[ ]` **3.3.d Record versions**
+        - `canonicalDigest` over the content's blob id and the record's own metadata: for a primary, its role, slug,
+          former slugs, placement, links, and format version; for any other record, its format version alone
+        - Build `test-first` (one behavior at a time):
+            - two planted tips differing only in the primary's placement give the primary two versions and every other
+              record one
+            - a record planted at the same bytes and metadata on two tips reads one version
+
+    - `[ ]` **3.3.e Diagnostics and the newer-format refusal**
+        - D4's per-entry diagnostics keyed by the entry's path, as § 3.1 lists them; a listing holding any is `complete`
+          with `missed: true`, and a family with no refs is `absent`
+        - The projected-record size cap, 1 MiB, is a constant in `lib/store/` the serialization rules reuse (5.1)
+        - A `read` of a record above the registry's format version refuses `record-malformed`, `recoverable`, its rule
+          naming the format and its remedy the merge base or a rebuild, as the reference backend refuses it
+          (`readReference`, `__tests__/helpers/store/read.ts`)
+        - Build `test-first` (one behavior at a time):
+            - an unreadable blob, a malformed blob, an entry under `review/` that maps to no kind, a format version
+              above the registry's, and an entry naming two owners each list as their diagnostic beside the others'
+              records, in a `complete` listing with `missed: true`
+            - a ref whose tip or root tree the clone lacks, loose or packed in the files format, lists as one
+              `unreadable` diagnostic keyed by the ref
+            - a missing or unparseable metadata file over records lists as one `unreadable` diagnostic keyed by its ref
+              or folder, and a tree holding no record needs none
+            - a projected record over the cap lists `oversized`, and a never-projected one over it lists as any other
+            - a family with no refs is `absent`, and one is `unreadable` only where none of its refs reads
+            - a read of a record at a newer format refuses with that remedy, and a backend built with a registry
+              declaring that format reads it, so a registry passed in replaces the production one
+
+### `[ ]` **3.4 The state version — § 4.1, § 4.2, § 4.3**
+
+- _Goal:_ A state version names one saved state of the whole store, costs one Git process when nothing changed, and is
+  never torn in the separate layout's reftable format.
+
+    - `[ ]` **3.4.a The manifest**
+        - A Git tree mirroring the store's refs below `refs/arc/`, one gitlink per ref, never `refs/arc/history/`; its
+          id computed in process from Git's fixed tree format, in the object format the common directory's `config`
+          names (`extensions.objectformat`, SHA-1 where absent), read without a Git call
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, over planted refs
+            - the in-process id equals Git's own write of the same tree, under SHA-1 and SHA-256
+            - `version()` of an empty store under SHA-256 equals Git's empty tree there
+            - `refs/arc/user/<id>/errands`, `sync-state`, `refs/arc/bootstrap/`, `refs/arc/tmp/`, and
+              `refs/arc/project/moved` never enter it
+
+    - `[ ]` **3.4.b `version` and a live listing's token**
+        - `version` runs 3.3.a's tip read alone, its `refs/arc/tmp/version` included; an equal id writes nothing; a new
+          one writes its trees and moves that ref through the transaction helper (2.3) with the lock waits (2.3.b),
+          expecting the value it read; a move another worktree won returns the token anyway, since the ref only keeps the
+          newest token from collection and § 4.4 refuses a collected manifest
+        - The store is found through 3.1.c's reader; a live listing returns the same token from its own tip read
+        - Build `test-first` (one behavior at a time):
+            - a no-change `version` spawns one Git process, and a changed one three
+            - `version` reads no identity and resolves no actor
+            - a live listing's token equals what `version()` then returns, and a listing that writes a new manifest
+              spawns six
+            - a `version` whose move of `refs/arc/tmp/version` loses to another worktree's returns its token
+            - on reftable, a bounded run of `version` listings beside a writer moving refs in two namespaces in one
+              transaction never sees part of it, while the same run listing with two patterns in the files format
+              tears, showing the test can detect one
+
+## **Phase 4:** The write spine and the conformance fixture
+
+_Purpose:_ The write path's spine — validate, resolve, lock, read under the locks, build, and commit through the
+transaction helper — with provenance in commit messages, and the ref-backend conformance fixture over the default
+layout, so the shared suite exercises the first path.
+
+_Exit criterion:_ The ref-backend fixture in the default layout passes the shared suite's items 1, 2, 4, 6, 9, 10, 13,
+and 15 for every served family, but for the assertions 4.4.d excludes by name, and holds items 3, 7, 11, 12, 14, 16, and
+17 by interim exclusions, each naming the phase that retires it.
+
+### `[ ]` **4.1 Machine-local ref locks — § 11.4**
+
+- _Goal:_ Every worktree of a clone serializes writes to one ref, in either layout, and a set of locks taken together can
+  never deadlock another.
+
+    - `acquireAdvisoryLocks` beside `acquireAdvisoryLock` (`lib/advisory-lock.ts`) takes a set of lock paths in name
+      order, waiting the lock's default 10 s (`DEFAULT_MAX_WAIT_MS`) unless a wait is passed, and releases those it took
+      when one times out; the backend's lock factory (3.1.a) keeps one lock per ref at `arc/locks/<ref name>.lock` in the
+      common Git directory
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, over real lock files
+        - two holders taking overlapping sets in opposite orders both complete
+        - a lock another holder keeps past an injected short wait throws `AdvisoryLockTimeoutError` with its `lockPath`,
+          and the locks already taken are released
+        - a ref name's slashes nest the lock file's folders
+
+### `[ ]` **4.2 The write path's spine — § 5.1, § 5.4**
+
+- _Goal:_ `write` and `batch` land a put or removal as one commit per ref in one compare-and-swap transaction under the
+  refs' locks, all or none, with nothing landing on refs an owner has left.
+
+    - `[ ]` **4.2.a Validation and resolution**
+        - Step 1's input schemas, a primary's put without placement refusing `record-malformed`; step 2 resolves a
+          reference by UID, or by slug among live owners through 3.3.a's scan, and mints a UID with `randomUUID` for an
+          owner nothing holds, the batch's other records naming it taking the same UID; with no identity configured, a
+          write naming a person-owned record refuses `not-found` naming `arc.identity` before any lock, as the
+          reference backend refuses it (`recordAdmission`, `__tests__/helpers/store/refusals.ts`)
+        - The serialization rules, key rules, parsers, entry stamps, and writer rules land in Phase 5, and resolution to
+          ended owners in Phase 7
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, through `createRefStore`, as every later write case is
+            - a primary's put without placement refuses `record-malformed`
+            - a create by slug mints a UID, and the batch's other record naming that slug takes it
+            - a write by slug to a live owner lands on that owner's ref
+            - with no identity, a personal write refuses `not-found` naming `arc.identity`, changing nothing, and lands
+              once the identity is set
+
+    - `[ ]` **4.2.b Locks, reads, and expected versions**
+        - Steps 3 and 4: the refs' locks (4.1), `AdvisoryLockTimeoutError` refusing `lock-held` naming the lock's path as
+          `lib/store/in-repo/write-conflicts.ts` maps it; then one `for-each-ref` of the tips, each owner's live and
+          history refs among them; an owner whose refs differ from what step 2 found releases every lock and restarts
+          from step 2; then each put's and removal's expected version, absence for a create
+        - Build `test-first` (one behavior at a time):
+            - a put expecting absence over an existing record, and a stale version, refuse `version-conflict`, a batch
+              naming every stale record
+            - a write whose ref's lock another process holds past an injected wait refuses `lock-held` naming
+              `arc/locks/<ref name>.lock`, and lands once it is released
+            - a write whose owner's refs changed between resolution and locking restarts and lands on the refs as they
+              stand
+
+    - `[ ]` **4.2.c Build and commit**
+        - Steps 5, 7, and 8: new trees for records and metadata files over the found tips, each record at the path its
+          expansion gives (3.2) and each metadata file in `canonicalize`'s bytes; one commit per touched ref; one
+          transaction naming every ref's expected old value (2.3)
+        - A kind whose `projection` is `"never"` is stored in `canonicalize`'s bytes, chosen by kind and never by path,
+          and every other kind as written (§ 3.5)
+        - A ref found off its expected value retries from step 4; only a writer that bypassed the lock moves it, so each
+          retry follows one such write; the layout lock lands in Phase 8
+        - Build `test-first` (one behavior at a time):
+            - a put creates its owner's ref, its record at the table path and its metadata file reading back, and returns
+              the record's version
+            - two spellings of one JSON value store one blob, and a read returns the canonical bytes
+            - a personal document keyed `notes.json` holding non-canonical bytes stores and reads them as written
+            - a metadata-only write moves the primary's version and no other record's
+            - a removal commits the record's absence and the ref stays live, and a primary's removal keeps its role,
+              placement, and links for the item's other records
+            - a writer that bypassed the lock moves a ref, and the write retries and lands over it
+            - every write yields a state version no earlier one equals
+
+    - `[ ]` **4.2.d Batches**
+        - A batch's refs commit in one transaction, each created ref named with an expected absence
+        - Build `test-first` (one behavior at a time):
+            - a batch spanning a work item's ref and a personal ref lands both or neither
+            - a batch whose one record refuses lands nothing
+            - two batches over overlapping refs, named in opposite orders, both land
+
+### `[ ]` **4.3 Provenance in commit messages — § 3.1, § 5.5**
+
+- _Goal:_ Every commit renders its batch's provenance as D3 has a backend over Git render it, authored as the person, so
+  `history` and `changes` read the stored provenance back and conflict labels name the machine.
+
+    - A subject naming the verb and owner slug, and the trailers `Arc-Lifecycle-Action`, `Arc-Code-Head`, `Arc-Owner`
+      where the owner has a UID, `Arc-Batch` (one `randomUUID` per committing operation, shared across its refs), and
+      `Arc-Actor` where the clone has an actor; a commit holding several owners' records names the first in the batch's
+      order in its subject and `Arc-Owner`; authored with the person's name and email as the code repository resolves
+      them; `StoredProvenanceSchema` reads back the verb, `Arc-Lifecycle-Action`, `Arc-Code-Head`, and `Arc-Batch`, its
+      `ownerUid` coming from each record's own reference (5.4)
+    - A verb or lifecycle action holding a newline or other control character, which `CallerProvenanceSchema`
+      (`lib/store/links.ts`) admits, or opening with `"`, renders as a JSON string literal in the subject and in its
+      trailer and reads back unescaped, so no value splits the subject or forges a trailer and no write refuses for it;
+      a code head is a SHA (`CommitShaSchema`) and holds none
+    - Build `test-first` (one behavior at a time):
+        - rendering then parsing a provenance returns it, `Arc-Actor` apart
+        - one batch spanning two refs commits on each with one `Arc-Batch`
+        - a batch writing a work item's lineage record, its UID given, and then a project counter names the first in
+          its subject and `Arc-Owner`
+        - a commit's author is the person the code repository's configuration names
+        - a backend whose identity is null commits with no `Arc-Actor`
+        - a project write before the identity record exists carries no `Arc-Owner`
+        - a lifecycle action holding a newline, and a verb opening with `"`, render as JSON strings, leave the commit's
+          trailers whole, and parse back to the values written
+
+### `[ ]` **4.4 The ref-backend conformance fixture over the default layout — § 14.1, § 14.12**
+
+- _Goal:_ The shared suite runs over the ref backend on real temporary repositories with a bare origin, each test
+  copying a prepared template, its declarations stating exactly what the backend serves.
+
+    - `[ ]` **4.4.a Fixture and declarations**
+        - A fixture and declarations under `__tests__/helpers/store/` beside the in-repo and reference ones, and an
+          integration registration of `registerStoreConformanceSuite`; the store built with `createRefStore`, its factory
+          taking the registry override; `prepared-repository.ts` templates copied per test, the default template setting
+          `remote.origin.arc-state push` so its store stays in the code repository's refs (§ 9.7)
+        - Declarations per § 14.1: every family but `project-machinery` and `constitution`, which `unservedFamilies`
+          names with their reason, the reserved families served and listing absent; `mergesConcurrentWrites`,
+          `stateOffBranch`, `runsWriteChecks`, and `liveListingStateVersion` true; sync families by scope
+        - The reference fixture's test registry, built inline in `createReferenceFixture` (`reference-fixture.ts`), moves
+          to an export both fixtures build with; its `rejectingContentUnavailable` for the prose and entry-list kinds of
+          the served families only, since `validateRefusalAndContentExclusions` refuses one naming an unserved family; and
+          its test grammars for the three entry kinds whose registry declares none
+        - Project-owned references name `{ type: "project", name: "project" }`; the content generator writes canonical
+          JSON for JSON-homed kinds and § 3.2's shape for `project-registry/identity`
+
+    - `[ ]` **4.4.b The hooks**
+        - `reference` and `content`, the `reference` hook building a companion's key as a name, as 1.11 has the other
+          two fixtures do (§ 2.5); `settle` returning `version()`; `reopen` building a new store over the same
+          repository; `race` starting two writes together on two stores over it; `identity` setting the value the
+          identity port returns at each operation; and `plant` for every `PlantKind` through 3.1.e's helper — an
+          unreadable blob, an oversized projected record, a malformed entry, an entry naming two owners, a `formats`
+          entry above the registry's, and a family whose every ref is unreadable — each committed on top of the record's
+          ref
+        - A malformed entry is a blob its kind's parser refuses, or non-JSON for a never-projected kind, and, for a kind
+          with neither, the entry moved to a path that maps to no `RefHome` (§ 3.1) — on a work item's ref one under
+          `review/`, since a path elsewhere among its records reads as a companion keyed by that path (§ 2.5); an
+          unreadable blob first points the entry at a blob of bytes no other entry holds, then removes that blob, since
+          the content generator gives records of one kind the same bytes
+        - `hold`, `produce`, `repair`, and the remote hooks land with the items they serve, the fixture's placeholders
+          throwing until then: `hold`, `produce`, and `repair` in 8.6
+            - _Retired in:_ Phase 8
+        - The remote hooks in 9.6
+            - _Retired in:_ Phase 11
+
+    - `[ ]` **4.4.c The history item's owner UID**
+        - The history item's assertion of `ownerUid` (`registerHistoryAssertions`,
+          `__tests__/helpers/store/suite-versions.ts`) applies only where the owner has a UID, since a project reference
+          carries none before the store holds a project ID (§ 3.2) and a missing key fails `toMatchObject` against an
+          undefined one
+        - The in-repo and reference fixtures pass it unchanged
+
+    - `[ ]` **4.4.d The named exclusions**
+        - The permanent set § 14.1 names: the cross-substrate and saved-state coverage items, `checkout-not-writable`,
+          nine of the ten `unsupported` cases, the transient-write cases, and `diagnostic-key-mismatch` for the six kinds
+          it lists
+        - Each later task removes the interim exclusions its behavior satisfies, and every one names its retiring phase
+        - Items 3, 7, 11, 12, 14, and 17, whole; item 16's `maintain()` assertion, which 8.4 serves; and within the
+          passing items:
+            - the assertions Phase 5's rules serve: `machine-local-path:*`,
+              `<kind>: rejecting-content-and-repaired-creation` for each served kind with a parser, the prose and
+              entry-list kinds skipping it unregistered (4.4.a), `create-only-update:*`,
+              `derived-status-root-write-and-batch-refusal`, and
+              `derived-status-root-excluded-and-nested-basename-stored`
+            - those Phase 6's moves serve: `primary-placement-move-to-completed:*`, `primary-create-at-completed:*`,
+              `lifecycle-location-filter`, `UID-rename-and-generations`, `cohort-close-placement`,
+              `rename-and-reopen-onto-live-slug`, `companion-path-key-through-rename`, and the primary-role assertions
+              but the one below
+            - the one Phase 7's lookup by ref serves: `primary-links-create-retain-replace-clear:work-item/meta` and
+              `primary-links-create-retain-replace-clear:work-item/record`
+            - every assertion `everyKind` runs for the `lineage` family in items 1, 2, 4, 6, 9, 10, and 13, whose
+              references carry no UID until 5.3 resolves them through the registry's lineage map
+            - those over `history` and `changes`: `batch-shared-ID-in-changes-and-history` and
+              `unrelated-write-keeps-scoped-changes:*`
+            - _Retired in:_ Phase 8
+        - What a pull or push serves, held past Phase 8, where items 3 and 14 narrow to it: item 16 but its `maintain()`
+          assertion; the pull-side merge cases of § 14.2 in item 3; recovery's `unreachable`, `refused`, and
+          `retries-exhausted` cases in item 14; and `primary-role-reopen-sync-and-current-side-conflicts`
+            - _Retired in:_ Phase 11
+
+### `[ ]` **4.5 The engine's first path** — validate exit criterion at segment scope
+
+- _Goal:_ The ref-backend fixture in the default layout passes items 1, 2, 4, 6, 9, 10, 13, and 15 for every served
+  family, with every other item and assertion excluded by name, reason, and retiring phase.
+
+    - Request `arc check segment`
+
+## **Phase 5:** The complete write path
+
+_Purpose:_ Everything the spine defers — serialization rules, key rules and entry stamps, writer rules, the shared slug
+namespace, `history` over a record's own ref, stale bases and no-op rewrites, conflict records and their labels,
+`lookup` over live state, write checks, anchors, and the project's identity record — so every write the contract admits
+lands exactly as specified.
+
+_Mode:_ `layer` through Phase 8 — closes on the local engine complete in both layouts.
+
+### `[ ]` **5.1 Serialization rules — § 5.6, § 14.4**
+
+- _Goal:_ One pure function refuses content that would wedge a push, leak a secret, or break canonical JSON, the same at
+  every write and in the import's build, naming the first broken rule.
+
+- _Note:_ A rename's new slug of 2,041 bytes, and the names a 2,040-byte slug or key forms through an Errand's close, a
+  cohort's close, and a companion's rename, are cases of 6.1, 6.5, and 6.6, which build those operations.
+
+    - `checkSerializationRules(reference, content)` in `lib/store/`, exported from its index, reading only its arguments
+      and the kind registry's mechanisms, and expanding stored paths through 3.2's expansion and the size cap through
+      3.3.e's constant; rules in the table's order; the ref backend calls it on each put at step 1 and again at step 5 on
+      bytes the backend changed
+    - Unit tier for the function, and integration tier for `write` and `batch` here; the import's build calls it in 14.1
+    - Build `test-first` (one behavior at a time):
+        - `store.text-only`: a NUL in the first 8,000 bytes refuses, and one past it does not
+        - `store.size-cap`: a projected record over 1,048,576 UTF-8 bytes refuses, and a Candidate record over it writes
+          and lists
+        - `store.env-file`: `.env`, `x.env`, and `.env.local` refuse, and `.env.example` stores
+        - `store.private-key`: a PEM private-key block and the four key file names refuse, and a header with no
+          matching end line stores
+        - `store.git-path`: `scratch/.git/`, `.GIT/`, `.git./`, `GIT~1/`, `.git` with an HFS+ ignorable code point,
+          `.gitmodules`, `GITMOD~1`, `.gitattributes`, `.GitAttributes`, and `GITATT~1` at any depth, as a file or a
+          folder, refuse, while `notes.git` and `.github/` store
+        - `store.git-path`: a component of a personal document's path over 4,096 bytes, and an `id` key and a slug of
+          2,041 bytes refuse, while a 4,096-byte component and 2,040-byte slugs and keys store
+        - `store.json`: non-JSON content and JSON holding a lone surrogate refuse for a never-projected kind
+        - each refuses at `write` and at `batch` with `record-malformed` naming the rule
+
+### `[ ]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
+
+- _Goal:_ A put whose key, content, or writer the contract forbids refuses before any lock is taken — but for a path
+  colliding with a stored record's, which only the tips read under the locks can show — and an entry kind's stamped IDs
+  are the same on every retry.
+
+    - `[ ]` **5.2.a Key rules**
+        - Step 1 checks each key against the reserved paths and the batch's other puts; step 5's build checks the result
+          against the stored records on the tips read under the locks, so no unlocked check races a concurrent create
+        - Both checks are functions in `lib/store/ref/` taking a reference and the records around it rather than a
+          write in flight, so the import's build calls them over the records it lands (14.1)
+        - Build `test-first` (one behavior at a time):
+            - a companion keyed `meta`, `tasks`, `draft`, `spec`, `notes`, `errand`, `inbound`, or `cohort`, and a
+              personal document at another personal kind's path, the metadata file, `state-<person>/`, or exactly
+              `conflicts` or `receipts` or under either, refuse `unsupported` `unhomed-kind` naming that kind, while
+              `scratch/conflicts` stores
+            - a companion keyed verbatim at `extra-<slug>.md`, `spec-<slug>-prd.md`, or `meta-<other slug>.md`, at the
+              metadata file, or at `review`, `state-<uid>`, `conflicts`, or `receipts` or under any of them, refuses
+              `unsupported` `unhomed-kind` naming what the path holds or would read back as, while ones keyed
+              `sub/conflicts.md`, `README-<slug>.md`, and `lineage/notes.md` store
+            - a key whose path is a folder another record's path runs through, or runs through one, refuses naming that
+              record, whether the other is in the batch or already stored
+            - an `id` key or a pass's activity holding `/` or any control character, NUL and newline among them, and a
+              `path` key holding a control character, refuse `record-malformed`
+            - a personal document keyed `STATUS.USER.md` at the root, or under a root or one-folder-down `.internal/`,
+              refuses `record-malformed` at `write`, `batch`, and `read`, while `scratch/STATUS.USER.md` stores, and one
+              placed at the root by a commit outside ARC lists `malformed`
+            - an entry at a refused key, planted by a commit outside ARC, lists `malformed` beside the other records
+
+    - `[ ]` **5.2.b Parsers and entry stamps**
+        - Each put's kind parser runs after the serialization rules and before any check; an entry kind's put stamps
+          `_Id:_` lines through `stampEntryIds` with a random source drawn from a SHA-256 stream seeded by the put's
+          reference, expected version or absence, and content
+        - The parse and stamp step is a function the write path and the import's build (14.1) both call, the import
+          seeding it with the record's reference, absence, and content
+        - Build `test-first` (one behavior at a time):
+            - a parser's refusal refuses `record-malformed` with its error, before any write check runs
+            - a put of an entry kind whose grammar the backend's registry does not declare refuses `unsupported`
+              `unhomed-kind` naming it, at `write` and at `batch`
+            - two puts of one hand-typed entry over one base stamp the same ID
+            - a `field-header` entry with no `_Remove when:_` line, and entries repeating an `_Id:_`, refuse
+              `record-malformed` naming the entry or the ID
+
+    - `[ ]` **5.2.c Writer rules and the primary a record needs**
+        - A put of a work-item or review record whose owner has neither a primary nor a kept placement (§ 3.3) refuses
+          `record-malformed`, with the remedy to create the primary first or in the same batch; a conflict record is
+          exempt, as the reference backend exempts it (`validatePlacement`, `__tests__/helpers/store/write.ts`)
+        - Build `test-first` (one behavior at a time):
+            - a write to a `write-once` kind by a verb outside its `writerVerbs` refuses `record-malformed`
+            - a removal of a conflict record its write's `resolves` does not name refuses `record-malformed` with the
+              remedy to name it
+            - a task list put for an owner with no primary refuses with that remedy, and lands in a batch that creates
+              the primary
+
+### `[ ]` **5.3 Live owners, the shared slug namespace, and lineage owners — § 3.3, § 5.1**
+
+- _Goal:_ Every work item and cohort shares one slug namespace, so no write that finds another live holder of its slug
+  leaves two live owners holding it, while a clash between machines stays writable until a rename resolves it, and every
+  lineage record's owner stays named.
+
+    - The tiers over ended items land in Phase 7
+    - The registry's metadata keeps each lineage record's owner slug under its origin UID: a put of
+      `lineage/<uid>.json` writes it in the same commit, and a removal removes it; a rename's upkeep lands in 6.6
+    - That map is a resolution step of its own: a reference without a UID whose slug no live owner holds resolves
+      through it to its lineage owner's UID, in `read`, `list`, `history`, `changes`, and the write path alike, before
+      Phase 7's ended tiers; this retires 4.4.d's exclusion of the `lineage` family's `everyKind` assertions
+    - Build `test-first` (one behavior at a time):
+        - a create whose slug a live owner of its type holds resolves to that owner and refuses by the absence rule
+        - a create of a work unit over a live cohort's slug, and of a cohort over a live work unit's, refuse
+          `ambiguous-match` naming both
+        - a write that changes no primary's slug or placement lands while two machines' owners share a slug, planted as
+          a pull would leave it
+        - a write naming by UID an owner with no live or archived refs refuses `not-found`, and lineage on the registry
+          ref is unaffected
+        - a lineage record's put and removal write and remove its owner's slug in the registry's metadata, and the record
+          lists under that owner
+        - a lineage record written and read back through a reference without a UID, as the suite's `seed` does, reads,
+          lists, and takes a second write under its owner's UID
+
+### `[ ]` **5.4 `history` follows a record — § 3.1, § 3.6**
+
+- _Goal:_ `history` returns a record's versions as its own ref's log holds them, every one a commit where the record's
+  version or presence changed, so a stale base finds the version it names.
+
+    - One path-limited `git rev-list --full-history --parents` over every path the record has had and its ref's metadata
+      file, keeping a commit only where the record's version or presence differs from its parent's, ordered from
+      `--parents` with the local side first; renames and role changes extend the path set in 6.6, and merges order in 9.2
+    - Each entry's provenance takes `ownerUid` from the record's own reference, read from the tree, since one commit can
+      hold several owners' records
+    - Build `test-first` (one behavior at a time):
+        - Integration tier
+        - a record's writes list newest first with their content, versions, and provenance
+        - a metadata-only write to the primary lists as the primary's entry with unchanged content, and as no entry of
+          the owner's other records
+        - a removal lists with a null version and content
+        - a registry commit holding a project counter and a work item's lineage record gives each record's entry its own
+          owner's UID
+        - a Candidate record over the size cap reads back through `history`
+
+### `[ ]` **5.5 Stale bases, merges, and no-op rewrites — § 3.7, § 5.2**
+
+- _Goal:_ A stale put of a merge kind merges from the version it names, every other stale write refuses, and a write that
+  changes nothing makes no commit.
+
+    - The stale-base merge passes its expected version to the merge library as `MergeTextInput`'s base version, which
+      `mergeLineText` copies into every hunk record it emits (§ 3.7); role replacement's absence rule lands in 6.6
+    - Build `test-first` (one behavior at a time):
+        - a put expecting absence refuses over a record present in either primary role
+        - a stale put of a `line` or `entry` kind merges from its expected version's content by the kind's mechanism and
+          returns the merged version, and a version the record's history lacks refuses `version-conflict`
+        - a stored side or base repeating an `_Id:_` refuses `record-malformed` naming that version and the ID
+        - a stale put of a single-writer kind and a stale removal refuse `version-conflict` naming every stale record
+        - a put updating a `create-only` or `write-once` record refuses `version-conflict` at its current version, but
+          for the one repair seam-lifecycle admits (`isTerminalSnapshotRepair`, `lib/store/kinds/lineage/repair.ts`): a
+          `repair-lineage` or hand-edit put adding only a terminal lineage record's missing `retiredBranches` at its
+          current version lands, a stale one refuses `version-conflict`, and any other change to the record refuses
+        - an identical rewrite makes no commit and keeps the version, and a put naming an open conflict record in
+          `resolves` with the stored content commits that record's removal alone
+        - a retried update of a hand-typed entry, after its first attempt landed, stamps the same ID, merges to the
+          stored content, and makes no commit
+        - a stale base's merged content passes the serialization rules and the kind's parser again, refusing
+          `record-malformed` with the remedy to read and write over the current version
+
+### `[ ]` **5.6 Conflict records and their side labels — § 3.7**
+
+- _Goal:_ A write's clash is filed as write-once conflict records owned by the record they name, with each side labeled
+  by the machine that wrote it, so one person's two machines read apart and any clone can place a hunk.
+
+    - A second commit atop the write's own on the ref where its stale-base merge files conflict records, with § 5.5's
+      provenance; each record's ID from `randomUUID`
+    - Build `test-first` (one behavior at a time):
+        - a clash files its records at `conflicts/<id>.json` under the family's root, owned by the named record's owner,
+          and a `lineage/conflict-record` takes its owner from its content
+        - a clash's hunk record carries `baseVersion` naming the write's expected version, with `currentLines` and
+          `incomingLines`
+        - the stored side's label takes the `Arc-Actor` and committer date of the last commit on its ref that changed
+          the record, and the incoming side's this clone's actor and the clock's time
+        - a side whose last commit was made outside ARC labels with its committer's email, or `unknown`
+        - a clone with no identity labels its incoming side with the person's email
+        - a retry of a write whose first attempt clashed files a second record under a new ID
+
+### `[ ]` **5.7 `lookup` over live state — § 8**
+
+- _Goal:_ `lookup` answers a slug and a lineage origin among live owners in four Git processes, over the store's tips or
+  over a write's views, so the write checks that guard a slug read what the write found.
+
+    - § 8's scan over the live work and cohort refs and their metadata files, memoized within one process on the ref
+      tips; a slug resolves to the live item holding it, else the one holding it as a former slug; a lineage origin
+      resolves by UID through its path, and by slug through the slugs the registry's metadata keeps (5.3)
+    - The same scan runs over a tree set the caller gives, so 5.8's views reuse it; ended items, claims, commits, refs,
+      and the scan's refusals land in 7.3
+    - Build `test-first` (one behavior at a time):
+        - Integration tier
+        - a live item's slug resolves its primary, and its former slug resolves it where no live item holds that slug
+        - two live items holding one slug, planted as a pull would leave them, refuse `ambiguous-match` naming both
+        - a lineage origin resolves by UID and by slug
+        - a lookup spawns four processes, and a second one over unchanged tips in the same process spawns one
+
+### `[ ]` **5.8 Write checks — § 5.3, § 1.4**
+
+- _Goal:_ Every registered write check runs under the write's locks over the state before and after the batch, and the
+  first broken rule refuses the whole write.
+
+- _Note:_ A primary's role replacement, whose checks run the removed kind with no next record and the created kind with
+  no prior, is a case of 6.6, which builds role changes.
+
+    - `WriteCheckInput` with `before` over the found tips and `after` over the new trees laid on them, each offering
+      `read`, `list`, and 5.7's `lookup`; the writer through `deriveWriteCheckWriter`; refusals composed through
+      `composeWriteCheckRefusal`
+    - Cases install their checks through the registry override, as the suite's write-check item does; a case about a
+      shipped check, such as `work-item.slug-edges`, builds the backend with `PRODUCTION_REGISTRATIONS`
+    - Build `test-first` (one behavior at a time):
+        - a check's broken rule refuses `record-malformed` naming the first rule in identifier order and the first
+          breaking record in write order, counting the other pairs
+        - a create's `before.lookup` of its slug refuses `not-found` and `after.lookup` resolves it
+        - a stale write's check reads the merged content as its next record
+        - a prior record whose stored version fails to parse reaches the check with content and no fields
+        - a verb in `HAND_EDIT_VERBS` reaches the check as a hand edit, and any other verb as itself
+
+### `[ ]` **5.9 Anchors and the manifests that travel with them — § 4.5**
+
+- _Goal:_ A state version written into a record resolves on any machine that fetches the record's ref, because the
+  anchor and its manifest land in one commit on one ref.
+
+    - The anchor fields come from each kind's `anchorFields` (`RegisteredKind`), today the meta's `stateAtHandoff`
+    - Build `test-first` (one behavior at a time):
+        - a meta write that sets `stateAtHandoff` carries that token's manifest at `state-<uid>/` in the same commit,
+          and a null value carries none
+        - an anchor naming a token this clone cannot resolve refuses `state-unresolvable` naming the field
+        - `createRefBackend` throws naming the kinds on a registry declaring an anchor field on a kind that is not a
+          singleton on its owner's own ref, `lineage/transition` among them, or two on kinds one ref holds
+
+### `[ ]` **5.10 The project owner and its identity record — § 3.2**
+
+- _Goal:_ A store holds one project, whose ID exists only once its create-only identity record does, and no reference to
+  another project shares its paths.
+
+    - The identity record is a never-projected kind, so its content is stored in `canonicalize`'s bytes (§ 3.5) and its
+      check reads the parsed value
+    - Build `test-first` (one behavior at a time):
+        - a project family's listing returns the store's one project owner
+        - a project reference with another name, or a UID not the project ID, refuses `identity-mismatch`
+        - a put of the identity record whose value is anything but `{ "projectId": <lowercase UUID> }` refuses
+          `record-malformed`, and another spelling of that value stores canonical
+        - project references carry no UID before the record exists and the project ID after, as each commit's
+          `Arc-Owner` does from the record's own creating commit
+
+## **Phase 6:** Lifecycle moves
+
+_Purpose:_ Every lifecycle move as one local transaction, as one clone sees it before any sync: archive and an Errand's
+close into a quarter folder, reopen, writes to a completed item, abandon and decomposition with lineage, a cohort's
+close, and renames and role changes.
+
+### `[ ]` **6.1 Archive and an Errand's close — § 7.1**
+
+- _Goal:_ A placement write to `completed` ends a work item in one transaction: a final commit on its ref, its records
+  in a numbered or named folder of its quarter's ref, and its ref moved under `refs/arc/history/`.
+
+- _Note:_ Phase 6's cases name an ended owner by UID, since a slug resolves to ended owners only from 7.4; states only
+  another clone's sync leaves are planted with 3.1.e's helper; and cases run the conformance fixture's test registry,
+  overriding a kind's parser where a case needs one, as 6.5's `b` closeout needs the cohort's.
+
+    - The final commit writes the item's metadata with the end's batch as `endBatch` and `batch`, so the folder takes the
+      same blobs; the folder holds the item's records and metadata file and no anchor manifest, which the history ref's
+      log keeps reachable (§ 4.5)
+    - The sequence comes from the quarter's tip read under the locks, two digits zero-padded as `ArchiveSequenceSchema`
+      (`lib/kernel/schema/archive.ts`) and `computeArchiveDestination` (`lib/work-unit/completed-index.ts`) write it
+    - Build `test-first` (one behavior at a time):
+        - a work unit's archive commits the verb's writes, copies its records and metadata file into
+          `<sequence>_<slug>/` of `refs/arc/archive/<quarter>` with the same blobs, and moves its ref to
+          `refs/arc/history/work/<uid>`
+        - the sequence is the quarter's highest numbered folder plus one, a closed cohort's counted, and read placement
+          derives it from the folder's name, `01` for a quarter's first
+        - two worktrees archiving into one quarter at once take distinct numbers
+        - a create at `completed` lands as its archive: its history ref and folder created with expected absence, and no
+          live ref
+        - an Errand's close moves it into `<slug>-<suffix>/`, unnumbered, and with a 2,040-byte slug forms a name Git
+          accepts
+        - the folder's metadata records `endBatch` and `batch` as the archive's batch
+        - a reopened folder that held the highest number lets the next archive take it again, and any other leaves a gap
+
+### `[ ]` **6.2 Reopen — § 7.2**
+
+- _Goal:_ A placement write out of `completed` brings an item back under `refs/arc/work/` and removes every folder it
+  holds, refusing where this clone lacks what the folder names.
+
+    - The reopen's commit clears `endBatch` and `batch` from the live ref's metadata
+    - Build `test-first` (one behavior at a time):
+        - a reopen moves the history ref back to the live ref and removes the item's folder from each quarter holding one
+        - a reopen whose slug a live work item or cohort has taken refuses `ambiguous-match` naming both
+        - a reopen where this clone holds no history ref, or one whose log lacks the folder's `batch`, refuses
+          `state-unresolvable` naming it
+
+### `[ ]` **6.3 Writes to a completed item — § 7.3**
+
+- _Goal:_ Every write to a completed item's records lands on its history ref and refreshes its quarter folder in one
+  transaction, so `history` reads one log and a reopen finds the latest state.
+
+    - A write naming the item by UID finds its history ref and each quarter's ref holding its folder from the
+      operation's listing, and again under its locks (§ 5.1)
+    - Build `test-first` (one behavior at a time):
+        - a write to a completed item's record commits on its history ref and refreshes its folder, writing the folder's
+          `batch` and keeping `endBatch`
+        - the write resolving one of its conflict records lands the same way
+        - an item two ends left in two folders reads from the later quarter's, or the higher number's, lists once, and a
+          write refreshes both
+        - a write and `history` where this clone holds no history ref, or a copy whose log lacks the folder's `batch`,
+          refuse `state-unresolvable` naming it
+
+### `[ ]` **6.4 Abandon, decomposition, and every other removal — § 7.4, § 7.5**
+
+- _Goal:_ An item ends outside the archive exactly when a write leaves it with its lineage and no primary, and every other
+  removal is an ordinary write of absence, so each end carries a record other machines read.
+
+    - An ended item's final tree holds no metadata file, so its `history` takes the paths from the last metadata file in
+      its ref's log
+    - Build `test-first` (one behavior at a time):
+        - one batch removing the primary and creating the lineage ends the item: the ref's final commit removes every
+          record and the ref moves to `refs/arc/history/work/<uid>`
+        - the lineage first and the primary's removal later end it at the removal, as the suite's
+          `terminal-transition-after-primary-removal` writes it, and the removal first then the lineage end it at the
+          lineage
+        - lineage beside a live primary ends nothing
+        - a put of another record of an item left with its lineage and no primary refuses `record-malformed` naming the
+          lineage, while a put of its primary restores it
+        - a decomposition's children are refs the same batch creates with expected absence
+        - an ended item's `read` refuses `not-found` by UID, and `history` by UID reads its history ref, or refuses
+          `state-unresolvable` naming it where this clone holds the lineage without the ref
+        - a primary's removal with no lineage keeps the ref live, as `current-removal` expects
+
+### `[ ]` **6.5 A cohort's close — § 7.6**
+
+- _Goal:_ A cohort closes by a `completed` placement write to its document, its folder named as today's closeout sidecar
+  with the coordinates seam-lifecycle's reference backend assigns, so the projection resolves it with the same letters.
+
+    - The sequence is the highest the same batch assigns, in the cohort's quarter, to a work unit whose meta's `Cohort`
+      path names the cohort, else the quarter's next; the closeout is `b` where any cohort document's parsed `parent`
+      names the cohort, else `a`, as `assignCompletedCohorts` (`__tests__/helpers/store/cohort-placement.ts`) assigns
+      them; a document whose kind has no parser registered names no parent here, where that assignment needs the parser
+    - A cohort put carries no other placement, so a closed cohort comes back only through the reopen an end's withdrawal
+      runs (10.5): its history ref moves back under `refs/arc/cohort/` and its folder leaves the quarter, as 6.2's reopen
+      moves a work item
+    - Build `test-first` (one behavior at a time):
+        - a close commits finally on the cohort's ref, copies the document and metadata into
+          `<sequence><a|b>_cohort-<slug>/`, and moves the ref to `refs/arc/history/cohort/<uid>`
+        - the sequence is the work unit's the same batch archives into the quarter naming the cohort, the highest of
+          several, else the quarter's next, and a work unit of another cohort archived in the batch lends it none
+        - the closeout is `b` where another cohort's document names the cohort as its parent, whether or not the batch
+          closes that one, and `a` otherwise or with no parser registered
+        - a cohort with a 2,040-byte slug closes into a folder name Git accepts
+        - the reopen a withdrawal runs, called directly, moves the history ref back and removes the folder
+
+### `[ ]` **6.6 Renames and role changes — § 3.3, § 3.6, § 5.2, § 5.3**
+
+- _Goal:_ A rename and a primary's role change move no ref and add no record blob, and `history` follows a record through
+  both.
+
+    - A rename of an item whose lineage the registry holds rewrites that lineage's owner slug in the registry's metadata
+      in the same batch (§ 3.3)
+    - A rename refuses where a companion keyed verbatim at the root would read back under the new slug as another
+      reference, 5.2.a's key check run over each such key under the new slug (§ 3.6)
+    - A put expecting absence in the new primary role admits a batch that removes the other role, and a role replacement
+      runs the removed kind's write check with no next record and the created kind's with no prior (§ 5.3)
+    - Build `test-first` (one behavior at a time):
+        - a rename writes the new slug, appends the old one to `formerSlugs`, and renames the projected files in one
+          commit, adding no record blob, only the new metadata file: a companion keyed `notes-extra` moves to
+          `notes-extra-<new slug>.md`, and one keyed `sub/notes.md` keeps its path
+        - a rename of item `a` onto `b` holding a companion keyed verbatim `x-b.md` refuses `unsupported` `unhomed-kind`
+          naming it, with or without a companion keyed `x`, and lands once it is re-keyed; one keyed `x-c.md` keeps its
+          path through the rename
+        - a completed item's rename also renames its quarter folder
+        - a rename onto a live work item's or cohort's slug refuses `ambiguous-match` naming both, and one that ends a
+          clash between machines lands
+        - a rename to a 2,041-byte slug refuses `record-malformed` under `store.git-path`, and a companion of a 2,040-byte
+          key renamed with its owner forms a name Git accepts
+        - a rename of an item with lineage rewrites the registry's lineage slug
+        - a role change between `work-item/meta` and `work-item/record` keeps the item's UID and links, and runs both
+          kinds' checks
+        - `history` lists a record's versions across a rename and a role change, from the paths its former slugs and
+          roles give
+
+## **Phase 7:** Changes, reads as of a state version, and lookup
+
+_Purpose:_ Reading the store over time and by name: reads as of a manifest, `changes` between two manifests by the
+namespace table and grouped by batch, `lookup`'s scan over ended items, claims, and commits, resolution of a reference
+by every tier, and an item ref broken outside ARC.
+
+### `[ ]` **7.1 Reads as of a state version — § 4.4**
+
+- _Goal:_ `read` and `list` as of a state version return the store as that manifest named it, or refuse with what this
+  clone lacks and the remedy that recovers it.
+
+    - Build `test-first` (one behavior at a time):
+        - a read as of an earlier manifest returns each record as it stood
+        - a live listing's token resolves for a read as of it, as `version()`'s does
+        - a manifest made on another person's clone, planted with 3.1.e's helper, reads that person's identity refs as
+          absent and this clone's own as it names them
+        - a manifest this clone no longer holds refuses `state-unresolvable` with no history refs, its remedy to rebuild
+          from the current state
+        - a manifest naming an ended item's tip this clone lacks refuses naming its history ref, its remedy to pull it
+          and retry
+        - an item reopened since the manifest resolves through its live ref
+
+### `[ ]` **7.2 `changes` between two manifests — § 4.6**
+
+- _Goal:_ `changes` returns every landed mutation between two manifests, one entry per record per batch where its version
+  changed, whatever ref carried it, or refuses naming what this clone lacks.
+
+    - A module of its own for the namespace table, the batch grouping, and the restriction to named records
+    - One case per row of § 4.6's table and per grouping rule; the pull by name that resolves a refusal fetches through
+      9.1.b, and 10.3 carries the case of a `changes` landing after it
+    - Build `test-first` (one behavior at a time):
+        - a live ref in both manifests reads its log between the two tips, oldest first within a ref, refs in name order
+        - an item in the older manifest only reads its end from its history ref
+        - one new since the older reads from its root, and one reopened since reads from its reopen
+        - one archived before the older and written while archived lists the window's writes alone, found through its
+          quarter's folder
+        - one reopened and archived again within the window lists from its reopen, and one reopened then abandoned lists
+          from its reopen through its end, its live writes among them
+        - one created and ended between them reads from its root on its history ref
+        - any other ref new since reads from root, and one in the older only reads nothing
+        - a reopen lists no removal of the item's other records, and an archive and a write to a completed item list each
+          changed record once
+        - a write followed by the item's archive in one window lists the record's later version last
+        - an identity ref present in one manifest only carries its history whole
+        - a manifest this clone lacks refuses `state-unresolvable`, and an item in the older manifest only whose history
+          ref this clone lacks refuses naming it
+        - a completed item whose history ref this clone holds without the batch its folder names, planted as another
+          machine's write leaves it, refuses naming the ref
+
+### `[ ]` **7.3 `lookup`'s scan over ended items, claims, and commits — § 8**
+
+- _Goal:_ `lookup` answers every input kind in four Git processes with no index, ended items and claims among them, and
+  an item ended outside the archive answers only through its lineage.
+
+    - Extends 5.7's scan with the quarter refs and § 8's remaining tiers and inputs
+    - Build `test-first` (one behavior at a time):
+        - a slug resolves from the live item holding it, then a live former slug, then the one ended item in a quarter
+          holding it, then one holding it as a former slug
+        - any tier holding several items refuses `ambiguous-match` naming them
+        - a branch resolves through branch links, and a commit through task captures and the landing commit: a
+          captured SHA first, and the caller's copy key only where no SHA matches in that repository, a capture with no
+          copy key matching by SHA alone
+        - a work unit's checkout claim resolves by slug and an Errand's by its claim ID, and a `partial-errand` claim
+          refuses `not-found` as one that keeps no record, as the suite's `missing-lookup-names-request` expects
+        - a completed item resolves from its quarter folder, the one read placement reads where it holds two
+        - a grooming or housekeeping claim resolves from the person's own claims ref
+        - an abandoned item's slug refuses `not-found`, and a decomposed origin resolves through its lineage
+        - `list` with `heldHere` refuses `unsupported` `held-here`, recoverable
+
+### `[ ]` **7.4 Resolution by every tier — § 5.1, § 8**
+
+- _Goal:_ A reference without a UID resolves the same way for `read`, `list`, `history`, `changes`, and every write, over
+  the tips the operation reads, so a create over a completed item's slug starts a new generation.
+
+    - Completes 3.3.a's and 4.2.a's resolution among live owners with the ended tiers
+    - Build `test-first` (one behavior at a time):
+        - a create over a completed item's slug mints a new UID
+        - several ended holders, and two live items that each renamed away from one slug, refuse `ambiguous-match`, the
+          second built under the test registry, since `work-item.former-slug` refuses its setup
+        - a read, `history`, and `changes` by slug of a completed item resolve it
+        - a read as of a state version resolves a slug over that manifest's tips
+
+### `[ ]` **7.5 A broken item ref — § 3.3, § 8**
+
+- _Goal:_ A commit made outside ARC that breaks one item's ref costs that item alone: its records refuse
+  `namespace-corrupt` with the forward repair, and `lookup` refuses only where the broken ref could hold a better answer.
+
+    - Build `test-first` (one behavior at a time):
+        - a work item's ref whose metadata file or root tree such a commit broke lists as one `unreadable` diagnostic with
+          `missed`, and `version` still lists it
+        - `read`, `history`, `changes`, and a write touching its records refuse `namespace-corrupt` naming the ref, with
+          the remedy to commit the last parseable metadata file on its tip
+        - a slug another live item holds as its current slug, and a commit another item matches by SHA, resolve
+        - a slug only the broken ref could hold, a commit another item matches only by copy key, and a branch or claim
+          the scan matches nowhere else refuse `namespace-corrupt` naming it
+        - the forward repair restores every read; the fixture's `namespace-corrupt` recovery case, which produces and
+          repairs the break through the hooks 8.6 builds, lands there
+
+## **Phase 8:** The separate layout
+
+_Purpose:_ The store directory as the second layout of one engine — placed by the designation, made in reftable, named
+with `--git-dir`, authored as the person, and serialized by the layout lock — with `maintain()`, many processes writing
+at once, and the conformance fixture running over both layouts.
+
+_Exit criterion:_ The ref-backend fixture passes the shared suite in both layouts with no exclusion beyond § 14.1's but
+those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull passes.
+
+### `[ ]` **8.1 Reading the designation and the code remote — § 9.1, § 9.2, § 9.7**
+
+- _Goal:_ The backend reads each clone's `arc-state` keys and its code remote the same from every worktree, so a write
+  or pull that finds no store places it where the designation calls for.
+
+    - `remote.<name>.arc-state` read with `git --git-dir=<common directory> config`, which sees the main worktree's
+      `config.worktree` and the person's global configuration as the primary checkout does, the store directory's own
+      `backing` remote counted with it; the code remote is `remote.pushDefault` where set, else the clone's only remote,
+      else `origin`; who sets a key lands in Phase 12
+    - One module exports the counted designation that 9.1.b, 9.4.b, and 12.2 read: a code repository's remote named
+      `backing` counts for nothing, a fork upstream's `push` counts for nothing beside the store directory's `backing`,
+      and two `push` keys read as ambiguous, naming both
+    - Build `test-first` (one behavior at a time):
+        - for a fresh store, the resolver picks the code repository's refs where a code remote carries `push`, and the
+          separate directory for every other designation, which 8.2 creates and lands in
+        - the default-layout fixture's store stays in the code repository's refs
+        - the code remote resolves through `remote.pushDefault`, a lone remote not named `origin`, and `origin` among
+          others, the same from a detached worktree and from one whose `config.worktree` sets `remote.pushDefault`
+        - a clone with no code remote resolves none
+        - a code repository's remote named `backing` carrying `push` counts for nothing, a fork upstream's `push` beside
+          the store directory's `backing` counts for nothing, and two `push` keys read as ambiguous
+        - the resolver keeps a store that holds state where it is whatever the designation now says, a directory a
+          case plants with plumbing standing for one 8.2 creates
+
+### `[ ]` **8.2 The store directory — § 9.7**
+
+- _Goal:_ A separate-layout store is a bare reftable repository at `arc/store` in the common Git directory, shared by
+  every worktree, whose commands never read the code repository's configuration but its person.
+
+    - Made by `git init --bare --ref-format=reftable --object-format=<the code repository's>` at a temporary sibling and
+      renamed into place, under the layout lock (`arc/locks/layout.lock`, which 8.3 also takes around every commit), so
+      an interrupted creation never leaves a directory that selects a broken store
+    - Every store command names it with `--git-dir` and passes `cwd`, since `environmentForGitCwd`
+      (`lib/git/process-executor.ts`) clears repository-local variables such as `GIT_OBJECT_DIRECTORY` only for a call
+      given one; commits authored as the code repository resolves the person; commands read the person's global
+      configuration and the directory's own
+    - Its cases live in `store-ref-directory.test.ts`, the integration file 18.2 lists in the portability tier by name
+    - Build `test-first` (one behavior at a time):
+        - a first write on a clone the designation sends to the separate layout creates the directory and lands there
+        - the directory's object format matches the code repository's, under SHA-1 and SHA-256
+        - a commit there carries the name and email set only in the code repository's own configuration
+        - a store command run with `GIT_OBJECT_DIRECTORY` set writes into the store directory
+        - every worktree of the clone reads and writes the one directory, and its presence alone selects the layout with
+          no Git call
+        - a ref there whose tip commit the store lacks lists as one `unreadable` diagnostic with `missed`, and `version`
+          lists it
+
+### `[ ]` **8.3 The layout lock — § 11.4**
+
+- _Goal:_ No write commits into a copy a layout move has taken or left: every write and merge takes the layout lock last,
+  around its commit alone, and restarts where the layout changed.
+
+    - `arc/locks/layout.lock` beside the ref locks, taken after them and only around step 7; a changed layout under it
+      releases every lock and restarts from step 2; the commit step is one function 9.2.a's merge reuses, taking the
+      repository its refs live in, with two modes beside its own: held, for a caller that already holds the layout lock,
+      a layout move's copy (13.1), which takes it no second time, since a second take waits on its own holder and
+      refuses `lock-held`, even in one process (`lib/advisory-lock.ts`); and unlocked, for a caller committing onto
+      temporary refs no write or layout move reads, a remote move's copies, the follow's, and leaving the source's
+      (13.1), which takes no layout lock
+    - Until Phase 13's move exists, a case's stand-in move creates or removes the store directory with plumbing while it
+      holds the layout lock, and the lock factory port pauses the first writer at the layout lock
+    - Build `test-first` (one behavior at a time):
+        - a write whose layout changed between its resolution and its commit restarts and lands in the new layout
+        - a holder of the layout lock past a waiting write's injected wait refuses it `lock-held`
+        - a commit step run in the held mode by a caller holding the layout lock commits without waiting on it
+        - a commit step run unlocked commits onto refs in the repository it is given, the code repository in the
+          separate layout, while another holder keeps the layout lock
+
+### `[ ]` **8.4 `maintain()` — § 12**
+
+- _Goal:_ `maintain()` keeps a store packed that only plumbing writes, and reports each never-retiring ref's growth for
+  the tripwire.
+
+    - `git maintenance run --auto` against the store, with `--git-dir` in the separate layout; each never-retiring ref's
+      `git rev-list --count` and `git rev-list --disk-usage --objects`, over the tips read first, since both fail on an
+      absent ref
+    - The suite's `maintain()` assertion leaves 4.4.d's interim exclusions here
+    - Build `test-first` (one behavior at a time):
+        - it returns commit counts and disk usage for the person's `personal` and `claims` refs, `project/inbox`, and
+          `project/registry`, in both layouts
+        - a ref this clone lacks is left out
+
+### `[ ]` **8.5 Many processes on one clone — § 14.5**
+
+- _Goal:_ Concurrent writers on one clone lose no write, retry a bounded number of times, meet only typed conflicts, and
+  never bring back a ref or folder a lifecycle move left.
+
+    - Integration tier, in both layouts; each writer a child process, as `personal-lock-holder.ts` runs one, writing a
+      personal document of its own key or a shared line-merge record, and re-reading and writing again over the current
+      version after a `version-conflict`, at most five times
+    - A race's second process waits at a seam the lock factory port provides, after it resolves and before it locks
+    - Build `test-first` (one behavior at a time):
+        - four processes each writing 25 times to one surface, and to four, lose no write, every refusal typed
+        - a write racing its item's archive or abandon in a second process restarts and lands on the item's refs as
+          they then stand, or refuses `not-found` after the abandon
+        - a write to a completed item racing its reopen, or its reopen and archive into a later quarter, lands on the
+          reopened or newly archived item, and no ended or reopened ref or folder comes back
+
+### `[ ]` **8.6 Conformance over both layouts — § 14.1**
+
+- _Goal:_ The shared suite passes over the ref backend in each layout with only § 14.1's named exclusions and those
+  4.4.d holds until Phase 11.
+
+    - The fixture registers twice, each layout in its own integration file beside `store-in-repo-conformance.test.ts`
+      — `store-ref-conformance.test.ts` and `store-ref-separate-conformance.test.ts` — so CI lists and times each by
+      name (18.2, 18.3): the default layout in a files-format code repository whose template sets
+      `remote.origin.arc-state push`, and the separate one in its reftable directory with the key unset; 4.4.d's interim
+      exclusions retiring here are removed, items 3 and 14 narrowing to their sync assertions, and the fixture's `plant`,
+      `hold`, `race`, `produce`, and `repair` hooks serve every case they cover
+    - The fixture produces `held-here`, `state-unresolvable`, and `namespace-corrupt`, the last by a commit outside ARC
+      that a forward repair mends, which carries 7.5's recovery case
+
+## **Phase 9:** Two clones converge
+
+_Purpose:_ `pull` and `push` between clones for live writes: the fetch into the tracking namespace, fast-forwards and
+merges by kind, lost-race classification, the push loop's listing, leases, and atomic push, backoff and the deadline,
+and each family's publish outcome.
+
+_Mode:_ `slice` through Phase 11 — closes on clones that write, end, reopen, and meet faults against one remote and
+converge with no lost write.
+
+### `[ ]` **9.1 The fetch — § 6.2, § 9.7**
+
+- _Goal:_ One fetch round trip brings the remote's state, and only its state, into a tracking namespace no push, manifest,
+  or listing reads, never naming a code commit as held.
+
+    - `[ ]` **9.1.a Parsing the porcelain**
+        - A pure parser in `lib/git/` over `git fetch --porcelain` output: each line's flag — ` ` a fast-forward, `+`
+          forced, `*` new, `-` pruned, `!` refused, `=` up to date — its old and new tips, and its ref; on exit 1 the
+          lines come from the rejection's `GitProcessError.stdout` (`lib/git/process-error.ts`), and
+          `classifyRemoteFailure` reads the failure only where no per-ref line arrived
+        - Build `test-first` (one behavior at a time):
+            - Unit tier, over recorded output
+            - each flag parses with its tips and ref, and a `!` line carries both
+            - an exit-1 rejection whose stdout holds per-ref lines reads them, and one holding none reads as a remote
+              failure
+
+    - `[ ]` **9.1.b The fetch**
+        - A fetch module under `lib/store/ref/`: refspecs on the command line, one wildcard each, with no `+`, the
+          person's own two refs as one-ref patterns, each mapped to `refs/arc-remotes/<remote>/…`; `--refmap=`,
+          `--no-tags`, `--no-filter`, `--prune`, `--show-forced-updates`, `--porcelain`, `diagnosticLocale: "stable"`
+          (`LC_ALL=C`), and the lock waits (2.3.b); `--negotiation-tip` for each state pattern and tracking namespace
+          that names a ref, else `--refetch`, with a blank `remote.<name>.negotiationInclude`; history refs by name as
+          one-ref patterns
+        - The code remote and `backing` are fetched by name; another of the code repository's remotes by the URL
+          `git remote get-url` gives, tracked under that remote's name
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, two clones on one bare origin, as every later sync case is but where it says otherwise,
+              each clone designating it: in the default layout through `setupMultiClone`'s `config`,
+              `remote.origin.arc-state=push`, and in the separate layout through a setup step after it, a helper in
+              `__tests__/helpers/store/` that creates each clone's store directory as 8.2 makes one and adds its
+              `backing` at the origin's URL carrying `push`, since `config` writes only the code repository's config
+              (`createClone`, `__tests__/helpers/multi-clone.ts`) and 8.1 places an undesignated clone's store in the
+              separate directory, where a remote with no key reads `no-remote` until 12.2
+            - a fetch brings every state ref into `refs/arc-remotes/<remote>/` and none of `errands`, `errands-remote`,
+              or `sync-state`
+            - a remote ref this clone has never seen, and one the remote pruned, update the tracking namespace alone
+            - a history ref asked by name that the remote lacks fetches nothing and fails nothing else, and a read as of
+              a manifest naming an ended item's history ref resolves once a pull by name fetches it
+            - in the separate layout the fetch reaches the remote through the command-line refspecs alone, the
+              directory's own configuration carrying none
+            - a fork's upstream fetched by URL creates and prunes its tracking refs as a fetch by name does
+
+### `[ ]` **9.2 Merge after fetch — § 6.4**
+
+- _Goal:_ A pull brings every fetched ref into local state as a fast-forward or a merge commit by each kind's mechanism,
+  never as a check that gates and never bringing a deletion back.
+
+    - `[ ]` **9.2.a Fast-forwards and merge commits**
+        - Where one tip descends from the other the local ref moves or waits to push; otherwise a merge commit, this
+          clone's tip first, its tree merged by kind against the merge base and its metadata field by field, under the
+          ref's lock and compare-and-swap and committed through 8.3's commit step under the layout lock, with the
+          provenance `sync` `merge`
+        - A local ref absent where this clone holds the item's history ref, Phase 9's stand-in for this clone's own
+          unpublished end (§ 6.6), is never brought back from its tracking ref (§ 6.4)
+            - _Retired in:_ Phase 10
+        - The merge runs over a local and an incoming ref set and the lock it is to take, as parameters: the pull passes
+          the store's refs, its tracking refs, and the ref locks, and 13.1's copy its own sets, with the commit step's
+          mode and repository its caller needs (8.3)
+        - A lock past its wait — a ref lock, or the layout lock a move holds for its whole run — ends the pull with its
+          top-level `lock-held` refusal naming the lock, as a write refuses (§ 11.4); the merges it committed before
+          stand, and the next pull merges the rest
+        - The pull mints one `Arc-Batch` per merged ref, but one across the commits that must publish together, which
+          Phase 10's folder rebuilds, applied ends and reopens, and withdrawals use (§ 3.1)
+        - The merge passes the merge library the record's version at the merge base as its base version, null where the
+          base held no such record (§ 3.7); a metadata field changed on both sides files a conflict record naming the
+          record the field belongs to, the primary for placement, slugs, and links
+        - Build `test-first` (one behavior at a time):
+            - another clone's write fast-forwards the local ref
+            - a ref this clone ended, its end not yet pushed, stays absent beside its tracking ref
+            - two clones' writes to different records of one ref merge into one commit holding both
+            - a single-writer record changed on both sides becomes a conflict record, and a merge-kind record repeating
+              an entry ID on either side or the base does too
+            - a write's merge and a pull's merge clashing in one hunk: the pull's conflict record's `baseVersion` names
+              the record's version at the merge base, and a pull whose two sides each created the record clashes with
+              `baseVersion` null
+            - tips sharing no ancestor merge against an empty base, as two machines' first archives into a quarter do
+            - a personal record one clone removed, merged with another clone's unchanged older copy, stays removed
+            - one metadata field changed on both sides becomes a conflict record, and a record removed on one side and
+              changed on the other is one clash over the whole record
+            - a pull whose merge waits on the layout lock past an injected wait refuses `lock-held` naming
+              `arc/locks/layout.lock`, the refs it merged before keeping their merges, and a pull after the lock is
+              released merges the rest
+
+    - `[ ]` **9.2.b A quarter's merge renumbers**
+        - Build `test-first` (one behavior at a time):
+            - where both sides archived into one quarter, this clone's unpublished folders take the next sequences after
+              the remote's highest, in this clone's order, and a published folder keeps its number
+            - a cohort folder that took a member's number takes that member's new number, and one that took the
+              quarter's next renumbers as a work unit
+            - `changes` over the window groups the merge's entries under the merge's batch
+
+    - `[ ]` **9.2.c Checks report and rules never gate**
+        - Build `test-first` (one behavior at a time):
+            - a merged record breaking a write check stores the merge and reports a `rule-broken` notice, filing nothing
+            - a merged record breaking a serialization rule is stored, and one over the cap lists `oversized`
+
+    - `[ ]` **9.2.d History and labels across a merge**
+        - Build `test-first` (one behavior at a time):
+            - where a merge keeps the remote side's version at a clash, `history` lists this clone's version and then the
+              remote's, newest the current, and a stale base on this clone's version merges
+            - where a merge keeps the local side after the remote's write, the local version lists again as newest
+            - a nested pair of merges orders the same way, and `changes` restricted to the record lists them in that order
+            - two clones of one person clashing on a single-writer record label the two sides with distinct actors
+            - an anchor's manifest resolves on a fresh clone that fetches the meta's ref, and a fresh clone's first pull
+              fetches no history ref
+
+### `[ ]` **9.3 Classifying a push — § 6.9**
+
+- _Goal:_ Every push rejection is a lost race the loop retries, a terminal refusal it reports with the server's own
+  words, or one the next fetch's state settles, read from the push helper's typed outcome and from Git's text only in
+  the named cases.
+
+    - A pure classifier in `lib/git/` beside the push parser (2.4.a), over the helper's typed outcome; the loop settles
+      the by-state arm with its next fetch (9.4.c)
+    - Build `test-first` (one behavior at a time):
+        - Unit tier, over parsed outcomes
+        - a client-side `non-fast-forward`, `fetch first`, or `stale info` is a lost race
+        - `cannot lock ref`, `incorrect old value provided`, `reference already exists`, `reference does not exist`, and
+          `TF401028` under `remote rejected` are lost races
+        - any other server text on a state ref reads by state
+        - atomic collateral lines read as the refs whose lines carry a cause
+        - a terminal `refused` message carries the server's `remote:` lines verbatim, as the suite's
+          `remote-refusing-with-success-after-repair` asserts
+
+### `[ ]` **9.4 The push loop — § 6.5, § 6.7**
+
+- _Goal:_ `push` publishes every ref this clone wrote, never part of a local batch and never over a write it has not
+  merged, and reports each declared family once.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
+
+- _Note:_ A case that needs the loop stopped between two steps wraps the executor port to pause at a named Git call —
+  the loop's fetch, its tip read, or its push — through `createManualStepBarrier` (`__tests__/helpers/multi-clone.ts`);
+  `setupMultiClone` gains a third clone and a second machine's worktree siblings where a case needs them.
+
+    - A push-loop module under `lib/store/ref/` composing the pull, the listing, the leases, the push helper (2.4), and
+      the classification (9.3); until 9.5 a retry repeats with no sleep; the deletes an end or reopen owes, and the skip
+      of a live ref with a pending end, join the listing in Phase 10
+
+    - `[ ]` **9.4.a Listing and locks**
+        - Every store ref whose tip differs from its tracking ref or has none, taken under its locks in ref-name order and
+          listed again; a grown listing releases every lock and takes the larger set in order
+        - Build `test-first` (one behavior at a time):
+            - a push lists only refs this clone wrote since its last push
+            - a batch creating a ref while the loop lists grows the set, and the loop retakes it in order
+            - a ref lock another process holds past an injected wait ends the push with `lock-held` naming it, pushing
+              nothing
+
+    - `[ ]` **9.4.b Leases and the push**
+        - Tips and tracking tips read under the locks, then released before the network call; a work item's or cohort's
+          ref leased on its tracking tip or on absence, never on a tip kept after a prune; quarter, registry, inbox, and
+          identity refs pushed plainly; a moved tracking tip lets a ref push only where its local tip descends from it,
+          never a delete, else the loop repeats from step 1; the designation read again (8.1) before the push
+        - The code remote and `backing` are pushed to by name; another of the code repository's remotes to the URL
+          `git remote get-url --push` gives, its push URL where it has one, with `insteadOf` and `pushInsteadOf` applied
+        - Build `test-first` (one behavior at a time):
+            - a push of two refs is one `--atomic` push, and a lost lease lands neither
+            - two worktrees of one clone: one's loop between its merge and its push while the other's pull fetches another
+              machine's push to the same ref lands nothing over that write, its loop repeating, and the remote's tip then
+              descends from both machines' writes
+            - a push composed before a designation switch, made by editing `remote.<name>.arc-state` while the loop is
+              paused, reaches no remote after it
+
+    - `[ ]` **9.4.c Tracking refs and the settled refusal**
+        - On each per-ref `ok` line the tracking ref moves to the pushed tip, or is deleted for a pushed delete, where it
+          still holds the tip step 3 read, in both layouts and for a push by URL
+        - A refusal read by state repeats from step 1, whose fetch settles it: a lost race where the ref moved from the
+          push's expected old value, terminal `refused` otherwise
+        - Build `test-first` (one behavior at a time):
+            - the next listing after a push lists nothing new, in both layouts and for a fork's upstream pushed by URL
+            - a server refusing a state ref with other text, the ref moved meanwhile, settles as a lost race, and with the
+              ref unmoved ends terminal `refused` with that text
+
+    - `[ ]` **9.4.d Outcomes per family**
+        - One publish outcome per status and one `failed` per failure, every declared family named once, identity families
+          only with an identity, each carrying the loop's retry count and time waited; `publishes` lists `reconciled`,
+          then `pushed`, then `noop`, then each `failed`; a subtree family, `review` or `lineage`, counts movement only
+          where it changed a record under its subtree; a stopping state publishes nothing
+        - Build `test-first` (one behavior at a time):
+            - a family whose refs the loop's pulls moved reads `reconciled`, one that pushed with none `pushed`, and one
+              with neither `noop`
+            - with no identity, `no-identity` names the identity families and no outcome does
+            - `no-remote` leaves `publishes` empty
+            - a state-only push whose pull cannot reach the state remote ends before any push, `pulls` carrying that
+              `failed` outcome with its notices and `publishes` one `failed` naming every family of its scope
+
+### `[ ]` **9.5 The deadline and backoff — § 6.1, § 6.7**
+
+- _Goal:_ No `pull` or `push` stalls a session past 120 s, and retries back off by the host's own push time, so writes
+  stay local for the next firing point whatever the remote does.
+
+    - The deadline is a 120 s bound on the sleep port (3.1.a), started with the operation, whose end aborts the signal
+      passed to every Git call (2.1); on the fake's virtual clock a retry's wait ending before it wakes first, and a
+      case reaches the deadline only by advancing the clock while a call never returns; the `n`th retry waits on the
+      sleep port for a time the random source draws uniformly from zero to the lesser of 10 s and `d · 2^n`, `d` the
+      last push's duration, holding no lock
+    - Build `test-first` (one behavior at a time):
+        - an HTTP endpoint that accepts the connection and never answers ends `pull` and `push` at the deadline, `failed`
+          `unreachable` with cause `timeout`, carrying the notices of what applied, with no helper process left, and the
+          next push lands the writes
+        - a deadline passing between attempts ends the loop `retries-exhausted` with its retry count and time waited
+        - each retry's wait stays within its limit, its draw taken from the random source
+        - in the separate layout, an `unreachable` failure's remedy names moving a transport setting held only in the code
+          repository's config — `core.sshCommand`, a credential helper, or an `http.*` key — to the person's global
+          configuration or the store directory's (§ 9.7), which the default layout's omits
+
+### `[ ]` **9.6 The conformance sync items in both layouts — § 14.1**
+
+- _Goal:_ The shared suite's sync items, and the assertions 4.4.d holds for a pull or push, pass over the ref backend in
+  both layouts, so no exclusion remains beyond § 14.1's.
+
+    - The fixture's remote hooks drive a real bare origin, designated `push` on the code remote in the default layout
+      and through the store directory's `backing` in the separate one; `remote(false)` sets the remote's `arc-state` to
+      `off`, so pulls and pushes report `no-remote`, and from 13.1 runs the move such a setting calls for; `remoteState`
+      moves the origin away for `down`, advances it from an executor wrapper at the push for `contended`, as
+      `inRepoRemote` (`__tests__/helpers/store/in-repo-remote.ts`) does, and installs a receive hook for `refusing`
+    - `remote(true)` returns a store over a second clone of the origin that pulls before each read and pushes after each
+      write, as `remoteFacingStore` (`__tests__/helpers/store/in-repo-remote.ts`) does, so item 16's reconcile
+      assertions write through it and read `reconciled` at the local push
+    - The fixture declares `syncRetryCount` and `syncWaitedMs` from its own virtual clock and sleep port (3.1.a) and
+      random source, so the contended case's figures are exact and no backoff wait reaches the deadline
+    - Removes 4.4.d's exclusions held for a pull or push, which Phase 11's exit criterion retires: item 16, the
+      pull-side merge cases, recovery's `unreachable`, `refused`, and `retries-exhausted` cases, and
+      `primary-role-reopen-sync-and-current-side-conflicts`
+    - Each layout's conformance time read once here against the in-repo conformance's on the same machine, so a fixture
+      breaking § 14.12's 1.5 times bound is caught before 18.3 measures it in CI
+
+## **Phase 10:** Lifecycle across clones
+
+_Purpose:_ Ends and reopens read from state rather than from refs' absence: leased deletes and by-name history fetches,
+pending ends and reopens, a completed item's folder rebuilt from its merged history ref, late writes meeting ends, and
+the withdrawal rule for two ends — the rules the model checks held.
+
+### `[ ]` **10.1 Leased deletes and by-name history fetches — § 6.5**
+
+- _Goal:_ No push recreates a ref another machine's lifecycle move deleted, and a lifecycle move whose delete loses to a
+  write holds rather than undoing.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The first model check
+
+    - The push loop's listing gains every delete an end or reopen owes; its skip of a live ref with a pending end is
+      10.2.a's
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, two and three clones on one bare origin
+        - every push of a work item's or cohort's ref, live or under history, and every delete is leased
+        - an end's delete losing its lease to a write merges that tip into the local history ref and leases again
+        - a reopen's history-ref delete losing to another machine's write to the completed item merges it into the local
+          live ref, the quarter merge keeping the folder's removal
+        - the push loop's pull fetches by name each history ref its push creates, updates, or deletes, so a history-ref
+          create losing to a restored ref settles rather than spinning to the deadline
+        - a reopen racing another clone's write to the completed item keeps the write on the reopened item when the
+          reopening loop's by-name fetch brings it, merging the fetched tip into the live ref
+        - two worktrees of one clone, one's loop owing a ref's delete for an end, paused between its merge and its push
+          while the other's pull fetches another machine's write to that ref: the delete repeats rather than removing a
+          tip it never merged, and the next attempt merges that write into the history ref first
+
+### `[ ]` **10.2 Another machine's end and reopen, read from state — § 6.4, § 6.6**
+
+- _Goal:_ Every pull reads another machine's end or reopen from the records state holds, whichever merge brought them,
+  so no live ref returns beside a published end and no end is lost to a reopen.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The first model check, § The second model check
+
+    - A module of its own for the pending-end and pending-reopen tests, kept apart from the merge, whose definitions of
+      this clone's own unpublished end and reopen read records, never the tracking history ref, replacing 9.2.a's
+      stand-in; it takes the local and incoming ref sets and the test of what counts as published as parameters, the
+      pull passing the store's refs, its tracking refs, and a published end's tracking state, and 13.1's copy its own
+      (§ 10.4)
+
+    - `[ ]` **10.2.a Pending ends**
+        - The push loop's listing skips a live ref whose item has a pending end, which waits for the pull that applies
+          it
+        - Build `test-first` (one behavior at a time):
+            - a quarter folder beside a live ref, or beside a history ref whose log lacks the folder's `endBatch`, is a
+              pending end
+            - lineage in the fetched registry is a pending end only where the fetch left the live tracking ref absent,
+              and lineage beside a live ref the remote still holds ends nothing
+            - the pull fetches by name, in one fetch, the history ref of every item with a pending end, and a live ref
+              then merges into the fetched history ref and moves under `refs/arc/history/`
+            - a history ref fetched by name ahead of the merge merges only after the test, and only for an item with no
+              end pending
+            - a clone that reopens and ends an item between pushes, publishing only the history ref and the record, has
+              its end applied on every other clone
+            - a reopen's by-name fetch bringing a tip that holds an end the live ref's log lacks ends the item, as 10.1's
+              reopen race extends
+            - a history copy lacking a later write's `batch` takes no pending end from the folder it refreshed
+            - lineage written beside a live ref and published reads no end through two pulls and a push from a second
+              clone, and the primary's later removal ends the item there at the next pull, every later pull reading none
+              pending; the same with the primary removed first and the lineage written after
+            - an abandoned item whose history ref holds a late write's conflict records reads no end pending at any later
+              pull
+            - a live ref whose item has a pending end stays out of the push loop's listing, so an unleased live-ref push
+              never recreates an ended item's ref
+            - after a quarter's renumbering merge (9.2.b), each clone's next pulls read no pending end
+
+    - `[ ]` **10.2.b When the by-name fetch fails**
+        - Build `test-first` (one behavior at a time):
+            - a by-name fetch that fails leaves the end pending and the live ref in place, reports the state remote
+              `failed` with that cause and the notices of what applied, and a push meanwhile lists no live ref of that item
+            - the next pull, its merge bringing nothing, applies the end
+            - a push whose own pull's by-name fetch fails ends before any push, `pulls` carrying that `failed` outcome
+              with its notices and `publishes` one `failed` naming every family of its scope
+            - a by-name fetch that succeeds without the history ref reports `end-pending` naming it on every pull until
+              a clone holding it pushes it back, and the next pull applies the end
+
+    - `[ ]` **10.2.c Pending reopens**
+        - Build `test-first` (one behavior at a time):
+            - a history ref this clone holds, with no unpublished end of its own on it, beside a tracking ref for the live
+              ref and no folder in the merged quarter, is a pending reopen, applied at the pull whose state shows it rather
+              than the one whose merge brought the folder's removal
+            - an archived item reopened and then given lineage beside its live primary reopens on a clone holding its
+              history ref
+            - a live ref back beside lineage alone reads as a reopen keeping the end's removals
+            - a clone whose published end another machine then reopens applies the reopen at its next pull
+            - a pruned tracking ref with no end record reads as a loss the next push restores
+
+    - `[ ]` **10.2.d This clone's own unpublished end and reopen**
+        - Build `test-first` (one behavior at a time):
+            - a clone holding another machine's published archive when that machine's reopen publishes applies the reopen
+              and deletes no live ref
+            - a clone that undid its own unpublished archive by a reopen before applying another machine's end that is
+              then reopened deletes no live ref
+            - a clone holding its own unpublished reopen of an item another clone reopens and abandons between its pushes
+              ends the item at its push loop's pull and publishes no live ref beside the lineage, the same where another
+              worktree's by-name fetch moved the history tracking ref first
+            - a clone whose live ref was never reopened applies another machine's abandon though another worktree fetched
+              the history ref by name first
+            - a clone that published an archive and then applied another machine's reopen applies that machine's later
+              abandon, as does a clone whose other worktree fetched the item's history ref by name before another machine
+              reopened and abandoned it, neither reading the reopen as its own
+            - this clone's own unpublished end, made after a reopen of its own, meets another machine's published reopen
+              by merging the fetched live tip into its history ref and leasing the live ref's delete on that tip, and a
+              live ref back without the folder's removal meets the end the same way
+
+### `[ ]` **10.3 A completed item's folder across clones — § 6.4, § 7.3**
+
+- _Goal:_ A completed item's folder changes only with its history ref, so two machines' writes to it are filed once on the
+  history ref and no folder rebuild drops a write another machine's refresh carried.
+
+    - Build `test-first` (one behavior at a time):
+        - a folder only one side changed takes that side's, and a removal on one side beside a change on the other holds
+        - two clones writing one completed item's single-writer record: the second's pull fetches the history ref by
+          name, merges it, files one conflict record there, and rebuilds the folder naming the history ref's conflict IDs
+          and the pull's batch
+        - a write merged in by a pull by name rebuilds the folder the same way
+        - a clone whose history copy lacks the folder's `batch` leaves the folder as merged until its own pull by name,
+          and its `history`, `changes`, writes, and reopen refuse `state-unresolvable` naming the ref, each landing after
+          a pull by name
+        - two writes to one completed item whose history ref a mirror push removed from the remote leave the second
+          writer's folder and history ref as they were, report `end-pending` naming the ref, and apply every other ref
+
+### `[ ]` **10.4 Late writes and ends — § 6.6, § 7.4**
+
+- _Goal:_ A late write meets an end by merging into the item's history ref, the end's version staying current, so the
+  end's other writes stand as written and the late version is kept.
+
+    - Build `test-first` (one behavior at a time):
+        - a write racing an end between the push loop's pull and its push lands on the ended item
+        - a live ref back with its folder still in place meets the end as a late write
+        - a late write changing a record the end also changed keeps the end's version current and files the late version
+          in a conflict record on the item's ref, whichever side is remote, while a record only the late write changed
+          merges in
+        - an archived item's folder is refreshed from the merged tree, and an abandoned one's pull reports
+          `ended-with-conflicts` naming its conflict records
+        - a pull applying another machine's end while this clone holds unpublished writes merges the local ref into the
+          fetched history ref, and the next push fast-forwards it, leased
+        - a write to a completed item unpublished while another clone's reopen publishes lands on the reopened item, the
+          folder's removal kept; the same with the item reopened and ended again first, the write merging into the new
+          end's history ref
+        - a merge leaving a live item its lineage and no primary refuses a put of its other records naming the lineage,
+          while a put of its primary, or a batch putting the primary beside a companion, restores it and a removal ends
+          it
+
+### `[ ]` **10.5 Two ends of one item — § 6.6**
+
+- _Goal:_ Of two ends of one item the first published holds: this clone withdraws its own unpublished end whole, and two
+  ends both published are reported with the remedy that leaves one.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The first model check, § The second model check
+
+    - The withdrawal is one local transaction inverting every write the end's batch made, and an earlier unpublished
+      lineage it relied on, with the provenance `sync` `withdraw-end`
+    - Its inbox writes invert like the rest, found by the end's batch ID: each entry whose `_Id:_` line the end's batch
+      added to an inbox is taken back out unless the merged published side holds it, and the routing receipts the batch
+      wrote are removed, unpublished as the end is, as the withdrawal removes the conflict record it filed; no receipt
+      is written, so the backend defines no receipt's content
+    - Build `test-first` (one behavior at a time):
+        - two clones ending one item — archive against abandon, and two archives, each perhaps after a reopen of its own
+          — leave the first published, the second reporting `end-withdrawn`, through its push's `pulls` where the push
+          loop met it
+        - two abandons keep the published lineage and remove the conflict record filed over the withdrawn one
+        - a withdrawn end whose batch closed a cohort reopens it, unless the published end closed it too, and each inbox
+          entry it returned is taken back out and the receipt the end wrote for it removed, so its latest receipt again
+          names its home before the end, unless the published end returned it too, whose receipt then stands
+        - a clone that wrote the item's lineage in one batch and removed its primary in a later one, neither published,
+          meeting another clone's archive, withdraws both and reports no `ended-twice`
+        - a clone holding its own unpublished archive meets a lineage end as pending and withdraws its archive
+        - the writes made around the withdrawn end merge into the published end's history ref as late writes
+        - two ends both published — after a mirror push erased the first, or lineage beside an archive from one clone or
+          two — report `ended-twice` on every clone, whose remedy leaves one end, as for two archives into two quarters,
+          and every later pull reads no end pending
+        - a decomposition's children stay as items of their own after its withdrawal
+
+### `[ ]` **10.6 `arc rename`'s retry over a missing history ref — § 4.5**
+
+- _Goal:_ Renaming an archived work unit on a clone that lacks its history ref completes: the verb pulls the refs the
+  refusal names and retries, so the refusal never leaves the person at a dead end.
+
+    - The verb's store path, `runStoreRename` (`lib/work-unit/verbs/rename-store.ts`), live over the ref store, which
+      reports its state off the branch (`usesOffBranchState`, `lib/store/lifecycle-write.ts`; 3.1.a): meeting
+      `state-unresolvable` whose `historyRefs` names refs, from `readStoreRenameSubject` or from the write
+      `prepareStoreRename` (`lib/store/lifecycle-rename.ts`) and `applyPreparedLifecycleWrite` make, it pulls them by
+      name (`PullInput.history`, 9.1.b) and runs again from the subject read, once; a pull that fails, or a second
+      refusal, returns the refusal as it stands
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, through `runStoreRename` over `createRefStore`, two clones on one bare origin
+        - a rename of an archived work unit on a clone whose history copy lacks the item's history ref pulls it and
+          lands, the folder renamed and its number kept
+        - on a clone that cannot reach the remote, the same rename returns `state-unresolvable` naming the ref and changes
+          nothing
+
+## **Phase 11:** Sync under faults
+
+_Purpose:_ What a rewrite, a broken ref, a remote, or a hook does to sync: the ancestry check and its kept tips, local
+tracking updates that fail, refs left out of a push, a partial clone's completeness check, carried code refs, hooks,
+receivers without atomic pushes, and races a server catches.
+
+_Exit criterion:_ Every integration case of § 14.5 passes on every change, in both layouts where the case names them,
+but three that need later phases: the presence read's bound (12.2.b), an imported store's ended items (15.2), and a
+carried ref under `moved` (16.1) and `designation-needed` (12.2.c); and the ref-backend fixture passes the shared suite
+in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.6).
+
+### `[ ]` **11.1 The ancestry check — § 6.3**
+
+- _Goal:_ A state ref whose new head does not descend from the last one seen is refused and reported with three ways out,
+  while every other ref applies and a local tracking failure is never read as one.
+
+    - The three remedies travel in the notice's remedy `text`, since `Remedy.argv` (`lib/store/refusal.ts`) holds one
+      command
+    - Build `test-first` (one behavior at a time):
+        - a rewritten ref refuses at the pull, keeps its tracking and local tips, applies every other ref, and reports
+          `history-diverged` naming both tips with the three remedies as Git commands against the store's repository,
+          each forced fetch carrying § 6.2's flags
+        - each remedy leads back to a clean pull
+        - the same refusal with `fetch.showForcedUpdates` false in the person's global configuration and in the store
+          repository's own, in both layouts
+        - a ref pruned while its item lives keeps its last tip at `refs/arc/tmp/seen/<remote>/<path>`; a returned tip that
+          neither descends from it nor is its ancestor fails the check, the pull deleting the tracking ref it created and
+          reporting `history-diverged` again at a second pull, while one that descends or is an ancestor passes and the
+          kept tip goes
+        - after the forced fetch taking theirs, the kept tip goes and the next pull is clean
+        - a `!` line whose new tip descends, or whose old tip is absent, reports `tracking-update-failed`, keeps that
+          ref's tips, applies the rest, and the next pull applies it
+        - a push holding writes on a diverged ref ends at once as terminal `refused` for every family of its scope, the
+          notice in its `pulls`, while one holding none past the kept tip publishes every other ref
+        - 9.4.b's two-worktree race run again with the check live: no clone's next pull reports `history-diverged`
+
+### `[ ]` **11.2 Refs left out of a push — § 3.3, § 6.7**
+
+- _Goal:_ A ref whose metadata a commit outside ARC broke, or whose end is pending, holds back exactly the unpublished
+  batches that span it, and every other ref publishes.
+
+    - Build `test-first` (one behavior at a time):
+        - a broken item ref is left out of the push with every ref its unpublished batches reach — a batch spanning it and
+          a second ref, and another spanning the second and a third, leaving out all three — failing their families
+          `refused` while every other ref pushes, the refs a pull merged beforehand among them
+        - a push whose other families then exhaust their retries reports one `failed` outcome for each failure
+        - the same commit pushed outside ARC makes another clone's pull keep that ref, apply every other, and report a
+          `namespace-corrupt` notice, while that clone's push fails its families only where it holds a write on that ref
+        - a live ref left out for `end-pending` leaves out a ref a batch spans with it alike
+        - a forward repair on either clone, once pushed, brings both back to reads that succeed
+
+### `[ ]` **11.3 A partial clone's fetch — § 6.2**
+
+- _Goal:_ A blobless or partial clone holds every state object after each fetch, so no read ever reaches the network.
+
+    - After each fetch in a partial clone, `git rev-list --objects --missing=print` over the fetched tips short of the
+      tracking tips; any missing object reruns the fetch with `--refetch`, and one still incomplete fails the remote as
+      terminal `refused` naming the objects; a clone with no filter skips the check
+    - Every check of a blob's presence runs with `--no-lazy-fetch`, since a plain `cat-file -e` fetches the blob it
+      tests in a partial clone
+    - Build `test-first` (one behavior at a time):
+        - Integration tier
+        - in a blobless partial clone of an origin whose state records share blobs with code history, served with and
+          without bitmaps, over protocol v2 and v0, and with `remote.<name>.negotiationInclude` configured, a first pull
+          and a later one each end holding every state blob, and reads run with no fetch
+        - over protocol v0 from an origin with bitmaps, a later fetch's check finds the object the fetch left out and the
+          `--refetch` rerun brings it, so the leg shows the check working rather than passing with nothing to find
+        - a leg whose fetch leaves nothing out records that it does, a control beside the leg that loses a blob
+        - a clone with no filter runs no `rev-list` check
+
+### `[ ]` **11.4 Carrying a code ref — § 6.8**
+
+- _Goal:_ A code ref rides the state push in one atomic push where one receiver serves both, or as an ordered first leg
+  otherwise, and its own refusal never fails or delays the state publish.
+
+    - Build `test-first` (one behavior at a time):
+        - a carried ref over one atomic receiver and over ordered legs lands, `carry` reporting `pushed`
+        - a carried branch rewritten with its `expect` lands where the remote branch still stands at `expect`, and is
+          refused `stale-info` where another push moved it
+        - a carried ref's own rejection repeats the push with state alone, `carry` reporting the refusal
+        - an ordered code leg to an unreachable remote reports `carry` `unreachable` with its cause while the state leg
+          pushes
+        - a push carrying a code ref that publishes no state — on a failed pull and on a diverged ref — pushes the ref
+          alone, as an ordered leg and over one atomic receiver, `publishes` as the stop gives it; the same under
+          `designation-needed` and `moved` are cases of 12.2.c and 16.1, which produce those states
+        - a clone with no code remote reports `no-push-destination`, the state pushing alone
+        - a loop ending `retries-exhausted` with the carried ref not landed reports `carry` `unreachable` with cause
+          `timeout`
+
+### `[ ]` **11.5 Hooks, atomic capability, and races a server catches — § 6.8, § 6.9**
+
+- _Goal:_ A hook or a receiver's limits shape a push only as § 6.8 and § 6.9 read them, and a race the server catches at
+  its commit is told from a refusal by state.
+
+    - A server's own move inside its window comes from an `update` hook, or a pre-receive hook run with
+      `GIT_QUARANTINE_PATH` unset, since Git refuses a ref update from inside the quarantine a pushed pack lands in; the
+      hook fails the test where its own update did not land
+    - Build `test-first` (one behavior at a time):
+        - a pre-push hook declining a carried ref repeats with state alone and reports its text verbatim as
+          `hook-declined`, and one declining a state-only push ends the loop terminal `refused` with its stderr
+        - a pre-push hook sleeping past the deadline ends `timeout` at the deadline with no hook process left, its
+          remedy naming the hook, and one passing a push of `refs/arc/*` alone lets the push land
+        - a receiver without atomic pushes falls back to ordered legs for one state ref and a carried ref, and refuses
+          several state refs terminal `refused` naming the capability
+        - a server moving or deleting a ref inside its own window makes a leased create, a leased delete, and an update
+          each read as a lost race that settles on the next attempt; a hook that moves the ref and declines reads as one
+          too, and one that declines and moves nothing reads terminal `refused` with its text
+        - a server moving the carried branch inside its window fails the atomic push `atomic transaction failed` on every
+          line, which the backend attributes to the carried ref by one `ls-remote` and its lease or ancestry, repeating
+          with state alone and reporting the ref `raced`
+
+### `[ ]` **11.6 Sync between clones** — validate exit criterion at segment scope
+
+- _Goal:_ Every integration case of § 14.5 passes, in both layouts where it names them, with no lost write, but the
+  three the exit criterion leaves to 12.2.b, 15.2, 16.1, and 12.2.c, and the shared suite runs with no interim
+  exclusion left.
+
+    - Request `arc check segment`
+
+## **Phase 12:** Designation and read sources
+
+_Purpose:_ Who designates a clone's state remote at its first pull, how a due question is reported, the project check
+before any `push` designation, a read source fetched and read through its own store, and the tracked backing-repository
+pointer.
+
+_Mode:_ `slice` through Phase 13 — closes on a clone that designates its state remote, reads an upstream, and moves
+between layouts as its designation calls for.
+
+### `[ ]` **12.1 The tracked backing-repository pointer — § 9.7**
+
+- _Goal:_ `storage.backing_repository` is a known configuration key, empty by default, that `arc config status` lists and
+  `arc config validate` knows, while only the hidden `arc store` commands and a first designation act on it.
+
+    - Added to `ARC_CONFIG_FIELDS` (`lib/config/schema.ts`) through `stringField` with a `repository-url` kind added to
+      the string policy kinds and the posture `unset`, as `worktree.post_create` takes, over a non-empty trimmed string,
+      so the empty value stays valid, and declared empty in the package's `arc/system/arc-config.yml` at the catalog's
+      position, as `__tests__/unit/config/inventory.test.ts` matches the two in order; the shipped file states the key
+      as fact, with no transitional framing
+    - The project's `.arc/system/arc-config.yml`, a Configurable file, gains the key by an edit in `.arc/`, never a copy
+      over it; the catalog's key lists in `schema.test.ts` and the full `ConfigSettings` literals in the tests take it
+    - Build `test-first` (one behavior at a time):
+        - `arc config status` lists the key empty
+        - `arc config validate` gives no unknown-key warning for it
+
+### `[ ]` **12.2 A first designation — § 9.2, § 9.3**
+
+- _Goal:_ A clone's first pull sets its state remote without asking only where the answer cannot publish state the
+  person did not choose, and otherwise reports the question with its answering command, never prompting.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
+
+- _Note:_ The rule changes what a remote with no `arc-state` key means, which before it read as `no-remote`; the
+  fixture's `remote(false)` sets `off` (9.6), earlier tests designate explicitly — planted repositories through 3.1.e,
+  the multi-clone cases through 9.1.b — and the 9.6 items and every Phase 9–11 case run again green with the rule live.
+
+    - A designation module under `lib/store/ref/` over 8.1's counted designation, and its integration with `pull` and
+      `push`; the backend's ports gain a pointer port reading `storage.backing_repository` from the invoking checkout's
+      `arc-config.yml`, which 16.3 extends with a write, so `lib/store/` reads no configuration module itself
+    - A first designation offers `push` and `off` for the code remote and for `backing`, and `push`, `read`, and `off` for
+      an upstream; where two remotes other than the code remote hold the registry, the first in `git remote`'s order is
+      asked, the next once it is answered
+
+    - `[ ]` **12.2.a The decision**
+        - Build `test-first` (one behavior at a time):
+            - Integration tier, a fresh clone of remotes that hold or lack the registry, through `pull`
+            - a code remote holding the registry where no other remote does sets `push` without asking, where that
+              changes no layout and the project check passes
+            - a clone already holding state in the separate directory is asked instead
+            - an upstream holding the registry is asked `push`, `read`, or `off`, and a code remote where no remote holds
+              it `push` or `off`
+            - a clone whose store directory carries `backing` has it as its only candidate, and a fork upstream's `push`
+              counts for nothing beside it
+            - a pointer naming a backing repository at a first designation adds `backing` at its URL and asks about it,
+              and the code remote is never set or asked about
+            - a remote of the code repository named `backing` is never set or asked about, its key counting for nothing
+            - a clone with no code remote is asked about nothing but a remote holding the registry
+            - two remotes other than the code remote holding the registry: the first in `git remote`'s order is asked,
+              and once its answer is set the next pull asks about the second
+            - every remote `off` or `read`, or none to ask about, reports `no-remote`, and two `push` keys
+              `designation-ambiguous` naming both
+
+    - `[ ]` **12.2.b Presence reads**
+        - `git ls-remote` of `refs/arc/project/registry` alone, run through the backend's executor and bounded by a
+          `DEFAULT_NETWORK_TIMEOUT_MS` bound on the sleep port, whose end aborts its signal (3.1.a), not by the real
+          timer `remote-ref-reader.ts` arms, counting only an output line naming exactly that ref, since `ls-remote`
+          matches by tail and also prints a ref such as `refs/arc-remotes/x/refs/arc/project/registry`
+        - Build `test-first` (one behavior at a time):
+            - Integration tier
+            - a remote whose presence read fails sets and asks nothing and reports a `failed` `unreachable` outcome in the
+              role `candidate`, with no state beside it, and the next pull once it answers decides
+            - a presence read against an HTTP remote that accepts and never answers fails once the case advances the
+              clock past the bound while the server holds the connection, deciding nothing, as § 14.5 has it
+            - a presence read inside `pull`, beside the operation's pending deadline, returns the remote's answer
+            - a remote holding only a ref ending in that name reads as not holding the registry
+
+    - `[ ]` **12.2.c The states a pull and push report**
+        - Build `test-first` (one behavior at a time):
+            - a fresh clone's first `pull` over each case — the code remote holding the registry, an upstream holding it,
+              neither, and a tracked pointer — sets or reports `designation-needed`, the same whether or not the test
+              process has a terminal, since the store asks nothing, its `argv` recommending `push` for the code remote and
+              `backing` and `read` for an upstream
+            - a designated clone syncs by its record from a worktree whose pointer is absent while the clone carries
+              `backing`, present while it carries none, or at another URL, and reports no state
+            - a state that stops the sync fetches and pushes nothing for the state remote
+            - a push carrying a code ref under `designation-needed` pushes the ref alone, as an ordered leg and over one
+              atomic receiver, `publishes` empty, as § 14.5 has it
+
+### `[ ]` **12.3 The project ID and the `push` check — § 9.8**
+
+- _Goal:_ No designation publishes one project's state onto another's, and a clone that never minted a project ID adopts
+  the one its remote holds.
+
+    - The check fetches the remote's registry and forwarding record into `refs/arc/tmp/designate/<remote>/`, cleared before
+      and dropped after, so a `!` line fails the read, with § 6.2's flags under the pull's deadline or 120 s of its own;
+      the arms a setting or an answer runs land with `arc store remote` in 13.4, and the forwarding-record arm with the
+      record in 16.1
+    - Build `test-first` (one behavior at a time):
+        - a clone holding a project ID whose pull would set `push` without asking on a remote whose identity record names
+          another project reports that remote's `failed` outcome terminal `refused`, naming both projects, with the remedy
+          `arc store remote <remote> off`, setting and pushing nothing
+        - a remote holding this project's ID, or none, is designated by the rule
+        - a designation fetch against a remote that never answers ends within its deadline, setting nothing
+        - a check whose fetch meets a `!` line fails the read, setting nothing
+        - a teammate's registry holding no identity record merges with the published one by unrelated histories, adopting
+          its ID
+
+### `[ ]` **12.4 Read sources — § 9.6, § 9.8**
+
+- _Goal:_ An upstream's state is fetched into its own namespace and read through a read-only store, never merged or
+  pushed to, its refusals recover as the store's do, and a contributor's local-only store adopts its project ID.
+
+    - `createReadSourceStore(ports, remote)` beside `createStore` in `lib/store/create.ts`: the ref backend over
+      `refs/arc-remotes/<remote>/`, typed `ReadOnlyStore`, keeping its last manifest at
+      `refs/arc/tmp/read/<remote>/version`; in the separate layout the source is fetched by its URL
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, each case in both layouts
+        - a pull fetches a read source's project namespaces into its namespace and no identity-scope ref, the person's
+          own among them, its outcome in the role `read`
+        - the read-source store reads, lists, and looks up there, as of its own state versions too
+        - nothing it fetches merges into local state or pushes
+        - a read source still pulls under a state that stops the state remote's sync
+        - a history ref its refusal names, pulled by name, resolves
+        - a diverged ref there reports `history-diverged` with taking theirs as its one way out
+        - on a clone with no state remote and no ID, the first pull fetching a read source's identity record writes it
+          create-only, `sync` `adopt-project-id`, a later pull leaving it, while a clone with a state remote adopts
+          nothing from a read source
+
+## **Phase 13:** The migrate verb and layout moves
+
+_Purpose:_ The migrate verb's engine and the hidden `arc store` commands: a move's record and lock, all-or-nothing
+landing, the report a move returns, the layout move both ways in its restartable order, `arc store remote`'s show and
+set, and the `move-incomplete` and `move-unfinished` states.
+
+_Exit criterion:_ Every case of § 14.6 but those that need a follow, leaving the source, the forwarding record, or a
+`backing` repoint, and § 14.7's layout-move cases, pass, and the conformance suite's sync items still pass in both
+layouts.
+
+### `[ ]` **13.1 The move engine and the layout move — § 1.2, § 10.2, § 10.3, § 10.4, § 11.4**
+
+- _Goal:_ A clone's store moves between the code repository's refs and the store directory with every ref, tracking ref,
+  and kept tip, through one engine that keeps a record of each move across its switch and lands at its destination all
+  or nothing, so an interruption at any step is finished by a rerun in the direction the record names, never reversed;
+  tests reach every move through the two entries the `arc store` handlers call.
+
+    - `runStoreRemote(ports, { remote?, role?, ownState? })` and `runStoreMigrate(ports, { to?, trial?, leaveSource?,
+      import? })` in `lib/store/create.ts`, each building its store through `createRefBackend`; `runStoreRemote`
+      returns the roles view, a setting with the `MigrateReport` of any layout move it ran, a refusal, or a confirmation
+      due naming the repository and what a yes publishes; `runStoreMigrate` returns a `MigrateReport`, a refusal, or a
+      question due carrying `designation-needed`'s remote, choices, and remedy (§ 2.2), which the follow produces (17.1)
+      and its handler asks (17.2.a)
+    - Their refusals are `StoreCommandRefusalSchema` beside them, § 10.1's closed union, every code landing here: each
+      refusal Phases 13, 16, and 17 build takes the code § 10.1 gives its kind, which its case names; the import's
+      refusals of Phases 14 and 15 take the codes 14.1 states; and one a store operation, the move lock, a project
+      check, the import's check of a store holding state, or a remote read returns travels in the `store` arm unchanged,
+      keeping its class
+    - A migrate engine under `lib/store/ref/`: the move lock `arc/locks/migrate.lock`, held for the whole run; the record
+      at `refs/arc/tmp/migrate/move`, a root commit holding `move.json`, written expecting absence and replaced leased on
+      its value; gathered refs under `refs/arc/tmp/migrate/`; a layout move or the import landing in one `update-ref`
+      transaction
+    - `move.json` is a schema discriminated by kind: the layout arm, its two layouts, lands here; the remote, follow, and
+      leaving-the-source arms, each remote by its name and the fetch and push URLs `git remote get-url` and
+      `git remote get-url --push` resolve at the move's start, land with their moves in 16.2, 17.2, and 17.3
+    - A step port the engine calls before each step a move declares, by the step's name — the layout move's build,
+      record, rename, designation change, and delete here, and each later move its own as it builds the step (14.3;
+      16.2, 16.3, and 16.4 for a remote move; 17.2.a; 17.3) — which a test makes throw, or at which a child process
+      running the move is killed
+    - The layout move: a local fetch between the two, then a delete of the source, under the layout lock from listing
+      through the delete; into the separate layout the store builds under a temporary name and renames into place, out
+      of it renames aside and is removed; moving in, the code remote's `push` is set before the rename, and moving out,
+      `off` after it
+    - A layout move run as another move's switch runs under that move's lock, writes no record of its own, and keeps its
+      temporary refs under `refs/arc/tmp/migrate/layout/`
+    - The copy onto a destination holding state (§ 10.4), a module of its own: 9.2.a's merge and 10.2's pending tests
+      run over its own local and incoming ref sets and its own test of what counts as published, taking no ref lock,
+      each broken rule in its `notices`:
+        - a layout move's, which merges store refs it finds at its destination: the destination's refs local and the
+          source's incoming, an end on the destination published where the source's copy of the item descends from it,
+          committing onto the destination's store refs through 8.3's commit step in its held mode, under the layout lock
+          the move holds (§ 11.4)
+        - a remote move's copy and re-copy (16.2, 16.4), the follow's clearing copy (17.2.a), and leaving the source's
+          (17.3): the destination's refs fetched under `refs/arc/tmp/migrate/` local and the source's incoming,
+          committing onto those temporary refs, which no write or layout move reads, so through 8.3's commit step in its
+          unlocked mode, in the code repository, where those refs live, each then pushed leased on the destination tip
+          it read
+    - The default-layout conformance fixture's `remote(false)`, once this task's layout check lives, runs the no-target
+      `runStoreMigrate` after it sets `off`, and `remote(true)` after it sets `push`, each deferred to the fixture
+      store's next call through a pending chain, as `inRepoRemote` (`in-repo-remote.ts`) defers its own; a Phase 9–11
+      case that turns a remote off on a default-layout clone holding state does the
+      same
+    - `runStoreMigrate` with no target finishes a recorded move, then brings the clone into the layout its designation
+      calls for, deleting leftovers and temporary directories
+    - `--import` refuses `unsupported`, naming `--import`, until the import's entry lands (14.1)
+        - _Retired in:_ Phase 14
+    - `--to` on a clone with a state remote refuses `unsupported`, naming `--to`, until the remote move lands (16.2)
+        - _Retired in:_ Phase 17
+    - `--leave-source` refuses `unsupported`, naming it, until leaving the source lands (17.3), and a no-target run
+      finds no follow due until the follow lands (17.1)
+        - _Retired in:_ Phase 17
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, through the two entries, as every case of Phase 13 is
+        - a layout move each way, run by the no-target form, carries every store ref, the tracking refs,
+          `refs/arc/tmp/seen/`, `refs/arc/tmp/version`, and `refs/arc/tmp/read/`, never `refs/arc/tmp/migrate/`
+        - a landing that fails lands nothing at its destination
+        - each step interrupted at the step port and rerun completes; one interrupted between the rename and the
+          designation's change finishes in its record's direction
+        - an interruption leaving the store directory beside a code remote carrying `push` reports `move-incomplete` from
+          `pull` and `push`, naming both with its remedies, fetching and pushing nothing
+        - a move out interrupted before its source's delete reports `move-unfinished` beside `no-remote` until a rerun
+          deletes the leftover
+        - a move out interrupted after its build and before its record leaves a temporary directory the next build
+          replaces, a ref deleted meanwhile staying deleted, and a no-target run removes
+        - a layout move finding store refs at its destination merges them, a broken rule in its `notices`, under the
+          layout lock it already holds and with no ref lock taken
+        - over a destination an earlier move left holding state, an end the source holds moves the destination's live
+          ref under history
+        - a reopen the source holds brings the destination's ended item back
+        - a live ref the source holds beside the destination's end merges into that end as a late write
+        - of two ends, the source's holds and the destination's is withdrawn
+        - a writer in a second worktree creating one item and updating another lands both in the layout the move leaves,
+          and a sync there that pulled before the switch pushes nothing to the old remote after it, the same for a move
+          to local-only
+        - after each move a ref rewritten on the remote still refuses `history-diverged` at the next pull
+        - a `git remote rename` of `origin` among several remotes with no `remote.pushDefault`, a remote added beside a
+          lone remote not named `origin`, and `remote.pushDefault` set each leave the store where it is and report
+          `move-incomplete`
+        - the 9.6 sync items in both layouts, and every Phase 9–11 case, run again green with the layout check live
+
+### `[ ]` **13.2 The move lock and the record's guards — § 10.3, § 11.4**
+
+- _Goal:_ Every move runs alone on its clone, and no run replaces another's record or proceeds past one it cannot read.
+
+    - Build `test-first` (one behavior at a time):
+        - two layout moves started at once from two worktrees: the second refuses `lock-held` before it fetches
+        - a move started after a run was killed takes the lock its dead holder left
+        - a record written by one run is never replaced by another's
+        - a `move.json` that does not parse against its schema refuses the rerun `move-record-malformed`, naming the
+          record
+
+### `[ ]` **13.3 The report a move returns — § 10.5**
+
+- _Goal:_ Every move returns one `MigrateReport` of what it wrote, and a `--trial` runs the same build and drops it, so
+  a trial's report cannot drift from what its move does.
+
+    - `MigrateReport` as § 10.5 gives it, its `refused` rules and `notices` filled by the moves and the import as they
+      land; a layout move a setting runs returns its report through `runStoreRemote` (13.4.a)
+    - A trial's match with its move is a case of each move that takes `--trial`: the import's in 14.3, and a remote
+      move's, the one that changes the clone's layout among them, in 16.2 and 16.5
+    - Build `test-first` (one behavior at a time):
+        - a layout move the no-target form runs reports every ref it wrote, by scope and person
+        - `--trial` with no target, or with `--leave-source`, refuses `request-invalid`, changing nothing
+
+### `[ ]` **13.4 `arc store remote` — § 9.4, § 9.8**
+
+- _Goal:_ A person sees each remote's role and sets one, the setting moving the layout first where it must and refusing
+  any setting that would strand state or publish it where the person did not choose.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
+
+    - `runStoreRemote`'s show and set; the store reports a due confirmation and the handler asks, its prompt and
+      no-terminal refusal covered by 13.5's handler tests; the follow's setting arm lands in 17.1
+    - Repointing `backing` refuses `unsupported` until 17.5 builds it
+        - _Retired in:_ Phase 17
+
+    - `[ ]` **13.4.a Show and set**
+        - Build `test-first` (one behavior at a time):
+            - `arc store remote` shows each remote's role, the layout, and the store directory's remote, and `--json` the
+              same as data
+            - a setting that changes the layout finishes any recorded move, runs the layout move, and returns its report
+              through `runStoreRemote`, every ref it wrote by scope and person
+            - setting `push` while another remote carries it refuses `role-conflict` naming
+              `arc store migrate --to <remote>` and `arc store remote <other> off`, and a code remote's `push` beside a
+              `backing` carrying `push` refuses `role-conflict` naming `arc store migrate --to <remote>`
+            - a team member on a fork who sets `push` for the upstream gets the separate layout, a pull and a push reaching
+              the upstream by its fetch and push URLs, a `pushurl` among them, while a carried code ref goes to the fork
+            - a setting that repoints `backing` refuses `unsupported`, changing nothing
+
+    - `[ ]` **13.4.b The project check at a setting**
+        - Build `test-first` (one behavior at a time):
+            - a clone holding a project ID refuses `identity-mismatch`, naming both projects and setting and pushing
+              nothing, when an answer, a setting, or a first designation of `backing` would set `push` on a remote whose
+              identity record names another project
+            - a designation after a check refused against another project's remote reads the next remote afresh
+
+    - `[ ]` **13.4.c The pointer at a setting**
+        - Build `test-first` (one behavior at a time):
+            - where no `backing` carries `push` — none, or one carrying `off`, `read`, or no key — and the pointer names
+              none, a code remote's `push` sets after the project check, moving the store into the code repository's refs
+              and removing `backing`, after which `pull` and `push` sync there
+            - where the pointer names a backing repository, the setting returns a confirmation due naming what a yes
+              publishes and sets nothing, and with `ownState` sets as for a pointer naming none, its report naming § 9.6's
+              route for keeping the backing repository as a read source
+            - on a clone without `backing`, `arc store remote backing push` adds it at the pointer's URL
+            - where the pointer names none, `backing` `off` or `read` sets in place, while `push` or adding refuses
+              `role-conflict`, naming `git remote rename backing <name>` where the code repository has a remote so named
+            - a `backing` setting refuses `role-conflict` while a code remote carries `push`, naming
+              `arc store migrate --to <URL>`, and `move-incomplete` while state sits in the code repository's refs,
+              naming its remedies, where a pull's first designation reports `move-incomplete` and adds no `backing`
+            - where a remote rename, an added remote, or `remote.pushDefault` left the store reporting `move-incomplete`
+              (13.1), a `backing` setting refuses `move-incomplete`, creating no directory
+
+### `[ ]` **13.5 `arc store migrate` and the hidden `arc store` commands — § 10.1, § 1.2, § 1.3**
+
+- _Goal:_ `arc store migrate` runs every move the verb defines through one engine, and `arc store` stays out of
+  `arc --help` and every production path until the flip.
+
+    - `arc store remote` and `arc store migrate` registered hidden in `cli.ts` as `hook-remedy-roadmap-conflict` is, each
+      with its input declaration in `src/command-input-registrations.ts` and its `NO_INPUT_MATRIX` entry
+      (`__tests__/fixtures/command-input/no-input-matrix.ts`), as that command's own declaration
+      (`src/scripts/remedy-roadmap-conflict.ts`) and entry are; `--json` through `withInteractionContext`; the
+      `--own-state` confirmation a prompt site declared through `declarePromptSite` (`lib/command-input/declaration.ts`)
+      and asked through `prompt` (`lib/command-input/prompter.ts`), as `prompts/join-prompts.ts` declares and asks
+      its sites, its no-input policy § 9.4's refusal
+    - The handlers' production ports: `createDefaultRefStorePorts` in `lib/store/default-ports.ts`, beside
+      `createDefaultStorePorts`, binding the executors, file access, clock, sleep, random source, identity, actor,
+      production registry, and lock factory, the step port a no-op, and the pointer port the handler passes in: the
+      handlers in `commands/` bind it over the config module's read of the invoking checkout's `arc-config.yml`, and 16.3
+      adds its write there, so `lib/store/` reads no configuration itself (12.2); 14.1 adds the in-repo store the import
+      reads
+    - Build `test-first` (one behavior at a time):
+        - `--to` from a local-only clone refuses `no-state-remote` naming `arc store remote <remote> push`, and for a
+          URL the pointer's change then `arc store remote backing push`
+        - `--json` gives each report as data
+        - the `arc store remote` handler asks on a terminal through an injected prompt and runs a yes, sets nothing on a
+          no, and without a terminal refuses naming `--own-state`
+        - `arc --help` lists no `arc store`; a test reading every file under `src/` finds `runStoreRemote` and
+          `runStoreMigrate` called only by the two handlers, and `createRefStore` and `createReadSourceStore` by nothing
+
+### `[ ]` **13.6 Designation and layout moves** — validate exit criterion at segment scope
+
+- _Goal:_ Every case of § 14.6 not needing a follow, leaving the source, the forwarding record, or a `backing` repoint,
+  and every layout-move case of § 14.7, passes, and so do the conformance suite's sync items in both layouts.
+
+    - Request `arc check segment`
+
+## **Phase 14:** The import's first path
+
+_Purpose:_ The import as the migrate verb's one-time source, proven on live work units and open cohorts: the transform
+module reading through the in-repo implementation, the project ID from the review gate, the landing through the move's
+transaction, its rerun and publication, and the comparison harness every later source reuses.
+
+_Mode:_ `slice` — closes on a fixture repository's live items imported and compared clean against the in-repo
+implementation.
+
+_Exit criterion:_ Over a fixture in today's substrates, `arc store migrate --import` lands every live work unit and open
+cohort, its trial report matching what it does, every record comparing clean, and a rerun after the landing finishing
+without duplicating one.
+
+### `[ ]` **14.1 The transform module and the import's entry point — § 1.2, § 10.8**
+
+- _Goal:_ The import reads today's state through the in-repo implementation from a module the cutover can delete whole,
+  refuses each record its build cannot land until the source is fixed, and lands into whatever layout the clone's
+  designation selects.
+
+    - The transform under `lib/store/ref/import/`, nothing else referencing it, naming surfaces through
+      `IDENTITY_STATUS_FILENAME` and the layout resolver as the `surface-names` rule requires; `--import` and `--trial`
+      through `runStoreMigrate`, whose transform uses the backend's own kind registry port (3.1.a) and whose ports add
+      the in-repo store the transform reads, which only `lib/store/create.ts` may build
+    - The fixture: a repository in today's substrates under `__tests__/helpers/store/`, built once as a prepared template
+      each test copies (§ 14.12), holding live work units and open cohorts here, and each later source's rows as its
+      task adds them
+    - Each live work unit's review records and Candidate path log are read at the revision the in-repo implementation
+      picks for its meta, the `revision` `composedMetaSource` returns over `composedMetas`'s composition
+      (`lib/store/in-repo/meta.ts`), absent for a meta the working tree holds: its review records through the in-repo
+      `list` and `read` with that revision's tree as `asOf`, since the in-repo `asOf` names a saved tree and its review
+      sources otherwise read the working tree (`reviewSources`, `lib/store/in-repo/list.ts`), and its path log through
+      `readRepositoryCandidateSupersessionChain` (`lib/work-unit/candidate-record-store.ts`), which gains a `revision`
+      input its `git log` runs at, `HEAD` by default; the project's own records are read at the importing checkout's
+      HEAD, which `Arc-Code-Head` names
+    - The in-repo `list` reports a record its decode refuses only as a `malformed` diagnostic keyed by its path
+      (`listedRecord`, `lib/store/in-repo/list.ts`), today's five schema-failing Candidate records among them (§ 10.9);
+      for a kind whose row carries records as found, the transform maps that path back to its reference by the pairs
+      `internalReferences` (`lib/store/in-repo/paths.ts`) enumerates at the same revision, reads it through the in-repo
+      `read`, which returns its raw content (`readTracked`), and lands it
+    - Every record built passes the serialization rules (`checkSerializationRules`, 5.1), the key checks (5.2.a), and
+      the parse and stamp step (5.2.b), a refusal listed in the trial's `refused` under its rule
+    - The project ID comes from `resolveRepositoryIdentity` at the landing; a trial reads the review gate's record
+      through a `readRepositoryIdentity(publisher)` this task exports beside it from
+      `scripts/review-gate/hosts/local/git-common-state.ts`, which reads and never mints, listing in `notices` that the
+      landing would mint it where none exists
+    - Wherever the build refuses — a record listed in `refused`, or a condition in `notices` that refuses the import —
+      the import lands nothing and refuses `import-refused`, carrying its `MigrateReport`, while its trial returns that
+      report; every case of Phases 14 and 15 that refuses the import until its source is fixed refuses so, and a store
+      that holds state refuses through the `store` arm, as below (§ 10.1, § 10.5)
+    - Phase 14's fixture holds no Errand, buffer section, held capture, or execute-bound mark, whose kinds the production
+      registry declares no grammar for; 15.3 brings them under a test registry
+    - Build `test-first` (one behavior at a time):
+        - Integration tier, through `runStoreMigrate` over the fixture, as every case of Phases 14 and 15 is
+        - the import lands in the default layout where the code remote carries `push`, and in the separate one otherwise
+        - the store's project ID is the clone's review-gate repository ID, and a trial on a clone whose gate never ran
+          writes nothing under `.git/arc/review-gate/`
+        - a store that holds state refuses the import before its build, `identity-mismatch` naming both projects where
+          it holds another project's ID and `version-conflict` naming what it holds otherwise, each with the remedy to
+          import from a clone whose store holds none; one whose project ID is that repository ID finishes its landing
+          (14.3)
+        - a companion keyed as another kind is listed under `key`, and an entry the stamp cannot place an ID in and
+          entries repeating an `_Id:_` under `entry-id`, each refusing the import until its source is fixed, after which
+          the import lands
+        - a fixture record breaking each serialization rule, one per rule of 5.1's table, is listed in `refused` under
+          that rule's identifier, the import refusing until the record is fixed and then landing
+        - a live work unit whose review records sit only on its unmerged branch imports them from that branch, and its
+          landing commits name the importing checkout's HEAD as `Arc-Code-Head`
+        - a live work unit's Candidate record today's schema rejects, which the in-repo `list` reports only as a
+          diagnostic, lands unchanged
+        - in the separate layout, the import creates the store directory and lands there
+
+### `[ ]` **14.2 Live work units and open cohorts — § 10.9**
+
+- _Goal:_ Each live work unit and open cohort lands under one UID reused across its kinds, every record at its current
+  content on its owner's ref.
+
+    - A live work unit's branch link and task captures land in 15.4, whose exclusions need the captures it derives
+    - Build `test-first` (one behavior at a time):
+        - a live work unit's meta, task list, draft, spec, notes, and companions land on one work ref under one UID
+        - an open cohort's document lands on its cohort ref
+        - the project inbox lands on its project ref, each entry stamped with an `_Id:_`
+        - JSON machine records land in canonical form
+
+### `[ ]` **14.3 Landing, rerunning, and publishing the import — § 10.4, § 10.5, § 10.11**
+
+- _Goal:_ The import lands in one transaction with one `Arc-Batch` across every ref's landing commit, is finished by a
+  rerun after any step, publishes through `push`, and reports in its trial exactly what it then lands.
+
+    - Its steps, each declared at the step port (13.1): build, gathering every ref under `refs/arc/tmp/migrate/import/`
+      in the store's own repository — the code repository in the default layout, and in the separate one the store
+      directory, which the import first creates as 8.2 creates one, empty, so an interruption before the landing
+      leaves a store that holds no state; land, in one `update-ref` transaction in that repository; and publish,
+      through `push`; 15.3.a adds the transient-identity steps
+    - The import writes no move record: a store whose project ID is the clone's review-gate repository ID is its own
+      landing, from which a rerun finishes the steps after it (§ 10.4)
+    - Provenance `migrate` `import`; one `Arc-Batch` for the landing commit on every ref, and one more for each replayed
+      Candidate version (15.1)
+    - A trial and its landing are compared as multisets of each ref entry's name with its UID masked, scope, person, and
+      action, since the landing mints the UIDs the trial cannot name and `MigrateReport` carries no owner
+    - Build `test-first` (one behavior at a time):
+        - the landing writes every ref in one `update-ref` transaction, each ref's landing commit under one batch
+        - the import interrupted after each step and run again completes
+        - its trial report matches what it then lands
+        - a run after the landing finishes the steps that follow it without minting a second UID for any owner
+
+### `[ ]` **14.4 The import's comparison harness — § 14.7**
+
+- _Goal:_ After an import, every record the in-repo implementation lists in the source it imported reads the same
+  through the ref backend — its content and every field both carry, never its version — but for the transforms the
+  import's table names.
+
+    - A differential helper under `__tests__/helpers/store/`, on `lifecycle-differential.ts`'s precedent, over 14.1's
+      fixture, reading the in-repo side from a fresh copy of the prepared template, the source as the import read it, so
+      a source the import deletes, the transient-identity refs among them (15.3.a), still compares
+    - The default comparator reads an entry kind's record less each entry's `_Id:_` stamp, the stamp § 10.9 gives every
+      entry kind, so 14.2's project inbox compares clean; each later source registers a comparator for its own records
+      with the other allowances its table row names, so a transform outside them reports
+    - The harness compares the in-repo listing's diagnostics too, each matched to a record or diagnostic the ref backend
+      lists, so a record the import dropped reports
+    - Build `test-first` (one behavior at a time):
+        - every live work unit's and open cohort's record compares clean
+        - the project inbox compares clean less its stamps, and an entry whose text differs beyond its stamp reports
+        - a record whose transform differs from its source by more than its table row reports the record and field
+        - a record the in-repo listing reports only as a diagnostic, dropped from the landing, reports
+
+### `[ ]` **14.5 The import's first path** — validate exit criterion at segment scope
+
+- _Goal:_ Over the fixture, the import lands every live work unit and open cohort, its trial matching, every record
+  comparing clean, and a rerun after the landing duplicating nothing.
+
+    - Request `arc check segment`
+
+## **Phase 15:** Every source the import carries
+
+_Purpose:_ The rest of the import's source table, each row landed and compared through the first path's harness:
+completed items and closed cohorts, Candidate chains, lineage and renames, the Errand identity refs and the three kinds
+with no in-repo home, branch links with their exclusions and task captures, parked work units, notes snapshots, and
+personal state at D5's layout.
+
+_Mode:_ `replication` — closes when every row of § 10.9 lands and compares clean, and every source the import cannot yet
+carry refuses it.
+
+_Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, and Candidate items passes over the fixture.
+
+### `[ ]` **15.1 Completed work units, closed cohorts, and Candidate chains — § 10.9, § 10.11**
+
+- _Goal:_ Completed items land as an archive or close leaves them, under today's numbers, and each Candidate record's
+  chain resolves through `history` exactly as today's reader resolves it over code history.
+
+    - Candidate versions read from the plain path log `readRepositoryCandidateSupersessionChain` walks
+      (`lib/work-unit/candidate-record-store.ts`), at the revision 14.1 names, never the in-repo `history`, which follows
+      renames
+    - No quarter repeats a work-unit number today, so the fixture builds its own two folders sharing a number, beside a
+      gap as `2026-q3`'s at `54`
+    - Build `test-first` (one behavior at a time):
+        - a completed work unit lands its history ref — its Candidate chain replayed oldest first, then a commit of its
+          current files — and its quarter folder under the number it holds today, two folders sharing a number and a gap
+          surviving, and the next archive numbering after the quarter's highest
+        - a closed cohort lands under today's `<NN><a|b>` folder name
+        - each replayed version takes its own batch, and each ended item's record and history ref name one batch, so an
+          imported store's ended items read as none pending (§ 14.5)
+        - a chain with a version a merge commit introduced resolves through the store's `history` as through
+          `resolveCandidateSupersessionAncestors`, and a broken chain and a record today's schema rejects refuse on both
+          sides, the trial listing broken chains in `brokenChains`
+        - a live work unit whose Candidate records sit only on its unmerged branch replays its chain from that branch
+        - every completed work unit's and closed cohort's record compares clean through 14.4's harness with no allowance
+          of its own, a completed work unit's placement naming the quarter and number its folder holds today
+
+### `[ ]` **15.2 Lineage, renames, and abandoned origins — § 10.9, § 10.11**
+
+- _Goal:_ Terminal transitions land as lineage under minted origin UIDs with every reference resolved to its owner's UID,
+  and renames as former slugs, so `lookup` and `history` answer as an archive or abandon would have left them.
+
+    - The build writes each origin's slug under its UID in the registry's lineage map, as 5.3's write path does, since
+      the import lands through the move's transaction rather than `write`
+    - Build `test-first` (one behavior at a time):
+        - each `abandon` and `decompose` transition lands at `lineage/<uid>.json` keyed by a minted origin UID, its
+          successors, dependents, replacements, prerequisites, and members carrying their owners' UIDs where held
+        - each such origin gets a history ref of one empty-tree commit, and `history` of its records refuses `not-found`
+        - each `rename` transition becomes a former slug in its successor's metadata, in its quarter folder, where
+          `lookup` reads it, and never lineage
+        - after the import, a completed work unit reopens and takes a write, and a write to a closed cohort's document
+          lands on its history ref
+        - `lookup` of an imported decomposed origin by its slug resolves through its lineage
+        - a second clone that pulls the published import reads no end pending for its completed items or its
+          lineage-ended origins, at that pull and every later one (§ 14.5)
+        - its records compare clean through 14.4's harness, its comparator allowing only § 10.9's two transition rows:
+          each `abandon` and `decompose` transition read against its lineage record, its work-item references carrying
+          their owners' UIDs, and each `rename` transition against the former slug its successor's metadata holds
+
+### `[ ]` **15.3 Errand identity refs, descriptions, inbound lists, and queues — § 10.9, § 10.11, § 3.8**
+
+- _Goal:_ Every Errand and claim the configured person's identity ref holds, and every held capture, buffer section, and
+  execute-bound mark, lands in its new home and leaves its source, so nothing integrates, routes, or starts twice after
+  the flip.
+
+    - The configured person's `refs/arc/user/<id>/errands` alone, as the in-repo implementation reads it (`transientIO`,
+      `lib/store/in-repo/transient-common.ts`); any other person's is left in place and listed in `notices`
+    - Descriptions, inbound lists, and queues rendered in the first section of the grammar the kind registry declares for
+      each kind (`EntryConfig`, `lib/store/registry.ts`), passed through `runStoreMigrate`'s registry port (14.1); the
+      tests pass § 14.1's test grammars, since the production registry declares none for the three kinds yet, and an
+      entry the grammar's stamp cannot place an ID in is listed under `entry-id`
+
+    - `[ ]` **15.3.a Errands and claims re-homed**
+        - The transient-identity steps, each declared at the step port (13.1): the build keeps each tip it re-homes at
+          `refs/arc/tmp/migrate/import/kept/` in the code repository, where those refs and `origin` live, a prefix the
+          landing leaves; the local transient-identity refs are deleted, each expecting its kept tip, by the landing's
+          transaction in the default layout, and in the separate one, whose landing is the store directory's own
+          transaction, by a step of their own after it, which a rerun finishes as it finishes every step after the
+          landing (14.3); after the publish, `origin`'s are deleted, where the Errand verbs publish them, leased on the
+          kept tips; then the kept tips drop (§ 10.11)
+        - On a clone with no state remote, which is always in the separate layout (§ 9.7), nothing publishes, so the
+          kept tips drop in the local delete's own transaction, and transient-identity refs `origin` still holds are
+          listed in `notices` with the remedy to delete them (§ 10.11)
+        - Build `test-first` (one behavior at a time):
+            - every Errand record the identity ref holds, open, paused, or awaiting merge, lands at `refs/arc/work/<uid>`
+              as `errand-<uid>.json`, and each grooming and housekeeping claim on the person's claims ref
+            - each Errand's origin entry, found by title, moves into its description before any `_Id:_` stamp, leaving
+              its inbox; a source digest changed since adoption is listed in `notices`, and an Errand whose entry is gone
+              takes its description from `intent`
+            - the transient-identity refs leave by these steps, and a rerun after the first push clears `origin`'s and
+              drops the kept tips
+            - in the separate layout, an import interrupted after its landing and before the local delete leaves the
+              transient-identity refs in place, and a rerun deletes them and finishes
+            - an import on a clone with no state remote drops the kept tips in its local delete's transaction, listing
+              `origin`'s transient-identity refs in `notices`, and one interrupted between its landing and that delete
+              finishes on a rerun, each delete leased on its kept tip
+            - its records compare clean through 14.4's harness, its comparator allowing only the re-homing: each Errand
+              record read at its work ref and each claim on the person's claims ref, each origin entry read in its
+              Errand's description, and its inbox read without it
+
+    - `[ ]` **15.3.b Queues and inbound lists**
+        - Build `test-first` (one behavior at a time):
+            - each person's execute-bound marks become their Errand queue in file order, each `_Disposition:_` line
+              leaving its entry
+            - each buffer section and held owner-adoption capture becomes its work unit's inbound list, a section's entry
+              taking the first date of its `_Routed from:_` field, the drain's, as `_Created:_` and a capture keeping its
+              own, each leaving its source
+            - a mark `listExecuteBoundInboxEntries` (`lib/user-sync/inbox-writer.ts`) reports as a diagnostic, a held
+              capture whose `WU_Target` names no work unit, and a `_Routed from:_` field with no date are each listed in
+              `notices` with its repair, the import refusing until it is fixed, then landing
+            - no routing receipt is written for what moved
+            - each queue and inbound list compares clean with the marks, buffer sections, and held captures it came from,
+              its comparator allowing only the `_Disposition:_` lines and `_Created:_` dates the import moves, and each
+              source compares clean without what moved from it
+
+    - `[ ]` **15.3.c Entry stamps and tombstones**
+        - Build `test-first` (one behavior at a time):
+            - every entry of every entry kind lacking an `_Id:_` is stamped, both inboxes, working memory, and the three
+              kinds among them
+            - the notes merge's `## Removed:` tombstones are dropped from `USER-INBOX.md` and `WORKING-MEMORY.md`
+            - every entry compares clean through 14.4's harness, its comparator adding only the two shared files'
+              dropped tombstones
+
+### `[ ]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
+
+- _Goal:_ Every commit whose footer names a closed task, and every live item's branch, resolves through the store's
+  `lookup` to the same work unit as through the in-repo implementation's, each branch link recording whether ARC created
+  the branch and which of its commits are no task's work, and a branch the import cannot place refusing it.
+
+    - Each live work unit's and open Errand's branch, named by its meta's `branch` field (`META_FIELDS`,
+      `lib/store/kinds/meta/projection.ts`) or its Errand record's `branch`, links as `BranchLinkSchema`
+      (`lib/store/links.ts`) holds it, its repository the project ID; none where the field is empty or names
+      `branch.base`
+    - `linkedAs` by name: `created` for ARC's forms for the item — `plan/<slug>`, `<type>/<slug>`, and an Errand's
+      `<errand-type>/<slug>` over `ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) — and `adopted` for any other
+    - The tip the link reads: of the branch's local tip and the tip its remote-tracking ref holds, the one that contains
+      the other, or the remote's where only the remote holds it; a branch neither holds is listed in `refused` as
+      `branch-missing`, and diverged tips as `branch-diverged`, each with § 10.5's remedies, both listed first, refusing
+      the import until fixed
+    - A work unit's `excluded` is `computeDefaultCaptureSet`'s set (`lib/git/default-capture-set.ts`) over that tip —
+      `tips` that tip, `captures` the work unit's derived captures, and `refresh: false`, so a trial and its landing
+      read one base — each commit a capture with its copy key; its `refused` result, where no base ref resolves, listed
+      in `notices` with its reason and remedy, refusing the import (§ 10.5); an Errand's link excludes nothing
+    - Captures from every commit reachable from the base branch or a live work unit's branch, once each, whose footer
+      names the work unit: each range expanded with `expandTaskReference` (`lib/commit-check/task-reference.ts`), its IDs
+      kept as written and only those whose task is closed captured, so a footer naming a closed task and an open one
+      captures the closed alone; each capture the project ID as its repository, and its SHA with the copy key
+      `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, a merge commit, or one whose patch the clone cannot produce,
+      carrying none
+    - The in-repo `lookup` by ref finds a branch only where it exists locally, reads an Errand's records only for a
+      `chore/` branch (`isTransientLookup`, `lib/store/in-repo/transient-lookup.ts`), and takes any other branch's slug
+      from its name (`branchToWorkUnitSlug`), so the comparator's allowance names three links a transform difference: one
+      whose branch is absent locally, one whose branch is not named `<prefix>/<slug>`, and an Errand's on a `fix/`,
+      `refactor/`, or `hotfix/` branch, which the in-repo `lookup` reads as a work unit's slug
+    - Build `test-first` (one behavior at a time):
+        - its links compare clean through 14.4's harness under the allowance above: every captured commit resolves
+          through the store's `lookup` by commit to the same work unit, and to the closed subset of the tasks the in-repo
+          `lookupCommit` returns, each capture's copy key the one `computeCopyKeys` gives
+        - each live work unit's branch, and each Errand's `chore/` branch, that exists locally under `<prefix>/<slug>`
+          resolves through both implementations' `lookup` by ref to the same item, each passed its own repository, and a
+          meta with no branch, or one naming the base branch, gets no link
+        - each Errand 15.3.a re-homes links its record's `branch`, and one on a `fix/<slug>` branch resolves through the
+          store's `lookup` by ref to the Errand, the comparator reporting the in-repo answer under its allowance
+        - a `plan/<slug>`, a `feat/<slug>`, and an Errand's `fix/<slug>` branch link `created`, and a branch named
+          otherwise `adopted`
+        - a work unit's link excludes the branch's non-merge commits not on base less those its footers capture, over the
+          local tip, the remote's where only the remote holds the branch, and the containing tip where they differ; an
+          Errand's link excludes none
+        - a branch neither side holds is listed under `branch-missing`, and one whose tips diverged under
+          `branch-diverged`, first in `refused`, each naming its remedies and refusing the import until fixed, after which
+          the import lands
+        - a base branch no ref resolves, locally or on the remote, lists `computeDefaultCaptureSet`'s reason and remedy
+          in `notices` and refuses the import, which lands once the base ref resolves
+
+### `[ ]` **15.5 Parked work units — § 10.9**
+
+- _Goal:_ A work unit parked from `Active` lands paused and in flight, its records as the branch it was parked on holds
+  them, so nothing about a parked work unit is lost at the flip.
+
+    - Its records read from the tip 15.4 reads of the branch its pointer record names (`composePointerRecord`,
+      `lib/work-unit/pointer-record.ts`), refusing `branch-missing` and `branch-diverged` as 15.4 does; its meta's pause
+      section built through `MetaPauseSchema` (`lib/active/meta-schema.ts`) from the pointer's `Reason:` line as its
+      reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as
+      since when, an ISO-8601 UTC string as `arc pause` writes it (`toISOString()`,
+      `lib/work-unit/verbs/pause-handover.ts`), with no waits-on
+    - A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — is listed in `refused` as
+      `pause`, naming the field, with the remedy to write the reason or correct the `Owner`
+    - Build `test-first` (one behavior at a time):
+        - a work unit parked from `Active` imports in flight at `Active`, its records as its branch's head holds them
+          and its pause carrying the pointer's reason, the meta's owner, and the parking commit's committer time in
+          ISO-8601 UTC
+        - a pointer whose `Reason:` line is empty, and a meta whose `Owner` is not a slug, are each listed in `refused`
+          as `pause` naming the field, since the import invents neither, refusing the import until it is fixed, then
+          landing
+        - a work unit parked from Planning imports as a stub
+        - a parked work unit whose branch only the remote holds imports its records from the remote's tip, and one whose
+          tips diverged is listed under `branch-diverged`, refusing the import until fixed
+        - its records compare clean through 14.4's harness, its comparator allowing only § 10.9's parked row: its
+          placement in flight at `Active`, its meta's pause section, and its records read at its branch's tip
+
+### `[ ]` **15.6 Each person's notes snapshot — § 10.10**
+
+- _Goal:_ The import refuses until each person's notes snapshot and every disk copy agree, carrying from disk only what
+  notes save never writes, so no personal state is lost or resurrected by the import.
+
+    - The snapshot read directly: each identity-global file merged across the recent-note window that
+      `readRecentUserNotes` lists, by `mergeCrossWuFromNotes` (`commands/user/save-load.ts`), exported for the transform
+      so the merge is a load's own; each live work unit's workspace from the newest note holding it, new code, by the
+      notes ref's history and inside a compaction snapshot by the committer date of the commit each note annotates;
+      compared as `projectManifest` compares, the two shared files without tombstones
+    - Build `test-first` (one behavior at a time):
+        - a file differing from its disk copy, by an entry removed on disk and by one only an older note holds, is listed
+          `differs`, and agrees once saved and then loaded
+        - a file the snapshot holds and no disk copy does is listed `snapshot-only` apart, and agrees once a load restores
+          it
+        - a tombstone the snapshot carries and the disk lacks is no difference
+        - a file over 256 KiB, one off notes sync's allowlist, one under `scratch/`, and one in an ended work unit's
+          workspace are listed `disk-only` and carried from disk, while an `.env` file is listed in `refused` and refuses
+          the import until removed
+        - with two live work units saved from their own checkouts, the second last, a trial from either checkout or a
+          third compares each workspace with the newest note holding it, a file changed on disk in the first agrees once
+          saved and loaded from the first's checkout, and a third live work unit's workspace no note holds is `disk-only`
+        - the import refuses until every disagreement is cleared, then lands
+
+### `[ ]` **15.7 Personal state at D5's layout — § 10.12**
+
+- _Goal:_ Each person's files land at D5's layout, so from the flip no subdirectory of `.arc/user/<id>/` is a workspace
+  and the identity root holds only ARC's surfaces and `scratch/`.
+
+    - The fold takes the prose sections alone: the H1, the blockquote, comments, and the emptied `## Handoff Metadata`
+      heading are dropped; `Next Task` and `Last Completed` drop on the metas that fold, and `Blockers` stays a field
+      beside the prose it joins
+    - A workspace named for a work unit, live or ended, maps to `scratch/work-unit/<slug>/`, any other root folder to
+      `scratch/<folder>/`, and an existing `scratch/` keeps its paths
+    - Build `test-first` (one behavior at a time):
+        - a live work unit's `SESSION-NOTES.md`, where its meta's `Owner` names the person, folds into the meta's
+          `## Session Context` through `writeMetaSessionContext`, headings demoted, `Commit at Handoff` and a recognized
+          `Session Type` becoming fields, `Blockers` other than `[none]` joining the prose, and `Working On`,
+          `Next Task`, and `Last Completed` dropped, with no `State at Handoff`
+        - a body with an interior standalone `---`, which the section writer refuses, is listed in `refused` as
+          `session-context`, refusing the import until fixed, then landing
+        - every other workspace file but `.internal/`, `ADVERSARIAL-PASSES.md` and an unfolded `SESSION-NOTES.md` among
+          them, lands at `scratch/work-unit/<slug>/`, and other root files outside ARC's surfaces at `scratch/`
+        - the identity root's `STATUS.USER.md` and every `.internal/` folder land nowhere, and no session-context record
+          is written
+        - each person's imported personal ref compares clean with their notes snapshot, less what § 10.8 keeps out, its
+          comparator allowing only § 10.12's moves: each moved file at its `scratch/` path, and each folded
+          `SESSION-NOTES.md` read against its meta's session context by the fold's rules
+
+### `[ ]` **15.8 What the import leaves out, and refuses until it lands — § 10.8, § 10.9**
+
+- _Goal:_ The import carries no project machinery, constitution, machine-local state, or counters, and refuses, changing
+  nothing, wherever a source needs a schema or mapping that has not landed.
+
+    - Build `test-first` (one behavior at a time):
+        - project machinery, the constitution, the shipped machinery under `.arc/system/.internal/`, the checkout marker,
+          pristine store, editor schemas, and the registry's counters land nowhere, while tracked Candidate, boundary, and
+          transition records do
+        - a backend built with a registry that declares no grammar for one entry kind, over a fixture holding entries of
+          it, lists the kind in the trial's `notices`, and the import refuses, changing nothing
+        - the review gate's evidence and outcomes added to the fixture are listed in `notices`, and the import refuses,
+          changing nothing
+
+### `[ ]` **15.9 Every source the import carries** — validate exit criterion at segment scope
+
+- _Goal:_ Every import, notes-snapshot, post-import, and Candidate case of § 14.7 passes over the fixture.
+
+    - Request `arc check segment`
+
+## **Phase 16:** Remote moves
+
+_Purpose:_ Moving a project's state between remotes: the copy over the old remote's whole state, the forwarding record
+with the registry as each remote's move version, forward-then-switch, the delete rounds with their licensed re-copies,
+moves that cross, end, or change the layout, and a move that stops publication without unpublishing.
+
+_Mode:_ `slice` through Phase 17 — closes on state moved between remotes, every clone following it, and no write lost.
+
+### `[ ]` **16.1 The forwarding record — § 10.6, § 3.1, § 9.8**
+
+- _Goal:_ A remote the state left carries one control ref naming the project and the registry commit the move landed,
+  so no teammate's push restores state there and every pull knows the state moved.
+
+    - `refs/arc/project/moved`, a root commit holding only `moved.json`, canonical JSON (§ 3.5) of exactly
+      `{ "projectId": <id>, "registryCommit": <oid> }`, a schema in `lib/store/ref/`, never a URL; fetched with the
+      project namespace into the tracking refs, never listed, manifested, or merged
+    - A `moved.json` that does not parse stops pushes to its remote as a record does, and each read of its content — the
+      `push` check here, a move's steps 1 and 2 (16.2), and a follow (17.1) — refuses `move-record-malformed`, naming
+      the ref, with the remedy to repair or delete it
+    - The forwarding-record arm of the `push` check (12.3), and a carried code ref under `moved` (11.4)
+    - Build `test-first` (one behavior at a time):
+        - a pull from a remote carrying it reports `moved` with the remedy to bring in the pointer's change and run
+          `arc store migrate`, and nothing pushes there
+        - a `!` line for its tracking ref sets the tracking ref to the fetched record, never a refused ref or a notice,
+          and a prune of it keeps no tip under `refs/arc/tmp/seen/`
+        - a remote whose fetch fails while the record's tracking ref stands reports `unreachable`, its remedy naming
+          `arc store migrate`
+        - the `push` check reads the project ID from a record standing alone, and a record naming this project refuses
+          the designation `moved`, naming `arc store migrate` and `arc store migrate --to <remote>`, while the rule that
+          sets `push` without asking reports that remote's `failed` outcome terminal `refused`, with the remedies
+          `arc store remote <remote> off` and `arc store migrate`, the clone staying undesignated
+        - a push carrying a code ref under `moved` pushes the ref alone, as an ordered leg and over one atomic receiver,
+          `publishes` empty
+        - a malformed `moved.json` stops pushes there, and the `push` check refuses `move-record-malformed` naming the
+          ref, then passes once it is repaired
+
+### `[ ]` **16.2 The copy — § 10.2, § 10.3, § 10.4**
+
+- _Goal:_ A remote move copies the old remote's whole state, every person's identity refs and every history ref among
+  it, onto the new remote in one atomic push that merges where this project's state already sits there.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+    - Steps 1 and 2, the record and the copy push each a step of its own, all declared at the step port (13.1) as they
+      land here: the fetches under `refs/arc/tmp/migrate/remote/`, keyed by remote and cleared before each — the old
+      remote's by every store ref it holds (§ 3.1), every person's identity refs and every history ref among them, and
+      its forwarding record, and the new remote's registry and forwarding record by one-ref patterns — with § 6.2's
+      flags and its partial-clone check; the project check; the copy with its one registry commit, `migrate`
+      `move-remote`; the record, written before the copy push; the copy push leased on the new remote's registry tip,
+      deleting a forwarding record step 1 found there only where the old remote's registry history holds its commit; the
+      copied tips and kept heads under `refs/arc/tmp/migrate/copied/`, with any forwarding record the copy deleted, kept
+      at `refs/arc/tmp/migrate/deleted-record` past the record's end (17.4)
+    - `move.json`'s remote arm: the move's kind, each remote by its name and its URLs — `backing`'s as the store directory
+      holds it, or for a remote of the code repository the fetch and push URLs `git remote get-url` and
+      `git remote get-url --push` resolve at the move's start — and the registry commit step 2 lands
+    - Every step that reaches the old remote once the record is written — step 3's forwarding record and the read before
+      the switch, step 4's listings, re-fetches, and deletes, and a follow's deletes — goes by the record's URLs, the
+      fetch URL for reads and the push URL for pushes, never by a remote name a switch may have repointed
+    - Build `test-first` (one behavior at a time):
+        - a move with a second person's identity refs and a history ref the mover never pulled on the old remote copies
+          both to the new one
+        - a new remote holding another project's identity record or forwarding record refuses `identity-mismatch` before
+          any push, its trial alike, and stays unchanged
+        - a copy onto a new remote holding this project's state merges there through 13.1's copy, the new remote's refs
+          the local side and the old remote's the incoming, reporting a broken rule in `notices`
+        - a malformed `moved.json` on the old remote refuses the move `move-record-malformed` at step 1, and on the new
+          remote at step 2, each naming the ref, and the move passes once it is repaired
+        - `--to` from a clone whose state remote carries a forwarding record from a move it has not recorded refuses
+          `moved` before any copy, naming `arc store migrate`, the follow, and then `--to` from the remote it follows
+          to, and pushes nothing
+        - a copy losing a lease runs the move again from step 1, its record naming the commit that lands
+        - a first run whose copy push a receiver without atomic pushes or a hook refuses ends in the `store` arm's
+          terminal `refused`, leaving no record and changing nothing, while a run interrupted at the step port before
+          its copy push, its record written, and rerun against such a receiver keeps its record
+        - `--to` a remote carrying a forwarding record from outside this state's line of moves refuses `moved`, pushing
+          nothing, naming `--to` the remote the state moved to
+        - a remote move's trial report matches what the move then does
+
+### `[ ]` **16.3 Forward, then switch — § 10.2, § 10.3**
+
+- _Goal:_ The old remote carries the forwarding record before this clone switches, so of two moves off one remote only
+  one switches, and the switch carries exactly the heads the copy holds.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+    - Step 3 and the switch, each declared at the step port (13.1): the forwarding record and a registry commit,
+      `migrate` `forward`, in one `--atomic` push, the record leased on absence and the commit on step 1's registry tip;
+      the switch licensed by a read showing that record; the kept heads carried into `refs/arc-remotes/<new>/` and
+      `refs/arc/tmp/seen/<new>/`; the new remote's `push` before the old one's `off`, `backing` taking the new URL or
+      removed
+    - Where the destination calls for the other layout (§ 9.7), the switch is the layout move run as this move's switch
+      (13.1), under this move's lock and writing no record of its own
+    - The pointer's change left in `arc-config.yml` uncommitted, through a write the pointer port (12.2) gains here,
+      which the handlers in `commands/` bind over the config module beside its read (13.5): the key's line replaced as
+      `renderConfigOverrides` (`lib/template/render.ts`) replaces one, appended where the file has none, and a removed
+      pointer written empty, the key's default (12.1)
+    - Build `test-first` (one behavior at a time):
+        - in every direction — the code remote to a backing repository and back, between two backing repositories, and
+          to and from a fork's upstream — the clone ends with the new remote carrying `push`, the old `off`, and `backing`
+          set or removed, syncing with the new remote and reporting `move-unfinished` while its record stands
+        - the new remote's registry holds the move's own commit, its tree unchanged, which the forwarding record names,
+          and a rerun's merge descends from it
+        - a run interrupted at the step port after step 3 and rerun finds its own forwarding record and pushes no second
+          one
+        - two remote moves started at once from two worktrees: the second refuses `lock-held`, and the first finishes,
+          its switch carrying the heads its own step 1 kept
+        - a move from a code-repository remote with a `pushurl` reaches it after the switch at that push URL
+        - a sync in a second worktree of the moving clone, pulled before the switch, pushes nothing to the old remote
+          after it and repeats against the new one
+        - the pointer's change is written into a checkout's `arc-config.yml` that lacks the key, and a move off a backing
+          repository to the code remote writes it empty
+        - the report says teammates follow once the pointer's change reaches them as code
+
+### `[ ]` **16.4 The delete rounds — § 10.2, § 10.3**
+
+- _Goal:_ The old remote ends holding only the forwarding record, and no ref leaves it at a tip the new remote does not
+  hold.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+    - Step 4: each round reads the new remote, which must hold the move's registry commit, then fetches both remotes'
+      store refs, re-copies whatever changed since the copy or the new remote lacks through 13.1's copy, the registry
+      always in the first round, then deletes every fetched store ref in one `--atomic` push leased on its kept tip; each
+      round declared at the step port (13.1)
+    - Build `test-first` (one behavior at a time):
+        - a teammate's write, new item, and end landing on the old remote after the copy reach the new remote, and the old
+          one ends holding only the forwarding record
+        - once its last listing finds only the forwarding record the move's record goes, and in every direction of 16.3
+          the clone's next `pull` and `push` report no state
+        - the commit step 3 left on the old remote's registry is copied to the new remote before that ref's delete
+        - a move between two backing repositories leaves the forwarding record on the old repository's URL and deletes
+          only there, the new repository keeping every ref
+        - each step of a remote move, 16.2's and 16.3's among them, interrupted at the step port and rerun completes, the
+          rerun merging onto the copy it landed
+        - a move onto a new remote holding this project's state deletes the old remote's refs in one round where no push
+          lands meanwhile
+        - a lost lease, the round's read still showing this move's record, copies the late push in the next round
+        - a move interrupted after step 3 and before its switch, a teammate's push landing on the old remote after the
+          copy, reruns, its first delete round copying that push before deleting it and its switch carrying the heads
+          kept with the copy
+        - a delete round after an item's reopen on the new remote copies no history ref back for it
+        - a delete or listing that fails keeps the record, `move-unfinished` naming the cause, and a no-target rerun
+          retries it
+        - a new remote emptied after the switch writes nothing on either remote and keeps the record, `move-unfinished`
+          naming the cause
+        - a mover that ended an item on the old remote after step 1 and syncs from the new remote before step 4 keeps the
+          item ended
+        - step 4's re-copy against a new remote whose ref another clone's push moved after the copy merges onto it,
+          reporting a broken rule in `notices`
+        - step 4's re-copy where the mover abandoned an item after its switch while a teammate's write to it landed on the
+          old remote merges the write into the history ref; where a teammate's archive landed, the archive holds, the
+          mover's abandon withdrawn and reported in `notices`; and where a teammate's abandon landed, the source's lineage
+          holds and the mover's withdrawn abandon leaves neither its lineage nor a conflict record over it
+
+### `[ ]` **16.5 Moves that cross, end, or change the layout — § 10.3, § 10.7**
+
+- _Goal:_ Of moves that cross on one remote, the registry's leases let exactly one land; a move another has overtaken ends
+  without stranding a clone; and a move that changes the layout runs it as its switch.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+- _Note:_ Each case here asserts the remotes and the moving clones' records; the clones that then follow are 17.2.b's.
+
+    - `[ ]` **16.5.a Crossing moves**
+        - Build `test-first` (one behavior at a time):
+            - two clones moving off one remote at once to two other remotes end on one, the second's move ending before
+              its switch and reporting the copy it leaves
+            - two clones moving between two remotes in opposite directions at once end on one, the push coming second
+              losing its lease and its move ending before its switch
+            - two crossing moves whose copies each carry the other's commit back both go on, one forwarding record landing
+            - a copy losing its lease to a later move's forwarding record at its destination runs again from step 1 and
+              ends there, that record staying
+
+    - `[ ]` **16.5.b Moves back and moves ended**
+        - Build `test-first` (one behavior at a time):
+            - a rerun of a remote move whose forwarding record had landed, after another clone moved the state back onto
+              the old remote, pushes no record there and ends, the old remote staying the state's home and the follow
+              coming due
+            - a rerun before its switch meeting the move back's forwarding record on its new remote ends at step 1, copying
+              nothing
+            - a rerun before its switch finding another move's forwarding record on its old remote ends, its record
+              going, where a first run refuses `moved`
+            - a rerun of step 4 after another clone moved the state back deletes nothing there and ends, the follow coming
+              due
+            - a lost lease whose re-copy meets a new remote a later move has left ends the move, reporting the refs it
+              leaves
+            - a move back interrupted between its record and its switch finishes on a rerun, the old remote holding the
+              state
+            - a move back ended before its switch by another move off its old remote leaves that move's record where its
+              copy deleted an earlier one
+            - a move back interrupted after its copy, whose destination another clone then moved on, reruns, deletes
+              nothing there, and leaves that move's record on its old remote
+
+    - `[ ]` **16.5.c A move that changes the layout, and what a move reports**
+        - Build `test-first` (one behavior at a time):
+            - a remote move between the code remote and a backing repository, interrupted inside either half of the
+              layout move it runs as its switch (16.3), restarts that half from its own temporary refs, its trial report
+              matching what it then does
+            - interrupted after its switch, a move between two backing repositories and one back to the code remote each
+              finish on a no-target rerun, syncing meanwhile and reporting `move-unfinished`, and `--to` another remote
+              refuses `move-unfinished` while the record stands
+            - a move refused `identity-mismatch` for another project, and one to a mistyped or unreachable remote,
+              refused `unreachable`, each through the `store` arm, leave no record, and `--to` the right remote then
+              succeeds
+            - a move's trial and report say it stops later publication and never unpublishes, that teammates follow once
+              the pointer's change reaches them, and that a push composed before a switch may land after the last listing
+
+## **Phase 17:** Following a move and leaving the source
+
+_Purpose:_ How every other clone reaches the state's new home: the follow's candidates, judged against the record the
+old remote holds, its copy, switch, and deletes; leaving a source that can no longer be read; `--leave-source` ending a
+recorded move; and `arc store remote` during a follow and when repointing `backing`.
+
+_Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
+
+### `[ ]` **17.1 The follow's candidates — § 10.6, § 9.6**
+
+- _Goal:_ A follower takes as the state's home only a remote that holds the commit the move landed, so a checkout behind
+  a move never publishes state onto a fork that copied the registry before it.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+    - The follow is due while a remote this clone fetches carries the forwarding record's tracking ref; it fetches the old
+      remote's record into `refs/arc/tmp/follow/source/` first, and each candidate's registry and record into
+      `refs/arc/tmp/follow/candidate/<remote>/` or `refs/arc/tmp/follow/pointer/`; candidates come from the invoking
+      checkout's pointer, never from the clone's designation: the backing repository the pointer names, or, where it names
+      none, each remote of the code repository holding the project's registry ref, read by presence as 12.2.b's presence
+      read reads it (§ 9.2), whatever the clone's `backing` and its remotes' keys say
+    - Each read by 9.1's one-ref patterns, § 6.2's flags, and its partial-clone check, since an exact refspec for a ref
+      a candidate lacks fails the whole fetch
+    - A candidate holds the move's commit where `git cat-file -e` under `objectAccess: "local-only"` finds it and
+      `git merge-base --is-ancestor` then exits 0: a commit `cat-file -e` finds absent, one the fetch did not bring, and
+      an exit 1 read as not held, and any other exit of either is a failed read, never not held
+    - The follow-due arm of `runStoreRemote` (13.4), built first: while a follow is due, a setting naming a remote the
+      follow names runs the follow with that remote and answer (17.2.a), the old remote's `off` is always allowed and
+      ends the follow's being due, and any other setting refuses `role-conflict` naming `arc store migrate`
+    - Until 17.2.a builds the steps an answer runs, a setting naming a remote the follow names refuses `unsupported`
+        - _Retired in:_ Phase 17
+    - The follow's judgment ends in a refusal or in the question due (13.1) naming the candidate it takes, which the
+      cases here read; 17.2.a builds the steps an answer runs
+    - Build `test-first` (one behavior at a time):
+        - until the follow, `pull` and `push` report `moved`, or a read source fails terminal `refused` naming the move,
+          whether or not the checkout holds the pointer's change, and `arc store remote` refuses `role-conflict` every
+          setting but the follow's and the old remote's `off`, naming `arc store migrate`, the old remote's `off` ending
+          the follow's being due
+        - a follow from a checkout without the pointer's change refuses `follow-refused` naming the remedy to bring it
+          in, changing nothing, for the fork-upstream and `read` followers of a move to a backing repository too, and
+          over a fork that copied the upstream's registry before the move
+        - a candidate carrying a forwarding record, holding another project's state, or lacking the move's commit is
+          refused, and several accepted refuse `follow-refused` naming each
+        - following a move back to the upstream, a fork that copied the upstream's registry before the state left it is
+          refused for lacking the move's commit and the follow takes the upstream, and where the fork is the follower's
+          only remote the follow refuses `follow-refused`, naming the remedy to add the upstream
+        - a follower that missed two consecutive moves of different kinds follows from a checkout holding the second's
+          pointer straight to its destination, and refuses `follow-refused` from a checkout between them
+        - a follower whose tracking ref names a record a later move replaced judges candidates by the record its own fetch
+          finds, passing over a fork that copied the registry between the moves
+        - a follower offline across a move back and a second move away sets its tracking ref to the newer record,
+          reporting no `history-diverged`, as does one pulling between them, and two candidates whose registries are
+          ancestor-related read the same in either fetch order
+        - a follow whose presence read, or read of a candidate's record, project ID, or registry, fails refuses through
+          the `store` arm, changes nothing, and names that remote `unreachable`, as does a `cat-file -e` or `merge-base`
+          exit outside 0 and 1
+        - a malformed `moved.json` in the old remote's record refuses the follow `move-record-malformed` naming the ref,
+          changing nothing, and the follow runs once it is repaired
+        - a `read` follower whose store holds its own project ID follows to the candidate naming the record's project ID
+        - where the upstream's state moved to a backing repository and the contributor's own state stays in the code
+          repository's refs, the follow refuses `follow-refused` naming the third route of § 9.6, which then reads the
+          upstream from the added remote
+
+### `[ ]` **17.2 The follow's copy, switch, and deletes — § 10.3, § 10.6**
+
+- _Goal:_ A follow asks about its destination, copies what raced the move before switching, and clears it from the old
+  remote after, deleting only where its own listing found the record it judged by, so every clone of each move ends on
+  one remote holding every write.
+
+    - `move.json`'s follow arm: each remote by its name and URLs, the follow's answer, and the record it followed; its
+      deletes go by the record's URLs (16.2)
+    - The `arc store migrate` handler asks the follow's question through a select prompt site declared through
+      `declarePromptSite` and asked through `prompt`, as 13.5's `--own-state` confirmation is, its no-input policy
+      reporting `designation-needed`; the answer runs through `runStoreRemote`'s follow-due arm (17.1)
+    - Its copies, before the switch and clearing after it, run 13.1's copy, the destination's refs the local side and the
+      old remote's the incoming
+
+    - `[ ]` **17.2.a The follow's steps**
+        - Build `test-first` (one behavior at a time):
+            - the follow asks on a TTY, never carrying the old role, and without one reports `designation-needed` whose
+              answering command completes it, the recommended answer carrying the old remote's role
+            - the `arc store migrate` handler asks on a terminal through an injected prompt and runs the answer, and
+              without one reports `designation-needed`, changing nothing
+            - while a follow is due, a setting naming a remote the follow names runs the follow with that remote and
+              answer, and with several candidates accepted, `arc store remote <remote> push` naming one completes the
+              follow onto it
+            - on `push` the follower ends in the layout the move calls for, the old remote `off`, `backing` repointed or
+              removed, and on `read` or `off` with the old source `off`; each switch drops the forwarding record's tracking
+              ref; a follower holding `backing` follows a move back to the code remote
+            - interrupted after each step, rerunning its answering command completes it, and one interrupted between the
+              directory's rename and the designation's change finishes on a no-target rerun in its record's direction
+            - a no-target rerun holding a move's record while a follow is due finishes the move first
+            - a teammate's push landing after the mover's last listing stays on the old remote until that teammate
+              follows, and leaves with the follow
+            - a sync in a follower's second worktree, pulled before its switch, pushes nothing to the old remote after it
+              and repeats against the new one
+            - a `push` follow's listing that finds no forwarding record changes nothing and drops the stale tracking
+              ref, and one finding another record refuses `moved`, changing nothing
+            - a follow interrupted after its copy and before its switch copies again on a rerun and changes nothing more,
+              and one interrupted between its switch and its deletes finishes them from its record, syncing meanwhile and
+              reporting `move-unfinished`
+            - a `push` follow between two backing repositories deletes only on the old repository's URL, keeping the old
+              repository's record apart from the candidate's for its listing's comparison, and interrupted after its
+              switch finishes its deletes on a rerun and follows nothing more
+            - a rerun of a `push` follow's deletes after another clone moved the state back onto the old remote deletes
+              nothing there and ends, its record going and the follow coming due
+            - a follow whose destination a later move left after its candidate read copies nothing there and refuses
+              `moved`
+            - the follow's clearing copy against a new remote whose ref a follower's push moved merges there, and against
+              one where the mover abandoned an item after its switch while a teammate's write, archive, or abandon of it
+              landed on the old remote, applies each as § 10.4 has it
+            - a clone that reopened an archived item before the move's switch, and a follower before its follow, each
+              delete the copied history ref at their next push to the new remote
+            - two checkouts of one clone after the clone moved or followed, the other holding the pointer's change, each
+              sync with the one state remote in its one layout, reporting no state, a no-target `arc store migrate` from
+              either changes nothing, and `arc store remote` there shows the same roles
+
+    - `[ ]` **17.2.b Every clone following the moves of Phase 16**
+        - Build `test-first` (one behavior at a time):
+            - a follower pulling the old remote between steps 3 and 4 and following after step 4's deletes, and one
+              following before them, each report no `history-diverged` at their next pull from the new remote
+            - a new remote emptied after the switch writes nothing on either remote until a follower's push restores the
+              move's commit, then re-copies every ref it lacks — another person's identity ref and a history ref no clone
+              pulled among them — before deleting on the old remote
+            - step 4's re-copy against a new remote a follower's clear reached first deletes nothing there
+            - of two clones moving off one remote at once, the clone whose move ended before its switch follows the
+              first's record
+            - a clone still on the new remote follows the move back's forwarding record a rerun met there
+            - a move back interrupted between its record and its switch, finished on a rerun, ends every clone on the old
+              remote
+            - a move back ended before its switch by another move off its old remote: a clone that never followed the
+              earlier record, and a follower that took the ended move's copy for the home, follow that move's record to
+              the state's home
+            - a move back interrupted after its copy, whose destination another clone then moved on, ends every clone on
+              the state's home
+
+### `[ ]` **17.3 Leaving the source — § 10.6**
+
+- _Goal:_ A clone whose old remote can no longer be read re-homes its own state onto the new remote from its last view,
+  without ever reading or deleting on the old one, and says what it leaves there.
+
+    - Under the move lock: copy the store refs the old remote's tracking refs name onto the destination through 13.1's
+      copy, those tracking refs the incoming side; write the record, `move.json`'s leaving-the-source arm naming each
+      remote by its name and URLs; switch as a move does, carrying those tracking refs and kept tips; delete nothing; the
+      copy, the record, and the switch each declared at the step port (13.1)
+    - Its old remote is `backing`, whatever its role, or the remote of the code repository carrying `push`, never a read
+      source; its destination `--to`'s, or the pointer's URL where `backing`'s differs from it; a code-repository
+      destination must hold this project's registry ref, and where the clone holds the old remote's forwarding-record
+      tracking ref, the commit that record names
+    - Tests delete a remote by removing its bare directory, and archive one read-only by a pre-receive hook that declines
+      every push
+    - Build `test-first` (one behavior at a time):
+        - a follow whose listing of a deleted old remote fails refuses through the `store` arm's `unreachable`, naming
+          `arc store migrate --leave-source --to <remote>`, which lands the clone's last view, an end it pushed there
+          after the move's copy among it, on the new remote and switches, ending with no record and no
+          `move-unfinished`, without a TTY too
+        - on a clone whose backing repository went before any forwarding record reached it, `--leave-source --to` the
+          code remote holding the project's registry moves the store into the code repository's refs, removing
+          `backing`, and from a checkout whose code remote holds none refuses `request-invalid` naming that remote's
+          `push` setting
+        - on a fork whose upstream carries `push` and was deleted, `--leave-source --to <remote>` leaves the upstream,
+          setting it `off`, and lands the clone's last view of it on the destination
+        - a clone with neither `backing` nor a code remote carrying `push` refuses `no-state-remote` as `--to` does from
+          a local-only clone, and one with no `--to` whose `backing` matches the pointer refuses `request-invalid`
+          naming `--to`
+        - a destination carrying this project's forwarding record refuses `moved`, naming `--leave-source --to` the
+          remote the state moved to, or the mover's `--leave-source` where that is the remote this clone is leaving
+        - a destination whose URL is the old remote's and `--trial` refuse `request-invalid`, and a read source as the
+          old remote refuses `no-state-remote`, as a clone with neither does
+        - leaving the source onto a remote a later move left refuses `moved` by the project check, changing nothing
+        - a follower whose old remote, a read source, was deleted is refused `no-state-remote` naming
+          `arc store remote <remote> off` and a setting of the remote the state moved to
+        - interrupted at the step port after its copy, leaving the source leaves no record, and its command run again
+          merges onto the copy it landed and completes; interrupted after its record, or inside its switch, the layout
+          move's half among it where the destination calls for the other layout, it finishes on a no-target
+          `arc store migrate` in its record's direction, deleting nothing on the old remote
+
+### `[ ]` **17.4 `--leave-source` ending a recorded move — § 10.1, § 10.6**
+
+- _Goal:_ A recorded move or follow whose old or new remote is gone for good ends by the person's command alone, the case
+  told by a read of the new remote, never by the person's call.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The move model check
+
+    - Build `test-first` (one behavior at a time):
+        - a remote move's step 4, and a follow's deletes, against an old remote deleted after the switch or archived
+          read-only keep the record, `move-unfinished` naming the cause and a rerun failing alike, until `--leave-source`
+          ends it, its report naming what stays on the old remote, after which `--to` another remote and a layout-moving
+          setting each run
+        - a move whose new remote is deleted after its copy deletes nothing on the old remote; its `--leave-source`
+          withdraws its forwarding record and reverts the pointer's change, and a clone that followed onto the deleted
+          remote leaves the source onto the old remote once that withdrawal has run, the pointer's change reverted where
+          the old remote is a backing repository and removed where it is the code remote, a fresh clone's first
+          designation then reading none
+        - `--leave-source` on a move whose new remote answers, both remotes alive, ends its record withdrawing nothing,
+          and while that remote is emptied ends the record withdrawing nothing, every clone ending on it once a push
+          restores the commit
+        - on a move whose new remote is deleted and whose old remote is archived read-only it keeps the record, its
+          withdrawal push refused through the `store` arm's terminal `refused`, naming the record's deletion by hand
+        - a move whose new remote is deleted after a delete on its old remote landed ends without a withdrawal
+        - a move back whose new remote went before its switch is ended by `--leave-source`, which withdraws its forwarding
+          record, every clone then syncing with the old remote
+        - a rerun's refused copy is ended by `--leave-source`, whose report, where an earlier run's copy deleted a
+          forwarding record there, names that record's commit, kept at `refs/arc/tmp/migrate/deleted-record`, and its
+          restore
+
+### `[ ]` **17.5 `arc store remote` after a follow and when repointing `backing` — § 9.4, § 9.8**
+
+- _Goal:_ A `backing` repoint re-homes this clone's state with a copy only where it will push there, and a setting
+  after a follow, or from a checkout behind one, reaches the state's home or refuses naming the route there.
+
+- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
+
+    - Build `test-first` (one behavior at a time):
+        - on a clone whose `backing` URL differs from the pointer, `arc store remote backing push` repoints it, and a clone
+          whose old backing repository is gone then syncs with the new one, its pushes there after the move's copy — an
+          end, and a reopen owing its history ref's delete — landing there
+        - `arc store remote backing read` on such a clone repoints with no copy, pushing nothing to the new URL, and drops
+          `backing`'s tracking refs and kept tips
+        - after a follow between two backing repositories answering `read`, `arc store remote backing push` before any
+          pull copies and deletes nothing and sets `push`
+        - a `backing` setting from a checkout whose pointer predates a move the clone followed refuses `moved` by the
+          project check, naming `arc store migrate` and `arc store migrate --to <remote>`
+        - a clone whose `backing` carries `push`, its repository gone, whose code remote holds no state, is named
+          `arc store remote backing off` and then the code remote's `push` setting by both
+          `arc store remote <code remote> push` and `--leave-source --to` it
+        - a local-only clone refused `moved` designating a remote whose forwarding record names its project follows the
+          move after setting that remote `read`
+
+### `[ ]` **17.6 Moving state between remotes** — validate exit criterion at segment scope
+
+- _Goal:_ Every case of § 14.6 and § 14.7 passes, every clone of each scenario ending on one remote holding every write.
+
+    - Request `arc check segment`
+
+## **Phase 18:** Hosts, platforms, and cost
+
+_Purpose:_ The evidence no per-change CI run gathers: the bursts, the Windows and macOS pair with the Windows budget and
+its conditional reader or object batching, the CI cost bound, the hand-run host kit, the pack cost of shared personal
+names, and the suites that survive the cutover.
+
+_Mode:_ `replication` — closes when every platform, host, and measurement § 14.5 and § 14.8–§ 14.12 enumerate has run
+and is recorded.
+
+_Exit criterion:_ The bursts and the Windows budget pass on their dispatched runs, each layout's conformance run stays
+within 1.5 times the in-repo conformance's time, and the host kit's results, the pack-cost measurement, and the
+surviving suites are recorded in `notes-storage-ref-backend.md`.
+
+### `[ ]` **18.1 The bursts — § 14.5**
+
+- _Goal:_ Twenty worktrees and twenty clones writing at once lose no write, on the platforms where contention costs most.
+
+    - Twenty worktrees writing personal-inbox insertions and removals at once, and twenty clones converging on one ref,
+      in a suite registered in the `portability` tier's list (`localVitestTierArguments`, `lib/local-vitest-runner.ts`),
+      which both portability jobs (`.github/workflows/ci.yml`) run through `test:portability`
+    - The suite runs only where `ci.yml` sets `ARC_STORE_BURSTS` for both jobs, on `schedule` and `workflow_dispatch`
+      alone, so the Linux job's runs on reviewed pull requests and the integration tier skip it; a per-test timeout
+      above the Windows bursts' 378–401 s
+    - Passes with no lost write in one dispatched run of the Windows and macOS pair (`run_portability_pair: true`) and one
+      of the Linux portability job before this change lands, each recorded in `notes-storage-ref-backend.md`, since a
+      scheduled workflow runs only on the default branch
+
+### `[ ]` **18.2 The Windows budget and the portability pair — § 11.7, § 14.10**
+
+- _Goal:_ A dispatched portability run passes `--git-dir` with Windows paths and reftable on NTFS, and times `version`,
+  `read`, `list`, `lookup`, and `write` within their budgets over 600 work items in twelve quarters.
+
+    - The separate layout's suites join the `portability` tier's list ungated, each listed by file name: 8.2's
+      `store-ref-directory.test.ts` and 8.6's `store-ref-separate-conformance.test.ts`, so the pair runs `--git-dir` and
+      reftable on each platform and the Linux `portability` job runs them on each reviewed pull request it runs on;
+      `ARC_STORE_BURSTS` gates only the bursts (18.1) and the timing suite (18.2.a)
+
+    - `[ ]` **18.2.a The timing run**
+        - A timing suite in the same list under `ARC_STORE_BURSTS`, over a store of 600 work items in twelve quarters
+          built once per run as one `git fast-import` stream imported into each layout's repository — the default
+          layout's files-format code repository and the separate layout's reftable directory — timing each operation in
+          both layouts and taking the median of eleven runs of each
+        - It asserts § 11.7's budgets on `win32` alone and reports its medians on macOS and Linux; one dispatched run
+          passes before this change lands, its figures recorded in `notes-storage-ref-backend.md`
+
+    - `[ ]` **18.2.b Only where a budget is breached**
+        - A read over its budget gets a long-lived `cat-file --batch` reader for the operation's reads, aborting on
+          cancellation and closed before maintenance
+        - A write over its budget writes its blobs through one `hash-object -w --no-filters --stdin-paths` over files in
+          a temporary directory, and its trees through one `mktree --batch`, so its process count stops growing with its
+          records; under `core.autocrlf=true` its blobs keep the bytes written
+        - Built test-first against the breached operation's cases only where the run shows a breach; otherwise this
+          subtask records that none was needed
+
+### `[ ]` **18.3 CI cost — § 14.12**
+
+- _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
+  within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner.
+
+    - Per-file times from the `duration-results-integration-*` artifacts a dispatched run uploads (`ci.yml`), the in-repo
+      conformance file (`__tests__/integration/store-in-repo-conformance.test.ts`) and each layout's ref conformance file
+      read from one run on `ubuntu-latest`, the shard that ran each named beside its time
+    - The tier and CI-job rows the new files touch re-measured after the last one lands, as 1.1 measured them, and
+      updated to those figures, each delta from 1.1's baseline recorded in `notes-storage-ref-backend.md` § CI cost
+      history
+    - The Linux `portability` job, which has no budget row, read from its own per-file times on one dispatched run: the
+      time the separate-layout files (18.2) add to each reviewed pull request it runs on, recorded there beside the rows
+
+### `[ ]` **18.4 The host kit — § 14.8**
+
+- _Goal:_ The checks no CI host can run are run by hand against the real hosts, GitHub and GitLab holding every one, so
+  the design's two unverified load-bearing assumptions are settled before the flip.
+
+    - `[ ]` **18.4.a The kit**
+        - 2.5's hand-run script under `__tests__/benchmarks/` grown into the kit, as the hand-run benchmarks there are,
+          never in a tier, a CI job, or the shipped package, needing credentials and scratch repositories
+        - The contract's trial re-authored, its scripts never kept: push, fetch, delete, and lease of `refs/arc/*`; a
+          default clone fetching none; `--atomic` holding a code branch back; rulesets; an ordinary member's write and
+          read permissions; forks copying no `refs/arc/*`; each driven through the built backend's `pull` and `push`
+          where the check concerns its behavior
+        - What this design adds: `--porcelain` on each host, what a receiver without atomic pushes prints, each host's
+          text for a lost race under `--atomic` and on a single ref, leased deletes, the forwarding record, Azure DevOps'
+          fork copying and its ordinary members' permissions, the history-replay push refusal's message, and 2.5's two
+          checks, protocol v2's narrowing and `atomic` over HTTP, run again on every host
+
+    - `[ ]` **18.4.b The run**
+        - Run against GitHub and GitLab, which must hold, Azure DevOps and Bitbucket, which should, and Gitea and
+          Forgejo, best effort; results recorded in `notes-storage-ref-backend.md`; a must-hold host failing a check goes
+          back to the specification as a design defect before landing, never a code fix alone
+
+### `[ ]` **18.5 The pack cost of shared personal names — § 14.9**
+
+- _Goal:_ Whether personal files' shared names cost a host's pack is measured, so renaming stored paths stays a forward
+  change taken only if it bites.
+
+    - Several people's personal refs pushed to a local bare repository and packed, today's names against names ending in
+      the person's id; the result recorded in `notes-storage-ref-backend.md` beside the host kit's
+
+### `[ ]` **18.6 The suites that survive the cutover — § 14.11**
+
+- _Goal:_ The cutover's deletion pass has the list of suites it keeps and retires: one running the shared suite or testing
+  a consumer through the contract survives, and one targeting the in-repo implementation, notes, or Errand refs by name
+  retires.
+
+    - Recorded in `notes-storage-ref-backend.md`
+
+### `[ ]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
+
+- _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
+  and surviving suites are recorded.
+
+    - Request `arc check segment`
+
+## **Phase 19:** Verification
+
+### `[ ]` **19.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` `Store` has `pull`, `push`, and `maintain` and no `sync`; the result types, the `state-unresolvable` refusal,
+  the cohort's archive placement, a companion's path key, `ReadOnlyStore`, and `RefHome` match the spec's contract
+  changes; the hunk conflict record carries `baseVersion`, `currentLines`, and `incomingLines`, and `MergeTextInput` the
+  base's version; and the contract specification's Amendments log carries one entry per amendment
+
+- `[ ]` The shared conformance suite passes over the ref backend in both layouts with no exclusion beyond the spec's
+  named set, and over the in-repo and reference fixtures with the suite's changes
+
+- `[ ]` `checkSerializationRules` is exported from `lib/store/`, and each rule refuses at `write`, at `batch`, and in
+  the import's build, with every case of § 14.4
+
+- `[ ]` A no-change `version` spawns one Git process; the manifest's in-process id equals Git's own write in both object
+  formats; an anchor's manifest resolves on a fresh clone; and every case of § 14.3 passes
+
+- `[ ]` Every integration case of § 14.5 passes on every change, and the bursts pass with no lost write in one
+  dispatched run of the Windows and macOS pair and one of the Linux portability job before this change lands
+
+- `[ ]` Designation and read sources follow § 9.2 and § 9.6 in every case of § 14.6
+
+- `[ ]` Every case of § 14.7 passes: each move, interrupted after each step, completes on a rerun; the trial report of
+  each move that takes `--trial` matches it; and the import's comparison differs only by the transforms of § 10.9, its
+  three entry kinds compared under § 14.1's test grammars, refusing for the review gate's facts; and a parked work unit
+  lands paused and in flight, every branch link carrying `linkedAs` and `excluded` and every task capture its copy key
+
+- `[ ]` The Git floor reads 2.47 at every listed site, a store failure an older Git explains names the version found
+  and the floor, and the stdin and byte executor variants end a call on an aborted signal
+
+- `[ ]` A dispatched portability run passes and times every budgeted operation within its Windows budget
+
+- `[ ]` The backend stays dark: `createStore` composes the in-repo implementation, nothing outside `lib/store/` imports
+  `lib/store/ref/`, no production code calls `createRefStore` or `createReadSourceStore`, only the `arc store` handlers
+  call `runStoreRemote` and `runStoreMigrate`, and `arc store` is absent from `arc --help`
+
+- `[ ]` Each layout's conformance run stays within 1.5 times the in-repo conformance's time on the same runner, and the
+  test-cost rows the new files touch were baselined before they landed
+
+- `[ ]` The host kit has run with GitHub and GitLab holding every check, and the other hosts' results, the pack-cost
+  measurement, and the surviving suites are recorded in `notes-storage-ref-backend.md`
+
+- `[ ]` All quality gates pass (tests, linting, type checking)
+
+- `[ ]` Ready for integration
