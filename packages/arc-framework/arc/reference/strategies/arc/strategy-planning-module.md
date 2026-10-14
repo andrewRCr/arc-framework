@@ -224,8 +224,8 @@ planning pipeline, and work tracking all live alongside the code.
 
 **The scaling boundary** is a function of team size, branch lifetime, and integration
 frequency — not a hard headcount threshold. The shared backlog surface (`ATOMIC-INBOX.md`,
-per-WU subdirs, ROADMAP) is tracked in git on the base branch. When
-multiple developers capture work from concurrent feature branches, those edits only converge
+per-WU subdirs, ROADMAP) is tracked in git on the base branch. When multiple
+developers capture work from concurrent feature branches, those edits only converge
 at merge time. Teams that integrate often stay current; teams with long-lived branches
 experience growing staleness and merge friction.
 
@@ -249,8 +249,8 @@ Without arc-in-git (`pm.mode: none` or `external`):
 
 The planning module adds structure for teams that want built-in project management without
 external tools. Teams using Jira, Linear, or GitHub Issues use `pm.mode: external` — ARC
-provides extension points for syncing task completion, work unit activation, and archival
-events to external trackers.
+retains `Origin` linkage to tracker items, with no supported lifecycle notification or status-synchronization
+mechanism.
 
 ---
 

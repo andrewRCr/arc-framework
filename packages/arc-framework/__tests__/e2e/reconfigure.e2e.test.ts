@@ -137,17 +137,13 @@ describe("arc init --reconfigure", () => {
     expect(output).toContain("Contributors cannot reconfigure");
   });
 
-  it("reconfigure leaves per-file methods and extensions directories untouched", async () => {
+  it("reconfigure leaves per-file methods untouched", async () => {
     const baselineManifest = await readInstallManifest(tmpDir);
     const methodNames = Object.keys(baselineManifest.files)
       .map((key) => key.match(/^system\/methods\/(.+)\.md$/)?.[1])
       .filter((name): name is string => name !== undefined && name !== "README")
       .sort();
     expect(methodNames).toContain("assess-evidence-applicability");
-    const extensionNames = Object.keys(baselineManifest.files)
-      .map((key) => key.match(/^system\/extensions\/(.+)\.md$/)?.[1])
-      .filter((name): name is string => name !== undefined && name !== "README")
-      .sort();
 
     // Snapshot per-file content before reconfigure (fresh init baseline).
     const before: Record<string, string> = {};
@@ -155,25 +151,18 @@ describe("arc init --reconfigure", () => {
       const rel = `system/methods/${name}.md`;
       before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
     }
-    for (const name of extensionNames) {
-      const rel = `system/extensions/${name}.md`;
-      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
-    }
     before["system/methods/README.md"] = await readFile(
       join(tmpDir, ".arc/system/methods/README.md"), "utf-8",
     );
-    before["system/extensions/README.md"] = await readFile(
-      join(tmpDir, ".arc/system/extensions/README.md"), "utf-8",
-    );
 
-    // Reconfigure pm.mode — orthogonal to methods/extensions.
+    // Reconfigure pm.mode — orthogonal to methods.
     const reconf = await runArc(
       ["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"],
       tmpDir,
     );
     expect(reconf.exitCode).toBe(0);
 
-    // Every per-file method and extension remains present and byte-identical.
+    // Every per-file method remains present and byte-identical.
     for (const [rel, original] of Object.entries(before)) {
       const current = await readFile(join(tmpDir, ".arc", rel), "utf-8");
       expect(current, `${rel} changed during reconfigure`).toBe(original);
@@ -185,14 +174,7 @@ describe("arc init --reconfigure", () => {
       const key = `system/methods/${name}.md`;
       expect(manifest.files[key]!.classification).toBe("Configurable");
     }
-    for (const name of extensionNames) {
-      const key = `system/extensions/${name}.md`;
-      expect(manifest.files[key]!.classification).toBe("Configurable");
-    }
     expect(manifest.files["system/methods/README.md"]!.classification).toBe(
-      "Framework",
-    );
-    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
       "Framework",
     );
 
@@ -201,10 +183,6 @@ describe("arc init --reconfigure", () => {
       ...methodNames.map((n) => `system/methods/${n}.md`),
       "system/methods/README.md",
     ].sort();
-    const expectedExtensionKeys = [
-      ...extensionNames.map((n) => `system/extensions/${n}.md`),
-      "system/extensions/README.md",
-    ].sort();
     const actualMethodKeys = Object.keys(manifest.files)
       .filter((k) => k.startsWith("system/methods/"))
       .sort();
@@ -212,7 +190,8 @@ describe("arc init --reconfigure", () => {
       .filter((k) => k.startsWith("system/extensions/"))
       .sort();
     expect(actualMethodKeys).toEqual(expectedMethodKeys);
-    expect(actualExtensionKeys).toEqual(expectedExtensionKeys);
+    expect(actualExtensionKeys).toEqual([]);
+    expect(await pathExists(join(tmpDir, ".arc/system/extensions"))).toBe(false);
   });
 
   it("reconfigure with same values is a no-op", async () => {

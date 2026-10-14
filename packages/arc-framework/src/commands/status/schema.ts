@@ -13,7 +13,6 @@ import { RemoteFailureReasonSchema, withRemoteEvidence } from "../../lib/kernel/
 import { ActiveSessionInitResultSchema } from "../active/schema.js";
 import { ConfigSessionInitResultSchema } from "../config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
-import { ExtensionsSessionInitResultSchema } from "../extensions/status.js";
 
 import type { SessionInitBaseDistanceValue, SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
@@ -765,7 +764,6 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   baseDistance: probe(SessionInitBaseDistanceValueSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
-  extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitResultSchema),
   active: probe(ActiveSessionInitResultSchema),
   domainRules: probe(DomainRulesSessionInitResultSchema),
@@ -1104,7 +1102,6 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueSchema),
   dirty: probe(DirtyStateResultSchema),
-  extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueSchema),
   loadSet: probe(LoadSetManifestSchema),

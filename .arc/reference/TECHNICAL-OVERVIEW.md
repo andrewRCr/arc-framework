@@ -29,8 +29,7 @@ _Key characteristics:_
 - **Self-hosting** — Framework development follows its own ARC methodology, providing continuous real-world
   validation of workflows and conventions
 - **Customization surfaces** — Adopters override behavior without forking via `arc-config.yml` (project settings),
-  `system/methods/` (overridable defaults), `system/extensions/` (lifecycle hook points), and `system/arc-checks.yml`
-  (project checks and their deadlines)
+  `system/methods/` (overridable defaults), and `system/arc-checks.yml` (project checks and their deadlines)
 
 ## 2. Architecture Components
 
@@ -49,8 +48,8 @@ committed to their repositories. Five top-level concerns:
   decision records), `research/` (technical research with lasting reference value), and `templates/` (artifact
   skeletons).
 - **System layer** (`system/`) — `workflows/` (numbered lifecycle workflows plus supplemental ones), `methods/`
-  (overridable defaults), `extensions/` (lifecycle hook points), `briefs/` (session-init orientation by role),
-  `githooks/` (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
+  (overridable defaults), `briefs/` (session-init orientation by role), `githooks/`
+  (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
   (canonical skill sources rendered to harness-specific subdirectories).
 - **Work surfaces** — `active/` (in-flight work units: meta files plus task lists and companions, flat layout),
   `backlog/` (future-work pipeline: `ROADMAP.md` plus `planned/` and `provisional/` state-dirs and inbox
@@ -71,8 +70,7 @@ for adopters, plus inspects and orchestrates state in existing installations. Pu
 _Command surface — three categories:_
 
 - **Lifecycle** — Install, join, and refresh ARC in projects
-- **Inspection** — Probe installed state: identity, configured settings, active work, available extensions, file
-  diffs, commit history
+- **Inspection** — Probe installed state: identity, configured settings, active work, file diffs, commit history
 - **Orchestration** — Cross-concern operations: `sync` (push coordination), `release` (interlock-gated git
   operations), `user` (portable user-state)
 
@@ -94,20 +92,20 @@ Lib modules compose horizontally (e.g., `files.ts` imports `render.ts`) but neve
 
 ### Customization Surfaces
 
-Four orthogonal mechanisms let teams adapt ARC without forking:
+Three orthogonal mechanisms let teams adapt ARC without forking:
 
 - **`arc-config.yml`** — Flat key-value project settings (branch protection, commit/push interlocks, hook
   toggles, PM mode, session-init pull behavior, user-notes push behavior). The live shape is `system/arc-config.yml`.
 - **Methods** (`system/methods/`) — Per-file overridable defaults for codified behaviors (commit format, test-first
   assessment, session state, branch format, and similar). Each method ships a default and an override slot; teams
   replace the default in place. See `system/methods/README.md` for the full set.
-- **Extensions** (`system/extensions/`) — Per-file hook points at lifecycle boundaries: pre/post task,
-  work-unit activate/archive, commit, push, PR, merge, and context-load. Teams declare `active: true` in the
-  extension's frontmatter and supply `.actions` content for team-specific automation. See
-  `system/extensions/README.md` for available hook points.
 - **Check declaration** (`system/arc-checks.yml`) — Project-owned checks with commands, dependency inputs, and earliest
   event deadlines. `arc check` resolves selection and content-based reuse; hooks, workflow requests, and CI use the
   same declaration.
+
+Project strategies, workflows, and domain rules supply additional content channels. Project workflows may run
+beside ARC workflows and use methods; ARC supplies no supported workflow-step insertion or tracker notification
+mechanism. QUICK-REFERENCE tool commands and harness-native lifecycle hooks retain their separate roles.
 
 ### Cross-Machine User State
 

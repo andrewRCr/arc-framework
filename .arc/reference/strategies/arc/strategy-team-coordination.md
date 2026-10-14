@@ -77,8 +77,8 @@ Non-owner contribution happens through three channels:
 - **Pairing** — synchronous work with a single driver. Credit co-contributors with `Co-authored-by:`
   trailers on the relevant commits; this is an attribution convention, not a structural role.
 - **Handoff** — transferring a work unit to a new owner is a _sequential reassignment_ of the
-  `**Owner:**` field, never concurrent shared ownership. See
-  [Person-to-Person Task Handoff](#person-to-person-task-handoff).
+  `**Owner:**` field, never concurrent shared ownership. See [Person-to-Person
+  Task Handoff](#person-to-person-task-handoff).
 
 Cross-person parallelism comes from running **multiple single-owner work units across identities**, not
 from multiple developers driving one WU's task list. When work surfaces that belongs to a _different_
@@ -93,9 +93,9 @@ A structured approach for transferring active work between developer-agent pairs
 rotation, workload rebalancing, or specialization change. Distinct from normal session handoff
 (same person, different session) in that the _reader changes_, not just the time boundary.
 
-This protocol composes the existing [session-handoff][session-handoff] and
-[session-init][session-init] workflows with enhanced context for the different reader. No new
-ceremony — the standard workflows apply with the adjustments below. Teams can follow this
+This protocol composes the existing [session-handoff][session-handoff] and [session-init][session-init]
+workflows with enhanced context for the different reader. No new ceremony —
+the standard workflows apply with the adjustments below. Teams can follow this
 fully, partially, or rely on informal coordination — the minimum viable handoff is reassigning
 the meta `**Owner:**` field and pushing session notes.
 
@@ -267,19 +267,11 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 
 ### Integration Mechanism
 
-ARC provides extension points at key workflow moments for syncing with external trackers.
-Configure these by populating the `.actions` section in the relevant file under
-[`system/extensions/`][arc-extensions-dir]:
+`Origin` provides linkage to an external tracker item. ARC currently supplies no supported tracker notification or
+status-synchronization mechanism.
 
-- **[`post-task-completion`][arc-ext-task-completion]** — fires after a task is marked `[x]`.
-  Use to sync task status to Jira, Linear, or GitHub Issues.
-- **[`post-work-unit-activate`][arc-ext-wu-activate]** — fires after a work unit moves from
-  backlog to active. Use to update sprint boards or project status.
-- **[`post-work-unit-archive`][arc-ext-wu-archive]** — fires after a work unit is archived.
-  Use to close epics or update project dashboards.
-
-No extension points are needed for task _assignment_ — the meta `**Owner:**` field (WU-level) and
-external tracker assignment serve different audiences and don't need real-time sync.
+The meta `**Owner:**` field records WU-level responsibility; external tracker assignment serves its own audience.
+These distinct assignment scopes do not require real-time synchronization.
 
 ---
 
@@ -300,7 +292,3 @@ external tracker assignment serve different audiences and don't need real-time s
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
-[arc-extensions-dir]: ../../../system/extensions/
-[arc-ext-task-completion]: ../../../system/extensions/post-task-completion.md
-[arc-ext-wu-activate]: ../../../system/extensions/post-work-unit-activate.md
-[arc-ext-wu-archive]: ../../../system/extensions/post-work-unit-archive.md

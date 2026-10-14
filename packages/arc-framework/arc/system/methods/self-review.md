@@ -69,8 +69,7 @@ context footer; reserve lifecycle-phase footers for ceremony commits rather than
 Context: <the caller's context> (code review)
 ```
 
-For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
-preflight as independent evidence.
+Do not reinterpret this author-side preflight as independent review evidence.
 
 ---
 

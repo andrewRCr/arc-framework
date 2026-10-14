@@ -4,7 +4,7 @@
  * The discriminated union on `mode` separates the full enumeration view
  * (per-WU state for general consumers) from the session-init-scoped
  * resolution shape (path / null / candidate list) consumed by the agent
- * harness to populate session-init.md Step 2 Item 8.
+ * harness to populate session-init.md Step 3 item 7.
  */
 
 import type { z } from "zod";
@@ -79,7 +79,7 @@ export interface ActiveStatusResult {
 }
 
 /**
- * Session-init-scoped result — maps to session-init.md Step 2 Item 8.
+ * Session-init-scoped result — maps to session-init.md Step 3 item 7.
  *
  * - `resolution === "none"`: no active work unit (`path` is `null`).
  * - `resolution === "single"`: one candidate resolved (`path` populated).

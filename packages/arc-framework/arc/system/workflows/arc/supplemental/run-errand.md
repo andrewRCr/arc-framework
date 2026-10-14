@@ -15,11 +15,6 @@ arc:
     - implementation-audit
     - review-triage
     - review-response
-  extensions:
-    - pre-pr-open
-    - post-pr-open
-    - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Run Errand
@@ -222,10 +217,6 @@ remote base all name the same exact head. Any tracked change continues through t
 
 2. **Push** the errand branch upstream.
 
-   - **Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
-     extension is active, run its `.actions`; halt-on-fail surfaces an actionable message, fix-and-retry or
-     explicit-invoke bypasses. Otherwise skip.
-
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
@@ -365,15 +356,11 @@ remote base all name the same exact head. Any tracked change continues through t
    include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
    Follow-Up sections.
 
-   Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
-   execute numbered actions in authored order immediately before creation; halt before later actions on failure.
-   Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
-
    Immediately before creation, re-invoke:
 
    `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the current head
    and dispatch on its typed state again. Continue only from `none / create-change-request`. This pre-create validation
-   requires the remote branch itself to carry the exact creation head, including after any hook action.
+   requires the remote branch itself to carry the exact creation head.
 
    Then invoke `arc merge lock resolve -` with `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`;
    `treeRoot` is the checkout path, not a Git tree object ID. Follow only its typed action: `locked / open-locked`
@@ -387,9 +374,8 @@ remote base all name the same exact head. Any tracked change continues through t
    ```
 
 4. **Enter the open PR.** On both newly-created and reused-open paths, compose
-   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
-   numbered actions before review. Both hooks and the review protocol share this exact-head contract. After any
-   head-changing action, recompose `openedChangeRequest` from the canonical current head before re-entry.
+   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. After any head-changing action, recompose
+   `openedChangeRequest` from the canonical current head before re-entry.
 
    Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean`
    and regenerable-only drift silent and surface substantive or uncertain interaction as review context. This read
@@ -407,8 +393,8 @@ remote base all name the same exact head. Any tracked change continues through t
    - A command error carries no action; stop.
 
    Any head movement invalidates the exemption and returns here before the integration interlock, including after a
-   hook action, review fix, or base reconciliation. Continue only when `openedChangeRequest` and the adapter target
-   name the same exact head.
+   review fix or base reconciliation. Continue only when `openedChangeRequest` and the adapter target name the same
+   exact head.
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
    incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
@@ -563,8 +549,8 @@ remote base all name the same exact head. Any tracked change continues through t
    vehicle is explicitly outside WU composition-product requirements. **Never infer the exemption from absent or
    malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
-   After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
-   rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
+   After any fix, request action, or append-only base reconcile changes the head, push through the configured
+   release route, rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
    `openedChangeRequest`, require any planning-grooming adapter target to match it, and retain the exact strict Errand
    identity and selected lane.
 
@@ -619,13 +605,11 @@ remote base all name the same exact head. Any tracked change continues through t
    unresolved conversations as well; the stop clears no host blocker, so obtain separate Owner direction for any
    dismissal or thread action before proceeding.
 
-   **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
-   their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
-   or push may occur after this checkpoint.
+   No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the exact Errand merge request and extension report are settled. Surface the
-> request, exact head, applicable planning-grooming adapter target, review applicability calls and targeted
+> `integration-interlock`: Stop after the exact Errand merge request is settled. Surface the request,
+> exact head, applicable planning-grooming adapter target, review applicability calls and targeted
 > verification, approved responses already performed, proposed final dispositions, required checks and approvals,
 > base freshness, and resolved lane. State that completed responses are not re-approved at this gate. Name
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host

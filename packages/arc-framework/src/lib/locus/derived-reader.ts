@@ -140,7 +140,6 @@ export async function readDerivedLocusFrame(
 export async function readDerivedLocusRoster(options: {
   identity: string;
   identityGlobalUserDir?: string | null;
-  activeExtensions?: readonly string[];
   /** Checkout whose context projection failures must remain operation-blocking. */
   strictCheckoutPath?: string;
   topology: Extract<RegisteredWorktreeScanResult, { ok: true }>;
@@ -244,7 +243,6 @@ export async function readDerivedLocusRoster(options: {
           identityGlobalUserDir: options.identityGlobalUserDir,
           metaRoot: subjectMeta.metaRoot,
           candidates: subjectMeta.candidates,
-          activeExtensions: options.activeExtensions ?? [],
           foreignCheckout: options.strictCheckoutPath !== undefined
             && item.checkout.path !== options.strictCheckoutPath,
           io: options.subjectMetaIO,

@@ -17,7 +17,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Context Loading Model](#context-loading-model) — three-tier classification
 - [Classification Criteria](#classification-criteria) — which tier for new content
 - [Loading Mechanisms](#loading-mechanisms) — how each tier enters agent context
-- [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
+- [Method Loading](#method-loading) — on-demand procedural content
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Meta-File Timing](#meta-file-timing) — when status updates land in commit history
@@ -65,7 +65,6 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
 - Workflow documents (prepare-commits, prepare-work-unit, integrate-work-unit)
-- arc-extensions steps (post-task-completion, pre-merge, etc.)
 
 ### State-Conditional Promotion
 
@@ -90,11 +89,11 @@ and subprocess calls:
 
 - **Non-destructive** — read-only, no mutations, no user prompts
 - **Harness-first** — agent-consumed via `--json`, not CLI-interactive
-- **Composite-first** — `arc status --session-init --json` returns identity, user-sync, extensions, config,
+- **Composite-first** — `arc status --session-init --json` returns identity, user-sync, config,
   and active-meta-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
   wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
 
-Standalone probe commands (`arc user status`, `arc config status`, `arc extensions status`, `arc active
+Standalone probe commands (`arc user status`, `arc config status`, `arc active
 status`) share the same implementations and are available for debugging and CI. Session-init uses only the
 composite.
 
@@ -187,8 +186,7 @@ the envelope uniformly.
 
 ## Classification Criteria
 
-When adding new content to ARC — strategy docs, method overrides, extensions, workflow
-guidance — classify it by asking:
+When adding new content to ARC — strategy docs, method overrides, workflow guidance — classify it by asking:
 
 **T1 — Constitutional?**
 
@@ -225,10 +223,10 @@ context of what came before.
 
 ### Workflow-embedded directives (T3)
 
-Workflow and method bodies mark the exact step where the executing session needs a declared method or extension.
+Workflow and method bodies mark the exact step where the executing session needs a declared method.
 The consumer's frontmatter declaration makes that fire-point resolvable; it does not preload the content.
 
-A fire-point may be a callout, a signature block, an extension marker, or an invocation-marking in-step method
+A fire-point may be a callout, a signature block, or an invocation-marking in-step method
 link. A link used only to navigate to related material is not a fire-point. This mechanism is deterministic (the
 consumer marks the invocation), automatic (the agent follows the body step by step), and scoped (only the content
 needed at the reached fire-point loads).
@@ -248,23 +246,20 @@ initiates the activity.
 
 ---
 
-## Method and Extension Loading
+## Method Loading
 
-**Declaration mechanism.** Each workflow or method declares only the methods its own body may fire; workflows also
-declare their extension checks. Workflow declarations root a deduplicated transitive method graph, so a workflow
-never repeats its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring] for the schema. The
-frontmatter's `arc.methods` / `arc.extensions` arrays are the declaration contract; the direct body fire-point
-triggers the load. An in-step Markdown link is a trigger only when that step uses it to invoke the named method;
-purely navigational links are not fire-points.
+**Declaration mechanism.** Each workflow or method declares only the methods its own body may fire. Workflow
+declarations root a deduplicated transitive method graph, so a workflow never repeats its methods' dependencies. See
+[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` array is the
+declaration contract; the direct body fire-point triggers the load. An in-step Markdown link is a trigger only when that
+step uses it to invoke the named method; purely navigational links are not fire-points.
 
 ### Per-file Frontmatter Schema
 
-Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
-fixed YAML frontmatter block. The schema has two consumers: session-init reads the `active` field on each
-`system/extensions/*.md` file via a single `grep` to produce the **active-extensions list** (see
-§ Session-Init Consumption); the framework-repo CI audit reads the directories plus workflow and method
-frontmatter to enforce corpus-wide reachability and dependency-graph integrity. Method frontmatter is not consumed
-at init — method bodies load at their direct consumer's fire-point.
+Methods live as per-file entries under `system/methods/`, each with a fixed YAML frontmatter block. The framework-repo
+CI audit reads the directory plus workflow and method frontmatter to enforce corpus-wide reachability and
+dependency-graph integrity. Method frontmatter is not consumed at init; method bodies load at their direct
+consumer's fire-point.
 
 **Method schema** (`system/methods/<name>.md`):
 
@@ -282,40 +277,24 @@ override-mode: extend  # optional; replace | extend, absent ⇒ replace
 ---
 ```
 
-**Extension schema** (`system/extensions/<name>.md`):
-
-```yaml
----
-name: <extension-name>
-description: <one-line operational purpose>
-related:
-  - <related-extension-name>
-active: false
----
-```
-
 **Field semantics:**
 
-- `name` — method or extension name; must match the file basename (e.g., `issue-triage.md` registers
+- `name` — method name; must match the file basename (e.g., `issue-triage.md` registers
   `issue-triage`)
 - `description` — one-line operational purpose. What it does, not where it fires
 - `arc.methods` — methods this method's default or override body may fire. Declare the union across both bodies;
   the actual dependency loads only when execution reaches its fire-point. Callers do not redeclare these entries
-- `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
+- `related` — array of coupled method names within the same kind. Overriding one should prompt
   review of the others. Omit when empty
-- `override-active` (methods only) — `true` when the file's override body is populated; `false` when the
+- `override-active` — `true` when the file's override body is populated; `false` when the
   default is in effect. Consumed by the framework-repo CI audit, docs generation, and authoring tooling —
   not by session-init. Method bodies load only when their direct workflow or method consumer reaches the
   corresponding fire-point, so init-time override-presence surfacing serves no agent decision
-- `override-mode` (methods only, optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
+- `override-mode` (optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
   (the override supersedes the default); `extend` applies the default first, then the override on top. Carry it
   only on a method whose override is additive — absent-means-replace leaves every other method unchanged
-- `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
-  extension is an empty placeholder. Session-init enumerates files where `active: true` via `grep -l` to
-  produce the active-extensions list (see § Session-Init Consumption). Fire-point directives consult the
-  list by name and skip invocation for extensions not on it
 
-**Why no `workflow` field:** Workflow frontmatter roots the method graph and owns extension triggers; method
+**Why no `workflow` field:** Workflow frontmatter roots the method graph; method
 frontmatter adds only its direct method dependencies. The reverse index (method→workflows) is centralized in this
 strategy's "Method classification by trigger" table, which stays readable when methods fire from multiple
 workflows. A per-file `workflow` field would duplicate that info, would be lossy when methods fan out (e.g.,
@@ -323,10 +302,10 @@ workflows. A per-file `workflow` field would duplicate that info, would be lossy
 
 ### Per-file Body Conventions
 
-Beyond the frontmatter schema, per-file method and extension documents follow a fixed body shape so reader
+Beyond the frontmatter schema, per-file method documents follow a fixed body shape so reader
 orientation stays consistent across files.
 
-**H1:** `# Method: <name>` or `# Extension: <name>` — makes the kind visible at the top of the file.
+**H1:** `# Method: <name>` — makes the kind visible at the top of the file.
 
 **Preamble — blockquoted bullet list** immediately under the H1. Each field is a distinct bullet so prettier
 and similar reflow tools don't merge them into one paragraph (the adjacent-bold-metadata gotcha codified in
@@ -334,60 +313,35 @@ commit `0870274`):
 
 ```markdown
 > - **Workflow:** <primary caller link(s)>
-> - **When:** <trigger condition — methods only>      OR
-> - **Fires:** <precise fire moment — extensions only>
+> - **When:** <trigger condition>
 >
 > - **Contract:** <invariant; load-bearing>
 > - **Related:** <sibling link> — <one-clause rationale; when applicable>
 ```
 
-Methods use `**When:**` (they're activity contracts that kick in during a workflow step); extensions use
-`**Fires:**` (they're event handlers at a precise fire point). The distinct wording preserves the semantic
-distinction between the two kinds.
-
 The blockquote signals "this is preamble / framing" — subordinate to the structural content sections that
-follow. A blank `>` line separates the trigger context (Workflow + When / Fires) from the contract content
+follow. A blank `>` line separates the trigger context (Workflow + When) from the contract content
 (Contract + optional Related), for readability when Contract runs long. Multi-line field values use 2-space
 continuation indent after the `>` so the wrapped text aligns with the character after the bullet marker.
 
 **Structural sections — the content the system reads:**
 
-- Methods: `## <name>.override` + `## <name>.default` (the override content and the default spec)
-- Extensions: `## <name>.actions` (the steps to execute when `active: true`; placeholder `[No extension
-  configured]` when `active: false`)
+- `## <name>.override` + `## <name>.default` (the override content and the default spec)
 
 **Ref-defs:** Collected after a trailing `---` separator per [DEV-RULES.PROJECT][dev-rules-project]. Link
-targets resolve via paths relative to the file's directory (`system/methods/` or `system/extensions/`).
+targets resolve via paths relative to the file's directory (`system/methods/`).
 
 ### Session-Init Consumption
-
-Methods and extensions have asymmetric init-time treatment.
 
 **Methods — no init read.** Method bodies (`.override` + `.default`) load at the direct workflow or method
 fire-point declared in that consumer's `arc.methods` frontmatter. Workflow declarations root the transitive graph;
 method declarations carry their own dependencies. Session-init does not inspect `override-active` — the agent-side
-compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension loading) plus declared fire-points make
+compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method loading) plus declared fire-points make
 init-time override-presence surfacing unnecessary.
 
-**Extensions — minimal init enumeration.** Session-init consumes the **active-extensions list** from the
-composite `arc status --session-init --json` probe (see § Probe pattern). Internally, the probe enumerates
-`system/extensions/*.md` files where frontmatter declares `active: true`:
-
-```bash
-grep -l "^active: true" .arc/system/extensions/*.md
-```
-
-The filenames returned (basenames, `.md` stripped) form the list — a named session-context artifact available
-to downstream workflow steps. An empty list means no extensions are configured. Fire-point directives in the
-calling workflows consult the list by name instead of re-reading the extension file at fire time. In default
-installs most extensions are empty placeholders, so the single init-time enumeration avoids repeated
-placeholder reads across a session.
-
-**Related pattern — agent-file active-gate.** A similar `active` frontmatter flag applies to agent-specific
-files that session-init loads unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading
-the body, and the body is read only when `active: true`. That pattern gates whether a single known file's
-body is consumed; the active-extensions list pattern enumerates which files from a directory are active.
-Both avoid unnecessary body reads at init, but they serve different decisions and are not interchangeable.
+**Agent-file active gate.** An `active` frontmatter flag applies to agent-specific files that session-init loads
+unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading the body, and the body is read only when
+`active: true`. This gates consumption of a single known file's body.
 
 ### Method Classification by Trigger
 
@@ -408,7 +362,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 ### Review enforcement boundary
 
-Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
+Agent-side review methods are best-effort ergonomics. Method activation and workflow declarations
 can require an agent to run an activity, and standard review can produce evidence eligible for a review
 obligation, but none of those agent-layer controls prevents a direct host-UI merge. Host-side merge controls are
 distinct from agent-layer discipline: a required status check is fail-closed repo configuration; draft-state lock
@@ -722,7 +676,7 @@ guards so re-entry is safe.
 - **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
   branch starts, with `**State:** Planning` and the draft-doc filename in `**Design:**`.
   Idempotent: existing file → skip.
-- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
+- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 3 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
   direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
   path (Planning → Active, populate execution fields).
