@@ -426,11 +426,6 @@
       "count": 4
     }
   },
-  "src/handlers/extensions.ts": {
-    "jsdoc/require-jsdoc": {
-      "count": 1
-    }
-  },
   "src/handlers/housekeep.ts": {
     "jsdoc/require-jsdoc": {
       "count": 1

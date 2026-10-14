@@ -53,23 +53,13 @@ scenarios pass against the revised contracts.
   envelopes reject the obsolete field; seven fixtures retain surviving scenarios. Session dispatch is removed and
   its renumbered templates, contributor guidance, and probe references are rendered consistently.
 
-### `[ ]` **2.3 Remove the extension CLI and exclusive modules — D1, D2, D8**
+### `[x]` **2.3 Remove the extension CLI and exclusive modules — D1, D2, D8**
 
 - _Goal:_ The retired command, parser, and scanners have no reachable registration, importer, or executable surface.
 
-- _Note:_ See `notes-retire-extension-points.md` § Envelopes and public command.
-
-    - Remove the command tree from `cli.ts` and input-policy registrations; delete the D2 command, handler,
-      frontmatter, point-scanner, and orphan-detector modules and exclusive exports.
-    - Delete the five exclusive runtime suites specified by D8. Preserve every mixed suite and replace generic
-      surplus-load examples with unrelated paths when their purpose is load-set validation.
-    - Update CLI loading and command-input inventories; revise extension-mechanism comments in generic frontmatter,
-      Markdown traversal, and manifest application without changing their surviving behavior.
-    - Build `test-first` (one behavior at a time):
-        - The public CLI reports the removed command unavailable and help/input/schema inventories omit it.
-        - Surviving command loading, generic frontmatter, filesystem traversal, and registries continue to work.
-    - After deleting `handlers/extensions.ts`, remove its suppression through the whole-project unused-entry prune
-      path; add no suppression and retain every unrelated baseline entry.
+- _Outcome:_ Removed command/help/input registration, the exclusive parser/scanners and runtime modules, and five
+  exclusive suites. The public CLI rejects the command; surviving navigation, discovery, frontmatter, traversal, and
+  load-set checks remain covered. Pruned the deleted handler baseline through the whole-project path.
 
 ### `[ ]` **2.4 Remove checkpoint reports and final-head hook firing — D2, D3**
 

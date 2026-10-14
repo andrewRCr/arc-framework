@@ -6,7 +6,6 @@ import {
   configCommandInputPolicyDeclarations,
   configValidateCommandInputRegistration,
 } from "./commands/config.js";
-import { extensionsCommandInputPolicyDeclarations } from "./commands/extensions.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
@@ -153,7 +152,6 @@ export const commandInputPolicyDeclarations = [
   ...configCommandInputPolicyDeclarations,
   ...errandCommandInputPolicyDeclarations,
   ...errandMergeCommandInputPolicyDeclarations,
-  ...extensionsCommandInputPolicyDeclarations,
   ...housekeepCommandInputPolicyDeclarations,
   ...initCommandInputPolicyDeclarations,
   ...installationCommandInputPolicyDeclarations,
