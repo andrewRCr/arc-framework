@@ -81,8 +81,8 @@ git pull origin {base-branch}
 Verify the working tree is clean (`git status`). If there are uncommitted changes from a prior session,
 resolve them before proceeding.
 
-Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull
-(`git rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
+Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull (`git
+rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
 didn't reach parity — typically a network glitch or a fetch-then-rebase scenario; investigate before
 creating the planning branch. This guard matters most on cross-machine resume, where local
 `{base-branch}` may be arbitrarily behind `origin/{base-branch}` from integration work that landed
@@ -119,9 +119,9 @@ arc start {name} --new --here   # explicit in-place placement
 ```
 
 The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the checkout as
-WU-owned.
-On a spawned start it also ships the start ceremony and emits the exact next-session recipe; consume that recipe
-and skip Steps 4–6. On `--here`, continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
+WU-owned. On a spawned start it also ships the start ceremony and emits the
+exact next-session recipe; consume that recipe and skip Steps 4–6. On `--here`,
+continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
 physical primary, do not allocate transient work there until the WU exits through guarded teardown.
 
 ### 3) Initialize Backlog Subdir to Active · `arc-in-git` only
@@ -337,8 +337,8 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
    cross-machine resume.
 
 6. **Continue into the routed planning stage** — by the floor crossed. Do **not** run `activate-work-unit`;
-   promotion already performed the branch-side activation. Resolve `Class`
-   ([classify-work-unit][classify-work-unit]) here if it was not supplied at promotion.
+   promotion already performed the branch-side activation. Resolve `Class` ([classify-work-unit][classify-work-unit])
+   here if it was not supplied at promotion.
 
    - **Derivation** → the meta points at `draft-design`; work the design out, then [create-spec][create-spec], then
      [generate-tasks][generate-tasks].

@@ -77,8 +77,8 @@ Non-owner contribution happens through three channels:
 - **Pairing** — synchronous work with a single driver. Credit co-contributors with `Co-authored-by:`
   trailers on the relevant commits; this is an attribution convention, not a structural role.
 - **Handoff** — transferring a work unit to a new owner is a _sequential reassignment_ of the
-  `**Owner:**` field, never concurrent shared ownership. See
-  [Person-to-Person Task Handoff](#person-to-person-task-handoff).
+  `**Owner:**` field, never concurrent shared ownership. See [Person-to-Person
+  Task Handoff](#person-to-person-task-handoff).
 
 Cross-person parallelism comes from running **multiple single-owner work units across identities**, not
 from multiple developers driving one WU's task list. When work surfaces that belongs to a _different_
@@ -93,9 +93,9 @@ A structured approach for transferring active work between developer-agent pairs
 rotation, workload rebalancing, or specialization change. Distinct from normal session handoff
 (same person, different session) in that the _reader changes_, not just the time boundary.
 
-This protocol composes the existing [session-handoff][session-handoff] and
-[session-init][session-init] workflows with enhanced context for the different reader. No new
-ceremony — the standard workflows apply with the adjustments below. Teams can follow this
+This protocol composes the existing [session-handoff][session-handoff] and [session-init][session-init]
+workflows with enhanced context for the different reader. No new ceremony —
+the standard workflows apply with the adjustments below. Teams can follow this
 fully, partially, or rely on informal coordination — the minimum viable handoff is reassigning
 the meta `**Owner:**` field and pushing session notes.
 

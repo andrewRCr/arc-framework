@@ -119,9 +119,9 @@ older ARC version, re-run `arc update` to pull in the per-file structure.
 
 ### Meta Files
 
-Checks lifecycle `meta-*.md` files under `active/`, `backlog/planned/`,
-`backlog/provisional/`, and `completed/` for the managed field-block anchor shape. The meta
-must carry an H1 and a standalone closing `---` delimiter after the managed fields, so
+Checks lifecycle `meta-*.md` files under `active/`, `backlog/planned/`, `backlog/provisional/`,
+and `completed/` for the managed field-block anchor shape. The meta must carry
+an H1 and a standalone closing `---` delimiter after the managed fields, so
 field backfills and targeted writes can anchor safely.
 
 **Severity:**

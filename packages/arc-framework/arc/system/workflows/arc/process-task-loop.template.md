@@ -21,9 +21,9 @@ printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect -
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
 `review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
-`arc delivery review-fix continue -` procedure in
-[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
-and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
+`arc delivery review-fix continue -` procedure in [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md).
+It derives the exact member, operation, verification, and acknowledgment from
+canonical state; dispatch its machine actions and re-enter it without reconstructing a
 selector. `canonicalize-provisional` resumes the matching delivery-entry route. `refused` renders
 `recommendedActionText` and stops; any other result stops as an execution-entry contract violation.
 
@@ -321,15 +321,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
 > approval before advancing.
 
-  5. Await user instructions on how to proceed.
-     User may choose to commit changes or request modifications. Under
-     `arc.commitInterlock: manual`, task approval advances work only; committing remains an
-     explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),
-     the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session interlocks; on
-     approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
-     simple-vs-complex path decision and loads the format methods. A deferred delivery-member scale closeout is the
-     bounded exception to ordinary advancement: in manual mode, stop for the explicit commit invocation; in an
+  5. Await user instructions on how to proceed. User may choose to commit changes
+     or request modifications. Under `arc.commitInterlock: manual`, task approval
+     advances work only; committing remains an explicit user-invoked action.
+     Under `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock
+     releases on task approval per [Configurability Architecture Strategy][config-arch]
+     § Session interlocks; on approval signal, invoke the [arc-commit skill][arc-commit-skill]
+     — it owns the simple-vs-complex path decision and loads the format methods.
+     A deferred delivery-member scale closeout is the bounded exception to ordinary
+     advancement: in manual mode, stop for the explicit commit invocation; in an
      auto-fire mode, commit on approval. After that commit lands, return to item 3, record and close the scale result,
      then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
      rather than invoking prepare-commits silently.
@@ -383,10 +383,10 @@ When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBO
 
 ### Incidental Commit Discipline
 
-Off-workflow / incidental commits follow the review-increment invariant
-([DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant): surface what landed (file list,
-summary, or diff sample), then end with the structured prompt — `Commit and proceed to
-<next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
+Off-workflow / incidental commits follow the review-increment invariant ([DEV-RULES.ARC][dev-rules-arc]
+§ Review-Increment Invariant): surface what landed (file list, summary, or diff
+sample), then end with the structured prompt — `Commit and proceed to <next-target>?`
+(releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
 Informal mid-discussion approval ("ok", "looks good") does not release commit.
 
 ## Task List Maintenance

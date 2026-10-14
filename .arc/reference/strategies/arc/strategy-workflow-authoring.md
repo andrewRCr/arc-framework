@@ -54,8 +54,8 @@ arc:                              # omit if this workflow loads no methods
 ## Author-side Declaration Rule
 
 When a workflow fires a method, declare it in the workflow's frontmatter `arc.methods` array. The declaration is an
-**index of what the workflow may fire**, not a load instruction:
-the content loads when the workflow reaches the fire-point that invokes it, per DEV-RULES.ARC § Method
+**index of what the workflow may fire**, not a load instruction: the content
+loads when the workflow reaches the fire-point that invokes it, per DEV-RULES.ARC § Method
 loading. The body's fire-point is the trigger — a callout, a signature block, or an invocation-marking in-step method
 link — and the declaration is what makes that trigger resolvable. A link used
 only to navigate to related material is not a fire-point.

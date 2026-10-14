@@ -485,4 +485,8 @@ external editor add-ons, prompt-guidance augmentation, external workspace-tool h
 capability growth. The final source sweep grounded these meanings in five named research documents; approval
 preserves their text without exempting any directory or current ARC lifecycle-hook execution.
 
+**Amended 2026-10-14 — A6:** The historical-analysis exclusion additionally permits whitespace-only reflow of the
+FP-1 paragraph in `analysis-workflow-clarity-audit.md`. The newly merged under-wrap gate exposed this paragraph;
+its wording, rendered structure, and literal code remain unchanged. This exception adds no historical-text rewrite.
+
 ---

@@ -543,10 +543,10 @@ These were flagged by subagents but are not actual issues:
 ### FP-1: arc-extensions.md "broken reference" in process-task-loop
 
 The execution-loop clarity agent reported `arc-extensions.md` as a broken reference from
-`3_process-task-loop.md`. This is incorrect — the file exists at
-`.arc/system/workflows/arc-extensions.md` and the relative path `../arc-extensions.md` from the
-`arc/` subdirectory resolves correctly. The link validation agent independently confirmed all
-286 reference-style link definitions are valid.
+`3_process-task-loop.md`. This is incorrect — the file exists at `.arc/system/workflows/arc-extensions.md`
+and the relative path `../arc-extensions.md` from the `arc/` subdirectory resolves
+correctly. The link validation agent independently confirmed all 286 reference-style
+link definitions are valid.
 
 ### FP-2: arc-config.yml "default mismatch"
 

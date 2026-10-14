@@ -20,8 +20,8 @@ Reference: strategy-workflow-authoring.md — full schema, author-side declarati
 # Workflow: {title}
 
 Body. Structure this however fits the workflow — numbered `## Steps`, named phases, or prose
-sections as needed. In-step markdown links to methods remain for reader
-navigation; the frontmatter is the load contract.
+sections as needed. In-step markdown links to methods remain for reader navigation;
+the frontmatter is the load contract.
 
 <!--
 Interlock markers — for workflows that gate progress at a stop point. Drop into the step or

@@ -224,8 +224,8 @@ planning pipeline, and work tracking all live alongside the code.
 
 **The scaling boundary** is a function of team size, branch lifetime, and integration
 frequency — not a hard headcount threshold. The shared backlog surface (`ATOMIC-INBOX.md`,
-per-WU subdirs, ROADMAP) is tracked in git on the base branch. When
-multiple developers capture work from concurrent feature branches, those edits only converge
+per-WU subdirs, ROADMAP) is tracked in git on the base branch. When multiple
+developers capture work from concurrent feature branches, those edits only converge
 at merge time. Teams that integrate often stay current; teams with long-lived branches
 experience growing staleness and merge friction.
 

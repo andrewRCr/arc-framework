@@ -76,8 +76,8 @@ park verb owns this relocate choreography.
 
 ### 4) Ship per protection mode
 
-`arc park` left its result staged on the base tree. Commit and ship per
-[Work Organization Strategy § Branch Protection Modes][work-org-protection]:
+`arc park` left its result staged on the base tree. Commit and ship per [Work
+Organization Strategy § Branch Protection Modes][work-org-protection]:
 
 - **Partial** — a direct base commit.
 - **Full** — ship the staged `meta-*` / `draft-*` grooming change on a short-lived `chore/park-{name}` branch + PR

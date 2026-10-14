@@ -255,9 +255,8 @@ any write anywhere in the store, which makes every other session's capture a rea
 Git stores the records; it does not define what they mean. Records carry their own identities, versions, and links, and
 the contract is implementable without Git. `registerStoreConformanceSuite` registers assertions for
 `referenceRegistration`, whose factory constructs the in-memory `ReferenceBackend`; its record operations and sync use
-memory state rather than Git.
-The Git notes lesson is the cautionary case: SHA-keyed attachment became the semantic model, and a rewrite orphaned
-state.
+memory state rather than Git. The Git notes lesson is the cautionary case: SHA-keyed
+attachment became the semantic model, and a rewrite orphaned state.
 
 ### 15. The final shape over today's
 

@@ -74,9 +74,9 @@ by declaring them in `arc.methods` — see [Workflow Authoring Strategy][workflo
 point with cross-project standards; domain files extend it for specific areas.
 
 **None of these mechanisms or content channels apply to principles.** Config settings exist for conventions.
-Method overrides replace convention-level
-implementations. Content-level customization adds project-specific guidance alongside ARC's framework guidance.
-Principles (tier 1) are not configurable through any mechanism — they define what ARC is.
+Method overrides replace convention-level implementations. Content-level customization
+adds project-specific guidance alongside ARC's framework guidance. Principles
+(tier 1) are not configurable through any mechanism — they define what ARC is.
 
 ### Convention inventory
 
@@ -219,9 +219,9 @@ where each developer configures them independently.
   `archive.cadence`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
   These are inherently project-wide; per-developer variation would create inconsistency.
 - **Per-developer settings** — identity, role, autonomy interlocks, review-source preference, release-wrapper
-  opt-in. These route through
-  **git config** (`git config arc.<key>`). See [Personal Configuration via Git
-  Config](#personal-configuration-via-git-config) below for the full key reference.
+  opt-in. These route through **git config** (`git config arc.<key>`). See [Personal
+  Configuration via Git Config](#personal-configuration-via-git-config) below
+  for the full key reference.
 - **Dual-scope** — `user.notes_push` / `arc.notesPush` and `review.frontline_sources` / `arc.frontlineSources`
   carry project defaults with per-developer git-config overrides. Other settings are exclusively one tier or the
   other.
@@ -307,12 +307,12 @@ interlock's `on-X` value names its own trigger. The interlock model these settin
 lives in [Session Operations Strategy][session-ops] § Interlock Model and § Handoff-Interior
 Toggle Pattern.
 
-**Release-wrapper opt-in** is a separate config axis from the interlocks
-— orthogonal to WHEN the agent fires (interlock-governed), it controls HOW the invocation is
+**Release-wrapper opt-in** is a separate config axis from the interlocks — orthogonal
+to WHEN the agent fires (interlock-governed), it controls HOW the invocation is
 shaped. Per-developer git config (`arc.releaseOptedIn`, local scope); default `false`. See
 [Interlock Release Wrappers Strategy][interlock-release-wrappers] for trust-model framing,
-when-to-use guidance, and per-harness setup notes; see [Session Operations
-Strategy][session-ops] § Interlock Model for the wrapper layer.
+when-to-use guidance, and per-harness setup notes; see [Session Operations Strategy][session-ops]
+§ Interlock Model for the wrapper layer.
 
 ### Handoff-interior toggles
 
@@ -357,8 +357,8 @@ Config settings divide into two categories based on how changes take effect:
 **Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
 opt-in, frontline source) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup
 install` / `arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy
-interlocks and frontline source). See
-[Personal Configuration via Git Config](#personal-configuration-via-git-config) for the full key reference.
+interlocks and frontline source). See [Personal Configuration via Git Config](#personal-configuration-via-git-config)
+for the full key reference.
 
 The changeset-size thresholds derive advisory attention, not chunk-size caps or universal review-provider limits.
 Each non-negative dimension is independent: `0` disables that dimension, both `0` preserve whole-target review
@@ -514,8 +514,8 @@ overrides, check declarations) but at a different layer:
 
 Agent hooks are configured in the platform's native format. The methodology describes what behaviors to trigger,
 and teams configure their platform accordingly. For detailed mapping of ARC behaviors to hook events, value
-assessment, and implementation guidance, see
-the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/) guide on the docs site.
+assessment, and implementation guidance, see the [Agent
+Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/) guide on the docs site.
 
 ---
 

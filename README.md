@@ -30,8 +30,7 @@ works with any conversational AI coding agent and any tech stack.
 ![Session initialization — the agent picks up where you left off](docs/img/session-init-readme.gif)
 
 ARC is grounded in cognitive science research on sustained attention and emerging AI research on
-context quality degradation.
-[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
+context quality degradation. [More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
 
 ## Overview
 
@@ -74,16 +73,15 @@ complete structure and what each component does.
   Code review research shows defect detection drops from 70–90% to ~30% as review size
   grows; ARC's granularity is a direct response.
 - **Configurability architecture with a CLI.** ARC's principles are non-negotiable, but
-  most of how they're implemented is. Commit format, quality gates, triage
-  thresholds, review methods, session state mechanics — all configurable conventions
-  with strong defaults your team replaces when they don't fit. The CLI handles
-  initialization, onboarding, framework updates that preserve your configuration and project standards, and
+  most of how they're implemented is. Commit format, quality gates, triage thresholds,
+  review methods, session state mechanics — all configurable conventions with
+  strong defaults your team replaces when they don't fit. The CLI handles initialization,
+  onboarding, framework updates that preserve your configuration and project standards, and
   session state portability across machines.
 - **Shared context with tiered delivery.** Project specifications, development standards,
   and codified strategies give humans and agents the same understanding. Not everything
-  loads at once: foundational context loads at session
-  start, procedural workflows load on-demand, and reference material loads as work
-  touches specific domains.
+  loads at once: foundational context loads at session start, procedural workflows
+  load on-demand, and reference material loads as work touches specific domains.
 - **Session lifecycle.** Structured initialization and handoff workflows preserve working
   state, decisions, and next actions across context boundaries. Designed around research
   showing LLM performance degrades significantly as context accumulates; focused sessions
@@ -100,8 +98,8 @@ complete structure and what each component does.
 ARC optimizes for quality and maintainability over raw throughput. It's slower than fully
 autonomous approaches, requires active developer engagement, and adds structure that pays
 off proportional to project complexity, not over a weekend prototype. These are deliberate
-design choices, not limitations.
-[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
+design choices, not limitations. [More on
+design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
 
 ## Getting Started
 

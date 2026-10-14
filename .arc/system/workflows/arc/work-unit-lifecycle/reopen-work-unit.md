@@ -116,10 +116,10 @@ under `--keep-pr`, so the draft PR carries it.
 
 With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
 task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
-already-closed WU is back in
-Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and `workflow:
-prepare-work-unit`; return to [`prepare-work-unit.md`][prepare]. Candidate currentness and review procedures account
-for head-changing fixes; never route from the cleared narrative `**Next Action:**` field.
+already-closed WU is back in Candidate-bearing `**State:** Active`, which projects
+`sessionType: prepublication` and `workflow: prepare-work-unit`; return to [`prepare-work-unit.md`][prepare].
+Candidate currentness and review procedures account for head-changing fixes;
+never route from the cleared narrative `**Next Action:**` field.
 
 ---
 

@@ -155,8 +155,8 @@ when authoring or editing a template:
 - **`{slot}` — author-substitution slot.** A single-brace span the author replaces when copying
   the template. Short name slots use a kebab token (`{work-name}`, `{project-name}`,
   `{domain-title}`, `{title}`); longer slots carry the authoring instruction as prose inside the
-  braces (`{One-paragraph statement of scope …}`) or an enum of choices
-  (`{Proposed | Accepted | Deprecated}`). This is the dominant convention — prefer it for any
+  braces (`{One-paragraph statement of scope …}`) or an enum of choices (`{Proposed
+  | Accepted | Deprecated}`). This is the dominant convention — prefer it for any
   value the author fills in.
 - **`{{TOKEN}}` — render-engine token.** A double-brace mustache token the CLI substitutes
   programmatically at `arc init` / `arc user open` time (e.g. `{{short-hash}}`). Not

@@ -123,8 +123,8 @@ guidance below.
 
 ### 6. Execute and Verify
 
-Stage and commit each group using the [commit-format][arc-methods-cf] and
-[commit-footer][arc-methods-ccf] methods. After all commits:
+Stage and commit each group using the [commit-format][arc-methods-cf] and [commit-footer][arc-methods-ccf]
+methods. After all commits:
 
 ```bash
 git log --oneline -10    # Review commit messages

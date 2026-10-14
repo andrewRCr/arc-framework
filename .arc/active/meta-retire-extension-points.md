@@ -50,8 +50,9 @@ subsequent-update regressions. Recipe-derived membership is 142 files: 103 Frame
 
 ADR-038 preserves all eleven retired event contracts and a full source-retrieval revision. Four prior ADRs received
 scoped supersession metadata without body rewrites. Approved amendments preserve unrelated extension meanings and
-repair one historical-analysis retrieval link. The contributor session introduction was corrected to preserve its
-own freshness route after renumbering. Obsolete implementation-planning notes were removed; no intended scope remains
+repair one historical-analysis retrieval link. An additional approved whitespace-only reflow of its FP-1 paragraph
+preserves wording, rendered structure, and literal code. The contributor session introduction was corrected to preserve
+its own freshness route after renumbering. Obsolete implementation-planning notes were removed; no intended scope remains
 deferred. The final scope aligns with PROJECT-PRD and TECHNICAL-OVERVIEW.
 
 Pre-publication verification passed all 17 selected local merge checks and selected local E2E feedback. The complete

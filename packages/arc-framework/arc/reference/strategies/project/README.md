@@ -37,8 +37,8 @@ patterns, strategies adapted from other projects, or content found in ARC commun
 Drop them here alongside your self-authored strategies; they follow the same conventions.
 
 If external content needs deeper integration (replacing an ARC method default or adding a project workflow), use the
-[integrate-external-content][integrate-external] workflow for the full
-classification decision tree and wiring steps.
+[integrate-external-content][integrate-external] workflow for the full classification
+decision tree and wiring steps.
 
 - **Replaces an ARC default** → Method override (populate `.override` in the method's file
   under `system/methods/`)

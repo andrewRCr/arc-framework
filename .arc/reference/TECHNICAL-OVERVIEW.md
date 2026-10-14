@@ -48,8 +48,8 @@ committed to their repositories. Five top-level concerns:
   decision records), `research/` (technical research with lasting reference value), and `templates/` (artifact
   skeletons).
 - **System layer** (`system/`) — `workflows/` (numbered lifecycle workflows plus supplemental ones), `methods/`
-  (overridable defaults), `briefs/` (session-init orientation by role),
-  `githooks/` (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
+  (overridable defaults), `briefs/` (session-init orientation by role), `githooks/`
+  (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
   (canonical skill sources rendered to harness-specific subdirectories).
 - **Work surfaces** — `active/` (in-flight work units: meta files plus task lists and companions, flat layout),
   `backlog/` (future-work pipeline: `ROADMAP.md` plus `planned/` and `provisional/` state-dirs and inbox
