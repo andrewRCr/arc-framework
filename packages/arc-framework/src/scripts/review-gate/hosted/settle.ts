@@ -6,6 +6,7 @@ import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js"
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
+import { observeHostedFixHead, type HostedSettlementHeadRegistration } from "./settlement-head.js";
 
 const HostedSettleDispositionSchema = z.enum(["fix", "defer", "reject"]);
 
@@ -110,6 +111,18 @@ const HostedSettleResultBaseShape = {
 export const HostedSettleResultSchema = z.union([
   z.strictObject({
     ...HostedSettleResultBaseShape,
+    state: z.literal("head-pending"),
+    nextAction: z.literal("retry"),
+    observedHeadSha: HostedTargetSchema.shape.headSha,
+    expectedHeadSha: HostedTargetSchema.shape.headSha,
+    remedy: z.strictObject({
+      text: z.string().min(1),
+      argv: z.tuple([z.literal("arc"), z.literal("review"), z.literal("hosted"), z.literal("settle"), z.literal("-")]),
+      stdin: HostedSettleEnvelopeSchema,
+    }),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
     state: z.literal("settled"),
     nextAction: z.literal("complete"),
     replyId: z.string().min(1),
@@ -198,10 +211,29 @@ async function targetIsCurrent(
   return await port.readHead(expectedTarget) === expectedTarget.headSha;
 }
 
+async function initialHeadRefusal(
+  request: HostedSettleEnvelope,
+  dependencies: { port: HostedSettlementPort; headRegistration?: HostedSettlementHeadRegistration },
+): Promise<HostedSettleResult | null> {
+  const base = resultBase(request);
+  if (request.disposition !== "fix" || request.fixTarget === null) {
+    return await targetIsCurrent(request, dependencies.port) ? null : { ...base, state: "stale-target", nextAction: "stop" };
+  }
+  const observation = await observeHostedFixHead(request.fixTarget, dependencies.port, dependencies.headRegistration);
+  if (observation.state === "current") return null;
+  if (observation.state === "stale") return { ...base, state: "stale-target", nextAction: "stop" };
+  return { ...base, state: "head-pending", nextAction: "retry", observedHeadSha: observation.observedHeadSha,
+    expectedHeadSha: request.fixTarget.headSha,
+    remedy: {
+      text: "The host still reports an ancestor of the verified fix head. Retry this unchanged request after the host registers the push.",
+      argv: ["arc", "review", "hosted", "settle", "-"], stdin: request,
+    } };
+}
+
 /** Settle the originating thread under exact actor/target checks and current-head guards for host mutation. */
 export async function settleHostedFinding(
   input: unknown,
-  dependencies: { port: HostedSettlementPort },
+  dependencies: { port: HostedSettlementPort; headRegistration?: HostedSettlementHeadRegistration },
 ): Promise<HostedSettleResult> {
   const request = HostedSettleEnvelopeSchema.parse(input);
   const base = resultBase(request);
@@ -220,8 +252,9 @@ export async function settleHostedFinding(
     if (replyMatch.kind !== "unique") {
       return { ...base, state: "ambiguous", nextAction: "stop" };
     }
-    if (request.disposition === "fix" && !await targetIsCurrent(request, dependencies.port)) {
-      return { ...base, state: "stale-target", nextAction: "stop" };
+    if (request.disposition === "fix") {
+      const refusal = await initialHeadRefusal(request, dependencies);
+      if (refusal !== null) return refusal;
     }
     return {
       ...base,
@@ -231,9 +264,8 @@ export async function settleHostedFinding(
     };
   }
 
-  if (!await targetIsCurrent(request, dependencies.port)) {
-    return { ...base, state: "stale-target", nextAction: "stop" };
-  }
+  const refusal = await initialHeadRefusal(request, dependencies);
+  if (refusal !== null) return refusal;
   if (replyMatch.kind === "ambiguous") {
     return { ...base, state: "ambiguous", nextAction: "stop" };
   }
