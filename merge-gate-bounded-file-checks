@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "merge-gate-bounded-file-checks",
+  "claimId": "1ab3d2186713711c6dad5a05a49f140e",
+  "createdAt": "2026-10-14T18:37:17.806Z",
+  "updatedAt": "2026-10-14T18:37:17.806Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep default merge-gate file checks with widening disabled on their changed indexed inputs while retaining whole-project checks and explicit all scope.",
+  "branch": "chore/merge-gate-bounded-file-checks",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
