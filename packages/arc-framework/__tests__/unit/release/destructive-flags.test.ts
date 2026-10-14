@@ -95,6 +95,9 @@ describe("detectCommitDestructive", () => {
     ["long pathspec after terminator", ["--", "--no-verify"]],
     ["abbreviated message data", ["--message", "--no-verif"]],
     ["abbreviated pathspec data", ["--", "--no-verif"]],
+    ["abbreviated pathspec-file operand", ["--pathspec-from-f", "--no-verif"]],
+    ["abbreviated message-option operand", ["--mess", "--no-verif"]],
+    ["abbreviated author-option operand", ["--auth", "--no-verif"]],
   ])("does not reinterpret destructive-looking %s data", (_label, args) => {
     expect(detectCommitDestructive(args)).toBeNull();
   });
@@ -122,6 +125,7 @@ describe("detectCommitAmend", () => {
     ["pathspec after terminator", ["--", "--amend"]],
     ["abbreviated message operand", ["-m", "--amen"]],
     ["abbreviated pathspec", ["--", "--amen"]],
+    ["abbreviated pathspec-file operand", ["--pathspec-from-f", "--amen"]],
   ])("does not report an amend for %s", (_label, args) => {
     expect(detectCommitAmend(args)).toBe(false);
   });

@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { runCli } from "../helpers/run-cli.js";
-import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, runArcAnchored } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 let repository = "";
@@ -69,5 +69,22 @@ describe("release wrapper abbreviated destructive flags", () => {
     expect(await git(["rev-parse", "HEAD"])).toBe(head);
     expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(remoteHead);
     expect(await git(["diff", "--cached", "--name-only"])).toBe("tracked.txt");
+  });
+});
+
+describe("abbreviated commit option filenames", () => {
+  it.each(["--no-verif", "--amen"])("keeps %s as the pathspec filename", async (filename) => {
+    await writeFile(join(repository, filename), "tracked.txt\n");
+    const head = await git(["rev-parse", "HEAD"]);
+    const remoteHead = await git(["rev-parse", "refs/heads/topic"], remote);
+
+    const result = await runArcAnchored([
+      "release", "commit", "--pathspec-from-f", filename, "-m", "fix(test): preserve the pathspec operand",
+    ], repository);
+
+    expect(result.exitCode).toBe(0);
+    expect(await git(["rev-parse", "HEAD^"])).toBe(head);
+    expect(await git(["show", "HEAD:tracked.txt"])).toBe("changed");
+    expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(remoteHead);
   });
 });
