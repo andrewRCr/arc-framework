@@ -19,9 +19,13 @@ README, public repo, community infrastructure, and release automation.
   during `storage-contract` draft close, 2026-09-30.
 - _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history. After the cutover,
   state history rides the code remote by default, and the default backend gives no privacy on a public repository
-  (ADR-035; the register's `public-repo-flip` row).
+  (ADR-035; storage-coupling register row 43, now owned by `storage-cutover`).
 - _Approach:_ Decide at next planning whether release follows the cutover, and how state refs are treated when the
   repository goes public.
+- _Reconciled 2026-10-14:_ the repository has been public in place with its full history since 2026-10-06.
+  The 2026-10-10 backend decision publishes this repository's personal state with its project state;
+  `storage-cutover` owns the interim `user.notes_push: manual` until notes retire. The remaining planning question is
+  release timing relative to the cutover.
 
 ---
 
