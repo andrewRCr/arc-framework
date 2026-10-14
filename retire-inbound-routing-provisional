@@ -3,7 +3,7 @@
   "slug": "retire-inbound-routing-provisional",
   "claimId": "cd2fac152be91909ac4f4a8ca78872e1",
   "createdAt": "2026-10-14T19:28:44.806Z",
-  "updatedAt": "2026-10-14T19:28:44.806Z",
+  "updatedAt": "2026-10-14T19:37:29.029Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retire the storage-seam cohort provisional marks for the shipped inbound-routing-method.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Retire `cohort-storage-seam.md`'s provisional marks on `inbound-routing-method`, which has shipped",
   "originEntrySourceDigest": "sha256:8e9524e9e092aad1247af10dc8147ea366f32cb12f11fb78bb00d015b5785552",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/retire-inbound-routing-provisional",
+    "headSha": "28d3c6a6d5170cb8b6f756048c2ca8b9c955057f"
+  }
 }
