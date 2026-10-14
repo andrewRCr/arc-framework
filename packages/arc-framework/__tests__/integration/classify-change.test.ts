@@ -1398,7 +1398,7 @@ describe("CI verified-tree record", () => {
     const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
       + "packages/arc-framework/.test-cost-runs/duration-input";
     const preparationCommands = new Set([
-      "npm ci", durationPreparationCommand,
+      "npm ci", "npm run setup", durationPreparationCommand,
       "git show-ref --verify --quiet refs/heads/main || git branch main origin/main",
       "node --import tsx scripts/run-ci-checks.mjs validate",
       'node --import tsx packages/arc-framework/src/cli.ts check gate merge --ci --dry-run --json > "$RUNNER_TEMP/arc-check-forecast.json"\n'
