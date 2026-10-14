@@ -664,7 +664,6 @@ describe("PR-open lifecycle extensions", () => {
 
       const declared = method.match(/^arc:\n {2}methods:\n((?: {4}- .+\n)+)/mu)?.[1];
       if (declared === undefined) throw new Error("missing adversarial-review arc.methods");
-      expect(declared).toContain("- resolve-planning-depth");
       expect(declared).toContain("- assess-boundary-fit");
     }
   });

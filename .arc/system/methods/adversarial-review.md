@@ -6,7 +6,6 @@ arc:
     - source-grounding
     - assess-design-proportionality
     - disposition-report
-    - resolve-planning-depth
     - assess-boundary-fit
 related:
   - source-grounding
