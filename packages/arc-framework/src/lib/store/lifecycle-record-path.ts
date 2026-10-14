@@ -6,6 +6,7 @@ import { resolveArcPath } from "../layout/index.js";
 import { posix } from "node:path";
 import type { StoreRecord } from "./read.js";
 import { workUnitMetaPath, workUnitArtifactName } from "./lifecycle-write.js";
+import { companionArtifactName } from "./companion-name.js";
 /** Project a companion beside its selected meta without granting filesystem write authority. */
 export function lifecycleRecordPath(primary: StoreRecord, record: StoreRecord): string | null {
   const meta = workUnitMetaPath(primary), slug = primary.reference.owner.name;
@@ -15,7 +16,7 @@ export function lifecycleRecordPath(primary: StoreRecord, record: StoreRecord): 
     workUnitArtifactName(slug, kind === "work-item/draft" ? "draft" : "spec"));
   if (kind === "work-item/task-list") return posix.join(posix.dirname(meta), `tasks-${slug}.md`);
   if (kind === "work-item/notes") return posix.join(posix.dirname(meta), `notes-${slug}.md`);
-  if (kind === "work-item/companion" && typeof record.reference.key === "string") return posix.join(posix.dirname(meta), record.reference.key);
+  if (kind === "work-item/companion" && typeof record.reference.key === "string") return posix.join(posix.dirname(meta), companionArtifactName(slug, record.reference.key));
   return null;
 }
 

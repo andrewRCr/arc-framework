@@ -85,6 +85,18 @@ it("renames a stub without a branch switch or second change request", async () =
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toMatchObject({ reference: { owner: { name: "target" } }, placement: primary.placement });
   expect(git.calls).toEqual([]);
 });
+it("renames a name-keyed research companion's self title and artifact references", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
+  const research = await h.seed(recordReferences["work-item/companion"](primary.reference.owner, "research"),
+    "# Research: source\n\nRead `spec-source.md` using `--plan source`.\n");
+  const git = scriptGitExec([]);
+  expect(await runStoreRename({ store: h.store, cwd: "/transient", exec: git.exec, baseBranch: "main", locusPorts },
+    { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  const renamed = lifecycleSuccess(await h.store.read({ reference: research.reference }));
+  expect(renamed.content).toBe("# Research: target\n\nRead `spec-target.md` using `--plan target`.\n");
+  expect(renamed.reference).toEqual({ ...research.reference, owner: { ...research.reference.owner, name: "target" } });
+});
 async function branchFixture(linkedAs: "created" | "adopted" = "created", failPush = false, detached = false) {
   const h = createLifecycleHarness(), sha = "1".repeat(40), refs = new Set(["feat/source"]);
   const link = { repository: "repo", ref: "feat/source", linkedAs, excluded: [{ repository: "repo", sha: "a".repeat(40) }] };
