@@ -3,7 +3,7 @@
   "slug": "close-public-repo-flip",
   "claimId": "309ac6d7dbc29f4820187e77bfe3a4df",
   "createdAt": "2026-10-14T21:32:35.053Z",
-  "updatedAt": "2026-10-14T21:32:35.053Z",
+  "updatedAt": "2026-10-14T22:01:20.767Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retire the completed public visibility stub, preserve the superseding personal-state decision, and hand the manual-notes interim to storage-cutover.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Close out `public-repo-flip` now that the repository is public",
   "originEntrySourceDigest": "sha256:fce93d12a06b961099087046c6d59f615adf7c69ba9516f5206db17bc2f563ef",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/close-public-repo-flip",
+    "headSha": "ee807069500a4513cacdcf783c47f1a1b484fe71"
+  }
 }
