@@ -11,13 +11,14 @@
 - **Design:** `spec-pull-request-surface-policy.md`
 - **Task List:** `tasks-pull-request-surface-policy.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:98fed9dfafe8cc26efbd6784f3025fb43cb08df5717665cefb62e9b66609e68e`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 3.4 — Check the complete adopted surface
-- **Next Task:** Task 4.1 — Complete verification (line ~129)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 4.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

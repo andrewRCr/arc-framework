@@ -126,52 +126,67 @@ installation, override preservation, method dependencies, and package/project sy
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Quality gates, source and installation evidence, and the explicitly post-landing observations have
   truthful dispositions before integration.
+
+- _Quality gates:_ The forced local merge request and isolated lint/unit retries closed with all 19 selected local
+  checks passing or reused. Both type checks, integration, contracts, build, reference/trigger audits, and sync passed;
+  three CI-only checks remain due at integration.
+- _Success criteria:_ 14 criteria: nine met and five planned post-landing observations deferred with approval to
+  andrew's sampling Errand in identity-global `USER-INBOX.md`. Live sampling is unperformed. The adversarial companion's
+  first pass found one major gap: terminal correction description upkeep missed public continuation results. Fixed in
+  `51861f188`; its regression failed on the original text and all 94 focused cases passed. Pass 2 of 2 returned no
+  findings; stop reason: converged, with no further pass requested.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` After landing, sampled Errand and work-unit requests use titles valid under `commit.format`, under the
+- `[~]` After landing, sampled Errand and work-unit requests use titles valid under `commit.format`, under the
   default policy and without a prescribed template; exclude composed multi-member titles.
+  **Superseded:** Deferred with approval to andrew's Errand, "Sample pull-request formatting after the new policy
+  lands", captured in identity-global `USER-INBOX.md`; awaits landing and the next few qualifying requests.
 
-- `[ ]` After landing, sampled authored bodies use only the applicable sections in Summary, Changes, Notes for
+- `[~]` After landing, sampled authored bodies use only the applicable sections in Summary, Changes, Notes for
   Reviewers, Test Plan, and Out of Scope order, without empty placeholders.
+  **Superseded:** Deferred with approval to the same andrew-owned post-landing sampling Errand.
 
-- `[ ]` After landing, sampled requests carry no process vocabulary, artifact references, or review metadata,
+- `[~]` After landing, sampled requests carry no process vocabulary, artifact references, or review metadata,
   apart from their subject matter and applicable commit-pinned design links.
+  **Superseded:** Deferred with approval to the same andrew-owned post-landing sampling Errand.
 
-- `[ ]` After landing, sampled bodies fit the method's one-screen heuristic; work-unit decisions remain selected
+- `[~]` After landing, sampled bodies fit the method's one-screen heuristic; work-unit decisions remain selected
   and Errands retain every qualifying decision.
+  **Superseded:** Deferred with approval to the same andrew-owned post-landing sampling Errand.
 
-- `[ ]` After landing, sampled request decisions use the same question/choice/alternative/reason form and their
+- `[~]` After landing, sampled request decisions use the same question/choice/alternative/reason form and their
   corresponding commit decisions retain the content as plain-prose bullets.
+  **Superseded:** Deferred with approval to the same andrew-owned post-landing sampling Errand.
 
-- `[ ]` `classifyFile` reports the installed method as `Configurable`, and a real `runUpdate` preserves a populated
+- `[x]` `classifyFile` reports the installed method as `Configurable`, and a real `runUpdate` preserves a populated
   override with the correct pristine baseline and no new configuration key.
 
-- `[ ]` Fresh installs omit the retired template, updates remove its former Framework installation, both source
+- `[x]` Fresh installs omit the retired template, updates remove its former Framework installation, both source
   copies are absent, and no shipped file references it.
 
-- `[ ]` `commit-format` cites the decision guide through `related` only, the method fires the commit grammar, and
+- `[x]` `commit-format` cites the decision guide through `related` only, the method fires the commit grammar, and
   both Errand protection modes load the guide when composing qualifying commit decisions without a dependency cycle.
 
-- `[ ]` Shipped creation guidance prescribes no Design/Local review field line, Decisions heading, or Follow-Up
+- `[x]` Shipped creation guidance prescribes no Design/Local review field line, Decisions heading, or Follow-Up
   Work section in an in-scope authored body, and the default adds no disclosure or provenance metadata.
 
-- `[ ]` All three publication workflows declare and load the method at composition; Errand and integration fix
+- `[x]` All three publication workflows declare and load the method at composition; Errand and integration fix
   rounds update descriptions after approved pushed fixes and re-pin on either Git test, for every design path and
   terminal delivery corrections.
 
-- `[ ]` The universal rules, repository-specific domain reading, squash guidance, forward ADR amendment, grooming
+- `[x]` The universal rules, repository-specific domain reading, squash guidance, forward ADR amendment, grooming
   body guidance, indexes, and self-hosting inventory agree with the format policy and preserve its scope exclusions.
 
-- `[ ]` The retargeted workflow and install/update tests pass; existing delivery tests still prove unchanged
+- `[x]` The retargeted workflow and install/update tests pass; existing delivery tests still prove unchanged
   single/multi-member title behavior, while trigger, reference, and framework-sync checks remain green.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
