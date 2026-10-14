@@ -55,6 +55,7 @@ const RAW_STATE_MODULES = [
   "lib/store/kinds/meta/line-reading.ts",
   "lib/active/meta-reader.ts",
   "lib/work-unit/lifecycle-index.ts",
+  "lib/work-unit/completed-index.ts",
   "lib/work-unit/composed-lifecycle-index.ts",
   "lib/git/ref-tree.ts",
   "lib/errand/ref-tree.ts",

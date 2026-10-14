@@ -1,7 +1,7 @@
 /** Derived-roster classification helpers for session cleanup surfaces. */
 
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
-import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
 
 /** True when an exact transient identity or derived work-unit role owns the branch. */
 export function locusOwnsBranch(roster: readonly DerivedCheckoutRow[], branch: string): boolean {

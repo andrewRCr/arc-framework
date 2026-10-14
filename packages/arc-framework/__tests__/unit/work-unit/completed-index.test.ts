@@ -1,17 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import {
-  branchToWorkUnitSlug,
-  completedWorkUnitMetaSlug,
-  computeArchiveDestination,
-  isShippedWorkUnit,
-  readArchivedWorkUnitMetaFromRef,
-  readCompletedEvidenceFromRef,
-  readShippedWorkUnits,
-  readShippedWorkUnitRecordsFromRef,
-  readShippedWorkUnitsFromRef,
-  type CompletedIndexFs,
-} from "../../../src/lib/work-unit/completed-index.js";
+import { computeArchiveDestination, isShippedWorkUnit, readArchivedWorkUnitMetaFromRef, readCompletedEvidenceFromRef, readShippedWorkUnits, readShippedWorkUnitRecordsFromRef, readShippedWorkUnitsFromRef, type CompletedIndexFs } from "../../../src/lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug, completedWorkUnitMetaSlug } from "../../../src/lib/work-unit/work-unit-slug.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 /**

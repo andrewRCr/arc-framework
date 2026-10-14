@@ -65,11 +65,8 @@ import {
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
 import { localPathsEqual } from "../../local-path-identity.js";
-import {
-  branchToWorkUnitSlug,
-  readCompletedEvidenceFromRef,
-  readShippedWorkUnitsFromRef,
-} from "../completed-index.js";
+import { readCompletedEvidenceFromRef, readShippedWorkUnitsFromRef } from "../completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit-slug.js";
 import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,

@@ -1,6 +1,6 @@
 /** Review-only resolution from an exact target to its owning work unit. */
 
-import { branchToWorkUnitSlug } from "../../../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../../../lib/work-unit/work-unit-slug.js";
 import type {
   DeliveryMemberBinding,
   DeliveryMemberLookup,

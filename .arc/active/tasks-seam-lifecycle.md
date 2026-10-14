@@ -77,29 +77,20 @@ note.
 - _Outcome:_ Only the production planner, mutators, and bound side effects remain; coverage no longer depends on
   the deleted convenience entry points.
 
-### `[ ]` **1.3 Count the archive index in the import ratchet — § 1.4**
+### `[x]` **1.3 Count the archive index in the import ratchet — § 1.4**
 
 - _Goal:_ Archive's and teardown's reads of the archive index count against the `store-raw-state` floor, and no import
   made only for a slug parse does.
 
-    - `[ ]` **1.3.a Move the slug helpers out of the archive index**
+    - `[x]` **1.3.a Move the slug helpers out of the archive index**
 
-        - Move `branchToWorkUnitSlug` and `completedWorkUnitMetaSlug` from `completed-index.ts` into a module of their
-          own under `lib/work-unit/`, outside the raw-state helper set; `completed-index.ts` imports
-          `branchToWorkUnitSlug` from it for `isShippedWorkUnit`, and re-exports nothing.
-        - Re-point the eleven importers that use only those helpers and the slug half of the two mixed importers
-          (`lib/session-init/orphan-branch-sweep.ts`, `verbs/teardown.ts`).
-        - The tests importing the helpers from `completed-index.ts` — `__tests__/unit/work-unit/completed-index.test.ts`
-          and `__tests__/integration/store-lifecycle-consumers-differential.test.ts` — import them from the new
-          module, named with the move; every other test passes unchanged.
+        - Moved both pure slug helpers into `work-unit-slug.ts` and re-pointed the helper-only and mixed importers.
+          The archive index re-exports neither; its unit and differential integration tests use the extracted module.
 
-    - `[ ]` **1.3.b Add the archive index to the helper set, with its callers as the floor**
+    - `[x]` **1.3.b Add the archive index to the helper set, with its callers as the floor**
 
-        - Append `lib/work-unit/completed-index.ts` to `RAW_STATE_MODULES` (`eslint/architecture-imports.ts`).
-        - Record its remaining non-type importers in `eslint-suppressions.json` for `arc/store-raw-state` only, as the
-          floor — archive and teardown among them, ten files at planning — and prune `completed-index.ts`'s own
-          `arc/store-raw-state` entry, which the helper set now exempts, its `surface-names` and `work-unit-paths`
-          counts staying. These are the only entries this change adds to any ratchet floor.
+        - Added the index to the raw-state helper set, recorded its remaining non-type imports in ten existing caller
+          files, and removed its own raw-state exemption. Other ratchet floors did not grow.
 
 ### `[ ]` **1.4 Close the workspace after the transition's record writes — § 2.5**
 

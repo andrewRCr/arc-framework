@@ -16,7 +16,7 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
-import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
   enumerateGitTransitionRecords,

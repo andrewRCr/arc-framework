@@ -40,7 +40,7 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
-import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import {
   buildLifecycleIndex,
   type LifecycleIndex,
