@@ -206,6 +206,18 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   the residue sweep, and `arc errand leave`'s authorization — decides through the removal check and reports
   `unobservable`, `locked`, and `missing` where today a failed status read folds into not clean.
 
+    - Each decision that runs the check — the stale-worktree and residue sweeps, branch-gone recovery, and
+      `authorizePreservation` — takes the projection's slots as an optional `projectionRemovalSlots`
+      (`ProjectionRemovalSlots`, `lib/git/worktree-removal.ts`) on its options (`RunStaleWorktreeSweepOptions`,
+      `RunLandedRetirementSweepOptions`, which the stale-worktree sweep fills from its own,
+      `RunBranchGoneRecoveryOptions`, and the leave runtime's), as the transition-write-path change's teardown and
+      reconcile contexts take it, and passes the check only its `check`, since none removes. The projection binds it
+      where the sweep's and recovery's options are composed (`handleSessionInitStatus`, `handlers/status.ts`) and the
+      leave runtime's (`handlers/errand.ts`); given none, the passing defaults apply.
+
+    - Build `test-first` (one behavior at a time):
+        - a `check` injected through each decision's `projectionRemovalSlots` is the one its removal check calls
+
     - `[ ]` **1.5.a The cleanup decision**
 
         - `decideWorktreeCleanup` (`lib/git/worktree-cleanup.ts`) takes the check's result in place of its `clean` flag,
@@ -284,12 +296,16 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
     - The function's `removed` and `pruned` map to the exit's `applied`, and `refused` and `failed` to its refusal and
       `error`; where Git no longer lists the checkout, the exit reports `idempotent` without calling the function, as
       `removeSpawned`'s `absent` does today.
+    - `SettleTerminalOccupancyOptions` takes an optional `projectionRemovalSlots`, carried from each exit's runtime
+      options, which `handlers/errand.ts` composes, and passes it to the function as `slots`, so the projection binds it
+      there; given none, the passing defaults apply.
 
     - Build `test-first` (one behavior at a time):
         - a clean spawned Errand checkout is removed through the function on close, abandon, leave, and partial
           settlement
         - a refused check stops the exit before any removal, carrying the check's outcome
         - the primary is inspected and never removed
+        - slots injected through an exit's options reach the function
         - a rerun after the checkout's registration is gone reports `idempotent`
 
 ### `[ ]` **1.7 Carry the removal prompts' commands, and report missing folders — § 12.2**
@@ -1052,6 +1068,8 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
           (`removeWorktreeMarkerGeneration`).
         - Either arm revalidates the marker's generation first and, run from inside the checkout it releases, moves the
           process out first, as teardown's locus hop does (`runTeardown`, `lib/work-unit/verbs/teardown.ts`).
+        - The verb's handler takes an optional `projectionRemovalSlots` on its context and passes it as `slots` to both
+          arms, so the projection binds it at the handler; given none, the passing defaults apply.
 
         - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
             - a clean spawned checkout is removed, and a dirty one refuses through the function's check and is removed
@@ -1064,6 +1082,7 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
               clears the marker
             - a changed marker generation refuses, and a rerun against the current generation releases
             - a release run from inside its checkout moves the process out first
+            - slots injected through the handler's context reach the removal function and the release
 
     - `[ ]` **2.9.c The sweep's release rows**
 

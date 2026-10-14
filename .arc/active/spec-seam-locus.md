@@ -1852,6 +1852,12 @@ checkout, and one removal check that decides on its own whether a checkout can b
   (`lib/session-init/lifecycle-residue-sweep.ts`), and `arc errand leave`'s authorization (`authorizePreservation`,
   `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout before recording its paused or awaiting-merge
   state and removes it only afterward.
+- **The projection's slots reach each caller.** Every caller this change moves onto the function, the check, or the
+  release — the Errand's exits, the removal decisions, and `arc locus release` (§ 5) — takes the projection's slots as
+  an optional `projectionRemovalSlots` (`ProjectionRemovalSlots`, `lib/git/worktree-removal.ts`) on its options, as the
+  transition-write-path change's teardown and reconcile contexts do: the function and the release take them whole, and a
+  decision, which removes nothing, only their check. The projection binds them where those options are composed (§ 16);
+  given none, the passing defaults apply.
 - **Each outcome is reported.** A check that cannot observe the checkout grants no removal, as today, but reports
   `unobservable`, `locked`, or `missing` where today a failed status read folds into not clean. These outcomes land
   before the flip (§ 1.4).
