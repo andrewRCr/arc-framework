@@ -58,12 +58,13 @@ it("leads with failed checks before the other listed checks", () => {
   expect(result.indexOf("failure: failed")).toBeLessThan(result.indexOf("skip: skipped"));
 });
 
-it("counts quiet checks once instead of listing them, and lists a pass that has more to say", () => {
+it("counts quiet checks once, and lists a pass that has more to say and a check the request did not cover", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
     status: "completed", checks: [
       { id: "lint", kind: "enforcement", outcome: "passed", costMs: 5 },
       { id: "types", kind: "enforcement", outcome: "reused" },
       { id: "shell", kind: "enforcement", outcome: "not selected", reason: "inputs unchanged" },
+      { id: "e2e", kind: "enforcement", outcome: "not selected", reason: "CI-only check requires --ci" },
       { id: "remote", kind: "enforcement", outcome: "passed", notice: "ran on build-vm", costMs: 9 },
       { id: "format", kind: "enforcement", outcome: "passed", rewritten: ["src/a.ts"] },
       { id: "staged", kind: "enforcement", outcome: "passed", divergent: ["src/b.ts"] },
@@ -73,8 +74,9 @@ it("counts quiet checks once instead of listing them, and lists a pass that has 
   const lines = result.trimEnd().split("\n");
   expect(lines.filter(line => /^(lint|types|shell):/u.test(line))).toEqual([]);
   expect(lines.filter(line => /^(remote|format|staged):/u.test(line))).toHaveLength(3);
+  expect(lines).toContain("e2e: not selected [enforcement] (CI-only check requires --ci)");
   expect(lines[0]).toContain("test: failed");
-  expect(lines.at(-1)).toBe("Checks: 1 failed, 4 passed, 1 reused, 1 not selected.");
+  expect(lines.at(-1)).toBe("Checks: 1 failed, 4 passed, 1 reused, 2 not selected.");
   expect(result.match(/\btest\b/gu)).toHaveLength(1);
 });
 

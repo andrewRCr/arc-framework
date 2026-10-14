@@ -40,12 +40,16 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
 const COUNT_ORDER = { failed: 0, "couldn't run": 1, "no evidence": 2, skipped: 3, "would run": 4, passed: 5, reused: 6,
   "not selected": 7 } satisfies Record<DeclaredCheckResult["outcome"], number>;
 
-/** Outcomes a human report counts without listing, unless the check has more to say than its outcome. */
+/**
+ * Outcomes a human report counts without listing, unless the check has more to say than its outcome. An unselected
+ * check is quiet only when nothing changed for it to examine; any other reason names what the request did not cover.
+ */
 const QUIET_OUTCOMES: ReadonlySet<DeclaredCheckResult["outcome"]> = new Set(["passed", "reused", "not selected"]);
+const UNCHANGED_INPUTS = "inputs unchanged";
 
 function isListed(check: DeclaredCheckResult): boolean {
-  return !QUIET_OUTCOMES.has(check.outcome) || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0
-    || (check.divergent?.length ?? 0) > 0;
+  const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS);
+  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0;
 }
 
 function renderCount(checks: readonly DeclaredCheckResult[]): string {
