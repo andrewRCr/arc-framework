@@ -1667,10 +1667,10 @@ async function runErrandAbandonHandler(
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
-        clearExecuteBound: async (record) => {
+        clearExecuteBound: async (record, settlementCheckoutPath) => {
           if (record.originEntry === null) return { kind: "idempotent" };
           const cleared = await unmarkCurrentInboxEntry({
-            cwd,
+            cwd: settlementCheckoutPath,
             io,
             identity,
             title: record.originEntry,
