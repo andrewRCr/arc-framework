@@ -409,64 +409,26 @@ hand edit of `Owner` or the pause, and the move to Active while an inbound entry
         - All copy identities come from computeCopyKeys; unavailable, empty, and merge patches retain timestamps
           without a key.
 
-### `[ ]` **2.3 Compute a branch's default set — § 9.2, § 5.2**
+### `[x]` **2.3 Compute a branch's default set — § 9.2, § 5.2**
 
 - _Goal:_ One computation returns a branch's default set — its non-merge commits reachable from the tips it is given
   and from neither base nor base's remote-tracking ref, less every commit matching a capture or exclusion by SHA or
   copy key — over the commits the clone holds, after a best-effort refresh of base, with no replace ref reaching it.
 
-- _Note:_ Activation, deactivation, the close, and locus's listing of commits not yet closed call this one computation;
-  the listing calls it without the refresh.
+    - `[x]` **2.3.a The walk**
 
-    - `[ ]` **2.3.a The walk**
+        - The local-only, replacement-free non-merge walk excludes both held base refs and repository-qualified SHA or
+          copy-key matches, retaining author/committer times and before-refresh facts.
 
-        - A revision walk, `git --no-replace-objects rev-list --no-merges`, the first flag in Git's global position
-          since `rev-list` refuses it after the command, from the given tips — `HEAD`, and for activation the branch's
-          remote-tracking ref too — excluding base and `refs/remotes/origin/<base>` where it exists; copy keys are
-          computed only for the commits no stored SHA matches.
-        - The result carries each commit's committer and author times for attribution, and the set over the base refs
-          held before the refresh as well as after it, for the close's emptied-set refusal (task 7.2).
+    - `[x]` **2.3.b The refresh of base**
 
-    - `[ ]` **2.3.b The refresh of base**
+        - Base and activation branch refreshes use separate bounded explicit refspecs; failed base refresh uses held
+          refs with a warning, and absent base refs name their repair.
 
-        - A best-effort fetch by explicit refspec, `+refs/heads/<base>:refs/remotes/origin/<base>`, in the work unit's
-          checkout, at `DEFAULT_NETWORK_TIMEOUT_MS`, as `arc materialize`'s fetch is bounded; a timeout counts as a
-          failed fetch. For activation the branch's refspec follows in a second bounded call, never beside base's, since
-          Git fails a fetch whole when one refspec names no remote ref, as a branch never pushed has none; the branch's
-          failure is not reported, so a branch never pushed and one whose fetch failed read alike, and where base's
-          fetch succeeds and the branch's fails, the exclusions read the remote-tracking ref the clone holds.
-          `boundedFetch` (`lib/git/exec.ts`) takes one refspec and no `cwd`, so the fetch runs through
-          `boundedGitInvocation`, which takes the argument list and a `cwd`, as `base-distance.ts` fetches base's
-          refspec.
-        - A failed fetch computes over the base refs the clone has and says base was not refreshed; a clone with no
-          `origin` computes over its local base and says nothing about refreshing.
-        - Where no base ref resolves, the computation refuses, naming `git fetch origin
-          +refs/heads/<base>:refs/remotes/origin/<base>`, or `git branch <base> <commit>` in a clone with no `origin`.
+    - `[x]` **2.3.c The checkout's linked branch**
 
-    - `[ ]` **2.3.c The checkout's linked branch**
-
-        - One exported resolver beside the computation reads which of the work item's branch links the checkout has out:
-          `linked` with the link, `detached`, `unlinked` with the branch the checkout has out, or `no-link` where the
-          work item has none. `no-link` comes first: a work item with no link reads it whatever the checkout has out, so
-          a detached Planning checkout's refusal names `arc activate`. It establishes only that; each caller applies its
-          own refusal — the close (task 7.2), `arc release commit --close`'s check (task 7.4), and locus's listing of
-          commits not yet closed.
-
-        - Build `test-first` (one behavior at a time):
-            - a checkout on the work branch reads `linked` with its link
-            - a detached checkout, a branch the work item does not link, and a work item with no link each read their
-              own result
-            - a detached checkout of a work item with no link reads `no-link`
-
-    - Build `test-first` (one behavior at a time), integration tier:
-        - a base merge's commits never enter the set
-        - captured and excluded commits leave it by SHA, and a rebased copy keeping its author line and diff by copy key
-        - a single-branch clone's refresh writes base's remote-tracking ref by the refspec
-        - a clone whose base refs predate base commits its branch holds leaves them out after the refresh
-        - an offline refresh says base was not refreshed; no base ref refuses, naming the repair
-        - activation's refresh of a branch never pushed still refreshes base, and reports nothing of the branch
-        - a replace ref grafting the branch drops no commit from the set
-        - a partial clone's commit with absent objects matches by SHA alone
+        - The shared checkout resolver distinguishes no-link, detached, unlinked, and linked branches, including
+          repository-qualified refs, leaving refusal policy with each caller.
 
 ### `[x]` **2.4 Add the meta's pause section — § 8.1, § 18.1**
 
