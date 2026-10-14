@@ -54,6 +54,13 @@ it("resolves from the importing file an ESM message names, and otherwise from th
   await expect(findUninstalledLockedPackages(cjsMissing("foo"), [root])).resolves.toEqual([]);
 });
 
+it("resolves a CommonJS miss from the first file in its require stack", async () => {
+  const root = await project({ "packages/a/node_modules/foo": {} });
+  const output = [`Error: Cannot find module 'foo'`, "Require stack:", `- ${join(root, "packages/a/index.cjs")}`,
+    `- ${join(root, "run.cjs")}`, "    at Module._resolveFilename (node:internal/modules/cjs/loader:1519:15)"].join("\n");
+  await expect(findUninstalledLockedPackages(output, [root])).resolves.toEqual(["foo"]);
+});
+
 it("keeps an undeclared package, a missing local file, and an optional entry out of the gap", async () => {
   const root = await project({ "node_modules/@esbuild/darwin-arm64": { optional: true } });
   const output = [

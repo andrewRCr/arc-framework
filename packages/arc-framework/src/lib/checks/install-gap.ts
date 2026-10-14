@@ -3,10 +3,10 @@ import { access, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 /**
- * Node's ESM loader names the package and the file importing it; its CommonJS loader and type checkers name the full
- * specifier alone.
+ * Node's ESM loader names the package and the file importing it; its CommonJS loader names the full specifier and
+ * lists the importing file first in its require stack; type checkers name the specifier alone.
  */
-const MISSING = /Cannot find (?:package|module) '([^']+)'(?: imported from ([^\r\n]+))?/gu;
+const MISSING = /Cannot find (?:package|module) '([^']+)'(?: imported from ([^\r\n]+)|\r?\n[ \t]*Require stack:\r?\n[ \t]*- ([^\r\n]+))?/gu;
 
 /** A package an import could not resolve, and the directory resolution starts from when the message names it. */
 interface MissingImport { name: string; from?: string }
@@ -26,10 +26,10 @@ function packageName(specifier: string): string | undefined {
 
 function missingImports(output: string): MissingImport[] {
   const imports = new Map<string, MissingImport>();
-  for (const [, specifier = "", importer] of output.matchAll(MISSING)) {
+  for (const [, specifier = "", esmImporter, requireImporter] of output.matchAll(MISSING)) {
     const name = packageName(specifier);
     if (name === undefined) continue;
-    const path = importer?.trim();
+    const path = (esmImporter ?? requireImporter)?.trim();
     const from = path !== undefined && isAbsolute(path) ? dirname(path) : undefined;
     imports.set(`${name}\0${from ?? ""}`, from === undefined ? { name } : { name, from });
   }
@@ -99,8 +99,8 @@ async function uninstalledPackages(imports: readonly MissingImport[], checkDirec
 
 /**
  * Name the packages a check's output could not resolve that the npm lockfile declares within the importer's reach, yet
- * none of those install locations holds. Resolution starts from the importing file's directory where an ESM loader
- * message names it, and from the check's own directory otherwise. A package the lockfile does not declare there is a
+ * none of those install locations holds. Resolution starts from the importing file's directory where a loader message
+ * names it, and from the check's own directory otherwise. A package the lockfile does not declare there is a
  * defect in the checked code rather than an install gap, so it is left out, as is every package when no directory
  * has a `package-lock.json`.
  * @param output - The check's combined output
