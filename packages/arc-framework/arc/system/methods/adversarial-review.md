@@ -271,8 +271,9 @@ findings, or material ones deferred or rejected — and non-convergence. The app
 the completed pass established; performing the response never changes it.
 
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
-completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended, or
-Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result.
+completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended,
+re-entered, or Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result. Re-entered
+records an accepted re-entry offer, at any pass: the loop ends there, and the caller's re-entry owns what follows.
 
 At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another evaluator invocation. A converged
 pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the

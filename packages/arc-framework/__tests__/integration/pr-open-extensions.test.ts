@@ -503,7 +503,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("follow-up observation in the converged completion report");
 
       expect(method).toContain("`Pass N of M`");
-      expect(normalized).toContain("converged, `cap-exhausted`, suspended, or owner-accepted");
+      expect(normalized).toContain("converged, `cap-exhausted`, suspended, re-entered, or owner-accepted");
       expect(normalized).toContain("stop before another evaluator invocation");
       expect(normalized).toContain("same turn as the complete disposition report");
       expect(normalized).toContain("a recommendation is not authorization");
@@ -659,6 +659,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("and for the offer under sustained non-convergence, where another pass would review the last one's design");
       expect(normalized).toContain("any re-entry or boundary offer with the owner's settlement");
       expect(normalized).toContain("the re-entry and boundary offers in this gate belong to planning stages");
+      expect(normalized).toContain("re-entered records an accepted re-entry offer, at any pass: the loop ends there, and the caller's re-entry owns what follows");
       expect(normalized).toContain("routes the same signals through its own depth read and its ceiling, never a planning-workflow re-entry");
 
       const declared = method.match(/^arc:\n {2}methods:\n((?: {4}- .+\n)+)/mu)?.[1];
