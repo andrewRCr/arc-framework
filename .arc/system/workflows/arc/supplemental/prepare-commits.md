@@ -5,8 +5,6 @@ arc:
   methods:
     - commit-format
     - commit-footer
-  extensions:
-    - pre-commit-review
 ---
 
 # Workflow: Prepare Commits

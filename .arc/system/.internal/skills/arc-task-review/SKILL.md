@@ -11,9 +11,8 @@ structured information for independent human judgment — not the agent's
 narrative (that's the completion report), but the raw material the human needs
 to form their own view of the completed increment.
 
-Not a substitute for the integration workflow's final `pre-merge` (work-unit
-scope) or external code review tools. Does not present the diff — the user has
-the code open. Does not recommend whether to approve or reject — it surfaces
+Not a substitute for work-unit integration review or external code review tools.
+Does not present the diff — the user has the code open. Does not recommend whether to approve or reject — it surfaces
 information for the human to decide.
 
 Invoked at user discretion, not every review increment.

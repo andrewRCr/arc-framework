@@ -93,17 +93,14 @@ _Mode:_ `replication` through Phase 5 — closes on the complete live mechanism 
   the mixed PR-lifecycle suite and routing, removed exclusive fixtures, and retained review, publication, reuse, and
   final-head checks.
 
-### `[ ]` **3.2 Retire planning, task, and commit fire points — D3, D8**
+### `[x]` **3.2 Retire planning, task, and commit fire points — D3, D8**
 
 - _Goal:_ Planning, task execution, and commit preparation retain their core procedures and stops without extension dispatch.
 
-    - Sweep `draft-design`, `create-spec`, `generate-tasks`, `process-task-loop`, `prepare-commits`, and canonical
-      `arc-commit` / `arc-task-review` skill content in package source and installed copies.
-    - Remove declarations, action calls, markers, workflow-wide push contracts, caller-repeat instructions, hook-only
-      skips/qualifiers, and link definitions. Preserve method fire-point loading, task/workflow review stops,
-      commit/push approval, release routing, and independent recovery rules.
-    - Render affected templates with the repository's configuration and refresh derived harness skill copies.
-      Update existing workflow/packaging assertions with their changed contracts; add no tests that merely echo prose.
+- _Outcome:_ Removed spec-review, task-completion, and pre-commit dispatch from workflows and canonical skills,
+  including hook-only skips and qualifications. Method loading, review stops, release routing, recovery, and
+  delivery correction ordering remain covered. Rendered the changed source templates and refreshed derived harness
+  skills.
 
 ### `[ ]` **3.3 Retire lifecycle and setup fire points and repair citations — D3, D6, D8**
 
