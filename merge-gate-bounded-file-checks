@@ -3,14 +3,20 @@
   "slug": "merge-gate-bounded-file-checks",
   "claimId": "1ab3d2186713711c6dad5a05a49f140e",
   "createdAt": "2026-10-14T18:37:17.806Z",
-  "updatedAt": "2026-10-14T18:37:17.806Z",
+  "updatedAt": "2026-10-14T19:33:04.152Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep default merge-gate file checks with widening disabled on their changed indexed inputs while retaining whole-project checks and explicit all scope.",
   "branch": "chore/merge-gate-bounded-file-checks",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/merge-gate-bounded-file-checks",
+    "headSha": "8b7c9e5df54804ba7fd3904c1b52f282a2d36795"
+  }
 }
