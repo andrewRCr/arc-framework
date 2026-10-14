@@ -35,10 +35,24 @@ export async function readCheckMergedParents(git: GitExec, root: string, base: s
 export async function readMergedInPaths(git: GitExec, root: string, content: {
   base: string; tree: string; merged: readonly string[]; inputs: readonly string[]; paths: readonly string[];
 }): Promise<string[] | undefined> {
-  const changes = await Promise.all([content.base, ...content.merged]
-    .map(start => selectChangedInputs(git, root, start, content.tree, content.inputs)));
-  if (changes.some(change => change.status === "unresolved")) return undefined;
-  const [sinceBase, ...sinceParents] = changes.map(change =>
-    new Set(change.status === "selected" ? change.paths.map(path => path.path) : []));
-  return content.paths.filter(path => sinceBase?.has(path) === true && sinceParents.some(changed => !changed.has(path)));
+  const changed = async (start: string): Promise<Set<string> | undefined> => {
+    const selection = await selectChangedInputs(git, root, start, content.tree, content.inputs);
+    if (selection.status === "unresolved") return undefined;
+    return new Set(selection.status === "selected" ? selection.paths.map(path => path.path) : []);
+  };
+  const sinceBase = await changed(content.base);
+  if (sinceBase === undefined) return undefined;
+  const pending = new Set(content.paths.filter(path => sinceBase.has(path)));
+  const mergedIn = new Set<string>();
+  // One comparison at a time, since a long range carries any number of merges; stop once every file is settled.
+  for (const parent of content.merged) {
+    if (pending.size === 0) break;
+    const sinceParent = await changed(parent);
+    if (sinceParent === undefined) return undefined;
+    for (const path of [...pending].filter(path => !sinceParent.has(path))) {
+      mergedIn.add(path);
+      pending.delete(path);
+    }
+  }
+  return content.paths.filter(path => mergedIn.has(path));
 }
