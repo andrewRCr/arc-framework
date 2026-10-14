@@ -162,8 +162,8 @@ arc delivery publish -
 
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
 work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact push-gate result
-admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts every
-member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary
+admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts
+every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary
 top-branch push, then requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the
 originating branch over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒
 `true`) so every request opens under the configured hold; the landing sequence releases that lock only after readiness.
