@@ -189,16 +189,16 @@ recipe membership, mixed contract coverage, and the historical event inventory a
   eight unrelated occurrences; all 386 same-file fragment links across 274 Markdown files resolve, including top-of-
   page links.
 
-### `[ ]` **5.5 Verify complete retirement — D1, D4, D5, D6, D7, D8** — validate exit criterion at segment scope
+### `[x]` **5.5 Verify complete retirement — D1, D4, D5, D6, D7, D8** — validate exit criterion at segment scope
 
 - _Goal:_ The complete transformation is exhausted and its installation, workflow, and history seams agree.
 
-    - Run `npx arc check segment`; verify the completed reference/citation sweeps and package/render agreement.
-    - Exercise the six recipe arms, old-manifest retention/second-update path, preserved mixed PR/readiness contracts,
-      method/domain-rule validation, and unknown-field rejection through the relevant existing suites.
-    - Verify eleven historical events, both payloads, full retrieval revision, and exactly four scoped status edits;
-      verify installed manifest membership and inventory counts independently of prose estimates.
-    - Record executed scenarios/results. Keep cleanup work in Task 5.4 or a revision parent before this verifier.
+- _Outcome:_ Exercised all six fresh-install arms, old-manifest retention and unread second-update residue, rendered
+  Framework agreement, mixed PR/readiness contracts, method/domain-rule validation, and unknown-field rejection
+  through eleven existing suites. Verified all eleven event contracts and both payloads at the full retrieval
+  revision, exactly four status-only ADR edits with unchanged bodies, twelve removed managed keys with unrelated
+  metadata preserved, and recipe-derived counts. Reference/citation and heading sweeps close without unresolved live
+  sites.
 
 ## **Phase 6:** Verification
 
