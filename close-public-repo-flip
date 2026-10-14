@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "close-public-repo-flip",
+  "claimId": "309ac6d7dbc29f4820187e77bfe3a4df",
+  "createdAt": "2026-10-14T21:32:35.053Z",
+  "updatedAt": "2026-10-14T21:32:35.053Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Retire the completed public visibility stub, preserve the superseding personal-state decision, and hand the manual-notes interim to storage-cutover.",
+  "branch": "chore/close-public-repo-flip",
+  "origin": "inbox",
+  "originEntry": "Close out `public-repo-flip` now that the repository is public",
+  "originEntrySourceDigest": "sha256:fce93d12a06b961099087046c6d59f615adf7c69ba9516f5206db17bc2f563ef",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
