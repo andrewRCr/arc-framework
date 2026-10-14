@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reconcile-storage-seam-lifecycle",
+  "claimId": "e7ee99ddca96afb214351305e9373182",
+  "createdAt": "2026-10-14T18:37:44.937Z",
+  "updatedAt": "2026-10-14T18:37:44.937Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reconcile the storage-seam cohort's lifecycle caller facts, pre-flip exceptions, branch-link amendment, and pause/reopen coordination with the settled lifecycle spec.",
+  "branch": "chore/reconcile-storage-seam-lifecycle",
+  "origin": "inbox",
+  "originEntry": "Correct `cohort-storage-seam.md`'s removal-function callers and record lifecycle's pre-flip exceptions",
+  "originEntrySourceDigest": "sha256:a22a04c33222d2f83329b068c0fde19db2524d15761041e25ca862d0da5bd831",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
