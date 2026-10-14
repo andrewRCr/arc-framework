@@ -1597,14 +1597,17 @@ async function errandFrontlinePhaseClosed(
   });
 }
 
-/** Whether a standard-lane request on an opened change request comes from the subject Errand's own checkout. */
+/**
+ * Whether a standard-lane request on an opened change request comes from the subject Errand's own checkout. A local
+ * context that cannot be read proves no Errand; the request still resolves, without the first pass's request.
+ */
 async function errandStandardVehicle(
   request: ReviewPolicyCommandRequest,
   input: { root: string; exec: GitExec },
 ): Promise<boolean> {
   if (request.lane !== "standard" || request.target.pullRequest === null) return false;
-  const live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.root });
-  return live.context.workUnit === null && live.context.errand !== null;
+  const live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.root }).catch(() => null);
+  return live !== null && live.context.workUnit === null && live.context.errand !== null;
 }
 
 function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {

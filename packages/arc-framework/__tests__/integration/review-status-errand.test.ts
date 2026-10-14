@@ -1042,6 +1042,15 @@ describe("Errand review status", () => {
     const outside = await resolveStandard();
     expect(outside).toMatchObject({ state: "ready", nextAction: "hosted-request" });
     expect(outside).not.toHaveProperty("action");
+    // A local context that cannot be read proves no Errand, and the request still resolves.
+    await writeFile(join(root, "unreadable-errand"), "not an identity record\n", "utf8");
+    await git(root, ["add", "unreadable-errand"]);
+    await git(root, ["commit", "-m", "incomplete identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["switch", branch]);
+    const unreadable = await resolveStandard();
+    expect(unreadable).toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    expect(unreadable).not.toHaveProperty("action");
   });
 
   it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
