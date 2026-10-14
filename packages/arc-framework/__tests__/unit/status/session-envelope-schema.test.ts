@@ -154,6 +154,13 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it("rejects the obsolete top-level extension probe slot", () => {
+    assertSchemaRefuses(SessionInitProbeResultSchema, {
+      ...fixture("orient"),
+      extensions: { ok: true, value: { mode: "session-init", active: [], warnings: [] } },
+    });
+  });
+
   it.each(["baseBranchSync", "retiredSubdirs"] as const)(
     "names an undeclared %s key and accepts retry after removal",
     (slot) => {
@@ -539,7 +546,6 @@ describe("session-init envelope schema", () => {
       "baseBranchSync.value.recommendedAction",
     ],
     ["dirty state", "orient", ["dirty", "value", "state"], "unknown", "dirty.value.state"],
-    ["extensions mode", "orient", ["extensions", "value", "mode"], "unknown", "extensions.value.mode"],
     ["config mode", "orient", ["config", "value", "mode"], "unknown", "config.value.mode"],
     ["active mode", "orient", ["active", "value", "mode"], "unknown", "active.value.mode"],
     ["active layout", "orient", ["active", "value", "layout"], "unknown", "active.value.layout"],
@@ -915,7 +921,6 @@ describe("session-init envelope schema", () => {
     "baseDistance",
     "baseBranchSync",
     "dirty",
-    "extensions",
     "config",
     "active",
     "domainRules",
@@ -958,7 +963,7 @@ describe("session-init envelope schema", () => {
     expectContractFailure(husk, "currentHusk.value");
   });
 
-  it.each(["extensions", "active", "domainRules"])(
+  it.each([ "active", "domainRules"])(
     "rejects an undeclared %s field at its envelope slot",
     (slot) => {
       const value = fixture("orient");

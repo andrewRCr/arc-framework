@@ -32,7 +32,6 @@ export const PRODUCTION_SCHEMA_IDS = [
   "disposition-set-state",
   "domain-rules-session-init",
   "errand-staleness-sweep",
-  "extensions-session-init",
   "finding-classification",
   "finding-disposition",
   "fix-authorization",

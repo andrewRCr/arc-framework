@@ -41,7 +41,6 @@ export interface CompactionSeedEnvelope {
     currentWorkflow: string | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
-  extensions: SeedProbe<{ active: readonly string[] }>;
   taskCursor?: SeedProbe<TaskListCursorFileResult>;
 }
 

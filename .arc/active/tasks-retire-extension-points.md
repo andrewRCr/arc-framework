@@ -45,24 +45,13 @@ scenarios pass against the revised contracts.
   their exact subject/workflow projections. Renamed the mixed subject-projection suite. Removed the handoff probe
   early because its only consumer was the retired input.
 
-### `[ ]` **2.2 Remove extension probes and session dispatch — D2, D3**
+### `[x]` **2.2 Remove extension probes and session dispatch — D2, D3**
 
 - _Goal:_ Public session/status/recovery results and their agent consumers have no extension probe or active-set contract.
 
-- _Note:_ See `notes-retire-extension-points.md` § Envelopes and public command and § Workflow and validator map.
-
-    - Remove probe scheduling/callbacks/slots from `runStatus`, `runSessionInitStatus`, `runRecoverStatus`, and
-      `runSessionHandoffStatus`; update status types/schemas/formatting, handler composition, and `CompactionSeedEnvelope`.
-    - Remove `SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit` and its registry/import/type-inventory membership.
-    - Remove session-init/recover/handoff dispatch prose, declarations, markers, extension-load/skip/orientation wording,
-      and link definitions. Render template counterparts and preserve contributor boundaries and shortcut conditions.
-    - Renumber session sections and repair their local/cross-file citations, probe-envelope reference, contributor
-      companion, and status comments against the resulting target meanings.
-    - Build `test-first` (one behavior at a time):
-        - Full status, session-init, recovery, and handoff perform only surviving probes; JSON omits the retired slot.
-        - Schema discovery omits the identifier; strict surviving envelopes reject the obsolete field.
-        - Healthy/degraded probes and all surviving fixture scenarios retain their independent contracts.
-    - Regenerate the seven session-envelope JSON fixtures and update all affected stubs without nullable tombstones.
+- _Outcome:_ Removed extension slots, callbacks, formatting, discovery registration, and seed inputs. Strict
+  envelopes reject the obsolete field; seven fixtures retain surviving scenarios. Session dispatch is removed and
+  its renumbered templates, contributor guidance, and probe references are rendered consistently.
 
 ### `[ ]` **2.3 Remove the extension CLI and exclusive modules — D1, D2, D8**
 

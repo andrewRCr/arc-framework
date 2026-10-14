@@ -6,7 +6,6 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runDomainRulesSessionInitStatus } from "../commands/constitution.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionInitProbes } from "../commands/status.js";
 import { buildSessionInitStatusSummary, runSessionInitStatus } from "../commands/status.js";
 import { assertSessionInitProbeResult } from "../commands/status/schema.js";
@@ -502,7 +501,6 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       compactionSeedGitSnapshotP,
       fallback: () => runDirtyStateStatus({ exec }),
     }),
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     hooksPath: () => runHooksPathSessionAdvisory({

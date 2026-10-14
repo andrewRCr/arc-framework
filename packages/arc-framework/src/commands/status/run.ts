@@ -5,7 +5,7 @@
  *
  * - {@link runStatus} — full-mode composite (default rendering).
  * - {@link runSessionInitStatus} — session-init-scoped composite consumed
- *   by the harness. Replaces Batch 1's four probe invocations + two
+ *   by the harness. Replaces the standalone probe invocations + two
  *   `git config` reads with a single CLI call.
  *
  * Each entry point fans out independent fallible probes through
@@ -92,7 +92,7 @@ function buildIdentity(identity: string | null, role: string | null): StatusIden
 /**
  * Run the full-mode composite probe.
  *
- * Parallel orchestration via `Promise.all` over four probe slots. Identity is
+ * Parallel orchestration via `Promise.all` over three probe slots. Identity is
  * read in the handler (`git config arc.identity` / `arc.role`) and passed as
  * pointers; when `identity` is `null` the user slot resolves to an
  * `identity-missing` {@link Probe} error without invoking the user probe.
@@ -101,13 +101,11 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
   const { identity, role, probes } = options;
 
   const userTask = userSlot(identity, (id) => probes.user(id));
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const activeTask = safeProbe("active", () => probes.active());
 
-  const [user, extensions, config, active] = await Promise.all([
+  const [user,  config, active] = await Promise.all([
     userTask,
-    extensionsTask,
     configTask,
     activeTask,
   ]);
@@ -116,7 +114,6 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
     mode: "full",
     identity: buildIdentity(identity, role),
     user: toProbe(user),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
   };
@@ -144,7 +141,6 @@ export async function runSessionInitStatus(
     "baseBranchSync",
     (context) => probes.baseBranchSync(context),
   );
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const domainRulesTask = safeProbe("domainRules", () => probes.domainRules());
   const hooksPathTask = safeProbe("hooksPath", () => probes.hooksPath());
@@ -164,7 +160,7 @@ export async function runSessionInitStatus(
 
   const [
     user, worktree, dirty, releaseRouting,
-    worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
+    worktreeIdentitySlot, baseDistance, baseBranchSync,  config, domainRules,
     hooksPath, retiredSubdirs, partialPushMarker,
   ] = await Promise.all([
     userTask,
@@ -174,7 +170,6 @@ export async function runSessionInitStatus(
     worktreeIdentityTask,
     baseDistanceTask,
     baseBranchSyncTask,
-    extensionsTask,
     configTask,
     domainRulesTask,
     hooksPathTask,
@@ -517,7 +512,6 @@ export async function runSessionInitStatus(
     baseDistance: toProbe(enrichedBaseDistance),
     baseBranchSync: toProbe(enrichedBaseBranchSync),
     dirty: toProbe(dirty),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
     domainRules: toProbe(domainRules),
@@ -562,7 +556,6 @@ export async function runRecoverStatus(
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
@@ -570,14 +563,12 @@ export async function runRecoverStatus(
     worktree,
     worktreeIdentitySlot,
     dirty,
-    extensions,
     config,
     releaseRouting,
   ] = await Promise.all([
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
-    extensionsTask,
     configTask,
     releaseRoutingTask,
   ]);
@@ -616,7 +607,6 @@ export async function runRecoverStatus(
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     releaseRouting: toProbe(releaseRouting),
     loadSet: toProbe(loadSet),

@@ -1,8 +1,7 @@
 /**
  * Type contracts for `arc status` — the composite probe orchestrator.
  *
- * The composite fans out to the four standalone probes (user, extensions,
- * config, active) and folds their results into a single envelope. Session-init
+ * The composite fans out to the three standalone probes (user, config, active) and folds their results into a single envelope. Session-init
  * consumes this in place of its own Batch 1 git-config reads and four separate
  * CLI invocations.
  *
@@ -28,10 +27,6 @@ import type {
   ConfigStatusResult,
 } from "../config/types.js";
 import type { DomainRulesSessionInitResult } from "../constitution/types.js";
-import type {
-  ExtensionsSessionInitResult,
-  ExtensionsStatusResult,
-} from "../extensions/types.js";
 import type {
   UserSessionInitStatusResult,
   UserSessionNotesDriftSurface,
@@ -201,7 +196,7 @@ export type StatusIdentity = z.infer<typeof StatusIdentitySchema>;
  *
  * - `identity-missing` — user probe short-circuited because `arc.identity`
  *   was absent. Other probes do not use identity and never emit this kind.
- * - `runtime` — probe threw (e.g., missing extensions directory on a partial
+ * - `runtime` — probe threw (e.g., a filesystem failure during active roster inspection on a partial
  *   install). `message` is the `Error.message` or stringified value.
  */
 export const ProbeErrorSchema = z.strictObject({
@@ -236,7 +231,6 @@ export interface StatusResult {
   mode: "full";
   identity: StatusIdentity;
   user: Probe<UserStatusResult>;
-  extensions: Probe<ExtensionsStatusResult>;
   config: Probe<ConfigStatusResult>;
   active: Probe<ActiveStatusResult>;
 }
@@ -266,7 +260,6 @@ export interface SessionInitProbeResult {
    */
   baseBranchSync: Probe<SessionInitBaseBranchSyncValue>;
   dirty: Probe<DirtyStateResult>;
-  extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
@@ -390,7 +383,7 @@ export interface SessionInitProbeResult {
    * Pre-computed partial-push-marker surface — the cohort sibling's live,
    * non-expired sync-state markers, each a notes push that has not yet arrived
    * at origin (lag, not loss). Rendered as the Aware advisory one-liner in
-   * Step 6, co-located with the base-ref surface; the agent proceeds-with-context
+   * Step 5, co-located with the base-ref surface; the agent proceeds-with-context
    * and never auto-resolves. Present whenever identity resolved (the ref is
    * identity-scoped); omitted only when identity is absent. An empty `markers`
    * array means the ref was read and nothing is live (or the ref is absent —
@@ -469,7 +462,6 @@ export interface SessionRecoverProbeResult {
   recoveryFrame: Probe<RecoveryLocusFrame>;
   worktree: Probe<SessionRecoverWorktreeValue>;
   dirty: Probe<DirtyStateResult>;
-  extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
   /** Present only when a single active WU resolves to a coordinating cohort doc. */
@@ -488,7 +480,6 @@ export interface StatusProbes {
    * invoking this function.
    */
   user: (identity: string) => Promise<UserStatusResult>;
-  extensions: () => Promise<ExtensionsStatusResult>;
   config: () => Promise<ConfigStatusResult>;
   active: () => Promise<ActiveStatusResult>;
 }
@@ -681,7 +672,6 @@ export interface SessionInitProbes {
     context: SessionRemoteContext,
     branch: string,
   ) => Promise<SupersessionResult | SupersessionSnapshotAnalysisResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
   /** Hooks-path advisory for the entering checkout. */
@@ -807,7 +797,6 @@ export interface SessionRecoverProbes {
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
 }

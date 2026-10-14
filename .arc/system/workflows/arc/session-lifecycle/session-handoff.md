@@ -5,8 +5,6 @@ arc:
   methods:
     - commit-format
     - session-state
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Session Handoff
@@ -151,10 +149,6 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
    the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
    `parentCheckoutPath`. Require that field to match the retained parent when one existed. Refusal or error stops;
    never hand-build the sequence.
-
-    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-      (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
-      actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
     From `checkoutPath`, push the selected branch. Set its upstream on the first push; otherwise use the existing
     upstream. If the push fails, retain the local checkpoint and stop without invoking `arc errand leave`.
@@ -546,11 +540,6 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 - **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
   output. Both values fire sync at handoff.
 
-    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions
-      list (established at session init), load and execute its `.actions` before invoking sync.
-      Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke
-      bypasses. Otherwise, skip.
-
     > [!CAUTION]
     > `sync-interlock` release — auto-invoke `arc sync`:
 
@@ -567,8 +556,7 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
   **Notes-push-failed (the Act site).** When the envelope carries `retryOffer` — the notes leg is still
   failing after its silent auto-retries, and the partial-push marker is already persisted — surface a primed
-  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, repeat the pre-push extension
-  check and re-invoke `arc sync --json`;
+  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, re-invoke `arc sync --json`;
   a resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still
   fails, the marker persists knowingly — report it in § Confirm Handoff so the next session inherits it.
   Resolve the offer conversationally; never block on a TTY prompt.

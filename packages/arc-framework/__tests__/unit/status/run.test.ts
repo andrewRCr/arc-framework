@@ -39,10 +39,6 @@ import type {
 } from "../../../src/commands/config/types.js";
 import type { DomainRulesSessionInitResult } from "../../../src/commands/constitution/types.js";
 import type {
-  ExtensionsSessionInitResult,
-  ExtensionsStatusResult,
-} from "../../../src/commands/extensions/types.js";
-import type {
   UserIOContext,
   UserSessionInitStatusResult,
   UserStatusResult,
@@ -130,19 +126,6 @@ function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult
   };
 }
 
-function extensionsResult(overrides: Partial<ExtensionsStatusResult> = {}): ExtensionsStatusResult {
-  return {
-    mode: "full",
-    extensions: [],
-    activeCount: 0,
-    inactiveCount: 0,
-    orphanCount: 0,
-    orphans: [],
-    includeOrphanDetails: false,
-    warnings: [],
-    ...overrides,
-  };
-}
 
 function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatusResult {
   return {
@@ -214,11 +197,6 @@ function userSessionInit(
   };
 }
 
-function extensionsSessionInit(
-  overrides: Partial<ExtensionsSessionInitResult> = {},
-): ExtensionsSessionInitResult {
-  return { mode: "session-init", active: [], warnings: [], ...overrides };
-}
 
 function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
@@ -567,7 +545,6 @@ function staleLocalNoteIO(): UserIOContext {
 function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
   return {
     user: vi.fn(async () => userResult()),
-    extensions: vi.fn(async () => extensionsResult()),
     config: vi.fn(async () => configResult()),
     active: vi.fn(async () => activeResult()),
     ...overrides,
@@ -655,7 +632,6 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     baseBranchSync: vi.fn(async () => baseBranchSync()),
     supersession: vi.fn(async () => supersessionResult()),
     dirty: vi.fn(async () => dirtyState()),
-    extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
@@ -727,7 +703,6 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
     worktree: vi.fn(async () => worktreeSnapshot()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
-    extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     ...overrides,
@@ -810,12 +785,23 @@ function stubHandoffSurfaces(overrides: {
 
 // --- Tests ---
 
+describe("retired probe absence", () => {
+  it("omits the obsolete probe from all public status envelopes", async () => {
+    const options = { identity: "andrew", role: "maintainer" };
+    const results = await Promise.all([
+      runStatus({ ...options, probes: fullProbes() }),
+      runSessionInitStatus({ ...options, probes: sessionInitProbes() }),
+      runRecoverStatus({ ...options, probes: sessionRecoverProbes() }),
+    ]);
+    for (const result of results) expect(result).not.toHaveProperty("extensions");
+  });
+});
+
 describe("runStatus — orchestration", () => {
   it("invokes every probe helper exactly once", async () => {
     const probes = fullProbes();
     await runStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.user).toHaveBeenCalledTimes(1);
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
   });
@@ -838,19 +824,18 @@ describe("runStatus — orchestration", () => {
     }
     const probes = fullProbes({
       user: tracked(userResult()),
-      extensions: tracked(extensionsResult()),
       config: tracked(configResult()),
       active: tracked(activeResult()),
     });
     await runStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(4);
+    expect(peakInFlight).toBe(3);
   });
 
   it("returns the full set of expected slots", async () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
     expect(Object.keys(result).sort()).toEqual(
-      ["active", "config", "extensions", "identity", "mode", "user"],
+      ["active", "config",  "identity", "mode", "user"],
     );
   });
 
@@ -858,7 +843,6 @@ describe("runStatus — orchestration", () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
-    expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
     if (result.user.ok) expect(result.user.value.headline).toBe("git note up to date");
@@ -889,13 +873,11 @@ describe("runStatus — identity-missing short-circuit", () => {
     }
   });
 
-  it("still invokes the other three probes when identity is null", async () => {
+  it("still invokes the other two probes when identity is null", async () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: null, role: null, probes });
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
-    expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
@@ -904,19 +886,18 @@ describe("runStatus — identity-missing short-circuit", () => {
 describe("runStatus — per-probe error isolation", () => {
   it("wraps a rejecting probe as ok=false runtime error without aborting the composite", async () => {
     const probes = fullProbes({
-      extensions: async () => {
-        throw new Error("extensions dir missing");
+      config: async () => {
+        throw new Error("config unavailable");
       },
     });
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(result.extensions.ok).toBe(false);
-    if (!result.extensions.ok) {
-      expect(result.extensions.error.kind).toBe("runtime");
-      expect(result.extensions.error.message).toBe("extensions dir missing");
+    expect(result.config.ok).toBe(false);
+    if (!result.config.ok) {
+      expect(result.config.error.kind).toBe("runtime");
+      expect(result.config.error.message).toBe("config unavailable");
     }
     // Other slots unaffected
     expect(result.user.ok).toBe(true);
-    expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
 
@@ -936,13 +917,11 @@ describe("runStatus — per-probe error isolation", () => {
   it("does not throw when every probe rejects", async () => {
     const probes = fullProbes({
       user: async () => { throw new Error("u"); },
-      extensions: async () => { throw new Error("e"); },
       config: async () => { throw new Error("c"); },
       active: async () => { throw new Error("a"); },
     });
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(false);
-    expect(result.extensions.ok).toBe(false);
     expect(result.config.ok).toBe(false);
     expect(result.active.ok).toBe(false);
   });
@@ -956,9 +935,7 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
@@ -1114,7 +1091,6 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.domainRules.error.message).toBe("constitution dir missing");
     }
     expect(result.user.ok).toBe(true);
-    expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
@@ -1198,8 +1174,6 @@ describe("runSessionInitStatus — orchestration", () => {
           planningStage: null,
           taskListPath: ".arc/active/tasks-x.md",
         })),
-      extensions: vi.fn(async () =>
-        extensionsSessionInit({ active: ["post-context-load"] })),
       cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
       taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
         status: "found",
@@ -1233,10 +1207,6 @@ describe("runSessionInitStatus — orchestration", () => {
         path: ".arc/system/extensions/post-context-load.md",
         readMode: { kind: "full" },
       });
-    }
-    expect(result.extensions.ok).toBe(true);
-    if (result.extensions.ok) {
-      expect(result.extensions.value.active).toEqual(["post-context-load"]);
     }
     expect(result.taskCursor?.ok).toBe(true);
     if (result.taskCursor?.ok) {
@@ -1272,7 +1242,6 @@ describe("runSessionInitStatus — orchestration", () => {
     const probes = sessionInitProbes({
       active,
       derivedLocusState,
-      extensions: vi.fn(async () => extensionsSessionInit({ active: ["post-context-load"] })),
     });
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -1449,7 +1418,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
       "config",
       "derivedLocusState",
       "dirty",
-      "extensions",
       "identity",
       "loadSet",
       "locusGuidance",
@@ -1462,7 +1430,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
   });
@@ -2195,7 +2162,6 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "dirty",
       "domainRules",
       "errandState",
-      "extensions",
       "hooksPath",
       "identity",
       "loadSet",
@@ -3256,14 +3222,14 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
 
   it("preserves a runtime-error slot through JSON.stringify/parse", async () => {
     const probes = fullProbes({
-      extensions: async () => { throw new Error("boom"); },
+      config: async () => { throw new Error("boom"); },
     });
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
     const roundTripped = JSON.parse(JSON.stringify(result)) as typeof result;
-    expect(roundTripped.extensions.ok).toBe(false);
-    if (!roundTripped.extensions.ok) {
-      expect(roundTripped.extensions.error.kind).toBe("runtime");
-      expect(roundTripped.extensions.error.message).toBe("boom");
+    expect(roundTripped.config.ok).toBe(false);
+    if (!roundTripped.config.ok) {
+      expect(roundTripped.config.error.kind).toBe("runtime");
+      expect(roundTripped.config.error.message).toBe("boom");
     }
   });
 });

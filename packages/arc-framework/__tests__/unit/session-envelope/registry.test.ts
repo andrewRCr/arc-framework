@@ -5,7 +5,6 @@ import { z } from "zod";
 import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
 import { ConfigSessionInitResultSchema } from "../../../src/commands/config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../../../src/commands/constitution/status.js";
-import { ExtensionsSessionInitResultSchema } from "../../../src/commands/extensions/status.js";
 
 import { SchemaError } from "../../../src/lib/kernel/index.js";
 import {
@@ -42,6 +41,10 @@ import {
 } from "../../../src/commands/status/schema.js";
 
 describe("session-envelope schema registry", () => {
+  it("omits the retired lifecycle probe schema from discovery", () => {
+    expect(createSessionEnvelopeRegistry().get("extensions-session-init")).toBeUndefined();
+  });
+
   it("composes fresh kernel registries with the shared family records", () => {
     const first = createSessionEnvelopeRegistry();
     const second = createSessionEnvelopeRegistry();
@@ -58,7 +61,6 @@ describe("session-envelope schema registry", () => {
       "dirty-state",
       "domain-rules-session-init",
       "errand-staleness-sweep",
-      "extensions-session-init",
       "hooks-path-session-advisory",
       "inbox-state",
       "load-set-audit-verdict",
@@ -111,7 +113,6 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
-      [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.worktreeRoster, WorktreeRosterResultSchema],

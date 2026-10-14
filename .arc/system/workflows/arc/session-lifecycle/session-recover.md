@@ -1,9 +1,6 @@
 ---
 purpose: Restore ARC operating context after harness compaction from the latest compaction seed.
 audience: agent
-arc:
-  extensions:
-    - post-context-load
 ---
 
 # Workflow: Session Recovery
@@ -123,9 +120,8 @@ harness instruction files during recovery.
 **The manifest is the complete recovery read** — reading past it spends the post-compaction budget on context
 the resumed step does not need. Two classes sit outside it:
 
-- **Frontmatter-declared methods and extensions.** These load at their fire-point per DEV-RULES.ARC § Method and
-  extension loading, so most never load here at all: recovery resumes mid-workflow, and their fire-points sit
-  behind the resume point.
+- **Frontmatter-declared methods.** These load at their fire-point per DEV-RULES.ARC § Method loading, so most never
+  load here: recovery resumes mid-workflow, and their fire-points sit behind the resume point.
 - **Design artifacts.** `spec-*`, `notes-*`, and the task list beyond the manifest's `partial-strategic` slice
   are not manifest members. Load them at their step trigger.
 
@@ -165,12 +161,7 @@ and keeps its stop. For planning recovery, do not treat `Current Workflow`
 as authoritative by itself; if the stage is unclear from deterministic state plus the harness
 summary, stop for direction.
 
-## 4. Post-Context-Load Extensions · `#post-context-load`
-
-If `post-context-load` appears in `extensions.value.active`, load and execute its `.actions`
-after the recovery load set has been read. Otherwise skip.
-
-## 5. Resume
+## 4. Resume
 
 Before resuming work, apply this precedence rule internally: the recovered ARC operating context
 is authoritative for ARC procedure and state; the harness summary is authoritative only for the

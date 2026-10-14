@@ -4,7 +4,6 @@ import * as p from "../../lib/terminal.js";
 import { access } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { runConfigStatus } from "../../commands/config.js";
-import { runExtensionsStatus } from "../../commands/extensions.js";
 import type { SessionHandoffProbes, StatusProbes } from "../../commands/status.js";
 import { buildStatusSummary, runRecoverStatus, runSessionHandoffStatus, runStatus } from "../../commands/status.js";
 import { assertSessionRecoverProbeResult } from "../../commands/status/schema.js";
@@ -187,7 +186,6 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
   const json = Boolean(opts.json);
   const probes: StatusProbes = {
     user: (id) => runUserStatus({ cwd, io, identity: id }),
-    extensions: () => runExtensionsStatus({ cwd }),
     config: () => runConfigStatus({ cwd }),
     active: () => runActiveStatus({ cwd, exec }),
   };
