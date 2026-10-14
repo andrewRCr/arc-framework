@@ -209,7 +209,10 @@ describe("explicit Markdown format planning", () => {
     await expect(prepareExplicitMarkdownFormat({
       root: "/repo",
       paths: ["docs/table.md", ".arc/backlog/ROADMAP.md"],
-      exec: vi.fn().mockResolvedValue({ stdout: "tracked" }),
+      exec: vi.fn(async (_command: string, args: string[]) => ({
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
+      })),
       lstat: vi.fn(async (path: string) => path.endsWith(".md") ? regularFile : directory),
       realpath: vi.fn(async (path: string) => path),
       readText: vi.fn(async (path: string) => path.endsWith("manifest.json")
@@ -252,7 +255,10 @@ describe("explicit Markdown format planning", () => {
     await expect(prepare({
       root: "/repo",
       paths: ["packages/arc-framework/arc/reference/demo.md"],
-      exec: vi.fn().mockResolvedValue({ stdout: "tracked" }),
+      exec: vi.fn(async (_command: string, args: string[]) => ({
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
+      })),
       lstat: vi.fn(async (path: string) => {
         if (path === "/repo/.arc/reference") return symbolicLink;
         return path.endsWith(".md") ? regularFile : directory;
@@ -290,7 +296,10 @@ describe("explicit Markdown format planning", () => {
     await expect(prepare({
       root: "/repo",
       paths: ["packages/arc-framework/arc/reference/demo.md"],
-      exec: vi.fn().mockResolvedValue({ stdout: "tracked" }),
+      exec: vi.fn(async (_command: string, args: string[]) => ({
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
+      })),
       lstat: vi.fn(async (path: string) => path.endsWith(".md") ? regularFile : directory),
       realpath: vi.fn(async (path: string) => path === "/repo/.arc/reference/demo.md"
         ? "/outside/demo.md"

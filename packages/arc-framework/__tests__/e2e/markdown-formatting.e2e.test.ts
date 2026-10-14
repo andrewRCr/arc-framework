@@ -24,13 +24,131 @@ async function writeFixtureFile(root: string, path: string, content: string): Pr
   await writeFile(target, content);
 }
 
+async function writeAuthorityFixture(root: string): Promise<void> {
+  await writeFixtureFile(root, "packages/arc-framework/init-recipe.json", JSON.stringify({
+    prompts: [],
+    include_files: [],
+    conditions: {},
+  }));
+  await writeFixtureFile(root, ".arc/system/.internal/manifest.json", JSON.stringify({
+    schema_version: 1,
+    framework_version: "test",
+    installed_at: "2026-07-20",
+    install_config: { project_name: "Demo", pm_mode: "arc-in-git", tools: [] },
+    files: {},
+  }));
+}
+
 afterEach(async () => {
   if (fixtureParent !== undefined) await rm(fixtureParent, { recursive: true, force: true });
   fixtureParent = undefined;
 });
 
 describe("format:tables entry point", () => {
-  it.each([true, false])("atomically formats an explicit Markdown path and reports an idempotent retry (tracked=%s)", async tracked => {
+  it.each([
+    { mode: "standard", innerWorktree: false },
+    { mode: "separate", innerWorktree: false },
+    { mode: "ancestor", innerWorktree: false },
+    { mode: "standard", innerWorktree: true },
+    { mode: "separate", innerWorktree: true },
+    { mode: "ancestor", innerWorktree: true },
+  ])("formats explicit embedded-repository files ($mode, inner=$innerWorktree)", async ({ mode, innerWorktree }) => {
+    fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-nested-e2e-"));
+    await git(fixtureParent, ["init", "-q"]);
+    await writeAuthorityFixture(fixtureParent);
+    await writeFixtureFile(fixtureParent, ".gitignore", "vendor/\n");
+    const nestedPath = mode === "ancestor" ? "vendor/admin/tool" : "vendor/tool";
+    const nested = join(fixtureParent, nestedPath);
+    const adminPath = mode === "standard" ? `${nestedPath}/.git`
+      : mode === "separate" ? `${nestedPath}/git-admin` : "vendor/admin";
+    await mkdir(nested, { recursive: true });
+    await git(fixtureParent, ["init", "-q", ...(mode === "standard" ? []
+      : ["--separate-git-dir", join(fixtureParent, adminPath)]), nested]);
+    if (innerWorktree) {
+      await git(fixtureParent, ["init", "-q", "--separate-git-dir", join(fixtureParent, "inner-git"),
+        join(fixtureParent, adminPath, "info")]);
+    }
+    const original = "| A |\n| - |\n| 表 |\n";
+    const metadataFile = `${adminPath}/info/notes.md`;
+    const worktreeFile = `${nestedPath}/table.md`;
+    await writeFixtureFile(fixtureParent, metadataFile, original);
+    await writeFixtureFile(fixtureParent, worktreeFile, original);
+    await git(fixtureParent, ["check-ignore", worktreeFile]);
+
+    const first = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, worktreeFile, metadataFile], {
+      cwd: fixtureParent, encoding: "utf8",
+    });
+    expect(first.stdout).toContain(`formatted ${worktreeFile} `);
+    expect(first.stdout).toContain(`formatted ${metadataFile} `);
+    expect(await readFile(join(fixtureParent, worktreeFile), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+    expect(await readFile(join(fixtureParent, metadataFile), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+
+    const retry = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, worktreeFile, metadataFile], {
+      cwd: fixtureParent, encoding: "utf8",
+    });
+    expect(retry.stdout).toBe(`unchanged ${worktreeFile}\nunchanged ${metadataFile}\n`);
+  });
+
+  it.each(["tracked", "ignored"])("formats a worktree beneath its Git directory (%s)", async mode => {
+    fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-ancestor-e2e-"));
+    const root = join(fixtureParent, "admin", "repo");
+    await mkdir(root, { recursive: true });
+    await git(fixtureParent, ["init", "-q", "--separate-git-dir", join(fixtureParent, "admin"), root]);
+    await writeAuthorityFixture(root);
+    await writeFixtureFile(root, "docs/table.md", "| A |\n| - |\n| 表 |\n");
+    if (mode === "tracked") {
+      await git(root, ["add", "--", "docs/table.md"]);
+    } else {
+      await writeFixtureFile(root, ".gitignore", "docs/table.md\n");
+      await git(root, ["check-ignore", "docs/table.md"]);
+    }
+
+    const first = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
+      cwd: root, encoding: "utf8",
+    });
+    expect(first.stdout).toMatch(/^formatted docs\/table\.md /u);
+    expect(await readFile(join(root, "docs/table.md"), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+    const retry = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
+      cwd: root, encoding: "utf8",
+    });
+    expect(retry.stdout).toBe("unchanged docs/table.md\n");
+  });
+
+  it.each([
+    { gitDirectory: ".git", innerWorktree: false },
+    { gitDirectory: "git-admin", innerWorktree: false },
+    { gitDirectory: ".git", innerWorktree: true },
+    { gitDirectory: "git-admin", innerWorktree: true },
+  ])("refuses Git administration files before any write ($gitDirectory, inner=$innerWorktree)", async ({ gitDirectory, innerWorktree }) => {
+    fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-admin-e2e-"));
+    await git(fixtureParent, ["init", "-q", ...(gitDirectory === ".git" ? [] : ["--separate-git-dir", gitDirectory])]);
+    await writeAuthorityFixture(fixtureParent);
+    const original = "| A |\n| - |\n| 表 |\n";
+    const adminPath = `${gitDirectory}/info/notes.md`;
+    if (innerWorktree) {
+      await git(fixtureParent, ["init", "-q", "--separate-git-dir", join(fixtureParent, "inner-git"),
+        join(fixtureParent, gitDirectory, "info")]);
+    }
+    await writeFixtureFile(fixtureParent, adminPath, original);
+    await writeFixtureFile(fixtureParent, "docs/table.md", original);
+    await writeFixtureFile(fixtureParent, ".gitignore", "docs/table.md\n");
+    await git(fixtureParent, ["check-ignore", "docs/table.md"]);
+
+    await expect(execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md", adminPath], {
+      cwd: fixtureParent, encoding: "utf8",
+    })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("markdown.git-administration") });
+    expect(await readFile(join(fixtureParent, adminPath), "utf8")).toBe(original);
+    expect(await readFile(join(fixtureParent, "docs/table.md"), "utf8")).toBe(original);
+
+    const retry = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
+      cwd: fixtureParent, encoding: "utf8",
+    });
+    expect(retry.stdout).toMatch(/^formatted docs\/table\.md /u);
+    expect(await readFile(join(fixtureParent, "docs/table.md"), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+    expect(await readFile(join(fixtureParent, adminPath), "utf8")).toBe(original);
+  });
+
+  it.each(["tracked", "untracked", "ignored"])("atomically formats an explicit Markdown path and reports an idempotent retry (%s)", async mode => {
     fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-e2e-"));
     const primary = join(fixtureParent, "primary");
     const linked = join(fixtureParent, "linked");
@@ -38,25 +156,18 @@ describe("format:tables entry point", () => {
     await git(primary, ["init", "-q", "-b", "main"]);
     await git(primary, ["config", "user.email", "test@example.com"]);
     await git(primary, ["config", "user.name", "Test User"]);
-    await writeFixtureFile(primary, "packages/arc-framework/init-recipe.json", JSON.stringify({
-      prompts: [],
-      include_files: [],
-      conditions: {},
-    }));
-    await writeFixtureFile(primary, ".arc/system/.internal/manifest.json", JSON.stringify({
-      schema_version: 1,
-      framework_version: "test",
-      installed_at: "2026-07-20",
-      install_config: { project_name: "Demo", pm_mode: "arc-in-git", tools: [] },
-      files: {},
-    }));
+    await writeAuthorityFixture(primary);
     await writeFixtureFile(primary, "docs/table.md", "| A |\n| - |\n| 表 |\n");
     await git(primary, ["add", "--all"]);
     await git(primary, ["commit", "-q", "-m", "fixture"]);
     await git(primary, ["worktree", "add", "-q", "-b", "linked-e2e", linked]);
     const nested = join(linked, "nested");
     await mkdir(nested);
-    if (!tracked) await git(linked, ["rm", "--cached", "docs/table.md"]);
+    if (mode !== "tracked") await git(linked, ["rm", "--cached", "docs/table.md"]);
+    if (mode === "ignored") {
+      await writeFixtureFile(linked, ".gitignore", "docs/table.md\n");
+      await git(linked, ["check-ignore", "docs/table.md"]);
+    }
 
     const first = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
       cwd: nested,
