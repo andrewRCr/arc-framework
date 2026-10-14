@@ -7,6 +7,8 @@ import { runActivate, runDeactivate, type ActivateContext } from "../../../../sr
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import type { BranchLink } from "../../../../src/lib/store/links.js";
 import type { PreparedCurrentWuReconcile } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
+import { transientContent } from "../../../helpers/store/in-repo-substrates.js";
 
 const base = "0".repeat(40), local = "1".repeat(40), remote = "2".repeat(40);
 async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean } = {}) {
@@ -88,6 +90,36 @@ describe("store activation", () => {
     await h.seedMeta("other", {}, { kind: "active" }, { branches: [{ repository: "repo", ref: "person", linkedAs: "adopted", excluded: [] }] });
     expect(await runActivate(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("git switch -c <name>") });
     expect(h.state().reconciled).toBe(false); expect((await h.read()).version).toEqual(h.meta.version);
+  });
+  it("refuses an open Errand's branch, then adopts a separately preserved branch", async () => {
+    const h = await harness({ branch: "chore/other" });
+    const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "other" }));
+    const errand = await h.seed(reference, transientContent(reference), { kind: "active" },
+      { branches: [{ repository: "repo", ref: "chore/other", linkedAs: "created", excluded: [] }] });
+    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("git switch -c <name>") });
+    expect(h.state()).toMatchObject({ current: "chore/other", reconciled: false });
+    expect(await h.read()).toEqual(h.meta);
+    expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(errand);
+    await h.ctx.exec!("git", ["switch", "-c", "independent"]);
+    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", branch: "feat/demo" });
+    expect(h.state().branches).toContain("chore/other");
+    expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(errand);
+  });
+  it.each(["unreadable", "missed"])("refuses a %s Errand inventory before reconciliation", async (kind) => {
+    const h = await harness({ branch: "person" });
+    const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "other" }));
+    await h.seed(reference, transientContent(reference), { kind: "active" });
+    const original = h.store.list.bind(h.store);
+    h.store.list = async (input) => {
+      const actual = await original(input);
+      if (input.kind !== "work-item/record") return actual;
+      if (kind === "unreadable") return { status: "ok", result: { status: "unreadable", condition: "Errand inventory unavailable", remedy: { text: "retry peers" } } };
+      if (actual.status !== "ok" || actual.result.status !== "complete") throw Error("Expected complete Errand inventory");
+      return { status: "ok", result: { ...actual.result, missed: true } };
+    };
+    expect(await runActivate(h.ctx, params)).toMatchObject({ status: "rejected" });
+    expect(h.state()).toMatchObject({ current: "person", reconciled: false });
+    expect(await h.read()).toEqual(h.meta);
   });
   it("refuses no resolvable base after fetch before reconciliation", async () => {
     const h = await harness({ branch: "person", noBase: true });

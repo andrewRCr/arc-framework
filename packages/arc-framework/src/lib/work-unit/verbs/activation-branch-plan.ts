@@ -44,9 +44,8 @@ export async function planActivationBranch(input: ActivationBranchPlanInput): Pr
     ...(creating ? {} : { refreshBranch: branch }),
     captures: Object.values(input.primary.links?.taskCaptures ?? {}).flat(), exclusions: own?.excluded ?? [] });
   if (inventory.status === "refused") return { status: "refused", reason: `${inventory.reason} ${inventory.remedy}` };
-  if (branch === null && inventory.commits.length !== 0) {
-    return { status: "refused", reason: `Detached HEAD holds commits not on base: ${inventory.commits.map((commit) => commit.sha).join(", ")}; preserve them with git switch -c <name>, then arc activate.` };
-  }
+  const detachedRefusal = branch === null ? await detachedCommitRefusal(input, head) : null;
+  if (detachedRefusal !== null) return { status: "refused", reason: detachedRefusal };
   if (creating) {
     const base = await baseTip(input.exec, input.cwd, input.baseBranch);
     return { status: "ready", link: { repository: input.repository, ref: target, linkedAs: "created", excluded: [] }, priorRef: null,
@@ -124,4 +123,16 @@ async function activationRemoteDeletion(input: ActivationBranchPlanInput, own: B
 
 function activationTarget(own: BranchLink | undefined, requested: string): string {
   return own !== undefined && workBranchName(own.ref).split("/")[0] === requested.split("/")[0] ? workBranchName(own.ref) : requested;
+}
+
+async function detachedCommitRefusal(input: ActivationBranchPlanInput, head: string): Promise<string | null> {
+  const tips = await Promise.all([`refs/heads/${input.baseBranch}`, `refs/remotes/origin/${input.baseBranch}`]
+    .map((ref) => optionalTip(input.exec, input.cwd, ref)));
+  const bases = tips.filter((tip): tip is string => tip !== null);
+  if (bases.length === 0) return `Base ${input.baseBranch} disappeared; preserve detached HEAD with git switch -c <name>, then retry arc activate.`;
+  const walk = await input.exec("git", ["--no-replace-objects", "rev-list", head, "--not", ...bases],
+    { cwd: input.cwd, objectAccess: "local-only" });
+  const commits = walk.stdout.trim().split(/\s+/u).filter(Boolean);
+  return commits.length === 0 ? null
+    : `Detached HEAD holds commits not on base: ${commits.join(", ")}; preserve them with git switch -c <name>, then arc activate.`;
 }

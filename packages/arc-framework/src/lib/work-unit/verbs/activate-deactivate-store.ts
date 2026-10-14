@@ -92,13 +92,17 @@ async function readLifecyclePrimary(store: Store, name: string): Promise<{ statu
   return entry === undefined ? { status: "rejected", reason: `Lifecycle inventory does not contain ${name}.` } : { status: "ready", primary, entry };
 }
 async function readOtherPrimaries(store: Store, primary: StoreRecord): Promise<{ status: "ready"; records: StoreRecord[] } | Rejected> {
-  const listing = await store.list({ family: "work-item", kind: "work-item/meta" });
-  if (listing.status === "refused") return { status: "rejected", reason: listing.refusal.condition, refusal: listing.refusal };
-  const result = listing.result;
-  if (result.status === "unreadable") return { status: "rejected", reason: `${result.condition} ${result.remedy.text}` };
-  if (result.status === "complete" && (result.missed || result.diagnostics.length !== 0)) return { status: "rejected",
-    reason: result.diagnostics.map((entry) => `${entry.condition} ${entry.remedy.text}`).join("; ") || "Lifecycle inventory missed records; repair the inventory and retry activation." };
-  return { status: "ready", records: result.status === "complete" ? result.records.filter((other) => other.reference.owner.name !== primary.reference.owner.name) : [] };
+  const records: StoreRecord[] = [];
+  for (const kind of ["work-item/meta", "work-item/record"] as const) {
+    const listing = await store.list({ family: "work-item", kind });
+    if (listing.status === "refused") return { status: "rejected", reason: listing.refusal.condition, refusal: listing.refusal };
+    const result = listing.result;
+    if (result.status === "unreadable") return { status: "rejected", reason: `${result.condition} ${result.remedy.text}` };
+    if (result.status === "complete" && (result.missed || result.diagnostics.length !== 0)) return { status: "rejected",
+      reason: result.diagnostics.map((entry) => `${entry.condition} ${entry.remedy.text}`).join("; ") || "Lifecycle inventory missed records; repair the inventory and retry activation." };
+    if (result.status === "complete") records.push(...result.records.filter((other) => other.reference.owner.name !== primary.reference.owner.name));
+  }
+  return { status: "ready", records };
 }
 
 async function deactivationBranch(ctx: DeactivateContext, primary: StoreRecord): Promise<{ branch?: string; reason?: string }> {
