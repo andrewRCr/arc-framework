@@ -37,7 +37,6 @@ import type { HistoryCompletenessResult } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { normalizeGitRejection } from "./process-error.js";
 import {
-  fetchRefBounded,
   listMetaPathsAtRef,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
@@ -48,6 +47,11 @@ import {
   type RemoteHeadSnapshotResult,
   type RefTipMap,
 } from "./remote-ref-reader.js";
+import {
+  accountForFetchedTracking,
+  expandLiveOnlyCandidates,
+  isExcludedInFlightBranch as isExcludedBranch,
+} from "./in-flight-expansion.js";
 import {
   resolveWorktreePathsByBranchResult,
   type WorktreePathsByBranchResult,
@@ -90,6 +94,7 @@ export interface InFlightBranchProvenance {
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
   | "branch-residue"
+  | "branch-fetch-failed"
   | "errand-record-branch-missing"
   | "errand-record-read-failed"
   | "meta-enumeration-failed"
@@ -755,14 +760,19 @@ async function resolveAgreedInputs(input: {
     input.remote,
   );
 
-  const firstSnapshot = snapshotFor(firstBranchSet, firstEligibleWorktrees, firstEligibleRefs, input.remote);
+  const expectedRefs = accountForFetchedTracking(firstEligibleRefs, secondEligibleRefs, expansion.refs, input.remote);
+  const firstSnapshot = snapshotFor(firstBranchSet, firstEligibleWorktrees, expectedRefs, input.remote);
   const secondSnapshot = snapshotFor(secondBranchSet, secondEligibleWorktrees, secondEligibleRefs, input.remote);
   const comparison = mergeSnapshotComparisons(
     compareSnapshots(firstSnapshot, secondSnapshot),
-    compareLocalRefSnapshots(firstEligibleRefs, secondEligibleRefs, input.remote),
+    compareLocalRefSnapshots(expectedRefs, secondEligibleRefs, input.remote),
     compareRefReadResults(firstRefs.ok, secondRefs.ok),
   );
   const warnings = snapshotWarnings(comparison, input.remote);
+  warnings.push(...expansion.failedBranches.map((branch) => warning({
+    code: "branch-fetch-failed", branch,
+    rendered: `Unable to fetch in-flight branch \`${branch}\` within the network budget; overlap discovery may be incomplete.`,
+  })));
 
   return {
     branchSet: firstBranchSet,
@@ -774,44 +784,10 @@ async function resolveAgreedInputs(input: {
     indeterminate: comparison.wholeResult
       ? { refs: new Set(), worktrees: new Set() }
       : { refs: comparison.changedRefs, worktrees: comparison.changedWorktrees },
-    resultMarks: comparison.wholeResult || expansion.failed ? ["indeterminate"] : [],
+    resultMarks: comparison.wholeResult || expansion.failedBranches.length > 0 ? ["indeterminate"] : [],
     warnings,
     classificationRefs: expansion.refs,
   };
-}
-
-interface LiveOnlyExpansionResult {
-  refs: RefTipMap;
-  failed: boolean;
-}
-
-async function expandLiveOnlyCandidates(input: {
-  exec: GitExec;
-  branchSet: InFlightBranchSet;
-  localRefs: LocalInFlightRefSnapshot;
-  remote: string;
-  timeoutMs?: number;
-  enabled: boolean;
-  excludedBranches: ReadonlySet<string>;
-}): Promise<LiveOnlyExpansionResult> {
-  if (!input.enabled || !input.branchSet.reachable) return { refs: {}, failed: false };
-  const refs: RefTipMap = {};
-  let failed = false;
-  for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
-    const prefix = `${input.remote}/`;
-    const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
-    if (isExcludedBranch(branch) || input.excludedBranches.has(branch)) continue;
-    if (input.localRefs.remoteTracking[branch] === sha) continue;
-    const ok = await fetchRefBounded({
-      exec: input.exec,
-      remote: input.remote,
-      branch,
-      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
-    });
-    if (ok) refs[`${input.remote}/${branch}`] = sha;
-    else failed = true;
-  }
-  return { refs, failed };
 }
 
 function withExpandedBranches(
@@ -872,16 +848,6 @@ function filterExcludedRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSna
 
 function filterExcludedWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
   return new Map([...paths].filter(([branch]) => !isExcludedBranch(branch)));
-}
-
-/**
- * Branch namespaces outside the in-flight discovery universe: delivery members, which the delivery
- * machinery owns, and stacked review projections, which carry no ARC state.
- */
-const EXCLUDED_BRANCH_PREFIXES = ["delivery/", "review-projection/"] as const;
-
-function isExcludedBranch(branch: string): boolean {
-  return EXCLUDED_BRANCH_PREFIXES.some((prefix) => branch.startsWith(prefix));
 }
 
 function snapshotFor(
