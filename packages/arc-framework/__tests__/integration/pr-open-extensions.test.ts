@@ -668,6 +668,19 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("grounds an unchanged-behavior premise per caller and sweeps past the artifact's own file list", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/source-grounding.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("the target bounds which claims are checked; for each claim inside it, the sweep's reach comes from source — the importers and callers of the symbols it names");
+      expect(normalized).toContain("never from the artifact's own scope or file list, which is itself a claim under check");
+      expect(normalized).toContain("where the design or a proposed repair removes or changes an invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source");
+      expect(normalized).toContain("an inherited premise that behavior stays unchanged is a claim about the implementation it relies on");
+      expect(normalized).toContain("ground it per class of caller — those that read, write, or list through it — tracing each class's path on its own");
+      expect(normalized).toContain("since a premise can hold for writes and fail for reads");
+    }
+  });
+
   it("keeps review severity, disposition, and polish orthogonal", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
