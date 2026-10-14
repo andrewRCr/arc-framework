@@ -1,8 +1,8 @@
 /**
  * Unit tests for the reliable-trigger audit.
  *
- * Covers enumeration (methods/extensions), frontmatter parsing, coverage map
- * construction (separate maps per kind), and diagnostic formatting. FS-facing
+ * Covers enumeration (methods), frontmatter parsing, coverage map
+ * construction, and diagnostic formatting. FS-facing
  * behaviors use tmp-dir fixtures; pure functions are exercised directly.
  */
 
@@ -13,14 +13,11 @@ import { join } from "node:path";
 
 import {
   enumerateMethods,
-  enumerateExtensions,
   parseWorkflowFrontmatter,
   buildCoverageMap,
   formatMethodDiagnostic,
-  formatExtensionDiagnostic,
   audit,
   auditActivatableMethodCorpus,
-  auditPushExtensionCoverage,
   type WorkflowEntry,
 } from "../../../src/scripts/audit-method-triggers.js";
 
@@ -67,16 +64,6 @@ function method(name: string, dependencies: string[] = []): string {
   ].join("\n");
 }
 
-function writeExtensionsDir(entries: string[]): string {
-  const dir = join(tmp, "extensions");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "README.md"), "# readme\n");
-  for (const name of entries) {
-    writeFileSync(join(dir, `${name}.md`), `---\nname: ${name}\n---\n`);
-  }
-  return dir;
-}
-
 function workflow(methods: string[], extensions: string[]): string {
   const body = [
     "---",
@@ -97,7 +84,7 @@ function workflow(methods: string[], extensions: string[]): string {
   return body;
 }
 
-// --- enumerateMethods / enumerateExtensions ---
+// --- enumerateMethods ---
 
 describe("enumerateMethods", () => {
   it("lists .md entries from methods dir and excludes README.md", () => {
@@ -136,13 +123,6 @@ describe("activatable method corpus", () => {
       expect.stringContaining("frontline-review"),
       expect.stringContaining("other"),
     ]));
-  });
-});
-
-describe("enumerateExtensions", () => {
-  it("lists .md entries from extensions dir and excludes README.md", () => {
-    const dir = writeExtensionsDir(["x-one", "x-two"]);
-    expect(enumerateExtensions(dir)).toEqual(["x-one", "x-two"]);
   });
 });
 
@@ -212,7 +192,6 @@ describe("buildCoverageMap", () => {
   it("records workflow paths against declared methods", () => {
     const cov = buildCoverageMap(
       ["alpha", "beta"],
-      [],
       [wf("a.md", ["alpha"], []), wf("b.md", ["alpha", "beta"], [])],
     );
     expect(cov.methods.get("alpha")).toEqual(["a.md", "b.md"]);
@@ -223,7 +202,6 @@ describe("buildCoverageMap", () => {
   it("records malformed workflows as parse diagnostics and continues", () => {
     const cov = buildCoverageMap(
       ["alpha"],
-      [],
       [
         { path: "bad.md", content: "---\n  not: [valid\n---\n" },
         wf("good.md", ["alpha"], []),
@@ -234,53 +212,6 @@ describe("buildCoverageMap", () => {
     expect(cov.methods.get("alpha")).toEqual(["good.md"]);
   });
 
-  it("keeps methods and extensions in separate maps (no cross-kind collision)", () => {
-    // Same name registered as both a method and an extension; declaring it
-    // only in arc.methods must NOT satisfy the extension requirement.
-    const cov = buildCoverageMap(
-      ["shared"],
-      ["shared"],
-      [wf("a.md", ["shared"], [])],
-    );
-    expect(cov.methods.get("shared")).toEqual(["a.md"]);
-    expect(cov.extensions.get("shared")).toEqual([]);
-  });
-});
-
-describe("push extension coverage", () => {
-  it("accepts local and workflow-wide pre-push fire contracts", () => {
-    const local = `${workflow([], ["pre-push-review"])}\n- **Extensions** · \`#pre-push-review\`: Run before push.\n\n> \`push-interlock\` release — \`workflowPush\`.\n`;
-    const global = `${workflow([], ["pre-push-review"])}\n**Push extension contract** · \`#pre-push-review\`: Before every agent-managed push, run it.\n\n> \`push-interlock\` release — \`workflowPush\`.\n\n> \`push-interlock\` release — \`workflowPush\`.\n`;
-
-    expect(auditPushExtensionCoverage([
-      { path: "local.md", content: local },
-      { path: "global.md", content: global },
-    ])).toEqual([]);
-  });
-
-  it("rejects a push without declaration or a preceding fire contract", () => {
-    const bare = `${workflow([], [])}\n> \`push-interlock\` release — \`workflowPush\`.\n`;
-    const declared = `${workflow([], ["pre-push-review"])}\n> \`push-interlock\` release — \`workflowPush\`.\n`;
-
-    expect(auditPushExtensionCoverage([
-      { path: "bare.md", content: bare },
-      { path: "declared.md", content: declared },
-    ])).toEqual(expect.arrayContaining([
-      expect.stringContaining("bare.md"),
-      expect.stringContaining("declared.md"),
-    ]));
-  });
-
-  it.each(["arc sync --json", "arc release push"])(
-    "treats command-form %s as an agent-managed push site",
-    (command) => {
-      const content = `${workflow([], [])}\n\`\`\`bash\n${command}\n\`\`\`\n`;
-
-      const diagnostics = auditPushExtensionCoverage([{ path: "handoff.md", content }]);
-      expect(diagnostics).toHaveLength(2);
-      expect(diagnostics.every((item) => item.includes("handoff.md"))).toBe(true);
-    },
-  );
 });
 
 // --- Diagnostic formatters ---
@@ -292,11 +223,6 @@ describe("diagnostic formatters", () => {
     expect(msg).toContain("arc.methods");
   });
 
-  it("names the extension and arc.extensions in the extension diagnostic", () => {
-    const msg = formatExtensionDiagnostic("post-context-load");
-    expect(msg).toContain("Extension \"post-context-load\"");
-    expect(msg).toContain("arc.extensions");
-  });
 });
 
 // --- audit() end-to-end ---
@@ -306,27 +232,31 @@ describe("audit", () => {
     writeFile(rel, workflow(methods, extensions));
   }
 
-  it("passes when every method and extension has a declaration", async () => {
+  it("passes when every method has a declaration", async () => {
     const methods = writeMethodsDir(["alpha"]);
-    const extensions = writeExtensionsDir(["post-x"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], ["post-x"]);
-    const result = await audit(methods, extensions, workflows);
+    writeWorkflow("workflows/one.md", ["alpha"], []);
+    const result = await audit(methods, workflows);
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
+  });
+
+  it("validates method coverage at managed push sites without hook declarations", async () => {
+    const methods = writeMethodsDir(["alpha"]);
+    writeFile("workflows/push.md", `${workflow(["alpha"], [])}\narc release push\n`);
+    expect(await audit(methods, join(tmp, "workflows"))).toEqual({ pass: true, diagnostics: [] });
   });
 
   it("resolves method-owned dependencies transitively from workflow roots", async () => {
     const methods = writeMethodsDir(["alpha", "beta", "gamma"]);
     writeFileSync(join(methods, "alpha.md"), method("alpha", ["beta"]));
     writeFileSync(join(methods, "beta.md"), method("beta", ["gamma"]));
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
 
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result).toEqual({ pass: true, diagnostics: [] });
   });
 
@@ -334,12 +264,11 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha", "beta", "shared"]);
     writeFileSync(join(methods, "alpha.md"), method("alpha", ["shared"]));
     writeFileSync(join(methods, "beta.md"), method("beta", ["shared"]));
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha", "beta"], []);
 
-    const result = await audit(methods, extensions, workflows, new Set(["shared"]));
+    const result = await audit(methods, workflows, new Set(["shared"]));
     expect(result.diagnostics).toContain(
       "Method \"shared\" is declared by one.md but still listed in WIRING_PENDING. Remove the allowlist entry.",
     );
@@ -347,12 +276,11 @@ describe("audit", () => {
 
   it("rejects an unknown workflow-root declaration", async () => {
     const methods = writeMethodsDir(["alpha"]);
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha", "missing"], []);
 
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result.diagnostics).toContain(
       'Workflow "one.md" declares unknown method "missing" in arc.methods.',
     );
@@ -360,13 +288,12 @@ describe("audit", () => {
 
   it("rejects unknown workflow arc fields even when every method remains reachable", async () => {
     const methods = writeMethodsDir(["alpha"]);
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/good.md", ["alpha"], []);
     writeFile("workflows/typo.md", "---\narc:\n  method: [alpha]\n---\n");
 
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics).toContain(
       'Workflow "typo.md" has malformed frontmatter: unknown workflow `arc` frontmatter field `method`',
@@ -376,12 +303,11 @@ describe("audit", () => {
   it("rejects a method dependency whose target does not exist", async () => {
     const methods = writeMethodsDir(["alpha"]);
     writeFileSync(join(methods, "alpha.md"), method("alpha", ["missing"]));
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
 
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics).toContain(
       'Method "alpha" declares unknown method "missing" in arc.methods.',
@@ -392,56 +318,42 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
     writeFileSync(join(methods, "alpha.md"), method("alpha", ["beta"]));
     writeFileSync(join(methods, "beta.md"), method("beta", ["alpha"]));
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
 
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics).toContain("Method dependency cycle: alpha -> beta -> alpha.");
   });
 
   it("fails with a method diagnostic when a method has no declaration", async () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
-    const result = await audit(methods, extensions, workflows);
+    const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("\"beta\"") && d.includes("arc.methods"))).toBe(true);
   });
 
-  it("fails with an extension diagnostic when an extension has no declaration", async () => {
-    const methods = writeMethodsDir([]);
-    const extensions = writeExtensionsDir(["post-x"]);
-    const workflows = join(tmp, "workflows");
-    mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", [], []);
-    const result = await audit(methods, extensions, workflows);
-    expect(result.pass).toBe(false);
-    expect(result.diagnostics.some((d) => d.includes("\"post-x\"") && d.includes("arc.extensions"))).toBe(true);
-  });
 
   it("passes when an undeclared method is listed as wiring-pending", async () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
-    const result = await audit(methods, extensions, workflows, new Set(["beta"]));
+    const result = await audit(methods, workflows, new Set(["beta"]));
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
   });
 
   it("fails with a stale-allowlist diagnostic when a wiring-pending method gains a declaration", async () => {
     const methods = writeMethodsDir(["alpha"]);
-    const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
-    const result = await audit(methods, extensions, workflows, new Set(["alpha"]));
+    const result = await audit(methods, workflows, new Set(["alpha"]));
     expect(result.pass).toBe(false);
     expect(
       result.diagnostics.some((d) => d.includes("\"alpha\"") && d.includes("WIRING_PENDING")),

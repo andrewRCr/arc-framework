@@ -2565,7 +2565,7 @@
   },
   "src/scripts/audit-method-triggers.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/scripts/audit-tables.ts": {

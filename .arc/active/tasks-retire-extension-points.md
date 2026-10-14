@@ -19,21 +19,14 @@ _Exit criterion:_ Method and domain-rule validators and method coverage pass wit
 - _Outcome:_ Removed the marker validator and both hook invocations; frontmatter and package neutrality now
   select surviving methods and domain rules. Recorded the full retrieval revision and verified its source loci.
 
-### `[ ]` **1.2 Narrow trigger coverage to methods — D4**
+### `[x]` **1.2 Narrow trigger coverage to methods — D4**
 
 - _Goal:_ Workflow validation retains method graph and coverage guarantees without requiring extension declarations
   or push fire points.
 
-- _Note:_ See `notes-retire-extension-points.md` § Removal ordering and synchronization and § Workflow and validator map.
-
-    - Remove `auditPushExtensionCoverage`, extension enumeration, coverage maps/diagnostics, directory reads, CLI
-      arguments, and extension result/output branches from `audit-method-triggers.ts` and its mixed unit suite.
-    - Keep existing `arc.extensions` parsing until Task 4.1; do not reject declarations still present in the corpus.
-    - Build `test-first` (one behavior at a time):
-        - `readMethodDependencyGraph` and `resolveTransitiveMethodCoverage` preserve direct/transitive coverage,
-          malformed declarations, graph failures, and wiring-pending diagnostics.
-        - `audit` succeeds for a method-only corpus and requires no extension directory or push contract.
-    - Run `npm run -s lint:arc:triggers`; preserve its check ID and deadline.
+- _Outcome:_ Method enumeration, direct/transitive coverage, dependency diagnostics, and wiring-pending checks now
+  operate without an extension directory or push contract. Declaration parsing remains until the workflow sweep
+  closes.
 
 ## **Phase 2:** Runtime and session contract retirement
 
