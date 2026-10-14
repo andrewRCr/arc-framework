@@ -127,6 +127,22 @@ function resultMatchesPolicy(result: ReviewResult, request: ReviewPolicyCommandR
     === canonicalize({ ...request.standardReview, reasons: [...request.standardReview.reasons].sort() });
 }
 
+function compatibleTerminalGrants(
+  request: Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization">,
+  lane: ReviewPolicyCommandRequest["lane"],
+  completedPasses: number,
+): Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization"> {
+  const { ceilingOverride, additionalPassAuthorization } = request;
+  return {
+    ...(ceilingOverride?.lane === lane
+      && ceilingOverride.exhaustedPassCount === completedPasses - 1
+      && ceilingOverride.nextPass === completedPasses ? { ceilingOverride } : {}),
+    ...(additionalPassAuthorization?.lane === lane
+      && additionalPassAuthorization.completedPasses === completedPasses
+      && additionalPassAuthorization.nextPass === completedPasses + 1 ? { additionalPassAuthorization } : {}),
+  };
+}
+
 function correctedTerminalRequest(
   result: ReviewResult,
   request: ReviewPolicyCommandRequest,
@@ -155,8 +171,7 @@ function correctedTerminalRequest(
     standardReview: result.kind === "frontline" ? request.standardReview : standardProjection(result),
     ...(correctedInvocation === undefined ? {} : { invocation: correctedInvocation }),
     ...(lane === "standard" && terminus !== undefined ? { terminus } : {}),
-    ...(ceilingOverride?.lane === lane ? { ceilingOverride } : {}),
-    ...(additionalPassAuthorization?.lane === lane ? { additionalPassAuthorization } : {}),
+    ...compatibleTerminalGrants({ ceilingOverride, additionalPassAuthorization }, lane, result.admission.logicalPass),
   });
 }
 

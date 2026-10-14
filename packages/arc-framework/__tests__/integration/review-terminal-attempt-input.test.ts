@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 describe("terminal attempt recovery through the CLI and repository records", () => {
-  it.each(["short pass count", "duplicate source", "forced source"])("recovers %s through the unchanged terminal producer", async scenario => {
+  it.each(["short pass count", "duplicate source", "forced source", "grant progress"])("recovers %s through the unchanged terminal producer", async scenario => {
     const root = await createTempRepoCore({ prefix: "arc-terminal-input-", identity: "andrew" });
     roots.push(root);
     const exec = makeGitExec(root);
@@ -66,12 +66,16 @@ describe("terminal attempt recovery through the CLI and repository records", () 
         now: "2026-10-13T00:00:00Z" });
     }
     const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target, lane: "standard",
-      frontlineActive: false, standardReview, completedPasses: scenario === "short pass count" ? 1 : 2,
+      frontlineActive: false, standardReview, completedPasses: scenario === "short pass count" ? 1 : scenario === "grant progress" ? 3 : 2,
       attempts: scenario !== "duplicate source"
         ? [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }]
         : [{ sourceId: "codex-pr", outcome: "rate-limited" },
           { sourceId: "coderabbit-pr", outcome: "clean", reviewOperationId: producerId }],
-      scopeSelection: { mode: "whole-target", target }, invocation: { mode: "force", sourceId: "codex-pr" } });
+      scopeSelection: { mode: "whole-target", target }, invocation: { mode: "force", sourceId: "codex-pr" },
+      ...(scenario === "grant progress" ? {
+        ceilingOverride: { target, lane: "standard", exhaustedPassCount: 2, nextPass: 3 },
+        additionalPassAuthorization: { target, lane: "standard", precedingProducerId: producerId, completedPasses: 3, nextPass: 4 },
+      } : {}) });
     const input = join(root, ".git/terminal-request.json");
     await writeFile(input, JSON.stringify(request));
     const before = await store.readOperation(operationId);
@@ -80,13 +84,19 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
     expect(error.error.code).toBe("invalid-input");
     if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
-    expect(error.remedy.text).toContain(scenario === "short pass count" ? "completedPasses to 2" : `sourceId to ${provider}`);
+    expect(error.remedy.text).toContain(scenario === "short pass count" || scenario === "grant progress" ? "completedPasses to 2" : `sourceId to ${provider}`);
     expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
     const { invocation, ...expectedRequest } = request;
+    delete expectedRequest.ceilingOverride;
+    delete expectedRequest.additionalPassAuthorization;
     expect(error.remedy.stdin).toMatchObject({ ...expectedRequest, completedPasses: 2,
       attempts: [{ sourceId: provider, outcome: "clean", reviewOperationId: producerId }] });
     expect(ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin).invocation)
       .toEqual(scenario === "forced source" ? undefined : invocation);
+    if (scenario === "grant progress") {
+      expect(error.remedy.stdin).not.toHaveProperty("ceilingOverride");
+      expect(error.remedy.stdin).not.toHaveProperty("additionalPassAuthorization");
+    }
     await writeFile(input, JSON.stringify(error.remedy.stdin));
     const replay = await runCli(["review", "resolve", input], { cwd: root });
     expect(replay.exitCode, replay.stderr).toBe(0);

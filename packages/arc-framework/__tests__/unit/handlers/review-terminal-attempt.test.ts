@@ -148,6 +148,33 @@ describe("terminal review attempt input recovery", () => {
       result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
   });
 
+  it.each([1, 3].flatMap(count => ["ceilingOverride", "additionalPassAuthorization"].map(field =>
+    ({ count, field, boundCount: count, wrongNext: false, binding: "count" }))).concat(
+    ["ceilingOverride", "additionalPassAuthorization"].map(field =>
+      ({ count: 1, field, boundCount: 2, wrongNext: true, binding: "next pass" })),
+  ))(
+    "drops $field with incompatible $binding at caller pass $count", async ({ count, field, boundCount, wrongNext }) => {
+      const { request } = fixture();
+      const terminal = request.attempts[0];
+      if (terminal?.outcome !== "clean") throw new Error("expected a clean terminal producer");
+      const grant = field === "ceilingOverride"
+        ? { target: request.target, lane: "standard", exhaustedPassCount: boundCount - 1, nextPass: boundCount + Number(wrongNext) }
+        : { target: request.target, lane: "standard", precedingProducerId: terminal.reviewOperationId,
+            completedPasses: boundCount, nextPass: boundCount + 1 + Number(wrongNext) };
+      const refusal = await resolve({ ...request, completedPasses: count, [field]: grant });
+      expect(refusal.exitCodes).toEqual([1]);
+      const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
+      expect(error.error.code).toBe("invalid-input");
+      if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+      const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
+      expect(corrected).not.toHaveProperty(field);
+      expect(corrected.completedPasses).toBe(2);
+      expect(corrected.attempts).toEqual(request.attempts);
+      await expect(resolve(corrected)).resolves.toMatchObject({ exitCodes: [],
+        result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
+    },
+  );
+
   it.each(["pass count", "lane"])("preserves matching-lane authorizations while correcting %s", async mismatch => {
     const { request } = fixture();
     const terminal = request.attempts[0];
