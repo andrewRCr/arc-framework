@@ -411,6 +411,26 @@ Within that corpus, the allowed senses are limited to:
   arrays, and serialization extensions;
 - generic kernel/validation/session-envelope registry augmentation and its isolated `extension` or
   `fixture-extension` test schemas, unrelated to lifecycle hook activation;
+- ordinary typed-interface or injected-capability augmentation, including `CurrentWuReconcileHost`,
+  `TeardownContext.stampHusk`, and `GitCommonStateTransactionPublisher`, that extends an executor, marker, or publisher
+  contract without lifecycle-hook activation or workflow fire-point dispatch;
+- mechanically unchanged Candidate selection/endpoint extension handled by `projectMechanicalReviewApplicabilityCarry`,
+  including commits that record the selection; this describes coordinate/contribution applicability, not event execution;
+- hosted-review wait-duration extension reported by `awaitHostedReview` as `inspect-or-extend`, including its
+  `continueAfterAttention` continuation and pending-request retention by `recordHostedAwaitAttempt`; this concerns
+  waiting time, not lifecycle-hook execution;
+- external CLI tool add-ons, including the `gh stack` capability checked by `GhDeliveryProviderRefreshPort.prepare`;
+  these are tool capabilities independent of the retired ARC command tree and lifecycle-hook dispatch;
+- ordinary optional data-schema augmentation, including the independently valid optional fields retained by
+  `normalizeLocalSyncState`; this does not admit retired activation, active-name, probe, or report fields;
+- domain-rule augmentation of project standards through `DEV-RULES.{DOMAIN}.md`, audited by `audit` in
+  `audit-domain-rules.ts`; this adds guidance, not lifecycle actions;
+- ordinary feature/API augmentation described in test examples, including `amendmentPlacementTaskList` and the
+  fixture inputs read by `copiedRealNotesRepository`; only capability/schema growth is admitted, not current
+  execution, activation, or advertised support of the retired lifecycle mechanism;
+- PM-mode module composition, including “arc-in-git extensions” in `strategy-work-planning.md`: `resolveFileList`
+  selects unconditional and conditional membership from `init-recipe.json`. This permits Core plus optional
+  planning-module content, not lifecycle-hook activation, action execution, or workflow-step insertion;
 - the session-operations probe-pattern terms “Extension contract” and “structural extension”, naming generic
   envelope composition;
 - the unchanged legacy quality-hook extraction in `bootstrap-extraction.ts` and its associated tests/fixtures,
@@ -433,6 +453,19 @@ implementation particulars; D5 settles deletion mechanics and the sweep above fi
 
 ## Amendments
 
-None.
+**Amended 2026-10-13 — A1:** The closed non-mechanism allowlist includes ordinary typed-interface/injected-capability
+augmentation and mechanically unchanged Candidate selection/endpoint extension. Task-generation review identified
+existing unrelated source meanings outside the enumerated cases; their preservation is now explicit. The live corpus,
+retirement obligations, and prohibition on current hook execution remain unchanged.
+
+**Amended 2026-10-13 — A2:** The closed non-mechanism allowlist also includes hosted-review wait duration,
+external CLI add-ons, optional data-schema fields, domain-rule additions, and ordinary feature/API growth in test
+examples. The first fix check and follow-up source sweep identified these additional unrelated meanings. Their
+preservation is explicit without admitting current retired-hook execution or blanket directory/history exemptions.
+
+**Amended 2026-10-13 — A3:** The closed non-mechanism allowlist includes PM-mode module composition: Core planning
+artifacts plus optional planning-module content selected by recipe conditions. The second fix check identified
+this surviving meaning in work-planning guidance. It admits no lifecycle-hook activation, action execution,
+workflow-step insertion, or blanket exemption.
 
 ---

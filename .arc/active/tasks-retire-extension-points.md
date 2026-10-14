@@ -1,0 +1,378 @@
+# Task List: Retire extension points
+
+- **Design:** `spec-retire-extension-points.md`
+
+---
+
+## **Phase 1:** Method and domain-rule validation prerequisites
+
+_Purpose:_ Remove checks that would obstruct retirement while retaining the independent method and domain-rule gates.
+
+_Mode:_ `layer` — closes on validation that no longer requires extension files or workflow fire points.
+
+_Exit criterion:_ Method and domain-rule validators and method coverage pass without extension validation or coverage.
+
+### `[ ]` **1.1 Retire extension validators and hook branches — D4, D7**
+
+- _Goal:_ Commit hooks continue validating methods and domain rules with no dependency on extension validation.
+
+- _Note:_ Runtime/test paths are relative to `packages/arc-framework/`. See `notes-retire-extension-points.md`
+  § Removal ordering and synchronization and § Retrieval revision.
+
+    - Before the first removal, record the full pre-removal `HEAD` in the notes and verify its recoverable source loci.
+    - Delete `src/scripts/validate-extension-points.ts` and its exclusive unit suite; remove
+      `CHECK[extension-point-references]` in both hook copies in this same increment.
+    - Narrow `classifyPath` / `validateFiles` in `validate-frontmatter.ts` and `classifyPackagePath` / `validateFiles`
+      in `validate-package-neutrality.ts`; narrow both hooks' frontmatter and package-neutrality path selection.
+    - Build `test-first` (one behavior at a time):
+        - Method frontmatter and registered method defaults still validate; malformed method inputs still fail.
+        - Domain-rule validation and `CHECK[domain-rules-frontmatter]` still run, including malformed domain rules.
+        - Both hook copies have no removed script invocation; existing hook execution coverage still passes.
+
+### `[ ]` **1.2 Narrow trigger coverage to methods — D4**
+
+- _Goal:_ Workflow validation retains method graph and coverage guarantees without requiring extension declarations
+  or push fire points.
+
+- _Note:_ See `notes-retire-extension-points.md` § Removal ordering and synchronization and § Workflow and validator map.
+
+    - Remove `auditPushExtensionCoverage`, extension enumeration, coverage maps/diagnostics, directory reads, CLI
+      arguments, and extension result/output branches from `audit-method-triggers.ts` and its mixed unit suite.
+    - Keep existing `arc.extensions` parsing until Task 4.1; do not reject declarations still present in the corpus.
+    - Build `test-first` (one behavior at a time):
+        - `readMethodDependencyGraph` and `resolveTransitiveMethodCoverage` preserve direct/transitive coverage,
+          malformed declarations, graph failures, and wiring-pending diagnostics.
+        - `audit` succeeds for a method-only corpus and requires no extension directory or push contract.
+    - Run `npm run -s lint:arc:triggers`; preserve its check ID and deadline.
+
+## **Phase 2:** Runtime and session contract retirement
+
+_Purpose:_ Remove the runtime mechanism and its session consumers while preserving locus and checkpoint authority.
+
+_Mode:_ `slice` — closes on exercisable session, recovery, CLI, and checkpoint contracts without extension inputs.
+
+_Exit criterion:_ Public status/recovery and schema discovery omit the mechanism, and preserved locus and checkpoint
+scenarios pass against the revised contracts.
+
+### `[ ]` **2.1 Remove active-name inputs from locus and load-set composition — D2**
+
+- _Goal:_ Exact locus, recovery, and workflow projections depend only on surviving session inputs.
+
+- _Note:_ See `notes-retire-extension-points.md` § Active-name inputs.
+
+    - Remove `activeExtensions` from derived-locus callbacks/inputs, `getDerivedLocusState` memoization,
+      `readDerivedLocusRoster`, `projectCheckoutSubjectMeta`, `LoadSetProjectionInput`, `deriveRecoveryLocusContext`,
+      `emitCompactionSeed` calls, and all importers/stubs. Leave probe slots for Task 2.2.
+    - Rename the mixed subject-meta suite for subject projection and update its isolated mock-file registration.
+      Replace extension-input-specific cases; retain its independent Candidate and lifecycle coverage.
+    - Build `test-first` (one behavior at a time):
+        - Work-unit/transient subjects, exact context and selected workflows remain stable without the input.
+        - Load-set ordering, cohort inclusion, task closeout and correction continuations remain correct.
+        - Recovery and compaction seeds retain their exact locus/workflow projection and method-load behavior.
+    - Update affected status callbacks and the mixed locus-retirement contract case in the same increment.
+
+### `[ ]` **2.2 Remove extension probes and session dispatch — D2, D3**
+
+- _Goal:_ Public session/status/recovery results and their agent consumers have no extension probe or active-set contract.
+
+- _Note:_ See `notes-retire-extension-points.md` § Envelopes and public command and § Workflow and validator map.
+
+    - Remove probe scheduling/callbacks/slots from `runStatus`, `runSessionInitStatus`, `runRecoverStatus`, and
+      `runSessionHandoffStatus`; update status types/schemas/formatting, handler composition, and `CompactionSeedEnvelope`.
+    - Remove `SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit` and its registry/import/type-inventory membership.
+    - Remove session-init/recover/handoff dispatch prose, declarations, markers, extension-load/skip/orientation wording,
+      and link definitions. Render template counterparts and preserve contributor boundaries and shortcut conditions.
+    - Renumber session sections and repair their local/cross-file citations, probe-envelope reference, contributor
+      companion, and status comments against the resulting target meanings.
+    - Build `test-first` (one behavior at a time):
+        - Full status, session-init, recovery, and handoff perform only surviving probes; JSON omits the retired slot.
+        - Schema discovery omits the identifier; strict surviving envelopes reject the obsolete field.
+        - Healthy/degraded probes and all surviving fixture scenarios retain their independent contracts.
+    - Regenerate the seven session-envelope JSON fixtures and update all affected stubs without nullable tombstones.
+
+### `[ ]` **2.3 Remove the extension CLI and exclusive modules — D1, D2, D8**
+
+- _Goal:_ The retired command, parser, and scanners have no reachable registration, importer, or executable surface.
+
+- _Note:_ See `notes-retire-extension-points.md` § Envelopes and public command.
+
+    - Remove the command tree from `cli.ts` and input-policy registrations; delete the D2 command, handler,
+      frontmatter, point-scanner, and orphan-detector modules and exclusive exports.
+    - Delete the five exclusive runtime suites specified by D8. Preserve every mixed suite and replace generic
+      surplus-load examples with unrelated paths when their purpose is load-set validation.
+    - Update CLI loading and command-input inventories; revise extension-mechanism comments in generic frontmatter,
+      Markdown traversal, and manifest application without changing their surviving behavior.
+    - Build `test-first` (one behavior at a time):
+        - The public CLI reports the removed command unavailable and help/input/schema inventories omit it.
+        - Surviving command loading, generic frontmatter, filesystem traversal, and registries continue to work.
+    - After deleting `handlers/extensions.ts`, remove its suppression through the whole-project unused-entry prune
+      path; add no suppression and retain every unrelated baseline entry.
+
+### `[ ]` **2.4 Remove checkpoint reports and final-head hook firing — D2, D3**
+
+- _Goal:_ Final-head integration approval retains complete machine evidence and mutation prohibitions without a hook report.
+
+- _Note:_ See `notes-retire-extension-points.md` § Checkpoint and § Workflow and validator map.
+
+    - Remove `extensionReport` from `CheckpointInterlockSurfaceSchema`, `composeCheckpointInterlockSurface`, and
+      checkpoint fixtures/consumers; retain `machineEvidence` and exact-head admission.
+    - Remove pre-merge firing/report rendering and report requirements in `integrate-work-unit` and `run-errand`,
+      including their declarations/links. Keep both integration interlocks and independent review/merge requirements.
+    - Preserve “No commit or push may occur after `ready`” and the Errand's post-checkpoint mutation prohibition.
+      Update affected assertions in the mixed PR suite now; its remaining hook removal/rename belongs to Task 3.1.
+    - Build `test-first` (one behavior at a time):
+        - The strict surface omits/rejects the obsolete report while all nine machine signals still compose correctly.
+        - Clean and exception text retain approved-head, base-currency, required-check, and merge-admission evidence.
+        - Both workflows retain final-head mutation prohibitions and explicit integration authorization.
+
+### `[ ]` **2.5 Exercise revised runtime contracts — D2, D8** — validate exit criterion at segment scope
+
+- _Goal:_ The runtime segment is demonstrated through public results and surviving locus/checkpoint scenarios.
+
+    - Run `npx arc check segment` and the focused status/recovery/schema/locus/compaction/checkpoint coverage named in
+      `notes-retire-extension-points.md` § Runtime and test map.
+    - Exercise public CLI absence, session-init/recovery output, and schema discovery against disposable fixtures;
+      verify preserved workflow selection and exact-head machine evidence.
+    - Record executed scenarios and results. A failure routes corrective work to its own revision parent ahead of
+      this verifier; it is not satisfied by a reference search alone.
+
+## **Phase 3:** Workflow retirement with preserved lifecycle rules
+
+_Purpose:_ Exhaust the remaining workflow families without weakening PR creation, review, or lifecycle stops.
+
+_Mode:_ `replication` through Phase 5 — closes on the complete live mechanism surface removed and batch-verified.
+
+### `[ ]` **3.1 Retire PR hooks while preserving exact-target review — D3, D8**
+
+- _Goal:_ PR creation, reuse, and review retain exact target authority after every PR hook is removed.
+
+- _Note:_ See `notes-retire-extension-points.md` § Workflow and validator map.
+
+    - In `integrate-work-unit` and `run-errand`, remove `proposedChangeRequest` and pre-create action blocks while
+      preserving resolver dispatch, binding, merge-lock routing, and immediate pre-create `--require-remote` replay.
+    - Remove the WU's hook-only `openedChangeRequest`; preserve binding to the resolver's open PR and typed Candidate
+      and review targets. Retain the Errand payload, refresh after head movement, and planning-grooming target equality.
+    - Remove all remaining PR/push hook qualifications, declarations, markers, and links from these workflows.
+    - Rename `__tests__/integration/pr-open-extensions.test.ts` for the surviving PR lifecycle subject and update
+      `local-vitest-runner.ts` routing. Keep mixed review-gate packaging coverage of surviving behavior.
+    - Build `test-first` (one behavior at a time):
+        - Creation still refuses an incorrect remote head; reuse/reopen/create dispatch binds the current exact PR.
+        - Publication/lane ordering, review contracts, and Errand planning-grooming equality/refresh remain enforced.
+        - Push authorization, release routing, approved review fixes, and final-head stops survive hook deletion.
+
+### `[ ]` **3.2 Retire planning, task, and commit fire points — D3, D8**
+
+- _Goal:_ Planning, task execution, and commit preparation retain their core procedures and stops without extension dispatch.
+
+    - Sweep `draft-design`, `create-spec`, `generate-tasks`, `process-task-loop`, `prepare-commits`, and canonical
+      `arc-commit` / `arc-task-review` skill content in package source and installed copies.
+    - Remove declarations, action calls, markers, workflow-wide push contracts, caller-repeat instructions, hook-only
+      skips/qualifiers, and link definitions. Preserve method fire-point loading, task/workflow review stops,
+      commit/push approval, release routing, and independent recovery rules.
+    - Render affected templates with the repository's configuration and refresh derived harness skill copies.
+      Update existing workflow/packaging assertions with their changed contracts; add no tests that merely echo prose.
+
+### `[ ]` **3.3 Retire lifecycle and setup fire points and repair citations — D3, D6, D8**
+
+- _Goal:_ Lifecycle and setup procedures retain all independent transitions and references after numbered hook steps disappear.
+
+    - Sweep activation/archive, init/deactivate/park/reopen/resume/decompose/delivery/handoff lifecycle paths and other
+      workflow callers. Preserve transition prerequisites, absorption/cohort/ROADMAP work, review stops, and push rules.
+    - Remove external setup's tracker-notify step and external-content integration's extension-adaptation substep;
+      keep `Origin` linkage and independent setup/capture procedures.
+    - Renumber/reletter activation, archive, and external setup/integration successors. Resolve local and cross-file
+      `Step N` / `§ N` citations and heading links by target meaning, including the stale archival-commit citation.
+    - Include workflow templates, contributor/companion documents, session-operations/work-organization references,
+      and source comments; complete the live `arc.extensions` declaration sweep before Task 4.1.
+
+## **Phase 4:** Installation membership and structural cleanup
+
+_Purpose:_ Close the accepted workflow grammar and remove installed membership while proving unchanged update retention.
+
+### `[ ]` **4.1 Reject retired workflow declarations — D4**
+
+- _Goal:_ The workflow grammar admits surviving method declarations and rejects any leftover extension key.
+
+    - Confirm no live packaged/installed workflow declaration remains; then remove `extensions` from
+      `WORKFLOW_ARC_FRONTMATTER_FIELDS`, `WorkflowDeclarations`, and `parseWorkflowFrontmatter` results/array parsing.
+    - Preserve `METHOD_ARC_FRONTMATTER_FIELDS`, method dependency parsing, and all surviving shape diagnostics.
+    - Build `test-first` (one behavior at a time):
+        - `arc.extensions`, even an empty array, reports an unknown workflow frontmatter field.
+        - Valid methods, malformed/unknown method declarations, transitive graph coverage, and method schema rules
+          retain their existing outcomes.
+    - Run the mixed audit unit suite and `npm run -s lint:arc:triggers` over the real corpus.
+
+### `[ ]` **4.2 Narrow integrity, check inputs, and audit routing — D4, D8**
+
+- _Goal:_ Integrity, sensitive-content selection, and routing no longer require the retired directory while retaining
+  every independent check.
+
+- _Note:_ See `notes-retire-extension-points.md` § Installation and structural map.
+
+    - Remove extension directory/frontmatter requirements from both `verify-integrity.sh` copies and integrity workflow
+      instructions. Keep method validation and update the mixed integrity fixtures.
+    - Remove extension-root table inputs from `.arc/system/arc-checks.yml` and patterns from `CODE_SURFACE_GLOBS` and
+      `PACKAGED_CONTENT_SENSITIVE_GLOBS` in `change-facts.ts`; keep sensitive surviving packaged-content detection.
+    - Remove `extension-root` and `arc-extensions-key` from the live coupling manifest; trim their `classIds`,
+      `classEvidence`, `evidenceAnchors`, and `reportAnchors` from the mixed routing packet. Retain its six surviving
+      classes and all unrelated packets.
+    - Regenerate the affected packet's `id` and `contentDigest` using the existing canonical rules, preserving its
+      historical `resultDigest` binding; validate with `parseRoutingLedger`. Change no check ID, deadline, or CI routing.
+    - Build `test-first` (one behavior at a time):
+        - Integrity succeeds without the directory and still rejects malformed surviving method structure.
+        - `isCodeSurfacePath` / `isPackagedContentSensitivePath` retain method and other sensitive-content selection.
+        - `parseRoutingLedger` accepts the narrowed packet with regenerated identity/digest and surviving routing intact;
+          stale packet identity or content digest is rejected.
+
+### `[ ]` **4.3 Remove extension files and installation membership — D1, D5, D8**
+
+- _Goal:_ Fresh installations omit the directory and old installations retain only unmanaged Configurable residue.
+
+- _Note:_ See `notes-retire-extension-points.md` § Installation and structural map.
+
+    - Delete all eleven extension documents and README from package source and `.arc/` together with all twelve recipe
+      paths, eleven `CONFIGURABLE_FILES` entries, and their self-hosted manifest keys. Preserve other manifest metadata.
+    - Keep `buildChangePlan` and `applyChangePlan` unchanged; regenerate local derived state only as needed for manual
+      package/render synchronization. Do not run `arc update` in this repository or add migration machinery.
+    - Update mixed init/update/framework-sync tests; replace current-support assertions with absence/retention checks.
+    - Build `test-first` (one behavior at a time):
+        - Every supported `pm.mode` × `team.mode` recipe arm installs/records no extension path or directory.
+        - An old manifest classifies eleven edited Configurable documents for retention and README for deletion;
+          the resulting manifest and pristine store contain none of the twelve paths.
+        - A subsequent update succeeds, leaves retained content untouched, and does not rediscover or read the residue.
+        - Surviving method installation and rendered Framework/package agreement remain correct.
+
+## **Phase 5:** Supported guidance, architectural record, and corpus closure
+
+_Purpose:_ Make the supported customization boundary accurate and preserve the retired contracts as historical knowledge.
+
+_Exit criterion:_ The live-reference and citation sweeps are exhausted under the closed allowlist; package rendering,
+recipe membership, mixed contract coverage, and the historical event inventory agree.
+
+### `[ ]` **5.1 Describe supported customization and external-PM boundaries — D6**
+
+- _Goal:_ Current guidance names only supported customization channels and makes the insertion/notification gap explicit.
+
+    - Update customization, session-operations, workflow-authoring, team-coordination, planning-module, and
+      file-classification strategies; rules, briefs, indices, templates, methods/self-review guidance, and directory
+      READMEs. Remove activation/loading/reserved-name/format/dispatch claims and dangling extension links.
+    - Retain config, check declarations, method overrides, QUICK-REFERENCE commands, and project strategy/workflow/
+      domain-rule channels. Preserve method fire-point declarations/loading and harness-native lifecycle hooks.
+    - Keep the task-list checkbox and planning checkpoint convention rows; set their Configurability Path to **None**,
+      remove the **Extension** definition, and add **None — the convention has no supported customization path**.
+    - State that project workflows may run beside ARC workflows and use methods; claim no supported insertion or
+      tracker-notification route. Add no planned replacement or internal work-unit pointer to shipped content.
+    - Render Framework counterparts and target Configurable sections without overwriting project overrides.
+
+### `[ ]` **5.2 Update internal inventories and recipe-derived counts — D6**
+
+- _Goal:_ Current project and root-package descriptions agree with the implemented boundary and recipe-derived membership.
+
+- _Note:_ See `notes-retire-extension-points.md` § Guidance, history, and final sweeps and
+  § Installation and structural map.
+
+    - Amend all four D6 loci in `strategy-pm-composition-evolution.md`, preserving provider authority, capability levels,
+      typed integration, explicit failure, and standalone/composed independence. Use the settled interim-boundary text.
+    - Update storage/procedure machinery inventories, including the point-scanner implication, `PROJECT-PRD.md`,
+      `TECHNICAL-OVERVIEW.md`, package-project sync inventory, and root `README.md`.
+    - Re-derive file/classification counts with `resolveFileList`, `classifyFile`, and the installed manifest; preserve
+      conditional-arm and template membership accuracy. Keep unrelated generic extensibility and platform-hook senses.
+    - Leave `docs/`, `mkdocs.yml`, sibling planning artifacts, and the storage-coupling register untouched.
+
+### `[ ]` **5.3 Record the superseding ADR and event contracts — D7**
+
+- _Goal:_ Architectural history preserves the complete retired event contracts and retrievable source without exposing
+  a supported callable interface.
+
+- **Additional Context:** `notes-retire-extension-points.md` § Retrieval revision; `template-adr.md`;
+  `strategy-adr-methodology.md` § ADR Lifecycle and § Amending Accepted ADRs.
+
+    - Resolve the next unused ADR number and document the settled retirement with the full pre-removal revision
+      recorded in Task 1.1 and recoverable source paths; verify retrieval from that revision.
+    - Inventory all eleven D7 events with placements, naming/frequency, authored order, failure/continuation behavior,
+      augmentation limits, retry/idempotence, ready-head constraints, both opaque payloads, and caller/adapter authority.
+    - Distinguish `pre-push-review`'s wrapper-wide promise from `auditPushExtensionCoverage`'s actual workflow enforcement.
+      State the accepted customization/notification gap without reserving names or promising a replacement format/date.
+    - Follow ADR acceptance/supersession conventions. Update only the specified ADR-003/008/013/009 status metadata,
+      retaining prior annotations and all historical bodies; leave Proposed ADR-020 and other ADRs unchanged.
+
+### `[ ]` **5.4 Close the live-reference and citation sweeps — D1, D3, D8**
+
+- _Goal:_ Every remaining live mechanism reference and affected citation is resolved under the specification's closed
+  corpus and sense allowances.
+
+- _Note:_ Use `spec-retire-extension-points.md` § Reference-sweep corpus and closed allowlist exactly;
+  `notes-retire-extension-points.md` § Guidance, history, and final sweeps gives implementation pointers.
+
+    - Run the case-insensitive `extension` sweep, nine distinctive event-name searches, qualified `pre-merge` /
+      `pre-activation` searches, all named runtime identifiers, and the two integration workflows' `hook` sense checks.
+    - Independently search workflow-name-plus-step/section citations, bare local references, companion/source comments,
+      and heading-slug links. Repair missed live sites against their intended post-removal target meanings.
+    - Follow importers, registries, helpers, positive fixtures, and mixed assertions beyond the initial inventory;
+      retain useful non-mechanism coverage. Delete no whole mixed suite or allowlist category by convenience.
+    - Preserve legacy quality-hook extraction, suffix/parser/registry terminology, ordinary typed-interface and
+      injected-capability augmentation, mechanically unchanged Candidate selection/endpoint extension, generic probe
+      composition, and harness-native hooks.
+    - Preserve hosted-review wait-duration extension, external CLI add-ons, optional data-schema fields, domain-rule
+      additions, ordinary sample feature/API growth, and PM-mode module composition within the spec's bounded non-hook
+      senses. Any additional allowed sense requires an explicit spec correction before acceptance.
+
+### `[ ]` **5.5 Verify complete retirement — D1, D4, D5, D6, D7, D8** — validate exit criterion at segment scope
+
+- _Goal:_ The complete transformation is exhausted and its installation, workflow, and history seams agree.
+
+    - Run `npx arc check segment`; verify the completed reference/citation sweeps and package/render agreement.
+    - Exercise the six recipe arms, old-manifest retention/second-update path, preserved mixed PR/readiness contracts,
+      method/domain-rule validation, and unknown-field rejection through the relevant existing suites.
+    - Verify eleven historical events, both payloads, full retrieval revision, and exactly four scoped status edits;
+      verify installed manifest membership and inventory counts independently of prose estimates.
+    - Record executed scenarios/results. Keep cleanup work in Task 5.4 or a revision parent before this verifier.
+
+## **Phase 6:** Verification
+
+_Purpose:_ Verify the work unit against its acceptance criteria and required quality gates.
+
+### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ All work-unit acceptance criteria and required checks have evidence, with any unresolved result accurately
+  reported before integration.
+
+---
+
+## Success Criteria
+
+- `[ ]` The live corpus sweeps under the spec's exclusions and closed allowlist find no supported mechanism file,
+  activation/declaration/marker/action, command, scanner, validator, importer, registry entry, or positive execution fixture.
+
+- `[ ]` Public full status/session-init/recovery outputs omit `extensions`; handoff/locus/load-set/recovery/seed inputs
+  omit `activeExtensions`; schema discovery omits `extensions-session-init`; the CLI lacks `arc extensions`.
+
+- `[ ]` The checkpoint surface omits `extensionReport` while preserved tests prove complete `machineEvidence`, exact-head
+  authorization, and merge admission, including the independent final-head mutation prohibitions.
+
+- `[ ]` Every supported recipe arm installs no extension directory or manifest entry; an old manifest retains edited
+  Configurable documents, deletes README, drops all managed/pristine membership, and succeeds on a subsequent update
+  without reading or changing retained residue.
+
+- `[ ]` `parseWorkflowFrontmatter` rejects `arc.extensions`; method parsing/graph/coverage, package-method neutrality,
+  domain-rule validation, and both commit hooks remain functional with no removed script invocation.
+
+- `[ ]` Preserved mixed PR lifecycle tests prove exact remote-head validation before creation, resolver reuse/binding,
+  publication/review ordering, and Errand `openedChangeRequest` refresh/equality with the planning-grooming target.
+
+- `[ ]` Supported guidance retains all surviving customization channels, both convention rows with **None**, harness-native
+  hooks, and `Origin` linkage, while claiming no workflow-step insertion or tracker notification through the mechanism.
+
+- `[ ]` The superseding ADR preserves eleven events, naming/frequency, failure/continuation, payload/authority and retry/
+  ready-head contracts, and a retrievable full pre-removal revision; exactly four scoped status edits preserve existing
+  annotations and historical bodies.
+
+- `[ ]` Every affected step/section citation and heading link resolves by target meaning; rendered Framework content
+  agrees with package source; self-hosted manifest keys and inventory counts agree with recipe-derived membership.
+
+- `[ ]` All required quality gates pass, including Markdown, source/test types, method-trigger coverage, applicable
+  test tiers, and build, with no new suppression, skipped gate, or deadline change.
+
+- `[ ]` Ready for integration with the intended scope complete and acceptance evidence recorded.
+
+---
