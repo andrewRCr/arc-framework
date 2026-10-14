@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 describe("format:tables entry point", () => {
-  it.each([true, false])("atomically formats an explicit Markdown path and reports an idempotent retry (tracked=%s)", async tracked => {
+  it.each(["tracked", "untracked", "ignored"])("atomically formats an explicit Markdown path and reports an idempotent retry (%s)", async mode => {
     fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-e2e-"));
     const primary = join(fixtureParent, "primary");
     const linked = join(fixtureParent, "linked");
@@ -56,7 +56,11 @@ describe("format:tables entry point", () => {
     await git(primary, ["worktree", "add", "-q", "-b", "linked-e2e", linked]);
     const nested = join(linked, "nested");
     await mkdir(nested);
-    if (!tracked) await git(linked, ["rm", "--cached", "docs/table.md"]);
+    if (mode !== "tracked") await git(linked, ["rm", "--cached", "docs/table.md"]);
+    if (mode === "ignored") {
+      await writeFixtureFile(linked, ".gitignore", "docs/table.md\n");
+      await git(linked, ["check-ignore", "docs/table.md"]);
+    }
 
     const first = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
       cwd: nested,

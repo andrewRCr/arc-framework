@@ -326,6 +326,32 @@ describe("Markdown authority", () => {
     })).toThrow(/contradicts recipe mapping/u);
   });
 
+  it.each([true, false])("admits ignored paths only when individually named (explicit=%s)", async explicit => {
+    const options = {
+      root: "/repo",
+      paths: ["private/table.md"],
+      operation: "mutate" as const,
+      allowIgnoredPaths: new Set([explicit ? "private/table.md" : "private/other.md"]),
+      exec: scriptGitExec([
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
+          responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
+        { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+          responses: [{ stdout: "README.md\0" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"),
+        isDirectory: () => !path.endsWith(".md"),
+        isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    };
+    if (explicit) {
+      await expect(validateExplicitMarkdownPaths(options)).resolves.toEqual(["private/table.md"]);
+    } else {
+      await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code: "markdown.ignored" });
+    }
+  });
+
   it("rejects invalid and ignored explicit selections", async () => {
     const boundaries = {
       root: "/repo",

@@ -40,6 +40,8 @@ export interface ValidateExplicitMarkdownPathsOptions {
   readonly paths: readonly string[];
   /** Only lint reads may follow a final symlink; migration reads require regular-file Git blobs. */
   readonly operation: "mutate" | "worktree-read" | "lint-read";
+  /** Literal formatting inputs may bypass Git selection; physical and authority checks still apply. */
+  readonly allowIgnoredPaths?: ReadonlySet<string>;
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
   readonly realpath: (path: string) => Promise<string>;
@@ -121,6 +123,25 @@ function assertNativePathContained(root: string, candidate: string, path: Manage
   }
 }
 
+async function assertMarkdownPathSelected(
+  options: ValidateExplicitMarkdownPathsOptions,
+  path: ManagedPath,
+): Promise<void> {
+  try {
+    await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
+  } catch {
+    const worktreePaths = await enumerateTrackedMarkdownPaths({
+      root: options.root, exec: options.exec, source: "worktree",
+    }).catch((error: unknown): readonly ManagedPath[] => {
+      if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
+      throw error;
+    });
+    if (!worktreePaths.includes(path)) {
+      throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
+    }
+  }
+}
+
 /**
  * Validate explicit Markdown worktree paths and physical containment before any content loader runs.
  *
@@ -136,19 +157,7 @@ export async function validateExplicitMarkdownPaths(
 
   const paths = options.paths.map(validateMarkdownPath);
   for (const path of paths) {
-    try {
-      await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
-    } catch {
-      const worktreePaths = await enumerateTrackedMarkdownPaths({
-        root: options.root, exec: options.exec, source: "worktree",
-      }).catch((error: unknown): readonly ManagedPath[] => {
-        if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
-        throw error;
-      });
-      if (!worktreePaths.includes(path)) {
-        throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
-      }
-    }
+    if (!options.allowIgnoredPaths?.has(path)) await assertMarkdownPathSelected(options, path);
 
     let native = options.root;
     let finalStat: MarkdownPathStat | undefined;
