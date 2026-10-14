@@ -11,7 +11,7 @@ import type { Store } from "../../../../src/lib/store/contract.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => null,
   writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
-function context(store: Store) { return { store, cwd: "/checkout", baseBranch: "main", locusPorts,
+function context(store: Store) { return { store, identity: "test-user", cwd: "/checkout", baseBranch: "main", locusPorts,
   now: () => new Date("2026-10-14T07:00:00Z"), exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }, { stdout: "" }] }]).exec }; }
 it("writes first pause, amends only supplied fields, and keeps since", async () => {
   const { store, seedMeta } = createLifecycleHarness(); const record = await seedMeta("example"); const ctx = context(store);
@@ -51,6 +51,16 @@ it("handover writes only Owner, including a paused work unit", async () => {
   expect(next.placement).toEqual(paused.placement);
   expect(next.links).toEqual(paused.links);
   expect(next.content.slice(next.content.indexOf("- **Cohort:"))).toBe(paused.content.slice(paused.content.indexOf("- **Cohort:")));
+});
+it.each(["another-person", undefined])("handover refuses invoking identity %s before sharing observations", async (identity) => {
+  const { store, seedMeta } = createLifecycleHarness(); const record = await seedMeta("example");
+  let observations = 0;
+  const ctx = { ...context(store), identity: identity!, exec: async () => { observations++; return { stdout: "" }; },
+    locusPorts: { ...locusPorts, findHoldingCheckout: async () => { observations++; return null; } } };
+  expect(await runHandover(ctx, { name: "example", to: "another-person" })).toMatchObject({ status: "rejected" });
+  expect(lifecycleSuccess(await store.read({ reference: record.reference }))).toEqual(record);
+  expect(observations).toBe(0);
+  expect(await runHandover(context(store), { name: "example", to: "another-person" })).toMatchObject({ status: "handed-over" });
 });
 it("pre-flip pause and handover refuse unsupported with the existing path", async () => {
   const inRepo = createStore(createDefaultStorePorts({ checkoutRoot: "/checkout", exec: scriptGitExec([]).exec }));

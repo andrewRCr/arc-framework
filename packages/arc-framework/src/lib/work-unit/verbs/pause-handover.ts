@@ -84,17 +84,22 @@ export async function runResumePaused(ctx: PauseHandoverContext, params: { name:
 }
 
 /** Write Owner alone after proving this clone has no inaccessible work.
- * @param ctx - Store and sharing observations.
+ * @param ctx - Store, invoking identity, and sharing observations.
  * @param params - Work unit and new identity slug.
  * @returns Ownership change or exact missing sharing evidence.
  */
-export async function runHandover(ctx: PauseHandoverContext, params: { name: string; to: string }): Promise<HandoverResult> {
+export async function runHandover(ctx: PauseHandoverContext & { identity: string }, params: { name: string; to: string }): Promise<HandoverResult> {
   if (ctx.store === undefined || !usesOffBranchState(ctx.store)) return { status: "rejected", code: "unsupported", reason: "arc handover is unsupported before the storage flip; edit Owner in the work unit's meta." };
+  const identity = SlugSchema.safeParse(ctx.identity);
+  if (!identity.success) return { status: "rejected", reason: "Handover requires a configured ARC identity; configure your identity and retry." };
   const owner = SlugSchema.safeParse(params.to);
   if (!owner.success) return { status: "rejected", reason: "--to requires an identity slug." };
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const record = read.result, previousOwner = ParsedMetaRecordSchema.parse(record.fields).owner ?? "";
+  if (previousOwner !== identity.data) return { status: "rejected", reason: previousOwner === ""
+    ? `Work unit ${params.name} has no recorded Owner; resolve its ownership before retrying handover.`
+    : `Only Owner ${previousOwner} can hand over ${params.name}; ask them to run arc handover ${params.name} --to ${owner.data}.` };
   const report = await sharingReport(ctx, record);
   const blocked = handoverSharingRefusal(report);
   if (blocked !== null) return blocked;

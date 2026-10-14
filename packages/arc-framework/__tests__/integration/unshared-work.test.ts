@@ -26,7 +26,7 @@ async function fixture(origin = true) {
   const record = await harness.seedMeta("example", {}, undefined, { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
   const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => root,
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
-  return { root, exec, sha, record, ...harness, context: { cwd: root, exec, baseBranch: "main", repository: "repo", locusPorts, store: harness.store } };
+  return { root, exec, sha, record, ...harness, context: { cwd: root, identity: "test-user", exec, baseBranch: "main", repository: "repo", locusPorts, store: harness.store } };
 }
 it("reports never-pushed work and pause still succeeds while handover refuses with push action", async () => {
   const f = await fixture();

@@ -46,7 +46,7 @@ async function fixture(linkedAs: "created" | "adopted" = "created") {
     read: () => h.store.read({ reference: h.meta.reference }).then(lifecycleSuccess) };
 }
 it("pauses, hands over and materializes the same owner before abandoning it and retrying its teardown", async () => {
-  const h = await fixture(), collaboration = { store: h.store, cwd: "/repo", exec: h.exec, baseBranch: "main", projectId: async () => "repo", locusPorts: h.locusPorts,
+  const h = await fixture(), collaboration = { store: h.store, identity: "test-user", cwd: "/repo", exec: h.exec, baseBranch: "main", projectId: async () => "repo", locusPorts: h.locusPorts,
     now: () => new Date("2026-10-14T00:00:00Z") };
   expect(await runPause(collaboration, { name: "demo", identity: "test-user", reason: "Wait for review.", resumeNotes: "Read the review." })).toMatchObject({ status: "paused", report: { origin: "refreshed", unsharedCommits: [] } });
   const paused = await h.read();

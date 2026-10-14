@@ -28,8 +28,8 @@ export const collaborationCommandInputRegistrations = [
 export type PauseCommandOptions = Omit<z.input<typeof PauseCommandInputSchema>, "slug">;
 type BoundExecutor = Awaited<ReturnType<typeof buildExecutor>>["executor"];
 
-function collaborationContext(base: VerbBase, executor: BoundExecutor, baseBranch: string): PauseHandoverContext {
-  return { cwd: base.cwd, store: executor.store, exec: base.io.exec, baseBranch,
+function collaborationContext(base: VerbBase, executor: BoundExecutor, baseBranch: string): PauseHandoverContext & { identity: string } {
+  return { cwd: base.cwd, identity: base.identity, store: executor.store, exec: base.io.exec, baseBranch,
     locusPorts: executor.locusPorts, projectId: executor.projectId };
 }
 async function target(base: VerbBase, executor: BoundExecutor, slug?: string): Promise<string | null> {
