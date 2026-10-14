@@ -256,32 +256,36 @@ member whose consumer-map partition holds it:
   contracts, item 11) with a hand edit as the writer.
 - **The checkout removal function and its removal check.** `seam-lifecycle`, which holds teardown, builds one removal
   function for every removal ARC runs of a work unit's or Errand's checkout, spawn rollbacks aside: the removal check,
-  then a persist step, then `git worktree unlock` when Git lists the checkout as locked, then remove. Git 2.55 refuses
-  to unlock a worktree that is not locked, as an `arc start --here` checkout is not. The removal check also runs on its
-  own: today's `isWorktreeClean`, which `lib/git/worktree-cleanup.ts` defines, plus a projection part that reports
-  whether the persist step would refuse. That part writes nothing and takes no lock, and the removal checks again under
-  it; it costs about 3 ms on Linux and 27 ms on Windows at 1,000 files, plus the read of each changed file. The
-  projection part and the persist step are slots `storage-projection` fills, empty until it does. The function checks
-  the folder first: a missing one skips the removal check and the persist step, and its registration is unlocked if
-  locked, then pruned. Each member moves its callers that remove a checkout onto the function and those that decide or
-  report whether one can be removed onto the removal check. `seam-lifecycle` moves teardown's two removals onto the
-  function: `reconcileWorkUnitWorktree`'s teardown arm (`lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) and
-  `cleanupGitOwnedDecomposeCandidate`, called from `lib/work-unit/verbs/teardown.ts`. Abandon, from Planning or Active,
-  and park from Planning run the check before their first write; park from Active already reaches the function through
-  teardown (`parkActive`). The unused `worktree-clean` guard (`makeWorktreeCleanGuard`,
-  `lib/work-unit/lifecycle-guards.ts`) is deleted rather than moved (`spec-seam-lifecycle.md` § 11.3). `seam-locus`
-  moves onto the function the Errand's exits through `lib/errand/terminal-occupancy.ts`, one of the register row's two
-  direct `git status` readers, and onto the check `lib/session-init/stale-worktree-sweep.ts`,
-  `lib/session-init/branch-gone-recovery.ts`, `lib/session-init/lifecycle-residue-sweep.ts`, and `arc errand leave`'s
-  authorization (`authorizePreservation`, `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout before
-  recording its paused or awaiting-merge state and removes it only afterward; the primary, which no exit removes, keeps
-  `git status` wherever `terminal-occupancy.ts` inspects it (`settleTerminalOccupancy`). The row's other reader,
+  then a persist step, then `git worktree unlock` when Git lists the checkout as locked with the projection's reason,
+  then a plain `git worktree remove`. A lock whose reason is not `PROJECTION_LOCK_REASON` refuses `locked`, even when
+  the folder is missing. Git 2.55 refuses to unlock a worktree that is not locked, as an `arc start --here` checkout is
+  not. The removal check also runs on its own: today's `isWorktreeClean`, which `lib/git/worktree-cleanup.ts` defines,
+  plus a projection part that reports whether the persist step would refuse. That part writes nothing and takes no lock,
+  and the removal checks again under it; it costs about 3 ms on Linux and 27 ms on Windows at 1,000 files, plus the read
+  of each changed file. The projection part and the persist step are slots `storage-projection` fills, empty until it
+  does. The function checks the folder first: a missing one skips the cleanliness and projection checks and the persist
+  step, unlocks only the projection's lock if present, then removes that one registration with `git worktree remove
+  <path>`. `git worktree prune` would prune every stale registration in the repository. Each member moves its callers
+  that remove a checkout onto the function and those that decide or report whether one can be removed onto the removal
+  check. `seam-lifecycle` moves teardown's two removals onto the function: `reconcileWorkUnitWorktree`'s teardown arm
+  (`lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) and `cleanupGitOwnedDecomposeCandidate`, called from
+  `lib/work-unit/verbs/teardown.ts`. Abandon, from Planning or Active, and park from Planning run the check before their
+  first write; park from Active already reaches the function through teardown (`parkActive`). The unused
+  `worktree-clean` guard (`makeWorktreeCleanGuard`, `lib/work-unit/lifecycle-guards.ts`) is deleted rather than moved
+  (`spec-seam-lifecycle.md` § 11.3). `seam-locus` moves onto the function the Errand's exits through
+  `lib/errand/terminal-occupancy.ts`, one of the register row's two direct `git status` readers, and onto the check
+  `lib/session-init/stale-worktree-sweep.ts`, `lib/session-init/branch-gone-recovery.ts`,
+  `lib/session-init/lifecycle-residue-sweep.ts`, and `arc errand leave`'s authorization (`authorizePreservation`,
+  `lib/errand/leave-runtime.ts`), which inspects the Errand's checkout before recording its paused or awaiting-merge
+  state and removes it only afterward; the primary, which no exit removes, keeps `git status` wherever
+  `terminal-occupancy.ts` inspects it (`settleTerminalOccupancy`). The row's other reader,
   `lib/locus/primary-safety.ts`, decides only whether the primary may host a transient claim, which removes no checkout,
   so it stays as today.
 - **Removal prompts.** `seam-locus` has the stale-worktree sweep's report of a removable worktree, which carries only
   its path and branch, and branch-gone recovery's removable candidate, whose prompt names no command
   (`lib/session-init/recommended-action.ts`), each carry an `arc teardown <name>` command line, as the residue sweep's
-  report does (`teardown.argv`); and the sweep reports a missing locked registration with the unlock-and-prune remedy.
+  report does (`teardown.argv`); and the sweep reports a missing locked registration with the remedy
+  `git worktree unlock <path>`, then `git worktree remove <path>`, a hand-deleted husk's among them.
   `storage-projection` rewrites, with the lock, the removals that are printed or documented rather than run —
   session-init's stale-worktree offer and branch-gone prompt, which then run those command lines, a husk left to manual
   cleanup, and `strategy-concurrent-work.md`'s instructions — since the seam changes no workflow text before the flip.
@@ -293,7 +297,10 @@ member whose consumer-map partition holds it:
   (`projectRenameMoveRemedy`, `lib/session-init/lifecycle-residue-sweep.ts`), which session-init has the agent run as
   given. The doubled `-f` also lets a move land on a path registered to a missing or locked worktree, an accepted edge.
   A checkout whose folder was deleted by hand keeps its locked registration, which `git worktree prune` skips and which
-  refuses a new checkout at that path; the removal function unlocks and prunes it (above).
+  refuses a new checkout at that path. The removal function unlocks only the projection's lock and removes that one
+  registration with `git worktree remove <path>`; another lock refuses `locked`. From the flip, lifecycle's spawns and
+  in-place materialization clear a missing-folder registration at the target path or holding the linked branch through
+  that function before Git meets it (`spec-seam-lifecycle.md` § 6).
 - **The user-surfaces shim.** `lib/user-surfaces.ts`'s resolver and `lib/user-surface-migration.ts` stay as today's arms
   until `storage-cutover`'s deletion pass (D15): the in-repo implementation imports the resolver
   (`lib/store/in-repo/personal-paths.ts`), and teardown merges a linked worktree's copy up through the migration until
