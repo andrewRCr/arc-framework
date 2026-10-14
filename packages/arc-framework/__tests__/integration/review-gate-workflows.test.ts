@@ -420,7 +420,6 @@ describe("trusted review-gate workflows", () => {
       "### 11) Post-merge worktree cleanup",
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
-    expect(finalGate).toContain("**Extension report** · `#pre-merge`");
     expect(finalGate).toMatch(softWrappedPattern(/approved\s+responses[\s\S]*already\s+performed[\s\S]*not\s+re-approved/iu));
     expect(finalGate).not.toMatch(softWrappedProse("exact candidate-tail diff"));
   });
@@ -828,12 +827,9 @@ describe("trusted review-gate workflows", () => {
     expect(full).toMatch(softWrappedPattern(/never\s+infer[\s\S]*absent\s+or\s+malformed\s+WU\s+state/iu));
     expect(full).toMatch(softWrappedPattern(/strict\s+Errand\s+record[\s\S]*exact\s+PR/iu));
 
-    const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
     const terminalMerge = full.lastIndexOf("arc errand merge <slug> - --json");
-    expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(terminalMerge);
-    expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     const interlockText = full.slice(interlock, terminalMerge);
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
     expect(pinnedInterlockText).toContain("Surface the request");
@@ -1245,11 +1241,9 @@ describe("trusted review-gate workflows", () => {
     expect(gate).not.toMatch(softWrappedProse("head mutation returns to the checkpoint"));
 
     const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
-    const preMerge = gate.indexOf("**Extension report** · `#pre-merge`");
     const approval = indexOfSoftWrappedProse(gate, "Approve (or redirect)?");
     const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
-    expect(lifecycleReady).toBeLessThan(preMerge);
-    expect(preMerge).toBeLessThan(approval);
+    expect(lifecycleReady).toBeLessThan(approval);
     expect(approval).toBeLessThan(merge);
   });
 

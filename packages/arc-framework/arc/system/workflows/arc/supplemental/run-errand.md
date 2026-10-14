@@ -19,7 +19,6 @@ arc:
     - pre-pr-open
     - post-pr-open
     - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Run Errand
@@ -618,13 +617,11 @@ remote base all name the same exact head. Any tracked change continues through t
    unresolved conversations as well; the stop clears no host blocker, so obtain separate Owner direction for any
    dismissal or thread action before proceeding.
 
-   **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
-   their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
-   or push may occur after this checkpoint.
+   No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the exact Errand merge request and extension report are settled. Surface the
-> request, exact head, applicable planning-grooming adapter target, review applicability calls and targeted
+> `integration-interlock`: Stop after the exact Errand merge request is settled. Surface the request,
+> exact head, applicable planning-grooming adapter target, review applicability calls and targeted
 > verification, approved responses already performed, proposed final dispositions, required checks and approvals,
 > base freshness, and resolved lane. State that completed responses are not re-approved at this gate. Name
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host

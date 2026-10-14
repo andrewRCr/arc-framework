@@ -15,7 +15,6 @@ arc:
     - pre-pr-open
     - post-pr-open
     - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Integrate Work Unit
@@ -750,9 +749,6 @@ Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
 
-**Extension report** · `#pre-merge`: If active, execute its `.actions` once for this ready checkpoint and render
-their results under this label. Otherwise, skip — the composed surface's slot carries null content, so an inactive
-extension renders nothing. The extension fires here — after `ready`, before the integration interlock.
 No commit or push may occur after `ready`.
 
 Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`, the host's
@@ -762,7 +758,7 @@ dismiss it or request re-review before merge. `approval-required` names a host a
 `unavailable` or a status refusal, surface the detail and inspect the PR's native review on the host instead.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the ready evidence, extension report, and `hostReview` read. Surface each,
+> `integration-interlock`: Stop after the ready evidence and `hostReview` read. Surface each,
 > the composed candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated
 > artifacts named rather than diffed, the review applicability calls and targeted verification retained from Step 2,
 > the approved responses already performed there and the final dispositions carried by the checkpointed settlement

@@ -61,22 +61,13 @@ scenarios pass against the revised contracts.
   exclusive suites. The public CLI rejects the command; surviving navigation, discovery, frontmatter, traversal, and
   load-set checks remain covered. Pruned the deleted handler baseline through the whole-project path.
 
-### `[ ]` **2.4 Remove checkpoint reports and final-head hook firing — D2, D3**
+### `[x]` **2.4 Remove checkpoint reports and final-head hook firing — D2, D3**
 
 - _Goal:_ Final-head integration approval retains complete machine evidence and mutation prohibitions without a hook report.
 
-- _Note:_ See `notes-retire-extension-points.md` § Checkpoint and § Workflow and validator map.
-
-    - Remove `extensionReport` from `CheckpointInterlockSurfaceSchema`, `composeCheckpointInterlockSurface`, and
-      checkpoint fixtures/consumers; retain `machineEvidence` and exact-head admission.
-    - Remove pre-merge firing/report rendering and report requirements in `integrate-work-unit` and `run-errand`,
-      including their declarations/links. Keep both integration interlocks and independent review/merge requirements.
-    - Preserve “No commit or push may occur after `ready`” and the Errand's post-checkpoint mutation prohibition.
-      Update affected assertions in the mixed PR suite now; its remaining hook removal/rename belongs to Task 3.1.
-    - Build `test-first` (one behavior at a time):
-        - The strict surface omits/rejects the obsolete report while all nine machine signals still compose correctly.
-        - Clean and exception text retain approved-head, base-currency, required-check, and merge-admission evidence.
-        - Both workflows retain final-head mutation prohibitions and explicit integration authorization.
+- _Outcome:_ Removed the strict checkpoint report field and both final-head dispatch/rendering steps. The nine-
+  signal machine surface, exact-head admission, host-review requirements, integration authorization, and WU/Errand
+  mutation prohibitions remain intact.
 
 ### `[ ]` **2.5 Exercise revised runtime contracts — D2, D8** — validate exit criterion at segment scope
 

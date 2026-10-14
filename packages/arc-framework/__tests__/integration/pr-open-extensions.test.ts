@@ -71,19 +71,15 @@ describe("PR-open lifecycle extensions", () => {
     const postOpen = workflow.indexOf("compose `openedChangeRequest");
     const checkpoint = workflow.indexOf("arc integrate checkpoint {name}");
     const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
-    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", finalHead);
-    const mergeInterlock = workflow.indexOf("`integration-interlock`", preMerge);
+    const mergeInterlock = workflow.indexOf("`integration-interlock`", finalHead);
     const merge = workflow.indexOf("arc integrate merge {name} --checkpoint", mergeInterlock);
     expect(push).toBeLessThan(preOpen);
     expect(preOpen).toBeLessThan(create);
     expect(create).toBeLessThan(postOpen);
     expect(checkpoint).toBeLessThan(finalHead);
-    expect(finalHead).toBeLessThan(preMerge);
-    expect(preMerge).toBeLessThan(mergeInterlock);
     expect(finalHead).toBeLessThan(mergeInterlock);
     expect(mergeInterlock).toBeLessThan(merge);
     expect(workflow.slice(finalHead, mergeInterlock)).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
-    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     expect(workflow).toContain("`integrating`; `open`");
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
@@ -275,18 +271,16 @@ describe("PR-open lifecycle extensions", () => {
       const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
       const prCreate = workflow.indexOf("gh pr create");
       const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
-      const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", openedChangeRequest);
       const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
-      expect([proposedChangeRequest, prCreate, openedChangeRequest, preMerge, integrationInterlock]
+      expect([proposedChangeRequest, prCreate, openedChangeRequest, integrationInterlock]
         .every((index) => index >= 0)).toBe(true);
       expect(proposedChangeRequest).toBeLessThan(prCreate);
       expect(openedChangeRequest).toBeGreaterThan(prCreate);
-      expect(preMerge).toBeLessThan(integrationInterlock);
       expect(workflow.toLowerCase()).toContain("halt before later actions");
     }
   });
 
-  it("uses one workflow-wide WU push contract and one final pre-merge fire", async () => {
+  it("uses one workflow-wide WU push contract", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
@@ -294,11 +288,6 @@ describe("PR-open lifecycle extensions", () => {
 
     expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
     expect(workflow).toMatch(softWrappedProse("Before every agent-managed push in this workflow"));
-    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`");
-    const interlock = workflow.indexOf("`integration-interlock`", preMerge);
-    expect(preMerge).toBeGreaterThan(-1);
-    expect(interlock).toBeGreaterThan(preMerge);
-    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
   });
 
   it("keeps self-review author-side and provider-neutral", async () => {
