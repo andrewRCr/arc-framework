@@ -3,7 +3,7 @@
   "slug": "grounding-caller-reach",
   "claimId": "25934d749d5124cbe7d915a03bd1cf55",
   "createdAt": "2026-10-14T00:28:48.147Z",
-  "updatedAt": "2026-10-14T00:28:48.147Z",
+  "updatedAt": "2026-10-14T00:44:58.790Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Ground an inherited behavior-unchanged premise per caller, derive a sweep's reach from the named symbols' callers, and inventory the readers of a changed invariant in source-grounding",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Ground a \"today's behavior holds\" premise per caller, and sweep callers past the spec's own file list",
   "originEntrySourceDigest": "sha256:78c4a1f5c4950cd83875ada51d26f6af41bd3ef89cc0eefa72691e308a4c9453",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/grounding-caller-reach",
+    "headSha": "8d85b01b7860b6aa3d11d574bab60d8a8b726d5f"
+  }
 }
