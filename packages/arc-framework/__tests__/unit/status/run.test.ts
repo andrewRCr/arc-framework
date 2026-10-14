@@ -1220,7 +1220,7 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
-  it("uses one extension-aware derived WU context without invoking the legacy active probe", async () => {
+  it("uses one derived WU context without invoking the legacy active probe", async () => {
     const active = vi.fn(async (): Promise<ActiveSessionInitResult> => {
       throw new Error("legacy active probe must not run");
     });

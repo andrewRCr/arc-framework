@@ -1,4 +1,4 @@
-/** Active-extension input seam for checkout-directed subject projection. */
+/** Checkout-directed subject projection and lifecycle context. */
 
 import { posix } from "node:path";
 

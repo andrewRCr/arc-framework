@@ -178,26 +178,16 @@ recipe membership, mixed contract coverage, and the historical event inventory a
   enforcement; updated exactly four scoped status fields while preserving prior annotations and all historical
   bodies.
 
-### `[ ]` **5.4 Close the live-reference and citation sweeps — D1, D3, D8**
+### `[x]` **5.4 Close the live-reference and citation sweeps — D1, D3, D8**
 
 - _Goal:_ Every remaining live mechanism reference and affected citation is resolved under the specification's closed
   corpus and sense allowances.
 
-- _Note:_ Use `spec-retire-extension-points.md` § Reference-sweep corpus and closed allowlist exactly;
-  `notes-retire-extension-points.md` § Guidance, history, and final sweeps gives implementation pointers.
-
-    - Run the case-insensitive `extension` sweep, nine distinctive event-name searches, qualified `pre-merge` /
-      `pre-activation` searches, all named runtime identifiers, and the two integration workflows' `hook` sense checks.
-    - Independently search workflow-name-plus-step/section citations, bare local references, companion/source comments,
-      and heading-slug links. Repair missed live sites against their intended post-removal target meanings.
-    - Follow importers, registries, helpers, positive fixtures, and mixed assertions beyond the initial inventory;
-      retain useful non-mechanism coverage. Delete no whole mixed suite or allowlist category by convenience.
-    - Preserve legacy quality-hook extraction, suffix/parser/registry terminology, ordinary typed-interface and
-      injected-capability augmentation, mechanically unchanged Candidate selection/endpoint extension, generic probe
-      composition, and harness-native hooks.
-    - Preserve hosted-review wait-duration extension, external CLI add-ons, optional data-schema fields, domain-rule
-      additions, ordinary sample feature/API growth, and PM-mode module composition within the spec's bounded non-hook
-      senses. Any additional allowed sense requires an explicit spec correction before acceptance.
+- _Outcome:_ Exhausted live mechanism and independent citation/heading sweeps. Removed stale active-set source
+  comments and test descriptions, corrected active-artifact step citations, and preserved only closed non-mechanism
+  senses, negative assertions, and bounded legacy residue/extraction. The approved research amendment preserves
+  eight unrelated occurrences; all 386 same-file fragment links across 274 Markdown files resolve, including top-of-
+  page links.
 
 ### `[ ]` **5.5 Verify complete retirement — D1, D4, D5, D6, D7, D8** — validate exit criterion at segment scope
 

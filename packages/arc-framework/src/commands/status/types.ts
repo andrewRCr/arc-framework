@@ -607,7 +607,7 @@ export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  /** Resolve the entering-checkout frame with the exact active extension set. */
+  /** Resolve the entering-checkout frame for the exact identity. */
   derivedLocusState: (
     identity: string,
   ) => Promise<DerivedLocusFrame>;

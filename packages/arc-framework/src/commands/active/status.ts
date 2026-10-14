@@ -5,7 +5,7 @@
  *
  * - {@link runActiveStatus} — full per-WU enumeration for default rendering.
  * - {@link runActiveSessionInitStatus} — resolved path / null / candidate
- *   list for the session-init harness (Step 2 Item 8 consumer).
+ *   list for the session-init harness (Step 3 item 7 consumer).
  *
  * Both share the filesystem work through {@link readActiveMetaCandidates};
  * the session-init variant applies a thin resolution-state shaping on top.
@@ -136,7 +136,7 @@ export async function runActiveStatus(
  * Produce the session-init-scoped result for
  * `arc active status --session-init`.
  *
- * Resolution states map to session-init.md Step 2 Item 8:
+ * Resolution states map to session-init.md Step 3 item 7:
  *
  * - `none` — zero-file case; session-init reports no active work.
  * - `single` — one-file case; the harness loads the resolved path.

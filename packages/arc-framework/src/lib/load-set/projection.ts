@@ -51,12 +51,6 @@ export interface LoadSetProjectionInput {
   workUnitStage?: LoadSetWorkUnitStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
-  /**
-   * Active extension names from the session-init extensions slot.
-   *
-   * Names stay in the status envelope for workflow fire-points to consult.
-   * Extension bodies are intentionally excluded from the session load set.
-   */
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
 }

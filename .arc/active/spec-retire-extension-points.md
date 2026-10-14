@@ -433,6 +433,13 @@ Within that corpus, the allowed senses are limited to:
   planning-module content, not lifecycle-hook activation, action execution, or workflow-step insertion;
 - the session-operations probe-pattern terms “Extension contract” and “structural extension”, naming generic
   envelope composition;
+- external editor add-ons and prompt-guidance augmentation described in `research-session-lifecycle.md`,
+  `research-agent-landscape.md`, and `research-landscape-analysis-2026-02.md`: VS Code extensions and Cursor rules
+  are external platform capabilities, not ARC lifecycle actions;
+- external workspace-tool hooks described in `research-worktree-tool-convergence.md`, specifically Worktrunk's
+  hooks and the compared tools' absent integration hooks; these describe those tools, not ARC hook support;
+- optional storage-backend capability growth described in `research-local-mode.md`, where shared/hosted/coordinated
+  tiers extend the storage model; this implies no ARC lifecycle activation or step insertion;
 - the unchanged legacy quality-hook extraction in `bootstrap-extraction.ts` and its associated tests/fixtures,
   specifically `sources.postTask` / `sources.postUnit` and the two retired quality-hook paths;
 - negative assertions under `__tests__/**` that name the retired mechanism solely to prove absence or rejection;
@@ -472,5 +479,10 @@ workflow-step insertion, or blanket exemption.
 `analysis-workflow-clarity-audit.md`: its deleted `post-context-load.md` target points to the same installed source at
 the recorded retrieval revision. The required live link audit exposed the dangling reference; the analysis text and
 all other historical bodies remain unchanged.
+
+**Amended 2026-10-13 — A5:** The closed allowlist preserves eight unrelated research occurrences describing
+external editor add-ons, prompt-guidance augmentation, external workspace-tool hooks, and optional storage-backend
+capability growth. The final source sweep grounded these meanings in five named research documents; approval
+preserves their text without exempting any directory or current ARC lifecycle-hook execution.
 
 ---

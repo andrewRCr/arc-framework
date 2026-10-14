@@ -293,7 +293,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(manifest.files[skillPath]?.layer).toBe("core");
   });
 
-  // --- Per-File Methods and Extensions ---
+  // --- Per-File Methods ---
 
   it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
