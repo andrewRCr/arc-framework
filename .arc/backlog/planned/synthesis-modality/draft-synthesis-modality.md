@@ -253,9 +253,9 @@ mechanisms:
 
 - **Workflow-interlock** fires at end of each loop pass (refinement batch in document modality; spike completion
   in prototype modality). Structural fire-site, always-stop.
-- **Commit-interlock release** at workflow-interlock approval. Under
-  `commit.interlock ∈ {on-task-approval, on-workflow}` plus `arc.releaseOptedIn`, commits fire through
-  `arc release commit` per the `workflowCommit` class-tag routing that already exists in ARC's machinery.
+- **Commit-interlock release** at workflow-interlock approval. Under `commit.interlock ∈ {on-task-approval,
+  on-workflow}` plus `arc.releaseOptedIn`, commits fire through `arc release commit` per the `workflowCommit`
+  class-tag routing that already exists in ARC's machinery.
 - **Within-pass commit cadence** is exploratory — no per-edit gates inside a spike or inside a refinement batch.
   Planning is not task execution; commit atomicity at the pass boundary is sufficient.
 

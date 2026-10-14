@@ -127,12 +127,11 @@ Two rows in `cohort-state-storage.md`'s register are this work unit's:
 - _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
 
 - _Observation:_ `arc delivery authoring rematerialize` is the typed writer for the private candidate/gate pair,
-  but it pins what it binds to the current published member — it refuses
-  `authoring-rematerialize-public-moved` unless `requestedHead`/`requestedTree` equal the observed public
-  coordinates. So the verb conflates two operations: "bind this pair to an exact coordinate" and "reset this
-  pair to the public member." Only the second is expressible today, which is why any caller holding a legitimate
-  non-public coordinate — a mechanically rebuilt member, for instance — cannot use the verb even though the
-  library primitive beneath it (`prepareDeliveryReviewFixCandidateGate` over
+  but it pins what it binds to the current published member — it refuses `authoring-rematerialize-public-moved` unless
+  `requestedHead`/`requestedTree` equal the observed public coordinates. So the verb conflates two operations: "bind
+  this pair to an exact coordinate" and "reset this pair to the public member." Only the second is expressible today,
+  which is why any caller holding a legitimate non-public coordinate — a mechanically rebuilt member, for instance —
+  cannot use the verb even though the library primitive beneath it (`prepareDeliveryReviewFixCandidateGate` over
   `createDeliveryReviewFixCandidatePair`) is entirely coordinate-agnostic.
 
 - _Approach:_ likely either relax the public-coordinate guard into a caller-supplied expectation, or split the

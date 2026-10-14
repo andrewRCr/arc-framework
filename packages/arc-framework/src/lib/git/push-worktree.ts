@@ -31,7 +31,7 @@
 
 import { execa } from "execa";
 
-import type { GitExec } from "./exec.js";
+import { PUSH_GATE_ID_VARIABLE, type GitExec } from "./exec.js";
 import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "./process-executor.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { type GitProcessError, normalizeGitRejection } from "./process-error.js";
@@ -48,6 +48,8 @@ export interface PushWorktreeSpawnArgs {
    */
   cwd?: string;
   interaction?: InteractionContext["subprocess"];
+  /** Identifies this push to its `pre-push` hook; see {@link PushWorktreeBranchOptions.pushGateId}. */
+  pushGateId?: string;
 }
 
 export interface PushWorktreeSpawnResult {
@@ -89,6 +91,11 @@ export interface PushWorktreeBranchOptions {
   spawnPush?: PushWorktreeSpawn;
   /** Per-invocation terminal and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
+  /**
+   * Identifies this push to its `pre-push` hook, which records a refusal under it so the caller can say why the push
+   * gate refused. Passed to Git as {@link PUSH_GATE_ID_VARIABLE} in both modes.
+   */
+  pushGateId?: string;
 }
 
 /**
@@ -111,11 +118,11 @@ export type PushWorktreeBranchResult =
 export async function pushWorktreeBranch(
   options: PushWorktreeBranchOptions,
 ): Promise<PushWorktreeBranchResult> {
-  const { exec, branch, remote = "origin", args = [], cwd, inheritStdio = false } = options;
+  const { exec, branch, remote = "origin", args = [], cwd, inheritStdio = false, pushGateId } = options;
 
   if (inheritStdio) {
     const spawnPush = options.spawnPush ?? defaultSpawnPush;
-    const result = await spawnPush({ branch, remote, args, cwd, interaction: options.interaction });
+    const result = await spawnPush({ branch, remote, args, cwd, interaction: options.interaction, pushGateId });
     if (result.exitCode === 0) {
       return { status: "success", stdout: "", stderr: result.stderr };
     }
@@ -129,11 +136,12 @@ export async function pushWorktreeBranch(
 
   try {
     const invocation = ["push", remote, branch, ...args];
-    const { stdout, stderr } = cwd === undefined && options.interaction === undefined
+    const { stdout, stderr } = cwd === undefined && options.interaction === undefined && pushGateId === undefined
       ? await exec("git", invocation)
       : await exec("git", invocation, {
           ...(cwd === undefined ? {} : { cwd }),
           ...(options.interaction === undefined ? {} : { interaction: options.interaction }),
+          ...(pushGateId === undefined ? {} : { pushGateId }),
         });
     return { status: "success", stdout, stderr: stderr ?? "" };
   } catch (err) {
@@ -149,10 +157,10 @@ export async function pushWorktreeBranch(
   }
 }
 
-const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, remote, args, cwd, interaction }) => {
+const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, remote, args, cwd, interaction, pushGateId }) => {
   const invocation = ["push", remote, branch, ...args];
   const forbidden = interaction?.terminalPrompts === "forbidden";
-  const env = forbidden
+  const promptEnvironment = forbidden
     ? {
         ...(environmentForGitCwd(cwd) ?? process.env),
         GIT_TERMINAL_PROMPT: "0",
@@ -161,6 +169,9 @@ const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, remote, args, cwd, 
         PAGER: "cat",
       }
     : environmentForGitCwd(cwd);
+  const env = pushGateId === undefined
+    ? promptEnvironment
+    : { ...(promptEnvironment ?? process.env), [PUSH_GATE_ID_VARIABLE]: pushGateId };
   const result = await execa("git", invocation, {
     cwd,
     env,

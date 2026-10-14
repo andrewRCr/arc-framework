@@ -129,6 +129,7 @@ checks:
       - '!.arc/user/*/USER-INBOX.md'
       - '!.arc/**/temp-*.md'
       - '!arc/**'
+      - '!packages/arc-framework/__tests__/fixtures/**'
   lint:md:
     command:
       - npm

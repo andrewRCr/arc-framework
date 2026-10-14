@@ -86,9 +86,8 @@ Three design choices shape the skill, validated through pre-planning iteration:
    risks unintended over-add ratchet.
 
 3. **Skill carries the routing decision; workflow carries procedural scaffolding.** Mirrors the
-   arc-commit / prepare-commits split. Skill is genuinely useful
-   in isolation for simple cases (single artifact, obvious destination); workflow loads only when
-   the chosen destination requires multi-step execution that doesn't fit inline.
+   arc-commit / prepare-commits split. Skill is genuinely useful in isolation for simple cases (single artifact, obvious
+   destination); workflow loads only when the chosen destination requires multi-step execution that doesn't fit inline.
 
 ---
 
@@ -405,12 +404,10 @@ Small items deferred to PRD or implementation contact (not blockers for the plan
 
 ## Sibling Work Units
 
-- **Plan Instruction Optimization** (`plan-instruction-optimization.md`) —
-  composability concern (forward-compat callback). Lean-shape principles for every-session
-  surfaces; arc-reinforce's tier discipline downstream.
-- **Worktree Foundation** (`plan-worktree-foundation.md`) — composability
-  concern (forward-compat callback). Affects when/where arc-reinforce is invoked, not the skill
-  itself.
+- **Plan Instruction Optimization** (`plan-instruction-optimization.md`) — composability concern (forward-compat
+  callback). Lean-shape principles for every-session surfaces; arc-reinforce's tier discipline downstream.
+- **Worktree Foundation** (`plan-worktree-foundation.md`) — composability concern (forward-compat callback). Affects
+  when/where arc-reinforce is invoked, not the skill itself.
 - **Work Organization Reform** (`prd-work-organization-reform.md`) — composability concern
   (forward-compat callback). Path/structure changes for active-WU destinations.
 

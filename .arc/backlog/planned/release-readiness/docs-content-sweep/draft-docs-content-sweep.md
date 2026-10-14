@@ -541,10 +541,8 @@ coarser vocabulary replaces ARC's precise internal terms. Frame as kinship + ind
 
 ## Adding Items
 
-**Drift items** — when a methodology change lands in `.arc/` or
-`packages/arc-framework/arc/` that affects user-facing conceptual content (not
-branding, not file names, not formatting — actual model/behavior descriptions
-adopters rely on):
+**Drift items** — when a methodology change lands in `.arc/` or `packages/arc-framework/arc/` that affects user-facing
+conceptual content (not branding, not file names, not formatting — actual model/behavior descriptions adopters rely on):
 
 1. Confirm the change doesn't fit `plan-arcd-rebrand.md` scope (branding only) or
    `plan-docs-site-refresh.md` scope (format migration only)

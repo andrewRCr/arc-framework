@@ -275,9 +275,8 @@
     - **Semantic constraints** — a genuine rule over two independently valid shapes, which removing a field cannot
       fix. `RespondRequestSchema`'s "a settlement replay cannot also submit a verified fix" is this class. Only
       here do the original options apply: express it structurally as a discriminated union, or state the residue
-      in help and accept parse-time enforcement.
-  Classify each refinement before choosing a remedy; the redundancy class closes by simplifying the request, not
-  by improving generation.
+      in help and accept parse-time enforcement. Classify each refinement before choosing a remedy; the redundancy class
+  closes by simplifying the request, not by improving generation.
 
 - _Sequencing consequence:_ do not wire a `--schema` equivalent for `arc errand merge` before this decision. Both
   its refinements are redundancy-class, so the derivability fix changes the envelope's field set — a discovery
@@ -390,8 +389,8 @@ surface: `reviewCommandInputRegistrations` and the `declareInteractionSite` auto
 `src/handlers/review.ts` are consumed by the command-input inventory renderer and a projection-fidelity test, so both
 declarations move with the operand. Enumerated because a task list sized on "add a flag" would miss all of it. A
 lookup-and-print over the registry — not a second place where request shapes are described. A hand-maintained
-verb-to-schema table is rejected: it re-describes an
-association the registry exists to hold, which is `D8`'s defect at smaller scale.
+verb-to-schema table is rejected: it re-describes an association the registry exists to hold, which is `D8`'s defect at
+smaller scale.
 
 **D4.3 — Completeness anchor.** A test iterates `REVIEW_JSON_COMMAND_PATHS` (`src/handlers/review.ts`) — the canonical
 fourteen-verb list — and fails when a verb has no registered request schema at its derived id. A verb shipping without a

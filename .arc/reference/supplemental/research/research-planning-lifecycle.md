@@ -54,8 +54,7 @@ Overview, Motivation, Goals/Non-Goals, Alternatives Considered, Detailed Design,
 Security/Privacy Considerations. The review process ranges from lightweight (comment
 threads) to heavyweight (formal review meetings), scaled to the change's impact.
 
-Sources: [Design Docs at Google][google-design-docs],
-[Writing Technical Design Docs, Revisited][tech-design-docs]
+Sources: [Design Docs at Google][google-design-docs], [Writing Technical Design Docs, Revisited][tech-design-docs]
 
 **Amazon** has a well-documented "document culture" where meetings start with reading a
 document. Documents are treated as living artifacts that evolve as understanding matures —
@@ -67,8 +66,8 @@ Source: [The Document Culture of Amazon][amazon-docs]
 implementation plans or design proposals before medium-to-large projects, focused on
 dependencies, cost implications, and high-level approach — not detailed specifications.
 
-Sources: [Pragmatic Engineer: RFCs and Design Docs][pe-rfcs-design],
-[Pragmatic Engineer: RFC and Design Doc Examples][pe-rfc-examples]
+Sources: [Pragmatic Engineer: RFCs and Design Docs][pe-rfcs-design], [Pragmatic Engineer: RFC and Design Doc
+Examples][pe-rfc-examples]
 
 **Confidence:** Well-established across multiple organizations. The specific formats vary
 but the pattern — structured pre-implementation document — is universal at scale.
@@ -118,8 +117,7 @@ phase produces a **pitch** — not a detailed spec:
 The pitch is the gate between exploration and commitment. Work doesn't get "bet on" (their
 term for scheduling) until a pitch is shaped well enough to de-risk without over-specifying.
 
-Sources: [Shape Up: Introduction and Principles][shapeup],
-[7 Lessons from Trialling Shape Up][shapeup-lessons]
+Sources: [Shape Up: Introduction and Principles][shapeup], [7 Lessons from Trialling Shape Up][shapeup-lessons]
 
 **Agile/Scrum** handles the exploration-to-commitment transition through sprint planning and
 backlog refinement, but provides less guidance on pre-sprint exploration artifacts. The gap
@@ -150,8 +148,8 @@ as understanding deepens. Artifacts naturally evolve through fidelity levels:
 PRD-level structure in a plan-\* doc is premature formalization; leaving a PRD at plan-\*
 fidelity is under-specification.
 
-Sources: [Progressive Elaboration in Project Management][prog-elab-info],
-[Progressive Elaboration (NTask)][prog-elab-ntask]
+Sources: [Progressive Elaboration in Project Management][prog-elab-info], [Progressive Elaboration
+(NTask)][prog-elab-ntask]
 
 ### 2.2 What to Capture Early vs. Defer
 
@@ -213,8 +211,8 @@ planning effectiveness. Better questions early produce better specifications dow
 for context, constraints, and assumptions. The best insights come from follow-up questions,
 not initial responses.
 
-Sources: [Open-Ended Questions: The Key to Discovery][open-ended-qs],
-[30 Essential Product Discovery Questions][discovery-qs-30]
+Sources: [Open-Ended Questions: The Key to Discovery][open-ended-qs], [30 Essential Product Discovery
+Questions][discovery-qs-30]
 
 **Critical discovery questions (adapted for software planning):**
 
@@ -226,9 +224,8 @@ Sources: [Open-Ended Questions: The Key to Discovery][open-ended-qs],
 - What are we explicitly not doing?
 - What assumptions are we making?
 
-Sources: [Requirements Gathering Guide][reqs-gathering],
-[Discovery Sessions Explained][discovery-sessions],
-[10 Questions for Requirements Gathering][sherwen-10-qs]
+Sources: [Requirements Gathering Guide][reqs-gathering], [Discovery Sessions Explained][discovery-sessions], [10
+Questions for Requirements Gathering][sherwen-10-qs]
 
 ### 3.2 Pre-Mortem Analysis
 
@@ -239,8 +236,7 @@ failed. Consolidate into risk mitigations.
 ability to predict future outcomes by approximately 30%. The mechanism: it breaks groupthink
 by making it safe to voice concerns, and surfaces risks that optimism bias hides.
 
-Sources: [Pre-mortem (Wikipedia)][premortem-wiki],
-[How a Premortem Analysis Derisks a Project][premortem-zeitspace],
+Sources: [Pre-mortem (Wikipedia)][premortem-wiki], [How a Premortem Analysis Derisks a Project][premortem-zeitspace],
 [Proactive Planning for Contextual Fit (PMC)][premortem-pmc]
 
 **Confidence:** Well-established technique with research backing. Overhead is modest (1-2
@@ -258,8 +254,8 @@ explicitly prompted to:
 - Probe assumptions and trade-offs
 - Suggest risks (mini pre-mortem)
 
-Sources: [Using AI for Requirements Analysis (ThoughtWorks)][tw-ai-reqs],
-[AI in Requirements Gathering][ai-reqs-gathering]
+Sources: [Using AI for Requirements Analysis (ThoughtWorks)][tw-ai-reqs], [AI in Requirements
+Gathering][ai-reqs-gathering]
 
 **Confidence:** Emerging practice. ThoughtWorks case study is a single source but aligns
 with broader patterns in prompt engineering. The directional finding (AI benefits from
@@ -284,9 +280,8 @@ PRD practice has shifted significantly in recent years:
 - **Agile-compatible** — focused on direction and constraints, not frozen specifications
 
 Sources: [Product Requirements Documents: A Modern Guide][modern-prd-guide],
-[PRD Document Template in 2025][prd-2025],
-[How to Write a PRD (Perforce)][perforce-prd],
-[Product Requirements Document (Atlassian)][atlassian-prd]
+[PRD Document Template in 2025][prd-2025], [How to Write a PRD (Perforce)][perforce-prd], [Product Requirements Document
+(Atlassian)][atlassian-prd]
 
 ### 4.2 Effective Section Patterns
 
@@ -370,8 +365,7 @@ Multiple sources converge on adaptive rigor matched to change magnitude:
 This prevents "template fatigue" (over-documenting trivial changes) and "process gaps"
 (under-documenting complex ones).
 
-Sources: [Pragmatic Engineer: RFCs and Design Docs][pe-rfcs-design],
-[Refining Rust's RFCs][rust-refine]
+Sources: [Pragmatic Engineer: RFCs and Design Docs][pe-rfcs-design], [Refining Rust's RFCs][rust-refine]
 
 **Confidence:** Emerging consensus, explicitly documented in multiple sources. The
 principle is well-established even where the specific tiers vary.
@@ -419,8 +413,7 @@ to produce a final artifact. Graduation to PRD = formalization. It's expected an
 for plan-\* docs to be archived or discarded once the PRD exists — they've served their
 purpose.
 
-Sources: [Documentation-Driven Development (gist)][ddd-gist],
-[What's Documentation-Driven Development?][ddd-medium]
+Sources: [Documentation-Driven Development (gist)][ddd-gist], [What's Documentation-Driven Development?][ddd-medium]
 
 ---
 
