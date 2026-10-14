@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Introduce the method and Errand consumers (line ~17)
+- **Last Completed:** Task 3.4 — Check the complete adopted surface
+- **Next Task:** Task 4.1 — Complete verification (line ~129)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Author the policy and wire the Errand composition paths
+- **Next Action:** Begin Task 4.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
