@@ -3,14 +3,20 @@
   "slug": "prepare-underwrap",
   "claimId": "22189e402de9f8ced61ee021304a09e2",
   "createdAt": "2026-10-14T03:17:37.241Z",
-  "updatedAt": "2026-10-14T03:17:37.241Z",
+  "updatedAt": "2026-10-14T03:32:03.584Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Rewrap the under-wrapped review-invocation paragraph in prepare-work-unit.md",
   "branch": "chore/prepare-underwrap",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/prepare-underwrap",
+    "headSha": "cd1c905e5ca43ab7fa8813210bb1e24d9f026ef0"
+  }
 }
