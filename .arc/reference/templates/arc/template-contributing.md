@@ -58,8 +58,8 @@ if you stage changes in these directories. This is a soft warning, not a hard bl
 **Quality standards are the same** for contributors and maintainers — linting, type checking,
 tests, and build verification all apply equally. CI enforces these on every PR.
 
-**Branch from the base branch** (typically `main`) for your work. Check
-`.arc/system/arc-config.yml` → `branch.base` for the project's integration branch.
+**Branch from the base branch** (typically `main`) for your work. Check `.arc/system/arc-config.yml` → `branch.base` for
+the project's integration branch.
 
 **Personal planning is supported, optionally.** The boundary is ownership of tracked state, not
 the presence of planning concepts. If your contribution is substantial enough to benefit from

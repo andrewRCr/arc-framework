@@ -154,8 +154,8 @@ content; work-unit identity in the title is correlation, not a substitute for an
 authoritative scope source. The delivery-member accessibility rule above governs whether that variant includes it.
 
 - **In-repo artifact** — backtick-wrapped filename, no path: `` `spec-{name}.md` ``,
-  `` `tasks-{name}.md` ``. Filename-only follows
-  [DEV-RULES.ARC § `.arc` artifact references][dev-rules-arc] — files move over the WU lifecycle.
+  `` `tasks-{name}.md` ``. Filename-only follows [DEV-RULES.ARC § `.arc` artifact references][dev-rules-arc] — files
+  move over the WU lifecycle.
 - **External tracker** — bare URL (no backticks). GitHub auto-links bare URLs; backticks
   suppress the link.
 - **Combined ref** (filename + task pointer) follows the in-`.arc/` convention:

@@ -104,13 +104,11 @@ Through the `adversarial-review` mechanism, findings map into the fixed `critica
 looks like for the eight categories below; grounding findings retain `source-grounding`'s interpretation:
 
 - **`critical`** — the gate cannot certify the tasks against their design: a masked decision that reopens design,
-  an assumption that — if wrong —
-  invalidates the decomposition itself.
+  an assumption that — if wrong — invalidates the decomposition itself.
 - **`major`** — a substantive planning problem that should resolve before implementation: a hidden
   ordering dependency, materially divergent scope readings, an unspecified interface contract a later task
   consumes, a test-strategy gap on shared code.
-- **`minor`** — residue: wording, a marginal
-  acceptance-criteria gap where completion is still inferable.
+- **`minor`** — residue: wording, a marginal acceptance-criteria gap where completion is still inferable.
 
 **Two-axis reconciliation.** The native tiers above are **dispositions**, not severities — the two axes compose
 rather than compete:

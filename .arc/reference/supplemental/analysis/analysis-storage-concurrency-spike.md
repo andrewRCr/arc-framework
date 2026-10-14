@@ -470,8 +470,7 @@ interop off.
     - A branch policy requiring a reviewer on `main` left state pushes alone (`TF402455` on `main` only), as elsewhere.
     - The same policy scoped to the prefix `refs/arc/` refused updates to an existing state ref with `TF402455:
       Pushes to this branch are not permitted; you must use a pull request`, though it let a new ref under the prefix
-      be created.
-      Blocking every update is useless for ARC, but it shows the policy engine takes custom ref prefixes.
+      be created. Blocking every update is useless for ARC, but it shows the policy engine takes custom ref prefixes.
     - The repository-wide "Commit author email validation" policy refused state pushes, to existing and new refs alike,
       with `VS403702 … author email … does not match the policy-specified patterns`. So on Azure ARC's state commits
       must carry an author the team's policy accepts, and this refusal must end the push loop.

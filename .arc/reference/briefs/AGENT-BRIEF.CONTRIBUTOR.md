@@ -71,9 +71,8 @@ and role-transition guidance.
 ---
 
 _This briefing is loaded during session initialization when `arc.role = contributor`.
-Maintainer sessions load the full document set instead. See
-[session-init][session-init] for the complete initialization protocol. Contributor concepts
-are explained in [user/README.md][user-readme] for human reference._
+Maintainer sessions load the full document set instead. See [session-init][session-init] for the complete initialization
+protocol. Contributor concepts are explained in [user/README.md][user-readme] for human reference._
 
 ---
 

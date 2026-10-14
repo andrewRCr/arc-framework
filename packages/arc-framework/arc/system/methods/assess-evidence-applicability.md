@@ -38,9 +38,8 @@ Assess only the supplied residual against the evidence whose applicability is in
   confidence, or makes the bounded evidence insufficient as a whole.
 
 Return exactly `{ recommendation, residual, rationale }`, with the unchanged residual and one concise rationale
-grounded in it. The
-recommendation neither authorizes a merge nor mutates lifecycle, approval, review, or verification state; the calling
-workflow owns the typed continuation and any fresh approval it requires.
+grounded in it. The recommendation neither authorizes a merge nor mutates lifecycle, approval, review, or verification
+state; the calling workflow owns the typed continuation and any fresh approval it requires.
 
 ---
 
