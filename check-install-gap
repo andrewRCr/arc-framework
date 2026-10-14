@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-install-gap",
+  "claimId": "acc300c43078a525b761a23c2f9554c3",
+  "createdAt": "2026-10-14T00:48:03.501Z",
+  "updatedAt": "2026-10-14T00:48:03.501Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report a check that fails because a package declared in package-lock.json is not installed as couldn't run, naming npm ci",
+  "branch": "chore/check-install-gap",
+  "origin": "inbox",
+  "originEntry": "Name `npm ci` when a check fails because an installed dependency is missing",
+  "originEntrySourceDigest": "sha256:4384ff399e23ff93e4acba54346fa7982b0b745406a8a2318403571c8e60b500",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
