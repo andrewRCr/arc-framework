@@ -61,6 +61,40 @@ describe("node provisioning runtime", () => {
     expect(await readFile(join(copiedLink, "SKILL.md"), "utf8")).toBe("linked\n");
   });
 
+  describe("pending Errand recovery proof", () => {
+    function recoveryRuntime(scenario: {
+      branch?: string; head?: string; status?: string; ancestryExit?: number;
+    } = {}) {
+      const { exec } = scriptGitExec([
+        { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: scenario.branch ?? "chore/sample" }] },
+        { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: scenario.head ?? HEAD }] },
+        { match: ["status", "--porcelain=v1", "-z", "--untracked-files=all"], responses: [{ stdout: scenario.status ?? "" }] },
+        { match: ["merge-base", "--is-ancestor", HEAD, "main"], responses: [scenario.ancestryExit === undefined
+          ? { stdout: "" } : { failure: { exitCode: scenario.ancestryExit, stderr: "ancestry probe failed" } }] },
+      ]);
+      return spawnedRuntime(exec);
+    }
+
+    it("admits a clean matching checkout whose head is contained by base", async () => {
+      await expect(recoveryRuntime().canResumePendingErrandCheckout!("/work/sample", HEAD)).resolves.toBe(true);
+    });
+
+    it.each([
+      ["another branch", { branch: "chore/other" }],
+      ["a moved head", { head: "b".repeat(40) }],
+      ["tracked work", { status: " M tracked\0" }],
+      ["untracked work", { status: "?? authored\0" }],
+      ["an unpreserved head", { ancestryExit: 1 }],
+    ])("refuses %s", async (_label, scenario) => {
+      await expect(recoveryRuntime(scenario).canResumePendingErrandCheckout!("/work/sample", HEAD)).resolves.toBe(false);
+    });
+
+    it("keeps an operational ancestry failure distinct from a negative proof", async () => {
+      await expect(recoveryRuntime({ ancestryExit: 128 }).canResumePendingErrandCheckout!("/work/sample", HEAD))
+        .rejects.toThrow("ancestry probe failed");
+    });
+  });
+
   describe("spawned rollback", () => {
     const receipt = {
       worktreePath: "/work/sample",

@@ -51,6 +51,8 @@ export interface ProvisionTransientLocusDependencies {
   removeMarker(worktreePath: string, expectedBytes: Buffer): Promise<
     { kind: "removed" } | { kind: "generation-mismatch" }
   >;
+  /** Prove that an existing pending Errand checkout can safely repeat setup. */
+  canResumePendingErrandCheckout?(worktreePath: string, expectedHead: string): Promise<boolean>;
   setupWorktree(worktreePath: string, primaryPath: string): Promise<void>;
   withOperationLock<Value>(cwd: string, operation: () => Promise<Value>): Promise<Value>;
   revalidateTarget(options: {
