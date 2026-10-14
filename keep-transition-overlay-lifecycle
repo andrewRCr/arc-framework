@@ -3,7 +3,7 @@
   "slug": "keep-transition-overlay-lifecycle",
   "claimId": "5cbd9041f513e20e75607cab5f076608",
   "createdAt": "2026-10-14T19:38:23.754Z",
-  "updatedAt": "2026-10-14T19:38:23.754Z",
+  "updatedAt": "2026-10-14T19:54:27.297Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Correct the storage-seam partition record so transition-overlay stays with lifecycle, and reconcile the affected row counts.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep `transition-overlay.ts` with `seam-lifecycle` in `cohort-storage-seam.md`",
   "originEntrySourceDigest": "sha256:da572069029ecbb7600e2fa29f2efcfc15ca73d38366bd436dde42b7f2c230b6",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/keep-transition-overlay-lifecycle",
+    "headSha": "e62a36c6b6efae2a47fde29290bd2d4c61fa30ad"
+  }
 }
