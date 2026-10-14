@@ -37,17 +37,15 @@ at planning.
 
 ## Closed Alternatives
 
-Node startup
-snapshots and Single Executable Applications are dead for this CLI's shape — an ESM entry throws
-`SyntaxError` outright, the builder loads built-ins "but not additional user-land modules" which excludes
-externalized npm dependencies, `node:child_process` is unsupported and `execa` depends on it, the blob is locked
-to an exact Node version, arch and platform, and SEA cannot back an npm `bin` that must stay a `.js` file
-(`nodejs/node#44277` and `nodejs/help#3981` both closed "not planned"). `NODE_COMPILE_CACHE` caches compilation,
-not module evaluation — measured 0.35 s to 0.29 s, with verified comparators at 6–20%. esbuild code splitting is
-worth ~0.02 s per real-verb spawn; its apparent large win was a `--version`-path artifact, and the suite never
-spawns `--version`. The irreducible floor short of in-process invocation is ~0.12 s per spawn: the bundle's 532
-hoisted top-level imports of nine external dependencies, which ES module semantics evaluate before any module
-body runs.
+Node startup snapshots and Single Executable Applications are dead for this CLI's shape — an ESM entry throws
+`SyntaxError` outright, the builder loads built-ins "but not additional user-land modules" which excludes externalized
+npm dependencies, `node:child_process` is unsupported and `execa` depends on it, the blob is locked to an exact Node
+version, arch and platform, and SEA cannot back an npm `bin` that must stay a `.js` file (`nodejs/node#44277` and
+`nodejs/help#3981` both closed "not planned"). `NODE_COMPILE_CACHE` caches compilation, not module evaluation — measured
+0.35 s to 0.29 s, with verified comparators at 6–20%. esbuild code splitting is worth ~0.02 s per real-verb spawn; its
+apparent large win was a `--version`-path artifact, and the suite never spawns `--version`. The irreducible floor short
+of in-process invocation is ~0.12 s per spawn: the bundle's 532 hoisted top-level imports of nine external dependencies,
+which ES module semantics evaluate before any module body runs.
 
 ## Known Risk
 

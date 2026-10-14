@@ -684,5 +684,5 @@ half of Pillar 3 shipped externally. Roughly:
 
 Per ADR-022, the probe slots that parse `meta-*` / `SESSION-NOTES` fields derive from the managed
 operational-state document schema — not template-stabilized field names. Field retirement / addition is
-a schema change (caught by round-trip tests), not a template edit. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+a schema change (caught by round-trip tests), not a template edit. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

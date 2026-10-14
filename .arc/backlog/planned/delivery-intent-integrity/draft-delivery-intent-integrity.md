@@ -44,8 +44,8 @@ The originating postmortem identified six factors:
 5. Unverifiable success criteria can be waved through and become false present-tense documentation.
 6. An under-classified follow-on can leave the remaining intent with no real deliverable owner.
 
-The source record and detailed examples live in
-`active/notes-review-gate-reconcile-composition.md` §§ Postmortem findings / Guard dispositions.
+The source record and detailed examples live in `active/notes-review-gate-reconcile-composition.md` §§ Postmortem
+findings / Guard dispositions.
 
 ## Inbound Charter
 

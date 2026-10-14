@@ -77,11 +77,10 @@ principle rather than surface collision: "atomic" is a cross-scale _character_ (
 WUs), and ADR-019 deliberately separated character from wrapper, so naming the class "Atomic" would
 re-tangle them — and it does not nominalize ("an atomic" is awkward). It stays the character; an Errand
 _is_ atomic-character work that skips the wrapper. _Errand_ names the small, complete, standalone,
-untracked side-task: its
-defining trait is being a bounded task you just complete — not triviality (a consequential one-commit
-change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class
-wants. The name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless,
-so "Errand" never enters commit syntax.
+untracked side-task: its defining trait is being a bounded task you just complete — not triviality (a consequential
+one-commit change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class wants. The
+name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless, so "Errand" never enters
+commit syntax.
 
 **Open question — renaming the "Work Unit" wrapper itself (deferred).** Codifying the Errand sibling
 surfaced whether "Work Unit" / `WU` is the right name for the heavy class. Considered and **not adopted**:

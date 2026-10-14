@@ -19,8 +19,7 @@ If applicable, mention alternatives that were considered:
 
 ## Decision
 
-State the decision in full sentences, with active voice.
-"We will ..."
+State the decision in full sentences, with active voice. "We will ..."
 
 Be specific about:
 

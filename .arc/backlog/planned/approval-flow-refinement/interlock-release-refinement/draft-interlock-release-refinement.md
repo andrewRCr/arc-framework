@@ -389,10 +389,9 @@ What remains is mostly _routing-half_ work:
   Four mitigation options considered; option (4) admonition variant adopted.
 
 - _Status_ (2026-05-15): option (4) admonition variant adopted in 5 Phase 3 boundary workflows
-  (`init-work-unit.md`, `activate-work-unit.md`, `integrate-work-unit.md`,
-  `archive-work-unit.md`, `1_create-prd.md`) alongside the implied-approval-scope rule. Options
-  (1) inline cue, (2) frontmatter declaration, and (3) DEV-RULES procedural emphasis all
-  superseded — option (4) solves the underlying agent-attention concern at the fire site itself.
+  (`init-work-unit.md`, `activate-work-unit.md`, `integrate-work-unit.md`, `archive-work-unit.md`, `1_create-prd.md`)
+  alongside the implied-approval-scope rule. Options (1) inline cue, (2) frontmatter declaration, and (3) DEV-RULES
+  procedural emphasis all superseded — option (4) solves the underlying agent-attention concern at the fire site itself.
 
 - _Remaining sweep:_ Apply option (4) admonition across other class-tag-using workflows —
   `session-handoff.md`, `prepare-commits.md`, the `arc-commit` skill, and any others identified
@@ -519,11 +518,10 @@ No firm upstream blockers. Soft preferences:
 - **Wait until post-WOR** for the class-tag admonition sweep (avoid tangling with WOR's
   remaining workflow restructures).
 - **Wrapper-routing migration can ship any time post-WOR** — independent of the visibility fix
-  already shipped; doesn't depend on the enum-granularity decision in
-  `plan-customization-arch-realign.md` (the migration works under any of the candidate enum
-  shapes). If the customization arch-realign decision lands first, the migration absorbs the
-  resulting enum; if this plan lands first, the customization plan's text adjusts to the
-  retired routing axis.
+  already shipped; doesn't depend on the enum-granularity decision in `plan-customization-arch-realign.md` (the
+  migration works under any of the candidate enum shapes). If the customization arch-realign decision lands first, the
+  migration absorbs the resulting enum; if this plan lands first, the customization plan's text adjusts to the retired
+  routing axis.
 - **A3 (orientation surface)** — decide after the visibility fix settles in use; could ride
   the wrapper-routing migration or stay deferred indefinitely.
 

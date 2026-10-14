@@ -172,9 +172,8 @@ decisions are made, not on a schedule.
 
 ## Next Step
 
-Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT,
-QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
-session.
+Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT, QUICK-REFERENCE,
+and DEV-RULES.PROJECT — are loaded by the agent at the start of every session.
 The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during planning and
 architecture decisions. Use `arc status --project` plus backlog source artifacts for live project status.
 
