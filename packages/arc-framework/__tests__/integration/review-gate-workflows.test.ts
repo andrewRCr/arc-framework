@@ -64,7 +64,7 @@ function expectProducerBackedResponseOrder(content: string, start: string, end: 
 }
 
 describe("trusted review-gate workflows", () => {
-  it("publishes independent CI truth and a thin compatibility alias", async () => {
+  it("publishes CI truth as the single ci-ok roll-up", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     // Shared setup is a required dependency so a failed install cannot roll up green
@@ -72,7 +72,6 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).toContain(
       "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
-    expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh integration --stdin0");
@@ -93,7 +92,6 @@ describe("trusted review-gate workflows", () => {
       "e2e",
       "portability",
       "ci_ok",
-      "merge-ok",
       "record-verified-tree",
     ];
     for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe("ubuntu-latest");
@@ -1516,7 +1514,6 @@ describe("trusted review-gate workflows", () => {
 
     expect(codeowners).toContain("* @andrewRCr");
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
-    expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
   });
 
   it("ships the merge-gate host-policy inventory with live-pair support", async () => {

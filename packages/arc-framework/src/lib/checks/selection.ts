@@ -26,11 +26,12 @@ export async function resolveCheckSelection(
 ): Promise<CheckSelection> {
   const { base, tree, scope } = resolved;
   const own = new Map<string, InputSelection>();
-  if (scope.kind === "all") return { own, widened: false };
   for (const [id, check] of Object.entries(declaration.checks)) {
-    own.set(id, await ownInputChange(io, root, resolved, check.inputs));
+    if (scope.kind !== "all" || boundedDefaultMergeCheck(request, check)) {
+      own.set(id, await ownInputChange(io, root, resolved, check.inputs));
+    }
   }
-  if (request.form.kind === "run") return { own, widened: false };
+  if (scope.kind === "all" || request.form.kind === "run") return { own, widened: false };
   if (base === undefined || resolved.mergePathsUnresolved) return { own, widened: true };
   const change = resolved.mergePaths !== undefined ? await namedPathChange(io, root, resolved, resolved.mergePaths, ["**"], true)
     : scope.kind === "paths" ? await namedPathChange(io, root, resolved, scope.paths, ["**"])
@@ -87,11 +88,26 @@ export function selectCheckInputs(input: {
 }): SelectedCheckInputs {
   const { id, check, request, resolved, selection } = input;
   if (check.ci_only && request.form.kind !== "run" && !request.ci) return { status: "not selected", reason: "CI-only check requires --ci" };
-  if (resolved.scope.kind === "all" || (request.form.kind === "run" && check.mode === "project")) return { status: "selected" };
+  if (resolved.scope.kind === "all") return selectAllScopeInputs(id, check, request, selection);
+  if (request.form.kind === "run" && check.mode === "project") return { status: "selected" };
   if (request.form.kind !== "run" && selection.widened && check.widen) return { status: "selected" };
   if (request.form.kind === "run" && resolved.mergePathsUnresolved) return { status: "selected" };
   const own = selection.own.get(id) ?? { status: "not selected" as const, reason: "inputs unchanged" };
   if (own.status !== "unresolved") return own;
   return request.form.kind === "run" ? { status: "selected" }
     : { status: "not selected", reason: "own input change unavailable" };
+}
+
+
+function boundedDefaultMergeCheck(request: CheckRequest, check: CheckDeclaration["checks"][string]): boolean {
+  return request.scope === undefined && request.form.kind === "gate" && request.form.gate === "merge"
+    && check.mode === "files" && !check.widen;
+}
+
+function selectAllScopeInputs(id: string, check: CheckDeclaration["checks"][string], request: CheckRequest,
+  selection: CheckSelection): SelectedCheckInputs {
+  if (!boundedDefaultMergeCheck(request, check)) return { status: "selected" };
+  const own = selection.own.get(id);
+  // Unavailable change evidence retains whole-input enforcement rather than omitting the check.
+  return own === undefined || own.status === "unresolved" ? { status: "selected" } : own;
 }

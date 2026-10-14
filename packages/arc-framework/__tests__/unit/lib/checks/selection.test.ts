@@ -32,3 +32,12 @@ it("never widens an explicit named files request", () => {
   expect(selected({ own: "unchanged", widened: true, request: { form: { kind: "run", ids: ["lint"] } } }))
     .toEqual({ status: "not selected", reason: "inputs unchanged" });
 });
+
+
+it("bounds opt-out file checks at a default merge gate", () => {
+  const request: CheckRequest = { form: { kind: "gate", gate: "merge" }, force: true };
+  expect(selected({ own: "changed", all: true, widen: false, request })).toEqual({ status: "selected", paths: [changedPath] });
+  expect(selected({ own: "unchanged", all: true, widen: false, request })).toEqual({ status: "not selected", reason: "inputs unchanged" });
+  expect(selected({ own: "unresolved", all: true, widen: false, request })).toEqual({ status: "selected" });
+  expect(selected({ own: "unchanged", all: true, widen: false, request: { ...request, scope: { kind: "all" } } })).toEqual({ status: "selected" });
+});

@@ -13,11 +13,11 @@ their own primitives; only this recipe is GitHub-specific.
 - **`CODEOWNERS`** — a drop-in file. The reviewed-lane ownership skeleton: owned paths require review; the
   trailing unowned block clears the auto-merge-lane paths so they need none. Place it at `.github/CODEOWNERS`
   (or repo root / `docs/`) and replace `@your-org/reviewers` with your reviewers.
-- **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
+- **The `ci-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
 
-## The `merge-ok` gate (merge into your CI workflow)
+## The `ci-ok` gate (merge into your CI workflow)
 
 Add these two jobs to the workflow that already runs your required build/lint/test jobs, and add the two
 marked lines to each of those heavy jobs:
@@ -66,8 +66,8 @@ jobs:
   #   needs: classify
   #   if: ${{ needs.classify.outputs.lane == 'reviewed' }}
 
-  merge-ok:
-    name: merge-ok                      # <- the one check to mark "Required" in branch protection
+  ci-ok:
+    name: ci-ok                         # <- the one check to mark "Required" in branch protection
     needs: [classify, build, test]      # <- list classify + EVERY heavy job
     if: ${{ !cancelled() }}             # run even when the heavy jobs were lane-skipped
     runs-on: ubuntu-latest
@@ -81,7 +81,7 @@ jobs:
               failure|cancelled) echo "::error::a required job did not succeed"; exit 1 ;;
             esac
           done
-          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
+          echo "ci-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
 ```
 
 Replace `<installed-arc-version>` with the exact `framework_version` from `.arc/system/.internal/manifest.json`. The
@@ -90,7 +90,7 @@ unreadable or malformed change remains reviewed. The classification checkout mus
 rather than only the pull request's commit history, because an exact decomposition source commit may exist only on
 another branch ref.
 
-Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
+Branch protection requires **only** `ci-ok`. The heavy jobs are lane-skipped on planning-only PRs; `ci-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
 the heavy jobs running — while a code/constitutional PR waits on them. This is why the recipe uses a
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
@@ -106,14 +106,14 @@ the procedural boundary.
 - **Single CI workflow** (common): paste the snippet into it and add the two marked lines to each heavy job.
 - **CI split across workflow files** (e.g. `lint.yml` / `test.yml` / `build.yml`): a single gate can't `needs:`
   jobs in other files. Add `on: workflow_call` to each CI workflow and a thin **parent** workflow that `uses:`
-  them and hosts `classify` + `merge-ok` (the gate `needs:` the called workflows; children stay separate
-  files). Mark only the parent's `merge-ok` as required. The advanced fallback, when a parent isn't viable, is
-  a `workflow_run`-triggered aggregator that reports `merge-ok` from the completed runs.
+  them and hosts `classify` + `ci-ok` (the gate `needs:` the called workflows; children stay separate
+  files). Mark only the parent's `ci-ok` as required. The advanced fallback, when a parent isn't viable, is
+  a `workflow_run`-triggered aggregator that reports `ci-ok` from the completed runs.
 
 ## Why a snippet, not a file
 
 `needs:` is intra-workflow only, so the gate must live alongside the jobs it rolls up. A standalone
-`merge-ok.yml` dropped in next to an untouched CI workflow would roll up only its own (empty) jobs — leaving
+`ci-ok.yml` dropped in next to an untouched CI workflow would roll up only its own (empty) jobs — leaving
 real CI ungated, or, if real CI is also marked required, stalling planning-only PRs at _Pending_. Shipping the
 gate as a snippet to merge in — rather than a droppable file — keeps that failure mode off the table.
 
@@ -121,7 +121,7 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
 
 1. Merge the gate snippet into your CI workflow per § CI layouts; commit it.
 2. Place `CODEOWNERS` (`.github/CODEOWNERS` by default) and set your reviewers.
-3. In branch protection for your base branch, mark **`merge-ok`** as the required status check and enable
+3. In branch protection for your base branch, mark **`ci-ok`** as the required status check and enable
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
@@ -130,7 +130,7 @@ classifier may still return `planning` for a transition-bearing change set, keep
 the planning substrate, but code-owner approval remains required. The rest of `.arc/system/.internal/` also stays
 owned.
 
-A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
+A planning-only PR may then be armed and merge unattended once `ci-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The [Set Up the Auto-Merge Gate
 workflow][setup-workflow] walks through all four steps.
 

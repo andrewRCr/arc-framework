@@ -14,13 +14,18 @@ release binary on Linux/Windows). `npm run lint:workflows` requires both actionl
 shell is checked alongside GitHub Actions expressions and dependencies. CI installs actionlint 1.7.12.
 
 1. Fork and clone the repository
-2. Install dependencies: `npm install`
+2. Install dependencies and initialize the approved tools: `npm install && npm run setup`
 3. Join as a contributor: `npx arc join`
 4. Verify your setup — run the declared local merge checks on a clean checkout:
 
 ```bash
 npx arc check gate merge
 ```
+
+Dependency lifecycle scripts are disabled by the repository's `.npmrc`, including during `npm audit fix`.
+Run `npm run setup` after installing or updating dependencies: it refuses an unexpected `lefthook.yml`, rebuilds
+only esbuild, and installs the Husky hooks. Keep `ignore-scripts` enabled for installs; setup explicitly enables
+scripts only for the named esbuild rebuild.
 
 ## Development Workflow
 

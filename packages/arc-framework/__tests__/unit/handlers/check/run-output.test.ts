@@ -157,11 +157,21 @@ it("leads with a no-evidence check and shows its output tail, but offers no retr
   expect(result).toContain("Checks: 1 no evidence, 1 passed.");
 });
 
-it("names the checked files a merge brought in unchanged between a failure's output and its retry", () => {
+it("counts the files a merge brought in unchanged between a failure's output and its retry", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
-    status: "completed", checks: [{ id: "prose", kind: "enforcement", outcome: "failed", output: "docs/a.md:3: short line",
+    status: "completed", checks: [{ id: "prose", kind: "enforcement", outcome: "failed", output: "docs/c.md:3: short line",
       mergedIn: ["docs/a.md", "docs/b.md"], remedy: "arc check run prose --range abc" }],
   } }, false);
-  expect(result).toBe("prose: failed [enforcement]\ndocs/a.md:3: short line\n"
-    + "Merged in unchanged (2 files): docs/a.md, docs/b.md\nRetry: arc check run prose --range abc\nChecks: 1 failed.\n");
+  expect(result).toBe("prose: failed [enforcement]\ndocs/c.md:3: short line\n"
+    + "Not checked, merged in unchanged: 2 files\nRetry: arc check run prose --range abc\nChecks: 1 failed.\n");
+});
+
+it("lists a passing check that left files unchecked, so a narrowed gate never reads as a full pass", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [
+      { id: "prose", kind: "enforcement", outcome: "passed", mergedIn: ["docs/a.md"] },
+      { id: "types", kind: "enforcement", outcome: "passed" },
+    ],
+  } }, false);
+  expect(result).toBe("prose: passed [enforcement]\nNot checked, merged in unchanged: 1 file\nChecks: 2 passed.\n");
 });

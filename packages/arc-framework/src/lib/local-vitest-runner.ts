@@ -1,7 +1,8 @@
 /** In-process Vitest adapter for repository-wide local test admission. */
 
-import { parseCLI } from "vitest/node";
+import { parseCLI, type TestSpecification } from "vitest/node";
 
+import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
@@ -58,6 +59,70 @@ export async function runLocalVitestTier(
   const selection = await discoverVitestSelection(filter, options);
   await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
     packageRoot: resolve(import.meta.dirname, "../..") });
+}
+
+/**
+ * Run the local E2E check over the paths its selection supplied, from the package root.
+ *
+ * @param checkoutRoot - Repository root the supplied paths are relative to.
+ * @param paths - Repository-relative paths the check selected; none runs the whole suite.
+ * @param changed - The check's base, when it named one, and the Git boundary that reads deletions since it.
+ * @returns Completion after Vitest has closed its controller resources.
+ */
+export async function runLocalE2eCheck(
+  checkoutRoot: string, paths: readonly string[], changed: { base?: string; git: GitExec },
+): Promise<void> {
+  const { filter, options } = parseCLI(["vitest", "run", ...localVitestTierArguments("e2e")]);
+  const deleted = changed.base !== undefined && changed.base !== ""
+    && await hasDeletedE2eFiles(changed.git, process.cwd(), changed.base);
+  const requested = deleted ? [] : paths.map((path) => resolve(checkoutRoot, path));
+  const chosen: { tier: LocalHeavyTestTier } = { tier: "e2e" };
+  const selection = await discoverVitestSelection(filter, options, (specifications) => {
+    const choice = selectLocalE2eSpecifications(requested, specifications);
+    chosen.tier = choice.tier;
+    return choice.specifications;
+  });
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier: chosen.tier,
+    packageRoot: resolve(import.meta.dirname, "../..") });
+}
+
+/**
+ * Whether the E2E test tree lost a file since the base, comparing the working tree, or Git could not say. A check
+ * drops deleted paths before its command runs, and a deleted support file may have served any specification.
+ *
+ * @param git - Git process boundary.
+ * @param packageRoot - Package root holding the E2E test tree.
+ * @param base - Commit the check compared against.
+ * @returns True when a file under the E2E test tree was deleted or renamed away, or the read failed.
+ */
+export async function hasDeletedE2eFiles(git: GitExec, packageRoot: string, base: string): Promise<boolean> {
+  try {
+    const { stdout } = await git("git", ["diff", "--name-only", "--no-renames", "--diff-filter=D", "-z",
+      "--end-of-options", base, "--", "__tests__/e2e"], { cwd: packageRoot });
+    return stdout !== "";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Keep only the requested E2E specifications when every requested path is one. Any other path, such as a helper,
+ * fixture, or setup file, may reach any specification, so it keeps the whole suite, as does an empty request.
+ *
+ * @param requested - Absolute paths the check selected.
+ * @param specifications - Configured E2E specifications in native order.
+ * @returns The tier to admit and the specifications to run, in native order.
+ */
+export function selectLocalE2eSpecifications(
+  requested: readonly string[], specifications: TestSpecification[],
+): { tier: "e2e" | "e2e-focused"; specifications: TestSpecification[] } {
+  const configured = new Set(specifications.map((specification) => resolve(specification.moduleId)));
+  if (requested.length === 0 || requested.some((path) => !configured.has(path))) {
+    return { tier: "e2e", specifications };
+  }
+  const named = new Set(requested);
+  return { tier: "e2e-focused",
+    specifications: specifications.filter((specification) => named.has(resolve(specification.moduleId))) };
 }
 
 /**

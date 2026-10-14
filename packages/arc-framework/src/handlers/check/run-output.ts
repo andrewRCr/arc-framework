@@ -51,7 +51,8 @@ const UNCHANGED_INPUTS = "inputs unchanged";
 function isListed(check: DeclaredCheckResult): boolean {
   const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS)
     && check.batches === undefined;
-  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0;
+  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0
+    || (check.mergedIn?.length ?? 0) > 0;
 }
 
 function renderCount(checks: readonly DeclaredCheckResult[]): string {
@@ -95,11 +96,11 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   return `${heading}${tail}${renderMergedIn(check)}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
 }
 
-/** Name the examined files whose content came in unchanged through a merge, so their findings read as the base's. */
+/** Say how many files the check left unchecked because a merge brought them in unchanged; the result names them. */
 function renderMergedIn(check: DeclaredCheckResult): string {
-  const paths = check.mergedIn ?? [];
-  if (paths.length === 0) return "";
-  return `\nMerged in unchanged (${paths.length} ${paths.length === 1 ? "file" : "files"}): ${paths.join(", ")}`;
+  const count = check.mergedIn?.length ?? 0;
+  if (count === 0) return "";
+  return `\nNot checked, merged in unchanged: ${count} ${count === 1 ? "file" : "files"}`;
 }
 
 function renderCost(check: DeclaredCheckResult): string {

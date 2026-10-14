@@ -330,8 +330,7 @@ Documents).
 adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
 settled spec as the last step before the commit below.
 
-After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
-save, arc-in-git), draft deletion + `notes-*` migration, meta update.
+After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

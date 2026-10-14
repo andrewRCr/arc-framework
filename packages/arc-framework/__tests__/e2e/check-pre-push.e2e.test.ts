@@ -49,6 +49,59 @@ it("gates the current branch's stdin range at the pushed tip", async () => {
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8")).args).toEqual(["src/a.ts"]);
 });
 
+const rejectBad = "process.exit(process.argv.slice(1).some(f => require('node:fs').readFileSync(f, 'utf8').includes('bad')) ? 1 : 0)";
+
+/** Push `feature` from its last pushed tip, after it merged `main` carrying a bad file `origin/main` may also carry. */
+async function mergedFeature(publish: boolean): Promise<{ root: string; push: () => ReturnType<typeof runArcWithStdin> }> {
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
+    inputs: ["src/**"], command: [process.execPath, "-e", rejectBad] } });
+  roots.push(root);
+  await git(root, ["restore", "src/a.ts"]);
+  await git(root, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  await git(root, ["checkout", "-b", "feature"]);
+  await writeFile(join(root, "src/own.ts"), "good\n");
+  await git(root, ["add", "src/own.ts"]);
+  await git(root, ["commit", "-m", "own"]);
+  const pushed = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["checkout", "main"]);
+  await writeFile(join(root, "src/incoming.ts"), "bad\n");
+  await git(root, ["add", "src/incoming.ts"]);
+  await git(root, ["commit", "-m", "incoming"]);
+  if (publish) await git(root, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  await git(root, ["checkout", "feature"]);
+  await git(root, ["merge", "--no-ff", "main", "-m", "merge base"]);
+  const push = async () => {
+    const tip = await git(root, ["rev-parse", "HEAD"]);
+    return runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
+      `refs/heads/feature ${tip} refs/heads/feature ${pushed}\n`);
+  };
+  return { root, push };
+}
+
+it("holds a push only for files it changed, not files a base merge brought in unchanged", async () => {
+  const { root, push } = await mergedFeature(true);
+  const merged = await push();
+  expect(merged.exitCode, merged.stderr).toBe(0);
+  expect(JSON.parse(merged.stdout).result.checks).toMatchObject([{ id: "content", outcome: "not selected",
+    reason: "every changed file was merged in unchanged", mergedIn: ["src/incoming.ts"] }]);
+
+  await writeFile(join(root, "src/own.ts"), "bad\n");
+  await git(root, ["commit", "-am", "own regression"]);
+  const own = await push();
+  expect(own.exitCode, own.stderr).toBe(1);
+  expect(JSON.parse(own.stdout).result.checks).toMatchObject([{ id: "content", outcome: "failed",
+    mergedIn: ["src/incoming.ts"] }]);
+});
+
+it("holds a push for files a merge brought in that the remote base branch does not carry", async () => {
+  const { push } = await mergedFeature(false);
+  const held = await push();
+  expect(held.exitCode, held.stderr).toBe(1);
+  const [check] = JSON.parse(held.stdout).result.checks;
+  expect(check).toMatchObject({ id: "content", outcome: "failed" });
+  expect(check).not.toHaveProperty("mergedIn");
+});
+
 it("keeps the branch ref unambiguous when a tag shares its short name", async () => {
   const root = await createDeclaredCheckRepository({ content: { gate: "push", inputs: ["src/**"],
     command: [process.execPath, "capture.cjs"] } });

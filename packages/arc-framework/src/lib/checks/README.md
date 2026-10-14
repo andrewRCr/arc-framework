@@ -13,3 +13,7 @@ adapters live in [the check handlers](../../handlers/check/).
   `reports.ts` retains full logs and measured costs, and `remedies.ts` names work-preserving retries.
 - `install-gap.ts` reads a failure naming a package the npm lockfile declares within the importer's reach, but no
   install there holds, as a check that could not run, and names `npm ci` as the repair.
+
+The default merge gate checks the whole project. File checks with `widen: false` receive only their own changed inputs;
+unchanged inputs leave them unselected. An unavailable change retains the complete input set. Explicit `--all` checks
+all matching inputs regardless of the widening policy.
