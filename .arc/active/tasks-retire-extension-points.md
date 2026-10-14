@@ -69,16 +69,14 @@ scenarios pass against the revised contracts.
   signal machine surface, exact-head admission, host-review requirements, integration authorization, and WU/Errand
   mutation prohibitions remain intact.
 
-### `[ ]` **2.5 Exercise revised runtime contracts — D2, D8** — validate exit criterion at segment scope
+### `[x]` **2.5 Exercise revised runtime contracts — D2, D8** — validate exit criterion at segment scope
 
 - _Goal:_ The runtime segment is demonstrated through public results and surviving locus/checkpoint scenarios.
 
-    - Run `npx arc check segment` and the focused status/recovery/schema/locus/compaction/checkpoint coverage named in
-      `notes-retire-extension-points.md` § Runtime and test map.
-    - Exercise public CLI absence, session-init/recovery output, and schema discovery against disposable fixtures;
-      verify preserved workflow selection and exact-head machine evidence.
-    - Record executed scenarios and results. A failure routes corrective work to its own revision parent ahead of
-      this verifier; it is not satisfied by a reference search alone.
+- _Outcome:_ Exercised public command/schema absence and session-init/recovery envelopes in disposable CLI fixtures;
+  dirty-checkout recovery retained its refusal. Focused session, locus, load-set, compaction, schema, and checkpoint
+  suites demonstrated preserved workflow selection, recovery transitions, complete machine evidence, and exact-head
+  admission.
 
 ## **Phase 3:** Workflow retirement with preserved lifecycle rules
 
