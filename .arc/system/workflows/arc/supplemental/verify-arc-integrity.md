@@ -13,9 +13,8 @@ how to interpret severities, and what remediation to offer.
 - **Post-setup:** After `arc init` or `arc-setup` to confirm the installation is complete
 - **Standalone health check:** When something seems wrong — broken hooks, missing files, config
   drift
-- **Post-modification gate:** After editing `arc-config.yml`, files under `system/methods/` or
-  `system/extensions/`, or structural files — verify the change didn't break references or
-  cross-field dependencies
+- **Post-modification gate:** After editing `arc-config.yml`, files under `system/methods/`, or structural files —
+  verify the change didn't break references or cross-field dependencies
 
 ## Running the Script
 
@@ -101,21 +100,19 @@ targets resolve to existing files.
 **Remediation:** Fix the link path or create the missing target file. Common causes: file renamed
 or moved without updating references.
 
-### Methods and Extensions
+### Methods
 
-Structural sanity check: verifies that `system/methods/` and `system/extensions/` exist and that
-each file within opens with a YAML frontmatter block containing the required keys (`name`,
-`description`, plus `override-active` for methods / `active` for extensions). `README.md` is
-excluded. Deep schema validation — name-matches-basename, type correctness, related-array
-shape — runs in the pre-commit frontmatter hook (`CHECK[frontmatter-schema]`); this check is a post-hoc
-diagnostic, not a replacement.
+Structural sanity check: verifies that `system/methods/` exists and that each file within opens with a YAML
+frontmatter block containing `name`, `description`, and `override-active`. `README.md` is excluded. Deep schema
+validation — name-matches-basename, type correctness, related-array shape — runs in the pre-commit frontmatter hook
+(`CHECK[frontmatter-schema]`); this check is a post-hoc diagnostic, not a replacement.
 
 **Severity:**
 
-- **ERROR** — methods or extensions directory missing, a file lacks the opening `---` frontmatter
+- **ERROR** — methods directory missing, a file lacks the opening `---` frontmatter
   delimiter, the frontmatter block is not closed within the first 20 lines, or a required key is
   absent.
-- **WARN** — directory exists but contains no method/extension files.
+- **WARN** — directory exists but contains no method files.
 
 **Remediation:** Restore the missing directory, file, or frontmatter key. If upgrading from an
 older ARC version, re-run `arc update` to pull in the per-file structure.

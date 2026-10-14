@@ -123,27 +123,15 @@ _Purpose:_ Close the accepted workflow grammar and remove installed membership w
   Empty, populated, and malformed obsolete declarations now report an unknown field; surviving method shapes,
   activation registry, dependency graph, and real-corpus coverage remain valid.
 
-### `[ ]` **4.2 Narrow integrity, check inputs, and audit routing — D4, D8**
+### `[x]` **4.2 Narrow integrity, check inputs, and audit routing — D4, D8**
 
 - _Goal:_ Integrity, sensitive-content selection, and routing no longer require the retired directory while retaining
   every independent check.
 
-- _Note:_ See `notes-retire-extension-points.md` § Installation and structural map.
-
-    - Remove extension directory/frontmatter requirements from both `verify-integrity.sh` copies and integrity workflow
-      instructions. Keep method validation and update the mixed integrity fixtures.
-    - Remove extension-root table inputs from `.arc/system/arc-checks.yml` and patterns from `CODE_SURFACE_GLOBS` and
-      `PACKAGED_CONTENT_SENSITIVE_GLOBS` in `change-facts.ts`; keep sensitive surviving packaged-content detection.
-    - Remove `extension-root` and `arc-extensions-key` from the live coupling manifest; trim their `classIds`,
-      `classEvidence`, `evidenceAnchors`, and `reportAnchors` from the mixed routing packet. Retain its six surviving
-      classes and all unrelated packets.
-    - Regenerate the affected packet's `id` and `contentDigest` using the existing canonical rules, preserving its
-      historical `resultDigest` binding; validate with `parseRoutingLedger`. Change no check ID, deadline, or CI routing.
-    - Build `test-first` (one behavior at a time):
-        - Integrity succeeds without the directory and still rejects malformed surviving method structure.
-        - `isCodeSurfacePath` / `isPackagedContentSensitivePath` retain method and other sensitive-content selection.
-        - `parseRoutingLedger` accepts the narrowed packet with regenerated identity/digest and surviving routing intact;
-          stale packet identity or content digest is rejected.
+- _Outcome:_ Narrowed integrity to method structure, removed retired check/classification inputs, and trimmed the
+  live audit corpus and two extension-only classes. The mixed packet retains six classes with regenerated
+  identity/digest and its historical result binding; unrelated packets remain unchanged. Preserved malformed-method
+  rejection, surviving sensitive paths, and stale-packet refusals.
 
 ### `[ ]` **4.3 Remove extension files and installation membership — D1, D5, D8**
 
