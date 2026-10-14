@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec — `spec-storage-ref-backend.md` finalized after nine review passes
+- **Last Completed:** generate-tasks — `tasks-storage-ref-backend.md` finalized after two review passes
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** `seam-lifecycle` not yet shipped — implementation waits until it is merged to main
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Once `seam-lifecycle` ships: merge main in, run SESSION-NOTES' post-landing checks, then
+  activate-work-unit Step 1 — pre-condition gate
 
 - **PR URL:** [none]
 - **Completed:** [none]
