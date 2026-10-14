@@ -80,7 +80,7 @@ import {
 } from "../lib/git/index.js";
 import { executeInboundPull } from "../lib/git/inbound-pull.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
-import { readCheckoutPushGateRefusal, type PushGateRefusal } from "../lib/checks/push-gate-record.js";
+import { createPushGateId, readCheckoutPushGateRefusal, type PushGateRefusal } from "../lib/checks/push-gate-record.js";
 import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -783,7 +783,7 @@ async function executePaired(
   branch: string,
   setUpstream: boolean,
 ): Promise<ExecutedOutcome> {
-  const since = Date.now();
+  const pushGateId = createPushGateId();
   const result = await runPairedPush({
     io: ctx.io,
     identity: ctx.identity,
@@ -792,11 +792,12 @@ async function executePaired(
     branch,
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
+    pushGateId,
     pushNotes: (context) => pairedNotesAdapter(context),
     publishMarker: publishMarkerAdapter,
   });
   const gate = result.worktree.status === "failed"
-    ? await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, branch, since })
+    ? await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId })
     : null;
   const worktree = withGateRefusal(pairedLegToRecord(result.worktree, "push"), gate);
   renderPairedResult(result, branch, ctx.output, worktree);
@@ -1033,11 +1034,12 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 
   if (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init") {
     const setUpstream = decision.worktree.kind === "push-with-upstream-init";
-    const since = Date.now();
+    const pushGateId = createPushGateId();
     const result = await pushWorktreeBranch({
       exec: ctx.io.exec,
       branch: decision.worktree.branch,
       args: setUpstream ? ["-u"] : [],
+      pushGateId,
     });
     if (result.status === "success") {
       const successMsg = setUpstream
@@ -1047,8 +1049,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
       worktreeRecord = { action: "push", result: "success" };
     } else {
       worktreeFailed = true;
-      const gate = await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, branch: decision.worktree.branch,
-        since });
+      const gate = await readCheckoutPushGateRefusal({ git: ctx.io.exec, cwd: ctx.cwd, pushGateId });
       worktreeRecord = withGateRefusal({ action: "push", result: "failed", detail: result.error.message }, gate);
       ctx.output.log.error(worktreePushFailure(worktreeRecord));
     }
