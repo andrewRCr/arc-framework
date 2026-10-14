@@ -88,8 +88,6 @@ export interface ScaffoldWorktreeParams {
   lastCompleted?: string;
   /** Parsed external reference (issue / URL) → meta `Origin`. Cold-start spec-input. */
   origin?: string;
-  /** Parsed ARC-owned artifact (spec / plan-doc) → meta `Design`. Cold-start spec-input. */
-  design?: string;
   /** Whether ARC created the worktree (gates the ownership marker); defaults to `true`. */
   createdByArc?: boolean;
   /** Optional richer SESSION-NOTES seed for ceremony-created worktrees. */
@@ -111,9 +109,8 @@ export interface ScaffoldWorktreeParams {
  *
  * The marker is gated by `createdByArc` (default `true`): a spawn writes it, a
  * cold-start into an externally-created worktree passes `false` and no marker
- * lands (cleanup stays advisory). `origin` / `design`, when supplied, populate
- * the meta's `Origin` / `Design` fields from parsed spec input; absent fields
- * render at their declared defaults.
+ * lands (cleanup stays advisory). `origin`, when supplied, populates the meta's
+ * `Origin` from an issue reference. Other fields render at their defaults.
  *
  * @param ctx - I/O context and template directory.
  * @param params - Target worktree root, branch, and scaffold inputs.
@@ -148,7 +145,6 @@ export async function scaffoldIntoWorktree(
   };
   if (params.lastCompleted !== undefined) overrides.lastCompleted = params.lastCompleted;
   if (params.origin !== undefined) overrides.origin = params.origin;
-  if (params.design !== undefined) overrides.design = [params.design];
 
   await ctx.io.writeFile(
     metaPath,

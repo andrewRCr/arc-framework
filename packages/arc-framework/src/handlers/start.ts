@@ -95,7 +95,7 @@ function projectActiveMetaPath(slugValue: string) {
 export interface StartOptions {
   /** Cold-start in place (the current worktree) instead of spawning a new one. */
   here?: boolean;
-  /** Spec input — issue → Origin, spec/draft artifact → Design, else passed through. */
+  /** Seed input — issue → Origin; documents and descriptions pass through. */
   from?: string;
   /** Resolved `Class` for a stub still `[TBD]` — validated, recorded by the ceremony. */
   class?: string;
@@ -243,6 +243,12 @@ export async function handleStart(
   const dispatch = resolveStartDispatch(composed.index, wuName, { create: input.new === true });
   if (input.from !== undefined && dispatch.arm !== "create-new") {
     p.log.error("--from is only valid when starting a new work unit.");
+    process.exitCode = 1;
+    return;
+  }
+  if (input.from !== undefined && dispatch.arm === "create-new" && input.here !== true) {
+    p.log.error("--from requires an in-place start: run `arc start --here --from <seed>` "
+      + "from the checkout intended for the new work unit.");
     process.exitCode = 1;
     return;
   }
@@ -951,11 +957,10 @@ async function coldStart(
     `Meta:      ${projectActiveMetaPath(r.wuName)}`,
   ];
   if (r.origin) lines.push(`Origin:    ${r.origin}`);
-  if (r.design) lines.push(`Design:    ${r.design}`);
   if (r.passthrough) {
     lines.push(
       `Spec input (${r.passthrough.kind}): ${r.passthrough.value}`,
-      "  → assess and set Origin/Design during planning",
+      "  → read as input to the work unit’s own draft during planning",
     );
   }
   p.note(lines.join("\n"), "Cold-started");

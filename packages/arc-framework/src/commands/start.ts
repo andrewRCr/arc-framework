@@ -488,7 +488,7 @@ export interface ColdStartParams {
   identity: string;
   /** Explicit WU name; defaults to the branch-derived slug when omitted. */
   name?: string;
-  /** Raw spec input (`--from`) — classified into `Origin` / `Design` / pass-through. */
+  /** Raw spec input (`--from`) — classified into `Origin` or pass-through. */
   from?: string;
 }
 
@@ -508,8 +508,6 @@ export interface ColdStartResult {
   wuName: string;
   /** Parsed `Origin`, when the spec input was an issue reference. */
   origin?: string;
-  /** Parsed `Design`, when the spec input was an ARC spec artifact. */
-  design?: string;
   /** Spec input the parser left for assessment (no meta field set). */
   passthrough?: ColdStartPassthrough;
   /**
@@ -598,7 +596,6 @@ export async function runColdStart(
   if (occupancyRefusal !== null) return { ok: false, reason: occupancyRefusal };
 
   let origin: string | undefined;
-  let design: string | undefined;
   let passthrough: ColdStartPassthrough | undefined;
   const from = params.from?.trim();
   if (from) {
@@ -607,9 +604,6 @@ export async function runColdStart(
       switch (parsed.value.kind) {
         case "issue":
           origin = parsed.value.origin;
-          break;
-        case "arc-spec":
-          design = parsed.value.design;
           break;
         case "document":
           passthrough = { kind: "document", value: parsed.value.document };
@@ -646,7 +640,6 @@ export async function runColdStart(
       spawningIdentity: params.identity,
       createdByArc: false,
       origin,
-      design,
     });
     await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
   } catch (err) {
@@ -662,7 +655,7 @@ export async function runColdStart(
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
-  return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
+  return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, passthrough, cutFromBase } };
 }
 
 async function rollbackColdStart(

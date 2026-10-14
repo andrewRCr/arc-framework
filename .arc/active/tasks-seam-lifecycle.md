@@ -23,54 +23,27 @@ _Design decisions:_ Tasks 1.1–1.3 are the first three review chunks, in that o
 reroutes `runColdStart` in the same file. Every test a fix changes is named with that fix in its commit and completion
 note.
 
-### `[ ]` **1.1 Pass `arc start --from` seeds through, and refuse `--from` on the spawning arm — § 13**
+### `[x]` **1.1 Pass `arc start --from` seeds through, and refuse `--from` on the spawning arm — § 13**
 
 - _Goal:_ A cold start reads only an issue reference as a field (`Origin`) and passes every other seed through for the
   agent to read, entering at `draft-design` with no `Design`, and the spawning arm refuses `--from` instead of dropping
   it.
 
-    - `[ ]` **1.1.a The cold start takes a `draft-` or `spec-` seed as a document**
+    - `[x]` **1.1.a The cold start takes a `draft-` or `spec-` seed as a document**
 
-        - `parseSpecInput` (`lib/active/spec-input-parser.ts`), whose one caller is `runColdStart`
-          (`commands/start.ts`), drops its `arc-spec` kind, so a `draft-` or `spec-` pointer, by path or URL, parses as
-          a `document`; `issue` keeps setting `Origin`, and the cold start's meta records no `Design`.
-        - The `Design` path goes with the kind: `ColdStartResult`'s `design` and the start report's `Design:` line
-          (`handlers/start.ts`), `ScaffoldWorktreeParams`' `design` (`lib/git/worktree-scaffold.ts`), and the text
-          naming a seed as `Design` — `--from`'s help (`src/cli.ts`), the `StartOptions` doc (`handlers/start.ts`), the
-          parser's module doc, and the scaffold's `design` field docs.
-        - The tests that change, named with the fix: `__tests__/unit/commands/start.test.ts`'s cases reading
-          `ColdStartResult`'s `design`, the one routing an ARC spec artifact to it among them;
-          `worktree-scaffold.test.ts`'s `design` case; and `spec-input-parser.test.ts`'s `arc-spec` cases.
+        - Removed `arc-spec` and the cold-start/scaffold `design` inputs and reporting. Draft/spec paths and URLs pass
+          through as documents; issue references still set `Origin`. Updated `start.test.ts`, `worktree-scaffold.test.ts`,
+          and `spec-input-parser.test.ts` around the generated meta and pass-through result.
 
-        - Build `test-first` (one behavior at a time):
-            - an issue reference sets `Origin`
-            - a `draft-` seed, by path, sets no `Design`, enters at `draft-design`, and is reported passed through
-            - a `spec-` seed, by path or URL, sets no `Design` and enters at `draft-design`
-            - a description passes through and sets no field
+    - `[x]` **1.1.b The spawning arm refuses `--from` without `--here`**
 
-    - `[ ]` **1.1.b The spawning arm refuses `--from` without `--here`**
+        - The handler refuses before spawning, naming the in-place form. `start-dispatch.test.ts` covers the refusal
+          without a new branch or worktree and the ordinary spawn. The three `rename.e2e.test.ts` starts drop the seed.
 
-        - In `handleStart` (`handlers/start.ts`), where the `--from` guard runs after `resolveStartDispatch`, refuse a
-          `create-new` dispatch without `--here` before `createNew` runs, naming `arc start --here --from <seed>` run
-          from the checkout meant for the new work.
-        - The three cases in `__tests__/e2e/rename.e2e.test.ts` that run `arc start <name> --new --from internal`
-          drop the seed, named with the fix.
+    - `[x]` **1.1.c Correct the session-init cold-start step**
 
-        - Build `test-first` (one behavior at a time):
-            - `arc start <name> --new --from <seed>` refuses, naming the `--here` form, and spawns nothing
-            - `arc start <name> --new` without `--from` spawns as today
-
-    - `[ ]` **1.1.c Correct the session-init cold-start step**
-
-        - In `arc/system/workflows/arc/session-lifecycle/session-init.template.md` and the installed
-          `.arc/system/workflows/arc/session-lifecycle/session-init.md`, the cold-start step's seed sentence stops
-          naming an ARC draft or spec artifact (`draft-` / `spec-`) as read into `Design` and names it among the seeds
-          passed through for the agent to interpret. The text is shipped content: state the behavior only.
-        - Edit the package template, then the installed copy, never copying one over the other. The two copies are
-          proven equal by `__tests__/integration/framework-sync.test.ts`, which renders each Framework file's package
-          source and compares it with the installed copy; `scripts/check-package-sync.sh`, given both changed paths with
-          `ARC_CHECK_BASE` set, only warns for a Framework file edited without its package counterpart, failing only on
-          a Configurable file byte-identical to its package source.
+        - The package template and installed workflow describe issue-only `Origin` assignment and every other seed
+          passing through as planning input.
 
 ### `[ ]` **1.2 Delete the code no production path reaches — § 1.4**
 

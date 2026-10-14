@@ -362,7 +362,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
+    "Seed input — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
