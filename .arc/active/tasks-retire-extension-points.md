@@ -84,23 +84,14 @@ _Purpose:_ Exhaust the remaining workflow families without weakening PR creation
 
 _Mode:_ `replication` through Phase 5 — closes on the complete live mechanism surface removed and batch-verified.
 
-### `[ ]` **3.1 Retire PR hooks while preserving exact-target review — D3, D8**
+### `[x]` **3.1 Retire PR hooks while preserving exact-target review — D3, D8**
 
 - _Goal:_ PR creation, reuse, and review retain exact target authority after every PR hook is removed.
 
-- _Note:_ See `notes-retire-extension-points.md` § Workflow and validator map.
-
-    - In `integrate-work-unit` and `run-errand`, remove `proposedChangeRequest` and pre-create action blocks while
-      preserving resolver dispatch, binding, merge-lock routing, and immediate pre-create `--require-remote` replay.
-    - Remove the WU's hook-only `openedChangeRequest`; preserve binding to the resolver's open PR and typed Candidate
-      and review targets. Retain the Errand payload, refresh after head movement, and planning-grooming target equality.
-    - Remove all remaining PR/push hook qualifications, declarations, markers, and links from these workflows.
-    - Rename `__tests__/integration/pr-open-extensions.test.ts` for the surviving PR lifecycle subject and update
-      `local-vitest-runner.ts` routing. Keep mixed review-gate packaging coverage of surviving behavior.
-    - Build `test-first` (one behavior at a time):
-        - Creation still refuses an incorrect remote head; reuse/reopen/create dispatch binds the current exact PR.
-        - Publication/lane ordering, review contracts, and Errand planning-grooming equality/refresh remain enforced.
-        - Push authorization, release routing, approved review fixes, and final-head stops survive hook deletion.
+- _Outcome:_ Retired PR/push dispatch, proposed creation payloads, and the WU hook-only opened payload. Preserved
+  immediate remote-head replay, resolver binding, merge locks, and Errand payload refresh/adapter equality. Renamed
+  the mixed PR-lifecycle suite and routing, removed exclusive fixtures, and retained review, publication, reuse, and
+  final-head checks.
 
 ### `[ ]` **3.2 Retire planning, task, and commit fire points — D3, D8**
 

@@ -14,18 +14,26 @@ async function markdownFiles(directory: string): Promise<string[]> {
   return entries.filter((entry) => entry.endsWith(".md")).map((entry) => resolve(directory, entry));
 }
 
-describe("PR-open lifecycle extensions", () => {
-  it.each([
-    [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open", false, true],
-    [packageArc, "system/extensions/post-pr-open.md", "post-pr-open", false, true],
-    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", false, true],
-    [projectArc, "system/extensions/post-pr-open.md", "post-pr-open", false, false],
-  ])("registers the managed extension at %s/%s", async (base, relative, name, active, placeholder) => {
-    const content = await readFile(resolve(base, relative), "utf8");
-    expect(content).toContain(`name: ${name}`);
-    expect(content).toContain(`active: ${active}`);
-    expect(content.includes(`[No extension configured]`)).toBe(placeholder);
-    expect(content.match(/^## .*\.actions$/gmu)).toHaveLength(1);
+describe("PR lifecycle and review contracts", () => {
+  it("omits retired dispatch from PR workflows while retaining resolver binding", async () => {
+    for (const base of [packageArc, projectArc]) {
+      for (const path of ["work-unit-lifecycle/integrate-work-unit.md", "supplemental/run-errand.md"]) {
+        const workflow = await readFile(resolve(base, "system/workflows/arc", path), "utf8");
+        expect(workflow).not.toContain("proposedChangeRequest");
+        expect(workflow).not.toMatch(/#(?:pre-pr-open|post-pr-open|pre-push-review)/u);
+      }
+    }
+  });
+
+  it("retains exact opened-target authority across Errand head movement", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const workflow = (await readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"))
+        .replace(/\s+/gu, " ");
+      expect(workflow).toContain("openedChangeRequest = { repositoryRef, hostRef, headSha }");
+      expect(workflow).toContain("recompose `openedChangeRequest` from the canonical current head before re-entry");
+      expect(workflow).toContain("Continue only when `openedChangeRequest` and the adapter target name the same exact head");
+      expect(workflow).toContain("No review-authored commit or push may occur after this checkpoint");
+    }
   });
 
   it("removes the legacy hook from live product surfaces", async () => {
@@ -53,22 +61,15 @@ describe("PR-open lifecycle extensions", () => {
     expect(matches).toEqual([]);
   });
 
-  it("preserves independent Configurable update identities", async () => {
-    const classification = await readFile(resolve(root, "packages/arc-framework/src/lib/classification.ts"), "utf8");
-    expect(classification).toContain('"system/extensions/pre-pr-open.md"');
-    expect(classification).toContain('"system/extensions/post-pr-open.md"');
-    expect(classification).toContain('"system/extensions/pre-merge.md"');
-  });
-
-  it("places work-unit hooks on create, re-entry, and the ready checkpoint", async () => {
+  it("orders work-unit creation, review binding, and the ready checkpoint", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
     );
     const push = workflow.indexOf("Push the WU branch upstream");
-    const preOpen = workflow.indexOf("Immediately before creation");
+    const preOpen = workflow.indexOf("--require-remote");
     const create = workflow.indexOf("gh pr create");
-    const postOpen = workflow.indexOf("compose `openedChangeRequest");
+    const postOpen = workflow.indexOf("Bind the open PR");
     const checkpoint = workflow.indexOf("arc integrate checkpoint {name}");
     const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
     const mergeInterlock = workflow.indexOf("`integration-interlock`", finalHead);
@@ -81,7 +82,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(mergeInterlock).toBeLessThan(merge);
     expect(workflow.slice(finalHead, mergeInterlock)).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
     expect(workflow).toContain("`integrating`; `open`");
-    expect(workflow).toContain("`post-pr-open` → review iteration");
+    expect(workflow).toContain("Step 2 (review iteration)");
   });
 
   it("schedules publication in preparation before the integration push", async () => {
@@ -97,15 +98,13 @@ describe("PR-open lifecycle extensions", () => {
       const publicationStep = prepare.indexOf("## 3) Schedule publication");
       const submit = prepare.indexOf("arc publish {name}", publicationStep);
       const commitInterlock = prepare.indexOf("`commit-interlock`", submit);
-      const pushExtension = integrate.indexOf("#pre-push-review");
-      const pushInterlock = integrate.indexOf("`push-interlock`", pushExtension);
+      const pushInterlock = integrate.indexOf("`push-interlock`");
       const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
 
-      expect([publicationStep, submit, commitInterlock, pushExtension, pushInterlock, push]
+      expect([publicationStep, submit, commitInterlock, pushInterlock, push]
         .every((index) => index >= 0)).toBe(true);
       expect(publicationStep).toBeLessThan(submit);
       expect(submit).toBeLessThan(commitInterlock);
-      expect(pushExtension).toBeLessThan(pushInterlock);
       expect(pushInterlock).toBeLessThan(push);
       expect(prepare).not.toContain("#pre-push-review");
       const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -154,7 +153,7 @@ describe("PR-open lifecycle extensions", () => {
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
     );
-    const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
+    const openedChangeRequest = workflow.indexOf("Bind the open PR");
     const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
     const deliveryResume = workflow.indexOf("`resolve-delivery-status`", reservation);
     const publishedSingleton = workflow.indexOf("For an ordinary singleton with a carried reservation", deliveryResume);
@@ -247,14 +246,12 @@ describe("PR-open lifecycle extensions", () => {
       workflow.indexOf("The no-match creation arm"),
       workflow.indexOf("4. **Enter the open PR.**"),
     );
-    const hook = creation.indexOf("If `pre-pr-open` is active");
     const guard = creation.indexOf(
       "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote`",
     );
     const create = creation.indexOf("gh pr create --base");
 
-    expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
-    expect(hook).toBeLessThan(guard);
+    expect([guard, create].every((index) => index >= 0)).toBe(true);
     expect(guard).toBeLessThan(create);
     expect(creation).toMatch(softWrappedProse("pre-create validation requires the remote branch itself"));
     // The typed resolver owns the head check; a hand-rolled remote parse here
@@ -262,33 +259,6 @@ describe("PR-open lifecycle extensions", () => {
     expect(creation).not.toContain("git ls-remote");
   });
 
-  it("keeps WU and Errand hook ordering symmetric", async () => {
-    const workflows = await Promise.all([
-      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
-      "system/workflows/arc/supplemental/run-errand.md",
-    ].map((path) => readFile(resolve(packageArc, path), "utf8")));
-    for (const workflow of workflows) {
-      const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
-      const prCreate = workflow.indexOf("gh pr create");
-      const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
-      const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
-      expect([proposedChangeRequest, prCreate, openedChangeRequest, integrationInterlock]
-        .every((index) => index >= 0)).toBe(true);
-      expect(proposedChangeRequest).toBeLessThan(prCreate);
-      expect(openedChangeRequest).toBeGreaterThan(prCreate);
-      expect(workflow.toLowerCase()).toContain("halt before later actions");
-    }
-  });
-
-  it("uses one workflow-wide WU push contract", async () => {
-    const workflow = await readFile(
-      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      "utf8",
-    );
-
-    expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
-    expect(workflow).toMatch(softWrappedProse("Before every agent-managed push in this workflow"));
-  });
 
   it("keeps self-review author-side and provider-neutral", async () => {
     for (const base of [packageArc, projectArc]) {
@@ -659,30 +629,9 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("keeps post-open and pre-merge as dormant extension seams", async () => {
-    for (const name of ["post-pr-open", "pre-merge"]) {
-      const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");
-      const packaged = await readFile(resolve(packageArc, `system/extensions/${name}.md`), "utf8");
-      expect(project).toContain("active: false");
-      expect(project).not.toMatch(/coordinate-pr-review|controller/iu);
-      expect(project).toMatch(/1\. \*\*/u);
-      expect(packaged).toContain("[No extension configured]");
-      expect(packaged).not.toMatch(/coordinate-pr-review|controller/iu);
-    }
-  });
-
-  it("ships every packaged workflow referenced by the new extension family", async () => {
+  it("ships the Errand review workflow", async () => {
     const recipe = await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8");
     expect(recipe).toContain('"system/workflows/arc/supplemental/run-errand.md"');
-    const finalHook = await readFile(resolve(packageArc, "system/extensions/pre-merge.md"), "utf8");
-    expect(finalHook).toContain("read-only, idempotent, or retry-safe");
   });
 
-  it("keeps pre-pr-open action-neutral after frontline review moves to its method", async () => {
-    const project = await readFile(resolve(projectArc, "system/extensions/pre-pr-open.md"), "utf8");
-    const packaged = await readFile(resolve(packageArc, "system/extensions/pre-pr-open.md"), "utf8");
-
-    expect(project).toBe(packaged);
-    expect(project).not.toMatch(/CodeRabbit|review-triage|classify-change/iu);
-  });
 });

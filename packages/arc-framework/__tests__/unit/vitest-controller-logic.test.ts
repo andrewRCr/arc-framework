@@ -24,7 +24,7 @@ const tiers = [
   ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
   ["integration", ["--project", "integration"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
-    "pr-open-extensions", "review-gate-workflows", "ci-check-plumbing",
+    "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
     "markdown/descriptor-spacing",
     "task-list/scanner",
     "work-unit/boundary-fit-workflow-contract",
