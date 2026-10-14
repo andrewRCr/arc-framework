@@ -9,6 +9,7 @@ arc:
     - assess-parallel-fit
     - classify-review-risk
     - commit-format
+    - pull-request-format
     - commit-footer
     - frontline-review
     - standard-review
@@ -173,7 +174,9 @@ Run each review increment (one for a typical errand; a few for an extended one):
    > `workflow-interlock`: Stop after the change is complete and its gates pass. Surface the diff and verification
    > status; await approval before committing. For the final increment, approval also releases into Integrate.
 
-2. **Commit** on approval — the change carries a `standalone (...)` context footer (no work unit owns it):
+2. **Commit** on approval — load [commit-format][commit-format] for the message and
+   [pull-request-format][pull-request-format] for its decision guide in both protection modes. The change carries a
+   `standalone (...)` context footer (no work unit owns it):
 
    > [!CAUTION]
    > `commit-interlock` release — commit as `taskCommit` (the gate above precedes the commit; a determinate
@@ -183,15 +186,14 @@ Run each review increment (one for a typical errand; a few for an extended one):
    <type>(<scope>): <errand summary>
 
    - <what changed, and why it matters>
-   - <a settled decision: the choice, the alternative it beat, and why>
+   - <a qualifying decision: the choice, the alternative it beat, and why>
 
    Context: standalone (<kind>)
    ```
 
-   Record each fork the Errand settled as one body bullet in plain prose: the choice, the alternative it was chosen
-   over, and the reason. Decisions are body content under the `commit-format` convention, so the final trailer block
-   holds only `Context:`. Omit decision bullets when no fork was settled. Partial protection records decisions in
-   the commit only.
+   Record each qualifying decision from that guide as one plain-prose body bullet: the choice, the alternative,
+   and why, without a Markdown descriptor. Omit decision bullets when none qualify. The final trailer block holds
+   only `Context:`; partial protection records decisions in the commit only.
 
    See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
@@ -345,16 +347,9 @@ remote base all name the same exact head. Any tracked change continues through t
    - `merged-stale-head / reconcile-head` — surface the stale candidate and reconcile before rerunning this step.
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
-   Title the PR with the single commit's subject, or compose a subject for the dominant change by the
-   [`commit-format` method][commit-format].
-
-   The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary; a `## Decisions` section when the Errand settled a fork, one bullet per decision that names the
-   question in an italic descriptor, then gives the choice, the alternative it was chosen over, and the reason in
-   plain prose (`- _Copy timing:_ before the setup script rather than after it, since setup scripts read the copied
-   files.`); and a one-line Test Plan only when verification is non-obvious. When gated local review ran,
-   include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
-   Follow-Up sections.
+   In the no-match creation arm, load [pull-request-format][pull-request-format] before composing the title or
+   body. Follow its title rule and shared body guidance, including target-project prescriptions and qualifying
+   decisions. Compose from the change, design, and verification.
 
    Immediately before creation, re-invoke:
 
@@ -473,6 +468,13 @@ remote base all name the same exact head. Any tracked change continues through t
 
      > [!CAUTION]
      > `push-interlock` release — `workflowPush`: `origin <branch>`.
+
+     After an approved fix is pushed, load [pull-request-format][pull-request-format] before editing the open
+     description. Update every section and qualifying decision the fix made inaccurate. For a design link, run
+     `git diff --quiet <pinned> HEAD -- <paths>` over every linked path of a layered design, and
+     `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose
+     command errors rather than treating them as successful checks. With no design link, skip the link checks.
+     On GitHub, apply the description with `gh pr edit <n> --body-file <path>` before review re-entry.
 
      Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
      for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
@@ -764,3 +766,4 @@ idempotent and may return the next file-ordered execute-bound offer.
 [route-discovered-work]: ../../../methods/route-discovered-work.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
+[pull-request-format]: ../../../methods/pull-request-format.md

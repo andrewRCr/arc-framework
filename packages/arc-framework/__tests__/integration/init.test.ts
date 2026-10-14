@@ -275,6 +275,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(projectBriefing.isFile()).toBe(true);
   });
 
+  it("resolves the pull-request method links in an installed core corpus", async () => {
+    const method = await readFile(join(arcDir, "system/methods/pull-request-format.md"), "utf8");
+    const targets = [...method.matchAll(/^\[[^\]]+\]:\s+([^#\s]+)/gmu)].map((match) => match[1]!);
+    expect(targets.length).toBeGreaterThan(0);
+    for (const target of targets) {
+      const installed = join(arcDir, "system/methods", target);
+      await expect(readFile(installed, "utf8")).resolves.not.toBe("");
+    }
+  });
+
   it("installs the canonical design-audit skill source as core Framework", async () => {
     const skillPath = "system/.internal/skills/arc-design-audit/SKILL.md";
     expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
@@ -304,6 +314,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "adversarial-review.md",
       "route-discovered-work.md", "classify-review-risk.md", "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
+      "pull-request-format.md",
       "design-audit.md",
       "disposition-report.md",
       "frontline-review.md",
@@ -351,7 +362,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const methodNames = [
         "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
         "assess-evidence-applicability", "adversarial-review",
-        "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format",
+        "route-discovered-work", "classify-review-risk", "classify-work-unit", "commit-footer", "commit-format", "pull-request-format",
         "frontline-review", "standard-review", "implementation-audit", "review-chunking", "self-review",
         "design-audit", "disposition-report",
         "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",

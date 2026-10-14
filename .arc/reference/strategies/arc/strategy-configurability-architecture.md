@@ -266,8 +266,8 @@ Most config settings are straightforward toggles. Some carry deeper implications
   with P6 (traceability).
 - **`rebase`** (convention, tier 2) — Commits replayed onto a new base for linear history. Hashes change,
   which can complicate traceability if commits are referenced elsewhere by hash.
-- **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
-  PR descriptions must carry the traceability that individual commits would normally provide.
+- **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. The pull-request title
+  becomes the commit subject.
 
 **Merge lock** (`merge.lock`) decides whether a pull request is held unmergeable until the work is cleared to
 land:

@@ -70,6 +70,13 @@ the alternative it was chosen over, and the reason: a bullet under its PR body's
 bullet in its commit, in place of the `Decided: X over Y — because Z` paragraph question 4 quotes. The record test is
 unchanged; question 4 reads against that line.
 
+**Amendment (2026-10-14):** Qualifying Errand decisions appear under `## Notes for Reviewers` in the pull request
+and as plain-prose commit-body bullets. A decision qualifies when a credible alternative existed and its rationale
+is not visible in the diff; implementation-local, convention-forced, and process decisions are excluded, and
+deliberate exclusions belong in Out of Scope. Each qualifying decision names the choice, the alternative, and why;
+the pull request adds an italic question descriptor. Both surfaces record every qualifying decision rather than
+every settled fork. The record test and the earlier amendment's historical text remain unchanged.
+
 ## Amending This Document
 
 ---

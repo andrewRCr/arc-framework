@@ -248,6 +248,19 @@ describe("framework sync (self-hosting drift check)", () => {
     }
   });
 
+  it("ships pull-request formatting with recipe-derived classification and pristine content", async () => {
+    const methodPath = "system/methods/pull-request-format.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({ classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex") });
+  });
+
   it("ships discovered-work routing as a configurable core method", async () => {
     const methodPath = "system/methods/route-discovered-work.md";
     const recipe = JSON.parse(await readFile(

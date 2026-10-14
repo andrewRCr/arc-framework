@@ -157,6 +157,56 @@ describe("update integration — baseline (real recipe)", () => {
     });
   });
 
+  it("replaces the old Framework pull-request template with the configurable method", async () => {
+    const old = "reference/templates/arc/work-unit/template-pull-request.md";
+    const method = "system/methods/pull-request-format.md";
+    const baseline = await readFile(join(import.meta.dirname, "../fixtures/legacy-pull-request-template.txt"), "utf8");
+    const manifest = await readManifestFile(tempDir);
+    const pristine = await readPristineStore(tempDir);
+    await ensureDir(dirname(join(tempDir, ".arc", old)));
+    await writeFile(join(tempDir, ".arc", old), baseline, "utf8");
+    manifest.files[old] = { classification: "Framework", layer: "core", pristine_hash: sha256(baseline) };
+    pristine[old] = baseline;
+    Reflect.deleteProperty(manifest.files, method);
+    Reflect.deleteProperty(pristine, method);
+    await rm(join(tempDir, ".arc", method));
+    await writeFile(manifestPath(tempDir), JSON.stringify(manifest), "utf8");
+    await writePristineStore(tempDir, pristine);
+
+    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+      templateDir: realTemplateDir, recipe: await loadRecipe() });
+    expect(result.conflicts).toEqual([]);
+    expect(result.removed).toContain(old);
+    expect(await fileExists(join(tempDir, ".arc", old))).toBe(false);
+    expect(await fileExists(join(tempDir, ".arc", method))).toBe(true);
+    const updated = await readManifestFile(tempDir);
+    const updatedPristine = await readPristineStore(tempDir);
+    expect(updated.files[old]).toBeUndefined();
+    expect(updatedPristine[old]).toBeUndefined();
+    expect(updated.files[method]?.classification).toBe("Configurable");
+    expect(updatedPristine[method]).toBe(await readFile(join(realTemplateDir, method), "utf8"));
+  });
+
+  it("preserves a populated pull-request-format override and packaged pristine hash", async () => {
+    const methodPath = "system/methods/pull-request-format.md";
+    const installedPath = join(tempDir, ".arc", methodPath);
+    const customized = (await readFile(installedPath, "utf8"))
+      .replace("override-active: false", "override-active: true")
+      .replace("[No override configured]", "Keep the project disclosure and reviewer checklist.\nUse an imperative title.");
+    await writeFile(installedPath, customized, "utf8");
+    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+      templateDir: realTemplateDir, recipe: await loadRecipe() });
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(installedPath, "utf8")).toBe(customized);
+    expect((await readManifestFile(tempDir)).files[methodPath]).toMatchObject({
+      classification: "Configurable", layer: "core",
+      pristine_hash: sha256(await readFile(join(realTemplateDir, methodPath), "utf8")),
+    });
+    expect((await readPristineStore(tempDir))[methodPath]).toBe(
+      await readFile(join(realTemplateDir, methodPath), "utf8"),
+    );
+  });
+
   it("preserves assess-boundary-fit overrides as Configurable content", async () => {
     const methodPath = "system/methods/assess-boundary-fit.md";
     const installedPath = join(tempDir, ".arc", methodPath);

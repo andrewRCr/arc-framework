@@ -6,7 +6,7 @@ Project-owned templates live in `../project/` (never touched by `arc update`).
 ## Contents
 
 - `work-unit/` — work-unit artifact templates: `template-draft.md`, `template-tasks.md`, `template-cohort.md`,
-  `template-pull-request.md`, and the `spec/` form family (`template-spec-brief.md`, `template-spec-outline.md`,
+  and the `spec/` form family (`template-spec-brief.md`, `template-spec-outline.md`,
   `template-spec-detailed-prd.md`, `template-spec-detailed-rfc.md` — the form is signalled by the H1, not the filename).
 - `template-adr.md` — Architecture Decision Record skeleton.
 - `template-workflow.md` — workflow-authoring skeleton.

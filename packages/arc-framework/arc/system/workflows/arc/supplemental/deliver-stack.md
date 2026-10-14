@@ -11,6 +11,7 @@ arc:
     - review-response
     - review-chunking
     - validate-criteria
+    - pull-request-format
 ---
 
 # Workflow: Deliver Stack
@@ -127,29 +128,29 @@ applicability method.
 
 ## Validate and publish
 
-Before the first mutation, load both the ordinary and delivery-member forms of
-[`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
-deliverable ID plus the ordinary terminal request as `terminalPresentation`:
+Before the first mutation, load [pull-request-format][pull-request-format]. Use its non-terminal guidance for
+one `presentations` entry per non-terminal deliverable ID, and its full title/body policy for `terminalPresentation`:
 
 ```json
 {
   "presentations": [{
     "deliverableId": "{canonical deliverable ID}",
     "summary": "{reviewer-facing purpose and outcome}",
-    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
-    "designReference": "{accessible filename or URL}"
+    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }]
   }],
   "terminalPresentation": {
-    "title": "{ordinary Conventional Commits pull-request title}",
+    "title": "{authored terminal title under the method contract}",
     "body": "{complete ordinary work-unit pull-request body}"
   }
 }
 ```
 
-`summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
-Author the terminal `title` as an ordinary Conventional Commits subject: in a multi-member delivery it is also the
-source of the delivery-wide identity, so the verb takes its type from there and refuses
-(`terminal-title-not-conventional`) when it is not an admitted conventional subject.
+`summary`, terminal `title`, and terminal `body` are required; `changes` is content-gated. Do not supply
+`designReference`. For a multi-member delivery, author the terminal title as an admitted Conventional Commits subject
+under the method's contract: the verb derives the shared type from that title and refuses
+`terminal-title-not-conventional` when it cannot. A one-member delivery's authored title follows the method's
+ordinary title policy.
+
 Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
 locators, and the same `gateResults` list to the sole initial mutation verb:
 
@@ -165,11 +166,11 @@ top-branch push, then requests bottom-up. Each request is based on its predecess
 originating branch over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒
 `true`) so every request opens under the configured hold; the landing sequence releases that lock only after readiness.
 The verb composes every request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` —
-one shared type and scope taken from the authored terminal title, positions from the canonical plan, and non-terminal
-summaries from the plan's member titles — so delivery identity and the complete range stay visible even when the host
-cannot link the requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
-presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A failed
-request step retains its reservation for `reconcile` or an exact publication retry.
+the shared type comes from the authored terminal title, scope is the work-unit ID, positions come from the canonical
+plan, and non-terminal summaries come from the plan's member titles — so delivery identity and the complete range stay
+visible even when the host cannot link the requests natively. A one-member delivery is not a stack and keeps its
+authored title unchanged. Authored presentation is used only when creating a missing request; an exact existing request
+is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
@@ -724,6 +725,10 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
+  Before executing that status action after the approved correction is pushed, load
+  [pull-request-format][pull-request-format] and perform [integration's description upkeep][description-upkeep] for
+  the terminal request identified by the canonical delivery bindings. Edit the description only, then pass the
+  retained status action unchanged; this step grants no authoring, settlement, or review-admission authority.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
@@ -803,6 +808,7 @@ terminal merge. Do not fire a delivery interlock here.
 [review-chunking]: ../../../methods/review-chunking.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
-[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [validate-criteria]: ../../../methods/validate-criteria.md
 [review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
+[pull-request-format]: ../../../methods/pull-request-format.md
+[description-upkeep]: ../work-unit-lifecycle/integrate-work-unit.md#2-review-iteration

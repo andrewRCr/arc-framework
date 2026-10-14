@@ -3,6 +3,7 @@ name: commit-format
 description: Commit message format — structure, types, scope, body conventions
 related:
   - commit-footer
+  - pull-request-format
 override-active: false
 ---
 
@@ -13,8 +14,8 @@ override-active: false
 >
 > - **Contract:** Commits follow a consistent, communicative format that enables automated tooling and readable
 >   history.
-> - **Related:** [commit-footer](commit-footer.md) — format changes may require context footer
->   adaptation
+> - **Related:** [commit-footer](commit-footer.md) — context footer adaptation;
+>   [pull-request-format](pull-request-format.md) — title grammar and decision content
 
 ## commit-format.override
 
@@ -30,6 +31,9 @@ Conventional commit format.
 - Key change or rationale (1-2 lines per bullet)
 - Impact if significant
 ```
+
+A decision bullet names the choice, the alternative, and why in plain prose, as the
+[decision guide](pull-request-format.md#decision-guide) defines.
 
 ### Literal workflow subject identities
 
