@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "grounding-caller-reach",
+  "claimId": "25934d749d5124cbe7d915a03bd1cf55",
+  "createdAt": "2026-10-14T00:28:48.147Z",
+  "updatedAt": "2026-10-14T00:28:48.147Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Ground an inherited behavior-unchanged premise per caller, derive a sweep's reach from the named symbols' callers, and inventory the readers of a changed invariant in source-grounding",
+  "branch": "chore/grounding-caller-reach",
+  "origin": "inbox",
+  "originEntry": "Ground a \"today's behavior holds\" premise per caller, and sweep callers past the spec's own file list",
+  "originEntrySourceDigest": "sha256:78c4a1f5c4950cd83875ada51d26f6af41bd3ef89cc0eefa72691e308a4c9453",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
