@@ -985,6 +985,65 @@ describe("Errand review status", () => {
     });
   });
 
+  it("offers the first standard pass's hosted request only from the Errand's own checkout", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-resolve-first-pass-", identity: "andrew" });
+    roots.push(root);
+    await git(root, ["commit", "--allow-empty", "-m", "base"]);
+    const slug = "first-pass-errand";
+    const branch = `chore/${slug}`;
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug, claimId: "0123456789abcdef0123456789abcdef", purpose: "errand",
+      origin: "description", originEntry: null, intent: "Request the first hosted pass", branch, state: "open",
+      savedHead: null, changeRequest: null,
+      createdAt: "2026-09-13T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["switch", "-c", branch]);
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"), "review.standard_sources: [codex-pr]\n", "utf8");
+    await writeFile(join(root, "change.txt"), "first\n", "utf8");
+    await git(root, ["add", "change.txt"]);
+    await git(root, ["commit", "-m", "change"]);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const target = { repository: "owner/repo", pullRequest: 42, headSha };
+    const standardReview = {
+      obligation: "required", reasons: ["sensitive-change-set"],
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1,
+    };
+    const resolveStandard = async (): Promise<unknown> => {
+      const output: string[] = [];
+      const exitCodes: number[] = [];
+      await handleReviewResolve("-", {
+        resolveRoot: () => root,
+        readText: async () => JSON.stringify({
+          schemaVersion: 1, target, lane: "standard", frontlineActive: true, completedPasses: 0, attempts: [],
+          standardReview, scopeSelection: { mode: "whole-target", target },
+          invocation: { mode: "force", sourceId: "codex-pr" },
+        }),
+        write: (text) => output.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      });
+      expect(exitCodes).toEqual([]);
+      return JSON.parse(output.join(""));
+    };
+    await expect(resolveStandard()).resolves.toMatchObject({
+      state: "ready", nextAction: "hosted-request",
+      action: {
+        schemaVersion: 1, target, provider: "codex-pr", coverage: "complete",
+        vehicle: { kind: "errand", standardReview },
+      },
+    });
+    // Outside the Errand's checkout the subject may be a delivery member, whose request carries its own vehicle.
+    await git(root, ["switch", "main"]);
+    const outside = await resolveStandard();
+    expect(outside).toMatchObject({ state: "ready", nextAction: "hosted-request" });
+    expect(outside).not.toHaveProperty("action");
+  });
+
   it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-ceiling-", identity: "andrew" });
     roots.push(root);

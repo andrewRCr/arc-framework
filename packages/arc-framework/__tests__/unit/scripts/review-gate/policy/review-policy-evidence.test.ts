@@ -696,6 +696,19 @@ describe("evidence-bound review policy", () => {
     })).rejects.toThrow(/frontline phase closure can be applied only to the frontline lane/u);
   });
 
+  it("binds a repository-proven Errand vehicle into the first pass's hosted request", async () => {
+    const opening = {
+      schemaVersion: 1 as const, target: policyTarget, lane: "standard" as const, standardReview,
+      completedPasses: 0, attempts: [], invocation: { mode: "force" as const, sourceId: "codex-pr" },
+    };
+    const evidence = { ...dependencies(cleanHostedResult()), sources: ["codex-pr"], maxPasses: 2 };
+    await expect(resolveEvidenceBoundReviewPolicy(opening, evidence)).resolves.not.toHaveProperty("action");
+    await expect(resolveEvidenceBoundReviewPolicy(opening, { ...evidence, errandVehicle: true }))
+      .resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", action: {
+        target: policyTarget, provider: "codex-pr", coverage: "complete", vehicle: { kind: "errand", standardReview },
+      } });
+  });
+
   it("does not spend a pass from a stale nonhosted record-only settlement after a successor fix", async () => {
     const result = chunkedLocalAggregateResult();
     if (result.kind !== "attested-local") throw new Error("expected local aggregate");

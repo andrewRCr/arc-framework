@@ -1597,6 +1597,16 @@ async function errandFrontlinePhaseClosed(
   });
 }
 
+/** Whether a standard-lane request on an opened change request comes from the subject Errand's own checkout. */
+async function errandStandardVehicle(
+  request: ReviewPolicyCommandRequest,
+  input: { root: string; exec: GitExec },
+): Promise<boolean> {
+  if (request.lane !== "standard" || request.target.pullRequest === null) return false;
+  const live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.root });
+  return live.context.workUnit === null && live.context.errand !== null;
+}
+
 function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
@@ -1628,10 +1638,12 @@ async function resolveConfiguredReviewPolicy(
   const phaseClosed = await errandFrontlinePhaseClosed(request, {
     root, exec, publisher, operationStore, resultReader, dispositionStore,
   });
+  const errandVehicle = await errandStandardVehicle(request, { root, exec });
   return resolveEvidenceBoundReviewPolicy(request, {
     sources,
     maxPasses,
     ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
+    ...(errandVehicle ? { errandVehicle: true } : {}),
     resultReader,
     dispositionStore,
     readResponsePerformance,
