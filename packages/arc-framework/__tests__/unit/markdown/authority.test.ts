@@ -333,9 +333,7 @@ describe("Markdown authority", () => {
       operation: "mutate" as const,
       allowIgnoredPaths: new Set([explicit ? "private/table.md" : "private/other.md"]),
       exec: scriptGitExec([
-        { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
-        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
-        { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
+        { match: ["rev-parse", "--is-inside-work-tree"], responses: [{ stdout: "true" }] },        { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
           responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
         { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
           responses: [{ stdout: "README.md\0" }] },
@@ -352,6 +350,22 @@ describe("Markdown authority", () => {
     } else {
       await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code: "markdown.ignored" });
     }
+  });
+
+  it.each(["unavailable", "invalid-output"])("refuses unestablished formatting ownership (%s)", async failure => {
+    await expect(validateExplicitMarkdownPaths({
+      root: "/repo", paths: ["private/table.md"], operation: "mutate",
+      allowIgnoredPaths: new Set(["private/table.md"]),
+      exec: scriptGitExec([
+        { match: ["rev-parse", "--is-inside-work-tree"], responses: [failure === "unavailable"
+          ? { failure: { exitCode: 128, stderr: "cannot read repository configuration" } }
+          : { stdout: "unknown" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"), isDirectory: () => !path.endsWith(".md"), isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    })).rejects.toMatchObject({ code: "markdown.selection-failed" });
   });
 
   it("rejects invalid and ignored explicit selections", async () => {

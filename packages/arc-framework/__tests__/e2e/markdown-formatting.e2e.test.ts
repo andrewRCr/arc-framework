@@ -45,6 +45,39 @@ afterEach(async () => {
 });
 
 describe("format:tables entry point", () => {
+  it.each(["standard", "separate", "ancestor"])("excludes nested Git metadata but admits nested worktree files (%s)", async mode => {
+    fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-nested-e2e-"));
+    await git(fixtureParent, ["init", "-q"]);
+    await writeAuthorityFixture(fixtureParent);
+    await writeFixtureFile(fixtureParent, ".gitignore", "vendor/\n");
+    const nestedPath = mode === "ancestor" ? "vendor/admin/tool" : "vendor/tool";
+    const nested = join(fixtureParent, nestedPath);
+    const adminPath = mode === "standard" ? `${nestedPath}/.git`
+      : mode === "separate" ? `${nestedPath}/git-admin` : "vendor/admin";
+    await mkdir(nested, { recursive: true });
+    await git(fixtureParent, ["init", "-q", ...(mode === "standard" ? []
+      : ["--separate-git-dir", join(fixtureParent, adminPath)]), nested]);
+    const original = "| A |\n| - |\n| 表 |\n";
+    const metadataFile = `${adminPath}/info/notes.md`;
+    const worktreeFile = `${nestedPath}/table.md`;
+    await writeFixtureFile(fixtureParent, metadataFile, original);
+    await writeFixtureFile(fixtureParent, worktreeFile, original);
+    await git(fixtureParent, ["check-ignore", worktreeFile]);
+
+    await expect(execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, worktreeFile, metadataFile], {
+      cwd: fixtureParent, encoding: "utf8",
+    })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("markdown.git-administration") });
+    expect(await readFile(join(fixtureParent, metadataFile), "utf8")).toBe(original);
+    expect(await readFile(join(fixtureParent, worktreeFile), "utf8")).toBe(original);
+
+    const retry = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, worktreeFile], {
+      cwd: fixtureParent, encoding: "utf8",
+    });
+    expect(retry.stdout).toContain(`formatted ${worktreeFile} `);
+    expect(await readFile(join(fixtureParent, worktreeFile), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+    expect(await readFile(join(fixtureParent, metadataFile), "utf8")).toBe(original);
+  });
+
   it.each(["tracked", "ignored"])("formats a worktree beneath its Git directory (%s)", async mode => {
     fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-ancestor-e2e-"));
     const root = join(fixtureParent, "admin", "repo");
