@@ -1,6 +1,7 @@
-/** Uncapped first-parent range parsing and recoverable repository read failures. */
+/** Uncapped first-parent range parsing, recoverable read failures, and the checked files merges brought in. */
 import { expect, it } from "vitest";
-import { readCheckMergedParents } from "../../../../src/lib/checks/merged.js";
+import type { GitExec } from "../../../../src/lib/git/exec.js";
+import { readCheckMergedParents, readMergedInPaths } from "../../../../src/lib/checks/merged.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 const base = "a".repeat(40);
 const tip = "b".repeat(40);
@@ -31,4 +32,39 @@ it("names a retry after a failed Git read and succeeds when the read is repaired
   const { exec } = scriptGitExec([{ match: args, responses: [{ failure: { exitCode: 128 } }, { stdout: "" }] }]);
   await expect(readCheckMergedParents(exec, "/repository", base, tip)).rejects.toThrow(/retry/u);
   expect(await readCheckMergedParents(exec, "/repository", base, tip)).toEqual([]);
+});
+
+/** A Git fake answering each tree comparison with the files that differ from its starting point, timing overlap. */
+function comparisons(differs: Record<string, string[]>) {
+  const started: string[] = [];
+  let running = 0;
+  let peak = 0;
+  const exec: GitExec = async (_command, args) => {
+    const start = args[5] ?? "";
+    started.push(start);
+    peak = Math.max(peak, ++running);
+    await new Promise(resolve => setTimeout(resolve, 1));
+    running--;
+    const blobs = `${"1".repeat(40)} ${"2".repeat(40)}`;
+    return { stdout: (differs[start] ?? []).map(path => `:100644 100644 ${blobs} M\0${path}\0`).join("") };
+  };
+  return { exec, started, peak: () => peak };
+}
+const tree = "c".repeat(40);
+const parents = ["d".repeat(40), "e".repeat(40), "f".repeat(40)];
+it("compares one merged-in parent at a time and names files changed since the base that match one", async () => {
+  const git = comparisons({ [base]: ["src/own.ts", "src/merged.ts"], [parents[0] ?? ""]: ["src/own.ts", "src/merged.ts"],
+    [parents[1] ?? ""]: ["src/own.ts"], [parents[2] ?? ""]: ["src/own.ts"] });
+  const mergedIn = await readMergedInPaths(git.exec, "/repository",
+    { base, tree, merged: parents, inputs: ["src/**"], paths: ["src/old.ts", "src/own.ts", "src/merged.ts"] });
+  expect(mergedIn).toEqual(["src/merged.ts"]);
+  expect(git.started).toEqual([base, ...parents]);
+  expect(git.peak()).toBe(1);
+});
+it("stops comparing once a parent settles every changed file", async () => {
+  const git = comparisons({ [base]: ["src/merged.ts"] });
+  const mergedIn = await readMergedInPaths(git.exec, "/repository",
+    { base, tree, merged: parents, inputs: ["src/**"], paths: ["src/merged.ts"] });
+  expect(mergedIn).toEqual(["src/merged.ts"]);
+  expect(git.started).toEqual([base, parents[0]]);
 });

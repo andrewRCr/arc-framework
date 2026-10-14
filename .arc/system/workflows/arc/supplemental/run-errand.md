@@ -269,14 +269,14 @@ remote base all name the same exact head. Any tracked change continues through t
    `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
    Errand binding carries that source and its ordered fallbacks through hosted request and await.
 
-   A converged result replays as complete: a clean pass, or one whose approved dispositions fix no confirmed
-   `critical` or `major` finding. If the Owner explicitly authorizes another named standard pass, carry the exact
-   target, preceding producer, completed-pass count, and next ordinal as `additionalPassAuthorization` through
-   `arc review resolve -`. Carry the full authorization on hosted admission, or its targetless fields under
-   `policyJudgment.additionalPassAuthorization` on local preparation.
-   For an open PR, `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the
-   outstanding review. A fresh decision is required for each later pass; the same decision covers a named
-   above-ceiling pass. A later material result enters the ordinary response route.
+   A converged result replays as complete: a clean pass, or one whose approved dispositions fix no confirmed `critical`
+   or `major` finding. If the Owner explicitly authorizes another named standard pass, carry the exact target, preceding
+   producer, completed-pass count, and next ordinal as `additionalPassAuthorization` through `arc review resolve -`.
+   Carry the full authorization on hosted admission, or its targetless fields under
+   `policyJudgment.additionalPassAuthorization` on local preparation. For an open PR,
+   `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the outstanding review. A fresh
+   decision is required for each later pass; the same decision covers a named above-ceiling pass. A later material
+   result enters the ordinary response route.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
@@ -369,18 +369,17 @@ remote base all name the same exact head. Any tracked change continues through t
    execute numbered actions in authored order immediately before creation; halt before later actions on failure.
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
-   Immediately before creation, re-invoke
-   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the
-   current head and dispatch on its typed state again. Continue only from `none / create-change-request`. This
-   pre-create validation requires the remote branch itself to carry the exact creation head, including after any
-   hook action.
+   Immediately before creation, re-invoke:
 
-   Then invoke `arc merge lock resolve -` with
-   `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`; `treeRoot` is the checkout path, not a Git
-   tree object ID. Follow only its typed action:
-   `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
-   creation before any PR exists. The lane is still unresolved here — it settles in Step 4 — so both lanes open the
-   same way, and no lane input reaches this call.
+   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the current head
+   and dispatch on its typed state again. Continue only from `none / create-change-request`. This pre-create validation
+   requires the remote branch itself to carry the exact creation head, including after any hook action.
+
+   Then invoke `arc merge lock resolve -` with `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`;
+   `treeRoot` is the checkout path, not a Git tree object ID. Follow only its typed action: `locked / open-locked`
+   creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
+   The lane is still unresolved here — it settles in Step 4 — so both lanes open the same way, and no lane input reaches
+   this call.
 
    ```bash
    gh pr create --base <base-branch> --head <branch>            # open-plain
@@ -413,15 +412,15 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
    incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
-   Owner-directed review stop below only from `ready / hosted-request`,
-   `ready / local-prepare`, or `approval-required / obtain-ceiling-override`; stop before source dispatch. Every
-   other driver state retains its typed action. Otherwise, on `ready / hosted-request`, read
-   `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver
-   call carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected
-   provider, pass that action unchanged to `arc review hosted request -`: after an approved fix it carries
-   `coverage: incremental` over only the fix range when that provider can, and its `detail` names the coverage.
-   Otherwise invoke `arc review hosted request -` with the selected provider, exact opened target,
-   `coverage: complete`, and `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
+   Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
+   `approval-required / obtain-ceiling-override`; stop before source dispatch. Every other driver state retains its
+   typed action. Otherwise, on `ready / hosted-request`, read `arc review status --target <targetRef>` with any ceiling
+   override or additional-pass authorization the driver call carried. When it returns
+   `review-required / review-hosted-request` with an `action` naming the selected provider, pass that action unchanged
+   to `arc review hosted request -`: after an approved fix it carries `coverage: incremental` over only the fix range
+   when that provider can, and its `detail` names the coverage. Otherwise invoke `arc review hosted request -` with the
+   selected provider, exact opened target, `coverage: complete`, and `vehicle: { kind: "errand", standardReview }` from
+   the routed Errand review facts:
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
@@ -444,15 +443,17 @@ remote base all name the same exact head. Any tracked change continues through t
      --poll-interval-ms 10000
    ```
 
-   Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis
-   by inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface
-   `failureLogs.failures` when retrieval is partial or unavailable.
-   `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
-   hosted-review `action`, and ends this foreground attempt.
-   `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
-   that action re-enters hosted await.
-   `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This observation does
-   not become review settlement, feed the review driver, move the exact head, or release the draft lock.
+   Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
+   inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
+   when retrieval is partial or unavailable. `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and
+   `diagnosticFailures`, retains the same hosted-review `action`, and ends this foreground attempt. `pending / await`,
+   `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only that action re-enters
+   hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This
+   observation does not become review settlement, feed the review driver, move the exact head, or
+   release the draft lock. Before any push that moves the reviewed head while this action is pending, including a fix
+   for a failure this observation found, re-enter the action through hosted await until it concludes and handle its
+   result first, so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner
+   direction, which gives up that result.
 
    Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
@@ -462,15 +463,13 @@ remote base all name the same exact head. Any tracked change continues through t
      `reviewOperationId` identifies the producer, while `hostedResultId` identifies the result content.
    - `findings / triage` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
-     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
-     approved set through the second `arc review respond -` call, and perform only its returned action through
-     [`review-response`][review-response]. That approval is the fix round's structured gate, so the steps below
-     follow without another stop where the configured interlocks release them
-     ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). When the approved call returns
-     `payload.hostedSettlementPlan` for
-     `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for
-     every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
-     actor. Settle each `beforeFixFindingIds`
+     `payload.dispositionReportText`, obtain complete-set approval, submit the exact approved set through the second
+     `arc review respond -` call, and perform only its returned action through [`review-response`][review-response].
+     That approval is the fix round's structured gate, so the steps below follow without another stop where the
+     configured interlocks release them ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). When
+     the approved call returns `payload.hostedSettlementPlan` for `settlement: reply-and-resolve` findings, execute its
+     phases in order: invoke `arc review hosted settle -` for every ID in the active phase, passing
+     `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor. Settle each `beforeFixFindingIds`
      entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
      before any approved fix changes the head. Then apply and verify the approved fixes, then commit and push them:
 
@@ -493,15 +492,17 @@ remote base all name the same exact head. Any tracked change continues through t
      for the current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
      never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it. Retain any
      returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact ceiling
-     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
-     On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
-     only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
-     mutation; every stop state remains a stop. After the required phases complete, follow the approved response
-     continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
-     action. A hosted response that settles with no fix returns `settled | already-settled / continue-review`;
-     continue from its `payload.policy` when present. Do not feed the same findings to the driver again. If the
-     Owner declined the pass the fix triggers, resolve the lane at the new head as usual and, from
-     `ready / hosted-request`, present the Owner-directed review stop offer below instead of requesting the pass.
+     override into the named hosted, local, or frontline admission; never reconstruct the authorization ID. On
+     `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later re-entry passes
+     `remedy.stdin` unchanged through `remedy.argv`. On re-entry, re-invoke the exact settlement request.
+     `already-settled / complete` advances the durable attempt only after the verb verifies the exact approved reply,
+     actor, comment, and resolved thread with no host mutation; every stop state remains a stop. After the required
+     phases complete, follow the approved response continuation and, after a fix, the verified-fix response continuation
+     through the owning status or resolve action. A hosted response that settles with no fix returns
+     `settled | already-settled / continue-review`; continue from its `payload.policy` when present. Do not feed the
+     same findings to the driver again. If the Owner declined the pass the fix triggers, resolve the lane at the new
+     head as usual and, from `ready / hosted-request`, present the Owner-directed review stop offer below instead of
+     requesting the pass.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -689,26 +690,26 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
      remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` requests
      `arc check new-head --from <pre-merge head>`, using the returned `expectedHead`, then pushes through the generic
      contract and returns through Step 4 before fresh approval. When that result's `dependencyChange` is not null,
-     reinstall the project's dependencies before requesting the checks.
-     `skipped-clean / continue-reconcile`, `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
-     `head-contained-by-base / rerun-checkpoint` return through Step 4 without gates or push. `conflict / stop`,
-     `regenerable-refused / stop`, and `blocked / stop` render the supplied explanation and stop; any other result
-     is a contract violation. When the reconcile result carries `applicability`, review does not carry across the
-     base movement it absorbs: surface its `verdict` and `reason`, and its `residual` when present, with the remedy.
-     The new head's review status settles it through Step 4; it does not fire the method below.
+     reinstall the project's dependencies before requesting the checks. `skipped-clean / continue-reconcile`,
+     `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and `head-contained-by-base / rerun-checkpoint`
+     return through Step 4 without gates or push. `conflict / stop`, `regenerable-refused / stop`, and `blocked / stop`
+     render the supplied explanation and stop; any other result is a contract violation. When the reconcile result
+     carries `applicability`, review does not carry across the base movement it absorbs: surface its `verdict` and
+     `reason`, and its `residual` when present, with the remedy. The new head's review status settles it through Step 4;
+     it does not fire the method below.
    - `invalidated / request-approval` returns through Step 4 and settles a fresh exact request before approval.
    - `conflict / stop`, `host-refused / stop`, and non-retryable operational results stop on their supplied
      explanation. Lock recovery and mutation-state classification remain owned by the verb.
 
    **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only an
-   `applicability-judgment-required / assess-applicability` result with
-   `applicability.judgmentRequired: true` loads and applies the method to its bounded review residual. Follow its
-   `supplemental | fresh` recommendation through Step 4's review/applicability route, then compose a new request and
-   obtain fresh integration approval before any terminal mutation. A `judgmentRequired: false` result is final, and
-   `merge-safety` never fires the method.
+   `applicability-judgment-required / assess-applicability` result with `applicability.judgmentRequired: true` loads and
+   applies the method to its bounded review residual. Follow its `supplemental | fresh` recommendation through Step 4's
+   review/applicability route, then compose a new request and obtain fresh integration approval before any terminal
+   mutation. A `judgmentRequired: false` result is final, and `merge-safety` never fires the method.
 
 7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
-   the merge tail unresolved, or work is moving machines, invoke
+   the merge tail unresolved, or work is moving machines, invoke:
+
    `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the change request is open,
    checks or owner review are pending, or for ordinary next-Errand queue advancement. Otherwise retain the owning
    session and continue to Complete when the host reports the merge.
@@ -737,10 +738,9 @@ On merge or exact no-tracked-change proof (full), or final commit (partial), inv
 checkout paths, and `settlement` are the sole closure evidence.
 
 - **Full protection** — the verb proves either merged-change-request preservation or an unchanged clean base
-  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and
-  drops only its origin capture. A foreign checkout requires the exact generation returned by the verb's
-  confirmation result; no
-  bypass overrides preservation or host/base evidence.
+  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and drops only its
+  origin capture. A foreign checkout requires the exact generation returned by the verb's confirmation result; no bypass
+  overrides preservation or host/base evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 

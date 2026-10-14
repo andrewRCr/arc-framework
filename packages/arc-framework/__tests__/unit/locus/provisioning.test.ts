@@ -8,6 +8,7 @@ import {
   type ProvisionTransientLocusOptions,
 } from "../../../src/lib/locus/provisioning.js";
 import type { LocusAllocationPlan } from "../../../src/lib/locus/allocator.js";
+import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
 
 const CLAIM_ID = "a".repeat(32);
@@ -191,6 +192,51 @@ describe("provisionTransientLocus", () => {
     expect(second).toMatchObject({ kind: "provisioned", receipt: { disposition: "idempotent" } });
     expect(test.events.filter((event) => event === "setup-worktree")).toHaveLength(1);
     expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+  });
+
+  it("preserves borrowed pending bytes when repeated setup fails and permits a later retry", async () => {
+    let value: WorktreeMarker | null = {
+      spawnedByArc: true, provisioning: "pending", spawningIdentity: "andrew",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      createdFor: { kind: "errand", slug: "demo", claimId: CLAIM_ID },
+    };
+    let bytes = Buffer.from(JSON.stringify(value));
+    const pendingBytes = Buffer.from(bytes);
+    let setupFails = true;
+    let setupCompletions = 0;
+    const test = harness({
+      createLinkedWorktree: async () => ({ kind: "refused", reason: "path-collision", worktreePath: WORKTREE_PATH }),
+      readMarker: async () => value === null ? { kind: "absent" } : { kind: "present", marker: value, bytes },
+      canResumePendingErrandCheckout: async () => true,
+      removeMarker: async (_path, expected) => {
+        if (!expected.equals(bytes)) return { kind: "generation-mismatch" };
+        value = null;
+        bytes = Buffer.alloc(0);
+        return { kind: "removed" };
+      },
+      setupWorktree: async () => {
+        if (setupFails) throw new Error("setup failed again");
+        setupCompletions += 1;
+      },
+      replaceMarker: async (_path, expected, replacement) => {
+        if (!expected.equals(bytes)) return { kind: "generation-mismatch" };
+        value = replacement;
+        bytes = Buffer.from(JSON.stringify(value));
+        return { kind: "replaced", bytes };
+      },
+    });
+    const request = options(test.dependencies, { expectedBranchHead: HEAD });
+    const failed = await provisionTransientLocus(request);
+    expect(failed).toMatchObject({ kind: "error" });
+    expect(bytes).toEqual(pendingBytes);
+    expect(value).toMatchObject({ provisioning: "pending" });
+    expect(setupCompletions).toBe(0);
+    setupFails = false;
+    expect(await provisionTransientLocus(request)).toMatchObject({
+      kind: "provisioned", receipt: { disposition: "applied", marker: { state: "ready" } },
+    });
+    expect(value).toMatchObject({ provisioning: "ready" });
+    expect(setupCompletions).toBe(1);
   });
 
   it("rolls back its pending marker and created worktree when setup fails", async () => {

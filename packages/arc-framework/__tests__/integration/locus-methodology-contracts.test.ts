@@ -252,18 +252,16 @@ describe("locus methodology contracts", () => {
   it("stops materialization unless the returned Errand generation and checkout are exact", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
-      const init = await readFile(
+      const init = (await readFile(
         resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
         "utf8",
-      );
+      )).replace(/\s+/gu, " ");
 
+      expect(init).toMatch(/If the result is refused or reports an error, render its diagnostic and stop\./u);
       expect(init).toMatch(
-        /If the result is refused or reports an error, render its\s+diagnostic and stop\./u,
+        /returned `identity\.key`, `identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
       );
-      expect(init).toMatch(
-        /returned `identity\.key`,\s+`identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
-      );
-      expect(init).toMatch(/non-null\s+`allocation`/u);
+      expect(init).toMatch(/non-null `allocation`/u);
       expect(init).toMatch(
         /row's checkout path equals the returned `allocation\.checkoutPath` and its role subject carries the same claim ID/u,
       );

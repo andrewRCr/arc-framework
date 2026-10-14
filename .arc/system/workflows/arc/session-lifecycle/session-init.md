@@ -107,9 +107,8 @@ cold-start resolution on **any** arm and never clobbers the active checkout. Sig
 
 Standalone `--next` and `--start <slug>` are handled outside this spine. Standalone `--next` is a Resume-arm
 terminal shortcut (handled at the Resume terminal gate); `--errand --next` is an Errand-signal startup selector
-handled inside the spine. `--start`
-is the [focused-recon arm](#focused-recon-arm) — checkout-preserving and arm-orthogonal, resolved just below
-when no signal-leaf signal is present.
+handled inside the spine. `--start` is the [focused-recon arm](#focused-recon-arm) — checkout-preserving and
+arm-orthogonal, resolved just below when no signal-leaf signal is present.
 
 Place it after the branch-gone precondition and ahead of arm resolution. On the signal path the spine replaces
 Step 3's full context-load with a universal-only load and skips the resume/orient worktree pull. The notes pull
@@ -199,9 +198,9 @@ Next Action after a bare-clean orientation; it is terminal-only — conditional 
 gaps, blockers, or Step 7 mismatches fall back to the normal prompt. (`--start <slug>` is not an arm shortcut here —
 it is the [focused-recon arm](#focused-recon-arm) resolved above.)
 
-An **explicit-intent signal** present at invocation is handled by
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
-here; the arms below are the **signal-absent** path.
+An **explicit-intent signal** present at invocation is handled by [Signal-leaf
+dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution here; the arms below
+are the **signal-absent** path.
 
 - **Errand-resume** — a selected `transient` row whose subject is `errand` or `partial-errand` dispatches to
   [run-errand][run-errand] in resume mode using its exact subject and generation.
@@ -213,12 +212,11 @@ here; the arms below are the **signal-absent** path.
   its reader-derived workflow and load set in Step 3. A contextless current husk selects cleanup orientation; any
   other contextless WU stops on the CLI-composed guidance.
 - **Orient** — the selected row is `free-primary`, `unmanaged-checkout`, or `retired`. Discovery is the
-  signal-absent intent (the positional seed stays
-  orthogonal —
-  never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
-  `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
-  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below). `--start <slug>` is
-  the [focused-recon arm](#focused-recon-arm), resolved above this arm — not an Orient-arm shortcut.
+  signal-absent intent (the positional seed stays orthogonal — never "any arg"), with a housekeep soft-offer overlaid
+  when the inbox holds routable captures. An explicit `--errand` / `--housekeep` / `--plan` is dispatched by the signal
+  leaf above, before this arm — including the no-active-WU errand elaboration ([Errand
+  cold-entry](#errand-cold-entry-orient-arm) below). `--start <slug>` is the [focused-recon arm](#focused-recon-arm),
+  resolved above this arm — not an Orient-arm shortcut.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If
@@ -229,27 +227,23 @@ here; the arms below are the **signal-absent** path.
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
       drains via the [arc-housekeep skill][arc-housekeep-skill]. Soft-encourage, never hard-block.
 - **Cold-start** — no entry row is selected, the active checkout is linked, and no role can be adopted: a branch
-  checked out for new work
-  with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
-  scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
-  an advisory pass over in-flight work units that surfaces scope overlap and never gates. When an entry seed is
-  present, run `arc start --here --from <seed>`; otherwise run bare `arc start --here`. Either scaffolds a
-  Planning meta and seeded SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC
-  didn't create it. Show the seed's resolved disposition
-  in the offer so the user confirms the reading, not just the act — the command reads an issue ref as `Origin`
-  and passes every other seed — including a draft or spec (`draft-` / `spec-`), a file/URL, or a free-text blurb —
-  through for you to interpret during planning. On accept, run the command, **re-run the Step 1 probe**, and proceed as
-  **Resume**. On decline, fall through to **Orient**.
-- **Materialize** — the probe surfaces remote-only work units in
-  `materializableWorkUnits.value.candidates` and eligible identity-backed Errands in
-  `errandState.value.materializable.candidates`. Surface the candidates and ask which to materialize when more
-  than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a work unit, run
-  `arc materialize <name>` (or `arc materialize <name> --here` when explicitly materializing in the current
-  checkout), then `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an
-  Errand, run
-  `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
-  candidate's claim ID and expected head. If the result is refused or reports an error, render its
-  diagnostic and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
+  checked out for new work with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`).
+  Offer to scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
+  an advisory pass over in-flight work units that surfaces scope overlap and never gates. When an entry seed is present,
+  run `arc start --here --from <seed>`; otherwise run bare `arc start --here`. Either scaffolds a Planning meta and
+  seeded SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC didn't create it. Show the
+  seed's resolved disposition in the offer so the user confirms the reading, not just the act — the command reads an
+  issue ref as `Origin` and passes every other seed — including a draft or spec (`draft-` / `spec-`), a file/URL, or
+  a free-text blurb — through for you to interpret during planning. On accept, run the command, **re-run the Step 1
+  probe**, and proceed as **Resume**. On decline, fall through to **Orient**.
+- **Materialize** — the probe surfaces remote-only work units in `materializableWorkUnits.value.candidates` and eligible
+  identity-backed Errands in `errandState.value.materializable.candidates`. Surface the candidates and ask which to
+  materialize when more than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a
+  work unit, run `arc materialize <name>` (or `arc materialize <name> --here` when explicitly materializing in the
+  current checkout), then `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For
+  an Errand, run `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the
+  selected candidate's claim ID and expected head. If the result is refused or reports an error, render its diagnostic
+  and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
   `identity.claimId`, and `identity.branch` exactly match the selected candidate, and it carries a non-null
   `allocation`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected transient
   row's checkout path equals the returned `allocation.checkoutPath` and its role subject carries the same claim ID
@@ -316,9 +310,9 @@ skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the not
 when `refState ∈ {remote-ahead, diverged}`; load fires when `refState === "same"`), so they never
 co-occur there.
 
-**User-reference dispatch.** After any notes pull/load, dispatch on
-`userReferenceReconcile.value.recommendedAction`: `apply` invokes the precomposed
-`recommendedCommand`; `surface` carries `recommendedPromptText` into Step 6; `skip` does nothing.
+**User-reference dispatch.** After any notes pull/load, dispatch on `userReferenceReconcile.value.recommendedAction`:
+`apply` invokes the precomposed `recommendedCommand`; `surface` carries `recommendedPromptText` into Step 6; `skip` does
+nothing.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
@@ -344,9 +338,8 @@ matters, re-probe to confirm.
 advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
 its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
-Reconciling is the developer's
-call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
-base-drift section; on `skip`, do nothing.
+Reconciling is the developer's call, not an init-time action, so there is no pull to fire here — on `surface`, carry it
+into Step 6's base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
 pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
@@ -386,12 +379,11 @@ uses only the free primary and refuses unsafe occupancy.
 3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
    comes from the `--errand` blurb/slug when present, or from `nextOffer.key` after `--errand --next`; when it names
    a flagged `USER-INBOX § Errand` capture, adopt that capture as the originating entry. Launch classifies
-   errand-vs-Work-Unit (with the stop-and-route
-   exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and invokes
-   `arc errand open <slug>` (adopt a flagged capture with `--from-inbox <entry-title>`, or with
-   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title; add `--isolate` when supplied).
-   Render its `recommendedPromptText` and execute from `allocation.checkoutPath`; the originating checkout remains
-   unchanged.
+   errand-vs-Work-Unit (with the stop-and-route exit when the work is really a Work Unit), runs the advisory
+   `arc errand check` overlap, and invokes `arc errand open <slug>` (adopt a flagged capture with
+   `--from-inbox <entry-title>`, or with `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title;
+   add `--isolate` when supplied). Render its `recommendedPromptText` and execute from `allocation.checkoutPath`; the
+   originating checkout remains unchanged.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 
@@ -543,12 +535,11 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 
 ## 5. Assess Readiness
 
-**Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
-`derivedLocusState.value.entering`): skip
-this entire step — there is no work-unit handoff baseline to freshness-check, and the subject workflow replaces
-next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) /
-[Errand cold-entry](#errand-cold-entry-orient-arm).
+**Signal-leaf / errand mode** (an explicit-intent signal routed via [Signal-leaf
+dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by `derivedLocusState.value.entering`):
+skip this entire step — there is no work-unit handoff baseline to freshness-check, and the subject workflow replaces
+next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand
+cold-entry](#errand-cold-entry-orient-arm).
 
 ### Freshness check
 
@@ -635,12 +626,11 @@ claims copied from SESSION-NOTES prose.
 Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
 and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
 
-**Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
-`derivedLocusState.value.entering`): frame
-the summary on the **transient subject** — the errand / drain / grooming target, its goal, branch, and any coordination
-caveat — instead of work-unit state; the active-work-state shape below does not apply. See
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
+**Signal-leaf / errand mode** (an explicit-intent signal routed via [Signal-leaf
+dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by `derivedLocusState.value.entering`):
+frame the summary on the **transient subject** — the errand / drain / grooming target, its goal, branch, and any
+coordination caveat — instead of work-unit state; the active-work-state shape below does not apply. See [Signal-leaf
+dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 **Entry-shortcut terminal gates.** After assembling the orientation and conditional surfaces, decide whether an
 entry shortcut may fire. The shortcut fires only when orientation is bare-clean: no conditional top-level
@@ -650,11 +640,10 @@ Otherwise render the normal orientation and prompt.
 
 - Standalone `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action
   directly. Bare standalone `--next` on a no-active-WU Orient arm is a no-op; `--errand --next` was already
-  consumed by the signal-leaf spine.
-**`--start` focused-recon terminal.** On the [focused-recon arm](#focused-recon-arm), frame Step 6 on the
-**target WU**, not the active-work-state shape: report the readiness verdict (ready / not + why — Tier-1 gates,
-Tier-2 invites; see the recon arm's readiness vet) and close on the launch prompt —
-`Launch <slug>? (spawn-anchored — arc start, then start a fresh session in the new worktree)`. On launch:
+  consumed by the signal-leaf spine. **`--start` focused-recon terminal.** On the [focused-recon
+arm](#focused-recon-arm), frame Step 6 on the **target WU**, not the active-work-state shape: report the readiness
+verdict (ready / not + why — Tier-1 gates, Tier-2 invites; see the recon arm's readiness vet) and close on the launch
+prompt — `Launch <slug>? (spawn-anchored — arc start, then start a fresh session in the new worktree)`. On launch:
 
 1. Run the spawn-anchored `arc start <slug>` (spawns the target's own worktree); `init-work-unit`'s
    `workflowCommit` / `workflowPush` interlocks and `class-resolved` guard fire unchanged.
@@ -786,11 +775,10 @@ tracked source documents the work.
   ```
 
 - `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge` (primary worktree
-  only; the slot is omitted on linked checkouts): local user-notes ref
-  history exceeds the advisory threshold. Surface one offer-only line for the interlock-gated command; never run
-  compaction automatically. After surfacing, write `compactionAdvisory.value.nudge.today` to
-  `compactionAdvisory.value.nudge.markerPath` (create the parent directory if needed) so the offer batches to
-  once per calendar day. Never write the marker from a linked checkout.
+  only; the slot is omitted on linked checkouts): local user-notes ref history exceeds the advisory threshold. Surface
+  one offer-only line for the interlock-gated command; never run compaction automatically. After surfacing, write
+  `compactionAdvisory.value.nudge.today` to `compactionAdvisory.value.nudge.markerPath` (create the parent directory if
+  needed) so the offer batches to once per calendar day. Never write the marker from a linked checkout.
 
   ```text
   **Notes compaction:** user-notes history has {historyCommitCount} commit(s) (threshold {threshold}); run
@@ -985,12 +973,11 @@ tracked source documents the work.
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
   auto-merge, or auto-archive. The actionable events (`mergeable`, `mergeability-unavailable`,
   `merged-needs-archival`) surface every session-init; the time-gated `stale` overlay batches once per calendar day
-  — suppress `stale` entries unless
-  `workUnitState.value.nudge.shouldNudge`. For `mergeability-unavailable`, render `mergeabilityGuidance` verbatim
-  and offer no merge or base-reconciliation action. A `mergeable` WU whose `behindBase` relation is known true
-  needs its base merged in first. After surfacing any `stale` entry, write
-  `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if
-  needed) so the stale nudge batches to once per calendar day.
+  — suppress `stale` entries unless `workUnitState.value.nudge.shouldNudge`. For `mergeability-unavailable`, render
+  `mergeabilityGuidance` verbatim and offer no merge or base-reconciliation action. A `mergeable` WU whose `behindBase`
+  relation is known true needs its base merged in first. After surfacing any `stale` entry, write
+  `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if needed) so
+  the stale nudge batches to once per calendar day.
 
   ```text
   **Work units in flight:** {N} owned WU(s) in the completion tail:

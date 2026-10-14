@@ -34,15 +34,40 @@
   and preserve the distinction between suppressing prompts and granting approval.
 
 - _Reference:_ CodeRabbit's current `--agent` mode selects NDJSON review output; headless or agent mode returns a
-  structured action-required result when confirmation is needed. See its
-  [review modes](https://docs.coderabbit.ai/cli#review-modes) and
-  [consent behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
+  structured action-required result when confirmation is needed. See its [review
+  modes](https://docs.coderabbit.ai/cli#review-modes) and [consent
+  behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
 
 - _Scope:_ An open design question for `cli-output-contract`, not a commitment to add a flag. Preserve human UX/DX;
   a runtime preset does not itself require separate agent help, a caller-based command partition, or changes in
   the `cli-help-discovery` work unit.
 
 - _Captured during:_ `cli-help-discovery` draft-design, shared human/agent ergonomics discussion, 2026-10-03.
+
+### `[ ]` **Separate what a command's output says to the Owner from what is record or agent-only**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-output-contract`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Concern 2 (the output conventions), and the inbound entry "Assess an explicit agent invocation preset
+  for the CLI output contract".
+
+- _Observation:_ literal models (GPT, Grok) relay command results verbatim, pasting dense JSON or check listings into
+  the conversation; even in human mode, `arc check increment` lists every not-selected check and then repeats them in
+  a summary line. ARC already separates the Owner-facing part in places — `recommendedPromptText`,
+  `dispositionReportText`, `locusGuidance` ("render verbatim") — but ad hoc, with no common rule, so each agent must
+  judge what to say and literal ones say everything.
+
+- _Approach:_ make audience separation part of the output contract: each result carries one precomposed Owner-facing
+  field (empty when there is nothing to say), and labels everything else as agent continuation or record; workflows
+  then dispatch "relay the report verbatim; never echo the rest". Keep human-mode output to what needs attention —
+  failures and decisions first, clean results collapsed to a count. `autonomy-levels` applies this to its own
+  boundary results (§ What a stop hands the Owner); this entry is the general contract.
+
+- _Captured during:_ `autonomy-levels` grooming (2026-10-13), from the Owner's cross-model observation.
+
+- _Drain note:_ this widens § Purpose from machine-readable shape and announced mode to audience;
+  `draft-autonomy-levels.md` defers the general output contract here. The `arc check` human-output duplication split
+  off as an Errand at the drain.
 
 ---
 

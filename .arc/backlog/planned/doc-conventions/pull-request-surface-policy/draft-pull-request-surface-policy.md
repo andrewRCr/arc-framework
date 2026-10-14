@@ -85,6 +85,29 @@
 
 - _Captured during:_ `delivery-request-identity` Errand scoping, 2026-09-18.
 
+### `[ ]` **Decide whether host surfaces ever disclose how much of a change an agent built unattended**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: pull-request-surface-policy`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Direction, its local-review activity vocabulary item, and the inbound entry "Generate the host-side
+  pull-request template from the canonical template".
+
+- _Observation:_ `autonomy-levels` lets a change be built at widely different levels of Owner involvement, up to an
+  agent-written, never-approved spec (`hands-off`). That provenance stays in ARC's internal records; the model puts
+  nothing on change-request bodies, because a reviewer who does not use ARC reads ARC vocabulary as noise and the
+  author answers for a submitted change however it was built. Whether a host surface should ever say anything is a
+  pull-request surface question, not an autonomy one.
+
+- _Approach:_ settle whether any disclosure is warranted; if so, use neutral, non-ARC wording (follow emerging
+  AI-assistance disclosure conventions rather than inventing a stamp), keep it off by default behind a project
+  toggle, and state only what is material to a reviewer — e.g. whether the design was reviewed by a person before
+  the change was built.
+
+- _Captured during:_ `autonomy-levels` grooming (2026-10-13).
+
+- _Drain note:_ this widens § Purpose beyond titles and the local-review marker; `draft-autonomy-levels.md` assigns
+  any host disclosure here.
+
 ## Problem / Motivation
 
 The canonical pull-request template universally requires Conventional Commits syntax for PR titles even though

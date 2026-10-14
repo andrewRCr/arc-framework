@@ -4,7 +4,7 @@ import { runCheckProcess } from "../../lib/checks/process.js";
 import { access, readFile } from "node:fs/promises";
 import { detectHookManager } from "../../lib/hook-manager.js";
 import { resolve } from "node:path";
-import type { GitExec } from "../../lib/git/exec.js";
+import { PUSH_GATE_ID_VARIABLE, type GitExec } from "../../lib/git/exec.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { availableParallelism } from "node:os";
 import { atomicCreateFile, atomicWriteFile } from "../../lib/fs.js";
@@ -19,6 +19,7 @@ import type { InteractionContext } from "../../lib/command-input/interaction-con
 import { declaredChecksExitCode, runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
 import { isCheckHookForm, type CheckForm, type CheckRequest } from "../../lib/checks/request.js";
 import { classifyPushRef, readPushEvent, type PushEvent } from "../../lib/checks/push.js";
+import { isPushGateId, writePushGateRefusal, type PushGateRefusal } from "../../lib/checks/push-gate-record.js";
 import { checkVerification } from "./report.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
@@ -103,14 +104,48 @@ export async function handleCheckNewHead(options: CheckIncrementOptions & { from
  * @returns Resolves after reporting the pushed range
  */
 export async function handleCheckPrePush(remote: string, url: string, options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
+  let outcome: RunDeclaredChecksResult;
   try {
     const chunks: Buffer[] = [];
     if (!process.stdin.isTTY) for await (const chunk of process.stdin as AsyncIterable<Buffer>) chunks.push(chunk);
     const event = readPushEvent(Buffer.concat(chunks).toString("utf8"), remote, url, process.env);
-    report(await runPushEvent(event, options, interaction), options.json === true);
+    outcome = await runPushEvent(event, options, interaction);
   } catch (error) {
-    report({ kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } }, options.json === true);
+    outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
+  await recordPushGate(outcome, interaction);
+  report(outcome, options.json === true);
+}
+
+const HELD_BACK: ReadonlySet<string> = new Set(["failed", "couldn't run", "no evidence"]);
+
+/**
+ * Record a refusal for the push that handed the gate its identifier, so the command that ran that push can say why.
+ * Nothing reads a record for a push that names no identifier, so none is written; a failed write is reported and never
+ * changes the verdict.
+ */
+async function recordPushGate(outcome: RunDeclaredChecksResult, interaction: InteractionContext): Promise<void> {
+  const pushGateId = process.env[PUSH_GATE_ID_VARIABLE];
+  if (outcome.exitCode === 0 || !isPushGateId(pushGateId)) return;
+  try {
+    const git = createGitExec(interaction.subprocess);
+    const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
+    await writePushGateRefusal(await checkRecordDirectory(git, root), pushGateId, pushGateRefusal(outcome), atomicWriteFile);
+  } catch (error) {
+    process.stderr.write(`warning: could not record the push gate's refusal: ${String(error)}\n`);
+  }
+}
+
+function pushGateRefusal(outcome: RunDeclaredChecksResult): PushGateRefusal {
+  if (outcome.kind === "error") return { error: outcome.error.message, checks: [] };
+  return {
+    checks: outcome.result.checks.filter(check => HELD_BACK.has(check.outcome)).map(check => ({
+      id: check.id, outcome: check.outcome,
+      ...(check.reason === undefined ? {} : { reason: check.reason }),
+      ...(check.logPath === undefined ? {} : { logPath: check.logPath }),
+      ...(check.remedy === undefined ? {} : { remedy: check.remedy }),
+    })),
+  };
 }
 
 async function runPushEvent(event: PushEvent, options: CheckIncrementOptions, interaction: InteractionContext): Promise<RunDeclaredChecksResult> {

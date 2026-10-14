@@ -49,6 +49,7 @@ function makeExec(opts: {
   metas?: Record<string, string>;
   errandRecords?: Array<{ slug: string; branch: string }>;
   remoteErrandRecords?: Array<{ slug: string; branch: string }> | "stalled";
+  candidateFetch?: "stalled";
 }): GitExec {
   const metas = opts.metas ?? {};
   const errandRecords = opts.errandRecords ?? [];
@@ -101,6 +102,15 @@ function makeExec(opts: {
         });
       }
       return { stdout: "", stderr: "" };
+    }
+    if (args[0] === "fetch" && args[1] === "--no-filter" && opts.candidateFetch === "stalled") {
+      const signal = options?.signal;
+      if (signal === undefined) throw new Error("candidate fetch has no cancellation boundary");
+      return await new Promise<ExecResult>((_resolve, reject) => {
+        signal.addEventListener("abort", () => {
+          reject(new GitProcessError({ kind: "canceled", command: "git", args }));
+        });
+      });
     }
     if (args[0] === "update-ref" && args[1] === "-d" && isSnapshotRef(args[2])) return { stdout: "", stderr: "" };
     if (args[0] === "show-ref" && isSnapshotRef(args[2])) return { stdout: "", stderr: "" };
@@ -218,6 +228,18 @@ function makeExpansionIO(opts: {
       .join("\n") + "\n");
   return { exec, execInput };
 }
+
+it("reports incomplete online discovery when a live-only candidate exhausts the fetch budget", async () => {
+  const result = await runActiveInFlight({
+    exec: makeExec({ localRefs: [], liveBranches: ["feat/later"], candidateFetch: "stalled" }),
+    identity: "andrew", teamMode: false, localOnly: false, expandLiveOnly: true, timeoutMs: 25,
+  });
+  expect(result).toMatchObject({
+    entries: [], reachable: true, remoteEvidence: "pending-fetch",
+    candidateExpansion: { status: "partial", pendingBranchCount: 1 },
+    warnings: [expect.objectContaining({ code: "branch-fetch-failed", branch: "feat/later" })],
+  });
+});
 
 describe("runActiveInFlight", () => {
   it("completes explicit expansion after every captured candidate materializes", async () => {

@@ -16,6 +16,21 @@ async function passRecords(root: string): Promise<string[]> {
   return records.filter(path => /^[a-f0-9]{64}\.json$/u.test(path));
 }
 
+const pushGateId = "0123456789abcdef0123456789abcdef";
+const pushGate = { env: { ARC_PUSH_GATE_ID: pushGateId } };
+
+async function gateRecords(root: string): Promise<string[]> {
+  const records = await readdir(join(root, ".git/arc-checks")).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
+  return records.filter(path => path.startsWith("pre-push."));
+}
+
+async function gateRefusal(root: string): Promise<unknown> {
+  return JSON.parse(await readFile(join(root, `.git/arc-checks/pre-push.${pushGateId}.json`), "utf8"));
+}
+
 it("gates the current branch's stdin range at the pushed tip", async () => {
   const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
     inputs: ["src/**"], command: [process.execPath, "capture.cjs"] } });
@@ -81,15 +96,42 @@ it("attributes an invalid push request to its ref and permits a repaired retry",
   const declaration = await readFile(declarationPath, "utf8");
   await writeFile(declarationPath, "checks: invalid\n");
   const lines = `${branch} ${tip} ${branch} ${base}\n`;
-  const invalid = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, lines);
+  const invalid = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, lines, pushGate);
   expect(invalid.exitCode, invalid.stderr).toBe(2);
   expect(JSON.parse(invalid.stdout).error.message).toContain(branch);
   expect(JSON.parse(invalid.stdout).error.message).toContain("arc-checks.yml");
   expect(await passRecords(root)).toEqual([]);
+  expect(await gateRefusal(root)).toEqual({ schemaVersion: 1, error: expect.stringContaining("arc-checks.yml"), checks: [] });
   await writeFile(declarationPath, declaration);
-  const repaired = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, lines);
+  const repaired = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, lines,
+    { env: { ARC_PUSH_GATE_ID: "fedcba9876543210fedcba9876543210" } });
   expect(repaired.exitCode, repaired.stderr).toBe(0);
   expect(JSON.parse(repaired.stdout).result.checks[0].outcome).toBe("passed");
+  expect(await gateRecords(root)).toEqual([`pre-push.${pushGateId}.json`]);
+});
+
+it("records a refusing push gate's failing checks only for a push that names itself", async () => {
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
+    inputs: ["src/**"], command: [process.execPath, "-e", "console.log('content is wrong'); process.exit(1)"] } });
+  roots.push(root);
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["add", "src/a.ts"]);
+  await git(root, ["commit", "-m", "tip"]);
+  const tip = await git(root, ["rev-parse", "HEAD"]);
+  const branch = await git(root, ["symbolic-ref", "HEAD"]);
+
+  const lines = `${branch} ${tip} ${branch} ${base}\n`;
+  const unnamed = await runArcWithStdin(["check", "pre-push", "origin", "local-origin"], root, lines);
+  expect(unnamed.exitCode, unnamed.stderr).toBe(1);
+  expect(await gateRecords(root)).toEqual([]);
+
+  const result = await runArcWithStdin(["check", "pre-push", "origin", "local-origin"], root, lines, pushGate);
+
+  expect(result.exitCode, result.stderr).toBe(1);
+  const refusal = await gateRefusal(root);
+  expect(refusal).toMatchObject({ schemaVersion: 1,
+    checks: [{ id: "content", outcome: "failed", logPath: expect.any(String), remedy: expect.stringContaining("content") }] });
+  expect(refusal).not.toHaveProperty("error");
 });
 
 it("widens an automatic pushed base that is unavailable locally", async () => {
@@ -162,7 +204,7 @@ it("reuses a new-head pass over the same range at the push boundary", async () =
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).not.toContain("warning:");
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);
@@ -184,7 +226,7 @@ it("passes with a warning when its record directory is blocked, and later gates 
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).toContain(`warning: could not record passes in ${directory}; later gates will run content again`);
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);

@@ -135,7 +135,8 @@ export function projectDerivedCheckoutRow(options: {
     return { ...base, kind: composed.kind, subject: null };
   }
   if (composed.kind === "unresolved-checkout") {
-    return { ...base, kind: composed.kind, subject };
+    return { ...base, kind: composed.kind, subject,
+      diagnostics: [...base.diagnostics, ...pendingErrandRetry(options)] };
   }
   return { ...base, kind: composed.kind, subject: composed.subject };
 }
@@ -171,4 +172,20 @@ function exactIdentity(
   if (identity.kind !== "errand") return null;
   const expectedKind = identity.purpose === "housekeep-routing" ? "housekeep" : "errand";
   return subject.kind === expectedKind ? identity : null;
+}
+
+/** Narrate a possible retry without making a pending marker authoritative. */
+function pendingErrandRetry(options: Parameters<typeof projectDerivedCheckoutRow>[0]): DerivedCheckoutDiagnostic[] {
+  if (options.marker.kind !== "present" || options.checkout.primary || options.checkout.detached) return [];
+  const marker = options.marker.marker;
+  if (!marker.spawnedByArc || marker.provisioning !== "pending" || marker.createdFor.kind !== "errand") return [];
+  const subject = marker.createdFor;
+  const identity = exactIdentity(options.identities, { kind: "errand", key: subject.slug, claimId: subject.claimId });
+  if (identity?.kind !== "errand" || identity.purpose !== "errand" || identity.state !== "open"
+    || identity.branch !== options.checkout.branch || options.activeMeta.kind !== "absent") return [];
+  return [{
+    code: "pending-errand-provisioning",
+    message: `Retry arc errand open ${subject.slug} --isolate --json from the free primary checkout. `
+      + "Setup resumes only with a clean checkout and a head preserved by base; preserve local work first.",
+  }];
 }

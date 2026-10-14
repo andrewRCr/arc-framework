@@ -44,7 +44,7 @@ it.each(["plain", "all", "linked"])("commits a nested fixture through the shippe
   await installDeclaredCommitHook(root);
   if (mode !== "all") await git("git", ["add", "src/a.ts"], { cwd: root });
   const result = await git("git", ["commit", ...(mode === "all" ? ["-a"] : []), "-m", "changed"], { cwd: root });
-  expect(result.stdout + result.stderr).toContain("nested: passed");
+  expect(result.stdout + result.stderr).toContain("Checks: 1 passed.");
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toEqual({ content: "nested", repositoryLocalVariables: [] });
 });
 

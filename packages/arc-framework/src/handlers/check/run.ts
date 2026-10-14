@@ -13,6 +13,7 @@ import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
+import { readMergedInPaths } from "../../lib/checks/merged.js";
 import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
@@ -21,6 +22,7 @@ import type { CheckPassStore, CheckPassWrite } from "../../lib/checks/record.js"
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
+import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
@@ -37,6 +39,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   notice?: string;
   divergent?: string[];
   rewritten?: string[];
+  /** Files a failed file check examined whose content a merge on the checked range brought in unchanged. */
+  mergedIn?: string[];
   logPath?: string;
   costMs?: number;
   lastCostMs?: number;
@@ -225,7 +229,22 @@ async function runRequestedCheck(
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
+  if (result.outcome === "failed") await markMergedIn(io, root, result, { resolved, tree, inputs: check.inputs, paths });
   return { ...result, ...forecast };
+}
+
+/** Name which files a failed file check examined came in unchanged through a merge; an unreadable comparison names none. */
+async function markMergedIn(io: DeclaredCheckDependencies, root: string, result: DeclaredCheckResult, content: {
+  resolved: ResolvedCheckRequest; tree: string; inputs: string[]; paths: string[];
+}): Promise<void> {
+  const { resolved: { base, merged }, tree, inputs, paths } = content;
+  if (base === undefined || merged === undefined || merged.length === 0 || paths.length === 0) return;
+  try {
+    const mergedIn = await readMergedInPaths(io.git, root, { base, tree, merged, inputs, paths });
+    if (mergedIn !== undefined && mergedIn.length > 0) result.mergedIn = mergedIn;
+  } catch {
+    // The mark only explains a failure; a comparison Git could not complete leaves the result as it ran.
+  }
 }
 
 function usesFormingWorktree(check: CheckDeclaration["checks"][string], request: CheckRequest): boolean {
@@ -320,6 +339,14 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
     ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
 
+/**
+ * The exit status of a command killed by SIGKILL, as a shell or a runner relaying a remote kill reports it. The
+ * system's out-of-memory killer is the usual sender, so the check did not finish rather than failed. A check that
+ * declares 137 as its no-evidence status keeps that meaning.
+ */
+const KILLED_EXIT_CODE = 137;
+const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
+
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
@@ -327,13 +354,26 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
   const { divergent } = selected;
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
+  if (result.exitCode === KILLED_EXIT_CODE && check.no_evidence_exit !== KILLED_EXIT_CODE) {
+    return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
+  }
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
+  const gap = await installGap(selected, result);
+  if (gap !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: gap };
   if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
     : await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
   return { id, kind, ...details, outcome: "passed", record };
+}
+
+/** A check that failed for want of a package its npm lockfile declares could not run; name the install to repair. */
+async function installGap(selected: SelectedCheck, result: { exitCode: number; output: string }): Promise<string | undefined> {
+  const { check, root } = selected;
+  if (result.exitCode === 0 || result.exitCode === check.no_evidence_exit) return undefined;
+  const missing = await findUninstalledLockedPackages(result.output, [...new Set([resolve(root, check.root), root])]);
+  return missing.length === 0 ? undefined : installGapReason(missing);
 }
 
 async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<{ rewritten: string[]; reason?: string }> {
@@ -381,7 +421,8 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
       if (!result.started) return ran(result);
       if (result.exitCode === check.no_evidence_exit) continue;
       examined = true;
-      if (result.exitCode !== 0) exitCode = result.exitCode;
+      // A kill never hides another batch's failure, which is a verdict where the kill is none.
+      if (result.exitCode !== 0 && (exitCode === 0 || result.exitCode !== KILLED_EXIT_CODE)) exitCode = result.exitCode;
     }
   } catch (error) {
     outputs.push(String(error));

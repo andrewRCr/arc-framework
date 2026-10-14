@@ -644,6 +644,48 @@
 
 - _Captured during:_ scoping that Errand, 2026-10-07.
 
+### `[ ]` **Settle which movement voids an accepted Errand review stop, absorbing the interim disjoint-base rule**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-10-13).
+
+- _Shapes:_ the inbound entry "Give exact Errand targets an Owner-accepted review terminus".
+
+- _Observation:_ the `owner-stop-base-movement` Errand landed an interim in `run-errand`, at the Owner's direction:
+  an Owner-directed review stop now holds when the base alone moves and `arc base drift --json` reads the exact
+  accepted head with `movement: disjoint`, naming the new base OID at the next report; a changed claim, PR, or head,
+  a new finding, or any other drift reading still voids it. Before it, every merge another session landed during a
+  checks wait cost a fresh offer with nothing changed under review (PR #935, where Codex's PR #936 landed mid-wait).
+
+- _Approach:_ when the durable Errand terminus is designed, decide whether disjoint base-only movement is immaterial
+  there too, and replace the prose rule with the terminus's own invalidation; keep it distinct from
+  `review-source-authority`'s "stop binds through the fix it authorized" item, which concerns head movement.
+
+- _Captured during:_ the `owner-stop-base-movement` Errand, 2026-10-13.
+
+### `[ ]` **Let a Candidate fix's verified-fix record defer its approved suite to convergence**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-10-13).
+
+- _Shapes:_ the inbound entries "Collapse approved review correction into one resumable action" and "Make settled
+  singleton integration a short, measurable path to merge" (its reuse of checks over unchanged inputs).
+
+- _Observation:_ a fix to a work unit's Candidate with a `focused` or `full` approval runs that suite twice: once
+  before its `verifiedFix` replay, which `RespondApprovedRequestSchema` requires to carry an applicability at least the
+  approved scope and `RespondVerifiedFixSchema` documents as the actual scope performed, and again at Candidate
+  convergence, which keys on `approvedVerification` and refuses the fix's own evidence. In `quality-gate-hooks` the
+  repeat cost 880,283 ms over a tree differing only in managed Candidate and boundary JSON. Prose cannot remove it:
+  PR #923 first tried deferring the suite in prose, and its review found the replay would then attest verification
+  that never ran.
+
+- _Approach:_ give `verifiedFix` a way to record verification deferred to convergence for a Candidate-bound fix, so
+  the replay carries commit-gate evidence honestly and convergence runs the suite once; or revisit letting the fix's
+  forced run satisfy convergence (rejected on 2026-10-10 as amending the convergence design and the Candidate record).
+  Either changes the response protocol, so it needs design.
+
+- _Captured during:_ the Errand aligning Candidate fix verification with the performed-scope rule, PR #923,
+  2026-10-12.
+
 ---
 
 ## Problem / Motivation
