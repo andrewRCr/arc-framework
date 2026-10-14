@@ -37,22 +37,13 @@ _Mode:_ `slice` — closes on exercisable session, recovery, CLI, and checkpoint
 _Exit criterion:_ Public status/recovery and schema discovery omit the mechanism, and preserved locus and checkpoint
 scenarios pass against the revised contracts.
 
-### `[ ]` **2.1 Remove active-name inputs from locus and load-set composition — D2**
+### `[x]` **2.1 Remove active-name inputs from locus and load-set composition — D2**
 
 - _Goal:_ Exact locus, recovery, and workflow projections depend only on surviving session inputs.
 
-- _Note:_ See `notes-retire-extension-points.md` § Active-name inputs.
-
-    - Remove `activeExtensions` from derived-locus callbacks/inputs, `getDerivedLocusState` memoization,
-      `readDerivedLocusRoster`, `projectCheckoutSubjectMeta`, `LoadSetProjectionInput`, `deriveRecoveryLocusContext`,
-      `emitCompactionSeed` calls, and all importers/stubs. Leave probe slots for Task 2.2.
-    - Rename the mixed subject-meta suite for subject projection and update its isolated mock-file registration.
-      Replace extension-input-specific cases; retain its independent Candidate and lifecycle coverage.
-    - Build `test-first` (one behavior at a time):
-        - Work-unit/transient subjects, exact context and selected workflows remain stable without the input.
-        - Load-set ordering, cohort inclusion, task closeout and correction continuations remain correct.
-        - Recovery and compaction seeds retain their exact locus/workflow projection and method-load behavior.
-    - Update affected status callbacks and the mixed locus-retirement contract case in the same increment.
+- _Outcome:_ Removed active-name arguments from locus, recovery, load-set, and seed composition while retaining
+  their exact subject/workflow projections. Renamed the mixed subject-projection suite. Removed the handoff probe
+  early because its only consumer was the retired input.
 
 ### `[ ]` **2.2 Remove extension probes and session dispatch — D2, D3**
 

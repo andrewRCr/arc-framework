@@ -114,12 +114,11 @@ function frame(
   };
 }
 
-function derive(state: DerivedLocusFrame, activeExtensions: readonly string[] = []) {
+function derive(state: DerivedLocusFrame) {
   return deriveRecoveryLocusContext({
     state,
     identity: "andrew",
     workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
-    activeExtensions,
   });
 }
 
@@ -174,7 +173,6 @@ describe("deriveRecoveryLocusContext", () => {
           sessionType: "planning",
           planningStage: "generate-tasks",
           taskListPath: ".arc/active/tasks-demo.md",
-          activeExtensions: [],
           cohortDocPath: null,
         }),
       },

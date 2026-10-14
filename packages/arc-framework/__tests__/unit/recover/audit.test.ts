@@ -1127,7 +1127,6 @@ describe("auditRecoveryState", () => {
       sessionType: "planning",
       planningStage: "generate-tasks",
       taskListPath: ".arc/active/tasks-demo.md",
-      activeExtensions: [],
       cohortDocPath: null,
     });
     const row = workUnitRow({

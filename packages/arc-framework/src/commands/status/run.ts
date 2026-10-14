@@ -184,10 +184,7 @@ export async function runSessionInitStatus(
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
   const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
   const owningWorkUnitId = derivedLocusState.ok
     && derivedLocusState.value.active?.subject.kind === "work-unit"
@@ -502,7 +499,6 @@ export async function runSessionInitStatus(
       sessionType: null,
       planningStage: null,
       taskListPath: null,
-      activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath: null,
       cohortDoc: resolvedSlot(null),
       workingMemoryPath: workingMemoryPath ?? null,
@@ -588,10 +584,7 @@ export async function runRecoverStatus(
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
 
   // Physical checkout identity remains an independent informational slot; the
   // derived frame already selected the exact entering checkout.
@@ -608,7 +601,6 @@ export async function runRecoverStatus(
       state: derivedLocusState.value,
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
-      activeExtensions: extensions.ok ? extensions.value.active : [],
     }));
   const recoveryFrame = mapSlot(recoveryContext, (value) => value.frame);
   const loadSet = mapSlot(recoveryContext, (value) => value.loadSet);
@@ -681,7 +673,6 @@ function loadSetFromState(options: {
   sessionType: ActiveSessionInitResult["sessionType"];
   planningStage: ActiveSessionInitResult["planningStage"];
   taskListPath: string | null;
-  activeExtensions: readonly string[];
   cohortDocPath: string | null;
   cohortDoc: SessionResult<string | null>;
   workingMemoryPath: string | null;
@@ -694,7 +685,6 @@ function loadSetFromState(options: {
     sessionType: options.sessionType,
     planningStage: options.planningStage,
     taskListPath: options.taskListPath,
-    activeExtensions: options.activeExtensions,
     cohortDocPath: options.cohortDocPath,
     workingMemoryPath: options.workingMemoryPath,
   }));
@@ -778,7 +768,6 @@ export async function runSessionHandoffStatus(
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
@@ -792,7 +781,7 @@ export async function runSessionHandoffStatus(
 
   const [
     user, worktree, dirty, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, extensions, inboxState, surfaces,
+    syncInterlock, head, pushability, restateCandidates, inboxState, surfaces,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -802,17 +791,13 @@ export async function runSessionHandoffStatus(
     headTask,
     pushabilityTask,
     restateCandidatesTask,
-    extensionsTask,
     inboxStateTask,
     surfacesTask,
   ]);
 
   const derivedLocusState = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
   const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
 
   const branch = worktree.ok ? worktree.value.branch : null;

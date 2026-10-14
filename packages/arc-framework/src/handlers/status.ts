@@ -229,10 +229,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
   const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
   const getDerivedLocusState = (
     id: string,
-    activeExtensions: readonly string[] = [],
   ): ReturnType<typeof runDerivedLocusStateProbe> => {
-    const key = `${id}:${JSON.stringify(activeExtensions)}`;
-    let pending = derivedLocusStatePromises.get(key);
+    let pending = derivedLocusStatePromises.get(id);
     if (pending === undefined) {
       pending = (async () => {
         const resolved = await resolvedSettingsP;
@@ -240,11 +238,10 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          activeExtensions,
           exec,
         });
       })();
-      derivedLocusStatePromises.set(key, pending);
+      derivedLocusStatePromises.set(id, pending);
     }
     return pending;
   };
@@ -373,8 +370,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     return oraclePromise;
   };
   const probes: SessionInitProbes = {
-    derivedLocusState: async (id, activeExtensions) => {
-      return getDerivedLocusState(id, activeExtensions);
+    derivedLocusState: async (id) => {
+      return getDerivedLocusState(id);
     },
     remoteContext: getRemoteContext,
     user: async (id) => {

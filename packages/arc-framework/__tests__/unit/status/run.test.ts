@@ -391,7 +391,6 @@ function activeSessionInit(
 function derivedFrameFromActive(
   active: ActiveSessionInitResult,
   identity: string,
-  activeExtensions: readonly string[],
   cohortDocPath: string | null,
   taskCursor: TaskListCursorFileResult | null,
 ): DerivedLocusFrame {
@@ -449,7 +448,6 @@ function derivedFrameFromActive(
       sessionType: active.sessionType,
       planningStage: active.planningStage,
       taskListPath: active.taskListPath ?? null,
-      activeExtensions,
       cohortDocPath,
     }),
     integrationBoundary: active.integrationBoundary,
@@ -491,7 +489,7 @@ describe("projectDerivedActiveSession schema", () => {
       sessionType: "execution",
     }),
   ])("parses the derived session result for $resolution", (active) => {
-    const frame = derivedFrameFromActive(active, "andrew", [], null, null);
+    const frame = derivedFrameFromActive(active, "andrew", null, null);
     const result = projectDerivedActiveSession(frame);
     assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
@@ -619,7 +617,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
   const taskCursor = overrides.taskCursor
     ?? vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" }));
   return {
-    derivedLocusState: vi.fn(async (identity, activeExtensions) => {
+    derivedLocusState: vi.fn(async (identity) => {
       const activeResult = await active(identity, "maintainer");
       const cohortDocPath = activeResult.resolution === "single" && activeResult.path !== null
         ? await cohortDoc(activeResult.path)
@@ -633,7 +631,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
           cursor = null;
         }
       }
-      return derivedFrameFromActive(activeResult, identity, activeExtensions, cohortDocPath, cursor);
+      return derivedFrameFromActive(activeResult, identity, cohortDocPath, cursor);
     }),
     // The default slot fixtures below model healthy remote-derived readings carrying
     // `exact` evidence, so the default context has to be one where that evidence was
@@ -719,11 +717,10 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
     },
   };
   return {
-    derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+    derivedLocusState: vi.fn(async (identity) =>
       derivedFrameFromActive(
         active,
         identity,
-        activeExtensions,
         ".arc/backlog/planned/x/cohort-x.md",
         cursor,
       )),
@@ -780,9 +777,8 @@ function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
   return {
-    derivedLocusState: vi.fn(async (identity, activeExtensions) =>
-      derivedFrameFromActive(activeSessionInit(), identity, activeExtensions, null, null)),
-    extensions: vi.fn(async () => extensionsSessionInit()),
+    derivedLocusState: vi.fn(async (identity) =>
+      derivedFrameFromActive(activeSessionInit(), identity, null, null)),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSnapshot()),
     user: vi.fn(async () => userSessionInit()),
@@ -1265,14 +1261,14 @@ describe("runSessionInitStatus — orchestration", () => {
         leaf: { id: "1.1", title: "Do x", lineHint: 5 },
       },
     };
-    const derivedLocusState = vi.fn(async (identity: string, activeExtensions: readonly string[]) =>
+    const derivedLocusState = vi.fn(async (identity: string) =>
       derivedFrameFromActive(activeSessionInit({
         resolution: "single",
         path: ".arc/active/meta-x.md",
         sessionType: "execution",
         planningStage: null,
         taskListPath: ".arc/active/tasks-x.md",
-      }), identity, activeExtensions, ".arc/backlog/planned/x/cohort-x.md", cursor));
+      }), identity, ".arc/backlog/planned/x/cohort-x.md", cursor));
     const probes = sessionInitProbes({
       active,
       derivedLocusState,
@@ -1283,7 +1279,6 @@ describe("runSessionInitStatus — orchestration", () => {
 
     expect(active).not.toHaveBeenCalled();
     expect(derivedLocusState).toHaveBeenCalledOnce();
-    expect(derivedLocusState).toHaveBeenCalledWith("andrew", ["post-context-load"]);
     expect(result.active).toMatchObject({
       ok: true,
       value: {
@@ -1464,7 +1459,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
       "taskCursor",
       "worktree",
     ]);
-    expect(probes.derivedLocusState).toHaveBeenCalledWith("andrew", []);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
@@ -3335,7 +3329,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.derivedLocusState).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
@@ -3344,7 +3337,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.inboxState).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
-    expect(probes.derivedLocusState).toHaveBeenCalledWith("andrew", []);
   });
 
   it("exposes the releaseRouting slot with ok=true on success", async () => {
@@ -3418,12 +3410,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("emits resolved handoff pathSet from handler-supplied resolvers", async () => {
     const probes = sessionHandoffProbes({
-      derivedLocusState: vi.fn(async (identity, activeExtensions) =>
+      derivedLocusState: vi.fn(async (identity) =>
         derivedFrameFromActive(activeSessionInit({
           resolution: "single",
           path: ".arc/active/meta-example-wu.md",
           sessionType: "execution",
-        }), identity, activeExtensions, null, null),
+        }), identity, null, null),
       ),
     });
     const sessionNotesPath = vi.fn(
@@ -3509,10 +3501,9 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("uses the active WU name for the handoff safe missing SESSION-NOTES sub-case", async () => {
     const probes = sessionHandoffProbes({
-      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+      derivedLocusState: vi.fn(async (identity) => derivedFrameFromActive(
         activeSessionInit({ resolution: "single", path: ".arc/active/meta-my-wu.md" }),
         identity,
-        activeExtensions,
         null,
         null,
       )),
@@ -3882,10 +3873,9 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("returns the resolved active status file path from the derived entering row", async () => {
     const probes = sessionHandoffProbes({
-      derivedLocusState: vi.fn(async (identity, activeExtensions) => derivedFrameFromActive(
+      derivedLocusState: vi.fn(async (identity) => derivedFrameFromActive(
         activeSessionInit({ resolution: "single", path: ".arc/active/technical/meta-foo.md" }),
         identity,
-        activeExtensions,
         null,
         null,
       )),
@@ -3990,7 +3980,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
       worktree: tracked(worktreeSnapshot()),
       user: tracked(userSessionInit()),
       syncInterlock: tracked(handoffSyncInterlock()),
-      extensions: tracked(extensionsSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({
@@ -3999,7 +3988,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       probes,
       resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
-    expect(peakInFlight).toBe(6);
+    expect(peakInFlight).toBe(5);
   });
 
   it("composes recommendedSummaryLine: Reconcile required for diverged worktree", async () => {

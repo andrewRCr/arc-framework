@@ -288,7 +288,6 @@ function freePrimaryDerivedFrame(): DerivedLocusFrame {
 function derivedFrameFromActive(
   active: Awaited<ReturnType<typeof runActiveSessionInitStatus>>,
   identity: string,
-  activeExtensions: readonly string[],
 ): DerivedLocusFrame {
   if (active.resolution === "single" && active.path !== null) {
     const key = /meta-(.+)\.md$/u.exec(active.path)?.[1] ?? "fixture";
@@ -320,7 +319,6 @@ function derivedFrameFromActive(
         sessionType: active.sessionType,
         planningStage: active.planningStage,
         taskListPath: active.taskListPath ?? null,
-        activeExtensions,
         cohortDocPath: null,
       }),
       integrationBoundary: active.integrationBoundary,
@@ -400,10 +398,9 @@ const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] =
 
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -484,10 +481,9 @@ function makeResolvedReleaseModeSessionInitProbes(
   };
 
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
@@ -571,12 +567,10 @@ function makeResolvedReleaseModeSessionHandoffProbes(
   };
 
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
-    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({
       state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
@@ -821,7 +815,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
 
   it("resolves the contributor WU from its entering-checkout context", async () => {
     const probes: SessionInitProbes = {
-      derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+      derivedLocusState: async (identity) => derivedFrameFromActive(
         await runActiveSessionInitStatus({
           cwd: fixture.root,
           identity,
@@ -829,7 +823,6 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
           exec: makeGitExec(fixture.root),
         }),
         identity,
-        activeExtensions,
       ),
       remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
       user: async (id) => stubUserSessionInit(id),
@@ -1022,10 +1015,9 @@ function makeRealWorktreeProbes(
   const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
   const userState = opts.userState ?? "clean";
   return {
-    derivedLocusState: async (identity, activeExtensions) => derivedFrameFromActive(
+    derivedLocusState: async (identity) => derivedFrameFromActive(
       await runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       identity,
-      activeExtensions,
     ),
     // Derived from the same fixture and the same flag the worktree probe below reads
     // with. A hardcoded `remote-sync-disabled` context contradicted a probe reading

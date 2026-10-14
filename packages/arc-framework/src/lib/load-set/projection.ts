@@ -57,7 +57,6 @@ export interface LoadSetProjectionInput {
    * Names stay in the status envelope for workflow fire-points to consult.
    * Extension bodies are intentionally excluded from the session load set.
    */
-  activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
 }

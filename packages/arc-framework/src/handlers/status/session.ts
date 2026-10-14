@@ -4,7 +4,7 @@ import * as p from "../../lib/terminal.js";
 import { access } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { runConfigStatus } from "../../commands/config.js";
-import { runExtensionsSessionInitStatus, runExtensionsStatus } from "../../commands/extensions.js";
+import { runExtensionsStatus } from "../../commands/extensions.js";
 import type { SessionHandoffProbes, StatusProbes } from "../../commands/status.js";
 import { buildStatusSummary, runRecoverStatus, runSessionHandoffStatus, runStatus } from "../../commands/status.js";
 import { assertSessionRecoverProbeResult } from "../../commands/status/schema.js";
@@ -38,17 +38,15 @@ function createHandoffProbes(
 ): SessionHandoffProbes {
   const { cwd, exec, io, identity, readUserInbox } = context;
   return {
-    derivedLocusState: async (id, activeExtensions) => {
+    derivedLocusState: async (id) => {
       const resolved = await resolvedSettingsP;
       return runDerivedLocusStateProbe({
         cwd,
         identity: id,
         baseBranch: resolved.settings["branch.base"],
-        activeExtensions,
         exec,
       });
     },
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
     dirty: () => runDirtyStateStatus({ exec }),
     worktree: async () => {
       const resolved = await resolvedSettingsP;

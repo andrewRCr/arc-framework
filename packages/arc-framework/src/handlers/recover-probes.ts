@@ -36,13 +36,12 @@ export function createRecoverStatusProbes(
   // not an unhandled rejection that kills the process before any slot is composed.
   extensionsP.catch(() => undefined);
   return {
-    derivedLocusState: async (identity, activeExtensions) => {
+    derivedLocusState: async (identity) => {
       const resolved = await resolvedSettingsP;
       return runDerivedLocusStateProbe({
         cwd,
         identity,
         baseBranch: resolved.settings["branch.base"],
-        activeExtensions,
         exec,
       });
     },

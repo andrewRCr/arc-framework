@@ -506,7 +506,6 @@ describe("emitCompactionSeed", () => {
       sessionType: "planning",
       planningStage: "generate-tasks",
       taskListPath: ".arc/active/tasks-compaction-recovery.md",
-      activeExtensions: [],
       cohortDocPath: null,
     });
     const result = await emit({

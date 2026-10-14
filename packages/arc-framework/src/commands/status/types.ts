@@ -619,7 +619,6 @@ export interface SessionInitProbes {
   /** Resolve the entering-checkout frame with the exact active extension set. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
   /** Acquire the immutable request-scoped code-repository remote context. */
   remoteContext: () => Promise<SessionRemoteContext>;
@@ -801,10 +800,9 @@ export interface SessionInitProbes {
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
 export interface SessionRecoverProbes {
-  /** Resolve the entering checkout with the exact active extension set. */
+  /** Resolve the entering checkout and its exact subject context. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
@@ -820,13 +818,10 @@ export interface SessionHandoffProbes {
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
-  /** Resolve the entering checkout with the exact active extension set. */
+  /** Resolve the entering checkout and its exact subject context. */
   derivedLocusState: (
     identity: string,
-    activeExtensions: readonly string[],
   ) => Promise<DerivedLocusFrame>;
-  /** Resolve active extensions before composing the derived WU projection. */
-  extensions: () => Promise<ExtensionsSessionInitResult>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
