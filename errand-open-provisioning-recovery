@@ -3,7 +3,7 @@
   "slug": "errand-open-provisioning-recovery",
   "claimId": "f0bebeb0ef9beb90d2d13cafa4d54f8c",
   "createdAt": "2026-10-14T04:02:58.300Z",
-  "updatedAt": "2026-10-14T04:02:58.300Z",
+  "updatedAt": "2026-10-14T04:49:49.572Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Recover a matching clean base-preserved pending Errand checkout on open retry and name that retry in status guidance.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Recover an Errand open interrupted during provisioning",
   "originEntrySourceDigest": "sha256:24549336e0ec8ef7ffe562b427c7d96aaa802ab50f269f4d7169c384ba36e78d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-open-provisioning-recovery",
+    "headSha": "789417671ca4e34591f30ecc52955ab0386e9058"
+  }
 }
