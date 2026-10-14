@@ -3,7 +3,7 @@
   "slug": "format-tables-ignored-files",
   "claimId": "ccab1bee05bd8ff2b7f88fe1faf19989",
   "createdAt": "2026-10-14T12:32:44.923Z",
-  "updatedAt": "2026-10-14T12:32:44.923Z",
+  "updatedAt": "2026-10-14T16:20:39.016Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Let explicitly named gitignored Markdown files use the existing safe table formatter while preserving implicit selection and write authority boundaries.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let `format:tables` align tables in gitignored Markdown files named explicitly",
   "originEntrySourceDigest": "sha256:85c7d654dd3b4ba86df57bb5a6820aa5daac690b4c82bfca56100138d930517b",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/format-tables-ignored-files",
+    "headSha": "44eb0f79a4580ba718c7c6211286fa6f9cef7f7d"
+  }
 }
