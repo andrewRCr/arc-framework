@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "prepare-underwrap",
+  "claimId": "22189e402de9f8ced61ee021304a09e2",
+  "createdAt": "2026-10-14T03:17:37.241Z",
+  "updatedAt": "2026-10-14T03:17:37.241Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrap the under-wrapped review-invocation paragraph in prepare-work-unit.md",
+  "branch": "chore/prepare-underwrap",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
