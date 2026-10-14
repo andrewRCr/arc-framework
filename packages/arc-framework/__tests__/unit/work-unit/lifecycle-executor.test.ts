@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   executeTransition,
+  resumeTransitionFinalization,
   type EncodingLeg,
   type ExecuteTransitionContext,
   type FinalizeWrite,
@@ -1048,5 +1049,37 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(outcome.branchFieldWritten).toBeNull();
     expect(branchWrites).toEqual([]);
     expect(calls).not.toContain("branch-field:");
+  });
+});
+
+
+describe("workspace close after record finalization", () => {
+  it("keeps the workspace available when the final record write fails", async () => {
+    let workspacePresent = true;
+    const { ctx } = buildSpies({ metas: [INTEGRATING_META], throwOnWrite: "softFields",
+      sideEffects: { "user-workspace": () => { workspacePresent = false; } } });
+    const result = await executeTransition(ctx, { verb: "archive", slug: "demo",
+      inputs: { toDir: ".arc/completed/2026-q4/01_demo" } });
+    expect(result.status).toBe("finalize-failed");
+    expect(workspacePresent).toBe(true);
+  });
+
+  it("keeps the workspace available when replay staging fails, then closes after repair", async () => {
+    let workspacePresent = true;
+    const { ctx } = buildSpies({ metas: [INTEGRATING_META],
+      sideEffects: { "user-workspace": () => { workspacePresent = false; } } });
+    const content = makeMetaFixture("demo", { state: "Shipped", currentWorkflow: "integrate-work-unit" });
+    ctx.indexFs = { readdir: async (path) => path === "/repo/.arc/completed" ? [{ name: "2026-q4", isDirectory: () => true, isFile: () => false }]
+      : path.endsWith("2026-q4") ? [{ name: "01_demo", isDirectory: () => true, isFile: () => false }]
+      : path.endsWith("01_demo") ? [{ name: "meta-demo.md", isDirectory: () => false, isFile: () => true }] : [],
+      readFile: async () => content };
+    ctx.stageMeta = async () => { throw new Error("stage unavailable"); };
+    const params = { verb: "archive" as const, slug: "demo", inputs: { toDir: ".arc/completed/2026-q4/01_demo" },
+      replayNonRoadmapSideEffects: true };
+    expect((await resumeTransitionFinalization(ctx, params))?.status).toBe("finalize-failed");
+    expect(workspacePresent).toBe(true);
+    ctx.stageMeta = async () => {};
+    expect((await resumeTransitionFinalization(ctx, params))?.status).toBe("ok");
+    expect(workspacePresent).toBe(false);
   });
 });

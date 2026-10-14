@@ -36,6 +36,8 @@ export interface RenameWorktreeTransactionRequest {
   readonly sourceSlug: string;
   readonly targetSlug: string;
   readonly expectedHead: string;
+  /** Optional exact marker generation retained by a composing transaction. */
+  readonly expectedMarkerGeneration?: string;
   readonly move?: RenameWorktreeMove;
   /** Explicit pending state; `null` clears a previously deferred move and `undefined` preserves it. */
   readonly renameMovePending?: WorktreeRenameMovePending | null;
@@ -132,6 +134,9 @@ async function applyUnderMutex(
       : { kind: "refused", reason: "role-conflict" };
   }
   if (current.kind === "malformed") return { kind: "refused", reason: "role-conflict" };
+  if (request.expectedMarkerGeneration !== undefined && digestBytes(current.bytes) !== request.expectedMarkerGeneration) {
+    return { kind: "refused", reason: "generation-changed" };
+  }
 
   const renamed = renamedMarker(current.marker, request);
   if (renamed === null) return { kind: "refused", reason: "role-conflict" };

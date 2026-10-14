@@ -33,6 +33,10 @@ import { validateClass, type WorkClass } from "../../kernel/schema/vocabulary.js
 import { formatValue, type MetaFieldName } from "../../active/meta-reader.js";
 import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import type { StoreRefusal } from "../../store/refusal.js";
+import type { Store } from "../../store/contract.js";
+import { writeMetaClass, writeMetaTaskList, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The planning ceremony whose finalize facts are being written. */
@@ -54,6 +58,7 @@ const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
 
 /** The executor capabilities the finalize-fact write needs. */
 export interface FinalizeStageContext {
+  store?: Store;
   /** Core-table `Class` write (read → rewrite cell → write). */
   writeClassField: NonNullable<ExecuteTransitionContext["writeClassField"]>;
   /** Bullet-field write for `Task List` / `Next Action` (read → rewrite → write). */
@@ -73,7 +78,7 @@ export type FinalizeStageResult =
       /** The terminal Next Action written, or `null` when not written. */
       nextAction: string | null;
     }
-  | { status: "rejected"; reason: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal };
 
 /**
  * Write the named WU's finalize facts for the given `firePoint`. Validates the
@@ -134,6 +139,10 @@ export async function runFinalizeStage(
     return { status: "rejected", reason: `The \`${firePoint}\` finalize takes no Class.` };
   }
 
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) {
+    return finalizeThroughStore(ctx.store, { name, firePoint, resolvedClass });
+  }
+
   const metaPath = resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
@@ -164,4 +173,23 @@ export async function runFinalizeStage(
   }
 
   return { status: "ok", metaPath, firePoint, workClass: resolvedClass, taskList, nextAction };
+}
+
+async function finalizeThroughStore(store: Store, values: {
+  name: string; firePoint: FinalizeFirePoint; resolvedClass: WorkClass | null;
+}): Promise<FinalizeStageResult> {
+  const { name, firePoint, resolvedClass } = values;
+    const read = await readWorkUnit(store, name);
+    if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
+    const metaPath = workUnitMetaPath(read.result);
+    let content = read.result.content;
+    if (resolvedClass !== null) content = writeMetaClass(content, resolvedClass);
+    const taskList = firePoint === "generate-tasks" ? `tasks-${name}.md` : null;
+    if (taskList !== null) content = writeMetaTaskList(content, taskList);
+    const nextAction = TERMINAL_NEXT_ACTION[firePoint] ?? null;
+    if (nextAction !== null) content = writeMetaNextAction(content, nextAction);
+    const written = await batchLifecycleWrites(store, [recordPut(read.result, { content })],
+      { verb: "finalize", lifecycleAction: firePoint });
+    return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
+      : { status: "ok", metaPath, firePoint, workClass: resolvedClass, taskList, nextAction };
 }

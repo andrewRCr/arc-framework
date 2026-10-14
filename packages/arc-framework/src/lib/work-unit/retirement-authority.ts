@@ -7,6 +7,7 @@
  */
 
 import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import type { RecordReference, RecordVersion } from "../store/identity.js";
 import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 import { assertNever } from "../kernel/index.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
@@ -32,6 +33,13 @@ export type RetirementEvidenceRef =
       expectedLifecycle: "completed";
       resultDigest: CanonicalDigest;
       baseProofOid: string;
+    }
+  | {
+      kind: "lineage";
+      transition: "abandon" | "decompose";
+      reference: RecordReference;
+      version: RecordVersion;
+      resultDigest: CanonicalDigest;
     }
   | {
       kind: "git-transition";

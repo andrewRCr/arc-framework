@@ -9,6 +9,11 @@
  *
  * @module
  */
+import { runStoreRename, type StoreRenameContext } from "./rename-store.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { Remedy, StoreRefusal } from "../../store/refusal.js";
+import type { Store } from "../../store/contract.js";
+
 
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
 import type {
@@ -26,7 +31,7 @@ import { LineageRecordSchema, type LineageRecord } from "../../store/kinds/linea
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
-export type RenameSubjectShape = "spawned" | "in-place" | "stub";
+export type RenameSubjectShape = "spawned" | "in-place" | "stub" | "archived";
 
 /** Fully guarded rename plan returned before any mutation. */
 export interface RenamePlan {
@@ -52,15 +57,17 @@ export type RunRenameResult =
   | {
       status: "renamed";
       shape: RenameSubjectShape;
-      trackedCommit: "created" | "existing";
+      trackedCommit?: "created" | "existing";
+      recordBatch?: "applied" | "existing";
+      keptBranches?: readonly string[];
       pendingIntegration: boolean;
       advisories: readonly string[];
       remote?: RenameRemoteBranchResult;
       worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
       checkout?: RenameWorktreeTransactionOutcome;
     }
-  | { status: "rejected"; reason: string }
-  | { status: "partial"; reason: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
+  | { status: "partial"; reason: string; remedy?: Remedy };
 
 /** Checkout identity report plus any physical move the transaction performed. */
 export interface RenameCheckoutReport {
@@ -70,6 +77,8 @@ export interface RenameCheckoutReport {
 
 /** Injected operations driven by {@link runRename}. */
 export interface RunRenameContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
   retirement: RenameRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
@@ -95,9 +104,14 @@ export interface RunRenameContext {
  * @returns Complete, refused, or resumable-partial outcome
  */
 export async function runRename(
-  ctx: RunRenameContext,
+  ctx: RunRenameContext | StoreRenameContext,
   params: { sourceSlug: string; targetSlug: string },
 ): Promise<RunRenameResult> {
+  if (usesOffBranchState(ctx.store)) {
+    if (!("exec" in ctx)) return { status: "rejected", reason: "Store rename requires its bound checkout and Git adapters." };
+    return runStoreRename(ctx, params);
+  }
+  if ("exec" in ctx) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
   let plan: RenamePlan;
   try {
     plan = await ctx.preflight(params);
@@ -173,7 +187,7 @@ class RenameTrackedRefusal extends Error {}
 async function runTrackedRename(
   ctx: RunRenameContext,
   plan: RenamePlan,
-): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string }> {
+): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }> {
   let source: RenameTransitionSourceEvidence;
   try {
     source = await ctx.retirement.captureSource({

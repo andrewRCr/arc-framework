@@ -9,6 +9,8 @@
  * @module
  */
 
+import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
   parseMetaRecord,
   setMetaBulletFields,
@@ -124,6 +126,8 @@ export interface CurrentWuReconcileGuard {
 
 /** Complete current-WU plan carried unchanged from inspection into apply. */
 export interface PreparedCurrentWuReconcile {
+  /** Complete record bases retained for the off-branch apply. */
+  storePlan?: PreparedLifecycleWrite;
   slug: string;
   plan: CurrentWuReconcilePlan;
   guards?: readonly CurrentWuReconcileGuard[];
@@ -161,8 +165,10 @@ export type CurrentWuReconcileResult =
   | { status: "applied"; prepared: PreparedCurrentWuReconcile; stagedPaths: readonly string[] }
   | {
       status: "conflict";
+      refusal?: StoreRefusal;
+      remedy?: Remedy;
       prepared: PreparedCurrentWuReconcile;
-      reason: DependencyReconcileConflictReason;
+      reason: DependencyReconcileConflictReason | "paused";
     };
 
 /** Current work-unit target and explicit apply mode. */

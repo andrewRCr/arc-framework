@@ -1,5 +1,8 @@
 /** Atomic local mutations and backend-enriched provenance for reference contract tests. */
+import { isTerminalSnapshotRepair } from "../../../src/lib/store/kinds/lineage/repair.js";
 
+
+import { assignCompletedCohorts } from "./cohort-placement.js";
 import { randomUUID } from "node:crypto";
 import {
   ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
@@ -106,14 +109,16 @@ function preflight(context: ReferenceContext, write: WriteInput, validatedConfli
   return undefined;
 }
 
-function stale(context: ReferenceContext, write: Mutation): boolean {
+function stale(context: ReferenceContext, write: WriteInput): boolean {
   const record = context.state.records.get(recordKey(canonicalReference(context.state, write.reference)));
   if (write.expected === null) return record !== undefined;
   if (record === undefined) return true;
+  if (record.version !== write.expected && isTerminalSnapshotRepair(write, record.content)) return true;
   if (record.version !== write.expected) return write.action === "remove" || record.reference.kind !== write.reference.kind
     || context.registry[write.reference.kind].merge === "single-writer"
     || mergeBase(context, { ...write, provenance: { verb: "check", lifecycleAction: "check" } }) === undefined;
-  return write.action === "put" && ["create-only", "write-once"].includes(context.registry[write.reference.kind].writerRule);
+  return write.action === "put" && ["create-only", "write-once"].includes(context.registry[write.reference.kind].writerRule)
+    && !isTerminalSnapshotRepair(write, record.content);
 }
 
 function placement(context: ReferenceContext, write: Extract<Mutation, { action: "put" }>, prior?: MemoryRecord): ReadPlacement | undefined {
@@ -122,7 +127,7 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
     && prior.placement.quarter === write.placement.quarter) return prior.placement;
   const quarter = write.placement.quarter;
   const imported = [...context.state.records.values()].flatMap((record) =>
-    record.reference.kind === "work-item/meta" && record.placement?.kind === "completed" && record.placement.quarter === quarter && "sequence" in record.placement
+    ["work-item/meta", "cohort/document"].includes(record.reference.kind) && record.placement?.kind === "completed" && record.placement.quarter === quarter && "sequence" in record.placement
       ? [Number(record.placement.sequence)] : []);
   const next = Math.max(context.state.archiveSequences.get(quarter) ?? 0,...imported) + 1;
   context.state.archiveSequences.set(write.placement.quarter, next);
@@ -167,7 +172,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     }
     const ownerPrimary = [...context.state.records.values()].find((record) => primary({ ...write, reference: record.reference })
       && record.reference.owner.type !== "person" && reference.owner.type !== "person" && record.reference.owner.uid === reference.owner.uid);
-    const selectedPlacement = primary(write) ? placement(context, write, prior)
+    const selectedPlacement = write.reference.kind === "cohort/document" ? write.placement ?? prior?.placement : primary(write) ? placement(context, write, prior)
       : ["work-item", "review"].includes(familyOf(reference.kind)) ? ownerPrimary?.placement ?? prior?.placement : undefined;
     context.state.records.set(key, {
       reference, content: content!, version: allocated.version,
@@ -229,6 +234,7 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
     if (refusal) return refused(refusal);
     if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
     const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    assignCompletedCohorts(prepared, [mutation], context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);
     const identities = indexIdentities(prepared.state.records);
@@ -266,6 +272,7 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
     if (conflicts.length > 0) return refused(versionConflict(conflicts));
     const batchId = randomUUID();
     const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
+    assignCompletedCohorts(prepared, mutations, context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);
     const identities = indexIdentities(prepared.state.records);

@@ -492,16 +492,16 @@ view.
   reroute of the cold start keeps the call and adds its marker (§ 19); the flip follows both changes, so their order
   does not matter.
 - **Before the flip, the close moves after the records** (fix 3). Today `runUserClose` (`commands/user/close.ts`) runs
-  among the side effects, before the finalize writes that follow in `lifecycle-executor.ts` — `Branch`, the soft fields,
-  `Current Workflow`, and `stageMeta` — so a throw there returns `finalize-failed` with the workspace gone. The close
-  runs after the transition's record writes instead, as a sequenced step, since the in-repo implementation refuses a
-  batch spanning substrates, and stays idempotent on rerun. Where it throws after the records land, the result names
-  `arc user close <slug>` as its continuation, since a rerun of the transition's verb refuses once its records have
-  moved. Archive is the one edge exposed today: park from Planning
-  defers the close until its retirement completes, park from Active closes after its pointer write, and abandon swaps in
-  a no-op and closes after teardown. Archive's own records follow the executor's — `runArchive` writes `PR URL` and
-  `Completed` after the transition returns, then sweeps the cohort documents — so archive defers the close past them, as
-  park from Planning defers it (`parkPlanning`, `verbs/park-resume.ts`).
+  among the side effects, before the finalize writes that follow in `lifecycle-executor.ts` — `Branch`, the soft
+  fields,   `Current Workflow`, and `stageMeta` — so a throw there returns `finalize-failed` with the workspace gone.
+  The close   runs after the transition's record writes instead, as a sequenced step, since the in-repo implementation
+  refuses a   batch spanning substrates, and stays idempotent on rerun. Where it throws after the records land, the
+  result names   `arc user close <slug>` as its continuation, since a rerun of the transition's verb refuses once its
+  records have   moved. Archive is the one edge exposed today: park from Planning   defers the close until its
+  retirement completes, park from Active closes after its pointer write, and abandon swaps in   a no-op and closes
+  after teardown. Archive's own records follow the executor's — `runArchive` writes `PR URL` and   `Completed` after
+  the transition returns, then sweeps the cohort documents — so archive defers the close past them, as   park from
+  Planning defers it (`parkPlanning`, `verbs/park-resume.ts`).
 
 #### 2.6 Dependency edges
 

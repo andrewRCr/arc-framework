@@ -4,6 +4,14 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import type { StoreRefusal, Remedy } from "../lib/store/refusal.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { readWorkUnit, usesOffBranchState, workUnitMetaPath } from "../lib/store/lifecycle-write.js";
+import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
+import { buildStoreCurrentWuReconcile } from "../lib/work-unit/store-current-wu-reconcile.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -81,6 +89,8 @@ interface ReconcileEnvelope {
   edits: ReadonlyArray<{ path: string; expectedContentDigest: string }>;
   stagedPaths: readonly string[];
   reason?: string;
+  refusal?: StoreRefusal;
+  remedy?: Remedy;
 }
 
 /** Run `arc wu reconcile [slug]` from the current work unit's own checkout. */
@@ -103,6 +113,8 @@ export async function handleWuReconcile(
   if (cwd === null) return;
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { cwd, ...options });
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  if (usesOffBranchState(store)) { await handleStoreReconcile(store, cwd, input); return; }
   const transitionExec = createRawGitExec(cwd);
   const [index, currentBranch] = await Promise.all([
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
@@ -141,6 +153,28 @@ export async function handleWuReconcile(
     emitHuman(envelope);
   }
   if (result.status === "conflict") process.exitCode = 1;
+}
+
+
+/** Run current-work-unit reconciliation with the caller's already-bound operational store. */
+export async function handleStoreReconcile(store: Store, cwd: string, input: z.infer<typeof WuReconcileCommandInputSchema>): Promise<void> {
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  const slug = await storeReconcileSlug(current, cwd);
+  if (slug === undefined || (input.slug !== undefined && input.slug !== slug)) {
+    emitConflict(input, input.slug ?? "", current.warnings.join("; ") || "The checkout does not hold exactly one matching work unit.");
+    return;
+  }
+  const meta = await readWorkUnit(store, slug);
+  if (meta.status === "refused") { emitConflict(input, slug, `${meta.refusal.condition} ${meta.refusal.remedy.text}`); return; }
+  const ceremony = buildStoreCurrentWuReconcile(store);
+  try {
+    const prepared = await ceremony.prepare({ slug, metaPath: workUnitMetaPath(meta.result) });
+    const result = input.apply === true && prepared.status !== "conflict" ? await ceremony.apply(prepared.prepared) : prepared;
+    const envelope = toEnvelope(result);
+    if (input.json === true) process.stdout.write(`${JSON.stringify(envelope)}\n`);
+    else emitHuman(envelope);
+    if (result.status === "conflict") process.exitCode = 1;
+  } catch (error) { emitConflict(input, slug, error instanceof Error ? error.message : String(error)); }
 }
 
 async function resolveOwnedTarget(
@@ -200,7 +234,9 @@ function toEnvelope(result: CurrentWuReconcileResult): ReconcileEnvelope {
       expectedContentDigest,
     })),
     stagedPaths: result.status === "applied" ? result.stagedPaths : [],
-    ...(result.status === "conflict" ? { reason: result.reason } : {}),
+    ...(result.status === "conflict" ? { reason: result.reason,
+      ...(result.refusal === undefined ? {} : { refusal: result.refusal }),
+      ...(result.remedy === undefined ? {} : { remedy: result.remedy }) } : {}),
   };
 }
 
@@ -228,6 +264,8 @@ function emitHuman(envelope: ReconcileEnvelope): void {
   }
   if (envelope.status === "conflict") {
     p.log.error(`Work unit \`${envelope.slug}\` reconcile refused: ${envelope.reason ?? "conflict"}.`);
+    const remedy = envelope.remedy ?? envelope.refusal?.remedy;
+    if (remedy !== undefined) p.log.info(`${remedy.text}${remedy.argv === undefined ? "" : ` ${remedy.argv.map((part) => JSON.stringify(part)).join(" ")}`}`);
     return;
   }
   const action = envelope.status === "applied" ? "Applied" : "Pending";
@@ -244,3 +282,12 @@ const nodeLifecycleFs: LifecycleIndexFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
+
+async function storeReconcileSlug(current: Awaited<ReturnType<typeof resolveCurrentWorkUnit>>, cwd: string): Promise<string | undefined> {
+  let slug = current.status === "resolved" ? current.candidate.reference.owner.name : undefined;
+  if (slug === undefined && current.status === "none") {
+    const marker = await readWorktreeMarker(cwd);
+    if (marker.kind === "present" && marker.marker.createdFor?.kind === "work-unit") slug = SlugSchema.parse(marker.marker.createdFor.name);
+  }
+  return slug;
+}

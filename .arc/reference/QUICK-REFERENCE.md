@@ -321,6 +321,9 @@ arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 # Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
 arc rename <slug> <new-slug>
 
+# Set Class at any lifecycle placement; the slug defaults to the checkout's work unit
+arc set-class <Light|Heavy|Novel> [slug]
+
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
@@ -448,9 +451,8 @@ message structure, and wrapper retry behavior.
 
 Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] §
-Commit Discipline for the trust model and opt-in semantics.
+`commit-message-preflight-failed`; audit entries land at `.arc/user/{identity}/.internal/.audit-log.jsonl`. See
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the trust model and opt-in semantics.
 
 ### Standalone Work History
 

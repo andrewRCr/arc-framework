@@ -55,6 +55,10 @@ describe("repository command-input inventory", () => {
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ identity: "pause:option.no-waits-on", schemaField: "waitsOn" }),
+      expect.objectContaining({ identity: "pause:option.no-resume-notes", schemaField: "resumeNotes" }),
+      expect.objectContaining({ identity: "pause:option.no-open", schemaField: "open" }),
+      expect.objectContaining({ identity: "handover:option.to", schemaField: "to" }),
       expect.objectContaining({
         identity: "init:option.name",
         schemaField: "projectName",
@@ -334,10 +338,12 @@ describe("repository command-input inventory", () => {
       "delivery top-remedy",
       "demote",
       "finalize",
+      "handover",
       "integrate checkpoint",
       "integrate merge",
       "materialize",
       "park",
+      "pause",
       "promote",
       "publish",
       "rename",
@@ -351,6 +357,7 @@ describe("repository command-input inventory", () => {
       "review pre-publication",
       "review status",
       "review terminus accept",
+      "set-class",
       "set-stage",
       "start",
       "status",
@@ -419,9 +426,12 @@ describe("repository command-input inventory", () => {
       "reopen",
       "archive",
       "teardown",
+      "set-class",
       "set-stage",
       "finalize",
       "repoint-design",
+      "pause",
+      "handover",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

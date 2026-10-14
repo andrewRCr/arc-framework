@@ -1,0 +1,80 @@
+/** Backend-assigned archive numbers and session/cohort closeout share one checked batch. */
+import { describe, expect, it } from "vitest";
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { recordReferences, OwnerIdentitySchema, StateVersionSchema } from "../../../../src/lib/store/identity.js";
+import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
+import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
+import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
+import { writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+function context(store: Store): ExecuteTransitionContext {
+  const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
+  return { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
+    setPhase: forbidden, relocateArtifacts: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
+    writeSoftFields: forbidden, writeBranchField: forbidden, writeDesignField: forbidden, writeCurrentWorkflowField: forbidden };
+}
+describe("store archive", () => {
+  it("retains the pause's typed resume remedy and leaves the record unchanged", async () => {
+    const h = createLifecycleHarness();
+    const meta = await h.seedMeta("example");
+    lifecycleSuccess(await h.store.write({ ...recordPut(meta, { content: writeMetaPause(meta.content, {
+      pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait.", waitsOn: null,
+      resumeNotes: null, open: false,
+    }) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    const paused = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    const result = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => new Date() }, { name: "example" });
+    expect(result).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "resume", "example"] } });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(paused);
+  });
+
+  it("retries a persisted archive's failed report without writing another archive", async () => {
+    const h = createLifecycleHarness();
+    const meta = await h.seedMeta("example");
+    let landed = false;
+    const store: Store = new Proxy(h.store, { get(target, key) {
+      if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+        const result = await target.batch(input); landed = result.status === "ok"; return result;
+      };
+      if (key === "read") return async (input: Parameters<Store["read"]>[0]) => landed
+        ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: input.reference,
+          rule: "test.report-unavailable", condition: "Archive report temporarily unavailable.", remedy: { text: "Repair reads, then retry." } } }
+        : target.read(input);
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    const first = await runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date() }, { name: "example" });
+    expect(first).toMatchObject({ status: "rejected", persisted: true, remedy: { argv: ["arc", "archive", "example"] } });
+    const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    const retried = await runArchive({ executor: context(h.store), fs: { readdir: async () => [] }, clock: () => new Date() }, { name: "example" });
+    expect(retried.status).toBe("archived");
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(completed);
+  });
+  it("reports the assigned number and closes the last cohort with cleared session fields", async () => {
+    const h = createLifecycleHarness();
+    const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+      "# Cohort: group\n\n**Purpose:** Deliver a concrete result.\n");
+    const initial = await h.seedMeta("example", { cohort: "group", stateAtHandoff: StateVersionSchema.parse("state:1"), commitAtHandoff: `sha256:${"a".repeat(64)}`, sessionType: "execution" });
+    lifecycleSuccess(await h.store.write({ ...recordPut(initial, { content: writeMetaSessionContext(initial.content, "Retained context") }),
+      provenance: { verb: "handoff", lifecycleAction: "handoff" } }));
+    const meta = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
+    const forbidden = async (): Promise<never> => { throw new Error("quarter filesystem scan"); };
+    const result = await runArchive({ executor: context(h.store), fs: { readdir: forbidden }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name: "example" });
+    expect(result.status).toBe("archived");
+    if (result.status !== "archived") return;
+    expect(result.destination).toMatchObject({ quarter: "2026-q4", sequence: "01" });
+    expect(result.cohortSwept).toContain("01a_cohort-group");
+    const archived = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+    expect(ParsedMetaRecordSchema.parse(archived.fields)).toMatchObject({ state: "Shipped", sessionContext: null,
+      stateAtHandoff: null, commitAtHandoff: null, sessionType: null, nextAction: null, prUrl: null, branch: null });
+    const cohort = lifecycleSuccess(await h.store.read({ reference: group.reference }));
+    expect(cohort.placement).toMatchObject({ kind: "completed", sequence: "01", closeout: "a" });
+    const ownHistory = lifecycleSuccess(await h.store.history({ reference: meta.reference }));
+    const groupHistory = lifecycleSuccess(await h.store.history({ reference: group.reference }));
+    const own = ownHistory[0]?.provenance, groupProvenance = groupHistory[0]?.provenance;
+    if (own === undefined || groupProvenance === undefined || !("batchId" in own) || !("batchId" in groupProvenance)) throw new Error("Atomic archive provenance is absent");
+    expect(own.batchId).toBeTruthy();
+    expect(own.batchId).toBe(groupProvenance.batchId);
+  });
+});

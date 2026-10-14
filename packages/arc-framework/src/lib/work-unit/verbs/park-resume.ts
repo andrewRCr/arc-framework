@@ -40,6 +40,10 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { checkRetiringCheckout, describeRemovalRefusal, type WorktreeRemovalOptions } from "../../git/worktree-removal.js";
+import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
+
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
@@ -70,7 +74,7 @@ import {
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 
 /** The flat `active/` tier — where a started WU's artifacts live. */
-const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
+
 
 /** The cohort-aware per-WU parked directory (cwd-relative). */
 function parkedDestination(name: Slug, rawCohort: string | null): { toDir: string; metaPath: string } {
@@ -121,6 +125,8 @@ export interface ParkContext {
   planningRetirement?: ParkPlanningRetirementContext;
   /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
   composed?: ComposedLifecycleIndexResult;
+  /** Checkout safety boundaries, required on started retirement paths. */
+  removal?: Omit<WorktreeRemovalOptions, "checkoutPath" | "disposition"> & { readMarker?: (path: string) => Promise<WorktreeMarkerReadResult> };
 }
 
 /** Source/result paths captured before a park-at-Planning relocation. */
@@ -206,7 +212,7 @@ export type ResumeParams = ResumeSpawnParams | ResumeInPlaceParams;
 
 /** The outcome of a `park` attempt — a rejection, or the parked meta path (+ pointer-record). */
 export type ParkResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; code?: "unsupported" }
   | {
       status: "parked";
       outcome: TransitionOutcome;
@@ -273,6 +279,7 @@ const PARK_ACTIVE_SIDE_EFFECTS: readonly SideEffectId[] = [
  * @returns A rejection (missing reason, illegal source, or failure) or the parked meta path.
  */
 export async function runPark(ctx: ParkContext, params: ParkParams): Promise<ParkResult> {
+  if (usesOffBranchState(ctx.executor.store)) return { status: "rejected", code: "unsupported", reason: `arc park is unsupported with store-backed state; use arc pause ${params.name} --reason <text>, or release its checkout through locus.` };
   const { name, reason, sourceRecord, worktreePath, currentLocus } = params;
 
   // `name` is interpolated into the parked-dir and meta paths below; reject a
@@ -331,7 +338,7 @@ async function parkPlanning(
   try {
     source = await retirement.captureSource({
       name,
-      sourceDir: ACTIVE_DIR,
+      sourceDir: resolveArcPath({ kind: "placement-root", tier: "active" }),
       resultDir: toDir,
       expectedBranch: sourceRecord.branch,
     });
@@ -347,6 +354,12 @@ async function parkPlanning(
       status: "rejected",
       reason: `Cannot record park evidence: ${snapshot.diagnostic ?? describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
     };
+  }
+
+  {
+    if (ctx.removal === undefined) return { status: "rejected", reason: "checkout removal check is not wired." };
+    const removal = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: ctx.executor.cwd });
+    if (removal.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal) };
   }
 
   const workspaceHandler = ctx.executor.sideEffects?.["user-workspace"];
@@ -435,7 +448,7 @@ async function rollbackParkPlanning(
 
 /**
  * park@Active — preserve the pushed branch as the durable shelf. Tear down only
- * the worktree (the mutator's cleanliness check refuses uncommitted
+ * the worktree (the removal check inside the mutator refuses uncommitted
  * work and targets *that* worktree, never this base relocate locus), then render a
  * fresh minimal pointer-record on the tracked branch — no git-mv, since the
  * authoritative artifacts ride the preserved branch and are never moved off

@@ -91,7 +91,7 @@ export async function hasCompetingLifecycleProjection(
     if (declaredBranch !== branch) return false;
     const expectedLifecycle = proof.evidence.kind === "shipped"
       ? "completed"
-      : gitTransitionExpectedLifecycle(proof.evidence.transition);
+      : proof.evidence.kind === "lineage" ? "nonexistent" : gitTransitionExpectedLifecycle(proof.evidence.transition);
     if (
       (expectedLifecycle === "completed" && entry.location === "completed")
       || (expectedLifecycle === "planned" && entry.location === "planned")

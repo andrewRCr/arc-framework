@@ -49,3 +49,22 @@ it("registers the lineage check with the production undeclared grammar", async (
   if (check === null) throw new Error("Lineage must register its check.");
   expect(await check(input())).toEqual([]);
 });
+
+it("checks a terminal snapshot against the exact pre-transition links even without inbound grammar", async () => {
+  const proposal = input(null);
+  const branches = [{ repository: "repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }];
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: branches };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  const primary = ruleRecord("work-item/meta", "example", META_RULE_UID);
+  primary.links = { branches: [{ ...branches[0]!, linkedAs: "adopted" }] };
+  proposal.before = ruleView([primary]);
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
+  primary.links = { branches };
+  expect(await checkLineageRecord(proposal)).toEqual([]);
+});
+it("refuses a terminal snapshot whose prior primary cannot be read", async () => {
+  const proposal = input(null);
+  const terminal = { ...parseLineageRecord(proposal.next!.content), retiredBranches: [] };
+  proposal.next = { content: JSON.stringify(terminal), fields: terminal };
+  expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
+});

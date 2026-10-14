@@ -192,9 +192,6 @@
     },
     "arc/work-unit-paths": {
       "count": 1
-    },
-    "sonarjs/cognitive-complexity": {
-      "count": 1
     }
   },
   "src/commands/status/run.ts": {
@@ -275,6 +272,9 @@
     "arc/module-doc-comment": {
       "count": 1
     },
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "arc/surface-names": {
       "count": 2
     },
@@ -285,9 +285,6 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -493,7 +490,7 @@
       "count": 5
     },
     "arc/surface-names": {
-      "count": 2
+      "count": 1
     },
     "max-lines": {
       "count": 1
@@ -502,7 +499,7 @@
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 2
     }
   },
   "src/handlers/plan.ts": {
@@ -1603,6 +1600,9 @@
     }
   },
   "src/lib/session-init/stale-worktree-sweep.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "max-depth": {
       "count": 1
     },
@@ -1610,9 +1610,6 @@
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
-    "arc/store-raw-state": {
       "count": 1
     }
   },

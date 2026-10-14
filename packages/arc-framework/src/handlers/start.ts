@@ -15,6 +15,10 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { handleStoreStart } from "./start-store.js";
 import { lstat, readFile, readdir, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
@@ -148,6 +152,7 @@ export async function handleStart(
   name: string | undefined,
   opts: StartOptions,
   context: InteractionContext,
+  overrides: { store?: Store; locusPorts?: LocusPorts; admitColdStart?: (input: StartOptions & { name?: string }) => Promise<void> } = {},
 ): Promise<void> {
   p.intro("arc start");
 
@@ -174,6 +179,12 @@ export async function handleStart(
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+
+  const executor = buildExecutorContext({ cwd, io, identity, teamMode: false, internalTemplateDir: getInternalTemplatePath(), ...overrides });
+  if (usesOffBranchState(executor.store)) {
+    await handleStoreStart(input, { cwd, io, identity, interaction: context, executor, locusPorts: overrides.locusPorts, admitColdStart: overrides.admitColdStart });
+    return;
+  }
 
   // `--here` with no name: there is no slug to resolve a state against, so this
   // is unambiguously a cold-start, deriving the WU name from the current branch.
@@ -330,6 +341,7 @@ export async function handleStart(
 
 /** Shared ambient context the arms resolve once. */
 interface ArmContext {
+  store?: Store;
   io: ReturnType<typeof createUserIOContext>;
   cwd: string;
   identity: string;
@@ -431,10 +443,12 @@ async function createNew(
   }
 
   const r = outcome.value;
+  if (r.branch === null) throw new Error("Legacy start requires its planning branch");
+  const branch = r.branch;
   p.note(
     [
       `Work unit: ${r.wuName}`,
-      `Branch:    ${r.branch}`,
+      `Branch:    ${branch}`,
       `Worktree:  ${r.worktreePath}`,
       `Meta:      ${materializeArcPath(r.worktreePath, projectActiveMetaPath(r.wuName))}`,
     ].join("\n"),
@@ -445,7 +459,7 @@ async function createNew(
   const roadmap = await runWithInteractionProgress(ctx.interaction,
     "Refreshing ROADMAP...",
     "ROADMAP updated.",
-    () => refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch),
+    () => refreshRoadmapForStartCeremony(ctx, r.worktreePath, branch),
     (r) => r.ok,
     "ROADMAP refresh failed.",
   );
@@ -460,7 +474,7 @@ async function createNew(
     "Ceremony committed and pushed.",
     () => commitAndPushStartCeremony(ctx, {
       cwd: r.worktreePath,
-      branch: r.branch,
+      branch: branch,
       stagePaths: [projectActiveMetaPath(r.wuName), ROADMAP_PATH],
       message: buildCreateNewCeremonyCommitMessage(r.wuName),
     }),
@@ -478,7 +492,7 @@ async function createNew(
     wuName: r.wuName,
     commit: ceremony.commit,
   });
-  p.log.info(`Committed ${ceremony.commit} and pushed ${r.branch}.`);
+  p.log.info(`Committed ${ceremony.commit} and pushed ${branch}.`);
   reportWorktreeEntryRecipe(r.worktreePath);
   p.outro("Done.");
 }
@@ -630,6 +644,7 @@ async function graduate(
       "Graduation complete.",
       () => runGraduate(
         buildExecutorContext({
+            ...(ctx.store === undefined ? {} : { store: ctx.store }),
           ...ctx,
           teamMode: settings["team.mode"] === "true",
           baseBranch: settings["branch.base"],
@@ -696,6 +711,7 @@ async function graduate(
     "Worktree ready.",
     () => runGraduate(
       buildExecutorContext({
+            ...(ctx.store === undefined ? {} : { store: ctx.store }),
         ...ctx,
         teamMode: config.teamMode,
         baseBranch: config.baseBranch,
@@ -750,12 +766,14 @@ async function graduate(
   if (result.postCreateNotice) p.log.info(result.postCreateNotice);
   const reportedRoadmapWarnings = reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);
+  if (result.branch === null) throw new Error("Legacy graduation requires its planning branch");
+  const branch = result.branch;
   const graduatedWorktree = result.worktreePath;
   if (graduatedWorktree !== undefined) {
     const roadmap = await runWithInteractionProgress(ctx.interaction,
       "Refreshing ROADMAP...",
       "ROADMAP updated.",
-      () => refreshRoadmapForStartCeremony(ctx, graduatedWorktree, result.branch),
+      () => refreshRoadmapForStartCeremony(ctx, graduatedWorktree, branch),
       (r) => r.ok,
       "ROADMAP refresh failed.",
     );
@@ -770,7 +788,7 @@ async function graduate(
       "Ceremony committed and pushed.",
       () => commitAndPushStartCeremony(ctx, {
         cwd: graduatedWorktree,
-        branch: result.branch,
+        branch: branch,
         stagePaths: [projectActiveMetaPath(wuName), ROADMAP_PATH],
         message: buildGraduateCeremonyCommitMessage(wuName),
       }),
@@ -788,7 +806,7 @@ async function graduate(
       wuName,
       commit: ceremony.commit,
     });
-    p.log.info(`Committed ${ceremony.commit} and pushed ${result.branch}.`);
+    p.log.info(`Committed ${ceremony.commit} and pushed ${branch}.`);
     reportWorktreeEntryRecipe(graduatedWorktree);
   }
   p.outro("Done.");
@@ -816,6 +834,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       () => runResume(
         {
           executor: buildExecutorContext({
+            ...(ctx.store === undefined ? {} : { store: ctx.store }),
             ...ctx,
             teamMode: settings["team.mode"] === "true",
             baseBranch: settings["branch.base"],
@@ -867,6 +886,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     () => runResume(
       {
         executor: buildExecutorContext({
+            ...(ctx.store === undefined ? {} : { store: ctx.store }),
           ...ctx,
           teamMode: config.teamMode,
           baseBranch: config.baseBranch,

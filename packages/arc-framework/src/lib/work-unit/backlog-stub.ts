@@ -17,6 +17,9 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
+import { readLifecycleStub } from "../store/lifecycle-stub.js";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -96,9 +99,10 @@ async function collectStubs(root: string, stateDir: BacklogStateDir): Promise<Ba
  *   malformed backlog (slugs must be unique), surfaced rather than resolved
  *   arbitrarily by traversal order.
  */
-export async function resolveBacklogStub(cwd: string, slug: string): Promise<BacklogStub | null> {
+export async function resolveBacklogStub(cwd: string, slug: string, store?: Store): Promise<BacklogStub | null> {
   const target = slug.trim();
   if (!target) return null;
+  if (usesOffBranchState(store) && store !== undefined) return readLifecycleStub(store, cwd, target);
   for (const stateDir of STATE_DIRS) {
     const stubs = await collectStubs(join(cwd, ".arc", "backlog", stateDir), stateDir);
     const matches = stubs.filter((s) => s.slug === target);

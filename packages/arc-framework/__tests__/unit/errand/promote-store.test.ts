@@ -1,0 +1,93 @@
+/** Ordinary composition retains the Errand generation while cutting a second work branch. */
+import { expect, it } from "vitest";
+import { createStorePromotionSteps } from "../../../src/lib/errand/promote-store.js";
+import { promoteOrdinaryErrand } from "../../../src/lib/errand/promote.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { computeDefaultCaptureSet } from "../../../src/lib/git/default-capture-set.js";
+import { scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import type { PromoteFloor } from "../../../src/lib/errand/promote.js";
+const sha = "1".repeat(40), claimId = "a".repeat(32);
+async function fixture(floor: PromoteFloor = "derivation", failCut = false) {
+  const harness = createLifecycleHarness(), owner = OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" });
+  const identity = { version: 3, slug: "errand-source", claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
+    kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null,
+    state: "open", savedHead: null, changeRequest: null };
+  const primary = await harness.seed(recordReferences["work-item/record"](owner), JSON.stringify(identity), { kind: "active" },
+    { branches: [{ repository: "repo", ref: identity.branch, linkedAs: "created", excluded: [] }] });
+  const description = await harness.seed(recordReferences["work-item/description"](primary.reference.owner), "## Entries\n\n- Useful work\n");
+  const fake = scriptGitExec([
+    { match: ["check-ref-format", "--branch", "feat/example"], responses: [{ stdout: "feat/example" }] },
+    { match: ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "refs/heads/feat/example^{commit}"], responses: [{ failure: { exitCode: 1 } }, ...(failCut ? [{ failure: { exitCode: 1 } }] : []), { stdout: sha }] },
+    { match: ["--no-replace-objects", "rev-parse", "--verify", "refs/heads/chore/errand-source^{commit}"], responses: [{ stdout: sha }] },
+    { match: ["branch", "feat/example", sha], responses: failCut ? [{ failure: { exitCode: 128, stderr: "interrupted cut" } }, { stdout: "" }] : [{ stdout: "" }] },
+    { match: ["switch", "feat/example"], responses: [{ stdout: "" }] },
+  ]);
+  const options = { slug: "errand-source", name: "example", floor, type: "feat", owner: "test-user", class: "Light", store: harness.store,
+    exec: fake.exec, cwd: "/checkout", repository: "repo", frame: { checkoutPath: "/checkout", allocation: "primary" as const, parentCheckoutPath: null } };
+  const steps = createStorePromotionSteps(options);
+  const run = () => promoteOrdinaryErrand({ ...options, protection: "full", dependencies: { ...steps,
+    settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } });
+  return { ...harness, primary, description, fake, steps, run, options };
+}
+it("puts the Planning meta on the same UID, retains aliases/history/description, and cuts then switches a created work branch", async () => {
+  const f = await fixture(); expect(await f.run()).toMatchObject({ outcome: "applied", subject: { slug: "errand-source", claimId } });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  if (f.primary.reference.owner.type === "person") throw new Error("Expected work item");
+  expect(meta.reference).toMatchObject({ kind: "work-item/meta", owner: { name: "example", uid: f.primary.reference.owner.uid } });
+  expect(meta.fields).toMatchObject({ state: "Planning", currentWorkflow: "draft-design", branch: null, lastCompleted: null });
+  expect(meta.placement).toEqual(f.primary.placement);
+  expect(meta.links?.branches).toEqual([...f.primary.links!.branches!, { repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }]);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.description.reference })).content).toBe(f.description.content);
+  expect(lifecycleSuccess(await f.store.history({ reference: meta.reference })).map((entry) => entry.reference.kind)).toEqual(["work-item/meta", "work-item/record"]);
+  expect(lifecycleSuccess(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("errand-source") })).reference).toEqual(meta.reference);
+  expect(lifecycleSuccess(await f.store.lookup({ kind: "ref", repository: "repo", ref: "feat/example" })).reference).toEqual(meta.reference);
+  expect(f.fake.calls.slice(-2).map((call) => call.args)).toEqual([["branch", "feat/example", sha], ["switch", "feat/example"]]);
+  expect(await f.steps.retire(JSON.parse(f.primary.content))).toEqual({ kind: "idempotent" });
+  expect(await f.steps.readIdentity()).toEqual({ kind: "ready", record: null });
+  expect(await f.steps.recoverPromoted()).toMatchObject({ kind: "idempotent", metaCommitted: true, branch: "feat/example" });
+});
+it("scale floor starts Active and retains all Errand commits in its default capture", async () => {
+  const f = await fixture("scale"); expect(await f.run()).toMatchObject({ outcome: "applied" });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(meta.fields).toMatchObject({ state: "Active", currentWorkflow: "process-task-loop" });
+  expect(meta.links?.branches?.at(-1)).toMatchObject({ linkedAs: "created", excluded: [] });
+});
+it("refuses a stale expected-version put without cutting any branch", async () => {
+  const f = await fixture(); const identity = await f.steps.readIdentity(); if (identity.kind !== "ready" || identity.record === null || identity.record.kind !== "errand" || identity.record.purpose !== "errand") throw new Error("Missing source");
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: f.primary.content, placement: { kind: "active" }, provenance: { verb: "another-write", lifecycleAction: "update" } }));
+  expect(await f.steps.replaceFrame(identity.record)).toMatchObject({ kind: "refused" });
+  expect(f.fake.calls.some((call) => call.args[0] === "branch" || call.args[0] === "switch")).toBe(false);
+});
+
+it("recovers a landed role put after a failed branch cut without creating another record generation", async () => {
+  const f = await fixture("derivation", true);
+  expect(await f.run()).toMatchObject({ outcome: "error" });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(meta.reference.kind).toBe("work-item/meta");
+  expect(await f.run()).toMatchObject({ outcome: "idempotent", settlement: { state: "settled", identity: "retired" } });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).version).toBe(meta.version);
+  expect(lifecycleSuccess(await f.store.history({ reference: meta.reference }))).toHaveLength(2);
+});
+
+it("includes the scale-floor Errand tip in the linked work branch's default task capture", async () => {
+  const f = await fixture("scale"); await f.run();
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  const base = "2".repeat(40);
+  const git = scriptGitExec([
+    { match: ["remote"], responses: [{ stdout: "" }] },
+    { match: ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"], responses: [{ stdout: base }] },
+    { match: ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["--no-replace-objects", "rev-list", "--no-merges", "refs/heads/feat/example", "--not", base], responses: [{ stdout: sha }] },
+  ]);
+  const body = `tree ${"3".repeat(40)}\nparent ${base}\nauthor Test <test@example.com> 123 +0000\ncommitter Test <test@example.com> 123 +0000\n\nEmpty Errand commit\n`;
+  const raw = scriptRawGitExec([
+    { match: ["--no-replace-objects", "cat-file", "--batch"], responses: [{ stdout: Buffer.from(`${sha} commit ${Buffer.byteLength(body)}\n${body}\n`), stderr: Buffer.alloc(0) }] },
+    { match: { prefix: ["--no-replace-objects", "-c"] }, responses: [{ stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) }] },
+  ]);
+  const work = meta.links?.branches?.at(-1); if (work === undefined) throw new Error("Missing promoted link");
+  expect(await computeDefaultCaptureSet({ exec: git.exec, execRaw: raw.exec, cwd: "/checkout", baseBranch: "main", repository: "repo",
+    tips: [`refs/heads/${work.ref}`], captures: Object.values(meta.links?.taskCaptures ?? {}).flat(), exclusions: work.excluded })).toMatchObject({ status: "available", commits: [{ sha }] });
+});

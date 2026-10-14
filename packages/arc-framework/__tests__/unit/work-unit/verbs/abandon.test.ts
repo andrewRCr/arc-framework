@@ -209,6 +209,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
 
   return {
     ctx: {
+      removal: { exec: async () => ({ stdout: "", stderr: "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) },
       executor,
       fs,
       retirement,
@@ -479,5 +480,25 @@ describe("runAbandon — illegal sources", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/reopen|integrat/i);
     expect(removed).toEqual([]);
+  });
+});
+
+describe("abandon removal preflight", () => {
+  it.each(["Planning", "Active"])("refuses dirty %s work before recording or staging", async (state) => {
+    const { ctx, removed, recordedTransitions, calls } = buildCtx([{ ...ACTIVE, state }]);
+    ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed-file") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]); expect(calls).not.toContain("retirement:stage-transition");
+  });
+  it.each([PROVISIONAL, PARKED])("keeps no-checkout abandon available for $state $tier", async (meta) => {
+    const { ctx } = buildCtx([meta]);
+    ctx.removal = { exec: async () => ({ stdout: " M dirty\n" }), folderExists: async () => true };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+  });
+  it("retains dirty anchored changes while recording abandonment", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
+    ctx.removal = { exec: async () => { throw Error("Git must not be read for release"); }, readMarker: async () => ({ kind: "present", marker: { spawnedByArc: false, wuName: "foo", spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z" } }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(recordedTransitions).toHaveLength(1);
   });
 });

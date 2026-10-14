@@ -26,9 +26,13 @@
  * @module
  */
 
+import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
+import type { Store } from "../store/contract.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
+import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import type { MetaFileCandidate } from "../../commands/active/types.js";
 import type { ReaderResult } from "../active/meta-reader.js";
-import type { GuardValidator } from "./lifecycle-executor.js";
+import type { GuardValidator, GuardResult } from "./lifecycle-executor.js";
 import type { LifecycleIndex } from "./lifecycle-index.js";
 import { deriveState, resolveSlugState } from "./lifecycle-resolver.js";
 import { resolveLifecyclePosition } from "./lifecycle-state.js";
@@ -75,6 +79,8 @@ function candidateSlug(candidate: MetaFileCandidate): string | null {
 
 /** Dependencies for {@link makeWorktreeOccupancyGuard}. */
 export interface WorktreeOccupancyDeps {
+  /** The same operational store bound by the lifecycle invocation. */
+  store?: Store;
   /** The worktree root whose `active/` is checked for occupancy. */
   cwd: string;
   /**
@@ -145,6 +151,7 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
     // (in-place, or a branch-creating spawn) materializes here and is checked.
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
+    if (deps.store !== undefined) return readStoreOccupancy(deps.cwd, deps.store, slug);
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
 
     for (const candidate of candidates) {
@@ -186,4 +193,30 @@ export function buildFootgunGuards(
     "name-collision": nameCollisionGuard,
     "worktree-occupancy": makeWorktreeOccupancyGuard(deps),
   };
+}
+
+/** Bind the authoritative pause gate for advancing work, dormant before the flip.
+ * @param store - Store selected by the invocation.
+ * @returns Guard that names the resume action for every present pause.
+ */
+export function makePauseGuard(store?: Store): GuardValidator {
+  return async ({ slug }) => {
+    if (store === undefined || !usesOffBranchState(store)) return { ok: true };
+    const checked = await checkAdvancingPause(store, slug);
+    return checked.status === "clear" ? { ok: true } : { ok: false, message: checked.reason,
+      ...(checked.remedy === undefined ? {} : { remedy: checked.remedy }) };
+  };
+}
+
+/** Enforce identity-based occupancy using the bound store's resolver. */
+async function readStoreOccupancy(cwd: string, store: Store, slug: string): Promise<GuardResult> {
+      const current = await resolveCurrentWorkUnit({ cwd: cwd, store: store });
+  if (current.status === "none" && current.warnings.length === 0) return { ok: true };
+  if (current.status !== "resolved" || current.candidate.record === undefined) return {
+    ok: false, message: `Unable to resolve this checkout's work-unit occupancy. ${current.warnings.join(" ")}`,
+  };
+  const name = current.candidate.reference.owner.name;
+  if (name === slug) return { ok: true };
+  if (!usesOffBranchState(store) && !OCCUPYING.has(current.candidate.record.state?.toLowerCase() ?? "")) return { ok: true };
+  return { ok: false, message: `worktree already holds an active work unit \`${name}\` — one active work unit per worktree.` };
 }

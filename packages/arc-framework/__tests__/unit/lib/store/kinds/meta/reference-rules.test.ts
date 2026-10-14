@@ -115,7 +115,7 @@ describe("metadata cohort references", () => {
   it("refuses a closed cohort", async () => {
     const input = metaRuleInput(cohort("parent"));
     input.after = ruleView([StoreRecordSchema.parse({ ...cohortDocument("parent"),
-      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } })]);
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
   });
   it("refuses an unreadable named document", async () => {

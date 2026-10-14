@@ -93,6 +93,7 @@ export async function readRemoteBranchOid(
 export type RenameRemoteBranchResult =
   | { status: "unpublished" }
   | { status: "renamed"; oldOid: string }
+  | { status: "retained"; oldBranch: string; newBranch: string; oldOid: string }
   | { status: "stale"; expectedOid: string; actualOid: string | null };
 
 /** Parameters captured across preflight and the remote rename leg. */
@@ -100,6 +101,8 @@ export interface RenameRemoteBranchParams extends RenameLocalBranchParams {
   remote: string;
   /** Old remote head captured before the local branch rename, or null when unpublished. */
   oldRemoteOid: string | null;
+  /** Adopted old refs remain the person's after the new name is pushed. */
+  keepOld?: boolean;
 }
 
 /**
@@ -117,6 +120,7 @@ export async function reconcileRenameRemoteBranch(
   if (params.oldRemoteOid === null) return { status: "unpublished" };
 
   await ctx.exec("git", ["push", "-u", params.remote, params.newBranch]);
+  if (params.keepOld === true) return { status: "retained", oldBranch: params.oldBranch, newBranch: params.newBranch, oldOid: params.oldRemoteOid };
   const outcome = await deleteRemoteBranch(
     ctx.exec,
     params.remote,

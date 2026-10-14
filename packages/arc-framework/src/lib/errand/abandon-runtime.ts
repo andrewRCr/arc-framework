@@ -156,11 +156,21 @@ async function cleanupOccupancy(
   return settled.kind === "error" ? settled : { kind: settled.kind };
 }
 
+/** Work-unit ref set using its own mutex, exact heads, and retiring-head preservation container. */
+export interface WorkItemZeroDeltaBranch {
+  branch: string;
+  localHead: string | null;
+  remoteTrackingHead: string | null;
+  containers: readonly { ref: string; oid: string }[];
+  retiringHead: string | null;
+  withWorkItemLock: (operation: () => Promise<AbandonBranchCleanupResult>) => Promise<AbandonBranchCleanupResult>;
+}
+
 export async function reapZeroDeltaBranch(
   exec: GitExec,
   execInput: GitExecInput,
   base: string,
-  record: OrdinaryErrandRecord,
+  record: OrdinaryErrandRecord | WorkItemZeroDeltaBranch,
   expectedHead: string | null,
   primaryCheckoutPath: string | null,
 ): Promise<AbandonBranchCleanupResult> {
@@ -171,52 +181,41 @@ export async function reapZeroDeltaBranch(
     ...options,
     cwd: options?.cwd ?? primaryCheckoutPath,
   });
-  const baseHead = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
+  const workItem = "withWorkItemLock" in record ? record : null;
+  const baseHead = await zeroDeltaBase(inPrimary, base, workItem);
   if (baseHead.kind === "error") return { kind: "preserved", reason: baseHead.message };
-  if (baseHead.kind === "absent") {
-    return { kind: "preserved", reason: "the local base head could not be proven" };
-  }
-  const mergeBaseArgs = ["merge-base", "--is-ancestor", expectedHead, baseHead.oid];
-  try {
-    await inPrimary("git", mergeBaseArgs);
-  } catch (error) {
-    const failure = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
-    return { kind: "preserved", reason: failure.exitCode === 1
-      ? "the branch has content outside the local base" : failure.message };
-  }
-  const lease = await acquireErrandCloseBranchDeletionHeadLocks({
-    exec: inPrimary,
-    identity: { slug: record.slug, claimId: record.claimId },
-    branch: record.branch,
-    guard: null,
-  });
-  if (lease.kind !== "acquired") return { kind: "preserved", reason: lease.message };
-  return settleAbandonBranchLease(async () => {
+  if (baseHead.kind === "absent") return { kind: "preserved", reason: "the local base head could not be proven" };
+  const preservation = await proveZeroDelta(inPrimary, workItem, expectedHead, baseHead.oid);
+  if (preservation !== undefined) return preservation;
+  const action = async (): Promise<AbandonBranchCleanupResult> => {
     const roster = await scanRegisteredWorktrees(inPrimary);
     if (!roster.ok) return { kind: "preserved", reason: roster.message };
-    if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) {
-      return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
-    }
+    if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
     const head = await resolveOptionalCommit(inPrimary, `refs/heads/${record.branch}`);
     if (head.kind === "error") return { kind: "preserved", reason: head.message };
-    if (head.kind !== "present" || head.oid !== expectedHead) {
-      return { kind: "preserved", reason: "the exact local branch head changed" };
-    }
-    if (roster.worktrees.some((worktree) => worktree.branch === base)) {
-      // The acquired HEAD locks hold every checkout of base through deletion.
-      const currentBase = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
-      if (currentBase.kind === "error") return { kind: "preserved", reason: currentBase.message };
-      if (currentBase.kind !== "present" || currentBase.oid !== baseHead.oid) {
-        return { kind: "preserved", reason: "the local base head changed during cleanup" };
-      }
-      await inPrimary("git", ["update-ref", "-d", `refs/heads/${record.branch}`, expectedHead]);
+    if (workItem !== null) {
+      const actual = head.kind === "present" ? head.oid : null;
+      if (actual !== workItem.localHead) throw new Error("The exact local branch head changed; retry teardown.");
+      await deleteWorkItemZeroDeltaRefs(execInput, primaryCheckoutPath, workItem);
     } else {
-      await deleteAbandonedBranchAtExactBase(execInput, primaryCheckoutPath, {
-        base, baseHead: baseHead.oid, branch: record.branch, branchHead: expectedHead,
-      });
+      const removed = await deleteErrandZeroDeltaLocal(inPrimary, execInput, primaryCheckoutPath, base, record.branch, expectedHead, baseHead.oid, roster.worktrees, head);
+      if (removed !== undefined) return removed;
     }
     return { kind: "removed" };
-  }, () => lease.release());
+  };
+  if (workItem !== null) return workItem.withWorkItemLock(action);
+  if (!("claimId" in record)) return { kind: "preserved", reason: "the Errand claim is unavailable" };
+  const lease = await acquireErrandCloseBranchDeletionHeadLocks({ exec: inPrimary, identity: { slug: record.slug, claimId: record.claimId }, branch: record.branch, guard: null });
+  if (lease.kind !== "acquired") return { kind: "preserved", reason: lease.message };
+  return settleAbandonBranchLease(action, () => lease.release());
+}
+
+async function deleteWorkItemZeroDeltaRefs(execInput: GitExecInput, cwd: string, record: WorkItemZeroDeltaBranch): Promise<void> {
+  const lines = ["start", ...record.containers.map((container) => `verify ${container.ref} ${container.oid}`),
+    ...(record.localHead === null ? [] : [`delete refs/heads/${record.branch} ${record.localHead}`]),
+    ...(record.remoteTrackingHead === null ? [] : [`delete refs/remotes/origin/${record.branch} ${record.remoteTrackingHead}`]), "prepare", "commit", ""];
+  if ([record.branch, ...record.containers.map((container) => container.ref)].some((ref) => /[\0\r\n]/u.test(ref))) throw new Error("Invalid work-item ref transaction operand");
+  await execInput(["update-ref", "--stdin"], lines.join("\n"), { cwd });
 }
 
 /** Retain the branch result even when releasing its checkout locks fails afterward. */
@@ -318,4 +317,36 @@ async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null>
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function zeroDeltaBase(exec: GitExec, base: string, workItem: WorkItemZeroDeltaBranch | null): Promise<Awaited<ReturnType<typeof resolveOptionalCommit>>> {
+  if (workItem === null) return resolveOptionalCommit(exec, `refs/heads/${base}`);
+  const container = workItem.containers[0];
+  return container === undefined ? { kind: "absent" } : { kind: "present", oid: container.oid };
+}
+
+async function deleteErrandZeroDeltaLocal(exec: GitExec, execInput: GitExecInput, cwd: string, base: string, branch: string,
+  expectedHead: string, baseOid: string, worktrees: readonly import("../git/worktree-roster.js").RegisteredWorktree[],
+  head: Awaited<ReturnType<typeof resolveOptionalCommit>>): Promise<AbandonBranchCleanupResult | undefined> {
+      if (head.kind !== "present" || head.oid !== expectedHead) return { kind: "preserved", reason: "the exact local branch head changed" };
+      if (worktrees.some((worktree) => worktree.branch === base)) {
+        const currentBase = await resolveOptionalCommit(exec, `refs/heads/${base}`);
+        if (currentBase.kind === "error") return { kind: "preserved", reason: currentBase.message };
+        if (currentBase.kind !== "present" || currentBase.oid !== baseOid) return { kind: "preserved", reason: "the local base head changed during cleanup" };
+        await exec("git", ["update-ref", "-d", `refs/heads/${branch}`, expectedHead]);
+      } else await deleteAbandonedBranchAtExactBase(execInput, cwd, { base, baseHead: baseOid, branch: branch, branchHead: expectedHead });
+}
+
+async function proveZeroDelta(exec: GitExec, workItem: WorkItemZeroDeltaBranch | null, expectedHead: string, baseOid: string): Promise<AbandonBranchCleanupResult | undefined> {
+  const args = workItem === null ? ["merge-base", "--is-ancestor", expectedHead, baseOid]
+    : ["rev-list", expectedHead, ...(workItem.remoteTrackingHead === null ? [] : [workItem.remoteTrackingHead]), "--not",
+      ...workItem.containers.map((container) => container.oid), ...(workItem.retiringHead === null ? [] : [workItem.retiringHead])];
+  try {
+    const proof = await exec("git", args);
+    if (workItem !== null && proof.stdout.trim() !== "") return { kind: "preserved", reason: "the ref carries work beyond base and the retiring branch" };
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (workItem !== null) throw error;
+    return { kind: "preserved", reason: failure.exitCode === 1 ? "the branch has content outside the local base" : failure.message };
+  }
 }

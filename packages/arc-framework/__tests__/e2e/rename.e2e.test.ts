@@ -403,7 +403,7 @@ describe("arc rename", () => {
     expect(renamed.stdout).toContain("spawned");
     expect(renamed.stdout).toContain("move deferred");
     expect(renamed.stdout).toContain("Follow-up:");
-    expect(renamed.stdout).toContain("`git worktree move");
+    expect(renamed.stdout).toContain("`git worktree move -f -f");
     const unwrappedOutput = unwrapPresentationOutput(renamed.stdout);
     expect(unwrappedOutput).toContain(oldWorktree);
     expect(unwrappedOutput).toContain(newWorktree);
@@ -474,7 +474,7 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(1);
     expect(renamed.stdout + renamed.stderr).toContain("role-conflict");
-    expect(renamed.stdout).not.toContain("`git worktree move");
+    expect(renamed.stdout).not.toContain("`git worktree move -f -f");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };
