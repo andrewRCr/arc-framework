@@ -67,7 +67,7 @@ it.each([false, true])("gates the real commit on its declared check failure: %s"
   const cwd = await fixture({ failed });
   const result = await commit(cwd);
   expect(result.exitCode, result.output).toBe(failed ? 1 : 0);
-  expect(result.output).toContain(`content: ${failed ? "failed" : "passed"}`);
+  expect(result.output).toContain(failed ? "content: failed" : "Checks: 1 passed.");
   expect(await readFile(join(cwd, "receipt.txt"), "utf8")).toBe("executed");
 });
 
@@ -96,7 +96,7 @@ it("dispatches through a global CLI when no repository-local CLI is installed", 
   await installCli(cwd, join(globalBin, "arc"));
   const result = await commit(cwd, [globalBin]);
   expect(result.exitCode, result.output).toBe(0);
-  expect(result.output).toContain("content: passed");
+  expect(result.output).toContain("Checks: 1 passed.");
   expect(await readFile(join(cwd, "receipt.txt"), "utf8")).toBe("executed");
 });
 
@@ -108,7 +108,7 @@ it("prefers the repository-local CLI over a failing global executable", async ()
   await chmod(join(globalBin, "arc"), 0o755);
   const result = await commit(cwd, [globalBin]);
   expect(result.exitCode, result.output).toBe(0);
-  expect(result.output).toContain("content: passed");
+  expect(result.output).toContain("Checks: 1 passed.");
   expect(await readFile(join(cwd, "receipt.txt"), "utf8")).toBe("executed");
 });
 

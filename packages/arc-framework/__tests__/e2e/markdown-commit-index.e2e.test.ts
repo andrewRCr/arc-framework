@@ -60,8 +60,7 @@ it.each([true, false])("checks Git's commit -a candidate with an opposite reposi
     expect(result.output).toContain("README.md:1:9 MD009/no-trailing-spaces");
     expect(await git(root, ["rev-parse", "HEAD"])).toBe(head);
   } else {
-    expect(result.output).toContain("staged: passed");
-    expect(result.output).toContain("alignment: passed");
+    expect(result.output).toContain("Checks: 2 passed.");
     expect(await git(root, ["show", "HEAD:README.md"])).toBe("# Candidate valid");
     expect(await git(root, ["show", ":README.md"])).toBe("# Candidate valid");
   }

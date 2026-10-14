@@ -51,7 +51,7 @@ it("keeps selection and outcomes identical under all commit and push interlock s
   }
 });
 
-it("returns failure for a feedback-only failure and labels both kinds in human output", async () => {
+it("returns failure for a feedback-only failure, labels it, and counts the passing check in human output", async () => {
   const root = await createDeclaredCheckRepository({
     commit: checks.commit,
     push_files: { command: [process.execPath, "-e", "process.exit(12)"], gate: "push", mode: "files", inputs: ["src/**"] },
@@ -59,8 +59,8 @@ it("returns failure for a feedback-only failure and labels both kinds in human o
   repositories.push(root);
   const result = await runArc(["check", "increment"], root);
   expect(result.exitCode, result.stderr).toBe(1);
-  expect(result.stdout).toContain("commit: passed [enforcement]");
   expect(result.stdout).toContain("push_files: failed [feedback]");
+  expect(result.stdout).toContain("Checks: 1 failed, 1 passed.");
 });
 it("reports a failing push files check as feedback beside commit enforcement at an increment", async () => {
   const root = await createDeclaredCheckRepository({
