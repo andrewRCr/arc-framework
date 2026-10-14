@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
+
+vi.mock("execa", () => ({ execa: execaMock }));
 
 import {
   pushWorktreeBranch,
@@ -152,6 +156,50 @@ describe("pushWorktreeBranch — args passthrough", () => {
       remote: "origin",
       args: ["--force-with-lease"],
     });
+  });
+});
+
+describe("pushWorktreeBranch — push gate identifier", () => {
+  const pushGateId = "0123456789abcdef0123456789abcdef";
+
+  beforeEach(() => {
+    execaMock.mockReset();
+  });
+
+  it("hands the identifier to the executor in capture mode", async () => {
+    const exec: GitExec = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
+
+    await pushWorktreeBranch({ exec, branch: "feature/x", pushGateId });
+
+    expect(exec).toHaveBeenCalledWith("git", ["push", "origin", "feature/x"], { pushGateId });
+  });
+
+  it("forwards the identifier to the spawn boundary in spawn mode", async () => {
+    const spawnPush: PushWorktreeSpawn = vi.fn().mockResolvedValue({ exitCode: 0, stderr: "" });
+
+    await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", inheritStdio: true, spawnPush, pushGateId });
+
+    expect(spawnPush).toHaveBeenCalledWith(expect.objectContaining({ branch: "feature/x", pushGateId }));
+  });
+
+  it("passes the identifier to the spawned Git with prompts still suppressed", async () => {
+    execaMock.mockResolvedValue({ failed: false, stderr: "" });
+
+    const result = await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", cwd: "/repo", inheritStdio: true,
+      interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" }, pushGateId });
+
+    expect(result.status).toBe("success");
+    expect(execaMock).toHaveBeenCalledWith("git", ["push", "origin", "feature/x"], expect.objectContaining({
+      cwd: "/repo", extendEnv: false,
+      env: expect.objectContaining({ ARC_PUSH_GATE_ID: pushGateId, GIT_TERMINAL_PROMPT: "0" }) }));
+  });
+
+  it("leaves the spawned Git's environment alone without an identifier", async () => {
+    execaMock.mockResolvedValue({ failed: false, stderr: "" });
+
+    await pushWorktreeBranch({ exec: vi.fn(), branch: "feature/x", inheritStdio: true });
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ env: undefined });
   });
 });
 

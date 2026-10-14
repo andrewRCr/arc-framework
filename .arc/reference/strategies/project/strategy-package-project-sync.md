@@ -58,8 +58,7 @@ ambiguous, ask.
 both copies of a Configurable file must be applied with targeted edits, not `cp`. Configurable
 files diverge by design: the package source carries template defaults; the `.arc/` instance
 carries this project's overrides. A blind `cp` from package to instance silently regresses
-every project-specific value (`branch.protection`, interlock policies, `hooks.*_patterns`
-extensions, etc.).
+every project-specific value (`branch.protection`, interlock policies, custom `hooks.*_patterns`, etc.).
 
 **To propagate a schema change correctly:**
 
@@ -159,11 +158,11 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 104 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 103 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 46
+### Configurable files (project sections expected to differ) — 35
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -171,17 +170,6 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
 - `reference/strategies/STRATEGY-INDEX.md`
 - `reference/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
 - `system/arc-config.yml`
-- `system/extensions/post-context-load.md`
-- `system/extensions/post-task-completion.md`
-- `system/extensions/post-work-unit-activate.md`
-- `system/extensions/post-work-unit-archive.md`
-- `system/extensions/pre-activation.md`
-- `system/extensions/pre-commit-review.md`
-- `system/extensions/pre-merge.md`
-- `system/extensions/pre-pr-open.md`
-- `system/extensions/post-pr-open.md`
-- `system/extensions/pre-push-review.md`
-- `system/extensions/pre-spec-finalization-review.md`
 - `system/methods/assess-boundary-fit.md`
 - `system/methods/assess-design-proportionality.md`
 - `system/methods/assess-draft-readiness.md`
@@ -239,12 +227,12 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 104   | Wholesale replaced. No conflicts.                     |
-| Configurable   | 46    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 103   | Wholesale replaced. No conflicts.                     |
+| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 154. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 142. **Template counterparts:** 11. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

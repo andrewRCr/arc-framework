@@ -252,9 +252,8 @@ as an errand if the provider-protocol work runs long.
 dispatch and the hosted findings arm, and `D7.1`'s statement at the review-applicability step — while
 `integration-boundary-accuracy` rewrites the final merge step. Different regions, so neither blocks the other; if both
 run concurrently, sequence the edits rather than merging blind. `chunk-scope-binding` receives `D2.3`'s handoff, now
-including the frontline-obligation question.
-`judgment-authority-model`, `execution-delegation-doctrine`, `review-checkout-lifecycle`, and
-`review-adapter-extensibility` are coordination-only, with no dependency edge recorded.
+including the frontline-obligation question. `judgment-authority-model`, `execution-delegation-doctrine`,
+`review-checkout-lifecycle`, and `review-adapter-extensibility` are coordination-only, with no dependency edge recorded.
 
 ## Closeout Criteria
 

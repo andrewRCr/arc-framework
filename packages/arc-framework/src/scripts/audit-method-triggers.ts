@@ -1,9 +1,9 @@
 /**
- * Reliable-trigger audit for method/extension coverage.
+ * Reliable-trigger audit for method coverage.
  *
- * Enumerates methods and extensions from the per-file directories and verifies
- * each is reachable from a workflow's YAML frontmatter (`arc.methods` /
- * `arc.extensions`) through direct declarations or method-owned dependencies.
+ * Enumerates methods from the per-file directory and verifies
+ * each is reachable from a workflow's YAML frontmatter (`arc.methods`) through
+ * direct declarations or method-owned dependencies.
  * Fails CI with per-entry diagnostics on any gap or broken dependency graph.
  *
  * Runs against the package-source copy only; drift vs. `.arc/` is caught by
@@ -28,7 +28,6 @@ import {
 /** Declarations extracted from a single workflow file's frontmatter. */
 export interface WorkflowDeclarations {
   methods: string[];
-  extensions: string[];
   /** Present when YAML parsing or declaration-shape validation fails; declarations are empty in that case. */
   parseError?: string;
 }
@@ -37,8 +36,6 @@ export interface WorkflowDeclarations {
 export interface CoverageMaps {
   /** method name → list of workflow paths declaring it */
   methods: Map<string, string[]>;
-  /** extension name → list of workflow paths declaring it */
-  extensions: Map<string, string[]>;
   /** Workflows whose frontmatter could not be parsed or whose declarations were malformed. */
   parseDiagnostics: string[];
   /** Workflow declarations that do not resolve to a registered entry. */
@@ -57,43 +54,11 @@ export interface WorkflowEntry {
   content: string;
 }
 
-const PUSH_SITE = /`push-interlock` release.*`workflowPush`|# workflowPush\b|^\s*(?:arc sync|(?:npx )?arc release push)(?:\s|$)/u;
-const GLOBAL_PRE_PUSH_CONTRACT = /#pre-push-review.*Before every agent-managed push/iu;
-const WORKFLOW_ARC_FRONTMATTER_FIELDS = new Set(["methods", "extensions"]);
-
-/** Audit declaration and fire ordering for agent-managed workflow push sites. */
-export function auditPushExtensionCoverage(workflows: WorkflowEntry[]): string[] {
-  const diagnostics: string[] = [];
-  for (const workflow of workflows) {
-    const lines = workflow.content.split("\n");
-    const sites = lines.flatMap((line, index) => PUSH_SITE.test(line) ? [index] : []);
-    if (sites.length === 0) continue;
-
-    const declarations = parseWorkflowFrontmatter(workflow.content);
-    if (!declarations.extensions.includes("pre-push-review")) {
-      diagnostics.push(
-        `Workflow "${workflow.path}" has an agent-managed push but does not declare pre-push-review in arc.extensions.`,
-      );
-    }
-
-    const globalContractLine = lines.findIndex((line) => GLOBAL_PRE_PUSH_CONTRACT.test(line));
-    for (const site of sites) {
-      const localWindow = lines.slice(Math.max(0, site - 12), site).join("\n");
-      const covered = /#pre-push-review/u.test(localWindow)
-        || (globalContractLine >= 0 && globalContractLine < site);
-      if (!covered) {
-        diagnostics.push(
-          `Workflow "${workflow.path}" push site at line ${site + 1} does not fire pre-push-review first.`,
-        );
-      }
-    }
-  }
-  return diagnostics;
-}
+const WORKFLOW_ARC_FRONTMATTER_FIELDS = new Set(["methods"]);
 
 /**
  * List entry names (filename without `.md`) under `dir`, excluding `README.md`.
- * Used by both method and extension enumeration.
+ * Used by method enumeration.
  */
 export function enumerateEntries(dir: string): string[] {
   return readdirSync(dir)
@@ -104,11 +69,6 @@ export function enumerateEntries(dir: string): string[] {
 
 /** Enumerate method names from a per-file methods directory. */
 export function enumerateMethods(dir: string): string[] {
-  return enumerateEntries(dir);
-}
-
-/** Enumerate extension names from a per-file extensions directory. */
-export function enumerateExtensions(dir: string): string[] {
   return enumerateEntries(dir);
 }
 
@@ -146,27 +106,27 @@ export function auditActivatableMethodCorpus(methodsDir: string): string[] {
 }
 
 /**
- * Parse `arc.methods` and `arc.extensions` from a workflow file's frontmatter.
+ * Parse `arc.methods` from a workflow file's frontmatter.
  *
- * - Returns empty arrays (no error) for files without a triple-dash block.
+ * - Returns an empty array (no error) for files without a triple-dash block.
  * - Returns a parseError string when YAML parsing fails.
- * - Returns a parseError string for malformed `arc`, `arc.methods`, or `arc.extensions` shapes.
+ * - Returns a parseError string for malformed `arc` or `arc.methods` shapes.
  */
 export function parseWorkflowFrontmatter(
   content: string,
 ): WorkflowDeclarations {
   const { data, parseError } = parseFrontmatter(content);
   if (parseError !== undefined) {
-    return { methods: [], extensions: [], parseError };
+    return { methods: [], parseError };
   }
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
-    return { methods: [], extensions: [] };
+    return { methods: [] };
   }
   const root = data as Record<string, unknown>;
-  if (!("arc" in root)) return { methods: [], extensions: [] };
+  if (!("arc" in root)) return { methods: [] };
   const arc = root.arc;
   if (arc === null || typeof arc !== "object" || Array.isArray(arc)) {
-    return { methods: [], extensions: [], parseError: '"arc" must be a mapping' };
+    return { methods: [], parseError: '"arc" must be a mapping' };
   }
   const declarations = arc as Record<string, unknown>;
   const unknownFields = Object.keys(declarations)
@@ -175,7 +135,6 @@ export function parseWorkflowFrontmatter(
   if (unknownFields.length > 0) {
     return {
       methods: [],
-      extensions: [],
       parseError: unknownFields
         .map((key) => `unknown workflow \`arc\` frontmatter field \`${key}\``)
         .join("; "),
@@ -183,21 +142,16 @@ export function parseWorkflowFrontmatter(
   }
   const methods = parseDeclarationArray(declarations.methods, "arc.methods");
   if (methods.error !== undefined) {
-    return { methods: [], extensions: [], parseError: methods.error };
-  }
-  const extensions = parseDeclarationArray(declarations.extensions, "arc.extensions");
-  if (extensions.error !== undefined) {
-    return { methods: [], extensions: [], parseError: extensions.error };
+    return { methods: [], parseError: methods.error };
   }
   return {
     methods: methods.values,
-    extensions: extensions.values,
   };
 }
 
 function parseDeclarationArray(
   value: unknown,
-  locus: "arc.methods" | "arc.extensions",
+  locus: "arc.methods",
 ): { values: string[]; error?: string } {
   if (value === undefined) return { values: [] };
   if (!Array.isArray(value)) return { values: [], error: `${locus} must be an array` };
@@ -208,21 +162,16 @@ function parseDeclarationArray(
 }
 
 /**
- * Build independent coverage maps for methods and extensions.
+ * Build method coverage from workflow declarations.
  *
- * Same-name method+extension would require independent declarations — the
- * maps never share entries. Malformed workflows are recorded in
- * `parseDiagnostics` and contribute zero declarations.
+ * Malformed workflows are recorded in `parseDiagnostics` and contribute zero declarations.
  */
 export function buildCoverageMap(
   methodNames: string[],
-  extensionNames: string[],
   workflows: WorkflowEntry[],
 ): CoverageMaps {
   const methods = new Map<string, string[]>();
-  const extensions = new Map<string, string[]>();
   for (const name of methodNames) methods.set(name, []);
-  for (const name of extensionNames) extensions.set(name, []);
   const parseDiagnostics: string[] = [];
   const declarationDiagnostics: string[] = [];
   for (const wf of workflows) {
@@ -241,16 +190,8 @@ export function buildCoverageMap(
         declaredBy.push(wf.path);
       }
     }
-    for (const e of decl.extensions) {
-      const declaredBy = extensions.get(e);
-      if (declaredBy === undefined) {
-        declarationDiagnostics.push(`Workflow "${wf.path}" declares unknown extension "${e}" in arc.extensions.`);
-      } else {
-        declaredBy.push(wf.path);
-      }
-    }
   }
-  return { methods, extensions, parseDiagnostics, declarationDiagnostics };
+  return { methods, parseDiagnostics, declarationDiagnostics };
 }
 
 interface MethodDependencyGraph {
@@ -357,11 +298,6 @@ export function formatStaleAllowlistDiagnostic(
   return `Method "${name}" is declared by ${files.join(", ")} but still listed in WIRING_PENDING. Remove the allowlist entry.`;
 }
 
-/** Format a diagnostic for an extension missing its workflow declaration. */
-export function formatExtensionDiagnostic(name: string): string {
-  return `Extension "${name}" has no workflow declaration. Add ${name} to some workflow's arc.extensions frontmatter field.`;
-}
-
 /**
  * Run the audit end-to-end against a corpus.
  *
@@ -371,25 +307,22 @@ export function formatExtensionDiagnostic(name: string): string {
  */
 export async function audit(
   methodsDir: string,
-  extensionsDir: string,
   workflowsDir: string,
   wiringPending: ReadonlySet<string> = WIRING_PENDING,
 ): Promise<AuditResult> {
   const methodNames = enumerateMethods(methodsDir);
-  const extensionNames = enumerateExtensions(extensionsDir);
   const workflowPaths = (await walkMarkdown(workflowsDir)).sort();
   const workflows: WorkflowEntry[] = workflowPaths.map((p) => ({
     path: relative(workflowsDir, p),
     content: readFileSync(p, "utf8"),
   }));
-  const cov = buildCoverageMap(methodNames, extensionNames, workflows);
+  const cov = buildCoverageMap(methodNames, workflows);
   const graph = readMethodDependencyGraph(methodsDir, methodNames);
   const methods = resolveTransitiveMethodCoverage(cov.methods, graph.dependencies);
   const diagnostics: string[] = [
     ...cov.parseDiagnostics,
     ...cov.declarationDiagnostics,
     ...graph.diagnostics,
-    ...auditPushExtensionCoverage(workflows),
   ];
   for (const [name, files] of methods) {
     if (files.length === 0) {
@@ -397,9 +330,6 @@ export async function audit(
     } else if (wiringPending.has(name)) {
       diagnostics.push(formatStaleAllowlistDiagnostic(name, files));
     }
-  }
-  for (const [name, files] of cov.extensions) {
-    if (files.length === 0) diagnostics.push(formatExtensionDiagnostic(name));
   }
   return { pass: diagnostics.length === 0, diagnostics };
 }
@@ -411,7 +341,6 @@ async function main(): Promise<void> {
   const systemDir = join(root, "packages/arc-framework/arc/system");
   const result = await audit(
     join(systemDir, "methods"),
-    join(systemDir, "extensions"),
     join(systemDir, "workflows"),
   );
   const diagnostics = [...result.diagnostics, ...auditActivatableMethodCorpus(join(systemDir, "methods"))];
@@ -422,7 +351,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   process.stdout.write(
-    "audit-method-triggers: method graph and extension declarations are reachable and valid\n",
+    "audit-method-triggers: method graph and declarations are reachable and valid\n",
   );
 }
 

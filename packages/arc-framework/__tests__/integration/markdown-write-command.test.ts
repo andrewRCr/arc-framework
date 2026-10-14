@@ -122,18 +122,20 @@ describe("Markdown write command", () => {
   });
 
   it("validates the complete selection before writing any earlier valid file", async () => {
-    await writeFixtureFile(linked, ".gitignore", "docs/ignored.md\n");
-    await writeFixtureFile(linked, "docs/ignored.md", "| X |\n| - |\n| 表 |\n");
-    const before = await readFile(join(linked, "docs/a.md"), "utf8");
+    const adminPath = ".git/info/notes.md";
+    const original = "| X |\n| - |\n| 表 |\n";
+    await writeFixtureFile(primary, adminPath, original);
+    const before = await readFile(join(primary, "docs/a.md"), "utf8");
 
     await expect(runMarkdownWriteCommand(
       "format-tables",
-      linked,
-      ["docs/a.md", "docs/ignored.md"],
+      primary,
+      ["docs/a.md", adminPath],
       commandDependencies(),
-    )).rejects.toMatchObject({ code: "markdown.ignored", message: expect.stringContaining("docs/ignored.md") });
-    expect(await readFile(join(linked, "docs/a.md"), "utf8")).toBe(before);
-    expect((await readdir(join(linked, "docs"))).some((entry) => entry.endsWith(".tmp"))).toBe(false);
+    )).rejects.toMatchObject({ code: "markdown.git-administration", message: expect.stringContaining(adminPath) });
+    expect(await readFile(join(primary, "docs/a.md"), "utf8")).toBe(before);
+    expect(await readFile(join(primary, adminPath), "utf8")).toBe(original);
+    expect((await readdir(join(primary, "docs"))).some((entry) => entry.endsWith(".tmp"))).toBe(false);
   });
 
   it("cleans the same-directory temporary file when atomic replacement fails", async () => {

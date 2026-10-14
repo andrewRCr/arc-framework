@@ -36,10 +36,6 @@ export const CheckpointInterlockSurfaceSchema = z.strictObject({
     state: z.enum(["clean", "exceptions"]),
     text: z.string().min(1),
   }),
-  extensionReport: z.strictObject({
-    label: z.literal("Extension report"),
-    content: z.null(),
-  }),
 });
 export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfaceSchema>;
 
@@ -50,7 +46,7 @@ export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfa
  * artifacts carrying review signal, so the approver reads this to self-serve what it excluded.
  *
  * @param input - Exact merge coordinates, candidate-tail reference, review carrier, and machine signals.
- * @returns The deterministic approval text and empty extension-report slot.
+ * @returns The deterministic machine-evidence approval text.
  */
 export function composeCheckpointInterlockSurface(input: {
   approvedHead: string;
@@ -82,6 +78,5 @@ export function composeCheckpointInterlockSurface(input: {
       state: exceptions.length === 0 ? "clean" : "exceptions",
       text,
     },
-    extensionReport: { label: "Extension report", content: null },
   });
 }

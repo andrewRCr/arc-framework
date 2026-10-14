@@ -9,7 +9,6 @@ import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
 import { ActiveSessionInitResultSchema } from "../../commands/active/schema.js";
 import { ConfigSessionInitResultSchema } from "../../commands/config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../../commands/constitution/status.js";
-import { ExtensionsSessionInitResultSchema } from "../../commands/extensions/status.js";
 import {
   SessionInitProbeResultSchema,
   SessionRecoverProbeResultSchema,
@@ -52,7 +51,6 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   dirtyState: "dirty-state",
   domainRulesSessionInit: "domain-rules-session-init",
   errandStalenessSweep: "errand-staleness-sweep",
-  extensionsSessionInit: "extensions-session-init",
   hooksPathSessionAdvisory: "hooks-path-session-advisory",
   inboxState: "inbox-state",
   loadSetAuditVerdict: "load-set-audit-verdict",
@@ -90,7 +88,6 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
-  [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict, LoadSetAuditVerdictSchema],

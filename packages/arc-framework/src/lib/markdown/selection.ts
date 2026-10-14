@@ -3,6 +3,7 @@
 import { isAbsolute, join, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/index.js";
+import { resolveCheckoutGitDir, resolveGitCommonDir } from "../git/exec.js";
 import { ArcError, type ManagedPath } from "../kernel/index.js";
 import { isMarkdownPathExcluded, validateMarkdownPath } from "./authority.js";
 
@@ -40,6 +41,11 @@ export interface ValidateExplicitMarkdownPathsOptions {
   readonly paths: readonly string[];
   /** Only lint reads may follow a final symlink; migration reads require regular-file Git blobs. */
   readonly operation: "mutate" | "worktree-read" | "lint-read";
+  /**
+   * Literal formatting inputs bypass Git selection but keep physical and authority checks.
+   * Only the invocation checkout's contained Git directories are excluded; embedded repositories stay eligible.
+   */
+  readonly allowIgnoredPaths?: ReadonlySet<string>;
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
   readonly realpath: (path: string) => Promise<string>;
@@ -109,15 +115,56 @@ export function validateMarkdownSelectionConfig(
   return { valid: errors.length === 0, errors };
 }
 
+function isNativeDescendant(directory: string, candidate: string): boolean {
+  const fromDirectory = relative(directory, candidate);
+  return fromDirectory.length > 0 && fromDirectory !== ".." && !fromDirectory.startsWith(`..${sep}`)
+    && !isAbsolute(fromDirectory);
+}
+
 function assertNativePathContained(root: string, candidate: string, path: ManagedPath): void {
-  const fromRoot = relative(root, candidate);
-  if (
-    fromRoot.length === 0
-    || fromRoot === ".."
-    || fromRoot.startsWith(`..${sep}`)
-    || isAbsolute(fromRoot)
-  ) {
+  if (!isNativeDescendant(root, candidate)) {
     throw selectionError(`Markdown path escapes the repository: ${path}`, "markdown.outside-repository");
+  }
+}
+
+async function assertMarkdownPathSelected(
+  options: ValidateExplicitMarkdownPathsOptions,
+  path: ManagedPath,
+): Promise<void> {
+  try {
+    await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
+  } catch {
+    const worktreePaths = await enumerateTrackedMarkdownPaths({
+      root: options.root, exec: options.exec, source: "worktree",
+    }).catch((error: unknown): readonly ManagedPath[] => {
+      if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
+      throw error;
+    });
+    if (!worktreePaths.includes(path)) {
+      throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
+    }
+  }
+}
+
+async function resolveMarkdownGitDirectories(options: ValidateExplicitMarkdownPathsOptions): Promise<readonly string[]> {
+  try {
+    const directories = await Promise.all([
+      resolveCheckoutGitDir(options.exec, options.root),
+      resolveGitCommonDir(options.exec, options.root),
+    ]);
+    const physicalDirectories = await Promise.all([...new Set(directories)].map(directory => options.realpath(directory)));
+    return physicalDirectories.filter(directory => isNativeDescendant(options.root, directory));
+  } catch (error) {
+    throw new ArcError("Cannot resolve Git administration directories. Check the repository and retry.",
+      "markdown.selection-failed", { cause: error });
+  }
+}
+
+function assertOutsideGitDirectories(directories: readonly string[], physical: string, path: ManagedPath): void {
+  const administration = directories.some(directory => physical === directory || isNativeDescendant(directory, physical));
+  if (administration) {
+    throw selectionError(`Cannot format Git administration path: ${path}. Select a Markdown file in the worktree.`,
+      "markdown.git-administration");
   }
 }
 
@@ -135,20 +182,9 @@ export async function validateExplicitMarkdownPaths(
   }
 
   const paths = options.paths.map(validateMarkdownPath);
+  const gitDirectories = options.allowIgnoredPaths === undefined ? [] : await resolveMarkdownGitDirectories(options);
   for (const path of paths) {
-    try {
-      await options.exec("git", ["ls-files", "--error-unmatch", "--", `:(literal)${path}`], { cwd: options.root });
-    } catch {
-      const worktreePaths = await enumerateTrackedMarkdownPaths({
-        root: options.root, exec: options.exec, source: "worktree",
-      }).catch((error: unknown): readonly ManagedPath[] => {
-        if (error instanceof ArcError && error.code === "markdown.empty-selection") return [];
-        throw error;
-      });
-      if (!worktreePaths.includes(path)) {
-        throw selectionError(`Markdown path is ignored or excluded: ${path}`, "markdown.ignored");
-      }
-    }
+    if (!options.allowIgnoredPaths?.has(path)) await assertMarkdownPathSelected(options, path);
 
     let native = options.root;
     let finalStat: MarkdownPathStat | undefined;
@@ -180,6 +216,7 @@ export async function validateExplicitMarkdownPaths(
       throw new ArcError(`Markdown path cannot be resolved: ${path}`, "markdown.path-unreadable", { cause: error });
     }
     assertNativePathContained(options.root, physical, path);
+    assertOutsideGitDirectories(gitDirectories, physical, path);
     if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;

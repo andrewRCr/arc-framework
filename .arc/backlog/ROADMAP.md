@@ -24,7 +24,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                          | —               |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                          | —               |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                          | —               |
-| `Active`   | retire-extension-points         | P2       | andrew | —                          | configuration   |
 | `Planning` | pull-request-surface-policy     | P2       | andrew | —                          | doc-conventions |
 
 ## Ready

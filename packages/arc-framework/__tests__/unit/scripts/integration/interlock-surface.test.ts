@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   composeCheckpointInterlockSurface,
+  CheckpointInterlockSurfaceSchema,
   type CheckpointMachineSignal,
 } from "../../../../src/scripts/integration/interlock-surface.js";
 import { NO_HOSTED_REVIEW_RESERVATION_DETAIL } from
@@ -26,6 +27,18 @@ function signals(): CheckpointMachineSignal[] {
 }
 
 describe("checkpoint interlock surface", () => {
+  it("rejects the obsolete report field while preserving the complete machine surface", () => {
+    const surface = composeCheckpointInterlockSurface({
+      approvedHead: oid("a"), repository: "owner/repo", pullRequest: 42,
+      baseRef: "main", observedBase: oid("b"), method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL, signals: signals(),
+    });
+    expect(CheckpointInterlockSurfaceSchema.safeParse({
+      ...surface, extensionReport: { label: "Extension report", content: null },
+    }).success).toBe(false);
+  });
+
   it("renders a fully clean decision surface without expanding all nine facts", () => {
     const result = composeCheckpointInterlockSurface({
       approvedHead: oid("a"),
@@ -47,7 +60,7 @@ describe("checkpoint interlock surface", () => {
     expect(result.machineEvidence.text).not.toMatch(/base OID (?:is|was) pinned/iu);
     expect(result.machineEvidence.text).toContain("Machine evidence: 9 checks clean.");
     expect(result.machineEvidence.text).not.toContain("Authoritative drift is clean.");
-    expect(result.extensionReport).toEqual({ label: "Extension report", content: null });
+    expect(result).not.toHaveProperty("extensionReport");
   });
 
   it("names the candidate tail so the approver can self-serve the diff", () => {

@@ -60,8 +60,8 @@ Each layer of it has a different failure mode, so each gets different correctnes
   `draft-composable-workflows.md` D3.
 - **Structure** — what a workflow consumes, declares, and emits — is typed contract: frontmatter declarations, a
   generated-from-types envelope schema, bounded spines, a small closed step vocabulary. Its correctness instrument
-  is mechanical validation (point-scanner, lint, CI structural budgets). Mechanism: `draft-composable-workflows.md`
-  D1/D2.
+  is mechanical validation (method dependency/coverage audits, lint, CI structural budgets). Mechanism:
+  `draft-composable-workflows.md` D1/D2.
 - **Judgment and communication** — the irreducible prose residue: orientation framing, recommendation discipline,
   elicitation, taste. It stays natural language, constrained by a controlled vocabulary and verifiable only
   empirically: **evals are this layer's type system** (`workflow-eval-harness`). No static instrument exists for a

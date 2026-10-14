@@ -54,8 +54,8 @@
 ## Problem / Motivation
 
 Several `lib/` modules import type contracts from `commands/`, inverting the intended
-`lib → commands → handlers → cli` dependency direction. Documented in
-`analysis-cli-architecture-solid-dry-audit.md` § P1 (lib-layer dependency inversion).
+`lib → commands → handlers → cli` dependency direction. Documented in `analysis-cli-architecture-solid-dry-audit.md` §
+P1 (lib-layer dependency inversion).
 
 Sites that currently invert:
 
@@ -108,8 +108,7 @@ definition (PRD-time decision: clean break vs. shim).
 ### Out of scope
 
 - Behavioral changes to any module.
-- Module splits — Plan B (`plan-sync-handler-decomposition.md`),
-  Plan C (`plan-user-sync-module-split.md`).
+- Module splits — Plan B (`plan-sync-handler-decomposition.md`), Plan C (`plan-user-sync-module-split.md`).
 - P2 DRY consolidations from the audit (fold into Plan B / Plan C as relevant modules
   are touched).
 - Test restructuring (follows production module changes; not driven by this plan).
@@ -128,9 +127,8 @@ restructure against) but does not block either.
   session.
 
 **Sequencing.** Defer past the parallelism trio (Worktree Foundation + Agile WU
-Lifecycle + Concurrent Work Conventions) and Coord Probe per
-`analysis-cli-architecture-solid-dry-audit.md` § Sequencing Considerations. Parallel
-candidate with Plans B and C once worktree infrastructure unlocks parallel WUs.
+Lifecycle + Concurrent Work Conventions) and Coord Probe per `analysis-cli-architecture-solid-dry-audit.md` § Sequencing
+Considerations. Parallel candidate with Plans B and C once worktree infrastructure unlocks parallel WUs.
 
 ---
 

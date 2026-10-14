@@ -84,11 +84,11 @@ jobs:
           echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
 ```
 
-Replace `<installed-arc-version>` with the exact `framework_version` from
-`.arc/system/.internal/manifest.json`. The pinned CLI classifies Git's raw change record, so rename/copy endpoints
-and type/mode changes participate and any unreadable or malformed change remains reviewed.
-The classification checkout must fetch branch refs (`fetch-depth: 0`) rather than only the pull request's commit
-history, because an exact decomposition source commit may exist only on another branch ref.
+Replace `<installed-arc-version>` with the exact `framework_version` from `.arc/system/.internal/manifest.json`. The
+pinned CLI classifies Git's raw change record, so rename/copy endpoints and type/mode changes participate and any
+unreadable or malformed change remains reviewed. The classification checkout must fetch branch refs (`fetch-depth: 0`)
+rather than only the pull request's commit history, because an exact decomposition source commit may exist only on
+another branch ref.
 
 Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
@@ -131,8 +131,8 @@ the planning substrate, but code-owner approval remains required. The rest of `.
 owned.
 
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
-additionally waits on owner approval and must not be armed by ARC. The
-[Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
+additionally waits on owner approval and must not be armed by ARC. The [Set Up the Auto-Merge Gate
+workflow][setup-workflow] walks through all four steps.
 
 ---
 

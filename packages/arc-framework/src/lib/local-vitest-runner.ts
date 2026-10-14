@@ -14,7 +14,7 @@ import { resolve } from "node:path";
 export const ARC_CONTRACT_SUITES = [
   "framework-sync",
   "live-transition-records",
-  "pr-open-extensions",
+  "pr-lifecycle",
   "review-gate-workflows",
   "ci-check-plumbing",
   "markdown/descriptor-spacing",

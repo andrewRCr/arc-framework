@@ -10,7 +10,7 @@ const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("review-gate package boundary", () => {
-  it("ships extension shells without repository controller implementation", async () => {
+  it("ships review workflows without repository controller implementation", async () => {
     const packageState = await mkdtemp(join(tmpdir(), "arc-review-package-state-"));
     const isolatedHome = join(packageState, "home");
     const isolatedCache = join(packageState, "npm-cache");
@@ -28,8 +28,6 @@ describe("review-gate package boundary", () => {
       );
       const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
       const paths = packs[0]?.files.map(({ path }) => path) ?? [];
-      expect(paths).toContain("arc/system/extensions/pre-pr-open.md");
-      expect(paths).toContain("arc/system/extensions/post-pr-open.md");
       expect(paths).toContain("arc/system/workflows/arc/supplemental/run-errand.md");
       expect(paths.some((path) => path.includes("src/scripts/review-gate"))).toBe(false);
       expect(paths.some((path) => path.startsWith(".github/"))).toBe(false);
@@ -41,20 +39,6 @@ describe("review-gate package boundary", () => {
     }
   });
 
-  it("keeps project and packaged extension seams inactive", async () => {
-    const [projectPostOpen, projectPreMerge, packagePostOpen, packagePreMerge] = await Promise.all([
-      readFile(resolve(root, ".arc/system/extensions/post-pr-open.md"), "utf8"),
-      readFile(resolve(root, ".arc/system/extensions/pre-merge.md"), "utf8"),
-      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/post-pr-open.md"), "utf8"),
-      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/pre-merge.md"), "utf8"),
-    ]);
-    expect(projectPostOpen).toContain("active: false");
-    expect(projectPreMerge).toContain("active: false");
-    expect(projectPostOpen).not.toMatch(/coordinate-pr-review|controller/iu);
-    expect(projectPreMerge).not.toMatch(/coordinate-pr-review|controller/iu);
-    expect(packagePostOpen).toContain("[No extension configured]");
-    expect(packagePreMerge).toContain("[No extension configured]");
-  });
 
   it("keeps declared dependencies and excludes review-only entry points", async () => {
     const [manifestText, rootManifestText, tsup] = await Promise.all([

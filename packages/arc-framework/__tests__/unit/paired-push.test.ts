@@ -564,6 +564,22 @@ describe("runPairedPush", () => {
     expect(pushArgs).toEqual([["push", "origin", "main", "-u"]]);
   });
 
+  it("hands the worktree push the identifier its push gate records a refusal under", async () => {
+    const { exec } = buildExec(cleanRepoResponses());
+    const pushOptions: unknown[] = [];
+    const recording: GitExec = async (cmd, args, options) => {
+      if (args[0] === "push") pushOptions.push(options);
+      return exec(cmd, args, options);
+    };
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({ io: buildIo(recording), access: buildAccess([]), pushNotes, ...COMMON_OPTIONS,
+      pushGateId: "0123456789abcdef0123456789abcdef" });
+
+    expect(result.exitCode).toBe(0);
+    expect(pushOptions).toEqual([{ pushGateId: "0123456789abcdef0123456789abcdef" }]);
+  });
+
   it("setUpstream success path does not surface the resolved no-upstream condition (no stderr leak)", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_UPSTREAM] = () => {

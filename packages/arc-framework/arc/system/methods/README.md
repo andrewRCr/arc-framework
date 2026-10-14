@@ -28,7 +28,7 @@ read methods; the `override-active` frontmatter field is consumed by the framewo
 and authoring tooling, not by session-init. Workflows and methods declare only the methods their own bodies may fire
 in `arc.methods`; workflow declarations are roots, and method-owned declarations form a deduplicated transitive
 graph. A caller never redeclares its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring]
-and [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
+and [Session Operations Strategy § Method Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
@@ -65,5 +65,5 @@ when populating any `.override` section. Methods not listed here are independent
 ---
 
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
-[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-and-extension-loading
+[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-loading
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md

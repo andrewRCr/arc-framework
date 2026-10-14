@@ -237,12 +237,11 @@ complementary and should land coherently.
 **Layer 2 — Audit.** Apply the rule to the current T1/T2 set; document keep-vs-demote per document with
 the reason. Expected outcome: briefs and DEV-RULES stay (constraints / low-cost narrative — demoting
 constraints is the riskiest move and the rule forbids it); QUICK-REFERENCE's residual demotes;
-process-task-loop splits (Layer 3).
-_Re-base (2026-07-02):_ the audit's object is now the shipped **`loadSet` manifest** — the probe's
-projection of Step 3 policy (with read-modes), parity-tested against the workflow's inline enumeration.
-Audit the manifest entries, not prose recollections of the load set; include the cohort-doc entry (from
-the buffer) and WORKING-MEMORY (whose per-session read cost `handoff-optimization`'s structured-trigger
-item attacks from the other side).
+process-task-loop splits (Layer 3). _Re-base (2026-07-02):_ the audit's object is now the shipped **`loadSet` manifest**
+— the probe's projection of Step 3 policy (with read-modes), parity-tested against the workflow's inline enumeration.
+Audit the manifest entries, not prose recollections of the load set; include the cohort-doc entry (from the buffer) and
+WORKING-MEMORY (whose per-session read cost `handoff-optimization`'s structured-trigger item attacks from the other
+side).
 
 **Layer 3 — Execution.** The demotions that pass the rule:
 
@@ -341,10 +340,9 @@ authoring a loop template.)
 
 ## Scope Estimate
 
-**Bounded — feels small-to-medium.** Precise scope
-deferred to PRD time (the loop split is the heaviest single piece and could be split out if scope
-balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), Layer 3 QUICK-REFERENCE
-(~0.5), process-task-loop core/detail split + loop-canon (~1–1.5), verification (~0.5).
+**Bounded — feels small-to-medium.** Precise scope deferred to PRD time (the loop split is the heaviest single piece and
+could be split out if scope balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), Layer 3
+QUICK-REFERENCE (~0.5), process-task-loop core/detail split + loop-canon (~1–1.5), verification (~0.5).
 
 ## Open Questions (PRD-time)
 

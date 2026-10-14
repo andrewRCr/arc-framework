@@ -1,4 +1,4 @@
-/** Active-extension input seam for checkout-directed subject projection. */
+/** Checkout-directed subject projection and lifecycle context. */
 
 import { posix } from "node:path";
 
@@ -177,16 +177,13 @@ function fixture() {
   };
 }
 
-describe("checkout subject active-extension seam", () => {
-  it("passes supplied active extensions unchanged to one load-set projection", async () => {
+describe("checkout subject projection", () => {
+  it("projects a stable execution workflow and cohort context", async () => {
     resolverInputs.length = 0;
     const { options } = fixture();
-    const activeExtensions = ["release-notes", "security-review"] as const;
 
-    const result = await projectCheckoutSubjectMeta({ ...options, activeExtensions });
+    const result = await projectCheckoutSubjectMeta(options);
 
-    expect(resolverInputs).toHaveLength(1);
-    expect(resolverInputs[0]?.activeExtensions).toBe(activeExtensions);
     expect(result).toMatchObject({
       kind: "resolved",
       sessionType: "execution",
@@ -1278,12 +1275,4 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
-  it("makes omission output-identical to an explicit empty extension list", async () => {
-    const { options } = fixture();
-
-    const omitted = await projectCheckoutSubjectMeta(options);
-    const explicit = await projectCheckoutSubjectMeta({ ...options, activeExtensions: [] });
-
-    expect(omitted).toEqual(explicit);
-  });
 });

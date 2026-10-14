@@ -1,13 +1,12 @@
 /**
  * Package-source neutrality validator — pre-commit hook entry point.
  *
- * Framework package source must ship neutral defaults for per-file methods and
- * extensions and methods: extension `active: false`, registered method
- * activation defaults, `override-active: false`, and
- * `[No extension configured]` / `[No override configured]` placeholder bodies.
+ * Framework package source must ship neutral defaults for per-file methods:
+ * registered activation defaults, `override-active: false`, and
+ * `[No override configured]` placeholder bodies.
  * Local customizations (adopter overrides, a self-hosted project copy) legitimately
  * diverge — this check runs only against paths under
- * `packages/arc-framework/arc/system/{extensions,methods}/`.
+ * `packages/arc-framework/arc/system/methods/`.
  *
  * Complements the frontmatter schema validator (schema correctness) with a
  * semantic gate: schema-valid content can still carry the wrong intent for a
@@ -23,20 +22,14 @@ import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runPathListScript } from "./cli-runner.js";
-import {
-  parseExtensionFrontmatter,
-  parseMethodFrontmatter,
-} from "../lib/frontmatter/index.js";
+import { parseMethodFrontmatter } from "../lib/frontmatter/index.js";
 import {
   defaultMethodActivation,
   isActivatableMethodName,
 } from "../lib/method-activation-registry.js";
 
 /** Path classifications the neutrality validator dispatches on. */
-export type PackagePathClassification =
-  | "package-method"
-  | "package-extension"
-  | "other";
+export type PackagePathClassification = "package-method" | "other";
 
 /** Aggregate validation outcome. */
 export interface NeutralityResult {
@@ -46,16 +39,12 @@ export interface NeutralityResult {
 
 const PACKAGE_METHOD_PATH =
   /(?:^|\/)packages\/arc-framework\/arc\/system\/methods\/([^/]+)\.md$/;
-const PACKAGE_EXTENSION_PATH =
-  /(?:^|\/)packages\/arc-framework\/arc\/system\/extensions\/([^/]+)\.md$/;
-
-const EXTENSION_PLACEHOLDER = "[No extension configured]";
 const METHOD_PLACEHOLDER = "[No override configured]";
 
 /**
  * Classify a staged path for neutrality checking.
  *
- * Returns `package-method` or `package-extension` only for per-file entries
+ * Returns `package-method` only for per-file entries
  * under the package-source directories (excluding `README.md`). All other
  * paths — including `.arc/` copies, aggregates, and unrelated files — are
  * `other` and silently skipped.
@@ -63,8 +52,6 @@ const METHOD_PLACEHOLDER = "[No override configured]";
 export function classifyPackagePath(path: string): PackagePathClassification {
   const methodMatch = PACKAGE_METHOD_PATH.exec(path);
   if (methodMatch && methodMatch[1] !== "README") return "package-method";
-  const extensionMatch = PACKAGE_EXTENSION_PATH.exec(path);
-  if (extensionMatch && extensionMatch[1] !== "README") return "package-extension";
   return "other";
 }
 
@@ -73,7 +60,7 @@ export function classifyPackagePath(path: string): PackagePathClassification {
  *
  * Body runs from the first line after the header until the next `## ` heading
  * or a line that is exactly `---` (the reference-link-block separator
- * convention used throughout ARC method and extension files). Leading and
+ * convention used throughout ARC method files). Leading and
  * trailing blank lines are stripped; internal structure is preserved.
  *
  * Returns `null` when the section header is absent.
@@ -117,50 +104,30 @@ export function validateFiles(
     const content = readFile(path);
     const fileBase = basename(path, ".md");
 
-    if (classification === "package-method") {
-      const parsed = parseMethodFrontmatter(content, fileBase);
-      if (!parsed.frontmatter) continue;
-      if (parsed.frontmatter["override-active"]) {
+    const parsed = parseMethodFrontmatter(content, fileBase);
+    if (!parsed.frontmatter) continue;
+    if (parsed.frontmatter["override-active"]) {
+      diagnostics.push(
+        `${path}: package source must ship \`override-active: false\` (found true). Set to false; local override toggling belongs only in the .arc/ copy.`,
+      );
+    }
+    if (isActivatableMethodName(fileBase)) {
+      const expected = defaultMethodActivation(fileBase);
+      if (parsed.frontmatter.active !== expected) {
         diagnostics.push(
-          `${path}: package source must ship \`override-active: false\` (found true). Set to false; local override toggling belongs only in the .arc/ copy.`,
+          `${path}: package source must match the activation registry default ${String(expected)} (found ${String(parsed.frontmatter.active)}).`,
         );
       }
-      if (isActivatableMethodName(fileBase)) {
-        const expected = defaultMethodActivation(fileBase);
-        if (parsed.frontmatter.active !== expected) {
-          diagnostics.push(
-            `${path}: package source must match the activation registry default ${String(expected)} (found ${String(parsed.frontmatter.active)}).`,
-          );
-        }
-      }
-      const body = extractSectionBody(content, `${fileBase}.override`);
-      if (body === null) {
-        diagnostics.push(
-          `${path}: missing \`## ${fileBase}.override\` section`,
-        );
-      } else if (body !== METHOD_PLACEHOLDER) {
-        diagnostics.push(
-          `${path}: \`.override\` body must be exactly \`${METHOD_PLACEHOLDER}\` in package source; found custom content. Move local customization to the .arc/ copy only.`,
-        );
-      }
-    } else {
-      const parsed = parseExtensionFrontmatter(content, fileBase);
-      if (!parsed.frontmatter) continue;
-      if (parsed.frontmatter.active) {
-        diagnostics.push(
-          `${path}: package source must ship \`active: false\` (found true). Set to false; local activation belongs only in the .arc/ copy.`,
-        );
-      }
-      const body = extractSectionBody(content, `${fileBase}.actions`);
-      if (body === null) {
-        diagnostics.push(
-          `${path}: missing \`## ${fileBase}.actions\` section`,
-        );
-      } else if (body !== EXTENSION_PLACEHOLDER) {
-        diagnostics.push(
-          `${path}: \`.actions\` body must be exactly \`${EXTENSION_PLACEHOLDER}\` in package source; found custom content. Move local customization to the .arc/ copy only.`,
-        );
-      }
+    }
+    const body = extractSectionBody(content, `${fileBase}.override`);
+    if (body === null) {
+      diagnostics.push(
+        `${path}: missing \`## ${fileBase}.override\` section`,
+      );
+    } else if (body !== METHOD_PLACEHOLDER) {
+      diagnostics.push(
+        `${path}: \`.override\` body must be exactly \`${METHOD_PLACEHOLDER}\` in package source; found custom content. Move local customization to the .arc/ copy only.`,
+      );
     }
   }
   return { pass: diagnostics.length === 0, diagnostics };

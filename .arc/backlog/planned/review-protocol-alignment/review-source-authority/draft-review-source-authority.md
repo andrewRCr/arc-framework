@@ -633,12 +633,11 @@ pull-request dependence, and dispatch action are abstract axes, the source lists
 diagnostics name no provider. The hosted execution layer is already adapter-array-driven, and each adapter already
 carries a self-description constant beside its implementation (`CODERABBIT_HOSTED_REGISTRATION`,
 `CODEX_HOSTED_REGISTRATION`). **What is closed is the wrong thing, and it is closed by four independent
-authorities:**
-`REVIEW_SOURCE_CAPABILITIES` is a module-private constant in `review-policy-driver.ts` carrying four hardcoded entries,
-unexported, with no registration surface; the config schema and compatibility validator each restate provider domains;
-and `hosted/request.ts` closes `HostedProviderIdSchema` over `coderabbit-pr | codex-pr`. Those are the places where a
-fact about someone else's product becomes a second authority rather than a reference to the adapter that implements
-it.
+authorities:** `REVIEW_SOURCE_CAPABILITIES` is a module-private constant in `review-policy-driver.ts` carrying four
+hardcoded entries, unexported, with no registration surface; the config schema and compatibility validator each restate
+provider domains; and `hosted/request.ts` closes `HostedProviderIdSchema` over `coderabbit-pr | codex-pr`. Those are the
+places where a fact about someone else's product becomes a second authority rather than a reference to the adapter that
+implements it.
 
 **The boundary that decides what is a leak.** `delegated-agent` is ARC's own subagent carrier, so its lanes and scopes
 are ARC's business and belong in core. `coderabbit-cli`, `coderabbit-pr`, and `codex-pr` are third-party providers;

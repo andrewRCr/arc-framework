@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - classify-work-unit
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Initialize Work Unit
@@ -83,8 +81,8 @@ git pull origin {base-branch}
 Verify the working tree is clean (`git status`). If there are uncommitted changes from a prior session,
 resolve them before proceeding.
 
-Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull
-(`git rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
+Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull (`git
+rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
 didn't reach parity — typically a network glitch or a fetch-then-rebase scenario; investigate before
 creating the planning branch. This guard matters most on cross-machine resume, where local
 `{base-branch}` may be arbitrarily behind `origin/{base-branch}` from integration work that landed
@@ -121,9 +119,9 @@ arc start {name} --new --here   # explicit in-place placement
 ```
 
 The verb creates the planning branch, scaffolds the WU, opens its user workspace, and establishes the checkout as
-WU-owned.
-On a spawned start it also ships the start ceremony and emits the exact next-session recipe; consume that recipe
-and skip Steps 4–6. On `--here`, continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
+WU-owned. On a spawned start it also ships the start ceremony and emits the
+exact next-session recipe; consume that recipe and skip Steps 4–6. On `--here`,
+continue with Steps 4–6 in the now WU-owned checkout. If that checkout is the
 physical primary, do not allocate transient work there until the WU exits through guarded teardown.
 
 ### 3) Initialize Backlog Subdir to Active · `arc-in-git` only
@@ -243,10 +241,6 @@ edit is trivial (a single-row add into In Flight) — see [DEV-RULES.ARC § Atom
 
 Set upstream for the planning branch.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
-  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
@@ -331,9 +325,6 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
 
 5. **Push the WU branch; retire the old remote ref.**
 
-   - **Extensions** · `#pre-push-review`: If `pre-push-review` is active, run its `.actions` before the push —
-     halt-on-fail surfaces an actionable message; fix-and-retry or explicit-invoke bypasses. Otherwise skip.
-
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
@@ -346,8 +337,8 @@ task-list backfill. Carry any landed errand commit as context in the new WU's sp
    cross-machine resume.
 
 6. **Continue into the routed planning stage** — by the floor crossed. Do **not** run `activate-work-unit`;
-   promotion already performed the branch-side activation. Resolve `Class`
-   ([classify-work-unit][classify-work-unit]) here if it was not supplied at promotion.
+   promotion already performed the branch-side activation. Resolve `Class` ([classify-work-unit][classify-work-unit])
+   here if it was not supplied at promotion.
 
    - **Derivation** → the meta points at `draft-design`; work the design out, then [create-spec][create-spec], then
      [generate-tasks][generate-tasks].

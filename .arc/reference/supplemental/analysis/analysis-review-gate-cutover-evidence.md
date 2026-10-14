@@ -123,19 +123,18 @@ interface QualificationProbeDescriptor {
 
 Each matrix cell must have a distinct disposable PR, change-request id, and head; the qualification PR must be separate,
 so clean, findings, stale, unknown, trigger, and repair scenarios cannot borrow evidence from one another. CodeRabbit's
-generation-zero label is produced only by the
-controller; CodeRabbit command and every Codex cell require precondition paths proving a durable reservation and
-App-authored pending projection, then run through the typed action contract with the shipped command. Provider-cell
-dispatches select a protected, workflow-dispatch-only in-memory probe policy for exactly that provider; it does not
-mutate the checked-in partial declarations. The action reader re-queries the head, request, and pending projection at
-consumption, and its redispatch preserves those probe inputs. Pending, fallback, ledger, and all provider cells dispatch
-reconciliation. Before each dispatch, the coordinator snapshots existing workflow run ids and accepts exactly one new
-run at the pinned default-branch SHA with the expected actor/event/path. The event-repair cell instead proves a scheduled
-default-branch run plus fresh cell receipt/check evidence; token cells dispatch qualification, repair
-authority dispatches repair, and await/finding/closure cells use no workflow dispatch. Evidence paths begin with
-`repos/<owner>/<repository>/`; arbitrary nonempty JSON is not a result. Provider outcomes are reduced through the
-same CodeRabbit and Codex normalizers used by production, including exact-head review, inline-comment commit, actor,
-App, thread, and pull-request URL correlation.
+generation-zero label is produced only by the controller; CodeRabbit command and every Codex cell require precondition
+paths proving a durable reservation and App-authored pending projection, then run through the typed action contract with
+the shipped command. Provider-cell dispatches select a protected, workflow-dispatch-only in-memory probe policy for
+exactly that provider; it does not mutate the checked-in partial declarations. The action reader re-queries the head,
+request, and pending projection at consumption, and its redispatch preserves those probe inputs. Pending, fallback,
+ledger, and all provider cells dispatch reconciliation. Before each dispatch, the coordinator snapshots existing
+workflow run ids and accepts exactly one new run at the pinned default-branch SHA with the expected actor/event/path.
+The event-repair cell instead proves a scheduled default-branch run plus fresh cell receipt/check evidence; token cells
+dispatch qualification, repair authority dispatches repair, and await/finding/closure cells use no workflow dispatch.
+Evidence paths begin with `repos/<owner>/<repository>/`; arbitrary nonempty JSON is not a result. Provider outcomes are
+reduced through the same CodeRabbit and Codex normalizers used by production, including exact-head review,
+inline-comment commit, actor, App, thread, and pull-request URL correlation.
 
 ## Required Qualification Matrix
 

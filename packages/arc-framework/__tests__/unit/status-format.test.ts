@@ -24,7 +24,6 @@ import type {
 } from "../../src/commands/status.js";
 import type { ActiveStatusResult } from "../../src/commands/active/types.js";
 import type { ConfigStatusResult } from "../../src/commands/config/types.js";
-import type { ExtensionsStatusResult } from "../../src/commands/extensions/types.js";
 import type { UserStatusResult } from "../../src/commands/user/types.js";
 
 function okUser(): Probe<UserStatusResult> {
@@ -53,21 +52,6 @@ function okUser(): Probe<UserStatusResult> {
   };
 }
 
-function okExtensions(): Probe<ExtensionsStatusResult> {
-  return {
-    ok: true,
-    value: {
-      mode: "full",
-      extensions: [{ name: "pre-merge", active: true, description: "d" }],
-      activeCount: 1,
-      inactiveCount: 0,
-      orphanCount: 0,
-      orphans: [],
-      includeOrphanDetails: false,
-      warnings: [],
-    },
-  };
-}
 
 function okConfig(): Probe<ConfigStatusResult> {
   return {
@@ -129,7 +113,6 @@ function makeFullResult(overrides: Partial<StatusResult> = {}): StatusResult {
     mode: "full",
     identity: { identity: "andrew", role: "maintainer" },
     user: okUser(),
-    extensions: okExtensions(),
     config: okConfig(),
     active: okActive(),
     ...overrides,
@@ -221,10 +204,6 @@ function makeSessionInitResult(
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
     loadSet: { ok: true, value: { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries: [] } },
     recommendedCombinedPrompt: null,
-    extensions: {
-      ok: true,
-      value: { mode: "session-init", active: ["pre-merge"], warnings: [] },
-    },
     config: {
       ok: true,
       value: {
@@ -285,22 +264,21 @@ function makeSessionInitResult(
 }
 
 describe("buildStatusSummary — full mode", () => {
+  it("omits the retired probe heading", () => {
+    expect(buildStatusSummary(makeFullResult())).not.toContain("Extensions:");
+  });
+
   it("includes all section headers in stable order", () => {
     const summary = buildStatusSummary(makeFullResult());
-    // Top-level headers are at column 0; sub-sections (e.g., the
-    // extensions formatter's own "Active:" list header) are indented,
-    // so line-anchored matching is the discriminator.
     const lines = summary.split("\n");
     const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
     const identityIdx = idxOfLine("Identity:");
     const userIdx = idxOfLine("User:");
-    const extIdx = idxOfLine("Extensions:");
     const configIdx = idxOfLine("Config:");
     const activeIdx = idxOfLine("Active:");
     expect(identityIdx).toBeGreaterThanOrEqual(0);
     expect(userIdx).toBeGreaterThan(identityIdx);
-    expect(extIdx).toBeGreaterThan(userIdx);
-    expect(configIdx).toBeGreaterThan(extIdx);
+    expect(configIdx).toBeGreaterThan(userIdx);
     expect(activeIdx).toBeGreaterThan(configIdx);
   });
 
@@ -322,8 +300,6 @@ describe("buildStatusSummary — full mode", () => {
     const summary = buildStatusSummary(makeFullResult());
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
-    // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
-    expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
     expect(summary).toContain("35 agent-consumable settings");
     // Active formatter: "0 active work units"
@@ -333,11 +309,11 @@ describe("buildStatusSummary — full mode", () => {
   it("renders an (unavailable) marker for an errored slot", () => {
     const summary = buildStatusSummary(
       makeFullResult({
-        extensions: { ok: false, error: { kind: "runtime", message: "dir missing" } },
+        config: { ok: false, error: { kind: "runtime", message: "config unavailable" } },
       }),
     );
-    expect(summary).toContain("Extensions:");
-    expect(summary).toContain("(unavailable) dir missing");
+    expect(summary).not.toContain("Extensions:");
+    expect(summary).toContain("(unavailable) config unavailable");
     // Other slots still render
     expect(summary).toContain("Config:");
     expect(summary).toContain("Active:");
@@ -388,12 +364,12 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(failed).toContain("Delivery:\n  (unavailable) delivery unavailable");
   });
 
-  it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
+  it("includes identity block plus all probe sections (user, worktree, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");
     expect(summary).toContain("User:");
     expect(summary).toContain("Worktree:");
-    expect(summary).toContain("Extensions:");
+    expect(summary).not.toContain("Extensions:");
     expect(summary).toContain("Config:");
     expect(summary).toContain("Release Routing:");
     expect(summary).toContain("Active:");
@@ -403,7 +379,6 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("session-init remote state clean");
     expect(summary).toContain("clean (in sync with origin)");
-    expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
     expect(summary).toContain("session.remote_sync: enabled");
     expect(summary).toContain("user.notes_push: on-sync");
@@ -413,15 +388,15 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Resolved: .arc/active/technical/meta-foo.md");
   });
 
-  it("renders the Worktree section between User and Extensions", () => {
+  it("renders the Worktree section between User and Config", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     const lines = summary.split("\n");
     const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
     const userIdx = idxOfLine("User:");
     const worktreeIdx = idxOfLine("Worktree:");
-    const extIdx = idxOfLine("Extensions:");
     expect(worktreeIdx).toBeGreaterThan(userIdx);
-    expect(extIdx).toBeGreaterThan(worktreeIdx);
+    const configIdx = idxOfLine("Config:");
+    expect(configIdx).toBeGreaterThan(worktreeIdx);
   });
 
   it("renders worktree drift states with counts", () => {

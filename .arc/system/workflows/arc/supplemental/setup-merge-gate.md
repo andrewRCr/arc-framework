@@ -39,9 +39,9 @@ duplicates.
    If the host is not GitHub, jump to [§ Other Hosts](#other-hosts). If `gh` lacks admin, the settings steps
    (3–4) drop to their guided-manual fallback.
 
-3. **Exact installed framework version.** Read `framework_version` from
-   `.arc/system/.internal/manifest.json`, require strict SemVer, and confirm it matches `arc --version`. Use that
-   exact value for `<installed-arc-version>` in the classifier snippet.
+3. **Exact installed framework version.** Read `framework_version` from `.arc/system/.internal/manifest.json`, require
+   strict SemVer, and confirm it matches `arc --version`. Use that exact value for `<installed-arc-version>` in the
+   classifier snippet.
 
 ## Step 1: Add the merge-ok gate to your CI workflow
 
@@ -128,9 +128,8 @@ gh repo edit --enable-auto-merge                              # enable if false
 With auto-merge on, an armed planning-only PR merges itself once `merge-ok` is green and no owner review is
 required; a reviewed-lane PR additionally waits on owner approval. Auto-merge is armed per PR
 (`gh pr merge --auto` or the PR UI) once these conditions are in place. The repository setting alone never
-authorizes arming: immediately before ARC arms a PR, rerun
-`arc review planning-lane <base-sha> <head-sha>` and require literal `planning`. `reviewed`, command failure, or
-malformed output must not arm auto-merge.
+authorizes arming: immediately before ARC arms a PR, rerun `arc review planning-lane <base-sha> <head-sha>` and require
+literal `planning`. `reviewed`, command failure, or malformed output must not arm auto-merge.
 
 ## Step 5: Verify
 

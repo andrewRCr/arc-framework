@@ -4,8 +4,6 @@ audience: collaborative (human and agent)
 arc:
   methods:
     - branch-format
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Deactivate Work Unit
@@ -84,11 +82,6 @@ Context: meta-{name}.md (deactivation)
 ### 3) Push the rotated branch · 2-step routing
 
 The local branch rename back landed in Step 2 (executor-owned); only the remote legs remain.
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-  (established at session init), load and execute its `.actions` before the `workflowPush` push.
-  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
-  Otherwise, skip.
 
 ```bash
 git push -u origin plan/{name}              # workflowPush
@@ -221,7 +214,7 @@ protection) — but no task work has run, so the activation is the only thing to
 locally since it lives on base. No dedicated workflow ships for this; reverse it with a deactivation PR:
 
 1. Branch from base.
-2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 4:
+2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 3:
    `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
    pointer.
 3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed

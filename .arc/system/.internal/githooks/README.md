@@ -41,8 +41,8 @@ chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githook
 
 ### commit-msg — Message Format
 
-Enforces the commit message standard defined in
-[DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit format:
+Enforces the commit message standard defined in [DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit
+format:
 
 The `commit-msg` hook is a thin shim. When validation is enabled, it resolves the repository-local
 `node_modules/.bin/arc` executable first, falls back to `arc` on `PATH`, and delegates to
@@ -72,8 +72,7 @@ delegation intentionally.
 - Task list file not found in active directories
 - Context footer issues when `commit.context_footer: recommended`
 - Contributor using non-`contribution` context footer pattern
-- Meta file not advanced when committing a completed parent task (derived
-  from the staged task list's directory)
+- Meta file not advanced when committing a completed parent task (derived from the staged task list's directory)
 
 ### pre-commit — File Safety and Declared Checks
 
