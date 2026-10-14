@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Spec adversarial pass 6 — 27 findings verified and dispositioned
+- **Last Completed:** create-spec — `spec-storage-ref-backend.md` finalized after nine review passes
 - **Next Task:** [none]
 - **Blockers:** [none]
 
