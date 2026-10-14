@@ -164,13 +164,15 @@ Paths are under `packages/arc-framework/src/`.
   `lib/locus/derived-evidence.ts`, `lib/locus/derived-lifecycle-evidence.ts`, `lib/locus/subject-meta.ts`,
   `lib/git/worktree-roster.ts`, `lib/git/worktree-marker.ts` and `lib/locus/occupancy-marker.ts` (the anchored marker's
   admission, and the worktree marker's origin binding with its writer, `lib/locus/provisioning-marker.ts`, § 7.6), the
-  default port record's binding (`createDefaultLocusPorts`, `lib/work-unit/locus-ports.ts`, § 2.4),
-  `lib/git/worktree-cleanup.ts` (the cleanup decision), `commands/active/roster.ts`,
-  `lib/release/wu-resolution.ts` (`resolveActiveWu`'s body and `resolveOriginatingMetaPath`),
-  `lib/session-init/locus-classification.ts`, the derived frame and roster (`lib/locus/derived-reader.ts`, whose
-  work-unit context gains the pause record and the commits not yet closed, and `lib/locus/derived-roster.ts`), the
-  frame's guidance (`deriveDerivedLocusSessionGuidance`, `lib/locus/session-guidance.ts`), and the layout resolver's
-  address for an identity's personal root (`lib/layout/schema.ts`, `lib/layout/projection.ts`).
+  default port record's binding (`createDefaultLocusPorts`, `lib/work-unit/locus-ports.ts`, § 2.4) and the lookup's two
+  lifecycle callers' default through it (`findWorkUnitHoldingCheckout`, `lib/work-unit/verbs/unshared-work.ts`;
+  teardown's `holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), `lib/git/worktree-cleanup.ts` (the cleanup
+  decision), `commands/active/roster.ts`, `lib/release/wu-resolution.ts` (`resolveActiveWu`'s body and
+  `resolveOriginatingMetaPath`), `lib/session-init/locus-classification.ts`, the derived frame and roster
+  (`lib/locus/derived-reader.ts`, whose work-unit context gains the pause record and the commits not yet closed, and
+  `lib/locus/derived-roster.ts`), the frame's guidance (`deriveDerivedLocusSessionGuidance`,
+  `lib/locus/session-guidance.ts`), and the layout resolver's address for an identity's personal root
+  (`lib/layout/schema.ts`, `lib/layout/projection.ts`).
 - **In-flight derivation and overlap:** `lib/git/in-flight-derivation.ts`, `commands/active/in-flight.ts`,
   `handlers/active.ts`, `lib/git/foreign-artifact-detection.ts`, `handlers/errand.ts`'s `arc errand check`
   (`handleErrandCheck`), the pre-commit foreign-write hook (`scripts/check-foreign-writes.ts`, § 3.3),
@@ -212,10 +214,12 @@ Paths are under `packages/arc-framework/src/`.
   operand parsing (`handleUserInboxRemove`, `handlers/user.ts`, with its title-source check,
   `UserInboxRemoveInputSchema`, `handlers/user-inbox-remove-input.ts`, and `arc errand open` and `link` in
   `handlers/errand.ts`), `commands/user/add.ts`, `commands/user/open.ts`, `commands/user/close.ts`, and `lib/setup.ts`'s
-  seeding of the personal surfaces (`runPostInitSetup`); the entry kinds' declarations and the receipt kinds' own
-  mechanism in `lib/store/registry.ts` and their modules under `lib/store/kinds/`; and the heading arm of
-  `stampEntryIds` (`lib/store/concurrency/stamp.ts`) with the entry config's managed-field list
-  (`lib/store/concurrency/entries.ts`, § 6.4).
+  seeding of the personal surfaces (`runPostInitSetup`), with identity setup's store binding — the store ports' optional
+  identity (`createDefaultStorePorts`, `lib/store/default-ports.ts`) and `arc join`'s pull and check
+  (`handlers/join.ts`, § 10.2); the entry kinds' declarations and the receipt kinds' own mechanism in
+  `lib/store/registry.ts` and their modules under `lib/store/kinds/`; and the heading arm of `stampEntryIds`
+  (`lib/store/concurrency/stamp.ts`) with the entry config's managed-field list (`lib/store/concurrency/entries.ts`,
+  § 6.4).
 - **The cold start:** `commands/start.ts`'s cold start (`runColdStart`, `coldStartOccupancyRefusal`,
   `rollbackColdStart`), with its sequence from the flip, the anchored marker among it, and its rollback's removal of
   that marker, and its handler's prompt and report (`handlers/start.ts`) (§ 2.5); its call of the scaffold
@@ -229,12 +233,12 @@ Paths are under `packages/arc-framework/src/`.
   `commands/config/validate.ts`).
 
 Readers outside this list that call into it keep their call: the lifecycle verbs and handlers that call the in-flight
-expansion (`commands/rename.ts`, `handlers/start.ts`, `handlers/lifecycle.ts`) and the review handlers' checkout
-binding (`handlers/review-locus-context.ts`, through `runDerivedLocusStateProbe`). The lifecycle callers call the
-expansion only in their in-repo arms, reading the store's slug-keyed lifecycle view from the flip (§ 16), so the
-expansion keeps its result shape for them and never hands them an entry with no branch (§ 3.1). Status's direct calls
-of the derivation (`lib/status/project-view.ts`, `lib/status/user-view.ts`) and `arc view`'s explicit-target
-composition (`handlers/view.ts`) are the status change's (§ 16).
+expansion (`commands/rename.ts`, `handlers/start.ts`, `handlers/lifecycle.ts`) and the review handlers' checkout binding
+(`handlers/review-locus-context.ts`, through `runDerivedLocusStateProbe`). The lifecycle callers call the expansion only
+in their in-repo arms, reading the store's slug-keyed lifecycle view from the flip (§ 16), so the expansion keeps its
+result shape for them and never hands them an entry with no branch (§ 3.1). Status's direct calls of the derivation
+(`lib/status/project-view.ts`, `lib/status/user-view.ts`) and `arc view`'s explicit-target composition and its cohort
+read, for either target (`handlers/view.ts`), are the status change's (§ 16).
 
 #### 1.3 Order and shared files
 
@@ -244,13 +248,17 @@ both changes rewrite carries one change's edits at a time, that change's landing
 builds on:
 
 - `commands/start.ts`, where the cold start's seed handling precedes this change's reroute of `runColdStart`;
-- `handlers/start.ts`, where that change's start dispatch precedes this change's cold-start prompt and report (§ 2.5);
+- `handlers/start.ts`, where that change's start dispatch precedes this change's binding of its cold-start slot and the
+  cold start's prompt and report (§ 2.5);
 - `lib/errand/promote-runtime.ts`, where this change has the runtime select that change's promotion steps on the
   capability, with its marker settlement and its inbox settlement step (§ 8.3);
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
-- `lib/work-unit/locus-ports.ts`, which that change creates with the default port record and this change binds (§ 2.4);
+- `lib/work-unit/locus-ports.ts`, which that change creates with the default port record and this change binds, its
+  refusal carrying the check's message whole (§ 2.4);
+- `lib/work-unit/verbs/unshared-work.ts` and `lib/work-unit/verbs/teardown-store.ts`, which that change creates and
+  where this change has the lookup's callers default through the port record (§ 2.4);
 - `lib/git/worktree-marker.ts`, where that change adds a lineage arm to the marker's evidence decoding
   (`decodeKnownEvidence`) and this change widens the marker check (`isWorktreeMarker`, § 2.3, § 7.6);
 - `lib/git/worktree-roster.ts`, which that change also edits, and where this change has the registered-worktree scan
@@ -295,10 +303,13 @@ Every other part of this design runs only in an arm from the flip, beside an in-
 
 These run only while `capabilities.stateOffBranch` is false, and the deletion pass removes them:
 
-- **Locus from the checkout's active meta** for a checkout with no marker, the worktree roster's branch and meta gates
-  (§ 2.1), the current-work-unit name's fallback to the branch's slug (`resolveCurrentWuName`, § 2.2), and the cold
-  start's own occupancy check (`coldStartOccupancyRefusal`), with Git's refusal to check out one branch twice guarding
-  the rest (§ 2.4).
+- **Locus from the checkout's active meta:** a marked checkout's subject and evidence reads of it
+  (`projectCheckoutSubjectMeta`, `lib/locus/subject-meta.ts`; `lib/locus/derived-evidence.ts`) and the frame's cohort
+  document read through it (`resolveActiveCohortDocPath`, `lib/session-init/cohort-doc.ts`, whose call by `arc view`
+  takes the status change's arm from the flip, § 16), and its reading for a checkout with no marker (§ 2.1); the
+  worktree roster's branch and meta gates (§ 2.1), the current-work-unit name's fallback to the branch's slug
+  (`resolveCurrentWuName`, § 2.2), and the cold start's own occupancy check (`coldStartOccupancyRefusal`), with Git's
+  refusal to check out one branch twice guarding the rest (§ 2.4).
 - **The cold start's branch and `arc user open`:** the protected-base cut of `plan/<name>`, and its rollback's branch
   deletion and clean of the meta's file (`rollbackColdStart`, § 2.5); and `arc user open` (§ 2.8). The scaffold's meta
   write by path and its `runUserOpen` call, which seeds the cold start's `SESSION-NOTES`, are the transition-write-path
@@ -320,8 +331,8 @@ These run only while `capabilities.stateOffBranch` is false, and the deletion pa
 - **Session-init's notes recommendations and loads** (§ 4.7), each session-notes reader's own resolution of the path
   into the per-work-unit workspace and the meta's `Task List` pointer as the task list's path (§ 2.8), and the
   current-work-unit reconcile's inline bindings of the lifecycle index, transition queries, and artifact reads (§ 4.1).
-- **The slots' command fields their actions supersede:** `currentWuReconcile`'s `recommendedCommand`, the residue
-  sweep's `teardown` and `remedy`, and the refresh remedies (§ 4.3).
+- **The slots' command fields their actions supersede:** `currentWuReconcile`'s and `userReferenceReconcile`'s
+  `recommendedCommand`, the residue sweep's `teardown` and `remedy`, and the refresh remedies (§ 4.3).
 - **The personal surfaces' title-keyed reads and writes:** removal by title (`removeCurrentInboxEntry`,
   `commands/user/inbox-mutation.ts`), the execute-bound marks (`executeBoundMark`, `listExecuteBoundInboxEntries`) and
   `arc user inbox-mark-execute-bound`, the Errand origin's title and digest, the notes lock around the inbox writer and
@@ -344,9 +355,14 @@ owner, its pause (§ 4.4) — are read through the store. This covers the derive
 `lib/locus/derived-lifecycle-evidence.ts`), the subject's meta read (`lib/locus/subject-meta.ts`), the worktree roster
 (`lib/git/worktree-roster.ts`, `commands/active/roster.ts`), and the Candidate mutation owner
 (`resolveCandidateMutationOwner`, `handlers/candidate-mutation-owner.ts`), which projects the derived-locus probe today
-and so follows it onto the marker and the store. The identity-global user root comes from the layout resolver
-(`resolveArcPath`, `lib/layout/projection.ts`) through a new address for an identity's personal root, where the probe
-builds the path by hand today and the resolver's addresses name only files beneath it.
+and so follows it onto the marker and the store. The subject's meta read resolves the frame's cohort document itself: it
+takes the work unit's `Cohort` from its record and reads the `cohort/document` record through the store, where today the
+cohort resolver (`resolveActiveCohortDocPath`, `lib/session-init/cohort-doc.ts`) reads the active meta by path and
+checks the document on disk; a work unit with no cohort, or a cohort with no document, still yields none. The resolver
+stays the in-repo arm, and `arc view`'s calls of it, for either target, are the status change's (§ 16). The
+identity-global user root comes from the layout resolver (`resolveArcPath`, `lib/layout/projection.ts`) through a new
+address for an identity's personal root, where the probe builds the path by hand today and the resolver's addresses name
+only files beneath it.
 
 - **The worktree roster keeps every registered checkout.** Today it drops a detached checkout and returns no rows when
   no checkout holds an active meta (`runWorktreeRoster`, `lib/git/worktree-roster.ts`), and a row's `identity` is the
@@ -385,10 +401,9 @@ builds the path by hand today and the resolver's addresses name only files benea
   whose folder is missing is no checkout, so it never reads as a checkout with no marker (§ 2.7), and the sweep reports
   it (§ 12.2). Nothing removes on this reading: the removal function, which teardown and the spawns' clearing of a dead
   registration run, reads the folder again when it acts (§ 16). Beyond those readers the field shows in the derived
-  rows' JSON (`derivedLocusState`, `arc locus --json`), whose view schema admits it (`DerivedCheckoutRowViewSchema`,
-  `commands/status/schema.ts`), and in the rename transaction's whole-record comparisons
-  (`rename-worktree-transaction.ts`), which still hold, both reads observing the same folder. It lands before the flip
-  (§ 1.4).
+  rows' JSON (`derivedLocusState`, `arc locus --json`), whose full schema, the derived frame's, admits it (§ 4.2), and
+  in the rename transaction's whole-record comparisons (`rename-worktree-transaction.ts`), which still hold, both reads
+  observing the same folder. It lands before the flip (§ 1.4).
 - **A completed work unit reads in one of two frames.** Today a marker naming a work unit whose archived meta is on
   the checkout's `HEAD` derives an integration frame, and one in base's completed index a retired frame
   (`projectWorkUnitLifecycle`, `lib/locus/derived-lifecycle-evidence.ts`). Over the store both are placement
@@ -414,6 +429,20 @@ builds the path by hand today and the resolver's addresses name only files benea
     - **The cadence is read when the frame derives,** and records carry none, so a project moving from `manual` to
       `with-integration` after the flip reads earlier completed work with no link and an unlanded `HEAD` as awaiting
       merge, until its checkout is torn down.
+- **The subject's branch comes from its links.** Today the frame reads it from the meta's `Branch` field, which feeds
+  the expected topology the checkout's role is corroborated against (`expectedTopology`,
+  `lib/locus/derived-lifecycle-evidence.ts`), session-type inference (`inferSessionType`), and an Integrating work
+  unit's integration boundary (`recoverIntegratingBoundary`, `lib/locus/subject-meta.ts`). From the flip the meta
+  carries no `Branch`, its branch link holding it (§ 16), so the branch is the work unit's work-branch link, chosen by
+  the transition-write-path change's selection (`selectWorkBranchLink`, `workBranchName`,
+  `lib/store/lifecycle-branch.ts`) among the links naming the project ID: a chosen link gives its branch to all three;
+  no link gives no branch, as a branchless planning work unit has; and links the selection cannot choose among leave the
+  subject unresolved, naming its reason, rather than one being guessed. The project ID comes from the port the
+  transition-write-path change injects (§ 16). From the flip every reader this change adds of a work item's or an
+  Errand's links that gets no project ID — the port absent, or its read of the project's identity record failing —
+  treats that as an incomplete observation, never matching no link or every link: the subject stays unresolved, a sweep
+  reports nothing from the links, the commits listing (§ 11) reports the condition in place of its set, and a verb that
+  writes or looks up a link refuses, each naming the port's failure as text (§ 13).
 - **Two markers naming one work unit** derive as unresolved for both checkouts rather than either being chosen.
 - **An incomplete observation is never absence.** A marker that cannot be read, a store read that fails, or a listing
   that is not complete grants no role and no cleanup authority, and the slot reports it, as today's derived frame
@@ -460,26 +489,39 @@ when `createdByArc` is false), and the cleanup decision keys on whether a marker
 
 Branchless planning gives up Git's refusal to check out one branch twice, so from the flip the marker carries the guard.
 The roster exposes two reads: the exclusivity check, and the lookup of the checkout whose marker names a given work
-unit, which `arc locus release` (§ 5), the transition-write-path change's rename, and `arc materialize`'s candidates
-read. The exclusivity check, given a work unit and the checkout about to hold it, reads the derived roster and refuses
-when another registered checkout's marker names the same work unit, naming that checkout and the repair: work there; or
-free it there by `arc locus release`, which releases a paused work unit's checkout or another identity's. For one's own
-live work unit, which release refuses (§ 5), the repair is the step its state takes: `arc pause <slug> --reason <text>`,
-then the release, for a Planning or Active one, and its integration, then teardown, for an Integrating one. Every verb
-that writes a work-unit marker runs it first: `arc start --here` in both its arms, the spawn, `arc materialize` in
-either arm, and Errand promotion, whose fresh slug never collides (`convertSpawnedMarker`,
-`lib/errand/promote-runtime.ts`). This change runs it in the cold start and in promotion; the spawn, graduation in
-place, and `arc materialize` call it, and rename and `arc materialize` the lookup, through ports the
-transition-write-path change injects, each defaulting to the behavior until the flip, and the change landing second
-binds them to these reads, by § 1.3's order this one (§ 16). The binding has one production point, the default port
-record (`createDefaultLocusPorts`), which every production context that is given no record reads. A roster that is not
-complete, or a marker that cannot be read, refuses the check rather than admitting the write (§ 2.1), and the refusal
-names its repair (§ 13). A marker that cannot be read names its checkout and what the read reported
-(`readWorktreeMarkerGeneration`, `lib/git/worktree-marker.ts`): a `malformed` marker with its message and path, or the
-error the read threw for any failure but a missing file. Its repair: inspect that checkout, then repair or remove its
-marker, or remove the checkout. An incomplete roster names the rerun once Git lists the worktrees. The guard is per
-machine, as markers are; across machines the work unit's owner governs. Until the flip, Git's refusal and the cold
-start's own check, which inspects only its own checkout (`coldStartOccupancyRefusal`), stay as today.
+unit, which `arc locus release` (§ 5) reads, as do the transition-write-path change's rename, `arc materialize`'s
+candidates, abandon, start, teardown, pause, and handover. The exclusivity check, given a work unit and the checkout
+about to hold it, reads the derived roster and refuses when another registered checkout's marker names the same work
+unit, naming that checkout and the repair: work there; or free it there by `arc locus release`, which releases a paused
+work unit's checkout or another identity's. For one's own live work unit, which release refuses (§ 5), the repair is the
+step its state takes: `arc pause <slug> --reason <text>`, then the release, for a Planning or Active one, and its
+integration, then teardown, for an Integrating one. Every verb that writes a work-unit marker runs it first:
+`arc start --here` in both its arms, the spawn, `arc materialize` in both its arms, spawned and `--here`, and Errand
+promotion, whose fresh slug never collides (`convertSpawnedMarker`, `lib/errand/promote-runtime.ts`). This change runs
+it in the cold start and in promotion; the spawn, graduation in place, and `arc materialize` call it, and that change's
+verbs the lookup, through ports the transition-write-path change injects, each defaulting to the behavior until the
+flip, and the change landing second binds them to these reads, by § 1.3's order this one (§ 16). Those ports give the
+check the work unit alone, so through them a marker naming it in the checkout about to hold it refuses too, naming that
+checkout; the checkout's own marker is admitted only where its caller passes the checkout, as the cold start and
+promotion do. The binding has one production point, the default port record (`createDefaultLocusPorts`): the check's and
+the writer's callers read it when given no record, as every production context gives none, and the lookup's two callers
+(`findWorkUnitHoldingCheckout`, `lib/work-unit/verbs/unshared-work.ts`, and teardown's,
+`lib/work-unit/verbs/teardown-store.ts`), which fall back to their own marker scan when given none, come to read it too.
+The port's refusal carries the check's message whole, its repair included, and its caller (`requireMarkerExclusivity`,
+`lib/work-unit/locus-ports.ts`) reports that message as given, since each refusal names its own repair (§ 13) and an
+incomplete roster names no checkout. A roster that is not complete, or a marker that cannot be read, refuses the check
+rather than admitting the write (§ 2.1), and the refusal names its repair (§ 13). A marker that cannot be read names its
+checkout and what the read reported (`readWorktreeMarkerGeneration`, `lib/git/worktree-marker.ts`): a `malformed` marker
+with its message and path, or the error the read threw for any failure but a missing file. Its repair: inspect that
+checkout, then repair or remove its marker, or remove the checkout. An incomplete roster names the rerun once Git lists
+the worktrees. The lookup fails closed as the check does: a roster that is not complete, a marker on any registered
+checkout that cannot be read, or two checkouts whose markers name the work unit reject it, naming the condition and its
+repair as the check does and two holders naming both (§ 13), never returning no checkout, since its port returns a
+checkout or none and carries no refusal; a husk-stamped marker names no holder, as the scan it replaces skips it
+(`findWorkUnitHoldingCheckout`). The default record, given no context, opens its own Git executor, and the check its own
+store for the holder's state, over the checkout the process runs in, as this change's readers do where none is given.
+The guard is per machine, as markers are; across machines the work unit's owner governs. Until the flip, Git's refusal
+and the cold start's own check, which inspects only its own checkout (`coldStartOccupancyRefusal`), stay as today.
 
 #### 2.5 The cold start
 
@@ -487,11 +529,21 @@ start's own check, which inspects only its own checkout (`coldStartOccupancyRefu
 (§ 1.3): `--from` sets `Origin` for an issue reference and passes every other seed through for the agent to read, and the
 cold start enters at `draft-design` (§ 16).
 
+- **Its entry from the flip** is the transition-write-path change's store-backed start (`handleStoreStart`,
+  `handlers/start-store.ts`), which hands `arc start --here` with `--new` or with no name to its cold-start slot
+  (`admitColdStart`) ahead of its dispatch, and refuses in-place creation while the slot is empty. This change fills the
+  slot at its production point, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides. A named
+  start runs that dispatch itself first, over the store's lifecycle view with `create: true` (`resolveStartDispatch`),
+  refusing with its reason unless it selects `create-new`, as the in-repo arm's dispatch does, so a name the store holds
+  refuses before anything is written; a nameless start derives its name from the branch and dispatches nothing, as
+  today, so a derived name the store holds meets the record write's conflict, after which the rollback removes the
+  marker and the cold start refuses, naming the held work unit, `arc start <name> --new --here` for a new one under
+  another name, and for the held one the step its state takes, which `arc status <slug>` shows (§ 13).
 - **Its occupancy check** reads the current work unit from the marker plus the store (§ 2.2), and the marker itself,
-  whose role, husk stamp, and `spawnedByArc` that resolver does not read (`readClaimedCurrentWorkUnit`,
-  `lib/store/current-work-unit-marker.ts`, which reads each of them as no work unit). From the flip the cold start
-  admits one present marker, an anchored marker naming a work unit the store holds no record of, which only a crashed
-  cold start leaves (below), and refuses every other, naming its exit:
+  since that resolver (`readClaimedCurrentWorkUnit`, `lib/store/current-work-unit-marker.ts`) reads a transient role and
+  a husk stamp as no work unit and never reads `spawnedByArc`. From the flip the cold start admits one present marker,
+  an anchored marker naming a work unit the store holds no record of, which only a crashed cold start leaves (below),
+  and refuses every other, naming its exit:
     - a transient marker, the exits of its role, as `arc locus release` reports them (§ 5);
     - a marker naming a work unit in flight, work there or free it there as § 2.4 names;
     - a husk-stamped marker, its teardown;
@@ -506,11 +558,11 @@ cold start enters at `draft-design` (§ 16).
   `HEAD`.** Its records go through the store, and in its checkout it writes only the anchored marker and the editor
   documents, each with its entry in the clone's exclude file. The protected-base cut of `plan/<name>` and its rollback's
   branch deletion retire on the capability, with the `plan/` prefix, since a planning work unit holds no branch.
-- **Its sequence from the flip,** after the occupancy and exclusivity checks (§ 2.4), puts its one record write last, so
-  nothing in the store ever needs undoing: 1. the marker's ignore rule (`ensureWorktreeMarkerIgnored`), registered as
-  every marker creator registers it; 2. the editor documents (`writeEditorDocuments`), which are checkout-local and read
-  nothing from the meta; 3. the anchored marker (§ 2.6); 4. the call of the scaffold, whose arm from the flip writes the
-  meta through the store, the one record write (§ 2.8).
+- **Its sequence from the flip,** after the dispatch and the occupancy and exclusivity checks (§ 2.4), puts its one
+  record write last, so nothing in the store ever needs undoing: 1. the marker's ignore rule
+  (`ensureWorktreeMarkerIgnored`), registered as every marker creator registers it; 2. the editor documents
+  (`writeEditorDocuments`), which are checkout-local and read nothing from the meta; 3. the anchored marker (§ 2.6); 4.
+  the call of the scaffold, whose arm from the flip writes the meta through the store, the one record write (§ 2.8).
 - **A failure** at any step leaves no record, and removes the marker where step 3 wrote it (`rollbackColdStart`, whose
   branch deletion and clean of the meta's file serve only the in-repo arm). A hard crash between steps 3 and 4 leaves an
   anchored marker naming a work unit the store holds no record of, which derivation reports unresolved (§ 2.1), with its
@@ -646,6 +698,14 @@ flip it takes each row's work-unit identity (§ 2.1).
   today (`InFlightLocation`, `lib/git/in-flight-derivation.ts`), is absent for it: an entry takes its branch from the
   work item's branch link and its checkout from the marker roster (§ 2.4). Lifecycle's callers keep the in-repo
   expansion (§ 1.2), so the shape is locus's and status's.
+- **Claims stay in flight.** Today the derivation lists the identity's grooming and housekeeping claims that name a
+  branch as transient entries, by the claim's slug, through the one-snapshot index it reads Errands from
+  (`slugByBranch`, `classifyInput`), and reports a transient record whose branch no ref holds as residue
+  (`errand-record-without-branch`). Claims link no branch, so from the flip the derivation lists them through the
+  store's claim kinds (`claims/groom`, `claims/housekeep`), each with its checkout from the roster row whose marker
+  names it; a branch a claim names is no unlinked ref, and an open Errand or a claim whose branch no ref holds still
+  reports as residue. A claims read that is not complete marks the set degraded, as an incomplete transient read does
+  today.
 - **A paused work unit stays in flight.** A pause changes neither `State` nor placement, so the derivation's
   `scheduling` axis, built today from the lifecycle index's parked slugs (`listParkedSlugs`) as `parked`, reads the
   pause record from the flip and takes `paused` (§ 4.4). `parked` stays the in-repo arm's value, whose consumers treat
@@ -653,10 +713,11 @@ flip it takes each row's work-unit identity (§ 2.1).
 - **`arc status <slug>`'s locus reads.** The slug query (`handlers/status/lifecycle.ts`) reads the work unit's worktree
   path, the read path for its operational boundary, and the in-flight warnings from the composed lifecycle index
   (`resolveCallerComposedLifecycleIndex`: `worktreePathBySlug`, a record's `writablePath`, and `qualityFacts`). From the
-  flip the worktree path comes from the roster's lookup of the checkout whose marker names the work unit (§ 2.4), the
-  read path is that checkout, the warnings come from the in-flight set listed through the store, and with `--fetch`
-  the remote's reachability comes from the store's pull (§ 4.8). The query's state and record are the
-  transition-write-path change's, and the operational boundary the delivery change's (§ 16).
+  flip the worktree path comes from the roster's lookup of the checkout whose marker names the work unit (§ 2.4), a
+  lookup that rejects reporting its condition in place of the path, never no checkout, the read path is that checkout,
+  the warnings come from the in-flight set listed through the store, and with `--fetch` the remote's reachability comes
+  from the store's pull (§ 4.8). The query's state and record are the transition-write-path change's, and the
+  operational boundary the delivery change's (§ 16).
 - **Until the flip** the derivation reads branch refs as today.
 
 #### 3.2 Errands and claims list apart
@@ -666,13 +727,37 @@ housekeeping claims together, as absent, a root-level error, or a complete snaps
 (`readTransientIdentitySnapshot`, `lib/errand/identity-snapshot.ts`), and the derived evidence consumes it directly
 (`lib/locus/derived-evidence.ts`).
 
-- **From the flip** Errands are project-scope work items listed through the store, and claims stay identity-scoped, so
-  the two are acquired separately, each pinned at its own version with the same three outcomes and per-entry
-  diagnostics kept apart. The derived frame's identity discovery (`DerivedIdentityDiscovery`,
+- **From the flip** Errands are project-scope work items listed through the store at placement `active`, and claims stay
+  identity-scoped, so the two are acquired separately, each pinned at its own version with the same three outcomes and
+  per-entry diagnostics kept apart. The listing takes `active` only, since a closed Errand's record stays at `completed`
+  (§ 8) and its slug may be reused, while discovery keys each Errand by its slug (`readTransientIdentitySnapshot`'s
+  projections, `lib/errand/identity-snapshot.ts`). The derived frame's identity discovery (`DerivedIdentityDiscovery`,
   `lib/locus/derived-reader.ts`) carries the two acquisitions, each with its own status. A listing of Errands alone
-  never stands in for the claims, and its readers that admit an Errand's terminal or merge
-  (`authorizeErrandTerminal`, `lib/errand/terminal-authority.ts`; `selectCurrentErrandMergeIdentity`,
-  `scripts/integration/errand-merge-composition.ts`) still require both complete, with no diagnostics.
+  never stands in for the claims, and its readers that admit an Errand's terminal or merge (`authorizeErrandTerminal`,
+  `lib/errand/terminal-authority.ts`; `selectCurrentErrandMergeIdentity`,
+  `scripts/integration/errand-merge-composition.ts`) still require both complete. The claims, this identity's own, admit
+  no diagnostic, as today. Of the Errands, which list everyone's, the listing's diagnostics refuse nothing by
+  themselves, since a diagnostic's key names an entry, not the slug and claim the subject is known by, and another
+  person's malformed record is not the subject's to repair and would otherwise stop every Errand's close and merge: the
+  gate resolves the subject Errand's record by `lookup` through its checkout claim (`CheckoutClaimSchema`'s `errand`
+  arm, `lib/store/lookup.ts`) and reads it, refusing, naming the record and what was reported, where either refuses with
+  anything but `not-found`; where the lookup finds none while the Errands' listing carries a diagnostic, it refuses
+  naming those diagnostics and their remedies, since one may be the subject's own record (§ 13). A lookup that finds
+  none beside no diagnostic refuses nothing here, as today's authority (`authorizeErrandTerminal`) refuses only on
+  diagnostics, then works from the marker's roster row.
+- **An Errand's owner is a field of its record from the flip,** where today the identity-scoped ref it lives on implies
+  it, as the shipped record kinds settle once Errands list at project scope. The Errand record
+  (`lib/errand/identity-record.ts`) gains an optional `owner`, the person's identity slug as `resolveIdentity` resolves
+  it (`lib/git/identity.ts`), which the open writes from the flip and the import writes from the identity ref it
+  re-homes each Errand from (§ 16); the in-repo arm writes none, its ref still implying the owner (§ 15.1). From the
+  flip every Errand record therefore carries one, and a record without one is malformed: the listing reports it among
+  the Errands' per-entry diagnostics, the in-flight set keeps it, as `keepForIdentity` keeps an entry with no owner, and
+  the open's resume and `arc errand materialize` refuse it, naming the record. In team mode the in-flight set (§ 3.1)
+  leaves out another identity's Errands by it, where today's identity filter passes every Errand (`keepForIdentity`,
+  `lib/git/in-flight-derivation.ts`) and only reading one's own ref keeps another's out. In any mode `errandState`'s
+  materializable Errands and its resume detection take only this identity's own (§ 4.3), and the open's resume
+  (`arc errand open <slug>`) and `arc errand materialize` refuse an Errand another identity owns, naming its owner,
+  since no one else takes over an Errand (Non-Goals).
 - **Until the flip** the derived evidence keeps its direct read of the one snapshot, so a single pin holds, as today:
   the store's transient listing reads a fresh snapshot on every call, so two listings would be two pins.
 - This change moves its locus consumers' listing protocols onto the two acquisitions. The one-snapshot index projection
@@ -694,18 +779,22 @@ probe (`git status --porcelain`), which `HEAD` and `MERGE_HEAD` checks bracket t
 (`detectForeignArtifactOverlap`, `lib/git/foreign-artifact-detection.ts`). Targets are prefix-matched paths with no
 special handling for `.arc/`.
 
-- **From the flip, targets split through the layout resolver.** One classifier, beside the resolver in
-  `lib/layout/`, inverts `resolveArcPath` over every registered address — a location plus a kind's file pattern — to a
-  kind and key, or none; today's identification recognizes only work-unit artifacts and project documents
-  (`lib/layout/identification.ts`). A target the classifier places nowhere is a code target and keeps both probes. A
-  state target resolves to its record, and the check reports overlap when that record's own work item is in flight in
-  another locus. An entry-list target — the kinds `personal/inbox`, `project-inbox/inbox`, `work-item/inbound`,
-  `work-item/description`, `personal/errand-queue`, and `personal/working-memory` — reports none, since its writes
-  merge by entry, and any other concurrent state write still meets compare-and-swap at write time, so the check stays
-  advisory. The store's write provenance names the verb, the record, and its owner, never the work item that wrote it,
-  so the in-flight work item carries the state arm rather than the store's `changes`. The projection registers its
-  locations and file names as addresses, the inbound list's and the Errand description's among them, so the one
-  classifier serves its adoption of new files too (§ 16).
+- **From the flip, targets split through the layout resolver.** One classifier inverts `resolveArcPath` over every
+  registered file address — a location plus a kind's file pattern — to a kind and key, or none, in two steps the
+  layout's dependency rule splits: beside the resolver in `lib/layout/`, which imports no store, a path inverts to its
+  address, where today's identification recognizes only work-unit artifacts and project documents
+  (`lib/layout/identification.ts`); beside the kinds in `lib/store/`, an address maps to its kind and key, over the
+  whole address union, so an address the projection adds takes its kind there. A directory inverts to none, since one
+  directory's path can resolve from more than one address: `.arc/active` is the active placement root and every
+  project-scope active work unit's container. A target the classifier places nowhere is a code target and keeps both
+  probes. A state target resolves to its record, and the check reports overlap when that record's own work item is in
+  flight in another locus. An entry-list target — the kinds `personal/inbox`, `project-inbox/inbox`,
+  `work-item/inbound`, `work-item/description`, `personal/errand-queue`, and `personal/working-memory` — reports none,
+  since its writes merge by entry, and any other concurrent state write still meets compare-and-swap at write time, so
+  the check stays advisory. The store's write provenance names the verb, the record, and its owner, never the work item
+  that wrote it, so the in-flight work item carries the state arm rather than the store's `changes`. The projection
+  registers its locations and file names as addresses, the inbound list's and the Errand description's among them, so
+  the one classifier serves its adoption of new files too (§ 16).
 - **An entry with no branch link takes no committed probe;** its uncommitted probe still covers a checkout here.
 - **A paused work unit counts, through both probes,** since a pause keeps its checkout and any edits in it. Today's
   skip of parked work units rests on park's teardown of the checkout (`parkActive`,
@@ -725,12 +814,13 @@ special handling for `.arc/`.
 #### 3.4 Shipped-work readers
 
 The locus and session-init readers of the archive index (`lib/work-unit/completed-index.ts`) — the stale-worktree and
-orphan-branch sweeps (`lib/session-init/stale-worktree-sweep.ts`, `lib/session-init/orphan-branch-sweep.ts`),
-retired-subdirectory detection (`lib/session-init/retired-subdir-detection.ts`, which hands the shipped set it reads to
-`planRetiredSubdirReconcile`), and the derived locus evidence (`lib/locus/derived-evidence.ts`), whose read the derived
-lifecycle evidence and the roster consume — read placement and `lookup` from the flip, and none keys on an archive
-folder's number, which the archive's sync may renumber until the archive is published. Until the flip each keeps its
-read of the archive at a base ref, with its object and shallow-history guards (§ 1.5): the in-repo implementation lists
+orphan-branch sweeps (`lib/session-init/stale-worktree-sweep.ts`, `lib/session-init/orphan-branch-sweep.ts`) and the
+derived locus evidence (`lib/locus/derived-evidence.ts`), whose read the derived lifecycle evidence and the roster
+consume — read placement and `lookup` from the flip, and none keys on an archive folder's number, which the archive's
+sync may renumber until the archive is published. Retired-subdirectory detection
+(`lib/session-init/retired-subdir-detection.ts`, which hands the shipped set it reads to `planRetiredSubdirReconcile`)
+reads none from the flip, its slot resolving `skip` (§ 4.2). Until the flip each of the four keeps its read of the
+archive at a base ref, with its object and shallow-history guards (§ 1.5): the in-repo implementation lists
 placement from the checkout's working tree and local branches (`composedMetas`, `lib/store/in-repo/meta.ts`), which is
 not the shipped set those readers take today.
 
@@ -738,6 +828,19 @@ The Candidate mutation owner's completed set (`resolveCompletedCandidateWorkUnit
 `handlers/candidate-mutation-owner.ts`) reads no archive: it takes the working tree's lifecycle index
 (`buildLifecycleIndex`) at location `completed`. From the flip it reads placement `completed` through the store, and
 until then it keeps that read (§ 1.5).
+
+The residue sweep's retirement read (`runLandedRetirementSweep`, `lib/session-init/lifecycle-residue-sweep.ts`) admits
+only a Git-proven abandon (`git-transition`) today. From the flip it takes an abandonment's evidence from its lineage
+record through the store's retirement read (`readStoreRetirementEvidence`, § 16), which returns it as `lineage` evidence
+under the `discard` rule, since the Git-backed teardown authority it builds today (`createTeardownRetirementAuthority`)
+admits no lineage, so a work unit abandoned on another machine reports this machine's checkout once its record is
+pulled. Since that read throws for every outcome alike, the sweep reads it only for a work unit with no live record
+whose lineage, by `lookup` from its origin, is an abandonment; a work unit with a live record, with no lineage, or with
+a lineage of another kind reports no retirement, as today's `evidence-missing` and `unsupported-transition` do, and a
+lookup or read refusing with anything but `not-found` — a lineage record with no `retiredBranches` among them — reports
+its message as the checkout's repair (§ 4.3). The Git-proven abandon stays its in-repo arm. Its candidates stay
+branched, and the stale-worktree sweep's selection by placement leaves it a branched checkout an abandonment retires, so
+each checkout reports in one sweep, as today.
 
 #### 3.5 Former slugs
 
@@ -777,9 +880,8 @@ locus depends on none of it: over the store it keeps an arbitrary missing or amb
 not the interval remains, and it tells the interval from retirement as § 2.1 states: by the archive cadence, and under
 `with-integration` by the landing-commit link, a lineage record retiring the work unit, or its checkout's `HEAD` landed
 in base. Tests cover, under each cadence, a restart after archive and before merge, merge before teardown, a merge made
-outside ARC by merge commit and by squash, a work unit retired by a cut or an abandonment, a partial teardown, a
-retained-control finalization, and missing or ambiguous completed subjects, across the reader, session-init, and
-recovery.
+outside ARC by merge commit and by squash, a work unit retired by a cut or an abandonment, a partial teardown, and
+missing or ambiguous completed subjects, across the reader, session-init, and recovery.
 
 ### 4. Session-init
 
@@ -812,9 +914,12 @@ frame's subject from the flip.
   (§ 1.5): over the in-repo implementation they read the transition records that carry today's renames. The slot only
   prepares, and the prepare never reads the pause; the apply is `arc wu reconcile <slug> --apply` (`handleWuReconcile`,
   `handlers/reconcile.ts`), a prepared write under the protocol § 16 names, which refuses on a paused work unit. From
-  the flip the prepare refuses over a lifecycle listing with a malformed or missed record (`store.lifecycle-incomplete`,
-  § 16), where today's index drops such a meta (`buildLifecycleIndex`); the slot reports that refusal as its condition,
-  with the store refusal's own remedy as its action (§ 4.3), rather than failing as a probe.
+  the flip the prepare throws over a lifecycle listing with a malformed or missed record (`store.lifecycle-incomplete`,
+  its diagnostics its `cause`) or one it cannot read (`store.lifecycle-unreadable`), through `requireCompleteInventory`
+  (§ 16), where today's index drops such a meta (`buildLifecycleIndex`); the slot catches either and reports each
+  diagnostic's condition as its condition, with that diagnostic's remedy as its action, or, for an unreadable listing or
+  an incomplete one whose `cause` holds no diagnostic, the thrown message as its condition (§ 4.3), rather than failing
+  as a probe.
 - **The user-reference reconcile** rewrites personal records rather than a work unit's artifact group, and from the flip
   takes the prepared-write shape over them: it revalidates each prepared record by its version and applies every
   rewrite in one `batch` with expected versions. The session notes it rewrites are from the flip the meta's session
@@ -854,11 +959,12 @@ as the session-init envelope's own schema is registered (`session-init-envelope`
 Each slot § 4.2 names carries, on each condition it reports that wants a repair, `actions`: a non-empty array of one
 shared shape, absent when the condition wants no repair. The shape is the shipped remedy shape (`RemedySchema`,
 `lib/store/refusal.ts`) — precomposed `text`, and an `argv` where running it as given repairs the condition — plus an
-optional absolute `checkout`, below. It is an array because some conditions carry two: a landed retirement its
-teardown and its successor's start, a reconcile its inspection and its apply. The shape is registered once and every
-slot reuses it. Today's command fields — `currentWuReconcile`'s bare `recommendedCommand`, the residue sweep's
-`teardown` and `remedy`, and the refresh remedies, whose schemas pin exact command tuples — stay beside `actions` until
-the deletion pass, since the workflow text reads some of them until the flip's rewrite (§ 1.5).
+optional absolute `checkout`, below. It is an array because some conditions carry two: a landed retirement its teardown
+and its successor's start, a reconcile its inspection and its apply. The shape is registered once and every slot reuses
+it. Today's command fields — `currentWuReconcile`'s bare `recommendedCommand`, `userReferenceReconcile`'s
+`recommendedCommand`, the residue sweep's `teardown` and `remedy`, and the refresh remedies, whose schemas pin exact
+command tuples — stay beside `actions` until the deletion pass, since the workflow text reads some of them until the
+flip's rewrite (§ 1.5).
 
 - **Typed or text.** An action with an argv is typed. One with text alone names the command with its arguments where the
   repair needs the agent's or the owner's input or order: which task a rewritten commit belongs to (§ 11), the
@@ -891,7 +997,7 @@ the deletion pass, since the workflow text reads some of them until the flip's r
 | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | `currentWuReconcile`: tracked repairs pending                                                                                              | `arc wu reconcile <slug> --apply --json`, in the work unit's checkout                                                                           | typed |
 | `currentWuReconcile`: advisory or conflicted                                                                                               | `arc wu reconcile <slug> --json`, to inspect, as today                                                                                          | typed |
-| `currentWuReconcile`: the prepare refused over an incomplete lifecycle listing (§ 4.1)                                                     | the store refusal's own remedy, naming each record and its condition                                                                            | text  |
+| `currentWuReconcile`: the prepare threw over an incomplete or unreadable lifecycle listing (§ 4.1)                                         | each diagnostic's own remedy, naming each record and its condition, or the remedy the thrown message carries                                    | text  |
 | `userReferenceReconcile`: rewrites pending                                                                                                 | `arc user reconcile-references --apply --json`, as today                                                                                        | typed |
 | `userReferenceReconcile`: advisory references                                                                                              | `arc user reconcile-references --json`, to inspect, as today                                                                                    | typed |
 | `userReferenceReconcile`: rename evidence unavailable or in conflict                                                                       | its precomposed text                                                                                                                            | text  |
@@ -911,6 +1017,7 @@ the deletion pass, since the workflow text reads some of them until the flip's r
 | `sweep`: a branch's husk, on the primary                                                                                                   | `arc teardown --branch <ref>`, as today                                                                                                         | typed |
 | `sweep`: an Errand's husk, a branch's from a linked checkout, or a manual-only stamp                                                       | its text, for manual cleanup, as today                                                                                                          | text  |
 | `sweep`: a landed retirement's residue                                                                                                     | `arc teardown <slug>`, its teardown remedy, as today                                                                                            | typed |
+| `sweep` from the flip: a lineage lookup or retirement read refusing with anything but `not-found` (§ 3.4)                                  | its message: for a lineage record with no `retiredBranches`, repair its retired branch links, then `arc teardown <slug>`                        | text  |
 | `sweep`: a landed retirement's one ready successor, where successor readiness reports one                                                  | `arc start <slug>`, its successor remedy                                                                                                        | typed |
 | `sweep`'s `missingFolders`: a branched registration whose work unit has ended, unlocked (§ 12.2)                                           | `arc teardown <name>`                                                                                                                           | typed |
 | `sweep`'s `missingFolders`: a branched registration whose work unit has ended, locked (§ 12.2)                                             | `git worktree unlock <path>`, then `arc teardown <name>`                                                                                        | text  |
@@ -941,6 +1048,7 @@ the deletion pass, since the workflow text reads some of them until the flip's r
 | `derivedLocusState`: an Active work unit linking no branch (§ 11)                                                                          | `arc deactivate <slug>`, then `arc activate`, which links a work branch                                                                         | text  |
 | `derivedLocusState`: no base ref, with `origin` (§ 11)                                                                                     | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`                                                                                | typed |
 | `derivedLocusState`: no base ref, no `origin` (§ 11)                                                                                       | `git branch <base> <commit>`, a base commit chosen                                                                                              | text  |
+| `derivedLocusState`: no project ID, the port absent or its read failing (§ 2.1, § 11)                                                      | the port's failure, naming the project identity record's read and its remedy, or that no port is bound                                          | text  |
 | `derivedLocusState`: the entering checkout's anchored marker names a work unit with no record (§ 2.5)                                      | `arc start <slug> --new --here` in that checkout, to finish the cold start, or `arc locus release <slug>`, to clear the marker                  | text  |
 | `derivedLocusState`: the entering checkout's spawned marker names a work unit with no record (§ 2.5)                                       | `arc locus release <slug>`, which removes the checkout                                                                                          | typed |
 | `user`: the store needs a designation (§ 4.8)                                                                                              | the store's remedy argv                                                                                                                         | typed |
@@ -973,7 +1081,8 @@ From the flip a pause is a record on the work item that changes neither its `Sta
 #### 4.5 The materialize offer
 
 From the flip `arc materialize <slug>` gives a checkout to any in-flight work unit this identity owns that no checkout
-on this machine holds — remote-only or released here, paused or not — and leaves a pause in place (§ 16). Session
+on this machine holds — remote-only or released here, paused or not — and leaves a pause in place (§ 16); where the
+lookup of a work unit's holder rejects (§ 2.4), the offer reports that condition for it rather than offering it. Session
 start's offer (`findMaterializableWorkUnits`, `lib/session-init/materializable-work-units.ts`, behind the
 `materializableWorkUnits` slot) lists the same set less paused work units, which the paused-work slot lists, and offers
 `arc materialize <slug> --here`, with its checkout, for a work unit whose branch a checkout with no marker has out, its
@@ -1034,14 +1143,18 @@ as it does for a state version that no longer resolves.
 ### 5. `arc locus release`
 
 `arc locus release [<slug>]` releases a work unit's checkout. With a slug it acts on the checkout whose work-unit marker
-names that work unit, found through the roster, refusing when no checkout on this machine holds it; without one, on the
-current checkout. It refuses a checkout holding a transient role, naming that role's exits as handoff's locus plan names
-them (`transientPlan`, `lib/handoff/locus-plan.ts`) — `arc errand leave` for an Errand under full protection; finish,
-promote, or abandon for a partial one; ship, close, or abandon for grooming; complete or abandon for housekeeping —
-since those exits keep preconditions the release does not check (§ 12.1). It is a subcommand of the existing `arc locus`
-inspect command (`handleLocus`), which keeps working unchanged.
+names that work unit, found through the roster, refusing when no checkout on this machine holds it, naming `arc locus`,
+which lists this machine's checkouts, and refusing with the lookup's message where the lookup rejects (§ 2.4); without
+one, on the current checkout. It refuses a checkout holding a transient role, naming that role's exits as handoff's
+locus plan names them (`transientPlan`, `lib/handoff/locus-plan.ts`) — `arc errand leave` for an Errand under full
+protection; finish, promote, or abandon for a partial one; ship, close, or abandon for grooming; complete or abandon for
+housekeeping — since those exits keep preconditions the release does not check (§ 12.1). It is a subcommand of the
+existing `arc locus` inspect command (`handleLocus`), which keeps working unchanged.
 
-- **A spawned checkout** takes the removal function, which runs the removal check itself (§ 16).
+- **A spawned checkout** takes the removal function, which runs the removal check itself (§ 16). Before it runs, a
+  spawned checkout whose detached `HEAD` holds commits not on base refuses, naming them and `git switch -c <name>`,
+  since the check reads no commits and `git worktree remove` would leave them unreachable, as the transition-write-path
+  change's activation and `arc base sync` refuse such a `HEAD`.
 - **An anchored checkout** is kept, through the release teardown runs on one (§ 16): only the removal check's projection
   part runs, so a dirty checkout does not refuse it, then the projection's `release` slot, refusing if that refuses,
   and then the marker is cleared. The slot persists every edit or refuses, and passes until the projection fills it.
@@ -1168,13 +1281,13 @@ The entry-field module admits, per kind, a shape, the sections that hold entries
 `stampEntryIds` places a heading entry's `_Id:_` after its last bullet of the form `- _Key:_` whose key holds no
 underscore, so an italic-key prose descriptor after the managed fields draws the ID away from them, splitting the group,
 and `_WU_Target:_` is skipped. This change amends its heading arm to place the ID after the last of the kind's managed
-fields, or directly under the heading when the entry has none, matching each field by name from the entry-field
-module's list, since a match on the managed shape would also catch prose descriptors that open with a backticked token.
-The list reaches the stamp in the entry config, as an optional `managedFields` (`EntryListConfig`,
-`lib/store/concurrency/entries.ts`), since the concurrency library imports no kind; where it is absent, today's
-placement holds. A field-header entry keeps its ID after its `_Remove when:_` trigger, placed after the
-trigger's last line, where today's arm places it after the trigger's first line and so splits a wrapped trigger. Each
-placement has a test.
+fields, or, when the entry has none, after a leading `_Disposition:_`, which keeps the place § 6.1 gives it, or directly
+under the heading, matching each field by name from the entry-field module's list, since a match on the managed shape
+would also catch prose descriptors that open with a backticked token. The list reaches the stamp in the entry config, as
+an optional `managedFields` (`EntryListConfig`, `lib/store/concurrency/entries.ts`), since the concurrency library
+imports no kind; where it is absent, today's placement holds. A field-header entry keeps its ID after its
+`_Remove when:_` trigger, placed after the trigger's last line, where today's arm places it after the trigger's first
+line and so splits a wrapped trigger. Each placement has a test.
 
 #### 6.5 `WORKING-MEMORY` headers fail loudly
 
@@ -1244,9 +1357,10 @@ fate and the verb infers none.
   `arc errand link` (§ 7.6), the abandon's return (§ 7.5), and a survivor's carry (§ 7.4).
 - **An entry gone from both.** A move whose entry is gone from the source and absent from the destination refuses,
   naming where the entry's latest receipt says it went, or that no receipt names it.
-- **Who writes.** Anyone inserts; only a started work unit's owner removes an entry from its list, and anyone a backlog
-  stub's. The verb refuses a removal from a started work unit's inbound list by anyone but its owner, naming the owner;
-  the host cannot enforce the rule against a write made outside the verb, as it enforces no ARC writer rule.
+- **Who writes.** Anyone inserts; only a started work unit's owner removes an entry from its list, anyone a backlog
+  stub's, and anyone the project inbox's, the team's shared inbox. The verb refuses a removal from a started work unit's
+  inbound list by anyone but its owner, naming the owner; the host cannot enforce the rule against a write made outside
+  the verb, as it enforces no ARC writer rule.
 - **An ID the destination already holds.** An insert whose ID the destination holds writes nothing and reports that
   home when the held entry's receipt shows it came from the same inbox and the source no longer holds it, as when two
   drains route one entry the same way; and otherwise refuses, naming both entries, since an ID is unique only within its
@@ -1277,7 +1391,7 @@ fate and the verb infers none.
   inbox, which only they write, and the project inbox's for the project inbox — so a move between the two writes one to
   each, in the batch that already writes both refs. A move that leaves and enters no inbox — between a work unit's
   inbound list and an Errand's description — writes none, so an edit racing it survives in the list it left as an
-  ordinary entry, which that list's owner disposes of.
+  ordinary entry, which that list's owner disposes of by removing it from the list's projected file (§ 16).
 - **What it holds:** the entry's ID, its destination, the list and section the move left, and the time of the move
   rather than only its date (§ 15). A receipt is write-once, never edited, and never projected.
 - **An entry's latest receipt** is the latest of those naming its ID whose source or destination is the list its reader
@@ -1480,9 +1594,17 @@ is § 7.7's.
 - **One write step carries the companion writes.** The step that writes the record also carries the writes a
   transition makes beside it — a start's description, source inbox, queue, and receipts (§ 7.6), an abandon's return
   (§ 7.5) — in one batch, each at its expected version.
-- **Close and abandon keep the record.** From the flip both write the record at placement `completed` rather than
-  deleting it, as the `retire` arm does today (`ordinaryErrandTransform`); a closed Errand carries its landing-commit
-  link (§ 8.1) and an abandoned one none, so the contract's Errand schema stays as settled.
+- **Close and abandon keep the record.** From the flip both write the record as the transition's `previous` holds it,
+  its `updatedAt` stamped as the retirement's time, at placement `completed` rather than deleting it, as the `retire`
+  arm does today (`ordinaryErrandTransform`); a closed Errand carries its landing-commit link and its close time (§ 8.1)
+  and an abandoned one no link, so the contract's Errand schema gains only the owner (§ 3.2). A rerun retirement that
+  finds the record already at `completed` reports `idempotent`, as the transform does today for one whose record is
+  already absent.
+- **Open Errands read at `active`.** The runtimes read an Errand through `lookup`'s claim, its slug and `claimId`; the
+  open, which holds no claim until it opens, reads one to resume through `lookup`'s `slug` kind. Every reader of open
+  Errands — the open's check for one to resume, `arc errand materialize`, the in-flight set, `errandState`, and identity
+  discovery (§ 3.2) — takes placement `active` only, so a slug a completed Errand held, reusable once its record
+  completes, never reads that record.
 - **Until the flip** each runtime keeps calling the identity transaction itself (§ 1.5): the transaction fetches,
   reconciles, and publishes around its read, where the in-repo implementation's Errand reads are local-only
   (`readTransient`, `listTransient`, `lib/store/in-repo/transient-read.ts`), so routing them through the store would
@@ -1505,9 +1627,10 @@ the close captures nothing and keeps today's deletion.
 
 From the flip `arc errand open` (`lib/errand/open-runtime.ts`), under full protection, where it cuts the Errand's branch
 (`chore/<slug>`, `lib/errand/open.ts`) — in place by `git checkout -b` (`lib/locus/provisioning-runtime.ts`) or in a
-spawned worktree — writes the Errand's branch link recorded `created`, with no exclusions, since an Errand has no tasks
-for them to serve (§ 11, § 16). Under partial protection it cuts no branch and writes no link, as an Errand there has no
-portable record (§ 7.7). Until the flip no branch link is stored.
+spawned worktree — writes the Errand's branch link, its repository the project ID and its ref `chore/<slug>` (§ 16),
+recorded `created`, with no exclusions, since an Errand has no tasks for them to serve (§ 11, § 16). Under partial
+protection it cuts no branch and writes no link, as an Errand there has no portable record (§ 7.7). Until the flip no
+branch link is stored.
 
 #### 8.3 Promotion
 
@@ -1634,7 +1757,10 @@ own, since a slug cannot tell the same person's second machine from a second per
 misses two people who both set up before either syncs; a person who answers that the identity is not theirs stops the
 run before it writes, and it names choosing another identity. It checks before it sets the identity (`arc.identity`) or
 writes any record, and in `arc join` after join's pull, since on a fresh clone the records appear only once it pulls.
-Until the flip setup runs as today.
+Each verb opens its store bound to the identity being set up — the store's ports take an optional identity in place of
+the configured one (`createDefaultStorePorts`, `lib/store/default-ports.ts`) — so the check reads, and `arc join`'s pull
+fetches, that identity's records whether or not `arc.identity` is set or names another (§ 16); from the flip `arc join`
+pulls before it checks, which it does not today. Until the flip setup runs as today.
 
 #### 10.3 Off the user-surfaces resolver
 
@@ -1643,9 +1769,11 @@ This change moves its own callers of the user-surfaces resolver (`resolveUserSur
 `commands/user/inbox-mutation.ts`, `handlers/derived-locus-state-probe.ts`, `handlers/errand.ts`, `handlers/recover.ts`,
 `handlers/status/session-context.ts`, `handlers/status/session-evidence.ts`, and `handlers/user.ts` outside its
 notes-sync commands. Over the in-repo implementation, which itself imports the resolver
-(`lib/store/in-repo/personal-paths.ts`), nothing observable changes. The resolver and `lib/user-surface-migration.ts`
-stay as the in-repo arm until the deletion pass, and teardown keeps merging a linked worktree's copy up through the
-migration until the flip.
+(`lib/store/in-repo/personal-paths.ts`), nothing observable changes: `arc user add` opens its store bound to the
+identity it adds (§ 10.2), so the in-repo personal records, which refuse any identity but the store's
+(`personalIdentity`), resolve that identity's root as today. The resolver and `lib/user-surface-migration.ts` stay as
+the in-repo arm until the deletion pass, and teardown keeps merging a linked worktree's copy up through the migration
+until the flip.
 
 ### 11. Commits not yet closed
 
@@ -1809,6 +1937,14 @@ identity (`git cherry`, through `isLandedInBase`, or `isLandedInBaseStrict` on t
   derives the work unit from the branch's name (`branchToWorkUnitSlug`). Where its `merged` verdict holds, the slot
   offers `git branch -D <name>`; otherwise it reports the branch kept, its owner's, naming `git branch -D <name>` in its
   text, the step an abandon's and a teardown's reports name (§ 16).
+- **From the flip a transient branch** is left out as today's sweep leaves out every branch the identity's transient
+  records name — its Errands' and its grooming and housekeeping claims' — through the one-snapshot index
+  (`errandBranches`, from `readTransientInFlightIndexes`, over `slugByBranch`, `lib/errand/record.ts`), which reads
+  empty from the flip. A branch whose link resolves, through the same lookup, to an open Errand's record is left out,
+  and so is a branch a claim names, read from the claims acquisition (§ 3.2), which stays this identity's and whose
+  records keep their `branch`. A lookup that fails, or a claims acquisition that is not complete, declines the sweep, as
+  an incomplete transient read does today. An ended Errand's branch is never offered `arc teardown`; where its `merged`
+  verdict holds it takes `git branch -D <name>`, as today.
 - **Until the flip** no link carries the record, so the sweep reads every branch as one ARC created.
 
 ### 13. Refusals name their remedy
@@ -1823,7 +1959,7 @@ actions; the verbs' refusals are these:
 | A verb this change adds, run before the flip (§ 5, § 7, § 9.1)                                                                             | what serves until then, per § 14                                                                                                                                                                                                                         | text   |
 | `arc user open` from the flip (§ 2.8)                                                                                                      | the meta's session context, which `arc handoff write` writes                                                                                                                                                                                             | text   |
 | `arc route`: the source entry changed since the version read (§ 7.2)                                                                       | `arc inbox <list>`, then the route at the version it reports                                                                                                                                                                                             | text   |
-| `arc route`: an ID the destination holds from elsewhere (§ 7.2)                                                                            | both entries; the insert form without the `_Id:_`, which stamps a fresh one, then the source's removal                                                                                                                                                   | text   |
+| `arc route`: an ID the destination holds from elsewhere (§ 7.2)                                                                            | both entries; the insert form without the `_Id:_`, stamping a fresh one, then the source's removal: `arc user inbox-remove --id <id> --expected-version <version>` from the personal inbox, else from the list's projected file (§ 16)                   | text   |
 | `arc route` into the personal inbox with no `--section` (§ 7.2)                                                                            | `--section Errand` or `--section "Work Unit"`                                                                                                                                                                                                            | text   |
 | `arc route` removing from a started work unit's inbound list, not its owner (§ 7.2)                                                        | the owner, who removes it; the insert form for a copy                                                                                                                                                                                                    | text   |
 | `arc route` into a work unit Integrating or completed (§ 7.2)                                                                              | a follow-on work unit, or `arc reopen <slug>` for an Integrating one                                                                                                                                                                                     | text   |
@@ -1840,10 +1976,20 @@ actions; the verbs' refusals are these:
 | A marker write while another checkout's marker names the work unit (§ 2.4)                                                                 | work in that checkout; or free it there with `arc locus release`, after `arc pause <slug> --reason <text>` for one's own Planning or Active work unit; for one's own Integrating one, its integration, then teardown                                     | text   |
 | A marker write while a registered checkout's marker cannot be read (§ 2.4)                                                                 | that checkout and the read's diagnostic: inspect it, then repair or remove its marker, or remove the checkout                                                                                                                                            | text   |
 | A marker write while the worktree roster is not complete (§ 2.4)                                                                           | the run again once Git lists the worktrees                                                                                                                                                                                                               | text   |
+| The holding-checkout lookup finding two checkouts whose markers name the work unit (§ 2.4)                                                 | both checkouts: remove by hand the marker (`.arc/system/.internal/worktree-marker.json`) in the one not to keep, then rerun                                                                                                                              | text   |
+| `arc start --here --new <slug>` from the flip naming a work unit the store holds (§ 2.5)                                                   | start's dispatch's own: omit `--new`, the work unit's state deciding what `arc start <slug>` does                                                                                                                                                        | text   |
+| A nameless `arc start --here` from the flip whose derived name the store holds (§ 2.5)                                                     | `arc start <name> --new --here` under another name, or for the held work unit the step its state takes, which `arc status <slug>` shows                                                                                                                  | text   |
 | The cold start from the flip in a checkout whose spawned marker names a work unit with no record (§ 2.5)                                   | `arc locus release <slug>`, which removes that checkout                                                                                                                                                                                                  | typed  |
 | The cold start from the flip in a checkout holding any other marker but a crashed cold start's (§ 2.5)                                     | the marker's exit: its role's exits; work there or free it as for a marker write; its teardown; for an ended work unit `arc teardown <slug>`, or `arc locus release <slug>` where another identity owns it; for a backlog one `arc locus release <slug>` | text   |
+| A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the port's failure, which names the read of the project's identity record and that read's own remedy, or that no port is bound                                                                                                                           | text   |
+| An Errand's terminal or merge from the flip whose record's lookup or read refuses, `not-found` aside, or misses beside diagnostics (§ 3.2) | that record and what its lookup or read reported with that report's remedy, or, where the lookup finds none beside listing diagnostics, those diagnostics with their remedies                                                                            | text   |
 | `arc locus release` on a work unit this identity owns, in flight and not paused, or ended (§ 5)                                            | `arc pause <slug> --reason <text>` for a Planning or Active one; its integration, then teardown, for an Integrating one; `arc teardown <slug>` for an ended one                                                                                          | text   |
 | `arc locus release` on a checkout holding a transient role (§ 5)                                                                           | the role's exits, as handoff's locus plan names them                                                                                                                                                                                                     | text   |
+| `arc locus release` on a slug no checkout on this machine holds (§ 5)                                                                      | `arc locus`, which lists this machine's checkouts and the work units their markers name                                                                                                                                                                  | text   |
+| `arc locus release <slug>` from the flip where the holding-checkout lookup rejects (§ 5)                                                   | the lookup's own message and repair, as a marker write's refusal names it (§ 2.4)                                                                                                                                                                        | text   |
+| `arc locus release` on a spawned checkout whose detached `HEAD` holds commits not on base (§ 5)                                            | the commits, named, and `git switch -c <name>`, which keeps them on a branch the removal leaves                                                                                                                                                          | text   |
+| `arc errand materialize` from the flip on an Errand another identity owns (§ 3.2)                                                          | its owner, who materializes it                                                                                                                                                                                                                           | text   |
+| `arc errand open <slug>` from the flip on an Errand another identity owns (§ 3.2)                                                          | its owner, who resumes it; another slug, for a new Errand                                                                                                                                                                                                | text   |
 | `arc handoff write` where the checkout holds no work unit (§ 9.1)                                                                          | the work unit's checkout; a handoff between work units writes no session context                                                                                                                                                                         | text   |
 | `arc handoff write`: a body line that would end the section (§ 9.1)                                                                        | that line, to rewrite                                                                                                                                                                                                                                    | text   |
 | `arc handoff write` where `version()` refuses (§ 9.1)                                                                                      | the store refusal's own remedy                                                                                                                                                                                                                           | text   |
@@ -1899,6 +2045,9 @@ the change is stated here and built by this change; neither specification is edi
   one ID refuses (§ 6.3).
 - **D6's concurrency library** places a heading entry's `_Id:_` after the kind's last managed field, and a field-header
   entry's after its trigger's last line (§ 6.4).
+- **The Errand record's schema** gains an optional `owner`, which the open and the import write from the flip, once
+  Errands list at project scope, and the in-repo implementation's records, whose identity-scoped ref implies the owner,
+  leave unset (§ 3.2).
 
 #### 15.2 The routing method (`spec-inbound-routing-method.md`)
 
@@ -1930,24 +2079,37 @@ holds until then is stated with it.
     - the one function computing a commit's copy key (`lib/git/copy-key.ts`), which the listing calls, since keys
       computed any other way never match, a key computed only for a commit no stored SHA matches and from local objects
       alone (`GIT_NO_LAZY_FETCH`), so the computation never fetches (§ 11);
-    - branch links' record of whether ARC created or adopted the branch and their exclusions (§ 8.2, § 11, § 12.4), and
-      an abandon's and a teardown's report of a kept adopted branch (§ 12.4);
-    - the widened `arc materialize` in both arms, the spawn, and graduation in place, each running the exclusivity
-      check, and rename and `arc materialize` the holding-checkout lookup, through ports that change injects and this
-      change binds (§ 2.4), and the in-place arms writing the anchored marker through a third, whose default writes
-      nothing and reports `unadmitted`, bound to this change's anchored-marker writer (§ 2.6, § 4.5); the three ports
-      are one record (`LocusPorts`, in `lib/work-unit/locus-ports.ts`), whose default (`createDefaultLocusPorts`) every
-      production context given no record reads, so this change binds them at that one point;
+    - branch links' record of whether ARC created or adopted the branch and their exclusions (§ 8.2, § 11, § 12.4), each
+      link naming the project ID as its repository, through the project-ID port that change injects, and the branch's
+      short name as its ref, which this change's link writes and lookups take too, and from the flip the meta carrying
+      no `Branch`, its link holding it (§ 2.1); its selection of a work item's branch among its links
+      (`selectWorkBranchLink`), and against a checkout its resolver (`resolveLinkedCheckoutBranch`), which this change's
+      readers of a work item's branch call (§ 2.1, § 3.1); and an abandon's and a teardown's report of a kept adopted
+      branch (§ 12.4);
+    - the widened `arc materialize` in both its arms, spawned and `--here`, the spawn, and graduation in place, each
+      running the exclusivity check, and rename, `arc materialize`, abandon, start, teardown, pause, and handover the
+      holding-checkout lookup, through ports that change injects and this change binds (§ 2.4), and the in-place arms
+      writing the anchored marker through a third, whose default writes nothing and reports `unadmitted`, bound to this
+      change's anchored-marker writer (§ 2.6, § 4.5); the three ports are one record (`LocusPorts`, in
+      `lib/work-unit/locus-ports.ts`), whose default (`createDefaultLocusPorts`) the check's and the writer's callers
+      read when given no record, as every production context gives none, and the lookup's callers, which fall back to
+      their own marker scan, come to read through this change, so it binds them at that one point;
     - from the flip, a work unit's spawns clearing a registration whose folder is missing at their target path or
       holding their branch, through the removal function's missing-folder arm, so a checkout deleted by hand never
-      blocks one: graduation's spawn (`graduate`, once its spawn path resolves, ahead of its prepare), the linked spawn
-      through `createLinkedWorktree`'s optional clearing step, which `reconcileWorkUnitWorktree` supplies, and that
-      function's in-place leg before it checks the branch out, by branch, for `arc materialize --here`; a registration
-      locked by anything but the projection refuses `locked`, naming `git worktree unlock <path>` as text. The transient
-      claims' spawns through `createLinkedWorktree` (`lib/locus/allocator.ts`, `lib/locus/provisioning-runtime.ts`)
-      supply no clearing step and keep today's behavior (§ 2.7, § 12.2);
+      blocks one: graduation's spawn and the linked spawn, through `createLinkedWorktree`'s optional clearing step
+      (`clearMissingRegistration`), which `reconcileWorkUnitWorktree` supplies, and that function's in-place leg before
+      it checks the branch out, by branch, for `arc materialize --here`; a registration locked by anything but the
+      projection refuses `locked`, naming `git worktree unlock <path>` as text. The transient claims' spawns through
+      `createLinkedWorktree` (`lib/locus/allocator.ts`, `lib/locus/provisioning-runtime.ts`) supply no clearing step and
+      keep today's behavior (§ 2.7, § 12.2);
     - teardown releasing an anchored marker and keeping its checkout, and rename moving only a spawned checkout (§ 2.3);
-    - the cold start's seed handling, landing before this change reroutes `runColdStart` (§ 2.5);
+    - the store's retirement read from the flip (`readStoreRetirementEvidence`,
+      `lib/work-unit/store-retirement-evidence.ts`), which returns an abandonment's lineage record as `lineage` evidence
+      (`RetirementEvidenceRef`) under the `discard` rule and refuses one with no `retiredBranches`, and which the
+      residue sweep's retirement read takes (§ 3.4);
+    - the cold start's seed handling, landing before this change reroutes `runColdStart`, and from the flip its
+      store-backed start (`handleStoreStart`) handing `arc start --here` with `--new` or with no name to a cold-start
+      slot (`admitColdStart`) ahead of its dispatch, which this change fills (§ 2.5);
     - promotion's one write and its work branch, built as steps `promoteOrdinaryErrand` composes, in their own module
       (§ 8.3);
     - the rule that an Active work unit is no default routing home, and the record kinds' write check refusing the move
@@ -1956,8 +2118,9 @@ holds until then is stated with it.
       `runUserOpen` and so no `SESSION-NOTES` seed, and keeping the cold start's call (§ 2.8);
     - the current-work-unit reconcile's store-backed prepare from the flip (`createStoreReconcilePrepareContext`), with
       its executor and command bindings, the prepare never reading the pause and the apply refusing on one, and the
-      prepare refusing `store.lifecycle-incomplete` over a lifecycle listing with a malformed or missed record, naming
-      each record and its condition (§ 4.1);
+      prepare throwing over a lifecycle listing with a malformed or missed record (`store.lifecycle-incomplete`, its
+      diagnostics its `cause`) or one it cannot read (`store.lifecycle-unreadable`), through `requireCompleteInventory`,
+      `lib/store/lifecycle-storage.ts` (§ 4.1);
     - lifecycle's own callers reading the store's slug-keyed lifecycle view from the flip — start's dispatch, rename's
       subject and collision checks, and resume's and abandon's target and state (`handleResume`, `handleAbandon`,
       `handlers/lifecycle.ts`), taking the branch from the link, with `resolveTransformComposition` their in-repo arm —
@@ -1976,9 +2139,10 @@ holds until then is stated with it.
   (`mergeProjectReadinessRecords`, `lib/status/project-view.ts`) reading a decomposed origin as decomposed from its
   lineage record (§ 3.6), until which `arc status` and ROADMAP report the origin as today; and the arms from the flip of
   status's own reads — its direct calls of in-flight derivation (`lib/status/project-view.ts`,
-  `lib/status/user-view.ts`), which render an entry with no branch and the `paused` scheduling (§ 3.1), its reads of
-  the Errand index projection (§ 3.2), and `arc view`'s explicit-target composition (`handlers/view.ts`), which reads
-  the composed lifecycle index (§ 3.2).
+  `lib/status/user-view.ts`), which render an entry with no branch and the `paused` scheduling (§ 3.1), its reads of the
+  Errand index projection (§ 3.2), `arc view`'s explicit-target composition (`handlers/view.ts`), which reads the
+  composed lifecycle index (§ 3.2), and `arc view`'s cohort read for either target, through the cohort resolver today
+  (`resolveActiveCohortDocPath`, § 2.1).
 - **Delivery and review** (the change rerouting Candidate and review records through the store): its landing writes a
   work unit's landing-commit link (`landingCommit`, `lib/store/links.ts`) from the flip when the work unit's merge
   lands, which the frame reads under `archive.cadence: with-integration` to tell an archived work unit awaiting merge
@@ -1990,23 +2154,28 @@ holds until then is stated with it.
 - **The projection:** the removal check's projection part, the persist step, and the release slot, each passing until
   filled (§ 5, § 12.1); the empty scratch folder for the checkout's work unit (§ 2.8); its locations and file names
   registered as layout addresses, the inbound list's and the Errand description's among them, which the target
-  classifier inverts (§ 3.3); and its worktree lock, which lands only after this change's removals, removal decisions,
-  and moves are on the function, the check, and the doubled-force form (§ 12), with its rewrite, under that lock, of the
-  removals printed rather than run, branch-gone's registration removal among them (§ 12.1).
+  classifier inverts, each mapped to its kind in its store step (§ 3.3); its write-back of a person's edit to a
+  projected entry list, by which a list's owner removes an entry (§ 7.3, § 13); and its worktree lock, which lands only
+  after this change's removals, removal decisions, and moves are on the function, the check, and the doubled-force form
+  (§ 12), with its rewrite, under that lock, of the removals printed rather than run, branch-gone's registration removal
+  among them (§ 12.1).
 - **The ref backend and its import:** `pull`, its result (`PullResult`) carrying the `designation-needed` state with its
   remote, choices, and remedy argv (§ 4.2, § 4.8); `maintain()`'s ref measurements (`MaintainResult`) and the push's
   retry count and time waited (§ 9.3); the `state-unresolvable` refusal naming the history refs a clone lacks, and
-  `pull` of them by name (§ 9.2); the refusal of writes to a kind no declaration homes (§ 6.6); the project ID as every
-  capture's repository (§ 8.1); and the import, which carries each open Errand's and live work unit's branch link with
-  its record, a work unit's with its exclusions (§ 8.2, § 11), stamps every entry's `_Id:_`, carries each open Errand's
-  origin entry into its description, rewriting no record's origin (§ 7.6), moves each draft's held entries — its buffer
-  section — and each pending owner-adoption `_Hold:_` capture into its work unit's inbound list, an entry from a buffer
-  section taking as its `_Created:_` the latest date its `_Routed from:_` line carries, or the import's date where it
-  carries none, and that line moving unchanged into the entry's prose as a plain paragraph, and one from a held capture
-  keeping the capture's `_Created:_` and taking the `_Routed from:_` a route from its inbox would write, so every
-  `_Routed from:_` line from the flip has § 6.2's form (§ 4.6, § 7.8), turns each person's execute-bound marks into
-  their Errand queue in file order (§ 7.6), and writes no `State at Handoff` (§ 9.2) and no marker (§ 2.7, § 7.7). The
-  frame needs no landing-commit link from it (§ 2.1).
+  `pull` of them by name (§ 9.2); the refusal of writes to a kind no declaration homes (§ 6.6); the project's identity
+  record (`project-registry/identity`), with its write, merge, and adoption, whose project ID every capture names as its
+  repository (§ 8.1); its fetch of the personal refs of the identity the store's ports resolve, so a store bound to the
+  identity being set up pulls that identity's records (§ 10.2); and the import, which carries each open Errand's and
+  live work unit's branch link with its record, a work unit's with its exclusions (§ 8.2, § 11), writes each Errand's
+  `owner` from the identity ref it re-homes the Errand from (§ 3.2), stamps every entry's `_Id:_`, carries each open
+  Errand's origin entry into its description, rewriting no record's origin (§ 7.6), moves each draft's held entries —
+  its buffer section — and each pending owner-adoption `_Hold:_` capture into its work unit's inbound list, an entry
+  from a buffer section taking as its `_Created:_` the latest date its `_Routed from:_` line carries, or the import's
+  date where it carries none, and that line moving unchanged into the entry's prose as a plain paragraph, and one from a
+  held capture keeping the capture's `_Created:_` and taking the `_Routed from:_` a route from its inbox would write, so
+  every `_Routed from:_` line from the flip has § 6.2's form (§ 4.6, § 7.8), turns each person's execute-bound marks
+  into their Errand queue in file order (§ 7.6), and writes no `State at Handoff` (§ 9.2) and no marker (§ 2.7, § 7.7).
+  The frame needs no landing-commit link from it (§ 2.1).
 
   That change lands alongside this one in either order. This change reaches `pull`, the pull of named history refs, and
   `maintain()` through a narrow port whose default pulls nothing and measures nothing, and whichever of the two lands
@@ -2017,8 +2186,9 @@ holds until then is stated with it.
   onto `arc inbox --target` (§ 7.1), moves hold-and-route's binding and hand-off sites onto `arc route` (§ 7.9), drops
   `session-init.md`'s `-d` offer for the slot's action (§ 12.4) and activation's workspace step (§ 2.8), replaces
   handoff's `SESSION-NOTES` write with `arc handoff write` (§ 9.1), and documents the new settings (§ 14); its rewire of
-  `arc sync` onto the contract's push, which reports its push's figures through the tripwire report (§ 9.3); and the
-  deletion pass over § 1.5's arms.
+  `arc sync` onto the contract's push, which reports its push's figures through the tripwire report (§ 9.3); its
+  production binding of the project-ID port the transition-write-path change injects (`projectId`), to a read of the
+  project's identity record, which only tests supply until then (§ 8.1); and the deletion pass over § 1.5's arms.
 - **The routing method's arms for an Active and an Integrating target** (`route-discovered-work`), which route out of a
   work unit past planning (§ 7.8); until they land its gate still proposes holding an entry in an executing work unit.
 
@@ -2188,12 +2358,13 @@ close.
    `arc handoff write`'s write with the anchors it computes (§ 9.1) and each case of § 9.2; identity setup writing only
    absent records and warning on one in use (§ 10.1, § 10.2); the cold start writing its records only through the store
    and, in its checkout, only the marker and the editor documents, with their entries in the clone's exclude file and
-   `HEAD` unmoved (§ 2.5); Errands and claims acquired apart, review admission taking both complete (§ 3.2); former
-   slugs resolved through `lookup` (§ 3.5); the queue's offer and a start's refusals (§ 7.6); removal by ID and version,
-   and `--from-inbox` taking the inbox (§ 7.7); an adopted branch never offered `arc teardown` (§ 12.4);
-   `retiredSubdirs` resolving `skip` (§ 4.2); `arc user open` refusing (§ 2.8); and a paused work unit's slot actions
-   taking `arc resume` (§ 4.3). The tripwire report, whose figures neither implementation produces, passes over scripted
-   measurements and push outcomes, showing each figure past its bound and none below (§ 9.3).
+   `HEAD` unmoved (§ 2.5); Errands and claims acquired apart, an Errand's terminal and merge admission taking both
+   complete (§ 3.2); former slugs resolved through `lookup` (§ 3.5); the queue's offer and a start's refusals (§ 7.6);
+   removal by ID and version, and `--from-inbox` taking the inbox (§ 7.7); an adopted branch never offered
+   `arc teardown` (§ 12.4); `retiredSubdirs` resolving `skip` (§ 4.2); `arc user open` refusing (§ 2.8); and a paused
+   work unit's slot actions taking `arc resume` (§ 4.3). The tripwire report, whose figures neither implementation
+   produces, passes over scripted measurements and push outcomes, showing each figure past its bound and none below
+   (§ 9.3).
 6. **The verbs this design adds** — `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`,
    `arc errand queue set`, and `arc handoff write` — pass on their success paths and on each refusal they name, a
    recoverable refusal also on its continuation once repaired, and each refuses `unsupported` before the flip, naming

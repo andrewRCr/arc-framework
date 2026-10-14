@@ -44,10 +44,13 @@ against the sweep at `b050528c5`. Paths are under `packages/arc-framework/src/` 
   session-init probes, spans `handlers/status.ts` and `handlers/status/session*.ts`, none of them rowed since.
 - **Slot outcomes are plain objects.** `632a414d2` replaced `neverthrow` with `{ ok, … }` outcomes composed in
   `commands/status/result-composition.ts` (`mapSlot`, `composeSlot`, `failedSlot`); rebuilt slots return those.
-- **`currentWuReconcile`'s reads are bound twice.** `handleSessionInitStatus` binds the lifecycle index, transition
-  queries, and artifact reads inline beside the same reads `buildCurrentWuReconcile` binds
-  (`lib/work-unit/executor-context-current-wu.ts`); both run `prepareCurrentWuReconcile`
-  (`lib/work-unit/side-effects/discharge-dep-edges.ts`). One store-backed binding replaces both.
+- **`currentWuReconcile`'s reads are bound three times.** `handleSessionInitStatus` binds the lifecycle index,
+  transition queries, and artifact reads inline beside the same reads `buildCurrentWuReconcile`
+  (`lib/work-unit/executor-context-current-wu.ts`) and the reconcile's own command (`handleWuReconcile`,
+  `handlers/reconcile.ts`) bind; all three run `prepareCurrentWuReconcile`
+  (`lib/work-unit/side-effects/discharge-dep-edges.ts`). From the flip one store-backed prepare, the
+  transition-write-path change's, serves all three; locus moves session-init's binding onto it (`spec-seam-locus.md`
+  § 4.1).
 
 ## Row corrections: locus and session-init
 
@@ -119,8 +122,8 @@ Locus's, each touching state no row covers:
   `drain-inbox.md`, `draft-design.md`, `create-spec.md`, `activate-work-unit.md`, and `verify-work-unit.md` fire it. Its
   text changes only in `storage-cutover`'s flip rewrite; locus's obligation is what its verbs return.
 - `lib/session-init/in-flight-work-unit-sweep.ts` — derives each work unit's name from its meta path's basename
-  (`workUnitNameFromMetaPath`), a hand-built state path (keys 13, 29); the reroute takes the name from the in-flight
-  entry's identity.
+  (`workUnitNameFromMetaPath`), a hand-built state path (keys 13, 29); from the flip it takes each roster row's work
+  unit (`spec-seam-locus.md` § 3.1).
 - `lib/session-init/locus-classification.ts` — classifies a branch's owner, importing from `completed-index.ts` only the
   pure `branchToWorkUnitSlug` helper; it reads no archive index, so it is no shipped-work reader
   (`spec-seam-locus.md` § 3.4).
@@ -167,16 +170,16 @@ rather than by checkout or meta path.
 
 **Rows.** New or amended, `?` marking a guess:
 
-| Consumer                                           | Owner   | Register     | Families                                               | Becomes                                                                                                                                                                                                                          |
-| -------------------------------------------------- | ------- | ------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/git/foreign-artifact-detection.ts` (new)      | seam    | 13, 29, 55   | `wu.meta`, `placement`, `machine-local`; state targets | Targets split through the layout resolver: code targets keep both probes; state targets report overlap when the record's own work item is in flight in another locus, read through the store, Errands included; self by identity |
-| `handlers/errand.ts` (amend)                       | seam    | + 29, 47, 55 | + `wu.meta`, `placement`, `machine-local`              | The in-flight set from the store's `list`, paused work units counted through both probes, since a pause keeps the checkout, the parked skip retiring with park, self from the checkout marker                                    |
-| `commands/active/in-flight.ts` (amend)             | seam    | + 55         | + `machine-local`                                      | `runActiveInFlight` stays the oracle for the check and the hook                                                                                                                                                                  |
-| `lib/git/in-flight-derivation.ts` (amend)          | seam    | + 55         | + `errand.record`                                      | —                                                                                                                                                                                                                                |
-| `lib/release/wu-resolution.ts` (amend)             | seam    | + 55         | —                                                      | `resolveOriginatingMetaPath` stops being the self-exclusion key                                                                                                                                                                  |
-| `scripts/check-foreign-writes.ts` (amend)          | cutover | + 55         | `wu.meta`, `wu.tasks`, `wu.prose`, `placement`         | Retires with the pre-commit foreign-write advisory, unless the store query serves it at write time (?)                                                                                                                           |
-| `drain-inbox.md`, `run-errand.md` (amend)          | seam    | + 55         | —                                                      | The drain's targets are mostly state targets, so the store query becomes its main path                                                                                                                                           |
-| `.arc/system/methods/assess-parallel-fit.md` (new) | seam    | 55           | —                                                      | Consumes the check's facts; unchanged unless state-target facts change the envelope (?)                                                                                                                                          |
+| Consumer                                           | Owner | Register     | Families                                               | Becomes                                                                                                                                                                                                                          |
+| -------------------------------------------------- | ----- | ------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/git/foreign-artifact-detection.ts` (new)      | seam  | 13, 29, 55   | `wu.meta`, `placement`, `machine-local`; state targets | Targets split through the layout resolver: code targets keep both probes; state targets report overlap when the record's own work item is in flight in another locus, read through the store, Errands included; self by identity |
+| `handlers/errand.ts` (amend)                       | seam  | + 29, 47, 55 | + `wu.meta`, `placement`, `machine-local`              | The in-flight set from the store's `list`, paused work units counted through both probes, since a pause keeps the checkout, the parked skip retiring with park, self from the checkout marker                                    |
+| `commands/active/in-flight.ts` (amend)             | seam  | + 55         | + `machine-local`                                      | `runActiveInFlight` serves the check and the hook until the flip; from it the check reads the store's in-flight set and the hook reads nothing                                                                                   |
+| `lib/git/in-flight-derivation.ts` (amend)          | seam  | + 55         | + `errand.record`                                      | —                                                                                                                                                                                                                                |
+| `lib/release/wu-resolution.ts` (amend)             | seam  | + 55         | —                                                      | `resolveOriginatingMetaPath` stops being the self-exclusion key                                                                                                                                                                  |
+| `scripts/check-foreign-writes.ts` (amend)          | seam  | + 55         | `wu.meta`, `wu.tasks`, `wu.prose`, `placement`         | Branches on the capability: from the flip it returns before any read, a commit then staging no work unit's state, and the deletion pass removes it                                                                               |
+| `drain-inbox.md`, `run-errand.md` (amend)          | seam  | + 55         | —                                                      | The drain's targets are mostly state targets, so the store query becomes its main path                                                                                                                                           |
+| `.arc/system/methods/assess-parallel-fit.md` (new) | seam  | 55           | —                                                      | Consumes the check's facts; unchanged unless state-target facts change the envelope (?)                                                                                                                                          |
 
 ## Register keys on locus's rows
 
@@ -234,6 +237,7 @@ them and the contract decisions they rest on:
 | § 4.8 | Session start's `pull`, and its `designation-needed` report with the remedy's argv                      | § 6.1                                |
 | § 6.3 | `_Rank:_` orders the Errand queue by rank key, so the run order merges by entry                         | § 3.8; D6, D11                       |
 | § 6.6 | A kind no declaration homes refuses its writes `unhomed-kind`, and the import's trial refuses it        | § 5.1, § 10.5                        |
+| § 8.1 | The project's identity record (`project-registry/identity`), with its write, merge, and adoption        | § 3.2, § 9.8                         |
 | § 9.2 | An ended item's missing history ref refuses `state-unresolvable`; the verb pulls it by name and retries | § 2.3, § 4.5                         |
 | § 9.2 | Restating across people restricts `changes` to project scope                                            | `strategy-storage-evolution.md` § 11 |
 | § 9.3 | `maintain()`'s ref measurements and the push's retry count and time waited                              | § 12; D10, D11                       |
