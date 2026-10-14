@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "drop-create-spec-inbox-staging",
+  "claimId": "84b8ad29a95f8cd4fd487032b0d8df3d",
+  "createdAt": "2026-10-14T17:26:15.283Z",
+  "updatedAt": "2026-10-14T17:26:15.283Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Remove create-spec's dangling promotion-write inbox staging clause and sync the installed workflow.",
+  "branch": "chore/drop-create-spec-inbox-staging",
+  "origin": "inbox",
+  "originEntry": "Drop `create-spec`'s dangling promotion-write inbox staging instruction",
+  "originEntrySourceDigest": "sha256:a33d0550ee0c3fb899ed2dcd27097c0c7dc477fad7f78ae4b9ce8df731bdf652",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
