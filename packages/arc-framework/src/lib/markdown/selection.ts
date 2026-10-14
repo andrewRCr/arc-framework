@@ -112,14 +112,14 @@ export function validateMarkdownSelectionConfig(
   return { valid: errors.length === 0, errors };
 }
 
+function isNativeDescendant(directory: string, candidate: string): boolean {
+  const fromDirectory = relative(directory, candidate);
+  return fromDirectory.length > 0 && fromDirectory !== ".." && !fromDirectory.startsWith(`..${sep}`)
+    && !isAbsolute(fromDirectory);
+}
+
 function assertNativePathContained(root: string, candidate: string, path: ManagedPath): void {
-  const fromRoot = relative(root, candidate);
-  if (
-    fromRoot.length === 0
-    || fromRoot === ".."
-    || fromRoot.startsWith(`..${sep}`)
-    || isAbsolute(fromRoot)
-  ) {
+  if (!isNativeDescendant(root, candidate)) {
     throw selectionError(`Markdown path escapes the repository: ${path}`, "markdown.outside-repository");
   }
 }
@@ -149,7 +149,8 @@ async function resolveMarkdownGitDirectories(options: ValidateExplicitMarkdownPa
       resolveCheckoutGitDir(options.exec, options.root),
       resolveGitCommonDir(options.exec, options.root),
     ]);
-    return await Promise.all([...new Set(directories)].map(directory => options.realpath(directory)));
+    const physicalDirectories = await Promise.all([...new Set(directories)].map(directory => options.realpath(directory)));
+    return physicalDirectories.filter(directory => isNativeDescendant(options.root, directory));
   } catch (error) {
     throw new ArcError("Cannot resolve Git administration directories. Check the repository and retry.",
       "markdown.selection-failed", { cause: error });
@@ -157,11 +158,7 @@ async function resolveMarkdownGitDirectories(options: ValidateExplicitMarkdownPa
 }
 
 function assertOutsideGitDirectories(directories: readonly string[], physical: string, path: ManagedPath): void {
-  const administration = directories.some(directory => {
-    const fromDirectory = relative(directory, physical);
-    return fromDirectory === "" || (fromDirectory !== ".." && !fromDirectory.startsWith(`..${sep}`)
-      && !isAbsolute(fromDirectory));
-  });
+  const administration = directories.some(directory => physical === directory || isNativeDescendant(directory, physical));
   if (administration) {
     throw selectionError(`Cannot format Git administration path: ${path}. Select a Markdown file in the worktree.`,
       "markdown.git-administration");
