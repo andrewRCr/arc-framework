@@ -284,11 +284,13 @@ member whose consumer-map partition holds it:
 - **Removal prompts.** `seam-locus` has the stale-worktree sweep's report of a removable worktree, which carries only
   its path and branch, and branch-gone recovery's removable candidate, whose prompt names no command
   (`lib/session-init/recommended-action.ts`), each carry an `arc teardown <name>` command line, as the residue sweep's
-  report does (`teardown.argv`); and the sweep reports a missing locked registration with the remedy
-  `git worktree unlock <path>`, then `git worktree remove <path>`, a hand-deleted husk's among them.
-  `storage-projection` rewrites, with the lock, the removals that are printed or documented rather than run —
-  session-init's stale-worktree offer and branch-gone prompt, which then run those command lines, a husk left to manual
-  cleanup, and `strategy-concurrent-work.md`'s instructions — since the seam changes no workflow text before the flip.
+  report does (`teardown.argv`); and the sweep reports a missing locked registration with the remedy `git worktree
+  unlock <path>`, then `git worktree remove <path>`, a hand-deleted husk's among them. Automatic unlock-and-remove
+  applies only to `PROJECTION_LOCK_REASON`. For any other lock, the sweep reports `locked` and presents the manual
+  remedy only as text for the lock's owner to decide; it never runs those commands automatically. `storage-projection`
+  rewrites, with the lock, the removals that are printed or documented rather than run — session-init's stale-worktree
+  offer and branch-gone prompt, which then run those command lines, a husk left to manual cleanup, and
+  `strategy-concurrent-work.md`'s instructions — since the seam changes no workflow text before the flip.
 - **Moves of a locked checkout.** On Git 2.55 a locked worktree refuses `git worktree move` with no `-f` or one, and
   `git worktree move -f -f` moves it with its lock and reason intact, so every move of a projected checkout takes that
   form, whether ARC runs it or prints it for someone else to run. `seam-lifecycle` takes `arc rename`'s: the move
