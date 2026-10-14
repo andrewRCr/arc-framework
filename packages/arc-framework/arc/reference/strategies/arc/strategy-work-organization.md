@@ -1226,10 +1226,10 @@ lane: whether it warrants a hard gate or only a notification, and at what granul
 
 Three conditions compose the lane on any host:
 
-1. A **stable required status check present on every PR** — call it `merge-ok`. It runs unconditionally, so
-   branch protection always has a check to wait on. This is why the recipe uses a conditional status job and
-   **not** a path-ignored CI workflow: a required check that is path-filtered away never reports, stays
-   _Pending_, and blocks the merge indefinitely.
+1. A **stable required status check present on every PR** — call it `ci-ok`, since it asserts only that required
+   CI passed, not that the PR may merge. It runs unconditionally, so branch protection always has a check to wait
+   on. This is why the recipe uses a conditional status job and **not** a path-ignored CI workflow: a required
+   check that is path-filtered away never reports, stays _Pending_, and blocks the merge indefinitely.
 2. **Owner review required for reviewed-lane paths only** — a code-owners mapping that names owners for the
    constitutional surfaces and leaves auto-merge-lane paths unowned, so only reviewed-lane PRs require approval.
 3. **Native auto-merge enabled** — the PR merges itself the moment its required conditions are satisfied
