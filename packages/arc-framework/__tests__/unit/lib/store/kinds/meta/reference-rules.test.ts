@@ -150,3 +150,8 @@ describe("metadata cohort references", () => {
     expect(await checkMetaCohort(metaRuleInput(cohort("missing"), "# Broken\n"))).toEqual([]);
   });
 });
+
+it("refuses a new unresolved pause waits-on slug", async () => {
+  const next = content.replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `missing`\n\n---\n");
+  expect(await checkMetaDependsOn(metaRuleInput(next))).toMatchObject([{ rule: "meta.depends-on" }]);
+});

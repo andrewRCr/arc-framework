@@ -19,6 +19,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
+  ParsedMetaPauseSchema,
+  type ParsedMetaPause,
   MetaCandidateIdSchema,
   MetaWorkClassSchema,
   MetaProjectionRecordSchema,
@@ -605,11 +607,45 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     commitAtHandoff: nullableProjectionValue(projection["Commit at Handoff"]),
     sessionType: normalizeSessionType(nullableProjectionValue(projection["Session Type"])),
     sessionContext: readMetaSectionBodies(content, "Session Context")[0] ?? null,
+    pause: parseMetaPause(content),
     completionNotes: readMetaSectionBodies(content, "Completion Notes"),
     releaseNotesEntry: readMetaSectionBodies(content, "Release Notes Entry"),
     prUrl: nullableProjectionValue(projection["PR URL"]),
     completed: nullableProjectionValue(projection.Completed),
   });
+}
+
+/** Read the whole Pause section without admitting its bullets as metadata fields.
+ * @param content - Metadata Markdown.
+ * @returns The pause, or null when its section is absent.
+ */
+function parseMetaPause(content: string): ParsedMetaPause | null {
+  const body = readMetaSectionBodies(content, "Pause")[0];
+  if (body === undefined) return null;
+  const [bullets = "", ...notes] = body.split(/^### Resume Notes\s*$/mu);
+  const values = new Map<string, string>();
+  let label: string | undefined;
+  for (const line of bullets.split("\n")) {
+    const match = /^- \*\*([^:]+):\*\*\s*(.*)$/u.exec(line);
+    if (match) { label = match[1]; if (label !== undefined) values.set(label, match[2] ?? ""); }
+    else if (label !== undefined && /^ {2}/u.test(line)) values.set(label, `${values.get(label) ?? ""}\n${line.slice(2)}`);
+    else label = undefined;
+  }
+  const waitsOn = values.get("Waits On");
+  return ParsedMetaPauseSchema.parse({
+    pausedBy: stripInlineCode(values.get("Paused By") ?? ""),
+    since: stripInlineCode(values.get("Since") ?? ""),
+    reason: values.get("Reason") ?? "",
+    waitsOn: waitsOn === undefined ? null : /^`[^`]+`$/u.test(waitsOn)
+      ? { kind: "work-unit", slug: stripInlineCode(waitsOn) } : { kind: "note", text: parsePauseNote(waitsOn) },
+    open: values.get("Open to Takers") === "`true`",
+    resumeNotes: notes.length === 0 ? null : notes.join("### Resume Notes").trim(),
+  });
+}
+
+
+function parsePauseNote(text: string): string {
+  return /^\\+`[^`]*\\`$/u.test(text) ? `${text.slice(1, -2)}\`` : text;
 }
 
 /** Convert a tolerant parsed adapter record to the strict durable contract. */

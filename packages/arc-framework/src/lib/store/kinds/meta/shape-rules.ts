@@ -4,7 +4,7 @@ import { SlugSchema, WorkUnitStateSchema } from "../../../kernel/index.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 import { brokenRule } from "../rule-support.js";
 import { metaFieldChanged, metaFieldVersions } from "./check-support.js";
-import { bulletMarkerRe } from "./line-reading.js";
+import { bulletMarkerRe, inspectMetaPauseStructure } from "./line-reading.js";
 
 function blockFacts(content: string): { anchor: string | null; counts: ReadonlyMap<string, number> } {
   const lines = content.split(/\r?\n/u);
@@ -58,6 +58,9 @@ export function checkMetaDurableFields(input: WriteCheckInput): readonly BrokenR
   const next = versions.next;
   const rule = "meta.durable-fields";
   const remedy = "Set each changed field to a durable value and Owner to an identity slug, then retry.";
+  const pauseDefects = inspectMetaPauseStructure(input.next.content);
+  if (pauseDefects.length > 0) return [brokenRule(rule, pauseDefects.join("; "),
+    "Use arc pause to replace the malformed section or arc resume to clear it, then retry.")];
   if (next === undefined) return [brokenRule(rule, "The proposed metadata fields cannot be read.", remedy)];
   const fields = MetaRecordSchema.keyof().options.filter((key) => key !== "state"
     && (versions.prior === undefined || metaFieldChanged(versions, key)));

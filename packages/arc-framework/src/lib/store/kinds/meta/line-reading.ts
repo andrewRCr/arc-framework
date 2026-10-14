@@ -298,13 +298,60 @@ export function readMetaSectionBodies(content: string, heading: string): string[
   for (let index = 0; index < lines.length; index += 1) {
     if (lines[index] !== `## ${heading}`) continue;
     const insideFieldBlock = h1 >= 0 && index > h1 && index < closing;
-    const body: string[] = [];
-    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-      const line = lines[cursor];
-      if (line === undefined || /^## /u.test(line) || (insideFieldBlock && cursor === closing)) break;
-      body.push(line);
-    }
-    bodies.push(body.join("\n").trim());
+    const end = lines.findIndex((line, cursor) => cursor > index
+      && (/^## /u.test(line) || (insideFieldBlock && cursor === closing)));
+    bodies.push(lines.slice(index + 1, end < 0 ? lines.length : end).join("\n").trim());
   }
   return bodies;
+}
+
+/** Observe structural Pause defects without discarding independently readable metadata.
+ * @param content - Complete metadata Markdown.
+ * @returns Every section grammar defect; scalar vocabulary is validated separately.
+ */
+export function inspectMetaPauseStructure(content: string): readonly string[] {
+  const bodies = readMetaSectionBodies(content, "Pause");
+  if (bodies.length === 0) return [];
+  const problems: string[] = bodies.length > 1 ? ["Pause has duplicate sections"] : [];
+  for (const body of bodies) problems.push(...pauseBodyProblems(body));
+  return problems;
+}
+
+function pauseBodyProblems(body: string): string[] {
+  const problems: string[] = [];
+  const parts = body.split(/^### Resume Notes[ \t]*$/mu);
+  if (parts.length > 2) problems.push("Pause has duplicate Resume Notes headings");
+  const labels = new Map<string, string>();
+  const known = new Set(["Paused By", "Since", "Reason", "Waits On", "Open to Takers"]);
+  let current: string | undefined;
+  for (const line of (parts[0] ?? "").split("\n")) {
+    const match = /^- \*\*([^:]+):\*\*[ \t]*(.*)$/u.exec(line);
+    if (match) {
+      const label = match[1] ?? "";
+      if (!known.has(label)) problems.push(`Pause has unknown label ${label}`);
+      if (labels.has(label)) problems.push(`Pause has duplicate label ${label}`);
+      labels.set(label, match[2] ?? "");
+      current = label;
+    } else if (/^ {2}/u.test(line) && (current === "Reason" || current === "Waits On")) {
+      continue;
+    } else if (line.trim() !== "") {
+      problems.push("Pause has unexpected prose outside Resume Notes");
+      current = undefined;
+    }
+  }
+  return [...problems, ...pauseLabelProblems(labels)];
+}
+
+function pauseLabelProblems(labels: ReadonlyMap<string, string>): string[] {
+  const problems: string[] = [];
+  for (const required of ["Paused By", "Since", "Reason"]) {
+    if (!labels.has(required)) problems.push(`Pause is missing ${required}`);
+  }
+  for (const coded of ["Paused By", "Since"]) {
+    const value = labels.get(coded);
+    if (value !== undefined && !/^`[^`]*`$/u.test(value)) problems.push(`Pause ${coded} must be backticked`);
+  }
+  const open = labels.get("Open to Takers");
+  if (open !== undefined && open !== "`true`") problems.push("Pause Open to Takers must be `true` or omitted");
+  return problems;
 }

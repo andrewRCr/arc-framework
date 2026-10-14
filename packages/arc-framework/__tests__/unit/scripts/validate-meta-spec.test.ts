@@ -615,3 +615,9 @@ describe("validateCurrentWorkflow — active lifecycle consistency", () => {
     expect(validateCurrentWorkflow(content, path)).toEqual([]);
   });
 });
+
+it("ignores Pause section labels while validating managed meta fields", () => {
+  const content = metaFile("- **Design:** spec-foo.md").replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `other`\n- **Open to Takers:** `true`\n\n### Resume Notes\n\nContinue.\n\n---\n");
+  expect(validateFiles([META_PATH_FIXTURE], fakeReader({ [META_PATH_FIXTURE]: content })))
+    .toEqual({ pass: true, diagnostics: [] });
+});

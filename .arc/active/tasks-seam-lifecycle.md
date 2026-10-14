@@ -468,92 +468,43 @@ hand edit of `Owner` or the pause, and the move to Active while an inbound entry
         - a replace ref grafting the branch drops no commit from the set
         - a partial clone's commit with absent objects matches by SHA alone
 
-### `[ ]` **2.4 Add the meta's pause section — § 8.1, § 18.1**
+### `[x]` **2.4 Add the meta's pause section — § 8.1, § 18.1**
 
 - _Goal:_ The meta's parsed record carries `pause`, `null` when absent, read from a `## Pause` section past the field
   lines and written whole by one section writer, which no field reader or writer and no meta validator reads.
 
-    - `[ ]` **2.4.a The schema and reader**
+    - `[x]` **2.4.a The schema and reader**
 
-        - `ParsedMetaRecordSchema` and `MetaRecordSchema` (`lib/active/meta-schema.ts`) gain `pause`: `pausedBy`,
-          `since`, `reason`, `waitsOn` (a work unit by slug, a note, or `null`), `resumeNotes`, and `open`, defaulting
-          to `null`.
-        - `parseMetaRecord` (`lib/active/meta-reader.ts`) finds the section by its heading, as it finds Session
-          Context's (`readMetaSectionBodies`, `lib/store/kinds/meta/line-reading.ts`), and, since that returns the
-          body alone, parses its bullets itself: `Paused By` and `Since` backticked, `Reason` as prose, `Waits On` a
-          backticked slug or a prose note, `Open to Takers` as `` `true` ``, and the `### Resume Notes` subsection.
-        - Both schemas are strict, so `pause` defaults to `null` in each for every rule that parses a meta's fields;
-          `MetaRenderOverrides` (`lib/store/kinds/meta/projection.ts`) omits it beside the other sections; and `meta.durable-fields`
-          (`checkMetaDurableFields`), which walks `MetaRecordSchema`'s keys, validates a changed pause against its
-          schema.
-        - The `meta-record` validation surface (`lib/validation-surfaces/registry.ts`), which registers
-          `MetaRecordSchema`, and `projection-fidelity.test.ts`, which pins it, take the field, as do the whole-record
-          comparisons of a parsed meta: `handoffDefaults` in `__tests__/unit/active/meta-schema.test.ts` and the
-          expected record in `__tests__/unit/active/meta-reader.test.ts`'s render round trip.
+        - The strict semantic schemas carry the whole Pause section; readers keep tolerant scalar evidence independent
+          of managed fields and durable checks validate writes.
 
-    - `[ ]` **2.4.b The section writer**
+    - `[x]` **2.4.b The section writer**
 
-        - Beside `writeMetaSessionContext` (`lib/store/kinds/meta/section-writer.ts`), one writer sets the section
-          whole, inserts it where the field region ends when absent, removes it on `null`, omits `Waits On` when
-          `null`, `Open to Takers` when false, and `### Resume Notes` when `null`, and throws on a body line that would
-          end the section.
+        - The section writer inserts, replaces, or removes Pause whole, preserving unrelated bytes and rejecting lines
+          that would escape its section.
 
-    - Build `test-first` (one behavior at a time):
-        - a section with every field round-trips, and each omitted field reads back as its default
-        - writing `null` removes the section and leaves the meta byte-identical to one never paused
-        - a body line that would end the section throws
-        - no field reader sees the section's bullets, and the meta validator, which scans every line
-          (`collectFieldValues`, `scripts/validate-meta-spec.ts`), reports none of its labels, tested through
-          `validateFiles`
-
-### `[ ]` **2.5 Make `Owner` and the pause verb-owned, and give a pause's waits-on `Depends On`'s rules — § 18.1**
+### `[x]` **2.5 Make `Owner` and the pause verb-owned, and give a pause's waits-on `Depends On`'s rules — § 18.1**
 
 - _Goal:_ A hand edit can change neither `Owner` nor the pause section, and a pause's waits-on slug follows
   `Depends On`'s resolution, slug-edge, and rename rules.
 
-    - `[ ]` **2.5.a `meta.verb-owned-field` widens**
+    - `[x]` **2.5.a `meta.verb-owned-field` widens**
 
-        - `checkMetaVerbOwnedField` (`lib/store/kinds/meta/authority-rules.ts`) also refuses a hand edit that changes
-          `Owner` or the pause section, beside `State`, `Class`, and `Current Workflow`; the record kinds' field
-          ownership, which lets an owner hand-edit `Owner`, gives way to the handover verb, a rule no code table
-          holds.
-        - Its remedy, one text today ("Use the lifecycle or Class verb that owns the change"), names the verb owning
-          each field it refuses: `arc handover <slug> --to <identity>` for `Owner`, and `arc pause <slug>` or
-          `arc resume <slug>` for the pause section, beside today's text for `State`, `Class`, and `Current Workflow`.
+        - Hand edits of Owner and Pause refuse with the owning handover, pause, or resume repair; verb writes remain
+          admitted.
 
-        - Build `test-first` (one behavior at a time):
-            - a hand edit changing `Owner` refuses, naming `arc handover`, and a verb's write of it proceeds
-            - a hand edit adding, changing, or removing the pause section refuses, naming `arc pause` and `arc resume`
+    - `[x]` **2.5.b Waits-on follows `Depends On`'s rules**
 
-    - `[ ]` **2.5.b Waits-on follows `Depends On`'s rules**
+        - Waits-on work-unit slugs use dependency resolution and surviving-edge rules; rename retains an in-flight
+          pause edge until its owner reconciles.
 
-        - `meta.depends-on`'s resolution check (`checkMetaDependsOn`, `reference-rules.ts`) covers a new or changed
-          waits-on slug.
-        - `work-item.slug-edges` (`checkSlugEdges`, `lib/store/kinds/work-item/slug-edges.ts`), whose surviving-edge
-          read takes `Depends On` alone and whose remedy is one constant, gains a pause's waits-on as an edge, refusing
-          to give a slug to another work item while a pause names it, with its own remedy naming
-          `arc pause <slug> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`.
-        - A rename's settling leaves an in-flight meta's waits-on slug as written, since the sweep's `Depends On`
-          rewrite (`rename-reference-sweep.ts`) touches no other line.
-
-        - Build `test-first` (one behavior at a time):
-            - a waits-on slug naming no work item refuses
-            - taking a slug a pause waits on refuses, naming the three repairs
-            - a rename leaves an in-flight pause's waits-on slug unchanged
-
-### `[ ]` **2.6 Refuse the move to Active while the inbound list holds an entry — § 14, § 18.1**
+### `[x]` **2.6 Refuse the move to Active while the inbound list holds an entry — § 14, § 18.1**
 
 - _Goal:_ `meta.inbound-held` also refuses the move to Active while the work unit's inbound list holds an entry, beside
   its refusals at Integrating and the archive.
 
-    - Widen `checkMetaInboundHeld` (`lib/store/kinds/meta/inbound-held-rule.ts`) to a state change to `Active`; until
-      the flip, activation's capture gate carries the property and the in-repo arm adds nothing.
-    - The rule observes nothing until the inbound list's kind declares its entry grammar (`work-item/inbound`,
-      `lib/store/registry.ts`), so its tests pass a grammar, as the existing ones do.
-
-    - Build `test-first` (one behavior at a time):
-        - a write moving a work unit to Active refuses while an inbound entry is held
-        - the same write proceeds once the list is empty
+- _Outcome:_ The declared inbound grammar now gates movement to Active as well as publication and archive; the same
+  write proceeds after its held list is cleared.
 
 ## **Phase 3:** The reroute's seam, proven on two verbs
 
