@@ -32,6 +32,7 @@ import { createCommitMessagePreflight } from "./release/commit-message-preflight
 import {
   createRealCommitMessageSnapshot,
   createRealCommitMessageRetryStore,
+  createRemoteRefsContainingHead,
   createSpawnGit,
 } from "./release/commit-cli.js";
 import { runReleaseCommit } from "./release/commit.js";
@@ -113,10 +114,11 @@ async function runRecordCommit(input: {
   }));
   const baseSpawn = createSpawnGit(input.interaction, false);
   const retryStore = createRealCommitMessageRetryStore(input.exec);
+  const argv = ["--only", "-m", input.message, "--", ...input.paths];
   const result = await runReleaseCommit({
     cwd: input.cwd,
     identity: input.identity,
-    argv: ["--only", "-m", input.message, "--", ...input.paths],
+    argv,
     settings,
     currentBranch: branch,
     spawnGit: async (options) => {
@@ -130,7 +132,8 @@ async function runRecordCommit(input: {
     createMessageSnapshot: createRealCommitMessageSnapshot(input.exec),
     persistMessageRetry: retryStore.persist,
     cleanupConsumedMessageRetry: retryStore.cleanup,
-    preflightRemedy: renderCommitMessageRemedy(),
+    listRemoteRefsContainingHead: createRemoteRefsContainingHead(input.exec),
+    preflightRemedy: renderCommitMessageRemedy(argv),
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: false,
       interactionAllowed: false,

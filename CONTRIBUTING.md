@@ -9,6 +9,10 @@ installed on your system (`apt-get install shellcheck`, `brew install shellcheck
 or equivalent). Shellcheck is invoked by `npm run lint:sh` from the system PATH;
 it is not bundled as an npm dependency.
 
+Install [actionlint][actionlint-install] on the system PATH as well (`brew install actionlint` on macOS, or use its
+release binary on Linux/Windows). `npm run lint:workflows` requires both actionlint and ShellCheck so inline workflow
+shell is checked alongside GitHub Actions expressions and dependencies. CI installs actionlint 1.7.12.
+
 1. Fork and clone the repository
 2. Install dependencies: `npm install`
 3. Join as a contributor: `npx arc join`
@@ -27,10 +31,9 @@ error naming the fix, since a stale bundle silently produces wrong answers. Rebu
 
 There is no warning tier and no allowlist of safe commands, so read-only commands refuse too.
 The one exception is not a command at all: the compaction-seed write is an option on `status`,
-and it proceeds so that a recovery seed still lands.
-The repository's `commit-msg` hook runs through the CLI as well, so a stale build blocks
-committing until you rebuild — editing source and then committing is the ordinary way to meet
-the check.
+and it proceeds so that a recovery seed still lands. The repository's `commit-msg` hook runs through the CLI as well, so
+a stale build blocks committing until you rebuild — editing source and then committing is the ordinary way to meet the
+check.
 
 The check fires only when the CLI runs as the built bundle in this development checkout.
 Invoking it from source produces no verdict at all, and published installs don't include `src/`,
@@ -77,3 +80,4 @@ Full guide: [Contributing to ARC][contributing-docs] | [Report a bug][issues] |
 [check-declaration]: .arc/system/arc-checks.yml
 [issues]: https://github.com/andrewRCr/arc-framework/issues
 [discussions]: https://github.com/andrewRCr/arc-framework/discussions
+[actionlint-install]: https://github.com/rhysd/actionlint/blob/main/docs/install.md

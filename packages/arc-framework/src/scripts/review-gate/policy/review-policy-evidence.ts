@@ -32,6 +32,7 @@ import {
   type IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
 import { requireDriverAdmission } from "./review-execution-admission.js";
+import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from "./review-policy-fallbacks.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -66,8 +67,22 @@ function resultScope(result: ReviewResult): "whole-target" | "chunked" {
   return result.admission.scopeMode;
 }
 
+/** Caller progress that disagrees with a trusted terminal producer, with a corrected replay. */
+export class ReviewTerminalAttemptInputError extends Error {
+  readonly code = "invalid-input" as const;
+
+  constructor(
+    message: string,
+    readonly correction: string,
+    readonly correctedRequest: ReviewPolicyCommandRequest,
+  ) {
+    super(message);
+    this.name = "ReviewTerminalAttemptInputError";
+  }
+}
+
 /** A terminal producer whose recorded scope needs an explicit caller lane judgment. */
-export class ReviewProducerScopeMismatchError extends Error {
+export class ReviewProducerScopeMismatchError extends ReviewTerminalAttemptInputError {
   readonly lane: ReviewPolicyCommandRequest["lane"];
   readonly observedScope: ReviewScopeMode;
   readonly selectedScope: ReviewScopeMode;
@@ -78,8 +93,10 @@ export class ReviewProducerScopeMismatchError extends Error {
     observedScope: ReviewScopeMode;
     selectedScope: ReviewScopeMode;
     target: ReviewResult["target"];
+    correctedRequest: ReviewPolicyCommandRequest;
   }) {
-    super("review producer scope does not match the selected scope");
+    super("review producer scope does not match the selected scope",
+      `Set scopeSelection.mode to ${input.observedScope}`, input.correctedRequest);
     this.name = "ReviewProducerScopeMismatchError";
     this.lane = input.lane;
     this.observedScope = input.observedScope;
@@ -88,41 +105,74 @@ export class ReviewProducerScopeMismatchError extends Error {
   }
 }
 
-function resultMatchesLaneAndSource(
-  result: ReviewResult,
-  request: ReviewPolicyCommandRequest,
-  sourceId: string,
-): boolean {
-  if (request.lane === "frontline") {
-    return result.kind === "frontline" && result.sourceIdentity === sourceId;
-  }
-  if (result.kind === "frontline") return false;
-  return result.kind === "attested-local"
-    ? sourceId === "delegated-agent"
-    : result.sourceIdentity === sourceId;
+function producerSource(result: ReviewResult): string {
+  return result.kind === "attested-local" ? "delegated-agent" : result.sourceIdentity;
 }
 
-function resultMatchesPolicy(
+function standardProjection(result: Exclude<ReviewResult, { kind: "frontline" }>): ReviewPolicyCommandRequest["standardReview"] {
+  const requirement = result.requirement;
+  return {
+    obligation: requirement.obligation,
+    reasons: requirement.reasons,
+    rubricVersion: requirement.rubricVersion,
+    rubricDigest: requirement.rubricDigest,
+    retrigger: requirement.retrigger,
+    count: requirement.count,
+  };
+}
+
+function resultMatchesPolicy(result: ReviewResult, request: ReviewPolicyCommandRequest): boolean {
+  if (result.kind === "frontline") return true;
+  return canonicalize({ ...standardProjection(result), reasons: [...result.requirement.reasons].sort() })
+    === canonicalize({ ...request.standardReview, reasons: [...request.standardReview.reasons].sort() });
+}
+
+function compatibleTerminalGrants(
+  request: Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization">,
+  lane: ReviewPolicyCommandRequest["lane"],
+  completedPasses: number,
+): Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization"> {
+  const { ceilingOverride, additionalPassAuthorization } = request;
+  return {
+    ...(ceilingOverride?.lane === lane
+      && ceilingOverride.exhaustedPassCount === completedPasses - 1
+      && ceilingOverride.nextPass === completedPasses ? { ceilingOverride } : {}),
+    ...(additionalPassAuthorization?.lane === lane
+      && additionalPassAuthorization.completedPasses === completedPasses
+      && additionalPassAuthorization.nextPass === completedPasses + 1 ? { additionalPassAuthorization } : {}),
+  };
+}
+
+function correctedTerminalRequest(
   result: ReviewResult,
   request: ReviewPolicyCommandRequest,
-  maxPasses: number,
-): boolean {
-  if (result.kind === "frontline") {
-    return result.outcome.maxPasses === maxPasses;
-  }
-  const requirement = result.requirement;
-  return result.admission.policyVersion === requirement.policyVersion
-    && canonicalize({
-      obligation: requirement.obligation,
-      reasons: [...requirement.reasons].sort(),
-      rubricVersion: requirement.rubricVersion,
-      rubricDigest: requirement.rubricDigest,
-      retrigger: requirement.retrigger,
-      count: requirement.count,
-    }) === canonicalize({
-      ...request.standardReview,
-      reasons: [...request.standardReview.reasons].sort(),
-    });
+  sources: readonly string[],
+): ReviewPolicyCommandRequest {
+  const lane = result.kind === "frontline" ? "frontline" : "standard";
+  const scope = resultScope(result);
+  const { invocation, terminus, ceilingOverride, additionalPassAuthorization, ...retained } = request;
+  const preceding = lane === request.lane ? reconcileReviewFallbackAttempts({
+    attempts: request.attempts.slice(0, -1), sources, terminalSourceId: producerSource(result),
+    lane, scope, pullRequest: request.target.pullRequest,
+  }) : [];
+  const terminal = request.attempts.slice(-1).map(attempt => ({
+    ...attempt, sourceId: producerSource(result), outcome: result.originalOutcome,
+    ...(scope === "chunked" ? { chunkSeriesComplete: true } : {}),
+  }));
+  const attempts = [...preceding, ...terminal];
+  const correctedInvocation = lane === request.lane
+    ? reconcileReviewSourceInvocation({ invocation, sources, attempts }) : undefined;
+  return ReviewPolicyCommandRequestSchema.parse({
+    ...retained,
+    lane,
+    completedPasses: result.admission.logicalPass,
+    attempts,
+    scopeSelection: { mode: scope, target: request.scopeSelection?.target ?? request.target },
+    standardReview: result.kind === "frontline" ? request.standardReview : standardProjection(result),
+    ...(correctedInvocation === undefined ? {} : { invocation: correctedInvocation }),
+    ...(lane === "standard" && terminus !== undefined ? { terminus } : {}),
+    ...compatibleTerminalGrants({ ceilingOverride, additionalPassAuthorization }, lane, result.admission.logicalPass),
+  });
 }
 
 function producerTargetMatches(
@@ -152,30 +202,39 @@ function validateTerminalResult(
   result: ReviewResult,
   request: ReviewPolicyCommandRequest,
   currentTargetInput: ReviewResult["target"],
-  sourceId: string,
   operationId: string,
-  maxPasses: number,
-  historicalProducerId?: string,
+  dependencies: Pick<EvidenceBoundReviewPolicyDependencies, "sources" | "maxPasses" | "historicalProducerId">,
 ): void {
   const currentTarget = validateReviewTarget(currentTargetInput);
   validateReviewTarget(result.target);
   if (result.producerId !== operationId) {
     throw new Error("review producer identity does not match the terminal attempt");
   }
-  if (!producerTargetMatches(result, request, currentTarget, operationId, historicalProducerId)) {
+  if (!producerTargetMatches(result, request, currentTarget, operationId, dependencies.historicalProducerId)) {
     throw new Error("review producer target does not match the current exact target");
   }
   if (!hostedTargetMatches(result, request)) {
     throw new Error("hosted review producer target does not match the policy target");
   }
-  if (!resultMatchesLaneAndSource(result, request, sourceId)) {
-    throw new Error("review producer source does not match the terminal attempt");
+  if ((result.originalOutcome === "clean") !== (result.findings.length === 0)) {
+    throw new Error("review producer outcome does not match its complete finding set");
+  }
+  if (result.kind === "frontline" ? request.lane === "frontline" && result.outcome.maxPasses !== dependencies.maxPasses
+    : result.admission.policyVersion !== result.requirement.policyVersion) {
+    throw new Error("review producer policy or rubric does not match the policy request");
+  }
+  const correctedRequest = correctedTerminalRequest(result, request, dependencies.sources);
+  if (correctedRequest.lane !== request.lane || producerSource(result) !== request.attempts.at(-1)?.sourceId) {
+    throw new ReviewTerminalAttemptInputError("review producer source does not match the terminal attempt",
+      `Set lane to ${correctedRequest.lane} and terminal attempt sourceId to ${producerSource(result)}`, correctedRequest);
   }
   if (result.admission.logicalPass !== request.completedPasses) {
-    throw new Error("review producer logical pass does not match completed progress");
+    throw new ReviewTerminalAttemptInputError("review producer logical pass does not match completed progress",
+      `Set completedPasses to ${result.admission.logicalPass}, including the completed terminal pass`, correctedRequest);
   }
   if (result.originalOutcome !== request.attempts.at(-1)?.outcome) {
-    throw new Error("review producer outcome does not match the terminal attempt");
+    throw new ReviewTerminalAttemptInputError("review producer outcome does not match the terminal attempt",
+      `Set terminal attempt outcome to ${result.originalOutcome}`, correctedRequest);
   }
   if (resultScope(result) !== requestScope(request)) {
     throw new ReviewProducerScopeMismatchError({
@@ -183,13 +242,12 @@ function validateTerminalResult(
       observedScope: resultScope(result),
       selectedScope: requestScope(request),
       target: currentTarget,
+      correctedRequest,
     });
   }
-  if (!resultMatchesPolicy(result, request, maxPasses)) {
-    throw new Error("review producer policy or rubric does not match the policy request");
-  }
-  if ((result.originalOutcome === "clean") !== (result.findings.length === 0)) {
-    throw new Error("review producer outcome does not match its complete finding set");
+  if (!resultMatchesPolicy(result, request)) {
+    throw new ReviewTerminalAttemptInputError("review producer policy or rubric does not match the policy request",
+      `Set standardReview to the producer's requirement: ${JSON.stringify(correctedRequest.standardReview)}`, correctedRequest);
   }
 }
 
@@ -351,10 +409,8 @@ export async function bindReviewPolicyEvidence(
     result,
     request,
     currentTarget,
-    lastAttempt.sourceId,
     lastAttempt.reviewOperationId,
-    dependencies.maxPasses,
-    dependencies.historicalProducerId,
+    dependencies,
   );
   const verifiedTerminalSignal = await deriveVerifiedTerminalSignal(
     result,

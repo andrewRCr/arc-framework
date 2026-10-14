@@ -79,6 +79,21 @@ function identitySnapshot(options: {
 }
 
 describe("dormant derived checkout rows", () => {
+  it("offers an interrupted open retry without assigning pending-marker authority", () => {
+    const row = project({
+      checkout: { ...checkout, branch: "chore/repair" },
+      marker: marker({ spawnedByArc: true, provisioning: "pending",
+        createdFor: { kind: "errand", slug: "repair", claimId: "claim-1" } }),
+      identities: identitySnapshot(),
+    });
+    expect(row).toMatchObject({ kind: "unresolved-checkout", subject: null, identity: null, context: null });
+    expect(row.diagnostics).toContainEqual({
+      code: "pending-errand-provisioning",
+      message: "Retry arc errand open repair --isolate --json from the free primary checkout. "
+        + "Setup resumes only with a clean checkout and a head preserved by base; preserve local work first.",
+    });
+  });
+
   it("derives active WUs from meta and parked WUs from marker plus non-membership", () => {
     expect(project({ activeMeta })).toMatchObject({
       kind: "work-unit",

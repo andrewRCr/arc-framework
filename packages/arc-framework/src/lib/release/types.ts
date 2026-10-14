@@ -47,6 +47,14 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
 // --- Authorization decision ---
 
 /**
+ * Why `arc release commit` refused an amend it otherwise accepts: `HEAD` is
+ * already on these remote-tracking refs, or they could not be read.
+ */
+export type PushedHeadReading =
+  | { kind: "pushed"; refs: readonly string[] }
+  | { kind: "unreadable"; detail: string };
+
+/**
  * Per-code discriminated payload returned by interlock-validation logic.
  * `authorize` forks to the wrapped git invocation; `refuse` forks to
  * refusal formatting and an audit-log entry.
@@ -67,7 +75,7 @@ export type AuthorizationDecision =
         | { key: "arc.commitInterlock"; value: CommitInterlock }
         | { key: "arc.pushInterlock"; value: PushInterlock };
     }
-  | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string }
+  | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string; head?: PushedHeadReading }
   | { kind: "refuse"; code: 13; identifier: "branch-protection-violation"; branch: string }
   | {
       kind: "refuse";

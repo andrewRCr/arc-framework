@@ -34,9 +34,9 @@
   and preserve the distinction between suppressing prompts and granting approval.
 
 - _Reference:_ CodeRabbit's current `--agent` mode selects NDJSON review output; headless or agent mode returns a
-  structured action-required result when confirmation is needed. See its
-  [review modes](https://docs.coderabbit.ai/cli#review-modes) and
-  [consent behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
+  structured action-required result when confirmation is needed. See its [review
+  modes](https://docs.coderabbit.ai/cli#review-modes) and [consent
+  behavior](https://docs.coderabbit.ai/cli#usage-based-reviews-and-consent) for the concrete precedent.
 
 - _Scope:_ An open design question for `cli-output-contract`, not a commitment to add a flag. Preserve human UX/DX;
   a runtime preset does not itself require separate agent help, a caller-based command partition, or changes in

@@ -16,6 +16,10 @@ async function passRecords(root: string): Promise<string[]> {
   return records.filter(path => /^[a-f0-9]{64}\.json$/u.test(path));
 }
 
+async function gateVerdict(root: string): Promise<unknown> {
+  return JSON.parse(await readFile(join(root, ".git/arc-checks/pre-push.latest.json"), "utf8"));
+}
+
 it("gates the current branch's stdin range at the pushed tip", async () => {
   const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
     inputs: ["src/**"], command: [process.execPath, "capture.cjs"] } });
@@ -86,10 +90,32 @@ it("attributes an invalid push request to its ref and permits a repaired retry",
   expect(JSON.parse(invalid.stdout).error.message).toContain(branch);
   expect(JSON.parse(invalid.stdout).error.message).toContain("arc-checks.yml");
   expect(await passRecords(root)).toEqual([]);
+  expect(await gateVerdict(root)).toMatchObject({ refused: true, error: expect.stringContaining("arc-checks.yml") });
   await writeFile(declarationPath, declaration);
   const repaired = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, lines);
   expect(repaired.exitCode, repaired.stderr).toBe(0);
   expect(JSON.parse(repaired.stdout).result.checks[0].outcome).toBe("passed");
+  expect(await gateVerdict(root)).toMatchObject({ refused: false, refs: [branch], checks: [] });
+});
+
+it("records a refusing push gate's failing checks for the command that pushed", async () => {
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
+    inputs: ["src/**"], command: [process.execPath, "-e", "console.log('content is wrong'); process.exit(1)"] } });
+  roots.push(root);
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["add", "src/a.ts"]);
+  await git(root, ["commit", "-m", "tip"]);
+  const tip = await git(root, ["rev-parse", "HEAD"]);
+  const branch = await git(root, ["symbolic-ref", "HEAD"]);
+
+  const result = await runArcWithStdin(["check", "pre-push", "origin", "local-origin"], root,
+    `${branch} ${tip} ${branch} ${base}\n`);
+
+  expect(result.exitCode, result.stderr).toBe(1);
+  const verdict = await gateVerdict(root);
+  expect(verdict).toMatchObject({ refused: true, refs: [branch],
+    checks: [{ id: "content", outcome: "failed", logPath: expect.any(String), remedy: expect.stringContaining("content") }] });
+  expect(verdict).not.toHaveProperty("error");
 });
 
 it("widens an automatic pushed base that is unavailable locally", async () => {
@@ -162,7 +188,7 @@ it("reuses a new-head pass over the same range at the push boundary", async () =
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).not.toContain("warning:");
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);
@@ -184,7 +210,7 @@ it("passes with a warning when its record directory is blocked, and later gates 
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).toContain(`warning: could not record passes in ${directory}; later gates will run content again`);
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);

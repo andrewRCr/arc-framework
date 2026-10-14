@@ -47,3 +47,25 @@ it.each([
   expect(result.exitCode, result.stderr).toBe(exit);
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ outcome }]);
 });
+
+it.each([
+  { order: "a failure before a kill", first: "000-0-fail", last: "zz-kill" },
+  { order: "a kill before a failure", first: "000-0-kill", last: "zz-fail" },
+])("reports $order in separate batches as failed", async ({ first, last }) => {
+  const script = "const args=process.argv.slice(1);"
+    + "process.exit(args.some(path=>path.includes('-fail'))?1:args.some(path=>path.includes('-kill'))?137:0)";
+  const root = await createDeclaredCheckRepository({ files: {
+    command: [process.execPath, "-e", script], mode: "files", inputs: ["src/batch/**"], cache: false,
+  } });
+  repositories.push(root);
+  await mkdir(join(root, "src/batch"));
+  const paths = [`src/batch/${first}.ts`,
+    ...Array.from({ length: 200 }, (_, index) => `src/batch/${index.toString().padStart(3, "0")}-${"a".repeat(140)}.ts`),
+    `src/batch/${last}.ts`];
+  await Promise.all(paths.map(path => writeFile(join(root, path), "input\n")));
+  const result = await runArc(["check", "run", "files", "--json"], root);
+  expect(result.exitCode, result.stderr).toBe(1);
+  const [check] = JSON.parse(result.stdout).result.checks;
+  expect(check).toMatchObject({ outcome: "failed" });
+  expect(check).not.toHaveProperty("reason");
+});

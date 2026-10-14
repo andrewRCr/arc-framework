@@ -118,6 +118,28 @@ checks:
       - '!.arc/**/temp-*.md'
       - '!arc/**'
     reads_index: true
+  lint:md:underwrap:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md:underwrap
+      - --
+    gate: commit
+    mode: files
+    reads_index: true
+    widen: false
+    cache: false
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
   lint:md:
     command:
       - npm
@@ -247,6 +269,22 @@ checks:
       - packages/arc-framework/arc/system/.internal/scripts/*.sh
       - scripts/**/*.sh
     runtime_inputs:
+      - - shellcheck
+        - --version
+  lint:workflows:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:workflows
+    gate: commit
+    inputs:
+      - .github/workflows/**
+      - .github/actionlint.*
+      - scripts/lint-workflows.sh
+    runtime_inputs:
+      - - actionlint
+        - -version
       - - shellcheck
         - --version
   check-package-sync:
