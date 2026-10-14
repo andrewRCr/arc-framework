@@ -1687,7 +1687,7 @@ the repair needs the agent's input or order (`DEV-RULES.PROJECT`, "Recovery-comp
 | A `created` link's old remote branch deletion named as text, its tracking ref holding commits `HEAD` lacks (§ 6.1)                                                         | `git merge --ff --no-edit <sha>`, then `git push origin --delete <old name>`                                                            | text  |
 | `arc release commit --close` whose close fails after the commit (§ 9.3)                                                                                                    | `arc task close <ids>`                                                                                                                  | typed |
 | An abandon failing after its batch (§ 8.6)                                                                                                                                 | `arc teardown <slug>`                                                                                                                   | typed |
-| A rename whose remote leg or workspace rename fails after its batch (§ 7.1)                                                                                                | `arc rename <old> <new>`, rerun                                                                                                         | typed |
+| A rename whose remote leg fails after its batch (§ 7.1, A3)                                                                                                                | `arc rename <old> <new>`, rerun                                                                                                         | typed |
 | Rename's report of an adopted branch's old remote branch, kept (§ 7.1)                                                                                                     | `git push origin --delete <old name>`, for the branch's owner to decide                                                                 | text  |
 | The workspace close throwing after the records land, before the flip (§ 2.5)                                                                                               | `arc user close <slug>`                                                                                                                 | typed |
 | An abandon's or teardown's report of a kept adopted branch (§ 12.4)                                                                                                        | `git switch` off it where a checkout holds it, then `git branch -D <name>`                                                              | text  |
@@ -2175,6 +2175,6 @@ this design open.
 - **A2** — 2026-10-14 — spec-depth: terminal lineage retains branch authority for cleanup retries.
   _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ pending → 6.9.
 - **A3** — 2026-10-14 — design: off-branch rename leaves the legacy personal workspace untouched.
-  _Supersedes:_ § 7.1 workspace clause. _Trigger:_ F3 review. _Work:_ 4.R. _Revalidated:_ 4.R.
+  _Supersedes:_ § 7.1 workspace clause and § 16 rename remedy row. _Trigger:_ F3 review. _Work:_ 4.R. _Revalidated:_ 4.R.
 
 ---
