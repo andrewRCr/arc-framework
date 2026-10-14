@@ -1,6 +1,6 @@
 /** Git and filesystem selection boundaries for repository Markdown operations. */
 
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/index.js";
 import { resolveCheckoutGitDir, resolveGitCommonDir } from "../git/exec.js";
@@ -41,7 +41,10 @@ export interface ValidateExplicitMarkdownPathsOptions {
   readonly paths: readonly string[];
   /** Only lint reads may follow a final symlink; migration reads require regular-file Git blobs. */
   readonly operation: "mutate" | "worktree-read" | "lint-read";
-  /** Literal formatting inputs may bypass Git selection; physical and authority checks still apply. */
+  /**
+   * Literal formatting inputs bypass Git selection but keep physical and authority checks.
+   * Only the invocation checkout's contained Git directories are excluded; embedded repositories stay eligible.
+   */
   readonly allowIgnoredPaths?: ReadonlySet<string>;
   readonly exec: GitExec;
   readonly lstat: (path: string) => Promise<MarkdownPathStat>;
@@ -165,26 +168,6 @@ function assertOutsideGitDirectories(directories: readonly string[], physical: s
   }
 }
 
-async function assertMarkdownWorktreeFile(
-  options: ValidateExplicitMarkdownPathsOptions,
-  physical: string,
-  path: ManagedPath,
-): Promise<void> {
-  let membership: string;
-  try {
-    const result = await options.exec("git", ["rev-parse", "--is-inside-work-tree"], { cwd: dirname(physical) });
-    membership = result.stdout.trim();
-    if (membership !== "true" && membership !== "false") throw new Error("Unexpected Git worktree classification");
-  } catch (error) {
-    throw new ArcError(`Cannot establish Git worktree membership for Markdown path: ${path}. Check the repository and retry.`,
-      "markdown.selection-failed", { cause: error });
-  }
-  if (membership === "false") {
-    throw selectionError(`Cannot format Git administration path: ${path}. Select a Markdown file in the worktree.`,
-      "markdown.git-administration");
-  }
-}
-
 /**
  * Validate explicit Markdown worktree paths and physical containment before any content loader runs.
  *
@@ -234,7 +217,6 @@ export async function validateExplicitMarkdownPaths(
     }
     assertNativePathContained(options.root, physical, path);
     assertOutsideGitDirectories(gitDirectories, physical, path);
-    if (options.allowIgnoredPaths !== undefined) await assertMarkdownWorktreeFile(options, physical, path);
     if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;

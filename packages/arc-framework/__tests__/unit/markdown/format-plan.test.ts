@@ -210,9 +210,8 @@ describe("explicit Markdown format planning", () => {
       root: "/repo",
       paths: ["docs/table.md", ".arc/backlog/ROADMAP.md"],
       exec: vi.fn(async (_command: string, args: string[]) => ({
-        stdout: args.includes("--is-inside-work-tree") ? "true"
-          : args.includes("--absolute-git-dir") ? "/repo/.git"
-            : args.includes("--git-common-dir") ? ".git" : "tracked",
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
       })),
       lstat: vi.fn(async (path: string) => path.endsWith(".md") ? regularFile : directory),
       realpath: vi.fn(async (path: string) => path),
@@ -257,9 +256,8 @@ describe("explicit Markdown format planning", () => {
       root: "/repo",
       paths: ["packages/arc-framework/arc/reference/demo.md"],
       exec: vi.fn(async (_command: string, args: string[]) => ({
-        stdout: args.includes("--is-inside-work-tree") ? "true"
-          : args.includes("--absolute-git-dir") ? "/repo/.git"
-            : args.includes("--git-common-dir") ? ".git" : "tracked",
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
       })),
       lstat: vi.fn(async (path: string) => {
         if (path === "/repo/.arc/reference") return symbolicLink;
@@ -299,9 +297,8 @@ describe("explicit Markdown format planning", () => {
       root: "/repo",
       paths: ["packages/arc-framework/arc/reference/demo.md"],
       exec: vi.fn(async (_command: string, args: string[]) => ({
-        stdout: args.includes("--is-inside-work-tree") ? "true"
-          : args.includes("--absolute-git-dir") ? "/repo/.git"
-            : args.includes("--git-common-dir") ? ".git" : "tracked",
+        stdout: args.includes("--absolute-git-dir") ? "/repo/.git"
+          : args.includes("--git-common-dir") ? ".git" : "tracked",
       })),
       lstat: vi.fn(async (path: string) => path.endsWith(".md") ? regularFile : directory),
       realpath: vi.fn(async (path: string) => path === "/repo/.arc/reference/demo.md"

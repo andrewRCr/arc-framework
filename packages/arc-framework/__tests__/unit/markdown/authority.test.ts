@@ -335,7 +335,6 @@ describe("Markdown authority", () => {
       exec: scriptGitExec([
         { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
         { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
-        { match: ["rev-parse", "--is-inside-work-tree"], responses: [{ stdout: "true" }] },
         { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
           responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
         { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
@@ -355,16 +354,15 @@ describe("Markdown authority", () => {
     }
   });
 
-  it.each(["unavailable", "invalid-output"])("refuses unestablished formatting ownership (%s)", async failure => {
+  it.each(["unavailable", "invalid-output"])("refuses unavailable invocation-checkout administration (%s)", async failure => {
     await expect(validateExplicitMarkdownPaths({
       root: "/repo", paths: ["private/table.md"], operation: "mutate",
       allowIgnoredPaths: new Set(["private/table.md"]),
       exec: scriptGitExec([
-        { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
-        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
-        { match: ["rev-parse", "--is-inside-work-tree"], responses: [failure === "unavailable"
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [failure === "unavailable"
           ? { failure: { exitCode: 128, stderr: "cannot read repository configuration" } }
-          : { stdout: "unknown" }] },
+          : { stdout: "" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
       ]).exec,
       lstat: async (path: string) => ({
         isFile: () => path.endsWith(".md"), isDirectory: () => !path.endsWith(".md"), isSymbolicLink: () => false,
