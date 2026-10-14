@@ -39,7 +39,7 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   notice?: string;
   divergent?: string[];
   rewritten?: string[];
-  /** Files a file check on a range left unchecked because a merge on that range brought them in unchanged. */
+  /** Files a range's file check left unchecked because a merge on the range brought them in unchanged from the base. */
   mergedIn?: string[];
   logPath?: string;
   costMs?: number;
@@ -221,8 +221,8 @@ async function runRequestedCheck(
     paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths });
     if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
     const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
-    mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merged: resolved.merged,
-      tree: checkedTree, inputs: check.inputs, paths });
+    mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
+      remoteBase: resolved.remoteBase, tree: checkedTree, inputs: check.inputs, paths });
     const left = new Set(mergedIn);
     paths = paths.filter(path => !left.has(path));
     if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: MERGED_IN_ONLY, mergedIn };
