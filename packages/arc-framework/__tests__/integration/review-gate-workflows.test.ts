@@ -837,11 +837,20 @@ describe("trusted review-gate workflows", () => {
     expect(review.slice(upkeep)).toMatch(softWrappedProse("every linked path of a layered design"));
     expect(review).toMatch(softWrappedProse("terminal request after a delivery-owned pushed correction"));
     const delivery = await readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md");
-    const authority = sectionBetween(delivery, "- `authority-required / dispatch-authority-action`", "- `idle / continue-work-unit`");
-    expect(authority).toMatch(softWrappedProse("after the approved correction is pushed"));
-    expect(authority).toContain("pull-request-format");
-    expect(authority).toContain("terminal request");
-    expect(authority).toContain("canonical delivery bindings");
+    const correction = sectionBetween(delivery,
+      "Before authoring or publishing any approved correction", "### Complete a review-fix verification continuation");
+    const upkeepAfterResult = sectionBetween(correction, "After every continuation result", "- `dispatch / dispatch`");
+    expect(upkeepAfterResult).toMatch(softWrappedProse("after the approved correction is pushed"));
+    expect(upkeepAfterResult).toContain("effectLog");
+    expect(upkeepAfterResult).toContain("pull-request-format");
+    expect(upkeepAfterResult).toContain("terminal request");
+    expect(upkeepAfterResult).toContain("canonical delivery bindings");
+    expect(upkeepAfterResult).toContain("published head");
+    for (const result of ["review-status-required", "position"]) expect(upkeepAfterResult).toContain(`\`${result}\``);
+    const authority = sectionBetween(correction,
+      "- `authority-required / dispatch-authority-action`", "- `idle / continue-work-unit`");
+    expect(authority).not.toContain("[description-upkeep]");
+    expect(review).toMatch(softWrappedProse("the delivery workflow performs it after the continuation returns"));
   });
 
   it("refreshes Errand descriptions after pushed fixes and before settlement re-entry", async () => {

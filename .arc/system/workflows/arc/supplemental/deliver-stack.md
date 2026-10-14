@@ -712,6 +712,15 @@ that authority against the canonical plan, versioned Delivery State, persisted o
 boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from a
 selector reconstructed in prose.
 
+After every continuation result, before following its returned step, perform
+[integration's description upkeep][description-upkeep] after the approved correction is pushed. Load
+[pull-request-format][pull-request-format] and update the terminal request against its published head from the
+canonical delivery bindings. Read `effectLog` for the controller's executed and replayed correction effects. This
+upkeep applies before handling `review-status-required`, `position`, or any other returned result after a pushed
+correction, including a stop after partial progress. Diagnose an incomplete description update before advancing;
+retain the original result unchanged for resumption. The returned action keeps its authoring, settlement, and
+review-admission authority.
+
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
@@ -725,10 +734,6 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
-  Before executing that status action after the approved correction is pushed, load
-  [pull-request-format][pull-request-format] and perform [integration's description upkeep][description-upkeep] for
-  the terminal request identified by the canonical delivery bindings. Edit the description only, then pass the
-  retained status action unchanged; this step grants no authoring, settlement, or review-admission authority.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 

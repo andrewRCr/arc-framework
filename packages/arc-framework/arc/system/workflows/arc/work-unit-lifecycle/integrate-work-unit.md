@@ -376,7 +376,8 @@ prior count.
   `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose command
   errors rather than treating them as successful checks. With no design link, skip the link checks. On GitHub, use
   `gh pr edit <n> --body-file <path>` before review re-entry. This same description upkeep applies to the terminal
-  request after a delivery-owned pushed correction; its controller performs it before returning to review status.
+  request after a delivery-owned pushed correction; the delivery workflow performs it after the continuation returns,
+  before following its review status, delivery position, or other returned step.
 
   Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
   for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
