@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { HostedSettleResultSchema, settleHostedFinding, type HostedSettlementPort } from "../../../../../src/scripts/review-gate/hosted/settle.js";
 
-import type { HostedSettlementHeadRegistration } from "../../../../../src/scripts/review-gate/hosted/settlement-head.js";
+import { createHostedSettlementHeadRegistration, type HostedSettlementHeadRegistration } from "../../../../../src/scripts/review-gate/hosted/settlement-head.js";
 
 const oldHead = "a".repeat(40);
 const fixedHead = "b".repeat(40);
@@ -48,6 +48,20 @@ function harness(heads: string[], ancestor = true) {
 }
 
 describe("hosted fix head registration", () => {
+  it("settles with the production clock when monotonic time has fractional milliseconds", async () => {
+    const host = harness([fixedHead]);
+    host.headRegistration = createHostedSettlementHeadRegistration(async () => {
+      throw new Error("an exact host head requires no ancestry read");
+    }, "/repository");
+    const time = vi.spyOn(performance, "now").mockReturnValueOnce(100.25).mockReturnValue(100.5);
+    try {
+      expect(await settleHostedFinding(request, host)).toMatchObject({ state: "settled", nextAction: "complete" });
+      expect(host.state()).toMatchObject({ resolved: true, reply: { body: request.reply } });
+    } finally {
+      time.mockRestore();
+    }
+  });
+
   it.each([true, false])("refreshes an exact reply completed elsewhere during the wait (resolved: %s)", async resolved => {
     const host = harness([oldHead, fixedHead]);
     const sleep = host.headRegistration.clock.sleep;

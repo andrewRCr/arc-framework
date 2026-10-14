@@ -18,7 +18,7 @@ type HeadObservation = { state: "current" } | { state: "stale" } | { state: "pen
 /** Bind local ancestry evidence to the settlement checkout without fetching or changing refs. */
 export function createHostedSettlementHeadRegistration(exec: GitExec, cwd: string): HostedSettlementHeadRegistration {
   return {
-    clock: { now: () => performance.now(), sleep: milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)) },
+    clock: { now: () => Math.floor(performance.now()), sleep: milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)) },
     isAncestor: async (ancestor, descendant, signal) => {
       if (!isGitObjectId(ancestor) || !isGitObjectId(descendant)) {
         throw new Error("Hosted settlement ancestry requires complete Git object ids.");
