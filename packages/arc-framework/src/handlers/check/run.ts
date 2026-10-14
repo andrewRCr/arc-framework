@@ -13,6 +13,7 @@ import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
+import { readMergedInPaths } from "../../lib/checks/merged.js";
 import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
@@ -38,6 +39,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   notice?: string;
   divergent?: string[];
   rewritten?: string[];
+  /** Files a failed file check examined whose content a merge on the checked range brought in unchanged. */
+  mergedIn?: string[];
   logPath?: string;
   costMs?: number;
   lastCostMs?: number;
@@ -226,7 +229,22 @@ async function runRequestedCheck(
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
+  if (result.outcome === "failed") await markMergedIn(io, root, result, { resolved, tree, inputs: check.inputs, paths });
   return { ...result, ...forecast };
+}
+
+/** Name which files a failed file check examined came in unchanged through a merge; an unreadable comparison names none. */
+async function markMergedIn(io: DeclaredCheckDependencies, root: string, result: DeclaredCheckResult, content: {
+  resolved: ResolvedCheckRequest; tree: string; inputs: string[]; paths: string[];
+}): Promise<void> {
+  const { resolved: { base, merged }, tree, inputs, paths } = content;
+  if (base === undefined || merged === undefined || merged.length === 0 || paths.length === 0) return;
+  try {
+    const mergedIn = await readMergedInPaths(io.git, root, { base, tree, merged, inputs, paths });
+    if (mergedIn !== undefined && mergedIn.length > 0) result.mergedIn = mergedIn;
+  } catch {
+    // The mark only explains a failure; a comparison Git could not complete leaves the result as it ran.
+  }
 }
 
 function usesFormingWorktree(check: CheckDeclaration["checks"][string], request: CheckRequest): boolean {

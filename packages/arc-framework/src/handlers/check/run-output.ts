@@ -92,7 +92,14 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${notice}${difference}${rewrites}${cost}${log}`;
   const tail = failed && check.output
     ? `\n${check.output.split(/\r?\n/u).slice(-20).join("\n").slice(-8192)}` : "";
-  return `${heading}${tail}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+  return `${heading}${tail}${renderMergedIn(check)}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+}
+
+/** Name the examined files whose content came in unchanged through a merge, so their findings read as the base's. */
+function renderMergedIn(check: DeclaredCheckResult): string {
+  const paths = check.mergedIn ?? [];
+  if (paths.length === 0) return "";
+  return `\nMerged in unchanged (${paths.length} ${paths.length === 1 ? "file" : "files"}): ${paths.join(", ")}`;
 }
 
 function renderCost(check: DeclaredCheckResult): string {
