@@ -3,7 +3,7 @@
   "slug": "local-e2e-file-forwarding",
   "claimId": "b1648056a3dc3edd62e5845bcf596b6c",
   "createdAt": "2026-10-14T16:52:54.654Z",
-  "updatedAt": "2026-10-14T16:52:54.654Z",
+  "updatedAt": "2026-10-14T18:03:57.852Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Forward the selected E2E files through the local E2E runner instead of running the whole suite",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Forward selected test files through the local E2E runner",
   "originEntrySourceDigest": "sha256:9f65f5edd83714f63a76e0639711263b85a8237da82844e341191f865bf79277",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/local-e2e-file-forwarding",
+    "headSha": "cb83808cbf348bd2f2a2b653e403962a09d5dd45"
+  }
 }
