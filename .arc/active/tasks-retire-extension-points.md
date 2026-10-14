@@ -158,20 +158,14 @@ recipe membership, mixed contract coverage, and the historical event inventory a
   workflow insertion and tracker-notification gaps explicit. Rendered Framework copies and preserved Configurable
   overrides. One approved historical link now retrieves its unchanged target at the pre-removal revision.
 
-### `[ ]` **5.2 Update internal inventories and recipe-derived counts — D6**
+### `[x]` **5.2 Update internal inventories and recipe-derived counts — D6**
 
 - _Goal:_ Current project and root-package descriptions agree with the implemented boundary and recipe-derived membership.
 
-- _Note:_ See `notes-retire-extension-points.md` § Guidance, history, and final sweeps and
-  § Installation and structural map.
-
-    - Amend all four D6 loci in `strategy-pm-composition-evolution.md`, preserving provider authority, capability levels,
-      typed integration, explicit failure, and standalone/composed independence. Use the settled interim-boundary text.
-    - Update storage/procedure machinery inventories, including the point-scanner implication, `PROJECT-PRD.md`,
-      `TECHNICAL-OVERVIEW.md`, package-project sync inventory, and root `README.md`.
-    - Re-derive file/classification counts with `resolveFileList`, `classifyFile`, and the installed manifest; preserve
-      conditional-arm and template membership accuracy. Keep unrelated generic extensibility and platform-hook senses.
-    - Leave `docs/`, `mkdocs.yml`, sibling planning artifacts, and the storage-coupling register untouched.
+- _Outcome:_ Updated all four external-PM composition loci and the storage/procedure, PRD, technical overview, and
+  root-package descriptions. Preserved provider authority, distinct capability levels, typed integration/failure,
+  and standalone/composed independence. Re-derived all six recipe arms and confirmed the installed 103 Framework, 35
+  Configurable, and 4 Scaffolded records agree; membership inventory was synchronized with file removal.
 
 ### `[ ]` **5.3 Record the superseding ADR and event contracts — D7**
 

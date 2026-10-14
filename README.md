@@ -37,9 +37,8 @@ context quality degradation.
 
 ARC lives in your repository as an `.arc/` directory, as shared operational context for both developers
 and agents. These documents aren't only static files — many are also mechanical: workflows
-branch on configuration values, methods define overridable contracts at trigger points,
-extension points inject custom behavior at workflow boundaries, and git hooks enforce
-conventions deterministically at commit time. A CLI manages the full lifecycle:
+branch on configuration values, methods define overridable contracts at trigger points, and
+git hooks enforce conventions deterministically at commit time. A CLI manages the full lifecycle:
 initialization, onboarding, framework updates that preserve your configuration and project standards, and
 session state portability through git notes. Guidance is embedded where it's needed, and conventions
 are enforced where they matter.
@@ -91,8 +90,8 @@ complete structure and what each component does.
   produce better work than marathon ones.
 - **A planning pipeline.** PRDs, task generation, and structured execution workflows are
   part of the core methodology. An optional project management layer adds backlogs,
-  roadmap, and status tracking in-repo alongside your code, or you can integrate with
-  external trackers instead.
+  roadmap, and status tracking in-repo alongside your code. `Origin` links work to external
+  trackers; ARC supplies no lifecycle notification or synchronization mechanism.
 
 ![Task execution — bounded increments with you in the loop](docs/img/task-execution-readme.gif)
 

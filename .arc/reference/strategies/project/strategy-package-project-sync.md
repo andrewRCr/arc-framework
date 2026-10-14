@@ -58,8 +58,7 @@ ambiguous, ask.
 both copies of a Configurable file must be applied with targeted edits, not `cp`. Configurable
 files diverge by design: the package source carries template defaults; the `.arc/` instance
 carries this project's overrides. A blind `cp` from package to instance silently regresses
-every project-specific value (`branch.protection`, interlock policies, `hooks.*_patterns`
-extensions, etc.).
+every project-specific value (`branch.protection`, interlock policies, custom `hooks.*_patterns`, etc.).
 
 **To propagate a schema change correctly:**
 
