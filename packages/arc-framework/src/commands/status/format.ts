@@ -4,21 +4,17 @@
  * JSON emission is not formatter-side — the handler calls `JSON.stringify`
  * on the typed result directly. These builders produce the human-readable
  * Clack note body that pairs with the default (no-`--json`) invocation,
- * rendering four stably-ordered sections (one per probe) plus the identity
+ * rendering three stably-ordered sections (one per probe) plus the identity
  * pointer block.
  *
  * Each probe result delegates to its own probe-specific formatter; failed
  * slots render a single-line "unavailable" marker so one probe's failure
- * does not obscure the other three's output.
+ * does not obscure the other two's output.
  */
 
 import { buildActiveSessionInitSummary, buildActiveStatusSummary } from "../active/format.js";
 import { buildConfigSessionInitSummary, buildConfigStatusSummary } from "../config/format.js";
 import { buildDomainRulesSessionInitSummary } from "../constitution/format.js";
-import {
-  buildExtensionsSessionInitSummary,
-  buildExtensionsStatusSummary,
-} from "../extensions/format.js";
 import {
   buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
@@ -64,7 +60,6 @@ export function buildStatusSummary(result: StatusResult): string {
   const sections: string[] = [
     renderIdentity(result.identity),
     renderSlot("User", result.user, buildUserStatusSummary),
-    renderSlot("Extensions", result.extensions, buildExtensionsStatusSummary),
     renderSlot("Config", result.config, buildConfigStatusSummary),
     renderSlot("Active", result.active, buildActiveStatusSummary),
   ];
@@ -144,7 +139,6 @@ export function buildSessionInitStatusSummary(result: SessionInitProbeResult): s
       : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
-    renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Release Routing", result.releaseRouting, buildReleaseRoutingSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),

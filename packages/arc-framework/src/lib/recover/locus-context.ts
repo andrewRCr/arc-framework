@@ -97,7 +97,6 @@ export function deriveRecoveryLocusContext(options: {
   state: DerivedLocusFrame;
   identity: string | null;
   workingMemoryPath: string | null;
-  activeExtensions: readonly string[];
 }): RecoveryLocusContext {
   const entering = options.state.entering;
   if (entering.kind === "unresolved") {
@@ -151,7 +150,6 @@ function transientContext(
     state: DerivedLocusFrame;
     identity: string | null;
     workingMemoryPath: string | null;
-    activeExtensions: readonly string[];
   },
   row: DerivedCheckoutRow,
   subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
@@ -225,7 +223,6 @@ function transientWorkflow(
 function baseLoadSet(options: {
   identity: string | null;
   workingMemoryPath: string | null;
-  activeExtensions: readonly string[];
 }): LoadSetManifest {
   return resolveLoadSetManifest({
     identity: options.identity,
@@ -235,7 +232,6 @@ function baseLoadSet(options: {
     sessionType: null,
     planningStage: null,
     taskListPath: null,
-    activeExtensions: options.activeExtensions,
     cohortDocPath: null,
   });
 }

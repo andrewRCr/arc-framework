@@ -1173,7 +1173,6 @@ describe("auditRecoveryState", () => {
       sessionType: "planning",
       planningStage: "generate-tasks",
       taskListPath: ".arc/active/tasks-demo.md",
-      activeExtensions: [],
       cohortDocPath: null,
     });
     const row = workUnitRow({
@@ -1212,7 +1211,6 @@ describe("auditRecoveryState", () => {
         }),
         worktreeIdentity: async () => ({ kind: "primary" }),
         dirty: async () => ({ state: "dirty", fileCount: 1 }),
-        extensions: async () => fixtureValue(baseline.extensions),
         config: async () => fixtureValue(baseline.config),
         releaseRouting: async () => fixtureValue(baseline.releaseRouting),
       },
@@ -1226,7 +1224,6 @@ describe("auditRecoveryState", () => {
         worktree: fresh.worktree,
         active: ok({ path: ".arc/active/meta-demo.md", sessionType: "planning", currentWorkflow: "generate-tasks" }),
         loadSet: ok(loadSet),
-        extensions: ok({ active: [] }),
         taskCursor: ok(taskCursor),
       },
       gitSnapshot: { branch: "plan/demo", head: "a".repeat(40), uncommittedFiles: [".arc/active/tasks-demo.md"] },

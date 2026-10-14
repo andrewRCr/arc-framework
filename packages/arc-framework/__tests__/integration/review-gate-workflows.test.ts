@@ -423,7 +423,6 @@ describe("trusted review-gate workflows", () => {
       "### 11) Post-merge worktree cleanup",
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
-    expect(finalGate).toContain("**Extension report** · `#pre-merge`");
     expect(finalGate).toMatch(softWrappedPattern(/approved\s+responses[\s\S]*already\s+performed[\s\S]*not\s+re-approved/iu));
     expect(finalGate).not.toMatch(softWrappedProse("exact candidate-tail diff"));
   });
@@ -841,12 +840,9 @@ describe("trusted review-gate workflows", () => {
     expect(full).toMatch(softWrappedPattern(/never\s+infer[\s\S]*absent\s+or\s+malformed\s+WU\s+state/iu));
     expect(full).toMatch(softWrappedPattern(/strict\s+Errand\s+record[\s\S]*exact\s+PR/iu));
 
-    const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
     const terminalMerge = full.lastIndexOf("arc errand merge <slug> - --json");
-    expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(terminalMerge);
-    expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     const interlockText = full.slice(interlock, terminalMerge);
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
     expect(pinnedInterlockText).toContain("Surface the request");
@@ -1258,11 +1254,9 @@ describe("trusted review-gate workflows", () => {
     expect(gate).not.toMatch(softWrappedProse("head mutation returns to the checkpoint"));
 
     const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
-    const preMerge = gate.indexOf("**Extension report** · `#pre-merge`");
     const approval = indexOfSoftWrappedProse(gate, "Approve (or redirect)?");
     const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
-    expect(lifecycleReady).toBeLessThan(preMerge);
-    expect(preMerge).toBeLessThan(approval);
+    expect(lifecycleReady).toBeLessThan(approval);
     expect(approval).toBeLessThan(merge);
   });
 
@@ -1270,7 +1264,7 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "**Push extension contract**");
+    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "`push-interlock` release");
     expect(resume).toMatch(softWrappedPattern(/`shipped`\s+in\s+`completed`;\s+`open`[\s\S]*Step\s+10/u));
     expect(resume).toMatch(softWrappedPattern(/`merged-at-head`[\s\S]*Verify\s+Phase\s+2\s+products[\s\S]*Step\s+10\s+tail/u));
     expect(resume).toContain("`closed-unmerged`");
@@ -1284,11 +1278,11 @@ describe("trusted review-gate workflows", () => {
       "### 2) Review iteration",
     );
     const resolver = creation.indexOf("arc review change-request resolve --head-ref");
-    const proposedTarget = creation.indexOf("proposedChangeRequest =");
+    const remoteReplay = creation.indexOf("--require-remote");
     const create = creation.indexOf("gh pr create --base");
     expect(resolver).toBeGreaterThan(-1);
-    expect(proposedTarget).toBeGreaterThan(resolver);
-    expect(create).toBeGreaterThan(proposedTarget);
+    expect(remoteReplay).toBeGreaterThan(resolver);
+    expect(create).toBeGreaterThan(remoteReplay);
     expect(creation).toMatch(softWrappedProse("`closed-unmerged / reopen-change-request`"));
     expect(creation).toMatch(softWrappedProse("pre-create exact-head validation"));
     expect(creation).toMatch(softWrappedPattern(/`Local review`\s+field\s+names\s+the\s+carrier[\s\S]*omit\s+it\s+when\s+none\s+ran/u));
@@ -1360,7 +1354,7 @@ describe("trusted review-gate workflows", () => {
     const resumeEntry = sectionBetween(
       packageIntegration,
       "### 1) Push the branch and open the PR",
-      "**Push extension contract**",
+      "`push-interlock` release",
     );
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
     expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));

@@ -180,7 +180,7 @@ export async function applyChangePlan(
 
     // Framework files: wholesale replacement — skip merge, write directly.
     // Adopter modifications are intentionally overwritten; customization
-    // uses methods, extensions, or config — not direct Framework edits.
+    // uses methods, check declarations, or config — not direct Framework edits.
     if (entry.classification === "Framework") {
       let current: string | undefined;
       try {

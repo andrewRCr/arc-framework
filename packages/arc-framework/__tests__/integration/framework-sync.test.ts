@@ -179,8 +179,6 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
       "system/methods/validate-criteria.md",
-      "system/extensions/README.md",
-      "system/extensions/pre-pr-open.md",
       "system/workflows/arc/supplemental/run-errand.md",
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     ];

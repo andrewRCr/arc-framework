@@ -26,7 +26,6 @@ export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
   readonly identity: string;
   readonly baseBranch: string;
-  readonly activeExtensions?: readonly string[];
   readonly exec: GitExec;
 }
 
@@ -84,7 +83,6 @@ export async function runDerivedLocusStateProbe(
   return readDerivedLocusFrame({
     identity,
     identityGlobalUserDir,
-    activeExtensions: options.activeExtensions ?? [],
     enteringCheckoutPath: options.cwd,
     topology: evidence.topology,
     checkouts: evidence.checkouts,

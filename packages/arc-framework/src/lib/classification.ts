@@ -89,18 +89,6 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/test-first.md",
   "system/methods/testing-standards.md",
   "system/methods/validate-criteria.md",
-  // Per-file extensions — adopters toggle `active` and populate `.actions` bodies
-  "system/extensions/post-context-load.md",
-  "system/extensions/post-task-completion.md",
-  "system/extensions/post-work-unit-activate.md",
-  "system/extensions/post-work-unit-archive.md",
-  "system/extensions/pre-activation.md",
-  "system/extensions/pre-commit-review.md",
-  "system/extensions/pre-merge.md",
-  "system/extensions/pre-pr-open.md",
-  "system/extensions/post-pr-open.md",
-  "system/extensions/pre-push-review.md",
-  "system/extensions/pre-spec-finalization-review.md",
 ]);
 
 /**

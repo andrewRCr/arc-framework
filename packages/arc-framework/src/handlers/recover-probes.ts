@@ -5,7 +5,6 @@
  */
 
 import { runConfigSessionInitStatus } from "../commands/config.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
@@ -30,19 +29,13 @@ export function createRecoverStatusProbes(
 ): SessionRecoverProbes {
   const { cwd, dirty, exec, execInput, readFile } = options;
   const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile });
-  const extensionsP = runExtensionsSessionInitStatus({ cwd });
-  // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
-  // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
-  // not an unhandled rejection that kills the process before any slot is composed.
-  extensionsP.catch(() => undefined);
   return {
-    derivedLocusState: async (identity, activeExtensions) => {
+    derivedLocusState: async (identity) => {
       const resolved = await resolvedSettingsP;
       return runDerivedLocusStateProbe({
         cwd,
         identity,
         baseBranch: resolved.settings["branch.base"],
-        activeExtensions,
         exec,
       });
     },
@@ -58,7 +51,6 @@ export function createRecoverStatusProbes(
     },
     worktreeIdentity: () => resolveWorktreeIdentity(exec),
     dirty,
-    extensions: () => extensionsP,
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
   };

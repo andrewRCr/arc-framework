@@ -16,7 +16,7 @@ Your project-specific standards — testing requirements, architecture rules, an
 
 ## Rule Authority
 
-Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
+Every rule ARC states — here, in a method, in a workflow, in a strategy — is a **default**
 unless marked **invariant**.
 
 **`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
@@ -435,12 +435,12 @@ recommended option with a one-line rationale; never a bare fork. The user still 
 
 Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-index] entries that fire.
 
-### Method and extension loading
+### Method loading
 
-A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what that workflow may fire**, not a
+A workflow's `arc.methods` frontmatter is an **index of what that workflow may fire**, not a
 preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire.
 Declare what your own body fires, never what you would carry only on a declared method's behalf. Load declared
-content only when its direct consumer reaches the callout, signature block, extension marker, or other fire-point
+content only when its direct consumer reaches the callout, signature block, or other fire-point
 that invokes it. A declaration the current path never reaches is not a reason to load it. Don't proceed from
 intuition at a fire-point when the declared content is one read away.
 

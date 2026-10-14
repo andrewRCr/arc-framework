@@ -30,6 +30,13 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("lean recovery envelope schema", () => {
+  it("rejects the obsolete top-level extension probe slot", () => {
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, {
+      ...recovery(),
+      extensions: { ok: true, value: { mode: "session-init", active: [], warnings: [] } },
+    });
+  });
+
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
     (value.recoveryFrame as { value: { kind: string } }).value.kind = "unknown";
@@ -48,7 +55,6 @@ describe("lean recovery envelope schema", () => {
     "identity",
     "worktree",
     "dirty",
-    "extensions",
     "config",
     "releaseRouting",
     "derivedLocusState",
@@ -71,12 +77,6 @@ describe("lean recovery envelope schema", () => {
     const value = recovery();
     (value.dirty as { value: Record<string, unknown> }).value.unexpected = true;
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(/dirty\.value:.*unexpected/u);
-  });
-
-  it("rejects undeclared extension fields at the recovery slot", () => {
-    const value = recovery();
-    (value.extensions as { value: Record<string, unknown> }).value.unexpected = true;
-    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/extensions\.value:.*unexpected/u);
   });
 
   it("rejects undeclared config fields at the recovery slot", () => {

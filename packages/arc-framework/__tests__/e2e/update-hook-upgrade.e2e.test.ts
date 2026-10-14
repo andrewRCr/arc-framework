@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 import type { FileEntry, Manifest } from "../../src/lib/types.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
@@ -126,6 +126,7 @@ it("preserves retired check sources and proposes inactive checks while upgrading
       + `## ${name}.${method ? "override" : "actions"}\n${method ? "### Tier 3 full\n" : ""}`
       + `\`\`\`bash\n${command}\n\`\`\`\n`
       + (name === "post-task-quality" ? "Inspect the security dashboard.\n" : "");
+    await mkdir(dirname(join(arcDir, source)), { recursive: true });
     await writeFile(join(arcDir, source), authored[source]!);
   }
   await writeFile(manifestPath, JSON.stringify(manifest));

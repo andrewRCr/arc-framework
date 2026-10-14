@@ -135,8 +135,6 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "user status": "Inspect user notes and directory sync state",
   "user reconcile-references": "Inspect or repair managed user references",
   "user sync": "Synchronize user notes by direction",
-  "extensions": "Inspect ARC extensions",
-  "extensions status": "Show extension state and orphaned references",
   "schema": "Discover registered ARC contracts",
   "schema list": "List registered contract identities and metadata",
   "schema install": "Refresh checkout editor documents",

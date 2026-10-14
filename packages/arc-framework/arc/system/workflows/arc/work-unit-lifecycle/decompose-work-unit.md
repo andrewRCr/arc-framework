@@ -5,8 +5,6 @@ arc:
   methods:
     - commit-format
     - spec-review
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Decompose Work Unit
@@ -171,7 +169,7 @@ feat(planning): decompose {origin}
 Context: {deepest-planning-artifact} (planning)
 ```
 
-The direct commit is the landing. Do not run a pre-push extension, push, open a PR, wait at an integration
+The direct commit is the landing. Do not push, open a PR, wait at an integration
 interlock, or merge.
 
 ### Full protection
@@ -215,9 +213,6 @@ chore(planning): advance decomposition {origin} to current base
 
 Context: {deepest-planning-artifact} (planning)
 ```
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list, load and execute
-  its `.actions` before the push. Halt on failure; otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — push the exact reported candidate branch as `workflowPush`.

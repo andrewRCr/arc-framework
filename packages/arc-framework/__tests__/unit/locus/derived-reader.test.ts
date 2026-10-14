@@ -18,7 +18,6 @@ import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 
 const projectorInputs = vi.hoisted(() => [] as Array<{
   cwd: string;
-  activeExtensions?: readonly string[];
   foreignCheckout?: boolean;
 }>);
 
@@ -137,7 +136,6 @@ function baseOptions(overrides: Partial<ReaderOptions> = {}) {
   ]);
   return {
     identity: "andrew",
-    activeExtensions: [] as readonly string[],
     topology: {
       ok: true as const,
       worktrees: [{
@@ -332,7 +330,6 @@ describe("dormant derived roster reader", () => {
       state: result,
       identity: "andrew",
       workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
-      activeExtensions: [],
     })).toMatchObject({
       frame: {
         kind: "resolved",
@@ -455,12 +452,9 @@ describe("dormant derived roster reader", () => {
       .rejects.toThrow("bad sibling task I/O");
   });
 
-  it("forwards active extensions once into a stable rich WU context", async () => {
-    const activeExtensions = ["release-notes", "security-review"] as const;
-    const result = await readDerivedLocusRoster(baseOptions({ activeExtensions }));
+  it("projects a stable rich work-unit context", async () => {
+    const result = await readDerivedLocusRoster(baseOptions());
 
-    expect(projectorInputs).toHaveLength(1);
-    expect(projectorInputs[0]?.activeExtensions).toBe(activeExtensions);
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toMatchObject({
       kind: "work-unit",

@@ -12,7 +12,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `arc/strategy-adr-methodology.md`
     - Consult when: writing an ADR, deciding whether a decision warrants one
 - `arc/strategy-configurability-architecture.md`
-    - Consult when: working on config, extensions, or methods infrastructure
+    - Consult when: working on config or methods infrastructure
 - `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/promotion, scaling
   boundaries
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
@@ -44,7 +44,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save
       checklist
 - `arc/strategy-workflow-authoring.md`
-    - ALWAYS load before authoring or editing a workflow file — frontmatter, method or extension declarations,
+    - ALWAYS load before authoring or editing a workflow file — frontmatter, method declarations,
       interlock markers, routing class tags; do not copy the shape from an existing workflow.
 - `arc/strategy-team-coordination.md` **(team mode)**
     - ALWAYS load before assigning or transferring work-unit ownership across developers, or setting
