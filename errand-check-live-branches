@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-check-live-branches",
+  "claimId": "cbb4c37ae32006d1aeb0b8b2bb906151",
+  "createdAt": "2026-10-14T04:52:22.683Z",
+  "updatedAt": "2026-10-14T04:52:22.683Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Include never-fetched live work-unit and Errand branches in online overlap checks within the existing bounded fetch budget.",
+  "branch": "chore/errand-check-live-branches",
+  "origin": "inbox",
+  "originEntry": "Let `arc errand check` see in-flight branches this clone has not fetched",
+  "originEntrySourceDigest": "sha256:39ac241b8e79951cfcbe9cdd699bbc1197c71739b0baf080194be566cca8b34d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
