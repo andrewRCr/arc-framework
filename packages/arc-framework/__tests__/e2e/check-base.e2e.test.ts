@@ -11,6 +11,12 @@ const git = promisify(execFile);
 const repositories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
 const command = [process.execPath, "-e", "console.log(JSON.stringify({args:process.argv.slice(1),base:process.env.ARC_CHECK_BASE,tree:process.env.ARC_CHECK_TREE,merged:process.env.ARC_CHECK_MERGED}))"];
+async function mergeAuthoring(root: string, topic: string, path: string, message: string): Promise<void> {
+  await git("git", ["merge", "--no-ff", "--no-commit", topic], { cwd: root });
+  await writeFile(join(root, path), `${message}\n`);
+  await git("git", ["add", path], { cwd: root });
+  await git("git", ["commit", "-m", message], { cwd: root });
+}
 async function fixture(): Promise<string> {
   const root = await createDeclaredCheckRepository({
     files: { command, gate: "commit", mode: "files", inputs: ["src/**"] },
@@ -58,7 +64,8 @@ it("exports only the merged-in parents on a range's first-parent line and none f
   await git("git", ["merge", "--no-ff", "nested", "-m", "nested merge"], { cwd: root });
   const first = (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
   await git("git", ["checkout", branch], { cwd: root });
-  await git("git", ["merge", "--no-ff", "topic-one", "-m", "first merge"], { cwd: root });
+  // Each merge authors a file of its own, since a range's file check leaves out what merges brought in unchanged.
+  await mergeAuthoring(root, "topic-one", "src/own-one.ts", "first merge");
   const own = await runArc(["check", "gate", "commit", "--range", "HEAD^1", "--force", "--json"], root);
   expect(own.exitCode, own.stderr).toBe(0);
   expect(JSON.parse(JSON.parse(own.stdout).result.checks[0].output)).toMatchObject({ base, merged: first });
@@ -68,7 +75,7 @@ it("exports only the merged-in parents on a range's first-parent line and none f
   await git("git", ["commit", "-m", "side two"], { cwd: root });
   const second = (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
   await git("git", ["checkout", branch], { cwd: root });
-  await git("git", ["merge", "--no-ff", "topic-two", "-m", "second merge"], { cwd: root });
+  await mergeAuthoring(root, "topic-two", "src/own-two.ts", "second merge");
   const range = await runArc(["check", "gate", "commit", "--range", base, "--force", "--json"], root);
   expect(range.exitCode, range.stderr).toBe(0);
   const context = JSON.parse(JSON.parse(range.stdout).result.checks[0].output);

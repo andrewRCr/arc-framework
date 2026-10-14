@@ -49,6 +49,41 @@ it("gates the current branch's stdin range at the pushed tip", async () => {
   expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8")).args).toEqual(["src/a.ts"]);
 });
 
+it("holds a push only for files it changed, not files a base merge brought in unchanged", async () => {
+  const rejectBad = "process.exit(process.argv.slice(1).some(f => require('node:fs').readFileSync(f, 'utf8').includes('bad')) ? 1 : 0)";
+  const root = await createDeclaredCheckRepository({ content: { gate: "push", mode: "files", widen: false,
+    inputs: ["src/**"], command: [process.execPath, "-e", rejectBad] } });
+  roots.push(root);
+  await git(root, ["restore", "src/a.ts"]);
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  const branch = await git(root, ["symbolic-ref", "HEAD"]);
+  await git(root, ["checkout", "-b", "incoming"]);
+  await writeFile(join(root, "src/incoming.ts"), "bad\n");
+  await git(root, ["add", "src/incoming.ts"]);
+  await git(root, ["commit", "-m", "incoming"]);
+  await git(root, ["checkout", branch.replace("refs/heads/", "")]);
+  await writeFile(join(root, "src/own.ts"), "good\n");
+  await git(root, ["add", "src/own.ts"]);
+  await git(root, ["commit", "-m", "own"]);
+  await git(root, ["merge", "--no-ff", "incoming", "-m", "merge incoming"]);
+  const push = async () => {
+    const tip = await git(root, ["rev-parse", "HEAD"]);
+    return runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root, `${branch} ${tip} ${branch} ${base}\n`);
+  };
+
+  const merged = await push();
+  expect(merged.exitCode, merged.stderr).toBe(0);
+  expect(JSON.parse(merged.stdout).result.checks).toMatchObject([{ id: "content", outcome: "passed",
+    mergedIn: ["src/incoming.ts"] }]);
+
+  await writeFile(join(root, "src/own.ts"), "bad\n");
+  await git(root, ["commit", "-am", "own regression"]);
+  const own = await push();
+  expect(own.exitCode, own.stderr).toBe(1);
+  expect(JSON.parse(own.stdout).result.checks).toMatchObject([{ id: "content", outcome: "failed",
+    mergedIn: ["src/incoming.ts"] }]);
+});
+
 it("keeps the branch ref unambiguous when a tag shares its short name", async () => {
   const root = await createDeclaredCheckRepository({ content: { gate: "push", inputs: ["src/**"],
     command: [process.execPath, "capture.cjs"] } });

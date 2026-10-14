@@ -1,7 +1,7 @@
 /** Uncapped first-parent range parsing, recoverable read failures, and the checked files merges brought in. */
 import { expect, it } from "vitest";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
-import { readCheckMergedParents, readMergedInPaths } from "../../../../src/lib/checks/merged.js";
+import { readCheckMergedParents, readMergedInPaths, readRangeMergedInPaths } from "../../../../src/lib/checks/merged.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 const base = "a".repeat(40);
 const tip = "b".repeat(40);
@@ -67,4 +67,22 @@ it("stops comparing once a parent settles every changed file", async () => {
     { base, tree, merged: parents, inputs: ["src/**"], paths: ["src/merged.ts"] });
   expect(mergedIn).toEqual(["src/merged.ts"]);
   expect(git.started).toEqual([base, parents[0]]);
+});
+
+it("leaves a range's merged-in files out of its file check", async () => {
+  const git = comparisons({ [base]: ["src/own.ts", "src/merged.ts"], [parents[0] ?? ""]: ["src/own.ts"] });
+  expect(await readRangeMergedInPaths(git.exec, "/repository", { scope: { kind: "range" }, base, tree,
+    merged: [parents[0] ?? ""], inputs: ["src/**"], paths: ["src/own.ts", "src/merged.ts"] })).toEqual(["src/merged.ts"]);
+});
+
+it("leaves every file in for a staged request, which keeps its own merge selection", async () => {
+  const exec: GitExec = async () => { throw new Error("a staged request compares no trees"); };
+  expect(await readRangeMergedInPaths(exec, "/repository", { scope: { kind: "staged" }, base, tree,
+    merged: [parents[0] ?? ""], inputs: ["src/**"], paths: ["src/merged.ts"] })).toEqual([]);
+});
+
+it("leaves every file in when Git cannot compare the trees", async () => {
+  const { exec } = scriptGitExec([{ match: { prefix: [] }, responses: [{ failure: { exitCode: 128, stderr: "bad object" } }] }]);
+  expect(await readRangeMergedInPaths(exec, "/repository", { scope: { kind: "range" }, base, tree,
+    merged: [parents[0] ?? ""], inputs: ["src/**"], paths: ["src/own.ts", "src/merged.ts"] })).toEqual([]);
 });

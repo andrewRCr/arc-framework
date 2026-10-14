@@ -2,6 +2,7 @@
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { selectChangedInputs } from "./matching.js";
+import type { CheckScope } from "./request.js";
 
 /**
  * Read all non-first parents from merges on one first-parent range, without a history cap.
@@ -55,4 +56,26 @@ export async function readMergedInPaths(git: GitExec, root: string, content: {
     }
   }
   return content.paths.filter(path => mergedIn.has(path));
+}
+
+/**
+ * Name the files a file check on a range leaves unchecked: changed on the range, and identical to a merged-in parent,
+ * so their content is that parent's rather than the range's own. Staged requests keep their own merge selection.
+ * Leaving a file out narrows what the check certifies, so a comparison Git cannot complete leaves every file in.
+ * @param git - Git process boundary
+ * @param root - Repository root
+ * @param content - Request scope, base, merged-in parents, checked tree, the check's inputs, and its selected files
+ * @returns The selected files to leave unchecked, in their given order
+ */
+export async function readRangeMergedInPaths(git: GitExec, root: string, content: {
+  scope: CheckScope; base?: string; merged?: readonly string[]; tree: string; inputs: readonly string[];
+  paths: readonly string[];
+}): Promise<string[]> {
+  const { scope, base, merged, tree, inputs, paths } = content;
+  if (scope.kind !== "range" || base === undefined || merged === undefined || merged.length === 0) return [];
+  try {
+    return await readMergedInPaths(git, root, { base, tree, merged, inputs, paths }) ?? [];
+  } catch {
+    return [];
+  }
 }
