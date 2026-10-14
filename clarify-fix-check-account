@@ -3,7 +3,7 @@
   "slug": "clarify-fix-check-account",
   "claimId": "2f004fcb78fb441df9e3d41c0b5568fe",
   "createdAt": "2026-10-14T17:43:19.569Z",
-  "updatedAt": "2026-10-14T17:43:19.569Z",
+  "updatedAt": "2026-10-14T17:58:58.471Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Describe fix-check account corrections by locus and change, excluding verification claims and reviewer attack directions.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Word the fix-check account's grounding corrections as what changed, never as verified",
   "originEntrySourceDigest": "sha256:5edac0aa4650e64fe1614867dd5d27bc0a7e414a0afde2f6455ab2ddbda3c879",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/clarify-fix-check-account",
+    "headSha": "29a7051841cbf428f5493220ac522b818d0e0b58"
+  }
 }
