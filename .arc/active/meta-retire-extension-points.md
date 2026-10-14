@@ -8,16 +8,16 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-retire-extension-points.md`
+- **Design:** `spec-retire-extension-points.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Route the draft's § Coupling captures to `USER-INBOX` (draft close), then begin create-spec
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
