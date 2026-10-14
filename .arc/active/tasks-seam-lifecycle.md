@@ -1854,6 +1854,23 @@ every created branch by its end's rule while keeping and reporting an adopted on
         - a promoted item's Errand branch carrying nothing beyond base and the work branch is reaped, and one carrying
           commits of its own is kept and reported
 
+### `[ ]` **6.5.R Retain terminal branch authority — A2, § 12.1**
+
+- _Goal:_ A2's terminal lineage preserves the retiring primary's exact branch-link list in the removal batch, so
+  teardown can resume cleanup with its created/adopted authority and exclusions after primary removal.
+
+    - `[ ]` **6.5.R.a Validate and write the snapshot**
+
+        - Extend `LineageRecordSchema` and `writeLineageRecord` with optional `retiredBranches`, restricted to terminal
+          abandonment/decomposition and sharing `BranchLinkSchema` and repository/ref uniqueness; preserve array order.
+        - Abandon writes the exact removed primary's branch entries, including an explicit empty list, in its batch.
+
+    - `[ ]` **6.5.R.b Read terminal authority on retry**
+
+        - Teardown reads `retiredBranches` when the primary is removed; completed primaries keep their own links.
+        - Cover missing-snapshot refusal, repair and successful retry, and cleanup retry after a physical failure.
+          No slug/ref-name inference or content-only history supplies authority.
+
 ### `[ ]` **6.6 Return a holding checkout to base, and keep adopted branches — § 12.3, § 12.4**
 
 - _Goal:_ Before a branch is deleted, a clean checkout holding it returns to base, or detaches at base's tip where a
@@ -2198,5 +2215,8 @@ repositories.
 - `[ ]` Off-branch spec-finalized repoint writes the spec Design, `generate-tasks`, and the begin-current-workflow
   action in one checked batch, preserving layered siblings; a refused batch leaves all three fields unchanged, the
   following stage advance is idempotent, and strict stage validation rejects a separate inconsistent tuple (A1).
+
+- `[ ]` Terminal lineage preserves the removed primary's exact branch-link list and cleanup retries use it. Missing
+  branch authority refuses, and repair restores the teardown continuation without branch-name inference (A2).
 
 - `[ ]` Ready for integration

@@ -1133,7 +1133,7 @@ takes the work unit from Active. The path:
 
 1. the removal check (§ 11.1), where a checkout on this machine holds the work unit;
 2. one batch creating the lineage record and removing the primary, which ends the item and moves its ref under
-   history;
+   history; the lineage retains the primary's exact branch-link list for cleanup after removal (§ 12.1, A2);
 3. the checkout's removal, or an anchored checkout's release (§ 11.4);
 4. the reap of a work branch ARC created (§ 12).
 
@@ -1553,6 +1553,17 @@ At each end, teardown keeps today's rule for a branch ARC created, whether or no
   `retirement-authorization.ts`), the teardown retirement and projection modules (`teardown-retirement-driver.ts`,
   `teardown-lifecycle-projection.ts`), and the husk advisory's schema (`current-husk-advisory.ts`).
 
+**Retained branch authority (A2).** Terminal lineage gains `retiredBranches`, an optional array with exactly the
+branch-entry schema and repository/ref uniqueness of `LinksSchema.branches` (`BranchLinkSchema`, `lib/store/links.ts`).
+It is permitted only on `abandon` and `decompose` records. From the flip each terminal writer supplies it, including
+`[]` for an unlinked origin, from the exact primary basis it removes in the same batch; array order, `linkedAs`, and
+exclusions survive unchanged. `LineageRecordSchema` and `writeLineageRecord` (`lib/store/kinds/lineage/`) validate and
+retain it. Today's in-repo writers may omit it. Teardown after primary removal reads this snapshot, never a branch
+name inferred from the slug or a content-only history entry: `HistoryEntrySchema` (`lib/store/contract.ts`) carries
+content, version, and provenance but no links. Missing terminal branch authority refuses with text naming repair of
+the lineage's exact branch snapshot and `arc teardown <slug>` as the retry. A completed primary retains its links and
+needs no snapshot. The decomposition writer's availability is stated in § 19.
+
 #### 12.2 Ref-set reaping
 
 From the flip the terminal operation retires the work unit's whole ref set, local and remote-tracking, of every branch
@@ -1739,6 +1750,8 @@ the change is stated here and built by this change; neither specification is edi
   (§ 9.4).
 - **Completion notes stay the agent's hand edit,** per task, which write-back persists as an annotation (D16), where
   the record kinds leave them to the lifecycle verbs.
+- **Terminal lineage retains branch authority (A2).** `retiredBranches` preserves the retiring primary's exact branch
+  entries, as § 12.1 defines, for cleanup after the primary's removal.
 
 #### 18.2 The storage contract (`spec-storage-contract.md`)
 
@@ -1848,7 +1861,8 @@ holds until then is stated with it.
   branch's commits those captures match, by SHA or copy key as the close matches, its keys from § 5.2's function, each
   once, rather than the entries, since a capture a rewrite replaced stays among them (§ 9.1, § 9.2).
 - **Decomposition:** its reconciling writers following the prepared-write protocol (§ 3), and its cut writing the
-  lineage record a decomposed origin's teardown reads (§ 12.1).
+  lineage record a decomposed origin's teardown reads, including `retiredBranches` from the exact removed primary
+  (§ 12.1, A2). Until that writer supplies the snapshot, teardown refuses missing branch authority with repair and retry.
 - **The routing method:** `route-discovered-work`'s arms for an Active and an Integrating target (§ 14); today it gives
   none, so its gate still proposes holding an entry in an executing work unit.
 
@@ -2139,6 +2153,11 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
     siblings survive, refusal changes none of the three fields, and repeating the following stage advance succeeds.
     The stage check still refuses a separately written inconsistent Design/workflow tuple.
 
+14. **Retirement remains retryable after primary removal (A2).** Abandonment's checked batch preserves the primary's
+    branch links in terminal lineage; a failed physical cleanup resumes through `arc teardown` using that snapshot,
+    preserving created/adopted authority and exclusions. A missing snapshot refuses, and supplying the exact snapshot
+    makes the retry reachable without deriving authority from branch names or content-only history.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 19 each state what holds until their change lands, and none leaves
@@ -2148,5 +2167,7 @@ this design open.
 
 - **A1** — 2026-10-14 — design: spec finalization advances Design and workflow atomically off-branch.
   _Supersedes:_ § 2.2 field-verb row. _Trigger:_ 4.1 must-stop. _Work:_ 4.1.R. _Revalidated:_ pending → 4.9.
+- **A2** — 2026-10-14 — spec-depth: terminal lineage retains branch authority for cleanup retries.
+  _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ pending → 6.9.
 
 ---
