@@ -16,6 +16,7 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { createHostedSettlementHeadRegistration } from "../scripts/review-gate/hosted/settlement-head.js";
 import {
   createGitExec,
   createRawGitExec,
@@ -4090,7 +4091,8 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
           })) {
             return hostedFixNotPerformedResult(request);
           }
-          const result = await settleHostedFinding(request, { port });
+          const result = await settleHostedFinding(request, { port,
+            headRegistration: createHostedSettlementHeadRegistration(exec, root) });
           if (result.state === "settled" || result.state === "already-settled") {
             await settleHostedAttemptFinding(operationStore, {
               operationId: reference.operationId,
