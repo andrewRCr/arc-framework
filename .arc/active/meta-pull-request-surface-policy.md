@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-pull-request-surface-policy.md`
+- **Design:** `spec-pull-request-surface-policy.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
