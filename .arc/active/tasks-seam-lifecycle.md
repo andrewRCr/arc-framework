@@ -549,6 +549,8 @@ in-repo arm passes today's tests unchanged, and no ratchet floor grows.
 - _Goal:_ From the flip no transition renders ROADMAP, writes `STATUS.USER`, stages a meta, commits a ceremony, or opens
   or closes the personal workspace, and rename moves no workspace.
 
+    - _Amended in:_ 4.R (A3)
+
 - _Outcome:_ Operational edge forms omit roadmap/status/workspace effects, staging, and ceremony commits; rename skips
   personal workspace mutation. Legacy edges retain their side effects.
 
@@ -559,6 +561,15 @@ in-repo arm passes today's tests unchanged, and no ratchet floor grows.
 
 - _Outcome:_ Operational cohort consistency keeps supplied member-section validation and field-derived membership
   while retiring folder grouping conditions; legacy validation retains both.
+
+### `[x]` **4.R Keep the legacy workspace outside off-branch rename — A3**
+
+- _Goal:_ Off-branch rename leaves a nonempty legacy personal workspace and its notes state unchanged; a workspace
+  conflict does not prevent the operational rename (A3).
+
+- _Outcome:_ The production operational rename binds only the checkout adapter and leaves nonempty and conflicting
+  legacy workspaces and their notes refs untouched. Remote-branch retry remains available; the in-repo arm retains
+  its workspace operation.
 
 ### `[x]` **4.9 The reroute across the verbs** — validate exit criterion at segment scope
 
@@ -955,3 +966,6 @@ repositories.
   branch authority refuses, and repair restores the teardown continuation without branch-name inference (A2).
 
 - `[ ]` Ready for integration
+
+- `[ ]` Off-branch rename leaves a nonempty legacy personal workspace and its notes state unchanged; a workspace
+  conflict does not prevent the operational rename.

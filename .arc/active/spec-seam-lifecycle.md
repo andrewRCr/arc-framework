@@ -918,13 +918,15 @@ Git's refusal to check out one branch twice guards the rest.
   a spawned checkout's move, through the rename transaction (`createNodeRenameWorktreeTransactionDriver`,
   `commands/rename.ts`) — run before the batch and are rolled back where it refuses, since the roster finds the checkout
   by that name. The remote leg (`reconcileRenameRemoteBranch`, `rename-identity.ts`), which pushes the new name and
-  deletes the old against the head read before the rename, and the personal workspace's rename
-  (`runUserRenameWorkspace`) run after it, each reconciling on rerun, as the remote leg's delete already reads an old
-  name gone as absent (`deleteRemoteBranch`); where one fails the result names `arc rename <old> <new>` as a typed
+  deletes the old against the head read before the rename, runs after it, reconciling on rerun, as its delete reads an old
+  name gone as absent (`deleteRemoteBranch`); where it fails the result names `arc rename <old> <new>` as a typed
   continuation (§ 15), and that rerun, finding the item already named `<new>` as today's rerun reads it (`resuming`,
-  `resolveRenameSubject`), runs only those. The old name's remote branch is deleted only for a link recorded `created`:
+  `resolveRenameSubject`), runs only that leg. The old name's remote branch is deleted only for a link recorded `created`:
   an adopted branch in ARC's form is renamed and pushed under its new name, and its old remote branch stays the
   person's, as an adopted branch's does at activation (§ 6.1), rename's result naming it.
+- **The legacy personal workspace (A3).** From the flip rename leaves its files and notes state untouched, including
+  when both old-name and new-name workspace directories exist. A workspace conflict cannot make the operational
+  rename partial. The call to `runUserRenameWorkspace` remains only in the in-repo arm (§ 1.6, § 2.5).
 - **A stub's rename.** Today renaming a stub switches the checkout to a `chore/rename-<old>-to-<new>` branch cut from
   base, whatever role the checkout holds (`withRenameStubBranch`, `rename-identity.ts`, taken on the stub shape in
   `verbs/rename.ts`). From the flip a stub's rename writes through the store with no branch switch, so one invoked from
@@ -2158,6 +2160,9 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
     preserving created/adopted authority and exclusions. A missing snapshot refuses, and supplying the exact snapshot
     makes the retry reachable without deriving authority from branch names or content-only history.
 
+15. **Rename leaves the legacy workspace untouched (A3).** Off-branch rename leaves a nonempty legacy personal
+    workspace and its notes state unchanged; a workspace conflict does not prevent the operational rename.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 19 each state what holds until their change lands, and none leaves
@@ -2169,5 +2174,7 @@ this design open.
   _Supersedes:_ § 2.2 field-verb row. _Trigger:_ 4.1 must-stop. _Work:_ 4.1.R. _Revalidated:_ pending → 4.9.
 - **A2** — 2026-10-14 — spec-depth: terminal lineage retains branch authority for cleanup retries.
   _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ pending → 6.9.
+- **A3** — 2026-10-14 — design: off-branch rename leaves the legacy personal workspace untouched.
+  _Supersedes:_ § 7.1 workspace clause. _Trigger:_ F3 review. _Work:_ 4.R. _Revalidated:_ 4.R.
 
 ---

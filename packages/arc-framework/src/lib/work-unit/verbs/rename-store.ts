@@ -22,7 +22,6 @@ export interface StoreRenameCheckoutRequest { checkoutPath: string; sourceSlug: 
 export interface StoreRenameContext {
   store: Store; cwd: string; exec: GitExec; baseBranch: string; projectId?: () => Promise<string>; locusPorts?: LocusPorts;
   renameCheckout?: (request: StoreRenameCheckoutRequest) => Promise<StoreRenameCheckoutReceipt>;
-  renameWorkspace?: (request: { sourceSlug: string; targetSlug: string; cwd: string }) => Promise<void>;
   onPreparedAdvisories?: (advisories: readonly string[]) => Promise<void>;
 }
 interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null }
@@ -50,7 +49,7 @@ async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; tar
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
   if (persisted !== undefined) return persisted;
-  const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, subject, target, branch, params);
+  const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, branch, params);
   if (post.status === "partial") return post;
   const shape: RenameSubjectShape = subject.primary.placement?.kind === "backlog" ? "stub"
     : subject.primary.placement?.kind === "completed" ? "archived" : state.checkout?.shape ?? (holder === null ? "in-place" : "spawned");
@@ -122,14 +121,13 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
     run: async () => { await reconcileRenameLocalBranch({ exec }, branch); },
     rollback: async () => { if (changed) await reconcileRenameLocalBranch(ctx, { oldBranch: branch.newBranch, newBranch: branch.oldBranch }); } };
 }
-async function finishRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, branch: BranchRename | undefined,
+async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
   request: { sourceSlug: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Extract<RunRenameResult, { status: "partial" }>> {
   try {
     const remote = branch === undefined ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
       ...branch, remote: "origin", keepOld: branch.prior.linkedAs === "adopted" });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
-    await ctx.renameWorkspace?.({ sourceSlug: subject.originName, targetSlug: target, cwd: ctx.cwd });
     return { status: "complete", remote };
   } catch (error) { return { status: "partial", reason: error instanceof Error ? error.message : String(error),
-    remedy: { text: "Finish the remaining remote and personal workspace rename.", argv: ["arc", "rename", request.sourceSlug, request.targetSlug] } }; }
+    remedy: { text: "Finish the remaining remote branch rename.", argv: ["arc", "rename", request.sourceSlug, request.targetSlug] } }; }
 }

@@ -1,6 +1,6 @@
-/** Production checkout and personal-workspace adapters for record-based rename. */
+/** Production checkout adapter for record-based rename. */
 import { basename, dirname, join, resolve } from "node:path";
-import { runUserRenameWorkspace, type UserIOContext } from "./user.js";
+import type { UserIOContext } from "./user.js";
 import { createNodeRenameWorktreeTransactionDriver, type RenameWorktreeMove } from "../lib/work-unit/rename-worktree-transaction.js";
 import { readWorktreeMarkerGeneration, restoreWorktreeMarkerGeneration } from "../lib/git/worktree-marker.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
@@ -11,13 +11,11 @@ import type { StoreRenameCheckoutReceipt, StoreRenameCheckoutRequest, StoreRenam
 
 /** Bind the physical legs while the verb retains the record and transaction authority.
  * @param command - Resolved repository, identity, and production I/O.
- * @returns Before-batch checkout and after-batch personal workspace adapters.
+ * @returns Before-batch checkout adapter.
  */
-export function storeRenameAdapters(command: { cwd: string; identity: string; io: UserIOContext }): Pick<StoreRenameContext, "renameCheckout" | "renameWorkspace"> {
+export function storeRenameAdapters(command: { cwd: string; io: UserIOContext }): Pick<StoreRenameContext, "renameCheckout"> {
   return {
     renameCheckout: (request) => renameCheckout(command.io.exec, command.cwd, request),
-    renameWorkspace: async (request) => { await runUserRenameWorkspace({ cwd: request.cwd, io: command.io, identity: command.identity,
-      currentWuName: request.targetSlug, oldWuName: request.sourceSlug, newWuName: request.targetSlug }); },
   };
 }
 async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCheckoutRequest): Promise<StoreRenameCheckoutReceipt> {

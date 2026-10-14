@@ -1,6 +1,7 @@
 /** Record rename composes the production marker, worktree and command adapters. */
 import { afterEach, expect, it } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -45,6 +46,23 @@ it("keeps the primary holder in place and its rollback restores the exact prior 
   if (receipt === undefined) throw new Error("No checkout adapter");
   expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
   await receipt.rollback(); expect(await readFile(markerPath)).toEqual(original);
+});
+it.each([false, true])("leaves legacy workspace files and notes untouched with destination present: %s", async (destinationPresent) => {
+  const f = await fixture(false);
+  const source = join(f.root, ".arc", "user", "test-user", "source");
+  const target = join(f.root, ".arc", "user", "test-user", "target");
+  await mkdir(source, { recursive: true }); await writeFile(join(source, "SESSION-NOTES.md"), "# Source notes\n");
+  if (destinationPresent) {
+    await mkdir(target, { recursive: true }); await writeFile(join(target, "SESSION-NOTES.md"), "# Target notes\n");
+  }
+  const notes = (await f.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/notes/"])).stdout;
+  expect(await runRenameCommand(f.command, { sourceSlug: "source", targetSlug: "target" }))
+    .toMatchObject({ status: "renamed", recordBatch: "applied" });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("target");
+  expect(await readFile(join(source, "SESSION-NOTES.md"), "utf8")).toBe("# Source notes\n");
+  if (destinationPresent) expect(await readFile(join(target, "SESSION-NOTES.md"), "utf8")).toBe("# Target notes\n");
+  else await expect(readFile(join(target, "SESSION-NOTES.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await f.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/notes/"])).stdout).toBe(notes);
 });
 it("preserves a marker changed between compensation's check and the inverse transaction snapshot", async () => {
   const f = await fixture(false), path = resolveWorktreeMarkerPath(f.checkout);
