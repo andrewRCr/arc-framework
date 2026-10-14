@@ -138,7 +138,7 @@ async function selectCapableBackend(fixture: ConformanceFixture, repairs: Repair
     return (switched ? capable.store : fixture.store).write({ action: "put", reference: caseId === "unsupported:rename" ? renamed : reference,
       content: (switched ? capable : fixture).content(reference, "changed"), expected: current?.version ?? null, provenance: testProvenance,
       placement: caseId === "unsupported:completed-create" || caseId === "unsupported:placement-move" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" },
-      ...(caseId === "unsupported:links-write" ? { links: { branches: [{ repository: "repo", ref: "feat/example" }] } } : {}) });
+      ...(caseId === "unsupported:links-write" ? { links: { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }] } } : {}) });
   } };
 }
 

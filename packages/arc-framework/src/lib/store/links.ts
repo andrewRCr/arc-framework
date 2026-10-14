@@ -5,15 +5,28 @@ import { RecordReferenceSchema } from "./identity.js";
 
 /** Git object identity used at repository lookup seams. */
 export const CommitShaSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-/** One repository-qualified code capture; a merge commit has no patch identity. */
-export const CommitCaptureSchema = z.strictObject({ repository: z.string().min(1), sha: CommitShaSchema, patchId: CommitShaSchema.optional() });
+/** Versioned author and patch identity for rewritten commit copies. */
+export const CopyKeySchema = z.string().regex(/^v1:[0-9a-f]{64}:[0-9a-f]{64}$/u);
+/** One repository-qualified code capture; a merge commit has no copy identity. */
+export const CommitCaptureSchema = z.strictObject({ repository: z.string().min(1), sha: CommitShaSchema, copyKey: CopyKeySchema.optional() });
 /** A stored code capture. */
 export type CommitCapture = z.infer<typeof CommitCaptureSchema>;
 const captures = z.array(CommitCaptureSchema).refine(
   (values) => new Set(values.map((value) => JSON.stringify([value.repository, value.sha]))).size === values.length,
   "One task cannot capture the same repository-qualified commit twice",
 );
-const branches = z.array(z.strictObject({repository:z.string().min(1),ref:z.string().min(1)}))
+/** One linked branch, its authority, and the commits excluded from task work. */
+export const BranchLinkSchema = z.strictObject({
+  repository: z.string().min(1), ref: z.string().min(1),
+  linkedAs: z.enum(["created", "adopted"]),
+  excluded: z.array(CommitCaptureSchema).refine(
+    (values) => new Set(values.map((value) => JSON.stringify([value.repository, value.sha]))).size === values.length,
+    "A branch link cannot exclude the same repository-qualified commit twice",
+  ),
+});
+/** Branch linkage with explicit creation or adoption authority. */
+export type BranchLink = z.infer<typeof BranchLinkSchema>;
+const branches = z.array(BranchLinkSchema)
   .refine((values)=>new Set(values.map((value)=>JSON.stringify([value.repository,value.ref]))).size === values.length,
     "Each repository-qualified branch occurs at most once");
 /** Base links read without a family-specific parser. */

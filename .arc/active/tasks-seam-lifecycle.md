@@ -364,116 +364,50 @@ agrees under every source § 5.2 pins; the default set over a scripted repositor
 excluded commits by SHA or copy key; the pause section round-trips through its writer; and the widened checks refuse a
 hand edit of `Owner` or the pause, and the move to Active while an inbound entry is held.
 
-### `[ ]` **2.1 Add the branch link's record and exclusions, and the copy key in place of the patch-id — § 5.1, § 18.2**
+### `[x]` **2.1 Add the branch link's record and exclusions, and the copy key in place of the patch-id — § 5.1, § 18.2**
 
 - _Goal:_ A branch link records whether ARC created or adopted its branch and the commits on it that are no task's
   work, and every capture and commit lookup carries a copy key in place of the patch-id, strictly, so a writer states
   both and a `patchId` refuses.
 
-    - `[ ]` **2.1.a The schemas**
+    - `[x]` **2.1.a The schemas**
 
-        - `LinksSchema`'s branch entries become `BranchLinkSchema` with required `linkedAs` (`created` | `adopted`) and
-          `excluded` (`CommitCaptureSchema[]`, unique by repository and SHA), and `CommitCaptureSchema` replaces its
-          optional `patchId` with an optional `copyKey` matching `v1:<64 hex>:<64 hex>` (`lib/store/links.ts`).
+        - Branch links now require creation/adoption authority and repository-qualified exclusions; captures use
+          strict versioned copy keys and refuse patch IDs.
 
-        - Build `test-first` (one behavior at a time):
-            - a branch entry without `linkedAs` or `excluded` refuses
-            - an exclusion listed twice for one repository refuses
-            - a capture carrying `patchId` refuses, and one carrying a well-formed `copyKey` parses
-            - a malformed copy key refuses
+    - `[x]` **2.1.b Lookup matches a SHA, then the copy key**
 
-    - `[ ]` **2.1.b Lookup matches a SHA, then the copy key**
+        - Commit lookup resolves a captured SHA before its copy key in the selected repository, preserving the
+          original refusal shape.
 
-        - `LookupInputSchema`'s commit request carries `copyKey` in place of `patchId` (`lib/store/lookup.ts`), which
-          the `not-found` refusal embeds (`lib/store/refusal.ts`); the reference backend's lookup
-          (`lookupReference`, `__tests__/helpers/store/lookup.ts`) matches a captured SHA first, then the copy key only
-          where no SHA matches in that repository, as it matches the patch-id today, for task captures and the
-          `landingCommit` link alike.
-        - The in-repo implementation's commit lookup (`lookupCommit`, `lib/store/in-repo/lookup.ts`) derives a
-          commit's task from its `Context` footer, stores no links, and reads neither field, so it changes only in the
-          request it parses; the conformance assertion naming the patch-id order and its in-repo exclusion
-          (`__tests__/helpers/store/in-repo-declarations.ts`) are renamed together.
+    - `[x]` **2.1.c The fixtures follow**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a captured SHA resolves its task
-            - a copy key resolves a capture only where no SHA in that repository matches
-            - a copy key that matches nothing resolves nothing
+        - Conformance and reference-backend fixtures carry the strict branch and capture shape; in-repo link-write
+          admission stays unchanged.
 
-    - `[ ]` **2.1.c The fixtures follow**
-
-        - The store tests' branch entries and captures gain the new fields, `patchId` giving way to `copyKey`: the
-          conformance suite's (`suite-lookup.ts`, `suite-records.ts`, `suite-primary-role.ts`), the recovery helpers
-          (`reference-recovery.ts`, `in-repo-recovery.ts`), and the store unit tests that build them
-          (`envelopes.test.ts`, and the reference backend's metadata-ownership, history-transfer, and whole-record
-          conflict tests).
-        - The in-repo admissions keep refusing a links write (`admitTrackedRole`, `write-admission.ts`;
-          `transient-write.ts`), which they decide without parsing the links' shape.
-
-### `[ ]` **2.2 Build the copy key function — § 5.2**
+### `[x]` **2.2 Build the copy key function — § 5.2**
 
 - _Goal:_ One function computes a commit's copy key identically on every clone — `v1:`, a SHA-256 of its raw author
   header value, `:`, and a SHA-256 of a pinned, NUL-escaped `git patch-id --verbatim` — computing none where it cannot,
   so keys computed anywhere match.
 
-- _Note:_ The function returns each commit's committer time beside its key, read from the same header, for the close's
-  attribution (task 7.3).
+    - `[x]` **2.2.a The byte-preserving binding removes named variables**
 
-    - `[ ]` **2.2.a The byte-preserving binding removes named variables**
+        - Both byte-preserving Git bindings remove caller-named environment variables alongside their fixed filters.
 
-        - `RawGitExec`'s options (`lib/git/exec.ts`) take a list of environment variables to remove from the child's
-          environment, beside the fixed filter; `createExecaRawGitExec` (`lib/git/process-executor.ts`) deletes them
-          from the explicit environment it builds, as the parsed binding removes the pathspec variables
-          (`withoutPathspecEnvironment`), and `createSpawnRawGitExec` (`lib/change-facts.ts`), the other
-          implementation of the type, honors the option too, so no binding silently ignores it.
+    - `[x]` **2.2.b The author half**
 
-        - Build `test-first` (one behavior at a time):
-            - a named variable is absent from the child's environment and the fixed filter still applies, in both
-              implementations
+        - The author digest uses raw local-object header bytes with replacement objects disabled.
 
-    - `[ ]` **2.2.b The author half**
+    - `[x]` **2.2.c The patch half**
 
-        - Read the commits' raw headers with `git --no-replace-objects cat-file --batch` from local objects alone
-          (`objectAccess: "local-only"`, which prepends `--no-lazy-fetch`), and hash the author header's bytes after
-          `author` and its space, up to the newline, untouched by `.mailmap` or configuration. `--no-replace-objects`
-          goes on the argument list, since the binding's fixed filter strips `GIT_NO_REPLACE_OBJECTS` from the
-          environment.
+        - The patch digest pins diff inputs, escapes NUL and escape bytes, and retries failed or oversized batches per
+          commit without fetching missing objects.
 
-    - `[ ]` **2.2.c The patch half**
+    - `[x]` **2.2.d One function**
 
-        - Feed the SHAs to `git --no-replace-objects -c core.quotePath=true -c diff.suppressBlankEmpty=false
-          -c diff.indentHeuristic=true diff-tree --stdin -p --full-index --root --text --no-textconv --no-ext-diff
-          --diff-algorithm=myers --ignore-submodules=none` with `GIT_DIFF_OPTS` removed, `--no-replace-objects` being
-          Git's global option, which `diff-tree` refuses after the command (exit 129); double each 0x01 byte and write
-          each NUL as 0x01 0x02; then give the result to `git patch-id --verbatim` on its stdin as a second call, since
-          the bindings take an `input` and pipe nothing. `diff-tree` reads blobs, which a partial clone may lack, and
-          without `objectAccess: "local-only"` it fetches each missing one from the promisor remote, so it runs, its
-          commit-by-commit retry included, from local objects alone, as the author half does; with missing blobs its
-          batch fails, and the retry leaves that commit with no key.
-        - `createSpawnRawGitExec` (`lib/change-facts.ts`) caps no output, so the producer runs on the binding that
-          does (`createExecaRawGitExec`); a merge or an empty commit in a `--stdin` batch emits no patch bytes, so
-          the producer splits the output by commit header rather than counting outputs.
-        - Batch under `MAX_GIT_OUTPUT_BYTES`, retrying commit by commit when a batch fails, an overflow reading as the
-          process error's `output-limit` kind (`lib/git/process-error.ts`); a merge commit, an empty commit, one whose
-          patch alone exceeds the cap, and one whose objects are absent carry no key.
-
-    - `[ ]` **2.2.d One function**
-
-        - `lib/git/copy-key.ts` composes the key from the two halves and is the only producer every writer and reader
-          calls.
-
-        - Build `test-first` (one behavior at a time), integration tier over real repositories:
-            - one commit's key agrees under `core.quotePath`, `diff.suppressBlankEmpty`, `diff.indentHeuristic`, a diff
-              driver's algorithm, `core.bigFileThreshold`, `-diff` from `core.attributesFile`, `.git/info/attributes`,
-              and the checkout's `.gitattributes`, `submodule.<name>.ignore`, and `GIT_DIFF_OPTS`
-            - a replace ref for the commit changes neither half
-            - with one author line held, commits differing only in whitespace get different keys, as do two different
-              edits to a UTF-16 file and two commits differing only in a file after one with no final newline
-            - a commit holding a NUL and one holding the bytes 0x01 0x02 in its place get different keys
-            - a commit with neither a NUL nor a 0x01 byte keeps Git's own patch-id as its patch half's input
-            - a merge, an empty commit, an oversized patch, and absent objects get no key, and a failing batch retries
-              each commit alone
-            - in a partial clone of a promisor remote, a commit whose blobs are missing gets no key and leaves them
-              missing, nothing fetched
+        - All copy identities come from computeCopyKeys; unavailable, empty, and merge patches retain timestamps
+          without a key.
 
 ### `[ ]` **2.3 Compute a branch's default set — § 9.2, § 5.2**
 
@@ -506,9 +440,8 @@ hand edit of `Owner` or the pause, and the move to Active while an inbound entry
           refspec.
         - A failed fetch computes over the base refs the clone has and says base was not refreshed; a clone with no
           `origin` computes over its local base and says nothing about refreshing.
-        - Where no base ref resolves, the computation refuses, naming
-          `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`, or `git branch <base> <commit>` in a clone
-          with no `origin`.
+        - Where no base ref resolves, the computation refuses, naming `git fetch origin
+          +refs/heads/<base>:refs/remotes/origin/<base>`, or `git branch <base> <commit>` in a clone with no `origin`.
 
     - `[ ]` **2.3.c The checkout's linked branch**
 
@@ -1633,9 +1566,9 @@ every created branch by its end's rule while keeping and reporting an adopted on
         - the checkout here holding the work unit, found through `findHoldingCheckout` (5.4), and its uncommitted
           changes, read by the removal check's Git part (1.6.b);
         - the linked branch's commits on no ref another person reaches: after bounded fetches of base, then the branch,
-          each by its explicit refspec as 2.3.b runs them, the commits
-          `git rev-list <branch> --not refs/remotes/origin/<branch> refs/remotes/origin/<base>` lists, either
-          remote-tracking ref dropped where absent;
+          each by its explicit refspec as 2.3.b runs them, the commits `git rev-list <branch> --not
+          refs/remotes/origin/<branch> refs/remotes/origin/<base>` lists, either remote-tracking ref dropped where
+          absent;
         - a failed branch fetch is told apart by `git ls-remote --exit-code origin refs/heads/<branch>`, bounded as the
           fetches are, since Git fails the fetch alike, exit 128, where `origin` lacks the branch and where it cannot be
           reached, and leaves a stale remote-tracking ref in place: exit 2 means `origin` lacks it, a branch never
@@ -1938,10 +1871,9 @@ repositories.
           `lifecycleCommandInputRegistrations` (`handlers/lifecycle.ts`), which `commandInputRegistrations`
           (`command-input-registrations.ts`) collects and the repository inventory test reconciles against every live
           option and operand, with their entries in that test's lists, as 3.4 gives its own.
-        - With no IDs the close takes
-          `resolveTaskListCursor`'s leaf (`lib/task-list/cursor.ts`), refusing where no task is open and naming a
-          deferred task's close, `arc task close <id>`, or a new task; a named ID no task carries, or a task list that
-          does not read, refuses, naming the IDs or the line.
+        - With no IDs the close takes `resolveTaskListCursor`'s leaf (`lib/task-list/cursor.ts`), refusing where no
+          task is open and naming a deferred task's close, `arc task close <id>`, or a new task; a named ID no task
+          carries, or a task list that does not read, refuses, naming the IDs or the line.
         - Both check the pause first (task 6.2) and run in the work unit's checkout.
 
     - `[ ]` **7.1.b The writes**

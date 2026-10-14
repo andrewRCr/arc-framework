@@ -22,7 +22,7 @@ function fields(context: ReferenceContext, record: MemoryRecord): Record<string,
   return parsed.data as Record<string, unknown>;
 }
 
-function commitMatch(record: MemoryRecord, input: Extract<LookupInput, { kind: "commit" }>, match: "sha" | "patchId"): LookupResult | undefined {
+function commitMatch(record: MemoryRecord, input: Extract<LookupInput, { kind: "commit" }>, match: "sha" | "copyKey"): LookupResult | undefined {
   if (!primary(record)) return undefined;
   const value = input[match];
   if (value === undefined) return undefined;
@@ -49,7 +49,7 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   let candidates: LookupResult[];
   if (input.kind === "commit") {
     const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
-    candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "patchId") ?? []);
+    candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "copyKey") ?? []);
   } else if (input.kind === "slug") candidates = preferredSlugRecords(records, input.slug).map((record) => ({ reference: record.reference }));
   else candidates = records.filter((record) => {
     switch (input.kind) {
