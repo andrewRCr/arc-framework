@@ -21,6 +21,7 @@ import type { CheckPassStore, CheckPassWrite } from "../../lib/checks/record.js"
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
+import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
@@ -339,12 +340,22 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
     return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
   }
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
+  const gap = await installGap(selected, result);
+  if (gap !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: gap };
   if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
     : await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
   return { id, kind, ...details, outcome: "passed", record };
+}
+
+/** A check that failed for want of a package its npm lockfile declares could not run; name the install to repair. */
+async function installGap(selected: SelectedCheck, result: { exitCode: number; output: string }): Promise<string | undefined> {
+  const { check, root } = selected;
+  if (result.exitCode === 0 || result.exitCode === check.no_evidence_exit) return undefined;
+  const missing = await findUninstalledLockedPackages(result.output, [...new Set([resolve(root, check.root), root])]);
+  return missing.length === 0 ? undefined : installGapReason(missing);
 }
 
 async function finishCheckRewrites(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<{ rewritten: string[]; reason?: string }> {
