@@ -3121,22 +3121,12 @@
       "count": 1
     }
   },
-  "src/scripts/validate-frontmatter.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/validate-meta-spec.ts": {
     "arc/store-raw-state": {
       "count": 1
     },
     "arc/surface-names": {
       "count": 2
-    }
-  },
-  "src/scripts/validate-package-neutrality.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
     }
   }
 }

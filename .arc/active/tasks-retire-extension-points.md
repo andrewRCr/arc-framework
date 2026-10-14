@@ -12,22 +12,12 @@ _Mode:_ `layer` — closes on validation that no longer requires extension files
 
 _Exit criterion:_ Method and domain-rule validators and method coverage pass without extension validation or coverage.
 
-### `[ ]` **1.1 Retire extension validators and hook branches — D4, D7**
+### `[x]` **1.1 Retire extension validators and hook branches — D4, D7**
 
 - _Goal:_ Commit hooks continue validating methods and domain rules with no dependency on extension validation.
 
-- _Note:_ Runtime/test paths are relative to `packages/arc-framework/`. See `notes-retire-extension-points.md`
-  § Removal ordering and synchronization and § Retrieval revision.
-
-    - Before the first removal, record the full pre-removal `HEAD` in the notes and verify its recoverable source loci.
-    - Delete `src/scripts/validate-extension-points.ts` and its exclusive unit suite; remove
-      `CHECK[extension-point-references]` in both hook copies in this same increment.
-    - Narrow `classifyPath` / `validateFiles` in `validate-frontmatter.ts` and `classifyPackagePath` / `validateFiles`
-      in `validate-package-neutrality.ts`; narrow both hooks' frontmatter and package-neutrality path selection.
-    - Build `test-first` (one behavior at a time):
-        - Method frontmatter and registered method defaults still validate; malformed method inputs still fail.
-        - Domain-rule validation and `CHECK[domain-rules-frontmatter]` still run, including malformed domain rules.
-        - Both hook copies have no removed script invocation; existing hook execution coverage still passes.
+- _Outcome:_ Removed the marker validator and both hook invocations; frontmatter and package neutrality now
+  select surviving methods and domain rules. Recorded the full retrieval revision and verified its source loci.
 
 ### `[ ]` **1.2 Narrow trigger coverage to methods — D4**
 

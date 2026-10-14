@@ -38,7 +38,7 @@ Before the first implementation removal in Task 1.1, capture `git rev-parse HEAD
 That is the retrieval revision for Task 5.3; do not substitute a planning-session HEAD or a later partially retired
 revision. Verify the recorded commit contains the extension files, workflow consumers, and scanner/audit sources.
 
-**Implementation retrieval revision:** [record before the first removal]
+**Implementation retrieval revision:** `966ecb587628cf2643e281f7c9a4823fc494ff74`
 
 Task 5.3 uses that revision with explicit recoverable source paths. The next unused ADR number must be resolved at
 authoring time; `038` was next at task-generation grounding and is not reserved by this note.
