@@ -3,7 +3,7 @@
   "slug": "review-nonconvergence",
   "claimId": "79a912a5d8d6e68885757ef5679c116b",
   "createdAt": "2026-10-13T23:32:21.330Z",
-  "updatedAt": "2026-10-13T23:32:21.330Z",
+  "updatedAt": "2026-10-14T00:27:41.781Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Name planning review that keeps generating its own findings as a re-entry signal at adversarial-review's exit gate, not cap exhaustion",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Treat planning review that never converges as a re-entry signal, not cap exhaustion",
   "originEntrySourceDigest": "sha256:fef2cf7b6e52749654f7c0885496225c7f2790683569c1cb97bc6ec59d710018",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-nonconvergence",
+    "headSha": "c739865caa175e5d0ca6754afcaa0e1188f0c855"
+  }
 }
