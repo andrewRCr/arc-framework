@@ -209,7 +209,7 @@ These choices are independently selectable and default off. Configure only the l
 - **Standard-review sources** — set the ordered `review.standard_sources` list for ordinary review. Hosted
   sources require their provider and repository integration to be available.
 - **Planning auto-merge lane** — under `branch.protection: full`, run the [Set
-  Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
+  Up the Auto-Merge Gate workflow][setup-merge-gate] to add `ci-ok`, planning-path CODEOWNERS, and native
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
   arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
 - **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want

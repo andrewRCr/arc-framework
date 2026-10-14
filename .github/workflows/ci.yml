@@ -63,7 +63,7 @@ jobs:
   # change touches content those suites read but the weight's code tree leaves
   # out, such as ARC prose; the push gate does not run integration.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
-  # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
+  # ci-ok rolls up CI truth and is the single required status check.
   classify:
     name: Classify lane & weight
     runs-on: ubuntu-latest
@@ -839,23 +839,6 @@ jobs:
             exit 1
           fi
           echo "ci-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"
-
-  merge-ok:
-    name: merge-ok
-    permissions: {}
-    needs: ci_ok
-    if: ${{ always() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Mirror ci-ok for required-context compatibility
-        env:
-          CI_OK_RESULT: ${{ needs.ci_ok.result }}
-        run: |
-          if [ "$CI_OK_RESULT" != 'success' ]; then
-            echo "::error::ci-ok did not succeed: $CI_OK_RESULT"
-            exit 1
-          fi
-          echo 'merge-ok compatibility alias ✓'
 
   # Record that this pull-request run passed every heavy job on the code tree it
   # tested, so a later run of the same pull request that tests an identical tree
