@@ -167,22 +167,16 @@ recipe membership, mixed contract coverage, and the historical event inventory a
   and standalone/composed independence. Re-derived all six recipe arms and confirmed the installed 103 Framework, 35
   Configurable, and 4 Scaffolded records agree; membership inventory was synchronized with file removal.
 
-### `[ ]` **5.3 Record the superseding ADR and event contracts — D7**
+### `[x]` **5.3 Record the superseding ADR and event contracts — D7**
 
 - _Goal:_ Architectural history preserves the complete retired event contracts and retrievable source without exposing
   a supported callable interface.
 
-- **Additional Context:** `notes-retire-extension-points.md` § Retrieval revision; `template-adr.md`;
-  `strategy-adr-methodology.md` § ADR Lifecycle and § Amending Accepted ADRs.
-
-    - Resolve the next unused ADR number and document the settled retirement with the full pre-removal revision
-      recorded in Task 1.1 and recoverable source paths; verify retrieval from that revision.
-    - Inventory all eleven D7 events with placements, naming/frequency, authored order, failure/continuation behavior,
-      augmentation limits, retry/idempotence, ready-head constraints, both opaque payloads, and caller/adapter authority.
-    - Distinguish `pre-push-review`'s wrapper-wide promise from `auditPushExtensionCoverage`'s actual workflow enforcement.
-      State the accepted customization/notification gap without reserving names or promising a replacement format/date.
-    - Follow ADR acceptance/supersession conventions. Update only the specified ADR-003/008/013/009 status metadata,
-      retaining prior annotations and all historical bodies; leave Proposed ADR-020 and other ADRs unchanged.
+- _Outcome:_ Added accepted ADR-038 with all eleven event contracts, frequency/naming, authored-order
+  failure/continuation rules, augmentation limits, request payloads and adapter authority, ready-head constraints,
+  and the full retrievable pre-removal revision. Distinguished the push file promise from workflow-audit
+  enforcement; updated exactly four scoped status fields while preserving prior annotations and all historical
+  bodies.
 
 ### `[ ]` **5.4 Close the live-reference and citation sweeps — D1, D3, D8**
 
