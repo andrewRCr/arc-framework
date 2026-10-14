@@ -45,7 +45,15 @@ export interface GitExecOptions {
   objectAccess?: "local-only";
   /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
   preserveOutput?: boolean;
+  /**
+   * Identify this push to its `pre-push` hook. The production executor passes it as
+   * {@link PUSH_GATE_ID_VARIABLE}, under which the push gate records a refusal.
+   */
+  pushGateId?: string;
 }
+
+/** Environment variable through which a push tells its push gate where to record a refusal. */
+export const PUSH_GATE_ID_VARIABLE = "ARC_PUSH_GATE_ID";
 
 /** Plain-Promise, argument-array Git execution seam. */
 export type GitExec = (

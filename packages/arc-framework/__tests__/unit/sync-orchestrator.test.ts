@@ -162,7 +162,8 @@ vi.mock("../../src/lib/release/wu-resolution.js", () => ({
 }));
 
 const mockReadPushGateRefusal = vi.fn();
-vi.mock("../../src/lib/checks/push-gate-record.js", () => ({
+vi.mock("../../src/lib/checks/push-gate-record.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/checks/push-gate-record.js")>()),
   readCheckoutPushGateRefusal: async (input: unknown) => (await mockReadPushGateRefusal(input)) ?? null,
 }));
 
@@ -281,6 +282,14 @@ function resetMockDefaults() {
     }
     return { stdout: "", stderr: "" };
   });
+}
+
+/** The identifier the sync handed its push, read back from the one push gate lookup it made. */
+function readPushGateId(): string {
+  expect(mockReadPushGateRefusal).toHaveBeenCalledTimes(1);
+  const [input] = mockReadPushGateRefusal.mock.calls[0] as [{ pushGateId: string }];
+  expect(input.pushGateId).toMatch(/^[0-9a-f]{32}$/u);
+  return input.pushGateId;
 }
 
 function pushedBranchInvocations(): string[][] {
@@ -646,7 +655,10 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     const outcome = await captureSyncJson();
 
-    expect(mockReadPushGateRefusal).toHaveBeenCalledWith(expect.objectContaining({ cwd: "/repo", branch: "main" }));
+    const pushGateId = readPushGateId();
+    expect(mockReadPushGateRefusal).toHaveBeenCalledWith(expect.objectContaining({ cwd: "/repo", pushGateId }));
+    const push = mockGitExec.mock.calls.find(call => Array.isArray(call[1]) && call[1][0] === "push");
+    expect(push?.[2]).toEqual(expect.objectContaining({ pushGateId }));
     expect(outcome.worktree).toEqual({ action: "push", result: "failed", detail: "push gate refused: lint:md:underwrap failed",
       gate });
     expect(capturedStderr.join("\n")).toContain("Retry: arc check run lint:md:underwrap --range abc1234");
@@ -668,6 +680,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     const outcome = await captureSyncJson();
 
+    expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({ pushGateId: readPushGateId() }));
     expect(outcome.worktree).toEqual({ action: "push", result: "failed",
       detail: "push gate could not run: arc dev build is stale", gate: { error: "arc dev build is stale", checks: [] } });
   });
