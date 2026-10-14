@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft captured after adversarial review; seam asks amended on `main` (#867)
+- **Last Completed:** spec finalized after two adversarial passes and six fix checks (`3bad5707e`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
