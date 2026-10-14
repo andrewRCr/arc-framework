@@ -31,10 +31,9 @@ error naming the fix, since a stale bundle silently produces wrong answers. Rebu
 
 There is no warning tier and no allowlist of safe commands, so read-only commands refuse too.
 The one exception is not a command at all: the compaction-seed write is an option on `status`,
-and it proceeds so that a recovery seed still lands.
-The repository's `commit-msg` hook runs through the CLI as well, so a stale build blocks
-committing until you rebuild — editing source and then committing is the ordinary way to meet
-the check.
+and it proceeds so that a recovery seed still lands. The repository's `commit-msg` hook runs through the CLI as well, so
+a stale build blocks committing until you rebuild — editing source and then committing is the ordinary way to meet the
+check.
 
 The check fires only when the CLI runs as the built bundle in this development checkout.
 Invoking it from source produces no verdict at all, and published installs don't include `src/`,
