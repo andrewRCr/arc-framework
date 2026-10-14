@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "clarify-fix-check-account",
+  "claimId": "2f004fcb78fb441df9e3d41c0b5568fe",
+  "createdAt": "2026-10-14T17:43:19.569Z",
+  "updatedAt": "2026-10-14T17:43:19.569Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Describe fix-check account corrections by locus and change, excluding verification claims and reviewer attack directions.",
+  "branch": "chore/clarify-fix-check-account",
+  "origin": "inbox",
+  "originEntry": "Word the fix-check account's grounding corrections as what changed, never as verified",
+  "originEntrySourceDigest": "sha256:5edac0aa4650e64fe1614867dd5d27bc0a7e414a0afde2f6455ab2ddbda3c879",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
