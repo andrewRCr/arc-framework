@@ -3,14 +3,20 @@
   "slug": "main-underwrap-sweep",
   "claimId": "089144c4b25fe9f6b97138c31a965a3b",
   "createdAt": "2026-10-14T03:42:27.219Z",
-  "updatedAt": "2026-10-14T03:42:27.219Z",
+  "updatedAt": "2026-10-14T04:16:39.479Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Rewrap main's under-wrapped Markdown lines that block branches merging main",
   "branch": "chore/main-underwrap-sweep",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/main-underwrap-sweep",
+    "headSha": "3f3aa4468f03a47e3b68415a83ae823d8f260c53"
+  }
 }
