@@ -370,6 +370,26 @@ checks:
     shards:
       count: 4
       argument: --shard={index}/{count}
+  # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
+  test:integration:content:
+    command:
+      - bash
+      - scripts/check-runner.sh
+      - npm
+      - run
+      - -s
+      - test:integration
+    mode: files
+    pass_paths: false
+    cache: false
+    inputs:
+      - .arc/**/*.md
+      - packages/arc-framework/arc/**/*.md
+      - '!.arc/active/**'
+      - '!.arc/backlog/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/**'
+      - '!.arc/system/.internal/candidates/**'
   test:arc-contracts:
     command:
       - bash
