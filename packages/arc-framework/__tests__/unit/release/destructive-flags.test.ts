@@ -57,6 +57,15 @@ describe("detectCommitDestructive", () => {
     expect(detectCommitDestructive(["-m", "msg", flag])).toBe(flag);
   });
 
+  it.each([
+    ["--allow-empt", "--allow-empty"],
+    ["--no-verif", "--no-verify"],
+    ["--no-verif=true", "--no-verify"],
+    ["--a", "--allow-empty"],
+  ])("refuses the long-option prefix %s as %s", (token, flag) => {
+    expect(detectCommitDestructive(["-m", "subject", token])).toBe(flag);
+  });
+
   it("returns the first match when multiple destructive flags are present", () => {
     expect(detectCommitDestructive(["--no-verify", "--allow-empty"])).toBe("--no-verify");
   });
@@ -84,6 +93,8 @@ describe("detectCommitDestructive", () => {
     ["short message cluster", ["-qm", "-n"]],
     ["pathspec after terminator", ["--", "-n"]],
     ["long pathspec after terminator", ["--", "--no-verify"]],
+    ["abbreviated message data", ["--message", "--no-verif"]],
+    ["abbreviated pathspec data", ["--", "--no-verif"]],
   ])("does not reinterpret destructive-looking %s data", (_label, args) => {
     expect(detectCommitDestructive(args)).toBeNull();
   });
@@ -97,6 +108,8 @@ describe("detectCommitAmend", () => {
   it.each([
     [["--amend"]],
     [["--amend", "--no-edit"]],
+    [["--amen", "--no-edit"]],
+    [["--ame"]],
     [["-m", "subject", "--amend"]],
   ])("reports an amend in %j", (args) => {
     expect(detectCommitAmend(args)).toBe(true);
@@ -107,6 +120,8 @@ describe("detectCommitAmend", () => {
     ["separated message operand", ["-m", "--amend"]],
     ["separated file operand", ["-F", "--amend"]],
     ["pathspec after terminator", ["--", "--amend"]],
+    ["abbreviated message operand", ["-m", "--amen"]],
+    ["abbreviated pathspec", ["--", "--amen"]],
   ])("does not report an amend for %s", (_label, args) => {
     expect(detectCommitAmend(args)).toBe(false);
   });
@@ -130,6 +145,15 @@ describe("detectPushDestructive", () => {
     ["--mirror"],
   ])("returns the flag identifier when %s is present", (flag) => {
     expect(detectPushDestructive(["origin", flag])).toBe(flag);
+  });
+
+  it.each([
+    ["--for", "--force"],
+    ["--force-with-l=main:abc", "--force-with-lease"],
+    ["--delet", "--delete"],
+    ["--mirro", "--mirror"],
+  ])("refuses the long-option prefix %s as %s", (token, flag) => {
+    expect(detectPushDestructive([token])).toBe(flag);
   });
 
   it("returns the canonical refspec identifier when an argv element starts with '+'", () => {
@@ -159,4 +183,15 @@ describe("detectPushDestructive", () => {
       PUSH_REFSPEC_FORCE_IDENTIFIER,
     );
   });
+});
+
+describe("destructive-looking option names", () => {
+  it.each(["--allow-empty-message", "--no-verify-extra", "--", "-"])(
+    "does not extend a refusal to the distinct token %s",
+    (token) => {
+      expect(detectCommitDestructive([token])).toBeNull();
+      expect(detectCommitAmend([token])).toBe(false);
+      expect(detectPushDestructive([token])).toBeNull();
+    },
+  );
 });

@@ -53,19 +53,19 @@ export const PUSH_DESTRUCTIVE_FLAGS = [
 export const PUSH_REFSPEC_FORCE_IDENTIFIER = "+refspec";
 
 /**
- * Match `argv` against a destructive-flag list, recognizing both the bare
- * flag token and the `<flag>=<value>` parameterized form. Git documents
- * `--force-with-lease[=<refname>[:<expect>]]`; treat any
- * `--force-with-lease=...` argv element as the same safety category. The
- * normalized identifier (the bare flag) is returned so refusal-message
- * lookup keys stay stable across attached-value variants.
+ * Match exact flags and attached values first, then conservatively refuse
+ * long-option prefixes of a listed flag, including ambiguous prefixes. Git
+ * accepts abbreviated long options; a refusal must not depend on spelling
+ * the full name. Return the canonical flag for stable refusal messages.
  */
 function matchDestructive(token: string, flags: readonly string[]): string | null {
   for (const flag of flags) {
     if (token === flag) return flag;
     if (token.startsWith(`${flag}=`)) return flag;
   }
-  return null;
+  const name = token.split("=", 1)[0];
+  if (name === undefined || !name.startsWith("--") || name.length <= 2) return null;
+  return flags.find((flag) => flag.startsWith(name)) ?? null;
 }
 
 /** Yield each commit argv token before `--` that is not an option's operand. */
@@ -99,7 +99,7 @@ export function detectCommitDestructive(argv: readonly string[]): string | null 
  */
 export function detectCommitAmend(argv: readonly string[]): boolean {
   for (const token of commitOptionTokens(argv)) {
-    if (token === "--amend") return true;
+    if (matchDestructive(token, ["--amend"]) !== null) return true;
   }
   return false;
 }
@@ -119,8 +119,8 @@ function containsNoVerifyShortOption(token: string): boolean {
 
 /**
  * Return the matched push-side destructive-flag identifier on first hit
- * across `argv`, or null when none match. Matches both bare flag tokens
- * and `<flag>=<value>` parameterized forms (see {@link matchDestructive}).
+ * across `argv`, or null when none match. Matches exact flags, attached
+ * values, and conservative long-option prefixes (see {@link matchDestructive}).
  * Also recognizes the `+refspec` pattern (any token whose first character
  * is `+` and that has a body after the `+`), returning
  * {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
