@@ -115,18 +115,13 @@ _Mode:_ `replication` through Phase 5 — closes on the complete live mechanism 
 
 _Purpose:_ Close the accepted workflow grammar and remove installed membership while proving unchanged update retention.
 
-### `[ ]` **4.1 Reject retired workflow declarations — D4**
+### `[x]` **4.1 Reject retired workflow declarations — D4**
 
 - _Goal:_ The workflow grammar admits surviving method declarations and rejects any leftover extension key.
 
-    - Confirm no live packaged/installed workflow declaration remains; then remove `extensions` from
-      `WORKFLOW_ARC_FRONTMATTER_FIELDS`, `WorkflowDeclarations`, and `parseWorkflowFrontmatter` results/array parsing.
-    - Preserve `METHOD_ARC_FRONTMATTER_FIELDS`, method dependency parsing, and all surviving shape diagnostics.
-    - Build `test-first` (one behavior at a time):
-        - `arc.extensions`, even an empty array, reports an unknown workflow frontmatter field.
-        - Valid methods, malformed/unknown method declarations, transitive graph coverage, and method schema rules
-          retain their existing outcomes.
-    - Run the mixed audit unit suite and `npm run -s lint:arc:triggers` over the real corpus.
+- _Outcome:_ Closed workflow frontmatter to method declarations and removed extension fields from parse results.
+  Empty, populated, and malformed obsolete declarations now report an unknown field; surviving method shapes,
+  activation registry, dependency graph, and real-corpus coverage remain valid.
 
 ### `[ ]` **4.2 Narrow integrity, check inputs, and audit routing — D4, D8**
 

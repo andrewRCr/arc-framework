@@ -28,7 +28,6 @@ import {
 /** Declarations extracted from a single workflow file's frontmatter. */
 export interface WorkflowDeclarations {
   methods: string[];
-  extensions: string[];
   /** Present when YAML parsing or declaration-shape validation fails; declarations are empty in that case. */
   parseError?: string;
 }
@@ -55,7 +54,7 @@ export interface WorkflowEntry {
   content: string;
 }
 
-const WORKFLOW_ARC_FRONTMATTER_FIELDS = new Set(["methods", "extensions"]);
+const WORKFLOW_ARC_FRONTMATTER_FIELDS = new Set(["methods"]);
 
 /**
  * List entry names (filename without `.md`) under `dir`, excluding `README.md`.
@@ -107,27 +106,27 @@ export function auditActivatableMethodCorpus(methodsDir: string): string[] {
 }
 
 /**
- * Parse `arc.methods` and `arc.extensions` from a workflow file's frontmatter.
+ * Parse `arc.methods` from a workflow file's frontmatter.
  *
- * - Returns empty arrays (no error) for files without a triple-dash block.
+ * - Returns an empty array (no error) for files without a triple-dash block.
  * - Returns a parseError string when YAML parsing fails.
- * - Returns a parseError string for malformed `arc`, `arc.methods`, or `arc.extensions` shapes.
+ * - Returns a parseError string for malformed `arc` or `arc.methods` shapes.
  */
 export function parseWorkflowFrontmatter(
   content: string,
 ): WorkflowDeclarations {
   const { data, parseError } = parseFrontmatter(content);
   if (parseError !== undefined) {
-    return { methods: [], extensions: [], parseError };
+    return { methods: [], parseError };
   }
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
-    return { methods: [], extensions: [] };
+    return { methods: [] };
   }
   const root = data as Record<string, unknown>;
-  if (!("arc" in root)) return { methods: [], extensions: [] };
+  if (!("arc" in root)) return { methods: [] };
   const arc = root.arc;
   if (arc === null || typeof arc !== "object" || Array.isArray(arc)) {
-    return { methods: [], extensions: [], parseError: '"arc" must be a mapping' };
+    return { methods: [], parseError: '"arc" must be a mapping' };
   }
   const declarations = arc as Record<string, unknown>;
   const unknownFields = Object.keys(declarations)
@@ -136,7 +135,6 @@ export function parseWorkflowFrontmatter(
   if (unknownFields.length > 0) {
     return {
       methods: [],
-      extensions: [],
       parseError: unknownFields
         .map((key) => `unknown workflow \`arc\` frontmatter field \`${key}\``)
         .join("; "),
@@ -144,21 +142,16 @@ export function parseWorkflowFrontmatter(
   }
   const methods = parseDeclarationArray(declarations.methods, "arc.methods");
   if (methods.error !== undefined) {
-    return { methods: [], extensions: [], parseError: methods.error };
-  }
-  const extensions = parseDeclarationArray(declarations.extensions, "arc.extensions");
-  if (extensions.error !== undefined) {
-    return { methods: [], extensions: [], parseError: extensions.error };
+    return { methods: [], parseError: methods.error };
   }
   return {
     methods: methods.values,
-    extensions: extensions.values,
   };
 }
 
 function parseDeclarationArray(
   value: unknown,
-  locus: "arc.methods" | "arc.extensions",
+  locus: "arc.methods",
 ): { values: string[]; error?: string } {
   if (value === undefined) return { values: [] };
   if (!Array.isArray(value)) return { values: [], error: `${locus} must be an array` };

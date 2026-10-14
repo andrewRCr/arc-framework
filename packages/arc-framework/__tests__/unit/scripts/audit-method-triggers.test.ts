@@ -64,24 +64,12 @@ function method(name: string, dependencies: string[] = []): string {
   ].join("\n");
 }
 
-function workflow(methods: string[], extensions: string[]): string {
-  const body = [
-    "---",
-    "purpose: test",
-    "audience: agent",
-    "arc:",
-    ...(methods.length > 0
-      ? ["  methods:", ...methods.map((m) => `    - ${m}`)]
-      : []),
-    ...(extensions.length > 0
-      ? ["  extensions:", ...extensions.map((e) => `    - ${e}`)]
-      : []),
-    "---",
-    "",
-    "# Workflow",
-    "",
+function workflow(methods: string[]): string {
+  return [
+    "---", "purpose: test", "audience: agent",
+    ...(methods.length > 0 ? ["arc:", "  methods:", ...methods.map((m) => `    - ${m}`)] : []),
+    "---", "", "# Workflow", "",
   ].join("\n");
-  return body;
 }
 
 // --- enumerateMethods ---
@@ -130,22 +118,19 @@ describe("activatable method corpus", () => {
 
 describe("parseWorkflowFrontmatter", () => {
   it("parses arc.methods array from frontmatter", () => {
-    const out = parseWorkflowFrontmatter(workflow(["alpha", "beta"], []));
+    const out = parseWorkflowFrontmatter(workflow(["alpha", "beta"]));
     expect(out.methods).toEqual(["alpha", "beta"]);
-    expect(out.extensions).toEqual([]);
     expect(out.parseError).toBeUndefined();
   });
 
-  it("parses arc.extensions array from frontmatter", () => {
-    const out = parseWorkflowFrontmatter(workflow([], ["ext-one", "ext-two"]));
-    expect(out.extensions).toEqual(["ext-one", "ext-two"]);
-    expect(out.methods).toEqual([]);
+  it.each(["[]", "[post-x]", "post-x", "[post-x, false]"])("rejects the retired extension declaration %s", (value) => {
+    const out = parseWorkflowFrontmatter(`---\narc:\n  extensions: ${value}\n---\n`);
+    expect(out).toEqual({ methods: [], parseError: "unknown workflow `arc` frontmatter field `extensions`" });
   });
 
-  it("returns empty arrays and no error for a workflow without frontmatter", () => {
+  it("returns empty methods and no error for a workflow without frontmatter", () => {
     const out = parseWorkflowFrontmatter("# Just a heading\n\nSome prose.\n");
     expect(out.methods).toEqual([]);
-    expect(out.extensions).toEqual([]);
     expect(out.parseError).toBeUndefined();
   });
 
@@ -154,29 +139,21 @@ describe("parseWorkflowFrontmatter", () => {
     const out = parseWorkflowFrontmatter(bad);
     expect(out.parseError).toBeDefined();
     expect(out.methods).toEqual([]);
-    expect(out.extensions).toEqual([]);
   });
 
   it.each([
     ["a non-mapping arc declaration", "arc: []", '"arc" must be a mapping'],
     ["a non-array methods declaration", "arc:\n  methods: alpha", "arc.methods must be an array"],
     ["a mixed-type methods declaration", "arc:\n  methods: [alpha, 123]", "arc.methods must contain only strings"],
-    ["a non-array extensions declaration", "arc:\n  extensions: post-x", "arc.extensions must be an array"],
     [
       "an unknown arc field",
       "arc:\n  method: [alpha]",
       "unknown workflow `arc` frontmatter field `method`",
     ],
-    [
-      "a mixed-type extensions declaration",
-      "arc:\n  extensions: [post-x, false]",
-      "arc.extensions must contain only strings",
-    ],
   ])("reports a parseError for %s", (_label, declaration, diagnostic) => {
     const out = parseWorkflowFrontmatter(`---\npurpose: test\n${declaration}\n---\n`);
     expect(out).toEqual({
       methods: [],
-      extensions: [],
       parseError: diagnostic,
     });
   });
@@ -185,14 +162,14 @@ describe("parseWorkflowFrontmatter", () => {
 // --- buildCoverageMap ---
 
 describe("buildCoverageMap", () => {
-  function wf(path: string, methods: string[], extensions: string[]): WorkflowEntry {
-    return { path, content: workflow(methods, extensions) };
+  function wf(path: string, methods: string[]): WorkflowEntry {
+    return { path, content: workflow(methods) };
   }
 
   it("records workflow paths against declared methods", () => {
     const cov = buildCoverageMap(
       ["alpha", "beta"],
-      [wf("a.md", ["alpha"], []), wf("b.md", ["alpha", "beta"], [])],
+      [wf("a.md", ["alpha"]), wf("b.md", ["alpha", "beta"])],
     );
     expect(cov.methods.get("alpha")).toEqual(["a.md", "b.md"]);
     expect(cov.methods.get("beta")).toEqual(["b.md"]);
@@ -204,7 +181,7 @@ describe("buildCoverageMap", () => {
       ["alpha"],
       [
         { path: "bad.md", content: "---\n  not: [valid\n---\n" },
-        wf("good.md", ["alpha"], []),
+        wf("good.md", ["alpha"]),
       ],
     );
     expect(cov.parseDiagnostics).toHaveLength(1);
@@ -228,15 +205,15 @@ describe("diagnostic formatters", () => {
 // --- audit() end-to-end ---
 
 describe("audit", () => {
-  function writeWorkflow(rel: string, methods: string[], extensions: string[]): void {
-    writeFile(rel, workflow(methods, extensions));
+  function writeWorkflow(rel: string, methods: string[]): void {
+    writeFile(rel, workflow(methods));
   }
 
   it("passes when every method has a declaration", async () => {
     const methods = writeMethodsDir(["alpha"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
     const result = await audit(methods, workflows);
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
@@ -244,7 +221,7 @@ describe("audit", () => {
 
   it("validates method coverage at managed push sites without hook declarations", async () => {
     const methods = writeMethodsDir(["alpha"]);
-    writeFile("workflows/push.md", `${workflow(["alpha"], [])}\narc release push\n`);
+    writeFile("workflows/push.md", `${workflow(["alpha"])}\narc release push\n`);
     expect(await audit(methods, join(tmp, "workflows"))).toEqual({ pass: true, diagnostics: [] });
   });
 
@@ -254,7 +231,7 @@ describe("audit", () => {
     writeFileSync(join(methods, "beta.md"), method("beta", ["gamma"]));
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
 
     const result = await audit(methods, workflows);
     expect(result).toEqual({ pass: true, diagnostics: [] });
@@ -266,7 +243,7 @@ describe("audit", () => {
     writeFileSync(join(methods, "beta.md"), method("beta", ["shared"]));
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha", "beta"], []);
+    writeWorkflow("workflows/one.md", ["alpha", "beta"]);
 
     const result = await audit(methods, workflows, new Set(["shared"]));
     expect(result.diagnostics).toContain(
@@ -278,7 +255,7 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha", "missing"], []);
+    writeWorkflow("workflows/one.md", ["alpha", "missing"]);
 
     const result = await audit(methods, workflows);
     expect(result.diagnostics).toContain(
@@ -290,7 +267,7 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/good.md", ["alpha"], []);
+    writeWorkflow("workflows/good.md", ["alpha"]);
     writeFile("workflows/typo.md", "---\narc:\n  method: [alpha]\n---\n");
 
     const result = await audit(methods, workflows);
@@ -305,7 +282,7 @@ describe("audit", () => {
     writeFileSync(join(methods, "alpha.md"), method("alpha", ["missing"]));
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
 
     const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
@@ -320,7 +297,7 @@ describe("audit", () => {
     writeFileSync(join(methods, "beta.md"), method("beta", ["alpha"]));
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
 
     const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
@@ -331,18 +308,17 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
     const result = await audit(methods, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("\"beta\"") && d.includes("arc.methods"))).toBe(true);
   });
 
-
   it("passes when an undeclared method is listed as wiring-pending", async () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
     const result = await audit(methods, workflows, new Set(["beta"]));
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
@@ -352,7 +328,7 @@ describe("audit", () => {
     const methods = writeMethodsDir(["alpha"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
-    writeWorkflow("workflows/one.md", ["alpha"], []);
+    writeWorkflow("workflows/one.md", ["alpha"]);
     const result = await audit(methods, workflows, new Set(["alpha"]));
     expect(result.pass).toBe(false);
     expect(
