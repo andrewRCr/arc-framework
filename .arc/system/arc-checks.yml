@@ -446,6 +446,8 @@ checks:
       - scripts/run-local-e2e.mjs
       - .arc/system/arc-checks.yml
 global_inputs:
+  - .npmrc
+  - scripts/check-install-policy.mjs
   - package.json
   - scripts/check-runner.sh
   - package-lock.json

@@ -258,6 +258,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Resolve local base branch
       run: git show-ref --verify --quiet refs/heads/main || git branch main origin/main
     - name: Forecast merge checks
@@ -317,6 +319,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Download check forecast
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -358,6 +362,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Download check forecast
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -475,6 +481,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Download check forecast
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -547,6 +555,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: arc-framework-dist
@@ -618,6 +628,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: arc-framework-dist
@@ -686,6 +698,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Download writer durations
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
@@ -730,6 +744,8 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: arc-framework-dist
@@ -776,6 +792,8 @@ jobs:
         node-version: 'lts/*'
         cache: 'npm'
     - run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
     - name: Download check forecast
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:

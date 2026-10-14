@@ -48,7 +48,9 @@
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "lint:arc:links": "node --import tsx packages/arc-framework/src/scripts/audit-links.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "setup": "npm run check:install && npm rebuild esbuild --ignore-scripts=false && npm run prepare",
+    "check:install": "node scripts/check-install-policy.mjs"
   },
   "devDependencies": {
     "@types/markdown-it": "14.2.0",
