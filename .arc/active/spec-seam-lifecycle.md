@@ -395,11 +395,19 @@ Each verb in § 1.2 reads `capabilities` from the store it opens and branches on
 | `arc pause`, `arc resume`                             | none                                  | the pause section written or cleared (§ 8.1)                                                                                                                                                                                                                                                                                 |
 | `arc handover`                                        | none                                  | `Owner` (§ 8.5)                                                                                                                                                                                                                                                                                                              |
 | `arc rename`                                          | none                                  | the name and aliases, with the reference sweep's edits, and a renamed branch's link under its new `ref` (§ 7.1)                                                                                                                                                                                                              |
-| `arc set-stage`, `arc finalize`, `arc repoint-design` | none                                  | `Current Workflow` and `Next Action`; `Class`, `Task List`, and `Next Action`; `Design`, as each writes today                                                                                                                                                                                                                |
+| `arc set-stage`, `arc finalize`, `arc repoint-design` | none                                  | `Current Workflow` and `Next Action`; `Class`, `Task List`, and `Next Action`; `Design`, with the spec-finalized stage advance below (A1)                                                                                                                                                                                    |
 | `arc set-class`                                       | none                                  | `Class` (§ 10)                                                                                                                                                                                                                                                                                                               |
 | `arc task close`, `arc task defer`                    | none                                  | task markers and captures (§ 9)                                                                                                                                                                                                                                                                                              |
 | `arc errand promote`                                  | Errand → work unit                    | the Errand's primary put to its meta role, with the work branch's link (§ 7.2)                                                                                                                                                                                                                                               |
 | `arc teardown`, `arc materialize`                     | none                                  | no record; the checkout and branches (§ 8.4, § 11, § 12)                                                                                                                                                                                                                                                                     |
+
+For an off-branch Planning work unit, `arc repoint-design <slug> spec-finalized` writes the repointed `Design`,
+`Current Workflow: generate-tasks`, and the begin-current-workflow `Next Action` sentinel in one checked batch (A1).
+The subsequent `arc set-stage generate-tasks --advance` remains an idempotent repeat of that stage advance. A refused
+batch leaves all three fields unchanged. The draft-created event writes only `Design`; the in-repo arm keeps its
+existing sequence. The strict stage check remains in force: `checkMetaStage` checks the resulting active record through
+`checkCurrentWorkflowConsistency`, so a separate spec-pointer write while the workflow remains `create-spec` cannot
+serve as an intermediate state.
 
 Beside what its row names, each move writes the fields its edge sets today — `Current Workflow` and the soft fields its
 entry in the transition table declares (`lifecycle-transitions.ts`) — but those that retire at the flip: `Next Task`,
@@ -2126,6 +2134,10 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
     and rolling back with no branch to delete, an in-place start from a detached checkout leaving `HEAD` where it stood,
     and a re-spawn over a hand-deleted checkout's registration clearing it and proceeding (§ 6).
 12. **The quality gates pass** at every gate the project declares.
+13. **Spec finalization is atomic off-branch (A1).** Repointing a Planning work unit from its own draft to its spec
+    advances to `generate-tasks` with the begin-current-workflow action in the same checked batch; layered Design
+    siblings survive, refusal changes none of the three fields, and repeating the following stage advance succeeds.
+    The stage check still refuses a separately written inconsistent Design/workflow tuple.
 
 ## Open Questions
 
@@ -2134,6 +2146,7 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-14 — design: spec finalization advances Design and workflow atomically off-branch.
+  _Supersedes:_ § 2.2 field-verb row. _Trigger:_ 4.1 must-stop. _Work:_ 4.1.R. _Revalidated:_ pending → 4.9.
 
 ---

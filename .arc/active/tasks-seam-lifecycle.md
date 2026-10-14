@@ -932,6 +932,16 @@ in-repo arm passes today's tests unchanged, and no ratchet floor grows.
         - `arc finalize`'s `Task List` and `Next Action`, and a repointed `Design` list, land as the writers render
           them
 
+### `[ ]` **4.1.R Make spec finalization a coherent record write — A1**
+
+- _Goal:_ Under A1, off-branch spec-finalized repoint writes `Design`, `Current Workflow: generate-tasks`, and the
+  begin-current-workflow `Next Action` sentinel atomically, preserving layered siblings and strict stage validation.
+
+    - Build `test-first` (one behavior at a time):
+        - repoint a Planning work unit at create-spec, then repeat the stage advance successfully
+        - refuse the batch without changing any field, and refuse a separately written inconsistent stage tuple
+        - preserve layered Design siblings and the draft-created and in-repo event behavior
+
 ### `[ ]` **4.2 Reroute `arc stub` and `arc start`'s records, and the scaffold's arm — § 2.2, § 2.5, § 8.5**
 
 - _Goal:_ From the flip `arc stub` creates its meta through the creation writer at its backlog placement, `arc start`
@@ -2184,5 +2194,9 @@ repositories.
   clears it and proceeds.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
+
+- `[ ]` Off-branch spec-finalized repoint writes the spec Design, `generate-tasks`, and the begin-current-workflow
+  action in one checked batch, preserving layered siblings; a refused batch leaves all three fields unchanged, the
+  following stage advance is idempotent, and strict stage validation rejects a separate inconsistent tuple (A1).
 
 - `[ ]` Ready for integration
