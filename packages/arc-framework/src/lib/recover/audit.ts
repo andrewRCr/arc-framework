@@ -102,8 +102,9 @@ export type RecoveryAuditDirtyFiles = z.infer<typeof RecoveryAuditDirtyFilesSche
  * Drift the audit classified as expected progression rather than a stop signal.
  *
  * Recorded for transparency when a drift reason was suppressed because it is
- * fully accounted for by committed work since the seed. The verdict stays binary
- * ready/stop; an explained reason simply does not push a stop.
+ * fully accounted for by committed work since the seed, or by files that became
+ * dirty after it while every seed-dirty file stayed dirty or was committed. The
+ * verdict stays binary ready/stop; an explained reason simply does not push a stop.
  */
 export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -111,6 +112,7 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     message: z.string(),
     detail: z.strictObject({
       resolvedPaths: z.array(z.string()),
+      addedPaths: z.array(z.string()),
       committedSince: z.string(),
     }),
   }),
@@ -583,22 +585,24 @@ function auditDirtyFiles(
     );
   const dirtyStateConsistent = options.recover.dirty.ok ? !dirtyProbeContradiction : null;
 
-  // Path drift is "explained" only when the working tree is a strict subset of the
-  // seed's expected set, and every seed-expected path now absent left the dirty set
-  // by being committed since the seed head (HEAD advanced past it). Any unexpected
-  // new dirt, an uncommitted disappearance, or a dirty-state contradiction is not
-  // committed progress and stays a genuine stop.
+  // Path drift is "explained" when every seed-expected path is still dirty or left
+  // the dirty set by being committed since the seed head (HEAD advanced past it).
+  // Files that became dirty after the seed are then work in progress: the session's
+  // own edits or agents it started, which the compacted summary may not describe.
+  // An uncommitted disappearance or a dirty-state contradiction means work was lost
+  // or the probes disagree, and stays a genuine stop.
   const actualSet = new Set(actual);
   const expectedSet = new Set(expected);
   const nowMissing = expected.filter((path) => !actualSet.has(path));
   const newDirt = actual.filter((path) => !expectedSet.has(path));
   const explainedByCommittedProgress = !pathSetMatch
     && !dirtyProbeContradiction
-    && newDirt.length === 0
     && nowMissing.length > 0
     && committedProgress !== null
     && committedProgress.advanced
     && nowMissing.every((path) => committedProgress.files.has(path));
+  const explained = !pathSetMatch && !dirtyProbeContradiction
+    && (nowMissing.length === 0 || explainedByCommittedProgress);
 
   const match = pathSetMatch && dirtyStateConsistent === true;
 
@@ -609,7 +613,7 @@ function auditDirtyFiles(
       detail: options.recover.dirty.error,
     });
   }
-  if ((!pathSetMatch || dirtyProbeContradiction) && !explainedByCommittedProgress) {
+  if ((!pathSetMatch || dirtyProbeContradiction) && !explained) {
     stopReasons.push({
       kind: "dirty-path-drift",
       message: dirtyProbeContradiction
@@ -621,19 +625,27 @@ function auditDirtyFiles(
         dirty: options.recover.dirty.ok ? options.recover.dirty.value : null,
       },
     });
-  } else if (explainedByCommittedProgress) {
+  } else if (explained) {
     explainedDrift.push({
       kind: "dirty-path-drift",
-      message:
-        "seed-expected dirty files are absent because they were committed since the seed; drift is expected progression",
+      message: explainedDirtyMessage(nowMissing.length > 0, newDirt.length > 0),
       detail: {
         resolvedPaths: nowMissing,
+        addedPaths: newDirt,
         committedSince: options.seed.head,
       },
     });
   }
 
   return { expected, actual, pathSetMatch, dirtyStateConsistent, match, explainedByCommittedProgress };
+}
+
+function explainedDirtyMessage(resolved: boolean, added: boolean): string {
+  const causes = [
+    ...(resolved ? ["seed-expected dirty files are absent because they were committed since the seed"] : []),
+    ...(added ? ["files became dirty after the seed while every seed-expected dirty file stayed dirty or was committed"] : []),
+  ];
+  return `${causes.join("; ")}; drift is expected progression`;
 }
 
 function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): string {

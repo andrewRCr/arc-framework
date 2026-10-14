@@ -68,6 +68,12 @@
 - _Fold-in:_ define a narrowly bound reconciled-self-produced result over the exact seed, HEAD, expected/actual path
   sets, and live diff identity. Preserve stops for unknown edits, removed seed paths, reversions, overlapping
   ownership, multiple reasons, or any topology/cursor mismatch; always run the full audit and rehydrate first.
+- _Pulled forward:_ the `recovery-additive-drift` Errand (2026-10-14) explains dirty-path drift that only adds
+  files, when every seed-dirty file stayed dirty or was committed and the dirty-state probe agrees, and has
+  recovery name and read the added files before resuming. It was Owner-directed after a delegated overnight
+  `seam-lifecycle` run stopped for six hours on three files its own agents wrote. Added files are therefore no
+  longer unknown edits to stop on; removed seed paths, reversions, probe contradictions, and every other
+  dimension still stop.
 
 ### `[ ]` **Reframe recovery hardening after durable locus retirement**
 
@@ -104,10 +110,10 @@
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-07-07); captured
   during `finalize-parallelism` Task 2.6.e (worktree-local seed re-bind), 2026-07-05.
 - _Concern:_ FP Task 2.6.e re-bound the compaction-recovery seed **worktree-local** (per-session):
-  `resolveCompactionSeedPath` now roots at the active checkout
-  (`cwd/.arc/user/{id}/.internal/compaction-seed.json`), no longer accepts an identity-global root, and resolves
-  symmetrically on emit (`status --write-compaction-seed`) and audit (`recover`). This WU's draft was written before
-  this and shares the same files (`handlers/recover.ts` + the seed producers).
+  `resolveCompactionSeedPath` now roots at the active checkout (`cwd/.arc/user/{id}/.internal/compaction-seed.json`), no
+  longer accepts an identity-global root, and resolves symmetrically on emit (`status --write-compaction-seed`) and
+  audit (`recover`). This WU's draft was written before this and shares the same files (`handlers/recover.ts` + the seed
+  producers).
 - _Implications (prerequisite, not conflict):_
     - The hard forcing-gate is only safe under concurrency _because_ the seed is now per-worktree. Pre-2.6.e, a
       shared identity-global seed let a sibling worktree's compaction clobber this one's, so `recover audit` could
@@ -223,8 +229,7 @@
   and make the envelope presence contract match — do not require inbox/errandSweep from a fallback identity.
 
 - _Files:_ `packages/arc-framework/src/lib/git/worktree-identity.ts`,
-  `packages/arc-framework/src/commands/status/run.ts`,
-  `packages/arc-framework/src/commands/status/schema.ts`.
+  `packages/arc-framework/src/commands/status/run.ts`, `packages/arc-framework/src/commands/status/schema.ts`.
 
 - _Captured during:_ `localize-session-init-attention` frontline review, 2026-09-17.
 
