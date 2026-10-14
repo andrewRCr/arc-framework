@@ -32,7 +32,7 @@ import {
   type IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
 import { requireDriverAdmission } from "./review-execution-admission.js";
-import { reconcileReviewFallbackAttempts } from "./review-policy-fallbacks.js";
+import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from "./review-policy-fallbacks.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -143,14 +143,17 @@ function correctedTerminalRequest(
     ...attempt, sourceId: producerSource(result), outcome: result.originalOutcome,
     ...(scope === "chunked" ? { chunkSeriesComplete: true } : {}),
   }));
+  const attempts = [...preceding, ...terminal];
+  const correctedInvocation = lane === request.lane
+    ? reconcileReviewSourceInvocation({ invocation, sources, attempts }) : undefined;
   return ReviewPolicyCommandRequestSchema.parse({
     ...retained,
     lane,
     completedPasses: result.admission.logicalPass,
-    attempts: [...preceding, ...terminal],
+    attempts,
     scopeSelection: { mode: scope, target: request.scopeSelection?.target ?? request.target },
     standardReview: result.kind === "frontline" ? request.standardReview : standardProjection(result),
-    ...(lane === request.lane && invocation !== undefined ? { invocation } : {}),
+    ...(correctedInvocation === undefined ? {} : { invocation: correctedInvocation }),
     ...(lane === "standard" && terminus !== undefined ? { terminus } : {}),
     ...(ceilingOverride?.lane === lane ? { ceilingOverride } : {}),
     ...(additionalPassAuthorization?.lane === lane ? { additionalPassAuthorization } : {}),

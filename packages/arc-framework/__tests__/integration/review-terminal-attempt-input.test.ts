@@ -26,13 +26,14 @@ afterEach(async () => {
 });
 
 describe("terminal attempt recovery through the CLI and repository records", () => {
-  it.each(["short pass count", "duplicate source"])("recovers %s through the unchanged terminal producer", async scenario => {
+  it.each(["short pass count", "duplicate source", "forced source"])("recovers %s through the unchanged terminal producer", async scenario => {
     const root = await createTempRepoCore({ prefix: "arc-terminal-input-", identity: "andrew" });
     roots.push(root);
     const exec = makeGitExec(root);
     await mkdir(join(root, ".arc/system"), { recursive: true });
+    const provider = scenario === "forced source" ? "coderabbit-pr" : "codex-pr";
     await writeFile(join(root, ".arc/system/arc-config.yml"),
-      "review.standard_sources: [codex-pr]\nreview.standard_max_passes: 2\n");
+      "review.standard_sources: [codex-pr, coderabbit-pr]\nreview.standard_max_passes: 2\n");
     await exec("git", ["add", "."]);
     await exec("git", ["commit", "-m", "base"]);
     await exec("git", ["switch", "-c", "feature"]);
@@ -47,7 +48,7 @@ describe("terminal attempt recovery through the CLI and repository records", () 
       retrigger: "full-final" as const, count: 1 as const,
     };
     const requirement = createReviewRequirement({ target: reviewTarget, projection: standardReview,
-      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }], initialAdmission: "automatic" });
+      acceptableSources: [{ sourceKind: "hosted", qualifier: provider }], initialAdmission: "automatic" });
     if (requirement === null) throw new Error("expected hosted review requirement");
     const lineage = { kind: "head-bound" as const, vehicleKind: "review-target" as const,
       vehicleIdentity: reviewTarget.targetId, headSha: target.headSha };
@@ -56,17 +57,17 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     let producerId = "";
     for (const logicalPass of [1, 2]) {
       const admission = createHostedAdmission({ schemaVersion: 1, repositoryId, lineage, logicalPass,
-        sourceId: "codex-pr", target, requestedCoverage: "complete", reviewTarget, requirement,
+        sourceId: provider, target, requestedCoverage: "complete", reviewTarget, requirement,
         actorIdentity: "github-user-1" });
       const terminal = createHostedTerminalAttemptFixture({ admission, outcome: "clean" });
       producerId = terminal.attemptId;
       await publishHostedTerminalProgressFixture(store, { operationId, repositoryId, lineage, logicalPass,
-        changeRequestId: "pull/42", headSha: target.headSha, sourceId: "codex-pr", outcome: "clean", terminal,
+        changeRequestId: "pull/42", headSha: target.headSha, sourceId: provider, outcome: "clean", terminal,
         now: "2026-10-13T00:00:00Z" });
     }
     const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target, lane: "standard",
       frontlineActive: false, standardReview, completedPasses: scenario === "short pass count" ? 1 : 2,
-      attempts: scenario === "short pass count"
+      attempts: scenario !== "duplicate source"
         ? [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }]
         : [{ sourceId: "codex-pr", outcome: "rate-limited" },
           { sourceId: "coderabbit-pr", outcome: "clean", reviewOperationId: producerId }],
@@ -79,10 +80,13 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
     expect(error.error.code).toBe("invalid-input");
     if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
-    expect(error.remedy.text).toContain(scenario === "short pass count" ? "completedPasses to 2" : "sourceId to codex-pr");
+    expect(error.remedy.text).toContain(scenario === "short pass count" ? "completedPasses to 2" : `sourceId to ${provider}`);
     expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
-    expect(error.remedy.stdin).toMatchObject({ ...request, completedPasses: 2,
-      attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }] });
+    const { invocation, ...expectedRequest } = request;
+    expect(error.remedy.stdin).toMatchObject({ ...expectedRequest, completedPasses: 2,
+      attempts: [{ sourceId: provider, outcome: "clean", reviewOperationId: producerId }] });
+    expect(ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin).invocation)
+      .toEqual(scenario === "forced source" ? undefined : invocation);
     await writeFile(input, JSON.stringify(error.remedy.stdin));
     const replay = await runCli(["review", "resolve", input], { cwd: root });
     expect(replay.exitCode, replay.stderr).toBe(0);

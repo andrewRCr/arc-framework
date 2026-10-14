@@ -1,4 +1,4 @@
-/** Compatible caller fallback history for a corrected terminal review request. */
+/** Compatible caller selections and fallback history for corrected terminal review requests. */
 
 import type { ReviewScopeMode } from "../core/review-primitives.js";
 import type { ReviewAttempt } from "./review-policy-attempt.js";
@@ -25,4 +25,19 @@ export function reconcileReviewFallbackAttempts(input: {
     previousSourceIndex = sourceIndex;
     return true;
   });
+}
+
+/** Retain a forced source only when it remains compatible with corrected source progress. */
+export function reconcileReviewSourceInvocation(input: {
+  invocation: ReviewPolicyCommandRequest["invocation"];
+  sources: readonly string[];
+  attempts: readonly Pick<ReviewAttempt, "sourceId">[];
+}): ReviewPolicyCommandRequest["invocation"] {
+  const { invocation, sources, attempts } = input;
+  if (invocation?.mode !== "force") return invocation;
+  const selectedSourceIndex = sources.indexOf(invocation.sourceId);
+  const terminalSourceIndex = sources.indexOf(attempts.at(-1)?.sourceId ?? "");
+  if (selectedSourceIndex < 0 || (selectedSourceIndex < terminalSourceIndex
+    && !attempts.some(attempt => attempt.sourceId === invocation.sourceId))) return undefined;
+  return invocation;
 }

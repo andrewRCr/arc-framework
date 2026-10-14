@@ -10,8 +10,8 @@ import { resolveEvidenceBoundReviewPolicy } from "../../../src/scripts/review-ga
 import { ReviewPolicyCommandRequestSchema, type ReviewPolicyCommandRequest } from
   "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
-function fixture() {
-  const handles = [1, 2].map(logicalPass => createHostedHandleFixture({ provider: "codex-pr", logicalPass }));
+function fixture(provider: "codex-pr" | "coderabbit-pr" = "codex-pr") {
+  const handles = [1, 2].map(logicalPass => createHostedHandleFixture({ provider, logicalPass }));
   const attempts = handles.map(handle => {
     const terminal = createHostedTerminalAttemptFixture({ admission: handle.admission, artifact: handle.artifact, outcome: "clean" });
     return { attemptId: terminal.attemptId, logicalPass: handle.admission.logicalPass, retryGeneration: 0,
@@ -46,8 +46,9 @@ function fixture() {
 }
 
 async function resolve(submitted: unknown, fault?: (result: ReviewResult) => ReviewResult,
-  sources: readonly string[] = ["codex-pr", "coderabbit-pr"], maxPasses = 2) {
-  const { reader, target } = fixture();
+  sources: readonly string[] = ["codex-pr", "coderabbit-pr"], maxPasses = 2,
+  provider: "codex-pr" | "coderabbit-pr" = "codex-pr") {
+  const { reader, target } = fixture(provider);
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewResolve("-", {
@@ -122,6 +123,30 @@ describe("terminal review attempt input recovery", () => {
         result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
     },
   );
+
+  it.each([
+    { name: "invalidated earlier selection", producer: "coderabbit-pr", forced: "codex-pr", prefix: false, retained: false },
+    { name: "earlier selection retained in fallback history", producer: "coderabbit-pr", forced: "codex-pr", prefix: true, retained: true },
+    { name: "matching selection", producer: "coderabbit-pr", forced: "coderabbit-pr", prefix: false, retained: true },
+    { name: "later selection", producer: "codex-pr", forced: "coderabbit-pr", prefix: false, retained: true },
+  ] as const)("reconciles a $name after terminal-source correction", async scenario => {
+    const { request } = fixture(scenario.producer);
+    const invocation = { mode: "force", sourceId: scenario.forced } as const;
+    const prefix = scenario.prefix ? [{ sourceId: "codex-pr", outcome: "rate-limited" as const }] : [];
+    const submitted = { ...request, invocation, attempts: [...prefix,
+      ...request.attempts.map(attempt => ({ ...attempt,
+        sourceId: scenario.prefix ? "delegated-agent" : scenario.producer === "codex-pr" ? "coderabbit-pr" : "codex-pr" }))] };
+    const refusal = await resolve(submitted, undefined, undefined, 2, scenario.producer);
+    expect(refusal.exitCodes).toEqual([1]);
+    const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
+    expect(error.error.code).toBe("invalid-input");
+    if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+    const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
+    expect(corrected.invocation).toEqual(scenario.retained ? invocation : undefined);
+    expect(corrected.attempts).toEqual([...prefix, ...request.attempts]);
+    await expect(resolve(corrected, undefined, undefined, 2, scenario.producer)).resolves.toMatchObject({ exitCodes: [],
+      result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
+  });
 
   it.each(["pass count", "lane"])("preserves matching-lane authorizations while correcting %s", async mismatch => {
     const { request } = fixture();
