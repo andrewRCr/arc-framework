@@ -1,6 +1,6 @@
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { afterEach, describe, expect, it } from "vitest";
-import { writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { createRetirementHarness, retirementLink } from "../helpers/store/retirement-harness.js";
@@ -80,6 +80,47 @@ describe("store retirement real Git", () => {
     expect(await h.local("refs/heads/chore/demo")).toBeNull(); expect(await h.local("refs/remotes/origin/chore/demo")).toBeNull();
     expect((await h.exec("git", ["ls-remote", "origin", "refs/heads/chore/demo"])).stdout).toContain(h.workOid);
   });
+  it("returns a clean additional holder to base before reaping its local and tracking refs", async () => {
+    const h = await fixture({ secondary: true }), path = join(h.root, "checkout-extra");
+    await h.exec("git", ["worktree", "add", path, "chore/demo"]);
+    expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await h.local("refs/heads/chore/demo")).toBeNull();
+    expect(await h.local("refs/remotes/origin/chore/demo")).toBeNull();
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.baseOid);
+  });
+  it("keeps a clean additional holder with independent work on its exact branch and head", async () => {
+    const h = await fixture({ secondary: true }), path = join(h.root, "checkout-extra");
+    await h.exec("git", ["worktree", "add", path, "chore/demo"]);
+    await writeFile(join(path, "extra"), "independent\n");
+    await h.exec("git", ["add", "extra"], { cwd: path });
+    await h.exec("git", ["commit", "-m", "independent"], { cwd: path });
+    const extraHead = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout;
+    expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(await h.local("refs/heads/chore/demo")).toBe(extraHead);
+    expect(await h.local("refs/remotes/origin/chore/demo")).toBe(h.workOid);
+    expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: path })).stdout).toBe("chore/demo");
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(extraHead);
+    expect(await readFile(join(path, "extra"), "utf8")).toBe("independent\n");
+  });
+  it("retains the retiring proof while an additional holder is dirty and reaps both after repair", async () => {
+    const h = await fixture({ secondary: true }), path = join(h.root, "checkout-extra");
+    await h.exec("git", ["worktree", "add", path, "chore/demo"]);
+    await writeFile(join(path, "personal.txt"), "preserve\n");
+    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected",
+      remedy: { argv: ["arc", "teardown", "demo"] } });
+    expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
+    expect(await h.local("refs/remotes/origin/feat/demo")).toBe(h.workOid);
+    expect((await h.remote()).stdout).toContain(h.workOid);
+    expect(await h.local("refs/heads/chore/demo")).toBe(h.workOid);
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.workOid);
+    expect(await readFile(join(path, "personal.txt"), "utf8")).toBe("preserve\n");
+    await rm(join(path, "personal.txt"));
+    expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(await h.local("refs/heads/chore/demo")).toBeNull();
+    expect(await h.local("refs/remotes/origin/chore/demo")).toBeNull();
+    expect(await h.local("refs/heads/feat/demo")).toBeNull();
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.baseOid);
+  });
   it("retains terminal authority and typed continuation when remote cleanup fails, then completes a real retry", async () => {
     const h = await fixture({ ended: false }); const original = h.ctx.exec;
     h.ctx.exec = (command, args, options) => args[0] === "push" ? Promise.reject(Error("injected remote failure")) : original(command, args, options);
@@ -130,6 +171,26 @@ describe("store retirement real Git", () => {
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.paths[0]);
     h.ctx.exec = original;
     expect(await runTeardown(h.ctx, { name: "demo", base: "main", huskPath: h.paths[0] })).toMatchObject({ status: "torn-down", worktreeRemoved: h.paths[0] });
+  });
+
+  it("retains the exact husk retry while another holder blocks ref cleanup and completes after repair", async () => {
+    const h = await fixture({ secondary: true }); await h.exec("git", ["switch", "main"]);
+    const terminal = await readStoreRetirementEvidence(h.store, "demo", h.baseOid);
+    const huskPath = join(h.root, "checkout-husk"), extraPath = join(h.root, "checkout-extra");
+    await h.exec("git", ["worktree", "add", "--detach", huskPath, h.workOid]);
+    await writeWorktreeMarker(huskPath, { ...h.marker, spawnedByArc: true, husk: { sha: h.workOid,
+      at: "2026-10-14T00:00:00Z", subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo",
+      authorization: "discard-confirmed", remoteRef: null, evidence: terminal.evidence } });
+    await h.exec("git", ["worktree", "add", extraPath, "chore/demo"]);
+    await writeFile(join(extraPath, "personal.txt"), "preserve\n"); h.ctx.readMarker = readWorktreeMarker;
+    expect(await runTeardown(h.ctx, { name: "demo", base: "main", huskPath })).toMatchObject({ status: "rejected",
+      remedy: { argv: ["arc", "teardown", "demo", "--husk", huskPath] } });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(huskPath);
+    expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
+    await rm(join(extraPath, "personal.txt")); await h.exec("git", ["switch", "--detach", h.baseOid], { cwd: extraPath });
+    expect(await runTeardown(h.ctx, { name: "demo", base: "main", huskPath })).toMatchObject({ status: "torn-down", worktreeRemoved: huskPath });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(huskPath);
+    expect(await h.local("refs/heads/feat/demo")).toBeNull(); expect(await h.local("refs/heads/chore/demo")).toBeNull();
   });
 
 });

@@ -163,9 +163,13 @@ export interface WorkItemZeroDeltaBranch {
   remoteTrackingHead: string | null;
   containers: readonly { ref: string; oid: string }[];
   retiringHead: string | null;
+  prepareCheckout: () => Promise<boolean>;
   withWorkItemLock: (operation: () => Promise<AbandonBranchCleanupResult>) => Promise<AbandonBranchCleanupResult>;
 }
 
+type ZeroDeltaBranchResult = AbandonBranchCleanupResult & { independentWork?: true };
+
+/** Reap admitted zero-delta refs after leaving their clean holders under the owner's lock. */
 export async function reapZeroDeltaBranch(
   exec: GitExec,
   execInput: GitExecInput,
@@ -173,7 +177,7 @@ export async function reapZeroDeltaBranch(
   record: OrdinaryErrandRecord | WorkItemZeroDeltaBranch,
   expectedHead: string | null,
   primaryCheckoutPath: string | null,
-): Promise<AbandonBranchCleanupResult> {
+): Promise<ZeroDeltaBranchResult> {
   if (expectedHead === null || primaryCheckoutPath === null) {
     return { kind: "preserved", reason: "the branch generation was not retained for cleanup" };
   }
@@ -188,6 +192,8 @@ export async function reapZeroDeltaBranch(
   const preservation = await proveZeroDelta(inPrimary, workItem, expectedHead, baseHead.oid);
   if (preservation !== undefined) return preservation;
   const action = async (): Promise<AbandonBranchCleanupResult> => {
+    const preparation = workItem === null ? undefined : await prepareWorkItemBranch(inPrimary, workItem);
+    if (preparation !== undefined) return preparation;
     const roster = await scanRegisteredWorktrees(inPrimary);
     if (!roster.ok) return { kind: "preserved", reason: roster.message };
     if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
@@ -208,6 +214,13 @@ export async function reapZeroDeltaBranch(
   const lease = await acquireErrandCloseBranchDeletionHeadLocks({ exec: inPrimary, identity: { slug: record.slug, claimId: record.claimId }, branch: record.branch, guard: null });
   if (lease.kind !== "acquired") return { kind: "preserved", reason: lease.message };
   return settleAbandonBranchLease(action, () => lease.release());
+}
+
+async function prepareWorkItemBranch(exec: GitExec, record: WorkItemZeroDeltaBranch): Promise<AbandonBranchCleanupResult | undefined> {
+  const head = await resolveOptionalCommit(exec, `refs/heads/${record.branch}`);
+  if (head.kind === "error") return { kind: "preserved", reason: head.message };
+  if ((head.kind === "present" ? head.oid : null) !== record.localHead) throw new Error("The exact local branch head changed; retry teardown.");
+  if (!await record.prepareCheckout()) return { kind: "preserved", reason: "the holding checkout could not be safely returned to base" };
 }
 
 async function deleteWorkItemZeroDeltaRefs(execInput: GitExecInput, cwd: string, record: WorkItemZeroDeltaBranch): Promise<void> {
@@ -337,13 +350,13 @@ async function deleteErrandZeroDeltaLocal(exec: GitExec, execInput: GitExecInput
       } else await deleteAbandonedBranchAtExactBase(execInput, cwd, { base, baseHead: baseOid, branch: branch, branchHead: expectedHead });
 }
 
-async function proveZeroDelta(exec: GitExec, workItem: WorkItemZeroDeltaBranch | null, expectedHead: string, baseOid: string): Promise<AbandonBranchCleanupResult | undefined> {
+async function proveZeroDelta(exec: GitExec, workItem: WorkItemZeroDeltaBranch | null, expectedHead: string, baseOid: string): Promise<ZeroDeltaBranchResult | undefined> {
   const args = workItem === null ? ["merge-base", "--is-ancestor", expectedHead, baseOid]
     : ["rev-list", expectedHead, ...(workItem.remoteTrackingHead === null ? [] : [workItem.remoteTrackingHead]), "--not",
       ...workItem.containers.map((container) => container.oid), ...(workItem.retiringHead === null ? [] : [workItem.retiringHead])];
   try {
     const proof = await exec("git", args);
-    if (workItem !== null && proof.stdout.trim() !== "") return { kind: "preserved", reason: "the ref carries work beyond base and the retiring branch" };
+    if (workItem !== null && proof.stdout.trim() !== "") return { kind: "preserved", reason: "the ref carries work beyond base and the retiring branch", independentWork: true };
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
     if (workItem !== null) throw error;

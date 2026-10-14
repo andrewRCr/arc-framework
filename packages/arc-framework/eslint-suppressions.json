@@ -1059,9 +1059,6 @@
   "src/lib/errand/abandon-runtime.ts": {
     "arc/store-raw-state": {
       "count": 1
-    },
-    "jsdoc/require-jsdoc": {
-      "count": 1
     }
   },
   "src/lib/errand/close-head-lock.ts": {

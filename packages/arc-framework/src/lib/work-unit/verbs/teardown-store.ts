@@ -133,16 +133,18 @@ async function reapRetiringBranch(ctx: Bound, branch: string): Promise<{ local: 
     return { local: local !== null, remote };
   });
 }
-async function reapAdditionalBranch(ctx: Bound, branch: string, retiringHead: string | null): Promise<void> {
+async function reapAdditionalBranch(ctx: Bound, branch: string, retiringHead: string | null): Promise<boolean> {
   if (ctx.execInput === undefined) throw new Error("Ref-set cleanup requires stdin-capable Git I/O; bind it and retry teardown.");
   const localHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remoteTrackingHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
-  if (localHead === null && remoteTrackingHead === null) return;
+  if (localHead === null && remoteTrackingHead === null) return false;
   const containers: { ref: string; oid: string }[] = [];
   for (const ref of [`refs/heads/${ctx.baseBranch}`, `refs/remotes/origin/${ctx.baseBranch}`]) { const oid = await localLifecycleTip(ctx.exec, ctx.cwd, ref); if (oid !== null) containers.push({ ref, oid }); }
   const result = await reapZeroDeltaBranch(ctx.exec, ctx.execInput, ctx.baseBranch, { branch, localHead, remoteTrackingHead, containers, retiringHead,
+    prepareCheckout: () => prepareCreatedBranch(ctx, branch),
     withWorkItemLock: (operation) => locked(ctx, operation) }, localHead ?? remoteTrackingHead, ctx.primaryPath);
   if (result.kind === "preserved") ctx.notices.push(`Kept ${branch}: ${result.reason}`);
   if (result.releaseError !== undefined) throw new Error(result.releaseError);
+  return result.kind === "preserved" && result.independentWork !== true;
 }
 async function advertisedTip(ctx: Bound, branch: string): Promise<string | null> {
   const remotes = await ctx.exec("git", ["remote"], { cwd: ctx.cwd });
@@ -184,13 +186,20 @@ function teardownRetryRemedy(params: TeardownParams): Remedy {
 
 async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, head: string | null) {
   let branchDeleted = false, remoteBranchDeleted = false;
+  const createdRetiring = links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
+  const retiringReady = retiring !== null && createdRetiring && await locked(ctx, () => prepareCreatedBranch(ctx, retiring));
+  let additionalBlocked = false;
   for (const link of links) {
       const branch = workBranchName(link.ref);
       if (link.linkedAs === "adopted") { reportAdopted(ctx, branch); continue; }
-      if (branch === retiring) {
-        const reaped = await reapRetiringBranch(ctx, branch);
-        branchDeleted = reaped.local; remoteBranchDeleted = reaped.remote;
-      } else await reapAdditionalBranch(ctx, branch, head);
+      if (branch === retiring) continue;
+      const blocked = await reapAdditionalBranch(ctx, branch, head);
+      additionalBlocked = blocked || additionalBlocked;
     }
+  if (additionalBlocked) throw new Error(`Additional branch cleanup remains blocked. The retiring refs were retained; repair the named checkout or ref observation and retry teardown. ${ctx.notices.join(" ")}`);
+  if (retiring !== null && retiringReady) {
+    const reaped = await reapRetiringBranch(ctx, retiring);
+    branchDeleted = reaped.local; remoteBranchDeleted = reaped.remote;
+  }
   return { branchDeleted, remoteBranchDeleted };
 }
