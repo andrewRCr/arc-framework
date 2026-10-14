@@ -8,16 +8,16 @@
 - **Depends On:** `seam-record-kinds`
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28)
-- **Design:** `draft-storage-ref-backend.md`
+- **Design:** `spec-storage-ref-backend.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Spec adversarial pass 6 — 27 findings verified and dispositioned
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec — land adversarial pass 6's approved folds, then its fix check and pass 7
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
