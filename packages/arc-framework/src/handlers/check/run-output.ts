@@ -9,7 +9,8 @@ export type DeclaredCheckEnvelope = { schemaVersion: typeof CHECK_REQUEST_SCHEMA
   | { schemaVersion: typeof CHECK_REQUEST_SCHEMA_VERSION; error: Extract<RunDeclaredChecksResult, { kind: "error" }>["error"] };
 
 /**
- * Render a request without process side effects.
+ * Render a request without process side effects. A human report lists each check with something to say and closes on
+ * a count of every outcome; the machine envelope keeps every result.
  * @param outcome - Typed orchestration result
  * @param json - Whether to produce the versioned envelope
  * @returns A newline-terminated payload
@@ -28,9 +29,36 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
     ? `ARC_SKIP ignored unknown checks: ${outcome.result.ignoredSkips.join(", ")}\n` : "");
   const verification = outcome.result.verification ?? checkVerification(outcome.result.status, outcome.result.checks);
   if (outcome.result.status === "none declared") return `${ignored}none declared\n${verification}\n`;
-  const failureFirst = [...outcome.result.checks].sort((a, b) => Number(isNonPassing(b)) - Number(isNonPassing(a)));
-  const checks = failureFirst.map(check => renderCheck(check, outcome.result.ci === true)).join("\n");
-  return `${ignored}${checks}\n${renderRecordWarnings(outcome.result.checks)}${verification}\n`;
+  const { checks, ci } = outcome.result;
+  if (checks.length === 0) return `${ignored}${verification}\n`;
+  const failureFirst = checks.filter(isListed).sort((a, b) => Number(isNonPassing(b)) - Number(isNonPassing(a)));
+  const listed = failureFirst.map(check => `${renderCheck(check, ci === true)}\n`).join("");
+  return `${ignored}${listed}${renderRecordWarnings(checks)}${renderCount(checks)}\n`;
+}
+
+/** The order a human report's count names outcomes in, those that hold a request back first. */
+const COUNT_ORDER = { failed: 0, "couldn't run": 1, "no evidence": 2, skipped: 3, "would run": 4, passed: 5, reused: 6,
+  "not selected": 7 } satisfies Record<DeclaredCheckResult["outcome"], number>;
+
+/**
+ * Outcomes a human report counts without listing, unless the check has more to say than its outcome. An unselected
+ * check is quiet only when nothing changed for it to examine; any other reason names what the request did not cover.
+ * A dry run's rows carry a forecast and are always listed, since showing each check is what a dry run is for.
+ */
+const QUIET_OUTCOMES: ReadonlySet<DeclaredCheckResult["outcome"]> = new Set(["passed", "reused", "not selected"]);
+const UNCHANGED_INPUTS = "inputs unchanged";
+
+function isListed(check: DeclaredCheckResult): boolean {
+  const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS)
+    && check.batches === undefined;
+  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0;
+}
+
+function renderCount(checks: readonly DeclaredCheckResult[]): string {
+  const counts = new Map<DeclaredCheckResult["outcome"], number>();
+  for (const check of checks) counts.set(check.outcome, (counts.get(check.outcome) ?? 0) + 1);
+  const named = [...counts].sort(([a], [b]) => COUNT_ORDER[a] - COUNT_ORDER[b]).map(([outcome, count]) => `${count} ${outcome}`);
+  return `Checks: ${named.join(", ")}.`;
 }
 
 const RECORD_FAULT_TEXT = { "read-only-filesystem": " (read-only filesystem)", "permission-denied": " (permission denied)", other: "" };

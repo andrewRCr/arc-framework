@@ -118,6 +118,28 @@ checks:
       - '!.arc/**/temp-*.md'
       - '!arc/**'
     reads_index: true
+  lint:md:underwrap:
+    command:
+      - npm
+      - run
+      - -s
+      - lint:md:underwrap
+      - --
+    gate: commit
+    mode: files
+    reads_index: true
+    widen: false
+    cache: false
+    inputs:
+      - '**/*.md'
+      - '!**/node_modules/**'
+      - '!**/.venv*/**'
+      - '!**/venv/**'
+      - '!.arc/completed/**'
+      - '!.arc/user/*/WORKING-MEMORY.md'
+      - '!.arc/user/*/USER-INBOX.md'
+      - '!.arc/**/temp-*.md'
+      - '!arc/**'
   lint:md:
     command:
       - npm

@@ -162,7 +162,7 @@ it("reuses a new-head pass over the same range at the push boundary", async () =
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).not.toContain("warning:");
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);
@@ -184,7 +184,7 @@ it("passes with a warning when its record directory is blocked, and later gates 
   const branch = await git(root, ["symbolic-ref", "HEAD"]);
   const newHead = await runArc(["check", "new-head", "--from", base], root);
   expect(newHead.exitCode, newHead.stderr).toBe(0);
-  expect(newHead.stdout).toContain("content: passed");
+  expect(newHead.stdout).toContain("Checks: 1 passed.");
   expect(newHead.stdout).toContain(`warning: could not record passes in ${directory}; later gates will run content again`);
   const push = await runArcWithStdin(["check", "pre-push", "origin", "local-origin", "--json"], root,
     `${branch} ${tip} ${branch} ${base}\n`);

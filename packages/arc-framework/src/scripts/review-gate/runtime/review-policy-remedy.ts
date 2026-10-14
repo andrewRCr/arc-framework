@@ -17,6 +17,8 @@ import { ReviewDriverAdmissionError } from "../policy/review-execution-admission
 import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
 import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 
+import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
+
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
 const ADMISSION_INVARIANT = "Review capacity is spent only on the action the standard-review driver currently admits.";
@@ -117,6 +119,17 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
     "Drop the attempts bound to the earlier head, keep the completed-pass count, and re-resolve the lane",
     RESOLVE_ARGV,
     { ...request, attempts: [] },
+  );
+}
+
+/** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
+export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (!(error instanceof ReviewTerminalAttemptInputError)) return staleLaneAttemptsRemedy(error, request);
+  return spineRemedy(
+    "Terminal attempt progress must match its immutable producer's admitted pass, lane, source, outcome, scope, and policy.",
+    `${error.correction}; replay the corrected request without requesting another review`,
+    RESOLVE_ARGV,
+    error.correctedRequest,
   );
 }
 

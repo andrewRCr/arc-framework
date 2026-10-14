@@ -1533,7 +1533,7 @@ describe("CI verified-tree record", () => {
     }
   });
 
-  it("runs integration for a light pull request that touches content the verified tree leaves out", async () => {
+  it("runs integration and E2E for a light pull request that touches content the verified tree leaves out", async () => {
     const workflow = parseWorkflow(await readWorkflow());
     const classify = jobOf(workflow, "classify");
     const decision = stepOf(classify, "c");
@@ -1546,8 +1546,9 @@ describe("CI verified-tree record", () => {
     );
     expect(decision.run).toContain('echo "integration_target=$integration_target" >> "$GITHUB_OUTPUT"');
     expect(jobOf(workflow, "integration").if).toContain(target);
+    expect(jobOf(workflow, "e2e").if).toContain(target);
     expect(jobOf(workflow, "build").if).toContain(target);
-    for (const id of ["unit", "e2e", "portability", "record-verified-tree"]) {
+    for (const id of ["unit", "portability", "record-verified-tree"]) {
       expect(jobOf(workflow, id).if, id).not.toContain("integration_target");
     }
   });
