@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import { SlugSchema } from "../kernel/index.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.js";
-import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference } from "./identity.js";
+import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
 import { readWorkUnit, recordPut, mergeLifecycleLinks } from "./lifecycle-write.js";
@@ -60,11 +60,23 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   const groups = await acquireRenameGroups(store, subject.primary); if (groups.status === "refused") return groups;
   const basis = await revalidateLifecycleRecords(store, [subject.primary]); if (basis.status === "refused") return basis;
   const records = groups.result;
+  const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
   const virtual = renameProjection(records, subject.primary);
-  const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug }, virtual.context);
+  const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
   await applyRenameReferencePlan(sweep, virtual.context);
-  const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch));
+  const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch, artifactRenames));
   return { status: "ok", result: { subject, records, writes } };
+}
+function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
+  const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,
+    owner: { ...primary.reference.owner, name: target } }) };
+  const names = new Map<string, string>();
+  for (const record of records) {
+    if (!sameOwner(record.reference.owner, primary.reference.owner)) continue;
+    const from = lifecycleRecordPath(primary, record), to = lifecycleRecordPath(renamed, record);
+    if (from !== null && to !== null) names.set(posix.basename(from), posix.basename(to));
+  }
+  return names;
 }
 async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
   const own = await acquireLifecycleRecords(store, primary.reference.owner.name); if (own.status === "refused") return own;
@@ -102,11 +114,11 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord) {
   } };
 }
 function renameMutation(record: StoreRecord, subject: StoreRenameSubject, targetSlug: string, proposed: string | undefined,
-  branch: { prior: BranchLink; next: BranchLink } | undefined) {
+  branch: { prior: BranchLink; next: BranchLink } | undefined, artifactRenames: ReadonlyMap<string, string>) {
   let content = proposed ?? record.content;
   const own = record.reference.owner.type !== "person" && subject.primary.reference.owner.type !== "person" && record.reference.owner.uid === subject.primary.reference.owner.uid;
   if (record.reference.kind === "cohort/document") content = rewriteCohortMemberHeading(content, subject.originName, targetSlug);
-  if (record.reference.kind === "work-item/meta") content = renameMeta(content, subject.originName, targetSlug, own);
+  if (record.reference.kind === "work-item/meta") content = renameMeta(content, subject.originName, targetSlug, own, artifactRenames);
   if (!own && content === record.content) return [];
   const put = recordPut(record, { content });
   if (own) put.reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: targetSlug } });
@@ -115,12 +127,13 @@ function renameMutation(record: StoreRecord, subject: StoreRenameSubject, target
   }
   return [put];
 }
-function renameMeta(content: string, source: string, target: string, own: boolean): string {
+function renameMeta(content: string, source: string, target: string, own: boolean, artifactRenames: ReadonlyMap<string, string>): string {
   const fields = parseMetaRecord(content);
   let result = content;
   if (own) {
     result = writeMetaTitle(result, SlugSchema.parse(target));
-    const rewrite = (value: string): string => value.endsWith(`-${source}.md`) ? `${value.slice(0, -source.length - 3)}${target}.md` : value;
+    const rewrite = (value: string): string => artifactRenames.get(value)
+      ?? (value.endsWith(`-${source}.md`) ? `${value.slice(0, -source.length - 3)}${target}.md` : value);
     result = writeMetaDesign(result, fields.design.map(rewrite));
     result = writeMetaTaskList(result, fields.taskList === null ? null : rewrite(fields.taskList));
   }

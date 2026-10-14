@@ -55,6 +55,8 @@ export interface RenameReferenceSweepParams {
   cohortDocRelativePath?: string;
   /** Exact current-checkout metas withheld from an in-flight coordination hazard. */
   excludedPaths?: readonly string[];
+  /** Exact conventional filenames acquired by a record-based rename. */
+  artifactRenames?: ReadonlyMap<string, string>;
 }
 
 /** Paths changed by the bounded reference sweep, relative to the repository root. */
@@ -100,8 +102,12 @@ export async function planRenameReferences(
       original,
       params.sourceSlug,
       params.targetSlug,
+      params.artifactRenames,
     );
     rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug);
+    for (const [from, to] of params.artifactRenames ?? []) {
+      rewritten = rewritten.replaceAll(`\`${from}\``, `\`${to}\``);
+    }
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {
       rewritten = rewriteDependsOn(rewritten, params.sourceSlug, params.targetSlug);
     }
@@ -134,9 +140,12 @@ function rewriteArtifactSelfReferences(
   content: string,
   sourceSlug: string,
   targetSlug: string,
+  artifactRenames?: ReadonlyMap<string, string>,
 ): string {
+  const filename = basename(relativePath);
   const rule = ARTIFACT_SELF_TITLE_RULES.find(
-    (candidate) => basename(relativePath) === `${candidate.prefix}-${sourceSlug}.md`,
+    (candidate) => filename === `${candidate.prefix}-${sourceSlug}.md`
+      || (artifactRenames?.has(filename) === true && filename.startsWith(`${candidate.prefix}-`)),
   );
   if (rule === undefined) return content;
 
