@@ -38,15 +38,15 @@ it("names an invalid declaration field and succeeds after that field is repaired
   expect(JSON.parse(repaired.stdout)).toMatchObject({ result: { checks: [{ id: "lint", outcome: "passed" }] } });
 });
 
-it("prints passing checks on one line and a bounded output tail for failures", async () => {
+it("counts passing checks and prints a bounded output tail for failures", async () => {
   const cwd = await declaredFixture({
     passed: { command: [process.execPath, "capture.cjs"], gate: "commit", inputs: ["src/**"] },
     failed: { command: [process.execPath, "-e", "for (let i = 0; i < 30; i++) console.error('failure-' + i); process.exit(1)"], gate: "commit", inputs: ["src/**"] },
   });
   const result = await runArcNoTty(["--no-input", "check", "increment"], cwd);
   expect(result.exitCode, result.stderr).toBe(1);
-  expect(result.stdout.split("\n").filter(line => /^passed: passed \[enforcement\] \(\d+ ms\)$/u.test(line)))
-    .toHaveLength(1);
+  expect(result.stdout.split("\n").filter(line => line.startsWith("passed:"))).toEqual([]);
+  expect(result.stdout).toContain("Checks: 1 failed, 1 passed.");
   expect(result.stdout).toContain("failed: failed");
   expect(result.stdout).toContain("failure-29");
   expect(result.stdout).not.toContain("failure-0\n");

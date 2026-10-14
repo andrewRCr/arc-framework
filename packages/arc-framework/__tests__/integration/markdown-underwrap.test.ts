@@ -132,7 +132,7 @@ describe("changed indexed Markdown under-wrap check", () => {
     const result = await git("bash", ["-e", "-o", "pipefail", "-c", step!.run!], {
       cwd: root, env: { ...process.env, ...stepEnv, FORCE_COLOR: undefined },
     }).catch(error => { throw new Error(`${error.stdout}\n${error.stderr}`); });
-    expect(result.stdout).toContain("lint:md:underwrap: passed");
+    expect(result.stdout).toContain("Checks: 1 passed.");
     expect(result.stdout + result.stderr).not.toContain("untouched.md");
     if (event === "push") {
       for (const invalidBase of ["", "0".repeat(40)]) {
