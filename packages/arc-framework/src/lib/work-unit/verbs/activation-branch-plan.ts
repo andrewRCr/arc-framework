@@ -28,7 +28,10 @@ export type ActivationBranchPlanResult =
 export async function planActivationBranch(input: ActivationBranchPlanInput): Promise<ActivationBranchPlanResult> {
   const branch = await checkoutBranch(input.exec, input.cwd);
   const head = (await input.exec("git", ["rev-parse", "HEAD"], { cwd: input.cwd })).stdout.trim();
-  const selected = selectWorkBranchLink(input.primary, { repository: input.repository, currentBranch: branch });
+  const currentLinked = input.primary.links?.branches?.some((link) =>
+    link.repository === input.repository && workBranchName(link.ref) === branch) === true;
+  const selected = selectWorkBranchLink(input.primary, { repository: input.repository,
+    currentBranch: currentLinked ? branch : undefined });
   if (selected.kind === "ambiguous") return { status: "refused", reason: selected.reason };
   const own = selected.kind === "linked" && workBranchName(selected.link.ref) === branch ? selected.link : undefined;
   const creating = branch === null || branch === input.baseBranch;
