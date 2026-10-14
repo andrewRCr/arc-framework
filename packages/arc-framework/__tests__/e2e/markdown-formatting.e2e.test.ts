@@ -103,12 +103,21 @@ describe("format:tables entry point", () => {
     expect(retry.stdout).toBe("unchanged docs/table.md\n");
   });
 
-  it.each([".git", "git-admin"])("refuses Git administration files before any write (%s)", async gitDirectory => {
+  it.each([
+    { gitDirectory: ".git", innerWorktree: false },
+    { gitDirectory: "git-admin", innerWorktree: false },
+    { gitDirectory: ".git", innerWorktree: true },
+    { gitDirectory: "git-admin", innerWorktree: true },
+  ])("refuses Git administration files before any write ($gitDirectory, inner=$innerWorktree)", async ({ gitDirectory, innerWorktree }) => {
     fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-admin-e2e-"));
     await git(fixtureParent, ["init", "-q", ...(gitDirectory === ".git" ? [] : ["--separate-git-dir", gitDirectory])]);
     await writeAuthorityFixture(fixtureParent);
     const original = "| A |\n| - |\n| 表 |\n";
     const adminPath = `${gitDirectory}/info/notes.md`;
+    if (innerWorktree) {
+      await git(fixtureParent, ["init", "-q", "--separate-git-dir", join(fixtureParent, "inner-git"),
+        join(fixtureParent, gitDirectory, "info")]);
+    }
     await writeFixtureFile(fixtureParent, adminPath, original);
     await writeFixtureFile(fixtureParent, "docs/table.md", original);
     await writeFixtureFile(fixtureParent, ".gitignore", "docs/table.md\n");
