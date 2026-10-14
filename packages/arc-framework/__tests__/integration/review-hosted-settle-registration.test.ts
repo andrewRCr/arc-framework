@@ -10,7 +10,7 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
 
 describe("hosted fix settlement with repository ancestry", () => {
-  it.each(["ancestor", "diverged"])("routes a host's %s head through the public handler", async scenario => {
+  it.each(["ancestor", "diverged", "missing"])("routes a host's %s head through the public handler", async scenario => {
     const root = await createTempRepoCore({ prefix: "arc-settle-registration-" });
     roots.push(root);
     const exec = makeGitExec(root);
@@ -29,7 +29,7 @@ describe("hosted fix settlement with repository ancestry", () => {
       target, fixTarget: { ...target, headSha: fixed.trim() }, actorIdentity: "1234",
       finding: { commentId: "1", threadId: "thread-1" }, disposition: "fix", reply: "Changed the fix behavior.",
     };
-    let hostHead = scenario === "ancestor" ? original.trim() : diverged.trim();
+    let hostHead = scenario === "ancestor" ? original.trim() : scenario === "missing" ? "f".repeat(40) : diverged.trim();
     let resolved = false;
     let replied = false;
     const port: HostedSettlementPort = {
@@ -65,6 +65,11 @@ describe("hosted fix settlement with repository ancestry", () => {
     if (stopped.state === "head-pending") {
       hostHead = fixed.trim();
       expect(await invoke(stopped.remedy.stdin)).toMatchObject({ state: "settled", nextAction: "complete" });
+      expect({ resolved, replied }).toEqual({ resolved: true, replied: true });
+    }
+    if (scenario === "missing") {
+      hostHead = fixed.trim();
+      expect(await invoke(request)).toMatchObject({ state: "settled", nextAction: "complete" });
       expect({ resolved, replied }).toEqual({ resolved: true, replied: true });
     }
     expect(await exec("git", ["rev-parse", "HEAD"])).toEqual(before);

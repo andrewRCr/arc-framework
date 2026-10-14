@@ -240,6 +240,10 @@ export async function settleHostedFinding(
   if (await dependencies.port.currentActorIdentity() !== request.actorIdentity) {
     return { ...base, state: "actor-mismatch", nextAction: "stop" };
   }
+  if (request.disposition === "fix") {
+    const refusal = await initialHeadRefusal(request, dependencies);
+    if (refusal !== null) return refusal;
+  }
   const before = await dependencies.port.readThread(request.target, request.finding.threadId);
   if (before.kind === "missing") {
     return { ...base, state: "missing-thread", nextAction: "stop" };
@@ -252,9 +256,8 @@ export async function settleHostedFinding(
     if (replyMatch.kind !== "unique") {
       return { ...base, state: "ambiguous", nextAction: "stop" };
     }
-    if (request.disposition === "fix") {
-      const refusal = await initialHeadRefusal(request, dependencies);
-      if (refusal !== null) return refusal;
+    if (request.disposition === "fix" && !await targetIsCurrent(request, dependencies.port)) {
+      return { ...base, state: "stale-target", nextAction: "stop" };
     }
     return {
       ...base,
@@ -264,8 +267,10 @@ export async function settleHostedFinding(
     };
   }
 
-  const refusal = await initialHeadRefusal(request, dependencies);
-  if (refusal !== null) return refusal;
+  if (request.disposition !== "fix") {
+    const refusal = await initialHeadRefusal(request, dependencies);
+    if (refusal !== null) return refusal;
+  }
   if (replyMatch.kind === "ambiguous") {
     return { ...base, state: "ambiguous", nextAction: "stop" };
   }

@@ -19,14 +19,15 @@ const request = {
 function harness(heads: string[], ancestor = true) {
   let now = 0;
   let resolved = false;
-  let reply: { id: string; actorIdentity: string; body: string; inReplyToId: string } | undefined;
+  const replies: Array<{ id: string; actorIdentity: string; body: string; inReplyToId: string }> = [];
   const port: HostedSettlementPort = {
     currentActorIdentity: async () => request.actorIdentity,
     readHead: async () => heads.length > 1 ? heads.shift()! : heads[0]!,
     readThread: async () => ({ kind: "present", isResolved: resolved, commentIds: [request.finding.commentId] }),
-    findReplies: async () => reply === undefined ? [] : [reply],
+    findReplies: async () => [...replies],
     postReply: async input => {
-      reply = { id: "reply-1", actorIdentity: request.actorIdentity, body: input.body, inReplyToId: input.commentId };
+      const reply = { id: `reply-${replies.length + 1}`, actorIdentity: request.actorIdentity, body: input.body, inReplyToId: input.commentId };
+      replies.push(reply);
       return { kind: "created", id: reply.id };
     },
     resolveThread: async () => { resolved = true; return { kind: "resolved" }; },
@@ -36,11 +37,31 @@ function harness(heads: string[], ancestor = true) {
   return {
     port,
     headRegistration,
-    state: () => ({ resolved, reply, elapsedMs: now }),
+    state: () => ({ resolved, reply: replies[0], elapsedMs: now }),
+    replies: () => [...replies],
+    completeElsewhere: (isResolved: boolean) => {
+      replies.push({ id: "other-machine-reply", actorIdentity: request.actorIdentity,
+        body: request.reply, inReplyToId: request.finding.commentId });
+      resolved = isResolved;
+    },
   };
 }
 
 describe("hosted fix head registration", () => {
+  it.each([true, false])("refreshes an exact reply completed elsewhere during the wait (resolved: %s)", async resolved => {
+    const host = harness([oldHead, fixedHead]);
+    const sleep = host.headRegistration.clock.sleep;
+    host.headRegistration.clock.sleep = async milliseconds => {
+      await sleep(milliseconds);
+      host.completeElsewhere(resolved);
+    };
+    const result = await settleHostedFinding(request, host);
+    expect(result).toMatchObject({ state: resolved ? "already-settled" : "settled", nextAction: "complete",
+      replyId: "other-machine-reply" });
+    expect(host.replies()).toHaveLength(1);
+    expect(host.state().resolved).toBe(true);
+  });
+
   it("waits for an ancestor head to register, then replies and resolves", async () => {
     const host = harness([oldHead, fixedHead]);
     const result = await settleHostedFinding(request, host);

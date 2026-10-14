@@ -8,6 +8,7 @@ import type { HostedTarget } from "./request.js";
 import type { HostedSettlementPort } from "./settle.js";
 
 export interface HostedSettlementHeadRegistration {
+  /** True only when local commit objects prove ancestry; a missing observed commit supplies no proof. */
   isAncestor(ancestor: string, descendant: string, signal: AbortSignal): Promise<boolean>;
   clock: BoundedWaitClock;
 }
@@ -23,6 +24,8 @@ export function createHostedSettlementHeadRegistration(exec: GitExec, cwd: strin
         throw new Error("Hosted settlement ancestry requires complete Git object ids.");
       }
       try {
+        await exec("git", ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ancestor}^{commit}`],
+          { cwd, signal, objectAccess: "local-only" });
         await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant], { cwd, signal, objectAccess: "local-only" });
         return true;
       } catch (error) {
