@@ -333,6 +333,8 @@ describe("Markdown authority", () => {
       operation: "mutate" as const,
       allowIgnoredPaths: new Set([explicit ? "private/table.md" : "private/other.md"]),
       exec: scriptGitExec([
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
         { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
           responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
         { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],

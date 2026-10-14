@@ -24,12 +24,52 @@ async function writeFixtureFile(root: string, path: string, content: string): Pr
   await writeFile(target, content);
 }
 
+async function writeAuthorityFixture(root: string): Promise<void> {
+  await writeFixtureFile(root, "packages/arc-framework/init-recipe.json", JSON.stringify({
+    prompts: [],
+    include_files: [],
+    conditions: {},
+  }));
+  await writeFixtureFile(root, ".arc/system/.internal/manifest.json", JSON.stringify({
+    schema_version: 1,
+    framework_version: "test",
+    installed_at: "2026-07-20",
+    install_config: { project_name: "Demo", pm_mode: "arc-in-git", tools: [] },
+    files: {},
+  }));
+}
+
 afterEach(async () => {
   if (fixtureParent !== undefined) await rm(fixtureParent, { recursive: true, force: true });
   fixtureParent = undefined;
 });
 
 describe("format:tables entry point", () => {
+  it.each([".git", "git-admin"])("refuses Git administration files before any write (%s)", async gitDirectory => {
+    fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-admin-e2e-"));
+    await git(fixtureParent, ["init", "-q", ...(gitDirectory === ".git" ? [] : ["--separate-git-dir", gitDirectory])]);
+    await writeAuthorityFixture(fixtureParent);
+    const original = "| A |\n| - |\n| 表 |\n";
+    const adminPath = `${gitDirectory}/info/notes.md`;
+    await writeFixtureFile(fixtureParent, adminPath, original);
+    await writeFixtureFile(fixtureParent, "docs/table.md", original);
+    await writeFixtureFile(fixtureParent, ".gitignore", "docs/table.md\n");
+    await git(fixtureParent, ["check-ignore", "docs/table.md"]);
+
+    await expect(execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md", adminPath], {
+      cwd: fixtureParent, encoding: "utf8",
+    })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("markdown.git-administration") });
+    expect(await readFile(join(fixtureParent, adminPath), "utf8")).toBe(original);
+    expect(await readFile(join(fixtureParent, "docs/table.md"), "utf8")).toBe(original);
+
+    const retry = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
+      cwd: fixtureParent, encoding: "utf8",
+    });
+    expect(retry.stdout).toMatch(/^formatted docs\/table\.md /u);
+    expect(await readFile(join(fixtureParent, "docs/table.md"), "utf8")).toBe("| A  |\n| -- |\n| 表 |\n");
+    expect(await readFile(join(fixtureParent, adminPath), "utf8")).toBe(original);
+  });
+
   it.each(["tracked", "untracked", "ignored"])("atomically formats an explicit Markdown path and reports an idempotent retry (%s)", async mode => {
     fixtureParent = await mkdtemp(join(tmpdir(), "arc-format-tables-e2e-"));
     const primary = join(fixtureParent, "primary");
@@ -38,18 +78,7 @@ describe("format:tables entry point", () => {
     await git(primary, ["init", "-q", "-b", "main"]);
     await git(primary, ["config", "user.email", "test@example.com"]);
     await git(primary, ["config", "user.name", "Test User"]);
-    await writeFixtureFile(primary, "packages/arc-framework/init-recipe.json", JSON.stringify({
-      prompts: [],
-      include_files: [],
-      conditions: {},
-    }));
-    await writeFixtureFile(primary, ".arc/system/.internal/manifest.json", JSON.stringify({
-      schema_version: 1,
-      framework_version: "test",
-      installed_at: "2026-07-20",
-      install_config: { project_name: "Demo", pm_mode: "arc-in-git", tools: [] },
-      files: {},
-    }));
+    await writeAuthorityFixture(primary);
     await writeFixtureFile(primary, "docs/table.md", "| A |\n| - |\n| 表 |\n");
     await git(primary, ["add", "--all"]);
     await git(primary, ["commit", "-q", "-m", "fixture"]);

@@ -3,6 +3,7 @@
 import { isAbsolute, join, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/index.js";
+import { resolveCheckoutGitDir, resolveGitCommonDir } from "../git/exec.js";
 import { ArcError, type ManagedPath } from "../kernel/index.js";
 import { isMarkdownPathExcluded, validateMarkdownPath } from "./authority.js";
 
@@ -142,6 +143,31 @@ async function assertMarkdownPathSelected(
   }
 }
 
+async function resolveMarkdownGitDirectories(options: ValidateExplicitMarkdownPathsOptions): Promise<readonly string[]> {
+  try {
+    const directories = await Promise.all([
+      resolveCheckoutGitDir(options.exec, options.root),
+      resolveGitCommonDir(options.exec, options.root),
+    ]);
+    return await Promise.all([...new Set(directories)].map(directory => options.realpath(directory)));
+  } catch (error) {
+    throw new ArcError("Cannot resolve Git administration directories. Check the repository and retry.",
+      "markdown.selection-failed", { cause: error });
+  }
+}
+
+function assertOutsideGitDirectories(directories: readonly string[], physical: string, path: ManagedPath): void {
+  const administration = directories.some(directory => {
+    const fromDirectory = relative(directory, physical);
+    return fromDirectory === "" || (fromDirectory !== ".." && !fromDirectory.startsWith(`..${sep}`)
+      && !isAbsolute(fromDirectory));
+  });
+  if (administration) {
+    throw selectionError(`Cannot format Git administration path: ${path}. Select a Markdown file in the worktree.`,
+      "markdown.git-administration");
+  }
+}
+
 /**
  * Validate explicit Markdown worktree paths and physical containment before any content loader runs.
  *
@@ -156,6 +182,7 @@ export async function validateExplicitMarkdownPaths(
   }
 
   const paths = options.paths.map(validateMarkdownPath);
+  const gitDirectories = options.allowIgnoredPaths === undefined ? [] : await resolveMarkdownGitDirectories(options);
   for (const path of paths) {
     if (!options.allowIgnoredPaths?.has(path)) await assertMarkdownPathSelected(options, path);
 
@@ -189,6 +216,7 @@ export async function validateExplicitMarkdownPaths(
       throw new ArcError(`Markdown path cannot be resolved: ${path}`, "markdown.path-unreadable", { cause: error });
     }
     assertNativePathContained(options.root, physical, path);
+    assertOutsideGitDirectories(gitDirectories, physical, path);
     if (finalStat.isSymbolicLink()) await assertRegularFileTarget(options, physical, path);
   }
   return paths;
