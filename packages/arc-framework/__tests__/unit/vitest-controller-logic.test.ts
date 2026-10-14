@@ -3,8 +3,11 @@ import { expect, it } from "vitest";
 import type { TestResult, TestSpecification } from "vitest/node";
 import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
 import { checkVitestCompletion } from "../../src/lib/vitest-completion.js";
-import { localVitestTierArguments, selectLocalE2eSpecifications } from "../../src/lib/local-vitest-runner.js";
+import {
+  hasDeletedE2eFiles, localVitestTierArguments, selectLocalE2eSpecifications,
+} from "../../src/lib/local-vitest-runner.js";
 import { requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "../../src/lib/build-runtime-setup.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
   expect(normalizeVitestOptions([], { run: true, watch: true, exclude: ["ignored"], maxWorkers: 2 }))
@@ -58,6 +61,17 @@ it("runs the whole E2E suite when a requested path is a support file or nothing 
   for (const requested of [[e2e("a.test.ts"), e2e("helpers.ts")], [e2e("global-setup.ts")], []]) {
     expect(selectLocalE2eSpecifications(requested, specifications)).toEqual({ tier: "e2e", specifications });
   }
+});
+const deletions = ["diff", "--name-only", "--no-renames", "--diff-filter=D", "-z", "--end-of-options", "base", "--",
+  "__tests__/e2e"];
+it("reports an E2E deletion since the base, and treats an unanswered read as one", async () => {
+  const { exec, calls } = scriptGitExec([{ match: deletions,
+    responses: [{ stdout: "" }, { stdout: "packages/arc-framework/__tests__/e2e/helpers.ts\0" },
+      { failure: { exitCode: 128 } }] }]);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(false);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
 });
 it("retains each native portability boundary on the portability tier", () => {
   expect(localVitestTierArguments("portability")).toEqual([
