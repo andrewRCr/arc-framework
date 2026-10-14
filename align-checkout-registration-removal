@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "align-checkout-registration-removal",
+  "claimId": "e20a49b57b429ab2bf3edc8538bb6a17",
+  "createdAt": "2026-10-14T19:55:06.833Z",
+  "updatedAt": "2026-10-14T19:55:06.833Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Amend the storage-seam cohort checkout-removal passages to match lifecycle: unlock only the projection lock and remove the one registration, without repository-wide pruning.",
+  "branch": "chore/align-checkout-registration-removal",
+  "origin": "inbox",
+  "originEntry": "Amend the storage-seam cohort record's checkout-removal passages to unlock-then-remove",
+  "originEntrySourceDigest": "sha256:da06061b33ce6c6f652819a85c92a6121f054ad8c09d7e19fcbb62b4e0056205",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
