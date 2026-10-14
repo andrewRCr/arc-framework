@@ -76,6 +76,11 @@ closed forward transition and coupled its fresh load set and task cursor. Consum
 as reported; do not reconstruct task-list conservation, Candidate state, delivery reservation, or lifecycle order
 in workflow prose. An `integration-correction-unresolved` reason remains a stop.
 
+A `dirty-path-drift` entry in `verdict.explainedDrift` with a non-empty `detail.addedPaths` means files became dirty
+after the seed while every seed-expected dirty file stayed dirty or was committed. They are work the compacted summary
+may not describe, from this session or agents it started: name them in the recovery report and read their changes
+before resuming.
+
 Require `verdict.locusHint.match === true`. The audit has already compared the seed's checkout path and optional
 marker-parent path against the fresh entering row and recovery frame. Any mismatch is a stop, never an invitation
 to fall back to branch or harness-summary inference. An unavailable marker parent is not a mismatch: recovery keeps
@@ -138,9 +143,9 @@ Apply each entry's `readMode`:
   audit report. If the report lacks a verified anchor, stop. Do not fall back to the active
   meta file's `**Next Task:**`. Slice the task list as follows:
     1. Header — read the content above the first `## **Phase` heading.
-    2. Current phase preamble — derive the phase id from `taskCursor.section.id` by stripping
-       the leaf segment (`5.3` -> `5`, `3.R.e` -> `3.R`), then read from
-       `## **Phase {id}:**` through the line before the first checkbox under that phase.
+    2. Current phase preamble — derive the phase id from `taskCursor.section.id` by stripping the leaf segment (`5.3` ->
+       `5`, `3.R.e` -> `3.R`), then read from `## **Phase {id}:**` through the line before the first checkbox under that
+       phase.
     3. Current task section — start at `taskCursor.section.lineHint`, falling back to the
        section id and title only if the hint is stale, and read through the line before the
        next parent task or phase heading. The `taskCursor.leaf` identifies the executable
@@ -154,14 +159,13 @@ Apply each entry's `readMode`:
 Preserve the manifest order when reconciling loaded content and deciding what procedural
 context applies, even when the reads complete out of order.
 
-The load set already includes the state-selected lifecycle workflow when the recovered state has
-one. Open-task execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
+The load set already includes the state-selected lifecycle workflow when the recovered state has one. Open-task
+execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
 delivery-correction closeout maps to `integrate-work-unit`; and prepublication or integration maps to its phase
-workflow. The mapping is a deterministic shipped table, so an
-absent entry is a projection defect rather than a missing decision: load the mapped workflow and
-surface the omission rather than stopping — the gap is itself a signal about the audit that
-produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
-and keeps its stop. For planning recovery, do not treat `Current Workflow`
+workflow. The mapping is a deterministic shipped table, so an absent entry is a projection defect rather than a
+missing decision: load the mapped workflow and surface the omission rather than stopping — the gap is itself a
+signal about the audit that produced the load set, so it is reported, never swallowed. A planning resume has no such
+mapping and keeps its stop. For planning recovery, do not treat `Current Workflow`
 as authoritative by itself; if the stage is unclear from deterministic state plus the harness
 summary, stop for direction.
 
@@ -208,9 +212,8 @@ Resume without a routine prompt by dispatching only on `report.recover.recoveryF
 - `kind: "none"` — the reader proves a between-WUs frame for the current checkout. Use the harness summary only for the
   volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
 For a resolved WU, `workflow` selects planning, execution, prepublication, or integration directly. For a resolved
-transient, the
-subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and
-the harness summary never select recovery mode.
+transient, the subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta
+fields, and the harness summary never select recovery mode.
 
 Recovery restores the init-time ARC load set plus the state-selected lifecycle workflow only.
 On-demand context loaded mid-task before compaction is not restored here; reload it through its
