@@ -3,6 +3,9 @@ import { basename } from "node:path";
 import * as p from "../lib/terminal.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
+import { SlugSchema } from "../lib/kernel/index.js";
+import type { LifecycleEntry } from "../lib/store/lifecycle-index.js";
+import type { Store } from "../lib/store/contract.js";
 import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { findWorkUnitHoldingCheckout } from "../lib/work-unit/verbs/unshared-work.js";
@@ -32,20 +35,36 @@ export async function handleStoreStart(input: Input, ctx: StoreStartContext): Pr
   if (view.status === "refused") { refuse(`${view.refusal.condition} ${view.refusal.remedy.text}`); return; }
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { refuse(String(error)); return; }
-  const dispatch = resolveStartDispatch(view.result.index, input.name, { create: input.new === true });
+  const name = await resolveStartName(store, input.name);
+  if (name === null) return;
+  const selectedInput = { ...input, name };
+  const dispatch = resolveStartDispatch(view.result.index, name, { create: input.new === true });
   switch (dispatch.arm) {
     case "refuse": {
-      const entry = view.result.entries.find((item) => item.reference.owner.name === input.name);
-      if (entry?.phase === "Planning" && entry.location === "active" && ctx.executor.exec !== undefined) {
-        const holder = await findWorkUnitHoldingCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts }, input.name);
-        refuse(holder === null ? `${input.name} is already started; run arc materialize ${input.name} to give it a checkout.` : `${input.name} is already started in checkout ${holder}; continue work there.`);
-      } else refuse(dispatch.reason);
+      refuse(await startedPlanningReason(view.result.entries, name, ctx) ?? dispatch.reason);
       return;
     }
     case "resume": refuse("Use arc materialize for an in-flight work unit; parking is unavailable with store-backed state."); return;
-    case "create-new": await create(input, ctx); return;
-    case "graduate": await graduate(input, ctx); return;
+    case "create-new": await create(selectedInput, ctx); return;
+    case "graduate": await graduate(selectedInput, ctx); return;
   }
+}
+async function startedPlanningReason(entries: readonly LifecycleEntry[],
+  name: string, ctx: StoreStartContext): Promise<string | null> {
+  const entry = entries.find((item) => item.reference.owner.name === name);
+  if (entry?.phase !== "Planning" || entry.location !== "active" || ctx.executor.exec === undefined) return null;
+  const holder = await findWorkUnitHoldingCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts }, name);
+  return holder === null ? `${name} is already started; run arc materialize ${name} to give it a checkout.`
+    : `${name} is already started in checkout ${holder}; continue work there.`;
+}
+async function resolveStartName(store: Store, requested: string): Promise<string | null> {
+  const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(requested) });
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "not-found") return requested;
+    refuse(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`); return null;
+  }
+  if (lookup.result.reference.kind !== "work-item/meta") { refuse(`${requested} resolves to an Errand; use its Errand verb.`); return null; }
+  return lookup.result.reference.owner.name;
 }
 async function create(input: Input, ctx: StoreStartContext): Promise<void> {
   if (input.class !== undefined) { refuse("--class is only valid when graduating a backlog stub."); return; }

@@ -22,25 +22,26 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   try { requireCompleteInventory(ctx.store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+  const name = read.result.reference.owner.name;
   const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === read.result.reference.owner.name);
-  if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${params.name} is not a backlog stub that can graduate.` };
+  if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${name} is not a backlog stub that can graduate.` };
   const cls = WorkClassSchema.safeParse(params.cls ?? entry.fields.workClass);
-  if (!cls.success) return { status: "rejected", reason: `Cannot start ${params.name}: Class is unresolved; supply --class Light, Heavy, or Novel.` };
+  if (!cls.success) return { status: "rejected", reason: `Cannot start ${name}: Class is unresolved; supply --class Light, Heavy, or Novel.` };
   const starter = params.spawningIdentity;
   const content = writeMetaOwner(writeMetaClass(read.result.content, cls.data), SlugSchema.parse(starter));
   let occupation: StoreGraduationOccupation | undefined;
-  const retryCommand = ["arc", "start", params.name, ...(params.inPlace ? ["--here"] : [])];
+  const retryCommand = ["arc", "start", name, ...(params.inPlace ? ["--here"] : [])];
   const exec = ctx.exec;
-  const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs: {
+  const outcome = await executeTransition(ctx, { verb: "start", slug: name, inputs: {
     class: cls.data,
     storeTransition: { primary: read.result, content, placement: { kind: "active" }, gitSteps: [{
       name: "occupy-planning-checkout", retryCommand,
       run: async () => {
-        await requireMarkerExclusivity(ctx.locusPorts, { name: params.name });
+        await requireMarkerExclusivity(ctx.locusPorts, { name });
         occupation = await occupyStoreGraduation({ cwd: ctx.cwd, exec, inPlace: params.inPlace === true,
           occupy: () => ctx.reconcileWorkUnitWorktree(params.inPlace
-            ? { mutation: "spawn", inPlace: true, preserveHead: true, wuName: params.name, spawningIdentity: starter }
-            : { mutation: "spawn", detached: true, base: params.baseBranch, wuName: params.name,
+            ? { mutation: "spawn", inPlace: true, preserveHead: true, wuName: name, spawningIdentity: starter }
+            : { mutation: "spawn", detached: true, base: params.baseBranch, wuName: name,
                 locationTemplate: params.locationTemplate, repo: params.repo, spawningIdentity: starter,
                 primaryWorktreePath: params.primaryWorktreePath, postCreateScript: params.postCreateScript, registeredHarnessDirs: params.registeredHarnessDirs }),
         });

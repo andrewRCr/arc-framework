@@ -4,7 +4,9 @@ import { runGraduate } from "../../../src/commands/start.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
+import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
 async function harness(refuse = false) {
   const h = createLifecycleHarness();
@@ -29,6 +31,18 @@ async function harness(refuse = false) {
 }
 
 describe("store start graduation", () => {
+  it("graduates a retained former name as the same renamed work item", async () => {
+    const h = await harness();
+    expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.exec!, baseBranch: "main" },
+      { sourceSlug: "demo", targetSlug: "current" })).toMatchObject({ status: "renamed" });
+    expect(await runGraduate(h.ctx, { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: "../{repo}.{name}", repo: "repo" }))
+      .toMatchObject({ status: "graduated", previousOwner: "previous" });
+    const alias = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+    const canonical = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("current") }));
+    expect(alias.reference).toEqual(canonical.reference);
+    expect(lifecycleSuccess(await h.store.read({ reference: canonical.reference })))
+      .toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
+  });
   it("starts another person's stub detached and reports the previous owner", async () => {
     const h = await harness();
     const result = await runGraduate(h.ctx, { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: "../{repo}.{branch}", repo: "repo" });
