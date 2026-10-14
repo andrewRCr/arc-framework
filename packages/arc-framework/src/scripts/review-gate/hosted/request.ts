@@ -12,10 +12,9 @@ import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
 import {
   ReviewAdditionalPassAuthorizationSchema,
-  ReviewCeilingOverrideSchema,
   type ReviewAdditionalPassAuthorization,
-  type ReviewCeilingOverride,
-} from "../policy/review-policy-driver.js";
+} from "../policy/review-additional-pass.js";
+import { ReviewCeilingOverrideSchema, type ReviewCeilingOverride } from "../policy/review-ceiling-override.js";
 import {
   ReviewIdentifierSchema,
   ReviewRequirementV2Schema,

@@ -399,9 +399,9 @@ remote base all name the same exact head. Any tracked change continues through t
    override or additional-pass authorization the driver call carried. When it returns
    `review-required / review-hosted-request` with an `action` naming the selected provider, pass that action unchanged
    to `arc review hosted request -`: after an approved fix it carries `coverage: incremental` over only the fix range
-   when that provider can, and its `detail` names the coverage. Otherwise invoke `arc review hosted request -` with the
-   selected provider, exact opened target, `coverage: complete`, and `vehicle: { kind: "errand", standardReview }` from
-   the routed Errand review facts:
+   when that provider can, and its `detail` names the coverage. Status offers no request for a head with no recorded
+   review, so for the Errand's first pass, hand it the driver result's own `action` unchanged instead. When neither
+   result carries an `action`, stop: neither verb recognized this checkout as the Errand's subject.
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
