@@ -11,13 +11,14 @@
 - **Design:** `spec-retire-extension-points.md`
 - **Task List:** `tasks-retire-extension-points.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:1dacaf21e3fb737825291921502822c3a59a69903e8cd602d0f4eecc3d16e261`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 5.5 — Verify complete retirement (Phase 5 complete)
-- **Next Task:** Task 6.1 — Complete verification (line ~207)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** In a fresh session, begin Task 6.1 via `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

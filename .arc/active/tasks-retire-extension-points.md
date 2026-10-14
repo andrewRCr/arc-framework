@@ -204,47 +204,108 @@ recipe membership, mixed contract coverage, and the historical event inventory a
 
 _Purpose:_ Verify the work unit against its acceptance criteria and required quality gates.
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ All work-unit acceptance criteria and required checks have evidence, with any unresolved result accurately
   reported before integration.
+
+- _Quality gates:_ All 17 selected local merge checks passed: table formatting, staged/full Markdown lint, method
+  triggers, domain rules, section references, links, source lint, source/test types, shell lint, package sync, build,
+  full unit/integration suites, and ARC contracts. Selected local E2E feedback also passed. Full E2E and portability
+  gates remain CI-only and were not selected by the local merge request.
+- _Success criteria:_ Eleven met, zero superseded, zero unresolved; the obsolete implementation-planning notes were
+  removed. The primary walk and fresh adversarial companion found no remaining acceptance gap.
+    - _Scope:_ work-unit; `Success Criteria` ordinals 1–11. Criterion digests exclude checkbox markers and fold
+      whitespace without changing the criterion text.
+    - _Span:_ complete diff from `b902b2bd70ea831936bc01e3f06d7887013cad24` through
+      `6c438bebd05bc77d06208aea5db38cbd96bd2d32`, plus these verification records and obsolete-notes removal;
+      reachability is the complete checkout at that head with those terminal documentation edits. No boundary-order
+      deviation applies.
+    - _Advisory companion:_ Pass 1 of 2; zero findings; stop reason `converged`. No successor pass was requested.
+    - _Criterion:_ `Success Criteria > 1`; _criterion-digest:_
+      `sha256:935c401aeed9355fcc3984987214dca0ca9f530625cfb6b319e7e30850679ec4`; _State:_ `[x]`; _Evidence:_
+      case-insensitive mechanism/event/identifier sweeps across 3,119 live files resolve only permitted unrelated
+      senses, negative assertions, and bounded legacy-update residue; no supported file, importer, or dispatch remains.
+    - _Criterion:_ `Success Criteria > 2`; _criterion-digest:_
+      `sha256:45da9ddfecc21fbda178b67a8a9faf199475f49376aef0ff98491f4c4cbc9bb0`; _State:_ `[x]`; _Evidence:_
+      status/session/recovery, locus, load-set, seed, registry, and CLI source remove the retired contracts; passing
+      status, strict-envelope, registry, retirement-contract, and CLI-help regressions prove absence and rejection.
+    - _Criterion:_ `Success Criteria > 3`; _criterion-digest:_
+      `sha256:8bf33e5dfa63f75285d64110bdd2b9e24410210fbeffc2c55a2a3f8c8d4fda40`; _State:_ `[x]`; _Evidence:_
+      interlock-surface and checkpoint suites retain all nine machine signal kinds, exact-head admission, and obsolete
+      report rejection; mixed lifecycle tests preserve the independent final-head mutation prohibitions.
+    - _Criterion:_ `Success Criteria > 4`; _criterion-digest:_
+      `sha256:1130f5c245410b8697828e686a8af6858cbdbd1bcfccbdbaaef793410b085d7e`; _State:_ `[x]`; _Evidence:_
+      fresh-init tests cover all six PM/team recipe arms. The unchanged updater retains eleven edited Configurable
+      documents, deletes README, drops manifest/pristine membership, and passes a guarded second update without reads.
+    - _Criterion:_ `Success Criteria > 5`; _criterion-digest:_
+      `sha256:25cec3dc23349fc36acf3b8f1ca29db7612f16aa5f00ae244b8f7c6b7535f7b2`; _State:_ `[x]`; _Evidence:_
+      workflow-parser rejection and surviving graph/coverage, neutrality, frontmatter, and integrity suites pass;
+      corpus audits and the correction commit's hooks run without the deleted validator in either hook copy.
+    - _Criterion:_ `Success Criteria > 6`; _criterion-digest:_
+      `sha256:254e09ad210497337a8dbedee4332f41005cdd892aa55e99fc1f39fc46100dc5`; _State:_ `[x]`; _Evidence:_
+      passing PR lifecycle, review-gate, delivery, and release suites retain immediate remote-head replay, resolver
+      binding/reuse, publication/review ordering, and Errand opened-target refresh and adapter equality.
+    - _Criterion:_ `Success Criteria > 7`; _criterion-digest:_
+      `sha256:10ca8c00c364e4323131753341c8b1c17c49b50571bb5a9341d5060d26dfdf84`; _State:_ `[x]`; _Evidence:_
+      supported guidance retains config, checks, method overrides, commands, project content, both None conventions,
+      native hooks, and Origin linkage while explicitly describing the insertion and tracker-notification gaps.
+    - _Criterion:_ `Success Criteria > 8`; _criterion-digest:_
+      `sha256:d1e4f0a8d14dade9361966867fd17bb96535af3e0da63bb81245a054d229ec05`; _State:_ `[x]`; _Evidence:_
+      ADR-038 contains eleven event rows, sequencing/failure rules, payload/adapter authority, retry and ready-head
+      constraints. Its full retrieval revision resolves all twelve old documents and scanner/audit/status source loci;
+      the four prior ADR diffs alter only scoped status metadata and retain their bodies and prior annotations.
+    - _Criterion:_ `Success Criteria > 9`; _criterion-digest:_
+      `sha256:641852524bb24a233cbf521d556ad1f19229190ac10ca0e5ced0debd7c8ae59e`; _State:_ `[x]`; _Evidence:_
+      the contributor citation correction is committed in `6c438bebd`; 386 same-file fragment links resolve, and the
+      full link audit and rendered-Framework sync suite pass. Twelve deleted manifest keys leave all other metadata
+      intact; recipe-derived membership is 142 files: 103 Framework, 35 Configurable, and four Scaffolded.
+    - _Criterion:_ `Success Criteria > 10`; _criterion-digest:_
+      `sha256:121d1820db02ffa80d79cfa6bddddf57aa17ca3def4211b43af07b0d95780277`; _State:_ `[x]`; _Evidence:_
+      the successful local merge request covers all 17 selected checks, with selected local E2E feedback passing too.
+      Check declarations retain their deadlines and CI-only policy; suppression changes only remove or reduce entries.
+    - _Criterion:_ `Success Criteria > 11`; _criterion-digest:_
+      `sha256:700da88b7dbb0277322a7c1ad2f3c684a6f11e58f005b19924950734ed3c3af7`; _State:_ `[x]`; _Evidence:_
+      the complete spec/task/source walk and clean fresh-context pass close implementation acceptance with no deferred
+      intent. This report records the acceptance evidence; Candidate preparation and public integration retain their
+      own subsequent review, publication, CI, and authorization boundaries.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The live corpus sweeps under the spec's exclusions and closed allowlist find no supported mechanism file,
+- `[x]` The live corpus sweeps under the spec's exclusions and closed allowlist find no supported mechanism file,
   activation/declaration/marker/action, command, scanner, validator, importer, registry entry, or positive execution fixture.
 
-- `[ ]` Public full status/session-init/recovery outputs omit `extensions`; handoff/locus/load-set/recovery/seed inputs
+- `[x]` Public full status/session-init/recovery outputs omit `extensions`; handoff/locus/load-set/recovery/seed inputs
   omit `activeExtensions`; schema discovery omits `extensions-session-init`; the CLI lacks `arc extensions`.
 
-- `[ ]` The checkpoint surface omits `extensionReport` while preserved tests prove complete `machineEvidence`, exact-head
+- `[x]` The checkpoint surface omits `extensionReport` while preserved tests prove complete `machineEvidence`, exact-head
   authorization, and merge admission, including the independent final-head mutation prohibitions.
 
-- `[ ]` Every supported recipe arm installs no extension directory or manifest entry; an old manifest retains edited
+- `[x]` Every supported recipe arm installs no extension directory or manifest entry; an old manifest retains edited
   Configurable documents, deletes README, drops all managed/pristine membership, and succeeds on a subsequent update
   without reading or changing retained residue.
 
-- `[ ]` `parseWorkflowFrontmatter` rejects `arc.extensions`; method parsing/graph/coverage, package-method neutrality,
+- `[x]` `parseWorkflowFrontmatter` rejects `arc.extensions`; method parsing/graph/coverage, package-method neutrality,
   domain-rule validation, and both commit hooks remain functional with no removed script invocation.
 
-- `[ ]` Preserved mixed PR lifecycle tests prove exact remote-head validation before creation, resolver reuse/binding,
+- `[x]` Preserved mixed PR lifecycle tests prove exact remote-head validation before creation, resolver reuse/binding,
   publication/review ordering, and Errand `openedChangeRequest` refresh/equality with the planning-grooming target.
 
-- `[ ]` Supported guidance retains all surviving customization channels, both convention rows with **None**, harness-native
+- `[x]` Supported guidance retains all surviving customization channels, both convention rows with **None**, harness-native
   hooks, and `Origin` linkage, while claiming no workflow-step insertion or tracker notification through the mechanism.
 
-- `[ ]` The superseding ADR preserves eleven events, naming/frequency, failure/continuation, payload/authority and retry/
+- `[x]` The superseding ADR preserves eleven events, naming/frequency, failure/continuation, payload/authority and retry/
   ready-head contracts, and a retrievable full pre-removal revision; exactly four scoped status edits preserve existing
   annotations and historical bodies.
 
-- `[ ]` Every affected step/section citation and heading link resolves by target meaning; rendered Framework content
+- `[x]` Every affected step/section citation and heading link resolves by target meaning; rendered Framework content
   agrees with package source; self-hosted manifest keys and inventory counts agree with recipe-derived membership.
 
-- `[ ]` All required quality gates pass, including Markdown, source/test types, method-trigger coverage, applicable
+- `[x]` All required quality gates pass, including Markdown, source/test types, method-trigger coverage, applicable
   test tiers, and build, with no new suppression, skipped gate, or deadline change.
 
-- `[ ]` Ready for integration with the intended scope complete and acceptance evidence recorded.
+- `[x]` Ready for integration with the intended scope complete and acceptance evidence recorded.
 
 ---
