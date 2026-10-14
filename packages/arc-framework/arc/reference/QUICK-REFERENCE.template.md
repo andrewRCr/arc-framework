@@ -223,6 +223,8 @@ arc demote <slug>
 
 # Set the current WU's planning-stage pointer; --advance also resets Next Action for the new stage.
 arc set-stage <draft-design|create-spec|generate-tasks> [--advance]
+# Advance the current WU's Design pointer at a planning event.
+arc repoint-design <draft-created|spec-finalized>
 # Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
 arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
 
