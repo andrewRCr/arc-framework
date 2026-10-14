@@ -112,8 +112,8 @@ export function buildExecutorContext(
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
 
   // Git executor defaulting to the repository root, so cwd-relative `git mv` /
-  // worktree ops resolve — but an explicit per-call `cwd` wins (the `worktree-clean`
-  // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
+  // worktree ops resolve — but an explicit per-call `cwd` wins so operations
+  // can target a worktree other than the base repo. Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
   const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
@@ -287,7 +287,7 @@ export function buildExecutorContext(
 
     currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at }),
 
-    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
+    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates }),
 
     sideEffects: {
       ...buildStatusSideEffects({

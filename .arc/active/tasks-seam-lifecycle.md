@@ -45,68 +45,37 @@ note.
         - The package template and installed workflow describe issue-only `Origin` assignment and every other seed
           passing through as planning input.
 
-### `[ ]` **1.2 Delete the code no production path reaches — § 1.4**
+### `[x]` **1.2 Delete the code no production path reaches — § 1.4**
 
 - _Goal:_ Nothing is rerouted only to be deleted: every module, guard, arm, and function with no production caller is
   gone with its tests and the docs naming it, and every other test passes unchanged.
 
-    - `[ ]` **1.2.a Delete the two unreferenced modules**
+    - `[x]` **1.2.a Delete the two unreferenced modules**
 
-        - `lib/work-unit/in-repo-retirement-authority.ts`, which nothing imports.
-        - `lib/work-unit/side-effects/user-workspace.ts` with its test
-          (`__tests__/unit/work-unit/side-effects/user-workspace.test.ts`); the `user-workspace` side-effect identifier,
-          bound to `userWorkspaceHandler` in `executor-context.ts`, stays.
+        - Deleted the two unreferenced modules and the isolated workspace-module test; the bound user-workspace side
+          effect remains.
 
-    - `[ ]` **1.2.b Delete the `worktree-clean` guard**
+    - `[x]` **1.2.b Delete the `worktree-clean` guard**
 
-        - Remove `makeWorktreeCleanGuard`, its `WorktreeCleanDeps`, and its entry in `buildFootgunGuards`
-          (`lifecycle-guards.ts`), `worktree-clean` from `GuardId` and park from Active's edge
-          (`lifecycle-transitions.ts`), and the guard's mentions in `lifecycle-executor.ts`, `lifecycle-transitions.ts`,
-          `park-resume.ts`, and `executor-context.ts`. `parkActive` never runs that edge through `executeTransition`,
-          so no production path changes; the mutator's own clean checks (`reconcile-work-unit-worktree.ts`) stay.
-        - The tests that run or name the guard change with it: `lifecycle-guards.test.ts`'s cases;
-          `lifecycle-executor.test.ts`'s unwired-guard case, which takes another unwired guard as its example, its two
-          real-validator cases, and its `guardValidators` maps naming the guard; the same maps in
-          `verbs/park-resume.test.ts` and `verbs/abandon.test.ts`, the latter's guard case among them;
-          `lifecycle-transitions.test.ts`'s assertion that every teardown edge declares it; and
-          `executor-context.test.ts`'s case naming it.
-        - What only the guard used goes with it: `buildFootgunGuards`' `exec` dependency where nothing else reads it
-          (`executor-context.ts`) and `lifecycle-guards.ts`'s `isWorktreeClean` import.
+        - Removed the unused clean guard, its binding dependency, and table declarations. Guard maps use the remaining
+          guards; mutator cleanliness checks remain.
 
-    - `[ ]` **1.2.c Delete `reconcileBranch`'s `delete` arm**
+    - `[x]` **1.2.c Delete `reconcileBranch`'s `delete` arm**
 
-        - Remove the arm (`mutators/reconcile-branch.ts`), `delete` from `BranchMutation` (`lifecycle-transitions.ts`),
-          the executor's reader of it (`lifecycle-executor.ts`), and the docs naming it in those three files;
-          `delete-merged`, which teardown calls, and `deleteRemoteBranch`, which teardown, rename, and Errands call,
-          stay.
-        - `reconcile-branch.ts`'s `DEFAULT_REMOTE` goes where the arm was its last reader.
-        - The tests that build or derive it change with it: `mutators/reconcile-branch.test.ts`;
-          `lifecycle-executor.test.ts`'s four `mutation: "delete"` operands — its mutation-mismatch case, which takes
-          another mismatching mutation, its park-from-Planning case built on the deleted reader, which goes, and the
-          two others; `lifecycle-transitions.test.ts`'s
-          derivations; and the `delete` comparisons in `verbs/park-resume.test.ts`, `verbs/archive.test.ts`, and
-          `verbs/abandon.test.ts`.
+        - Removed the uncalled forced-delete branch mutation and its executor reader; merged-safe deletion and remote
+          cleanup remain.
 
-    - `[ ]` **1.2.d Delete the functions with no production caller**
+    - `[x]` **1.2.d Delete the functions with no production caller**
 
-        - `dischargeDepEdges` with its context, op, and result types (`side-effects/discharge-dep-edges.ts`), keeping
-          `renderEdgeList`; `listBacklogStubs` (`backlog-stub.ts`); `resolveReverseDeps` (`lifecycle-deps.ts`).
-        - `sweepRenameReferences` (`rename-reference-sweep.ts`): its test exercises only it, so its cases move onto
-          `planRenameReferences` and `applyRenameReferencePlan` where they cover behavior the production path has, and
-          are dropped where they do not.
-        - `resolveCohortMembers` and `isArchivalTriggered` with the private `cohortMembers` they share
-          (`lifecycle-membership.ts`); `lifecycle-membership.test.ts`'s comparisons against `isArchivalTriggered`
-          become assertions on `isArchivalTriggeredWithDescendants` alone.
-        - The cases of `discharge-dep-edges.test.ts` that exercise only `dischargeDepEdges` — a shipped and an
-          integrating dependency discharged, a gate cleared to `[none]`, a live edge kept, and a conflicting edge
-          returning every edge live with none discharged — move onto `planDependencyReconcile`, which activation's
-          discharge runs and which keeps every edge live on a conflict; every other deleted function's cases go with it.
+        - Removed the uncalled convenience functions. Reference-sweep coverage now exercises plan/apply, and
+          dependency-discharge coverage exercises the production planner.
 
-    - `[ ]` **1.2.e Drop the docs that name them**
+    - `[x]` **1.2.e Drop the docs that name them**
 
-        - The TSDoc links and module docs in `archive.ts`, `lifecycle-membership.ts`, `rename-reference-sweep.ts`'s
-          `RenameReferenceSweepContext`, `discharge-dep-edges.ts`, `decompose-sweep.ts`, and `lifecycle-deps.ts`.
-        - Run `lint:ts`, and prune the suppression entries the deletions leave unused (`--prune-suppressions`).
+        - Removed retired-symbol references from module documentation. No suppression entries became unused.
+
+- _Outcome:_ Only the production planner, mutators, and bound side effects remain; coverage no longer depends on
+  the deleted convenience entry points.
 
 ### `[ ]` **1.3 Count the archive index in the import ratchet — § 1.4**
 

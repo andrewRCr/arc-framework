@@ -28,8 +28,6 @@
 
 import type { MetaFileCandidate } from "../../commands/active/types.js";
 import type { ReaderResult } from "../active/meta-reader.js";
-import type { GitExec } from "../git/exec.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import type { GuardValidator } from "./lifecycle-executor.js";
 import type { LifecycleIndex } from "./lifecycle-index.js";
 import { deriveState, resolveSlugState } from "./lifecycle-resolver.js";
@@ -170,62 +168,22 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
   };
 }
 
-/** Dependencies for {@link makeWorktreeCleanGuard}. */
-export interface WorktreeCleanDeps {
-  /** Git executor — runs `git status --porcelain` scoped to the worktree being torn down. */
-  exec: GitExec;
-}
-
-/**
- * Build the `worktree-clean` guard — refuses a worktree-teardown leg (`park`,
- * `abandon`) when the WU's worktree carries uncommitted work, *before* any
- * mutation fires. This is the table-level fail-fast that keeps a dirty teardown
- * from half-applying (e.g. `abandon` removing the artifact set, then throwing on
- * the dirty-worktree leg with the branch/worktree still intact).
- *
- * The worktree to check is the teardown op's target — `inputs.worktreeOp.worktreePath`
- * (every cell declaring this guard carries a teardown `worktreeOp`). An edge that
- * declares the guard but supplies no teardown op resolves cleanly (`ok`): there is
- * no worktree to gate (the verb-orchestrated arms drive their own teardown). The
- * underlying {@link isWorktreeClean} treats an exec failure as not-clean, so
- * uncertainty rejects (the safe default).
- *
- * @param deps - The git executor the clean check runs through.
- * @returns An async guard validator.
- */
-export function makeWorktreeCleanGuard(deps: WorktreeCleanDeps): GuardValidator {
-  return async ({ inputs }) => {
-    const op = inputs.worktreeOp;
-    // No teardown target ⇒ no worktree to gate (the verb drives its own teardown).
-    if (op?.mutation !== "teardown") return { ok: true };
-    if (await isWorktreeClean({ exec: deps.exec, cwd: op.worktreePath })) return { ok: true };
-    return {
-      ok: false,
-      message:
-        `refusing to tear down a dirty worktree: \`${op.worktreePath}\` has uncommitted work — ` +
-        `commit or stash it first (\`--force\` stays the rollback-only path).`,
-    };
-  };
-}
-
 /**
  * Assemble the index-aware / IO guard validators — the foot-gun guards the
  * executor leaves to its caller — into the map `executeTransition` merges over
  * its pure defaults.
  *
- * @param deps - The worktree-occupancy guard's dependencies plus the git executor for `worktree-clean`.
- * @returns The `name-collision` + `worktree-occupancy` + `worktree-clean` validators.
+ * @param deps - The worktree-occupancy guard's dependencies.
+ * @returns The `name-collision` + `worktree-occupancy` validators.
  */
 export function buildFootgunGuards(
-  deps: WorktreeOccupancyDeps & WorktreeCleanDeps,
+  deps: WorktreeOccupancyDeps,
 ): {
   "name-collision": GuardValidator;
   "worktree-occupancy": GuardValidator;
-  "worktree-clean": GuardValidator;
 } {
   return {
     "name-collision": nameCollisionGuard,
     "worktree-occupancy": makeWorktreeOccupancyGuard(deps),
-    "worktree-clean": makeWorktreeCleanGuard(deps),
   };
 }

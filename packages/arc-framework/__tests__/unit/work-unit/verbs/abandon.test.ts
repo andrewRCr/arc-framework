@@ -111,7 +111,7 @@ interface Harness {
   recordedTransitions: LineageRecord[];
 }
 
-function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
+function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
@@ -131,7 +131,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
@@ -144,16 +144,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
-    // The `worktree-clean` IO guard is a caller-supplied seam (production binds the
-    // real `git status` read via `buildFootgunGuards`); the started-WU abandon
-    // cells declare it as the fail-fast that keeps a dirty teardown from
-    // half-applying (artifacts removed, branch/worktree intact).
-    guardValidators: {
-      "worktree-clean": () =>
-        worktreeClean
-          ? { ok: true }
-          : { ok: false, message: "refusing to tear down a dirty worktree: /repo/../wt-foo has uncommitted work." },
-    },
   };
 
   // The artifact-removal seam: list the WU's files, delete each, drop the emptied subdir.
@@ -402,22 +392,6 @@ describe("runAbandon — started WU (active)", () => {
         remedy: null,
       },
     });
-  });
-});
-
-describe("runAbandon — started WU on a dirty worktree", () => {
-  it("no longer gates on worktree cleanliness — the deferred teardown owns the worktree", async () => {
-    const { ctx, calls, removed } = buildCtx([ACTIVE], /* worktreeClean */ false);
-
-    const result = await runAbandon(ctx, BASE);
-
-    // The started-WU abandon edges dropped the `worktree-clean` guard along with the
-    // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
-    // artifact removal; structurally authorized `arc teardown` owns the worktree.
-    expect(result.status).toBe("abandoned");
-    if (result.status !== "abandoned") return;
-    expect(removed).toContain("/repo/.arc/active/meta-foo.md");
-    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
 

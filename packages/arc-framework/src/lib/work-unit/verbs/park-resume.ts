@@ -312,7 +312,7 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
  * park@Planning — codeless: relocate `active/ → backlog/planned/` in-verb. The
  * `plan/<name>` branch + worktree teardown is **out-of-band** (post-action
  * `arc teardown --force`, re-cut on resume), not an in-verb leg — firing it here
- * tripped the `worktree-clean` guard on the verb's own staged relocate and,
+ * tripped the mutator's cleanliness check on the verb's own staged relocate and,
  * in-place, targeted the un-removable primary worktree. Routes through the
  * executor (run from the WU's own worktree, where its `active/` resolves).
  */
@@ -435,7 +435,7 @@ async function rollbackParkPlanning(
 
 /**
  * park@Active — preserve the pushed branch as the durable shelf. Tear down only
- * the worktree (the `worktree-clean` guard inside the mutator refuses uncommitted
+ * the worktree (the mutator's cleanliness check refuses uncommitted
  * work and targets *that* worktree, never this base relocate locus), then render a
  * fresh minimal pointer-record on the tracked branch — no git-mv, since the
  * authoritative artifacts ride the preserved branch and are never moved off

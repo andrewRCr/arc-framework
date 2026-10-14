@@ -6,9 +6,6 @@
  * receipts. The applier binds the resulting rewrite to the exact meta content
  * that produced it and stages only declared current-work-unit paths.
  *
- * `dischargeDepEdges` remains the activation compatibility entry point over the
- * same planner/applier.
- *
  * @module
  */
 
@@ -614,65 +611,8 @@ function byteSort(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-/** Dependencies for {@link dischargeDepEdges}. */
-export interface DischargeDepEdgesContext {
-  /** The lifecycle-complete index — resolves each dependency's state. */
-  index: LifecycleIndex;
-  /** Read the dependent's meta content (production binds `fs.readFile`). */
-  readMeta: (metaPath: string) => Promise<string>;
-  /** Write the dependent's rewritten meta (production binds `fs.writeFile`). */
-  writeMeta: (metaPath: string, content: string) => Promise<void>;
-}
-
-/** The dependent WU being activated, and its meta path. */
-export interface DischargeDepEdgesOp {
-  /** The dependent's slug — whose `Depends On` edges are examined. */
-  slug: string;
-  /** Path to the dependent's meta (the gate rewrite target). */
-  metaPath: string;
-}
-
-/** The partition of a dependent's edges after a discharge pass. */
-export interface DischargeDepEdgesResult {
-  /** Edges resolved off the gate (their dependency is `shipped` ∨ `integrating`). */
-  discharged: string[];
-  /** Edges still blocking (their dependency has not reached integration). */
-  live: string[];
-}
-
 /** Render an identifier-list value (each element backticked), or the empty sentinel. */
 function renderEdgeList(edges: string[]): string {
   return edges.length === 0 ? "[none]" : edges.map((s) => `\`${s}\``).join(", ");
 }
 
-/**
- * Discharge a newly-activated WU's satisfied `Depends On` edges: partition each
- * edge by the `shipped ∨ integrating` readiness verdict and, when any discharge,
- * rewrite the `Depends On` gate to the live set only. A WU with no edges — or no
- * satisfied edge — writes nothing.
- *
- * @param ctx - The index plus the meta read / write seams.
- * @param op - The dependent slug and its meta path.
- * @returns The discharged / live edge partition.
- */
-export async function dischargeDepEdges(
-  ctx: DischargeDepEdgesContext,
-  op: DischargeDepEdgesOp,
-): Promise<DischargeDepEdgesResult> {
-  const result = await runCurrentWuReconcile({
-    index: ctx.index,
-    queryDisposition: () => Promise.resolve({ status: "absent" }),
-    readFile: ctx.readMeta,
-    writeFile: ctx.writeMeta,
-    stagePaths: () => Promise.resolve(),
-    captureIndexState: () => Promise.resolve({
-      indexFile: "unused",
-      commit: () => Promise.resolve(),
-      rollback: () => Promise.resolve(),
-    }),
-  }, { ...op, apply: true });
-  return {
-    discharged: [...result.prepared.plan.dependency.discharged],
-    live: [...result.prepared.plan.dependency.live],
-  };
-}

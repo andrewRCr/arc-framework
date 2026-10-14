@@ -11,7 +11,7 @@ import {
 } from "../active/meta-reader.js";
 import { listArcFiles } from "../fs.js";
 
-/** Filesystem seams used by {@link sweepRenameReferences}. */
+/** Filesystem seams used to plan and apply reference rewrites. */
 export interface RenameReferenceSweepContext {
   listFiles(root: string): Promise<string[]>;
   readFile(path: string): Promise<string>;
@@ -71,22 +71,6 @@ export interface RenameReferenceEdit {
 /** A deterministic reference-sweep plan and its authority-bound path set. */
 export interface RenameReferencePlan extends RenameReferenceSweepResult {
   edits: RenameReferenceEdit[];
-}
-
-/**
- * Rewrite renamed artifact code spans and exact `Depends On` edges in lifecycle tiers.
- *
- * @param params - ARC root, slug map, and optional cohort document
- * @param ctx - Injectable filesystem traversal; defaults to the shipped ARC file walker
- * @returns Repository-relative paths whose content changed
- */
-export async function sweepRenameReferences(
-  params: RenameReferenceSweepParams,
-  ctx: RenameReferenceSweepContext = nodeContext,
-): Promise<RenameReferenceSweepResult> {
-  const plan = await planRenameReferences(params, ctx);
-  await applyRenameReferencePlan(plan, ctx);
-  return { changedPaths: plan.changedPaths };
 }
 
 /**

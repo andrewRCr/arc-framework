@@ -143,7 +143,7 @@ export type GuardValidator = (ctx: GuardContext) => GuardResult | Promise<GuardR
 /**
  * The guards that resolve purely over inputs / state — wired in the executor.
  * The index-aware foot-gun guards (`name-collision` / `worktree-occupancy`, plus
- * the IO `worktree-clean`) are supplied by the caller via
+ * IO guards) are supplied by the caller via
  * {@link ExecuteTransitionContext.guardValidators}; an edge that declares a guard
  * with no validator after the merge is rejected before any mutation.
  */
@@ -1033,7 +1033,6 @@ function effectiveMetaPath(
 export function establishedBranch(inputs: TransitionInputs): string | null {
   const branchOp = inputs.branchOp;
   if (branchOp?.mutation === "rename") return branchOp.toBranch;
-  if (branchOp?.mutation === "delete") return "[none]";
   if (inputs.worktreeOp?.mutation === "spawn") return inputs.worktreeOp.branch;
   return null;
 }

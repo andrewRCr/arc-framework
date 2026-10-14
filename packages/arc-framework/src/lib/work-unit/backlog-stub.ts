@@ -115,17 +115,3 @@ export async function resolveBacklogStub(cwd: string, slug: string): Promise<Bac
   return null;
 }
 
-/**
- * List every backlog stub across both state-dirs — the disambiguation surface a
- * bare `--plan` (no slug) presents.
- *
- * @param cwd - Repository root (the directory containing `.arc/`).
- * @returns Every stub found under `planned` and `provisional`.
- */
-export async function listBacklogStubs(cwd: string): Promise<BacklogStub[]> {
-  const out: BacklogStub[] = [];
-  for (const stateDir of STATE_DIRS) {
-    out.push(...(await collectStubs(join(cwd, ".arc", "backlog", stateDir), stateDir)));
-  }
-  return out;
-}

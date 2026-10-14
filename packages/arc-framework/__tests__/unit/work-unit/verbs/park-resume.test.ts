@@ -154,7 +154,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
@@ -174,10 +174,9 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       calls.push(`soft:${path}:${Object.keys(updates).join(",")}`);
     },
     sideEffects,
-    // The `worktree-clean` / `worktree-occupancy` IO guards are injected seams
+    // The `worktree-occupancy` IO guard is an injected seam
     // (the CLI binds the real worktree reads); both pass by default here.
     guardValidators: {
-      "worktree-clean": () => ({ ok: true }),
       "worktree-occupancy": () =>
         occupancyOk ? { ok: true } : { ok: false, message: "worktree already holds an active work unit `other`." },
     },

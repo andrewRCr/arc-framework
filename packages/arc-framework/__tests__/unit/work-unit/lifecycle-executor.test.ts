@@ -22,8 +22,6 @@ import {
 } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import { setMetaBulletFields, type MetaFieldName } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
-import { buildFootgunGuards } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
 import type { ValidatedGraduationTransaction } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
@@ -382,74 +380,21 @@ describe("executeTransition — guard validation", () => {
   });
 
   it("rejects when a declared guard has no validator wired", async () => {
-    // park@Active declares `worktree-clean`, an IO guard with no *default* validator
-    // (production supplies it via `buildFootgunGuards`). Dropping the caller's
-    // validators leaves it unwired, so the wiring check rejects before any mutation —
-    // the executor never runs an edge whose guard is unresolvable.
+    // Start declares worktree-occupancy, supplied by the production context.
     const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
+      metas: [PLANNED_META],
       guardValidators: {},
     });
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "start",
       slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("guard");
-    expect(outcome.message).toMatch(/worktree-clean.*not wired/i);
-    expect(calls).toEqual([]);
-  });
-
-  it("resolves the real worktree-clean validator: park@Active proceeds on a clean worktree", async () => {
-    // Wire the *production* `worktree-clean` guard over a git exec whose
-    // `status --porcelain` returns empty (clean) — the executor resolves it and
-    // the park bundle proceeds.
-    const cleanExec: GitExec = async () => ({ stdout: "", stderr: "" });
-    const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
-      guardValidators: buildFootgunGuards({
-        cwd: CWD,
-        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
-        exec: cleanExec,
-      }),
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
-    });
-
-    expect(outcome.status).toBe("ok");
-    expect(calls).toContain("leg:worktree:teardown");
-  });
-
-  it("resolves the real worktree-clean validator: park@Active rejects on a dirty worktree", async () => {
-    // The git exec reports an uncommitted change — `isWorktreeClean` reads it as
-    // dirty, so the real guard rejects at the guard stage, before any mutation.
-    const dirtyExec: GitExec = async () => ({ stdout: " M file.ts\n", stderr: "" });
-    const { ctx, calls } = buildSpies({
-      metas: [ACTIVE_META],
-      guardValidators: buildFootgunGuards({
-        cwd: CWD,
-        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
-        exec: dirtyExec,
-      }),
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: { worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" } },
-    });
-
-    expect(outcome.status).toBe("rejected");
-    if (outcome.status !== "rejected") return;
-    expect(outcome.stage).toBe("guard");
-    expect(outcome.message).toMatch(/dirty worktree/i);
+    expect(outcome.message).toMatch(/worktree-occupancy.*not wired/i);
     expect(calls).toEqual([]);
   });
 
@@ -597,7 +542,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
   it("rejects before any mutation when a required leg operand is missing", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+      guardValidators: {},
     });
 
     // park@Planning declares an `artifacts: relocate` leg (needs a `toDir`) but supplies none.
@@ -791,7 +736,6 @@ describe("executeTransition — soft-field disposition", () => {
         : verb === "archive"
           ? {
             toDir: ".arc/completed/2026-q2/01_demo",
-            branchOp: { mutation: "delete", branch: "feat/demo" },
             worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
           }
           : { prMerged: false, softFields: { nextTask: "[none]" } };
@@ -850,7 +794,6 @@ describe("executeTransition — soft-field disposition", () => {
       slug: "demo",
       inputs: {
         toDir,
-        branchOp: { mutation: "delete", branch: "feat/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
     });
@@ -961,16 +904,16 @@ describe("executeTransition — never fabricates judgment values", () => {
   it("rejects a branchOp whose mutation disagrees with the edge", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
-    // deactivate declares a branch `rename`; supply a `delete` instead.
+    // deactivate declares a branch `rename`; supply a `preserve` instead.
     const inputs: TransitionInputs = {
-      branchOp: { mutation: "delete", branch: "feat/demo" },
+      branchOp: { mutation: "preserve" },
     };
     const outcome = await executeTransition(ctx, { verb: "deactivate", slug: "demo", inputs });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("inputs");
-    expect(outcome.message).toMatch(/delete.*does not match.*rename/i);
+    expect(outcome.message).toMatch(/preserve.*does not match.*rename/i);
     expect(calls).toEqual([]);
   });
 });
@@ -1064,28 +1007,6 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(branchWrites).toEqual([]);
   });
 
-  it("park@Planning clears the field to `[none]` (from branchOp.delete)", async () => {
-    const { ctx, branchWrites } = buildSpies({
-      metas: [PLANNING_ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
-    });
-
-    const outcome = await executeTransition(ctx, {
-      verb: "park",
-      slug: "demo",
-      inputs: {
-        toDir: ".arc/backlog/planned/demo",
-        branchOp: { mutation: "delete", branch: "plan/demo" },
-        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
-      },
-    });
-
-    expect(outcome.status).toBe("ok");
-    if (outcome.status !== "ok") return;
-    expect(outcome.branchFieldWritten).toBe("[none]");
-    expect(branchWrites).toEqual([{ path: ".arc/backlog/planned/demo/meta-demo.md", branch: "[none]" }]);
-  });
-
   it("resume projects the preserved branch at the parked path (no relocate; pointer removed verb-side)", async () => {
     const { ctx, branchWrites } = buildSpies({
       metas: [PARKED_META],
@@ -1110,7 +1031,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
   it("park@Active does NOT write the field — the pointer-record owns its Branch (preserve, no branchOp)", async () => {
     const { ctx, branchWrites, calls } = buildSpies({
       metas: [ACTIVE_META],
-      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+      guardValidators: {},
     });
 
     const outcome = await executeTransition(ctx, {

@@ -110,7 +110,7 @@ function buildCtx(opts: {
       return { moved: [`meta-${slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
@@ -259,7 +259,7 @@ describe("runArchive — the dated sweep", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cohort-doc archival sweep — gated on the resolver's `isArchivalTriggered`
+// Cohort-doc archival sweep — gated on the resolver's `isArchivalTriggeredWithDescendants`
 // ---------------------------------------------------------------------------
 
 /** A lifecycle-index entry, mirroring the membership-test fixture shape. */

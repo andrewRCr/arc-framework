@@ -232,7 +232,7 @@ function parseCohortCoordinate(field: string): [Slug] | [Slug, Slug] | null {
 /**
  * Sweep a cohort's coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
  * closeout sidecar when the cohort's **last member has shipped** — the archival
- * trigger, detected by the resolver's {@link isArchivalTriggered} over the
+ * trigger, detected by the resolver's {@link isArchivalTriggeredWithDescendants} over the
  * post-move index (never re-derived here). The sidecar shares the final member's
  * completion-order number (`{NN}a`), keeping `completed/` chronological. A
  * standalone WU, the `[none]` sentinel, or a cohort with members still in flight

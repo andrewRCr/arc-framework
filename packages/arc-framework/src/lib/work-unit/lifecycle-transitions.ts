@@ -68,8 +68,6 @@ export type Verb = (typeof VERBS)[number];
  *   already occupies a branch / worktree).
  * - `class-resolved` — `promote` refuses a `[TBD]` `Class` (a realized work unit
  *   never leaves `planned/` carrying an unresolved weight).
- * - `worktree-clean` — a worktree-teardown leg refuses a dirty worktree
- *   (`--force` stays rollback-only, never the user-facing teardown path).
  * - `confirmation` — the destructive `abandon` cascade requires an explicit
  *   confirmation `input`; bare invocation prints the impact plan and refuses
  *   (safe default: not-destroy).
@@ -80,7 +78,6 @@ export type GuardId =
   | "name-collision"
   | "worktree-occupancy"
   | "class-resolved"
-  | "worktree-clean"
   | "confirmation"
   | "pr-unmerged";
 
@@ -118,7 +115,7 @@ export type SideEffectId =
 export type ArtifactDisposition = "relocate" | "scaffold" | "remove";
 
 /** The `reconcile-branch` leg's operation — phase-and-direction-conditioned. */
-export type BranchMutation = "create" | "rename" | "delete" | "preserve";
+export type BranchMutation = "create" | "rename" | "preserve";
 
 /** The `reconcile-work-unit-worktree` leg's operation. */
 export type WorktreeMutation = "spawn" | "teardown";
@@ -137,7 +134,7 @@ export type WorktreeMutation = "spawn" | "teardown";
 export interface MutatorSpec {
   /** The artifact-set leg — relocate / scaffold / remove; omitted = untouched. */
   artifacts?: ArtifactDisposition;
-  /** `reconcile-branch` — create / rename / delete / preserve the WU branch. */
+  /** `reconcile-branch` — create / rename / preserve the WU branch. */
   reconcileBranch?: BranchMutation;
   /** `reconcile-work-unit-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
   reconcileWorkUnitWorktree?: WorktreeMutation;
@@ -148,9 +145,7 @@ export interface MutatorSpec {
    * with **no** git ref op. The merge-gated `archive` edge uses this: its
    * relocation rides the ship PR, so the *logical* encoding (`Branch → [none]`)
    * lands pre-merge, while the *physical* branch/worktree teardown is deferred to
-   * post-merge cleanup outside the table (the integration tail). Distinct from
-   * `reconcileBranch: "delete"`, which force-deletes the ref in place
-   * (`park@Planning` / `abandon` — local, not merge-gated).
+   * post-merge cleanup outside the table (the integration tail).
    */
   clearBranchField?: boolean;
   /**
@@ -423,7 +418,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: PARKED,
     inverse: "resume",
-    guards: ["worktree-clean"],
+    guards: [],
     encodingUpdates: { reconcileWorkUnitWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -433,7 +428,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // in-verb (staged + committed with the park), but its `plan/<name>` branch +
     // worktree teardown is **out-of-band**: it runs post-action via
     // `arc teardown --force`, not an in-verb leg. Firing teardown here tripped the
-    // `worktree-clean` guard on the verb's own staged tree and, in-place, targeted
+    // mutator cleanliness check on the verb's own staged tree and, in-place, targeted
     // the un-removable primary worktree — so this edge declares neither the
     // teardown legs nor that guard (mirroring `decompose@planning`).
     verb: "park",
@@ -601,7 +596,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // A started origin retires its artifacts in-verb (staged + committed with the
     // transform), but its branch + worktree teardown is **out-of-band**: it runs
     // post-merge via the generalized `arc teardown --force`, not an in-verb leg.
-    // Firing teardown here tripped the `worktree-clean` guard on the verb's own
+    // Firing teardown here tripped the mutator cleanliness check on the verb's own
     // staged tree and, in-place, targeted the un-removable primary worktree — so
     // this edge declares neither the teardown legs nor that guard.
     verb: "decompose",
@@ -638,7 +633,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
   {
     // The started-WU abandon cells remove artifacts in-verb but defer their branch +
     // worktree teardown **out-of-band** to a post-action `arc teardown --force`, not
-    // an in-verb leg. Firing teardown here tripped the `worktree-clean` guard on the
+    // an in-verb leg. Firing teardown here tripped the mutator cleanliness check on the
     // verb's own staged removal and, in-place, targeted the un-removable primary
     // worktree — so these edges declare neither the teardown legs nor that guard
     // (mirroring `park@Planning` / `decompose@planning`). PARKED likewise
