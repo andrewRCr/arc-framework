@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "index-planning-lifecycle-verbs",
+  "claimId": "c1a06d7b6b9e16172ca2716381e68a53",
+  "createdAt": "2026-10-14T22:02:15.192Z",
+  "updatedAt": "2026-10-14T22:02:15.192Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add the existing set-stage and finalize commands to both lifecycle verb indexes.",
+  "branch": "chore/index-planning-lifecycle-verbs",
+  "origin": "inbox",
+  "originEntry": "List `arc set-stage` and `arc finalize` in QUICK-REFERENCE's lifecycle verb index",
+  "originEntrySourceDigest": "sha256:75e1ce319eac40899cff1c5e23789e00aee2eee8843cd7f9b4acc9a27185d22e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
