@@ -11,3 +11,5 @@ adapters live in [the check handlers](../../handlers/check/).
   and runtime fingerprints. Unavailable observations never authorize reuse.
 - `batching.ts` bounds literal argument lists. `forecast.ts` describes native invocations and shard expansions;
   `reports.ts` retains full logs and measured costs, and `remedies.ts` names work-preserving retries.
+- `install-gap.ts` reads a failure naming a package the npm lockfile declares but no install holds as a check that
+  could not run, and names `npm ci` as the repair.

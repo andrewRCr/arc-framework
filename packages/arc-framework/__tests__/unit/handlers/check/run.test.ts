@@ -126,6 +126,39 @@ it("reports a check killed before it finished as couldn't run, with a retry and 
   expect(result.result.checks[0]).not.toHaveProperty("record");
 });
 
+it("reports a check that fails on a locked but uninstalled package as couldn't run, then passes once installed", async () => {
+  const { root, io, ids } = await fixture({ lint: {} });
+  await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3,
+    packages: { "": {}, "node_modules/eslint-plugin-jsdoc": { dev: true } } }));
+  const output = `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'eslint-plugin-jsdoc' imported from ${root}/eslint.config.js`;
+  io.execute = async () => ({ started: true, exitCode: 2, output });
+  const missing = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(missing).toMatchObject({ kind: "result", exitCode: 2, result: { checks: [{
+    id: "lint", outcome: "couldn't run", output,
+    reason: "eslint-plugin-jsdoc is in package-lock.json but not installed; run npm ci, then retry",
+    remedy: expect.stringMatching(/^arc check run lint\b/u),
+  }] } });
+  if (missing.kind !== "result") throw new Error(missing.error.message);
+  expect(missing.result.checks[0]).not.toHaveProperty("record");
+
+  await mkdir(join(root, "node_modules/eslint-plugin-jsdoc"), { recursive: true });
+  io.execute = async () => ({ started: true, exitCode: 0, output: "" });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ id: "lint", outcome: "passed" }] },
+  });
+});
+
+it("keeps a missing package the lockfile does not declare as a failed check", async () => {
+  const { root, io, ids } = await fixture({ lint: {} });
+  await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {} } }));
+  io.execute = async () => ({ started: true, exitCode: 2,
+    output: "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'left-pad' imported from /repo/src/index.js" });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 1, result: { checks: [{ id: "lint", outcome: "failed" }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks[0]).not.toHaveProperty("reason");
+});
+
 it("keeps a declared no-evidence status of 137 as no evidence rather than a kill", async () => {
   const { root, io, ids } = await fixture({ related: { no_evidence_exit: 137 } });
   io.execute = async () => ({ started: true, exitCode: 137, output: "" });
