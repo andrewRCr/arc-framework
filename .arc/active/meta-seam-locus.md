@@ -1,8 +1,8 @@
 # Metadata: Seam Locus, Session-Init, and Personal Surfaces
 
-| **State**  | **Owner** | **Branch**        | **Class** | **Priority** |
-| ---------- | --------- | ----------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/seam-locus` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**        | **Class** | **Priority** |
+| --------- | --------- | ----------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/seam-locus` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-seam-locus.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Register the shared action shape and each rebuilt slot's schema
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — register the action shape (Task 1.1.a), then each rebuilt slot's full schema
 
 - **PR URL:** [none]
 - **Completed:** [none]
