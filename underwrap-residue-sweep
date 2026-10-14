@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "underwrap-residue-sweep",
+  "claimId": "470a34b1c557ce962cda8655c37dfd51",
+  "createdAt": "2026-10-14T14:17:05.865Z",
+  "updatedAt": "2026-10-14T14:17:05.865Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrap main's remaining under-wrapped Markdown lines and exclude test fixtures from the underwrap check",
+  "branch": "chore/underwrap-residue-sweep",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
