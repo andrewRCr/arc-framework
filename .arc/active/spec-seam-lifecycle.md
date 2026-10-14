@@ -204,26 +204,31 @@ review chunks on one branch (§ 1.3); no chunk lands on its own, so the change c
   `rename-user-workspace.ts`, `rename-worktree-transaction.ts`, `completed-index.ts`, and
   `git-owned-decompose-candidate-cleanup.ts`, shared with decomposition; `in-repo-retirement-authority.ts`, which § 1.4
   deletes.
-- **Handlers and commands:** `handlers/lifecycle.ts`, `handlers/lifecycle-shared.ts`, `handlers/lifecycle-delivery-review.ts`
-  (publication and the reopen permit; the rest is delivery's), `handlers/reconcile.ts`, `handlers/plan.ts` and
-  `handlers/housekeep.ts` (the write-context checks), `handlers/status/lifecycle.ts` (lifecycle state by slug),
-  `handlers/base.ts`'s `handleBaseSync` (its detached arm, § 6.2), `commands/rename.ts`, `handlers/release/commit.ts`
-  and `handlers/release/push.ts` with `lib/release/types.ts` (their refusals on an ambiguous work unit),
-  `lib/active/cohort-consistency.ts`, and the lifecycle callers of `lib/active/meta-reader.ts` and
-  `lib/release/wu-resolution.ts`.
+- **Handlers and commands:** `handlers/lifecycle.ts`, `handlers/lifecycle-shared.ts`,
+  `handlers/lifecycle-delivery-review.ts` (publication and the reopen permit; the rest is delivery's),
+  `handlers/reconcile.ts`, `handlers/plan.ts` and `handlers/housekeep.ts` (the write-context checks),
+  `handlers/status/lifecycle.ts` (lifecycle state by slug), `handlers/base.ts`'s `handleBaseSync` (its detached arm,
+  § 6.2), `commands/rename.ts`, `handlers/release/commit.ts` and `handlers/release/push.ts` with `lib/release/types.ts`
+  (their refusals on an ambiguous work unit), with `handlers/release/commit-cli.ts`, `lib/release/schema.ts`, and
+  `lib/release/interlock-validation.ts` for `--close` (§ 9.3), `lib/active/cohort-consistency.ts`, and the lifecycle
+  callers of `lib/active/meta-reader.ts` and `lib/release/wu-resolution.ts`.
 - **Errand promotion:** `lib/errand/promote.ts`, beside which this change builds promotion's arm from the flip (§ 7.2),
   and `lib/errand/promote-runtime.ts`, shared with locus's reroute.
-- **The Git worktree layer:** `lib/git/worktree-porcelain.ts`, whose parsers gain the lock lines (§ 11.1), and the
-  removal function's own new module beside it (§ 11). The copy key's function is a new module, `lib/git/copy-key.ts`
-  (§ 5.2). `lib/git/worktree-cleanup.ts` stays as it is: `isWorktreeClean`
-  keeps serving the callers locus moves onto the removal check, and `decideWorktreeCleanup` is locus's (§ 11.4).
+- **The Git worktree layer:** `lib/git/worktree-porcelain.ts`, whose parsers gain the lock lines (§ 11.1), the removal
+  function's own new module beside it (§ 11), which also holds the function a spawn runs to clear a registration whose
+  folder is missing (§ 6), and `lib/git/linked-worktree.ts` and `lib/git/worktree-location.ts`, for the spawn with no
+  branch and, in the first, the optional step that runs that function (§ 6). The copy key's function is a new module,
+  `lib/git/copy-key.ts` (§ 5.2). `lib/git/worktree-cleanup.ts` stays as it is: `isWorktreeClean` keeps serving the
+  callers locus moves onto the removal check, and `decideWorktreeCleanup` is locus's (§ 11.4).
 - **Workflow text:** none before the flip but the cold-start step (§ 13). The lifecycle and planning workflows keep
   today's text; the flip's rewrite of them is not this change's.
 
 Modules outside this list change with it: the store's links schema (`lib/store/links.ts`, § 5), lookup's commit request
-(`lib/store/lookup.ts`, § 5.1), and the meta kind (`lib/store/kinds/meta/`, § 18), each by a forward amendment; and the
-Git bindings (`lib/git/exec.ts`, `lib/git/process-executor.ts`), whose byte-preserving binding gains the removal of
-named variables from its child's environment for the copy key's producer (§ 5.2).
+(`lib/store/lookup.ts`, § 5.1), a write's and a read's placement for the cohort document (`lib/store/write.ts`,
+`lib/store/placement.ts`, § 18.2), and the meta kind (`lib/store/kinds/meta/`, § 18), each by a forward amendment; and
+the Git bindings (`lib/git/exec.ts`, `lib/git/process-executor.ts`, and `lib/change-facts.ts`'s binding of the same
+type), whose byte-preserving binding gains the removal of named variables from its child's environment for the copy
+key's producer (§ 5.2).
 
 #### 1.3 Review chunks and their order
 
@@ -262,10 +267,11 @@ of them lifecycle's. `completed-index.ts` then joins the `store-raw-state` helpe
 `eslint/architecture-imports.ts`), with its remaining callers recorded in `eslint-suppressions.json` as the floor, so
 archive's and teardown's reads of it count and no slug parse does.
 
-The floor still misses two reads no rule names, each moved by the change that owns its caller: `.arc/` paths built with
-`join` (§ 2.3), and the task-list path imported upward from the command layer (`resolveTaskListPath`,
-`commands/active/status.ts`), whose production importers here are `verbs/publish.ts`, `verbs/reopen.ts`, and the reopen
-permit (`permitDeliveryReopen`, `handlers/lifecycle-delivery-review.ts`) (§ 2.3).
+The floor still misses two reads no rule names, each moved by the change that owns its caller where its arm from the
+flip reads it: `.arc/` paths built with `join` (§ 2.3), and the task-list path imported upward from the command layer
+(`resolveTaskListPath`, `commands/active/status.ts`), whose production importers here are `verbs/reopen.ts` and the
+reopen permit (`permitDeliveryReopen`, `handlers/lifecycle-delivery-review.ts`), which move, and `verbs/publish.ts`,
+whose read stays in its in-repo arm (§ 2.3).
 
 #### 1.5 Before the flip
 
@@ -274,7 +280,7 @@ own test:
 
 1. **The seed fix** (§ 13).
 2. **The removal check runs before an abandon or a park from Planning records anything** (§ 11.3).
-3. **The executor closes the workspace after the transition's record writes** (§ 2.5).
+3. **The workspace closes after the transition's record writes** (§ 2.5).
 4. **The removal function prunes a registration whose folder is gone** (§ 11.2).
 5. **Activation refuses a work unit whose `Branch` names base** (§ 6.1).
 
@@ -304,8 +310,11 @@ These run only while `capabilities.stateOffBranch` is false, and the cutover's d
   `pointer-record.ts`), park from Planning's landing (`park-planning-landing.ts`) and the evidence teardown accepts for
   it (`park-retirement-proof.ts`, and `current-husk-advisory.ts`'s `park-planning` transition value), and the parked
   position in `deriveState`.
-- **`plan/` branches:** `reconcileBranch`'s plan-branch legs, deactivation's rename back under `plan/`, and graduation's
-  plan-branch stamping (`prepareValidatedGraduationTransaction`).
+- **`plan/` branches:** `reconcileBranch`'s plan-branch legs, deactivation's rename back under `plan/`, graduation's
+  plan-branch stamping (`prepareValidatedGraduationTransaction`), and every other `plan/<slug>` read, write, or check on
+  graduation's and create-new's paths — the occupation and branch-absence checks (`validOccupation`, `branchIsAbsent`),
+  the branch `occupy` creates, create-new's branch choice and its rollback's deletion (`rollbackSpawnedWorktree`), and
+  the start prompts naming it.
 - **Archive by path:** `computeArchiveDestination`, the cohort sidecar sweeps (`sweepCohortDoc`,
   `sweepNestedParentDoc`), and relocation's `git mv` (`relocate-artifacts.ts`, whose artifact matchers stay).
 - **Lineage on disk:** `transition-record-store.ts`, `transition-record-enumeration.ts`, and rename's lineage record
@@ -347,6 +356,28 @@ Each verb in § 1.2 reads `capabilities` from the store it opens and branches on
   writers' typed values.
 - **Git steps around the batch** — a spawn, a branch cut or rename, a checkout's removal, a branch's reap — either
   precede it and roll back on its failure, or follow it and are idempotent on rerun (§ 15).
+- **A transition's arm from the flip runs inside the executor** (`executeTransition`), so one edge table and one set of
+  guards serve both arms: it resolves the work unit's position from the store's lifecycle index rather than the
+  checkout's files (`buildLifecycleIndex`), through the slug-keyed view its guards read (§ 2.3), selects the edge and
+  runs its guards as today, each edge declaring its form from the flip beside today's — its soft fields, less those that
+  retire at the flip, its artifacts, its side effects, and the Git steps it takes before or after its batch — and lands
+  the record writes of its legs and finalize step in the one batch. The verb supplies those Git steps, its worktree and
+  branch legs, since some are chosen at run time, as activation's branch step is (§ 6.1). A verb that writes outside any
+  transition — the Class verb, `arc set-stage`, `arc finalize`, `arc repoint-design`, the pause and handover verbs, and
+  the close — reads, applies, and batches the same way directly.
+- **An incomplete index refuses.** The store's lifecycle listing reports a meta it cannot parse, or one whose `State` it
+  does not know, as a `malformed` diagnostic and marks the listing missed (`listLifecycleIndex`,
+  `lib/store/lifecycle-index.ts`), where today's index drops that meta silently (`buildLifecycleIndex`). From the flip
+  every read of the slug-keyed view (§ 2.3) that precedes a write refuses over such a listing, as the store's lifecycle
+  storage already does (`requireCompleteInventory`, `lib/store/lifecycle-storage.ts`), naming each record and its
+  condition, since a missing entry proves no absence over a partial index: a transition's, the reconcile's prepare,
+  which activation and publication run before their transition, start's dispatch, rename's subject and collision checks,
+  which no store write repeats, and abandon's and resume's handlers, in place of the composed index's indeterminate-slug
+  checks (`isComposedLifecycleSlugIndeterminate`), which stay the in-repo arm's. An unreadable listing refuses as it
+  does there. A read that only reports, as `arc status <slug>`'s does, proceeds over the view. The reconcile's prepare
+  refuses in every mode, its inspection and session start's probe of it included, since its plan would read a malformed
+  dependency as nonexistent: the inspection reports the refusal, and session start's probe meets the same refusal, how
+  its slot reports it being locus's.
 
 #### 2.2 What each move writes from the flip
 
@@ -363,8 +394,8 @@ Each verb in § 1.2 reads `capabilities` from the store it opens and branches on
 | `arc abandon`                                         | a stub, Planning, or Active → ended   | the lineage record created and the primary removed, in one batch (§ 8.6)                                                                                                                                                                                                                                                     |
 | `arc pause`, `arc resume`                             | none                                  | the pause section written or cleared (§ 8.1)                                                                                                                                                                                                                                                                                 |
 | `arc handover`                                        | none                                  | `Owner` (§ 8.5)                                                                                                                                                                                                                                                                                                              |
-| `arc rename`                                          | none                                  | the name and aliases, with the reference sweep's edits (§ 7.1)                                                                                                                                                                                                                                                               |
-| `arc set-stage`, `arc finalize`, `arc repoint-design` | none                                  | `Current Workflow` and `Next Action`; `Class`; `Design` and `Task List`, as each writes today                                                                                                                                                                                                                                |
+| `arc rename`                                          | none                                  | the name and aliases, with the reference sweep's edits, and a renamed branch's link under its new `ref` (§ 7.1)                                                                                                                                                                                                              |
+| `arc set-stage`, `arc finalize`, `arc repoint-design` | none                                  | `Current Workflow` and `Next Action`; `Class`, `Task List`, and `Next Action`; `Design`, as each writes today                                                                                                                                                                                                                |
 | `arc set-class`                                       | none                                  | `Class` (§ 10)                                                                                                                                                                                                                                                                                                               |
 | `arc task close`, `arc task defer`                    | none                                  | task markers and captures (§ 9)                                                                                                                                                                                                                                                                                              |
 | `arc errand promote`                                  | Errand → work unit                    | the Errand's primary put to its meta role, with the work branch's link (§ 7.2)                                                                                                                                                                                                                                               |
@@ -377,7 +408,9 @@ the backend moves the item's ref under history at an end (archive, abandon) and 
 flip `arc park` refuses `unsupported`, naming `arc pause <slug> --reason <text>` (§ 8.1), and the verbs that write no
 `Next Task` or `Last Completed` keep accepting the flags that set them today (`arc activate --task`,
 `arc publish --last-completed`), unwritten, until the deletion pass, `--task` turning optional at the flip
-(`ActivateCommandInputSchema`, `handlers/lifecycle.ts`).
+(`ActivateCommandInputSchema`, `handlers/lifecycle.ts`). Since that schema parses before any store opens, the in-repo
+arm refuses a missing `--task` itself, naming the flag, before the reconcile's prepare stages anything, and the help
+text keeps "(required)" until the deletion pass.
 
 #### 2.3 Reading lifecycle state
 
@@ -387,17 +420,42 @@ flip `arc park` refuses `unsupported`, naming `arc pause <slug> --reason <text>`
   from the resolver from the flip, since a Planning checkout is detached (§ 6).
 - **State by slug and cohort membership** — `arc status <slug>` (`handlers/status/lifecycle.ts`) and lifecycle-complete
   cohort membership (`lifecycle-membership.ts`) — re-home onto the identity-keyed lifecycle index
-  (`lib/store/lifecycle-index.ts`); `lifecycle-query.ts` and `verbs/dispatch.ts`, pure over the slug-keyed index, take
-  its input type.
-- **Work-unit state paths.** Outside § 1.6's arms, no file in § 1.2 builds a work-unit state path: it asks the contract
-  for a record, or its projected path, so `resolveArcPath` (`lib/layout/projection.ts`) stays the one layout authority.
-  That covers the layout-resolver calls the `work-unit-paths` rule counts and the `.arc/` paths and tier prefixes it
-  does not — `join(cwd, ".arc", …)` builds, `lifecycle-index.ts`'s `TIERS`, `relocate-artifacts.ts`'s
-  `PRUNE_BOUNDARY_TIERS`, `backlog-stub.ts`, `commands/rename.ts`'s cohort path, and `TRANSITION_RECORD_NAMESPACE`
-  (`transition-record-store.ts`).
-- **The task list.** `verbs/publish.ts`, `verbs/reopen.ts`, and the reopen permit (`permitDeliveryReopen`,
-  `handlers/lifecycle-delivery-review.ts`) read the task list through the store from the flip, in place of
-  `resolveTaskListPath` (`commands/active/status.ts`).
+  (`lib/store/lifecycle-index.ts`). `lifecycle-query.ts` and `verbs/dispatch.ts`, pure over the slug-keyed index, keep
+  that input, built from the identity-keyed index's entries by `buildLifecycleIndexFromRecords`
+  (`lib/work-unit/lifecycle-index.ts`), as status builds it (`project-view.ts`), so their other callers, status's and
+  the integration checkpoint's, keep theirs; the executor's guards and its resume of an interrupted finalization read
+  the same slug-keyed view (§ 2.1), built on the store's side with each record's projected path from the layout
+  resolver, and read their fields from the records, never a meta at a path. Start's dispatch (`resolveStartDispatch`,
+  `commands/start.ts`, from `handlers/start.ts`), rename's subject and collision checks (`resolveRenameSubject`,
+  `assertRenameCollisionFree`, `rename-preflight.ts`), and abandon's and resume's handlers (`handleAbandon`,
+  `handleResume`, `handlers/lifecycle.ts`), which today compose the index through `resolveTransformComposition` and read
+  `Branch` from the meta at its writable path, read the same view from the flip, with `lookup` resolving a former slug
+  and the branch coming from the link. The advisory abandon and rename report for a dependent already Integrating
+  (`findIntegratingDependentAdvisories`, `transform-coordination.ts`) comes from the view too, from each entry's state
+  and `Depends On`; the remote in-flight expansion and the composed index they read today (`expandActiveInFlight`,
+  `resolveComposedLifecycleIndex`) stay their in-repo arm, so no lifecycle reader meets a branchless in-flight entry.
+- **Work-unit state paths.** Outside § 1.6's arms, no file in § 1.2 builds or parses a work-unit state path: it asks the
+  contract for a record, or its projected path, so `resolveArcPath` (`lib/layout/projection.ts`) stays the one layout
+  authority. That covers the layout-resolver calls the `work-unit-paths` rule counts and the `.arc/` paths and tier
+  prefixes it does not. Those that sit in § 1.6's arms stay: `lifecycle-index.ts`'s `TIERS` and `locationFromPath`
+  (`lifecycle-state.ts`) behind the in-repo listing, `relocate-artifacts.ts`'s `PRUNE_BOUNDARY_TIERS`,
+  `TRANSITION_RECORD_NAMESPACE` (`transition-record-store.ts`), readiness's user path, the Git-proven retirement's tree
+  pathspecs (`git-retirement-authorization-context.ts`), park's paths and graduation's artifact names (§ 8.9, § 6), the
+  cohort consistency check's folder conditions (§ 2.6), and `arc promote`'s and `arc demote`'s backlog moves, with
+  `completed-index.ts`'s paths, whose callers here move off it (§ 1.4). Those on an arm from the flip reroute:
+  `backlog-stub.ts`'s stub resolution, rename's cohort path and its sweep's tier test (`isLifecycleTierFile`,
+  `rename-reference-sweep.ts`), and every `join(cwd, ".arc", …)` build outside the arms. A sweep of § 1.2's files for
+  `.arc/` literals, tier prefixes, and built artifact filenames is the authority, each site it finds placed by this
+  rule. The `DEFAULT_ROOT_SEGMENTS` of `meta-reader.ts` and `wu-resolution.ts` stay, since only their lifecycle callers
+  are this change's.
+- **The task list.** Publication's read of it feeds only `Last Completed` (`readLastCompletedWork`, `verbs/publish.ts`),
+  which retires at the flip, so it sits in the in-repo arm. Reopen's cursor check (`resolveReopenTaskAuthority`,
+  `verbs/reopen.ts`) reads the meta and the task list through the store from the flip: it still refuses a reopen without
+  `--task` while a task is open, one whose `--task` is not the cursor's, and one with `--task` where no task is open,
+  and a `--task` still returns `Current Workflow` to the task loop; only its `Next Task` write retires. The reopen
+  permit (`permitDeliveryReopen`, `handlers/lifecycle-delivery-review.ts`) takes the task list's projected path through
+  the store from the flip, in place of `resolveTaskListPath` (`commands/active/status.ts`); the read beneath it is
+  delivery's (`inspectRepositoryDeliveryReopen`).
 - **The write-context checks.** From the flip a stub is groomed and the inbox drained from any checkout (D13, D15), so
   `arc plan check` (`handlers/plan.ts`) drops its committability requirement — base under partial protection, a
   planning branch under full (`classifyPlanningEntry`, `lib/git/write-context.ts`) — and `arc housekeep check`
@@ -433,7 +491,9 @@ view.
   `arc user close <slug>` as its continuation, since a rerun of the transition's verb refuses once its records have
   moved. Archive is the one edge exposed today: park from Planning
   defers the close until its retirement completes, park from Active closes after its pointer write, and abandon swaps in
-  a no-op and closes after teardown.
+  a no-op and closes after teardown. Archive's own records follow the executor's — `runArchive` writes `PR URL` and
+  `Completed` after the transition returns, then sweeps the cohort documents — so archive defers the close past them, as
+  park from Planning defers it (`parkPlanning`, `verbs/park-resume.ts`).
 
 #### 2.6 Dependency edges
 
@@ -470,9 +530,11 @@ protocol:
 
 Freshness binds the versions of the records the write covers, or restricted changes since its anchor, never the store's
 whole state version (D2), so an unrelated write elsewhere never invalidates a prepared write. Lifecycle owns the
-protocol; decomposition's and locus's reconciling writers follow it. Until the flip each keeps today's freshness:
-activation's prepared write reads transition records at `HEAD` and stages into a captured index
-(`executor-context-current-wu.ts`).
+protocol; decomposition's and locus's reconciling writers follow it. Lifecycle also owns the current-work-unit
+reconcile's prepare context from the flip, which resolves a former slug through `lookup` to the work item's live primary
+(§ 7.1), and a cut or an abandonment from its lineage record, so locus's session probe binds that context rather than
+its own. Until the flip each keeps today's freshness: activation's prepared write reads transition records at `HEAD` and
+stages into a captured index (`executor-context-current-wu.ts`).
 
 ### 4. Archive and the archive sequence (shared decision 10)
 
@@ -486,7 +548,7 @@ quarter's archive, output only.
 - **The format stays `ArchiveSequenceSchema`'s:** `01` to `09`, then any width. A closed cohort's document borrows the
   number of the member archived with it, its last, lettered `a` for a leaf cohort or `b` for a parent, as today's
   sidecars are (`sweepCohortDoc`, `sweepNestedParentDoc`); a cohort closing with no member archiving takes the
-  quarter's next number.
+  quarter's next number. The backend assigns both, from the document's completed placement (§ 18.2).
 - **Final once pushed.** An archive takes its quarter's highest number plus one. When two machines archive into one
   quarter, the merge after fetch renumbers the unpublished archive after the remote's highest and renames its folder,
   so the verb reports the number after it publishes. A published number is never reassigned, and gaps are allowed. A
@@ -575,17 +637,19 @@ SHA or copy key (§ 9.2). Each writer below sets them:
   it adds the default set then, the commits made while the work unit was out of Active, and reports them, none merged in
   from base, as deactivation reports (§ 8.8). Each of these sets runs over the commits `HEAD` holds and those the
   branch's remote-tracking ref holds, `refs/remotes/origin/<name>` under the name the branch had when activation began,
-  where the clone has one, after a best-effort fetch of base and that branch from `origin`, each by its explicit refspec
-  (`+refs/heads/<ref>:refs/remotes/origin/<ref>`) and bounded as `arc materialize`'s is (`boundedFetch`,
-  `lib/git/exec.ts`, at `DEFAULT_NETWORK_TIMEOUT_MS`), a timeout counting as a failed fetch. A commit made on another
-  checkout while the work unit was out of Active, pushed but not yet merged here, is then excluded too. Both sides count
-  even where they have diverged, since a commit on either is no task's work; offline the set covers what the clone
-  holds. Where no base ref resolves after the fetch, adopting or reattaching refuses before writing anything, naming the
-  repair the default close names (§ 9.2), since a set with no base would take the branch's whole history. Each report
-  names `arc task close <ids> --commit <sha>…` for any of them that is task work, marking those `HEAD` lacks with the
-  merge that brings them in first, `git merge --ff --no-edit <sha>` of the remote-tracking ref's tip as the report read
-  it, which runs on the objects the fetch brought in, needs no upstream and no ref, keeps the reported SHAs, and
-  overrides `merge.ff=only`, since `--commit` takes only commits `HEAD` holds (§ 9.2), and activation proceeds.
+  where the clone has one, after best-effort fetches of base, then that branch, from `origin`, each by its explicit
+  refspec (`+refs/heads/<ref>:refs/remotes/origin/<ref>`) in its own call, since Git fails a fetch whole when one
+  refspec names no remote ref, as a branch never pushed has none, and each bounded as `arc materialize`'s is
+  (`boundedFetch`, `lib/git/exec.ts`, at `DEFAULT_NETWORK_TIMEOUT_MS`), a timeout counting as a failed fetch. Only
+  base's failure is reported. A commit made on another checkout while the work unit was out of Active, pushed but not
+  yet merged here, is then excluded too. Both sides count even where they have diverged, since a commit on either is no
+  task's work; offline the set covers what the clone holds. Where no base ref resolves after the fetch, adopting or
+  reattaching refuses before writing anything, naming the repair the default close names (§ 9.2), since a set with no
+  base would take the branch's whole history. Each report names `arc task close <ids> --commit <sha>…` for any of them
+  that is task work, marking those `HEAD` lacks with the merge that brings them in first,
+  `git merge --ff --no-edit <sha>` of the remote-tracking ref's tip as the report read it, which runs on the objects the
+  fetch brought in, needs no upstream and no ref, keeps the reported SHAs, and overrides `merge.ff=only`, since
+  `--commit` takes only commits `HEAD` holds (§ 9.2), and activation proceeds.
 - **`arc errand open`** writes none.
 - **Promotion** writes, on the work branch's link, the exclusions the Errand's link holds, none, so the Errand's commits
   stay in the close's default capture for the work a scale-floor promotion's work unit backfills, Active at once
@@ -612,14 +676,15 @@ SHAs on standard input to `git diff-tree --stdin -p --full-index --root --text -
 `--diff-algorithm=myers` and `--ignore-submodules=none`, run with `core.quotePath=true`,
 `diff.suppressBlankEmpty=false`, and `diff.indentHeuristic=true` set on its command line and `GIT_DIFF_OPTS` removed
 from its environment, through the byte-preserving binding (`RawGitExec`, `createExecaRawGitExec`); its output, each 0x01
-byte doubled and each NUL written as 0x01 0x02, is piped to `git patch-id --verbatim`, which keeps whitespace. Each pin
-or flag neutralizes a source found to change the patch text across clones: path quoting, blank-line suppression, the
-indent heuristic, a diff driver's algorithm, binary detection by size or by attribute from any attributes file, a
-submodule's ignore setting, and `GIT_DIFF_OPTS`; the producer's tests vary each. The escape exists because
-`git patch-id` hashes each line only up to its first NUL, which `--text` output of binary or UTF-16 content holds, so
-two different edits would share a patch-id; it changes no byte `git patch-id` reads for structure, so a patch with
-neither byte keeps Git's own patch-id. Both the author read and `git diff-tree` run with `--no-replace-objects`, so a
-replace ref reaches neither half, as it reaches none of the reads the set is computed from (§ 9.2).
+byte doubled and each NUL written as 0x01 0x02, is given to `git patch-id --verbatim` on its standard input in a second
+call, which keeps whitespace. Each pin or flag neutralizes a source found to change the patch text across clones: path
+quoting, blank-line suppression, the indent heuristic, a diff driver's algorithm, binary detection by size or by
+attribute from any attributes file, a submodule's ignore setting, and `GIT_DIFF_OPTS`; the producer's tests vary each.
+The escape exists because `git patch-id` hashes each line only up to its first NUL, which `--text` output of binary or
+UTF-16 content holds, so two different edits would share a patch-id; it changes no byte `git patch-id` reads for
+structure, so a patch with neither byte keeps Git's own patch-id. Both the author read and `git diff-tree` run with
+`--no-replace-objects`, so a replace ref reaches neither half, as it reaches none of the reads the set is computed from
+(§ 9.2).
 
 A copy matches only where both halves agree, and a commit whose author half alone equals a stored commit's, its
 committer time differing from its author time, is taken for a rewrite of it (§ 9.2). Git writes each commit a new author
@@ -644,11 +709,12 @@ its task or the exclusions, by its author half (§ 9.2). Keys of different versi
 producer is a new version rather than a silent mismatch.
 
 The key is computed only for commits no stored SHA matches, from local objects alone (`objectAccess: "local-only"`,
-which sets `GIT_NO_LAZY_FETCH`), so it never fetches outside the bounded fetches, in batches whose patch text stays under
-the binding's captured-output cap (`MAX_GIT_OUTPUT_BYTES`, `lib/git/process-executor.ts`). `git diff-tree` stops at the
-first object it lacks, so a batch that fails retries commit by commit; a commit whose patch cannot be produced from local
-objects, as in a partial clone, one whose patch alone exceeds the cap, and an empty commit carry no key and match by SHA
-alone (§ 9.2).
+which sets `GIT_NO_LAZY_FETCH`), so it never fetches outside the bounded fetches, in batches whose patch text stays
+under the binding's captured-output cap (`MAX_GIT_OUTPUT_BYTES`, `lib/git/process-executor.ts`). `git diff-tree --stdin`
+fails a batch at the first blob or tree it lacks and skips a commit it lacks with no output, so a batch that fails
+retries commit by commit, and a commit with no output in its batch carries no key; a commit whose patch cannot be
+produced from local objects, as in a partial clone, one whose patch alone exceeds the cap, and an empty commit carry no
+key and match by SHA alone (§ 9.2).
 
 Exclusions serve the close's default capture (§ 9.2) and the listing of commits not yet closed (§ 19), and stand in for
 D16's bound at the move. ARC's own rewrites remap them from the rewrite's old-to-new mapping as they remap captures
@@ -663,7 +729,9 @@ one lacking a commit another machine made, computes the close's set over the com
 
 Every link's repository — a task capture's and the landing commit's (`CommitCaptureSchema`), a branch link's, and a
 change request's (`LinksSchema`) — is the project ID (D14), which every clone fetches and which survives moved remotes
-and re-clones. A remote's address does not survive them, and the review gate's repository ID
+and re-clones. The verbs read it once per invocation from the project's identity record (`project-registry/identity`,
+`lib/store/catalog.ts`), which the import mints and the in-repo implementation does not store (§ 19), so no link is
+written before the flip. A remote's address does not survive them, and the review gate's repository ID
 (`resolveRepositoryIdentity`) is minted per clone, though this repository's import adopts it as the project ID. A
 project spanning several code repositories mints their IDs when it arises; the schema already carries one per link.
 
@@ -673,12 +741,12 @@ The import is the ref backend's (§ 19); this change specifies what it writes fo
 
 - **What it writes.** Each live work unit's and open Errand's branch, named by the meta's `Branch` or the Errand
   record's branch, becomes a branch link: `created` when the name is in ARC's forms for the item (`plan/<slug>`,
-  `<type>/<slug>`, an Errand's `chore/<slug>`), and `adopted` otherwise — the one inference, which errs toward never
-  reaping a name outside ARC's forms. A `Branch` that is empty or names base links no branch, as a cold start under
-  partial protection leaves it (`runColdStart`, `commands/start.ts`), so activation creates the work branch (§ 6.1). A
-  branch a person cut by hand in ARC's form for the slug imports as `created`, as a cold start on a hand-cut
-  `feat/<slug>` names its work unit after it (`deriveColdStartWuName`) and today's abandon already treats it, a named
-  residual.
+  `<type>/<slug>`, an Errand's `<errand-type>/<slug>`, `chore/` by default, `lib/errand/branch-type.ts`), and `adopted`
+  otherwise — the one inference, which errs toward never reaping a name outside ARC's forms. A `Branch` that is empty
+  or names base links no branch, as a cold start under partial protection leaves it (`runColdStart`,
+  `commands/start.ts`), so activation creates the work branch (§ 6.1). A branch a person cut by hand in ARC's form for
+  the slug imports as `created`, as a cold start on a hand-cut `feat/<slug>` names its work unit after it
+  (`deriveColdStartWuName`) and today's abandon already treats it, a named residual.
 - **Its refusals.** It refuses a live work unit or open Errand whose branch exists neither locally nor on the remote
   (`branch-missing`), or whose local and remote tips have diverged (`branch-diverged`), naming each way out, since it
   cannot tell which applies: archiving a work unit whose change merged, since a host set to delete merged branches
@@ -693,12 +761,52 @@ The import is the ref backend's (§ 19); this change specifies what it writes fo
 ### 6. Branchless planning, the write half
 
 From the flip a Planning work unit plans in a checkout detached at base's tip, with no branch, and activation creates
-the work branch in that checkout (D17). This section settles activation's cases, the catch-up verb, and the markers
-that replace Git's one-branch-per-checkout guard.
+the work branch in that checkout (D17). A spawn makes that checkout detached at both places a spawn creates one today,
+each of which only creates or attaches a branch: the spawn primitive create-new, materialize, and resume reach
+(`createLinkedWorktree`, `lib/git/linked-worktree.ts`) gains a detached mode, and graduation's own spawn, which runs
+`git worktree add` itself (`occupy`, `atomic-graduation.ts`), takes `--detach` in place of the `plan/` branch. Neither
+rollback deletes a branch, and the location template's `{branch}` (`resolveWorktreeLocation`,
+`lib/git/worktree-location.ts`) expands to the work unit's name where the spawn takes no branch. In place,
+`arc start --here` leaves `HEAD` where it stands, a detached one included, its capture and occupation checks comparing
+`HEAD` where they compare the created branch today (`git-graduation-transaction.ts`, `atomic-graduation.ts`). It takes
+any `HEAD`: today's capture requires one at refreshed base's commit, and `graduate` (`handlers/start.ts`) first requires
+the checkout's own copy of the stub's meta to match base's, so the stub's artifacts as they stand at base match the
+files the in-place start moves, and from the flip the placement write replaces that move, so both requirements are the
+in-repo arm's, and the stub's `Class` comes from its record rather than base's copy. So is graduation's preflight
+(`preflightGraduate`, `commands/start.ts`), which finds the stub in base's snapshot or the checkout's files and
+shape-checks its meta there; from the flip the executor finds the stub in the view, and the meta kind's parser checks
+its shape.
+
+A checkout deleted by hand leaves its registration behind, and Git refuses an add at that path, a detached re-spawn's
+included ("a missing but already registered worktree"), or an add or checkout of a branch that registration holds
+("already used by worktree"), until it is removed. So from the flip one function runs wherever lifecycle spawns a
+checkout or switches one onto a work unit's linked branch, before Git meets such a registration. It finds a registration
+whose folder is missing at the target path or holding the branch, and clears it through the removal function's
+missing-folder arm (§ 11.2), which unlocks the projection's lock first and removes that one registration. A registration
+another lock holds refuses `locked`, naming `git worktree unlock <path>` as text, for the lock's owner to decide. It
+runs at three sites:
+
+- **Graduation's spawn,** in `graduate` (`handlers/start.ts`) once the spawn's path resolves, ahead of its prepare,
+  since `capture` (`git-graduation-transaction.ts`), in both of the prepare's reads, and then `verifyInitialOccupation`
+  (`atomic-graduation.ts`) each refuse any registration at the target path. A refusal there writes nothing, and a
+  cleared registration, whose folder is gone, holds nothing a later refusal would need back.
+- **`createLinkedWorktree`,** once its path resolves and before its add, where its caller supplies the function, as
+  `reconcileWorkUnitWorktree` does from the flip for create-new's and materialize's spawns. Locus's callers
+  (`createSpawnedLocusWorktree`, `lib/locus/allocator.ts`; `createNodeProvisioningDependencies`,
+  `lib/locus/provisioning-runtime.ts`, which `provisionSpawned` reaches) supply none, so their spawns, and
+  `provisionSpawned`'s reading of every `refused` result as a checkout to adopt, are unchanged.
+- **`reconcileWorkUnitWorktree`'s in-place leg,** before its `git checkout <branch>`, matching the branch alone, for
+  `arc materialize --here` (§ 8.4).
+
+Clearing in-process re-reads the folder, so a folder that has come back is never removed, as a removal printed for
+someone to run later could remove it. Before the flip, spawns are unchanged. This section settles activation's cases,
+the catch-up verb, and the markers that replace Git's one-branch-per-checkout guard.
 
 #### 6.1 Activation
 
-From the flip activation runs one of these arms:
+From the flip activation runs one of these arms. It chooses the arm, runs its fetches, and meets every refusal below
+before the reconcile's prepared write (§ 2.2), whose apply lands edits a later refusal would not roll back, so a refusal
+leaves nothing written:
 
 - **A detached checkout,** as a Planning work unit started from the flip plans: activation creates `<type>/<slug>` at
   base's tip in place and records it `created`, with no exclusions. It refuses while the detached `HEAD` holds
@@ -794,15 +902,32 @@ Git's refusal to check out one branch twice guards the rest.
   naming it, through locus's roster (§ 19), not by a branch it has out, since a Planning checkout is detached. It
   renames the work branch only when it is linked and in ARC's form for the slug, keeping its `<prefix>/` (`branchPair`,
   `commands/rename.ts`, which throws today on any other). A link recorded `adopted` outside ARC's forms, and a promoted
-  item's Errand branch, keep their names, and rename reports them. Today's refusal of a started work unit with no branch
-  holds only until the flip. Rename moves only a spawned checkout (§ 11.4), in the doubled-force form (§ 11.6).
+  item's Errand branch, keep their names, and rename reports them. A renamed branch's link takes the new name in the
+  rename's batch, the entry under the old `ref` retired and one under the new carrying its `linkedAs` and exclusions.
+  Today's refusal of a started work unit with no branch holds only until the flip. Rename moves only a spawned checkout
+  (§ 11.4), in the doubled-force form (§ 11.6).
+- **Its steps around the batch** (§ 2.1). The local branch's rename and the checkout's — the marker's work-unit name and
+  a spawned checkout's move, through the rename transaction (`createNodeRenameWorktreeTransactionDriver`,
+  `commands/rename.ts`) — run before the batch and are rolled back where it refuses, since the roster finds the checkout
+  by that name. The remote leg (`reconcileRenameRemoteBranch`, `rename-identity.ts`), which pushes the new name and
+  deletes the old against the head read before the rename, and the personal workspace's rename
+  (`runUserRenameWorkspace`) run after it, each reconciling on rerun, as the remote leg's delete already reads an old
+  name gone as absent (`deleteRemoteBranch`); where one fails the result names `arc rename <old> <new>` as a typed
+  continuation (§ 15), and that rerun, finding the item already named `<new>` as today's rerun reads it (`resuming`,
+  `resolveRenameSubject`), runs only those. The old name's remote branch is deleted only for a link recorded `created`:
+  an adopted branch in ARC's form is renamed and pushed under its new name, and its old remote branch stays the
+  person's, as an adopted branch's does at activation (§ 6.1), rename's result naming it.
 - **A stub's rename.** Today renaming a stub switches the checkout to a `chore/rename-<old>-to-<new>` branch cut from
   base, whatever role the checkout holds (`withRenameStubBranch`, `rename-identity.ts`, taken on the stub shape in
   `verbs/rename.ts`). From the flip a stub's rename writes through the store with no branch switch, so one invoked from
   a checkout holding a transient role contributes to that transient and opens no second change request.
-- **An archived work unit.** A rename of an archived work unit renames its folder and keeps its number (§ 4). On a clone
-  lacking the item's history ref the write refuses with the unresolvable-state-version code, naming the ref, and the
-  verb pulls it by name and retries (§ 19).
+- **An archived work unit.** A rename of an archived work unit renames its folder and keeps its number (§ 4), needing no
+  checkout holding it. On a clone lacking the item's history ref the write refuses with the unresolvable-state-version
+  code, naming the ref, and the verb pulls it by name and retries (§ 19). The code joins the store's refusals
+  (`StoreRefusalSchema`, `lib/store/refusal.ts`) with the ref backend, so whichever of the two changes lands second
+  builds the retry. The in-repo arm keeps today's refusals of it, the first from `resolveSubjectShape`
+  (`commands/rename.ts`), which finds no checkout holding the work unit, before `assertRenameSubjectPreconditions`
+  (`rename-preflight.ts`) refuses it as archived.
 
 #### 7.2 Promotion
 
@@ -817,14 +942,18 @@ Git's refusal to check out one branch twice guards the rest.
   its own merge (§ 6.2) until activation, which keeps its record and its name when `--type` names the type promotion
   gave it, renaming it to `<type>/<name>` otherwise (§ 6.1).
 - **This change builds promotion's arm from the flip** as steps that `promoteOrdinaryErrand` (`lib/errand/promote.ts`)
-  composes, in a module of their own beside it: `promoteOrdinaryErrand` runs no store or Git itself, and today's
-  runtime supplies its steps (`promote-runtime.ts`). They are the put — the role change, with the work branch's
-  `created` link and its inherited exclusions — and the Git step that cuts `<type>/<name>` at the Errand's tip and switches
-  the checkout onto it, in place of today's `git branch -m`. Their tests run the composition over the reference
-  backend and the scripted `GitExec` fake. Until locus reroutes it, the in-repo implementation keeps
+  composes, in a module of their own beside it: `promoteOrdinaryErrand` runs no store or Git itself, and today's runtime
+  supplies its steps (`promote-runtime.ts`). They are the put — the role change, with the work branch's `created` link
+  and its inherited exclusions — and the Git step that cuts `<type>/<name>` at the Errand's tip and switches the
+  checkout onto it, in place of today's `git branch -m`. Their tests run the composition over the reference backend and
+  the scripted `GitExec` fake. Until locus reroutes it, the in-repo implementation keeps
   `promoteOrdinaryErrandAtRuntime` (`lib/errand/promote-runtime.ts`) and its commit-required settlement; locus's change
   has that runtime select these steps on the capability, with its marker settlement, and the two changes serialize on
-  it.
+  it. The put and the cut fill the composition's frame step (`replaceFrame`); from the flip its `retire` step finds
+  nothing left to end, since the role change ends the Errand's role on the same UID, and its identity reads go through
+  the store. The put renders the meta as `metaOverrides` does, less `Branch`, which the link holds, and
+  `Last Completed`, which retires at the flip (§ 2.2). The full-protection refusal (`promoteOrdinaryErrand`) stays as
+  today.
 - **A promoted work item projects what a fresh start does:** its scratch folder and session start's `lookup` reconcile
   key on the current record set, whatever created the item.
 
@@ -882,7 +1011,8 @@ stub is never paused: it is not in flight, and a pause on one refuses, naming `a
   whose checkout was released gets one back from `arc materialize` (§ 8.4), so from the flip `arc resume --here`
   refuses, naming `arc materialize <slug> --here`.
 - **Pausing reports work no one else can reach** — the work branch's unpushed commits and uncommitted changes in the
-  checkout — without refusing.
+  checkout, read as a handover reads them (§ 8.5) — without refusing; where `origin` cannot be reached it reports over
+  the refs the clone holds and says `origin` was not refreshed.
 - **The checkout stays** unless its owner releases it with locus's `arc locus release`, which runs the removal check and
   function on a spawned checkout and the release on an anchored one (§ 11, § 19).
 - **Before the flip** `arc pause` refuses `unsupported`, naming `arc park`, and `arc resume` resumes a parked work unit
@@ -894,9 +1024,15 @@ A verb that advances the work refuses on a paused work unit, naming `arc resume 
 change, a task close or deferral, and an edge reconcile, as the record kinds' remedy for a parked dependent already
 has it. Each meets the pause where it runs:
 
-- **A transition** meets it as a guard beside the executor's others (`lifecycle-guards.ts`).
+- **A transition** meets it as a guard on each edge that advances the work — activation, deactivation, publication,
+  and archive, never abandon's or resume's — declared beside the edge's others (`GuardId`, `lifecycle-transitions.ts`)
+  with its validator bound over the store the executor holds, as the index-aware guards are bound
+  (`buildFootgunGuards`, `lifecycle-guards.ts`), since a guard's context carries no meta (`GuardContext`).
 - **The task close and defer verbs, `arc set-stage`** — which writes the stage outside any transition (`runSetStage`) —
-  **and the reconcile** check it themselves.
+  **and the edge reconcile** check it themselves, the reconcile in the apply that `arc wu reconcile`, activation, and
+  publication share (`applyPreparedCurrentWuReconcile`, `discharge-dep-edges.ts`), so a paused work unit's activation or
+  publication refuses before its reconcile writes; its prepare writes nothing, so a prepare on a paused work unit
+  proceeds.
 - **`arc release commit --close`** checks the pause among its checks before it commits (§ 9.3).
 
 Every other write proceeds with the pause in place: abandon and a decomposition's cut, handover, rename, pausing again,
@@ -920,14 +1056,36 @@ and nothing records what releases a park.
 #### 8.4 `arc materialize`
 
 From the flip `arc materialize <slug>` gives a checkout to any in-flight work unit its identity owns that no checkout on
-this machine holds — remote-only, or released here, paused or not — and leaves a pause in place. It runs the exclusivity
-check (§ 6.4), and `--here` writes an anchored marker. It refuses whenever a checkout with no marker has the work unit's
-linked branch out — one released, or one claimed in place before the flip, when the cold start, graduation's in-place
-occupation, and the in-place legs wrote no marker — where a spawn would meet Git's refusal, naming that checkout and
-`arc materialize <slug> --here` run from it. Its fetch takes base with the branch, by base's explicit refspec, so the
-clone's base refs are no older than the branch it brings in (§ 9.2); today it fetches the branch alone
-(`fetchMaterializeBranch`, `handlers/lifecycle.ts`). Today it admits only remote-only work units that are not parked
-(`findMaterializableWorkUnits`, `handleMaterialize`).
+this machine holds — remote-only, or released here, paused or not — and leaves a pause in place. It finds its candidates
+in the store's listing, less the work units locus's roster finds a checkout here holding (§ 19), rather than among
+`origin`'s branches (`resolveMaterializeCandidate`, `handlers/lifecycle.ts`), so a work unit with no branch link is a
+candidate too. What it gives follows the work unit's branch link:
+
+- **A linked branch:** the spawn attaches the branch in a new linked checkout — the clone's local branch where it has
+  one, as resume's spawn re-attaches it (`createBranch: false`, `runResume`), or one created from its remote-tracking
+  ref, as materialize's spawn creates it today (`createBranch: true`, `verbs/materialize.ts`), so a released checkout's
+  kept branch and a branch never pushed both spawn — and `--here` switches the current checkout onto it, as today
+  (`reconcileWorkUnitWorktree`).
+- **No branch link,** as a Planning work unit from the flip has none (§ 6): the spawn creates a linked checkout detached
+  at base's tip, where a Planning work unit plans, and `--here` writes the anchored marker alone and leaves `HEAD` where
+  it stands, as `arc start --here` does, so activation's arms take whatever `HEAD` then holds (§ 6.1). It needs `origin`
+  for nothing but base's best-effort fetch, and offline it spawns at the base the clone has; where no base ref resolves,
+  the spawn refuses, naming the repair the default close names (§ 9.2).
+
+It runs the exclusivity check (§ 6.4), and `--here` writes an anchored marker. It refuses whenever a checkout with no
+marker has the work unit's linked branch out — one released, or one claimed in place before the flip, when the cold
+start, graduation's in-place occupation, and the in-place legs wrote no marker — where a spawn would meet Git's refusal,
+naming that checkout and `arc materialize <slug> --here` run from it. A registration whose folder was deleted by hand
+counts as no checkout: the spawn clears it before its add, and `--here` before its checkout (§ 6). It fetches base, then
+the branch, each by its explicit refspec in its own call (§ 5.2), so the clone's base refs are no older than the branch
+it brings in (§ 9.2); where the fetches fail it spawns from the branch or the remote-tracking ref the clone holds,
+refusing only where it holds neither. That refusal tells a failed branch fetch apart as a handover does (§ 8.5): where
+`origin` lacks the branch it names `git push -u origin <branch>`, run from the clone that holds it, and otherwise the
+fetch's retry once `origin` is reachable. Today it fetches the branch alone, refuses on any failure
+(`fetchMaterializeBranch`, `handlers/lifecycle.ts`), and admits only remote-only work units that are not parked
+(`findMaterializableWorkUnits`, `handleMaterialize`). From the flip `arc start` on a started Planning work unit refuses,
+naming the checkout here that holds it, or `arc materialize <slug>` where none does, in place of today's text, which
+sends the person to the work unit's branch (`resolveStartDispatch`, `commands/start.ts`).
 
 #### 8.5 Handover and `Owner`
 
@@ -935,6 +1093,21 @@ clone's base refs are no older than the branch it brings in (§ 9.2); today it f
   `arc handover [<slug>] --to <identity>` makes it, refusing while work the new owner cannot reach remains — the work
   branch's unpushed commits, or uncommitted changes in the owner's checkout on this machine — naming each. The handover
   context travels in the meta's session context (D5), the pause's resume notes first.
+- **The work it checks** is read one way, which pausing's report shares (§ 8.1). The checkout here is the one whose
+  marker names the work unit, found through locus's roster (§ 19), its uncommitted changes read by the removal check's
+  Git part (§ 11.1). The branch's unpushed commits are those on no ref another person reaches: after bounded fetches of
+  base, then the branch, each by its explicit refspec in its own call (§ 5.2), the commits
+  `git rev-list <branch> --not refs/remotes/origin/<branch> refs/remotes/origin/<base>` lists, either remote-tracking
+  ref dropped where absent. Git fails the branch's fetch alike, exit 128, where `origin` lacks the branch and where
+  `origin` cannot be reached, and a failed fetch leaves a stale remote-tracking ref in place, so a failed branch fetch
+  is told apart by `git ls-remote --exit-code origin refs/heads/<branch>`, which exits 2 where `origin` lacks the branch
+  and fails otherwise. Where `origin` lacks it — a branch never pushed, or one gone from `origin` — the count drops the
+  branch's remote-tracking ref, stale or not, so it and a branch pushed with no upstream count every commit beyond base,
+  repaired by `git push -u origin <branch>`, which needs no upstream; a work unit with no branch link has none. Where
+  `origin` cannot be reached — base's fetch fails, or the branch's fails and the listing does not exit 2 — the handover
+  refuses, naming the retry once `origin` is reachable, since a remote-tracking ref the clone holds can still show a
+  branch pushed that `origin` has since dropped or rewound. A clone with no `origin` refuses only on uncommitted changes
+  and reports the branch's commits as held only in this clone, since no remote holds them for either owner.
 - **`Owner` turns verb-owned** (§ 18): creation writes it, `arc handover` changes it, and starting a stub records the
   starter, since whoever starts the work owns it, as a cold start records its spawner (`owner: params.spawningIdentity`,
   `worktree-scaffold.ts`). Starting another person's stub reports the previous owner without refusing, since anyone
@@ -959,8 +1132,9 @@ takes the work unit from Active. The path:
 Where step 3 or 4 fails after the batch, the result names `arc teardown <slug>` as its continuation, which reads the
 lineage record and finishes both (§ 12).
 
-Today's per-state arms (`runAbandon`, `verbs/abandon.ts`) retire with the substrate: the artifacts' removal staged on
-base, the deferred `arc teardown <name>`, and the ROADMAP render. Its confirmation guard stays.
+Today's per-state arms (`runAbandon`, `verbs/abandon.ts`) retire with the substrate: the artifacts' removal staged in
+the abandoning checkout (`buildRemoveRunner`), the deferred `arc teardown <name>` (`planAbandon`), and the ROADMAP
+render. From the flip the path runs through the executor (§ 2.1), whose abandon edges keep their confirmation guard.
 
 #### 8.7 Reopen
 
@@ -1030,21 +1204,26 @@ start at the flip; until then tasks are marked by hand, and both refuse `unsuppo
 
 #### 9.2 The default capture
 
-The close reads the branch link whose ref the checkout has out. It refuses on a detached checkout or one on a branch the
-work item does not link, naming the work branch to switch to, and, where the work item has no branch link, as a Planning
-work unit from the flip has none (§ 6), naming `arc activate`. With no `--commit` it refreshes base, then captures the
-**default set**: the non-merge commits reachable from `HEAD` and from neither base nor base's remote-tracking ref,
-`refs/remotes/origin/<base>` where the clone has one (`origin` being the one remote ARC names, `DEFAULT_REMOTE`,
-`lib/git/remote-ref-reader.ts`), less every commit that matches, by SHA or by copy key, one of the work item's captures
-or one of the link's exclusions (§ 5.2). It is a difference over the commits `HEAD` holds, and no stored commit's
-reachability enters it. A base merge's commits therefore never land in a task's captures, nor an adopted branch's
-earlier commits, a kept branch's from its time out of Active, or any from before the flip's move; a commit a rebase
-copied with its author line and diff unchanged matches its original's capture or exclusion; and no commit is captured
-twice. The set is `HEAD` for an increment of one commit and every commit of one multi-commit split. `--commit` names the
-commits instead, repeatable and combinable with IDs, refuses a commit not reachable from `HEAD`, and may name an
-excluded commit: the close captures it, and every exclusion it matches, by SHA or copy key, leaves the link (§ 5.2). The
-set's walk, `--commit`'s reachability check, and activation's and deactivation's snapshots run with
-`--no-replace-objects`, so a replace ref neither hides a commit from the set nor turns one into a merge.
+The close reads the branch link whose ref the checkout has out, through one resolver that `--close`'s check (§ 9.3) and
+the listing of commits not yet closed also call, each applying its own refusal. It refuses on a detached checkout or one
+on a branch the work item does not link, naming the work branch to switch to, and, where the work item has no branch
+link, as a Planning work unit from the flip has none (§ 6), naming `arc activate`, whatever the checkout has out, a
+detached checkout included. An Active work item with no link, as the import leaves one whose `Branch` was empty or named
+base (§ 5.4), names `arc deactivate <slug>`, then `arc activate`, since activation moves only Planning to Active, and
+deactivation, keeping whatever link there is, leaves activation's arms to create the branch (§ 6.1, § 8.8). With no
+`--commit` it refreshes base, then captures the **default set**: the non-merge commits reachable from `HEAD` and from
+neither base nor base's remote-tracking ref, `refs/remotes/origin/<base>` where the clone has one (`origin` being the
+one remote ARC names, as each Git module's own `DEFAULT_REMOTE` names it, `lib/git/remote-ref-reader.ts` among them),
+less every commit that matches, by SHA or by copy key, one of the work item's captures or one of the link's exclusions
+(§ 5.2). It is a difference over the commits `HEAD` holds, and no stored commit's reachability enters it. A base merge's
+commits therefore never land in a task's captures, nor an adopted branch's earlier commits, a kept branch's from its
+time out of Active, or any from before the flip's move; a commit a rebase copied with its author line and diff unchanged
+matches its original's capture or exclusion; and no commit is captured twice. The set is `HEAD` for an increment of one
+commit and every commit of one multi-commit split. `--commit` names the commits instead, repeatable and combinable with
+IDs, refuses a commit not reachable from `HEAD`, and may name an excluded commit: the close captures it, and every
+exclusion it matches, by SHA or copy key, leaves the link (§ 5.2). The set's walk, `--commit`'s reachability check, and
+activation's and deactivation's snapshots run with `--no-replace-objects`, so a replace ref neither hides a commit from
+the set nor turns one into a merge.
 
 - **Base is refreshed first.** A clone whose base refs are older than base commits its branch holds — brought in by a
   fetch of the branch alone, as `git pull origin <branch>` does — would read those commits as task work, and no close
@@ -1137,15 +1316,22 @@ set's walk, `--commit`'s reachability check, and activation's and deactivation's
 Where task commits route through the release wrapper (`resolveReleaseRouting`, `lib/release/routing.ts`),
 `arc release commit --close[=<ids>]` makes the commit and then runs the close, so the task loop's commit fire site does
 both under the approval that covers work and commit, and no prose step has to remember the order. `--close` takes
-optional comma-separated IDs, is the wrapper's own, and never reaches `git commit`. Before it commits it checks the
-pause (§ 8.2), that the checkout has a linked branch out, that a base ref resolves after the close's bounded fetch of
-base, which it runs then and the close reuses (§ 9.2), and the tasks it would close — that the task list reads and
-carries each named ID, or, given no IDs, that a task is open (§ 9.1) — refusing without committing on any, each refusal
-naming the repair those sections name. Where the commit lands and the close then fails, the result reports the commit
-and names `arc task close <ids>` as its continuation — the commit is not yet captured, so the default capture still
-finds it, with every earlier commit of a split — never the wrapper, whose rerun would commit again. On the raw route the
-loop runs `arc task close` right after its commit, and the listing of commits not yet closed catches a skipped one. Like
-the close, `--close` starts at the flip and refuses `unsupported` before it.
+optional comma-separated IDs, is the wrapper's own, and never reaches `git commit`: the wrapper reads it, as it reads
+`--no-wrap` (`stripNoWrap`, `handlers/release/commit-cli.ts`), only among the argv's leading tokens, in either order
+with `--no-wrap`, so a `--close` past git's first argument stays git's. Before it commits it checks the pause (§ 8.2),
+that the checkout has a linked branch out, that a base ref resolves after the close's bounded fetch of base, which it
+runs then and the close reuses (§ 9.2), and the tasks it would close — that the task list reads and carries each named
+ID, or, given no IDs, that a task is open (§ 9.1) — refusing without committing on any, each refusal naming the repair
+those sections name. The checks run inside the wrapper's commit cascade (`runReleaseCommit`,
+`handlers/release/commit.ts`), after the interlock and message checks pass and before the commit, so a commit those
+refuse runs no fetch, and each refusal is the wrapper's, recorded in its audit log as every refusal of its own is, under
+a code of its own, `close-precheck-failed`, which QUICK-REFERENCE's list of the wrapper's refusal codes gains.
+Delivery's fix-release commit, which runs the same cascade, passes no `--close`. Where the commit lands and the close
+then fails, the wrapper exits nonzero, its result reporting the commit and naming `arc task close <ids>` as its
+continuation — the commit is not yet captured, so the default capture still finds it, with every earlier commit of a
+split — never the wrapper, whose rerun would commit again. On the raw route the loop runs `arc task close` right after
+its commit, and the listing of commits not yet closed catches a skipped one. Like the close, `--close` starts at the
+flip and refuses `unsupported` before it.
 
 #### 9.4 A hand close names the verb
 
@@ -1160,6 +1346,10 @@ names the repair for the change it refused, by the marker the edit wrote, as tex
 - **Any other change to a closed marker** — `[x]` to `[~]` or `[ ]`, `[~]` to `[ ]`: that a closed task stays closed and
   corrective work takes a new task, as the task-list format holds for a completed one
   (`strategy-task-list-formatting.md`); no verb reopens a task.
+
+The check refuses one edit's changes together, so an edit that makes several names each one's repair, grouped by the
+change, with its task IDs; a task line the edit adds already `[x]` or `[~]` takes the repair its marker names, as one
+from `[ ]` does.
 
 #### 9.5 The task loop at the flip
 
@@ -1204,7 +1394,7 @@ type RemovalCheck =
   | { kind: "missing" }   // the folder is gone; only Git's registration remains
   | { kind: "refused"; reason: "dirty"; paths: readonly string[] }
   | { kind: "refused"; reason: "unobservable"; detail: string }
-  | { kind: "refused"; reason: "locked"; path: string; lockReason: string | null }
+  | { kind: "refused"; reason: "locked"; path: string; lockReason: string | null; folderPresent: boolean }
   | { kind: "refused"; reason: "persist-would-refuse"; remedy: Remedy }; // `Remedy`, lib/store/refusal.ts
 ```
 
@@ -1213,13 +1403,15 @@ type RemovalCheck =
   reads (`lib/git/worktree-cleanup.ts`, unchanged), reporting the changed paths for `dirty` and a failed read as
   `unobservable` rather than folding it into `dirty`, so a check that cannot observe the checkout grants no removal.
 - **Its projection part** is a slot the projection fills, reporting whether its persist step would refuse
-  (`persist-would-refuse`, with the slot's own remedy); it writes nothing and takes no lock. Until the projection fills
-  it, it passes.
+  (`persist-would-refuse`, with the slot's own remedy), or that it could not tell, as when a store read fails, which
+  reads `unobservable` as the Git part's failed read does; it writes nothing and takes no lock. Until the projection
+  fills it, it passes.
 - **`locked`** is a Git lock the projection did not set: one whose reason is not `PROJECTION_LOCK_REASON`, the exported
   constant that ships with the function and that the projection's lock writes. The check reads locks from
   `git worktree list --porcelain`, whose `locked` lines both porcelain parsers drop today and gain
-  (`lib/git/worktree-porcelain.ts`). A missing folder under such a lock refuses `locked` rather than reading `missing`.
-  Until the projection's lock lands, any lock on a checkout is its owner's.
+  (`lib/git/worktree-porcelain.ts`). A missing folder under such a lock refuses `locked` rather than reading `missing`,
+  its `folderPresent` false, so a caller choosing what to do with a locked checkout reads no folder itself. Until the
+  projection's lock lands, any lock on a checkout is its owner's.
 - **It takes the disposition,** removing or releasing (§ 11.4): for a release only the projection part runs.
 
 #### 11.2 The removal function
@@ -1230,7 +1422,11 @@ fills it:
 ```ts
 interface ProjectionRemovalSlots {
   /** Whether persisting the checkout's projection would refuse; writes nothing and takes no lock. */
-  check(checkout: string): Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy }>;
+  check(checkout: string): Promise<
+    | { kind: "passes" }
+    | { kind: "would-refuse"; remedy: Remedy }
+    | { kind: "unobservable"; detail: string }
+  >;
   /** Persists the checkout's pending projection edits before its removal. */
   persist(checkout: string): Promise<{ kind: "persisted" } | { kind: "refused"; remedy: Remedy }>;
   /** Persists pending edits and, on a linked checkout, removes its projection when ARC releases rather than removes. */
@@ -1240,8 +1436,9 @@ interface ProjectionRemovalSlots {
 
 - **With the folder present** it runs the check, the persist step, `git worktree unlock` when Git lists the checkout as
   locked with the projection's reason, and a plain `git worktree remove`.
-- **With the folder missing** it unlocks a registration the projection locked, then prunes it (fix 4). Today a missing
-  folder's registration lingers.
+- **With the folder missing** it unlocks a registration the projection locked, then prunes it (fix 4), through
+  `git worktree remove <path>`, which removes that one registration where `git worktree prune` would prune every stale
+  registration in the repository. Today a missing folder's registration lingers.
 - **It returns** `removed`, `pruned`, `refused` with the check's result, or `failed` naming the step.
 - **It runs inside each caller's serialization and authorization** and takes over no caller's preconditions: the marker
   and topology revalidation, an Errand's branch and head match, the self-teardown locus hop, the user-surface
@@ -1255,10 +1452,26 @@ only a checkout Git lists as locked.
 - **Teardown's two removals** move onto the function: the teardown arm of `reconcileWorkUnitWorktree`
   (`reconcile-work-unit-worktree.ts`), and the decomposition candidate's cleanup (`cleanupGitOwnedDecomposeCandidate`,
   run from `teardown.ts`).
+- **Teardown reaches a missing folder.** Where a checkout's folder is gone, the marker went with it, so teardown matches
+  the registration by the branch it retires rather than reading it `markerless` (`classifyTeardownSelection`,
+  `teardown-selection.ts`), as do the selection's revalidation under the lock (`revalidateLocalPredicates`,
+  `teardown.ts`) and `requireExpectedSelection`, which `retire` and `husk` run before taking it; it takes the removal
+  check's `missing` in place of its own clean checks, which read a missing folder as dirty (`isWorktreeClean`), and its
+  lock-taking callers — `retire` and `husk` (`teardown-worktree-transaction.ts`) and `serialize`
+  (`reconcile-work-unit-worktree.ts`) — take the repository-wide worktree lock (`withWorktreeOperationLock`) from
+  teardown's own checkout rather than the missing path. A missing folder skips the husk arm in every mode, an abandoned
+  work unit's included, since nothing is left to detach or stamp, and goes straight to the function's prune. A branch is
+  out in one checkout at most, so the match is exact, and a registration locked by anything but the projection still
+  refuses `locked`. A husk whose folder was deleted by hand stays out of reach: a detached registration whose marker
+  reads absent matches no branch, and husk discovery skips it (`teardown.ts`), so its registration stays until
+  `git worktree prune` clears it, a spawn from the flip at its path clears it (§ 6), or, where locked, until locus's
+  stale-worktree sweep reports it with the remedy `git worktree unlock <path>`, then `git worktree remove <path>`
+  (§ 19).
 - **Abandon, from Planning or Active, and park from Planning** run the check before their first write (fix 2). Today
   each records the transition and leaves the removal to a later `arc teardown <name>` (`runAbandon`), so a dirty
   checkout surfaces only after the abandonment or park is recorded. Park from Active already removes before it writes
-  its pointer record (`parkActive`).
+  its pointer record (`parkActive`, `park-resume.ts`), through `reconcileWorkUnitWorktree`'s teardown arm, so it reaches
+  the function with teardown.
 - **The `worktree-clean` guard is deleted,** not moved (§ 1.4).
 
 #### 11.4 Anchored checkouts
@@ -1315,11 +1528,22 @@ At each end, teardown keeps today's rule for a branch ARC created, whether or no
 - **An abandon discards it,** local and remote, with no merge check (`discard-confirmed`, `authorizeFromGitTransition`,
   `retirement-authorization.ts`).
 - **An archive's teardown deletes it** once its commits are landed in base or on its upstream, and the remote only once
-  it landed (`assessReapSafety`, `readShippedEvidence`, `git-retirement-authorization-context.ts`).
+  it landed (`assessReapSafety`, `lib/git/branch-containment.ts`; `readShippedEvidence`,
+  `git-retirement-authorization-context.ts`).
 - **A decomposed origin's teardown,** from the flip, takes the archive's rule, since a cut retires the origin without
   discarding its work, with the lineage record as its evidence. Today teardown authorizes only shipped, abandon, and
   park-from-Planning evidence (`RetirementEvidenceRef`, `retirement-authority.ts`), so a decomposed origin's checkout
   and `plan/` branch come down only by hand.
+- **The lineage record is the evidence from the flip** for an abandon as for a decomposed origin, since the Git-proven
+  transition stays the in-repo arm. Teardown takes each created branch's rule from its evidence: a completed placement
+  or a cut's lineage record takes the archive's rule, and an abandonment's the discard. Today's two modes
+  (`TeardownMode`, `shipped` or `abandoned`, `verbs/teardown.ts`) stay the in-repo arm's, where a decomposed origin's
+  teardown reads `abandoned` and refuses `evidence-missing`, finding no abandon or park transition.
+  `RetirementEvidenceRef` gains a lineage arm beside `shipped` and `git-transition`, reaching every place that encodes
+  or switches on the evidence kinds, a sweep adding any the base gains — the marker's decoding (`decodeKnownEvidence`,
+  `lib/git/worktree-marker.ts`), the authorization context and its rules (`git-retirement-authorization-context.ts`,
+  `retirement-authorization.ts`), the teardown retirement and projection modules (`teardown-retirement-driver.ts`,
+  `teardown-lifecycle-projection.ts`), and the husk advisory's schema (`current-husk-advisory.ts`).
 
 #### 12.2 Ref-set reaping
 
@@ -1327,8 +1551,9 @@ From the flip the terminal operation retires the work unit's whole ref set, loca
 link recorded `created`. A multi-match yields a reap plan, not a refusal: the retiring branch takes its teardown's rule
 (§ 12.1), and every other ref — such as a promoted item's Errand branch — goes only when it carries nothing beyond base
 and the retiring branch, whose head alone the teardown's authority binds, and is otherwise kept and reported. The reap
-generalizes the Errand's zero-delta branch reap (`reapZeroDeltaBranch`, `lib/errand/abandon-runtime.ts`) rather than
-building a sibling.
+generalizes the Errand's zero-delta branch reap (`reapZeroDeltaBranch`, `lib/errand/abandon-runtime.ts`), which deletes
+only `refs/heads/<branch>`, rather than building a sibling. The remote-tracking ref it deletes is the clone's
+`refs/remotes/origin/<branch>`; `origin`'s own branch goes only by the retiring branch's rule (§ 12.1).
 
 #### 12.3 Returning a checkout to base
 
@@ -1412,43 +1637,52 @@ Every refusal and report of unfinished work this design adds carries the command
 its text where running it as given repairs the condition, and the command named in its text, with its arguments, where
 the repair needs the agent's input or order (`DEV-RULES.PROJECT`, "Recovery-complete refusals").
 
-| Refusal or report                                                                                                                            | Repair it names                                                                                                        | Form  |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----- |
-| A verb advancing a paused work unit (§ 8.2)                                                                                                  | `arc resume <slug>`                                                                                                    | typed |
-| A first `arc pause` given no reason (§ 8.1)                                                                                                  | `arc pause <slug> --reason <text>`                                                                                     | text  |
-| `work-item.slug-edges` on a slug a pause waits on (§ 18.1)                                                                                   | `arc pause <slug> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`                                    | text  |
-| The removal check: `locked` (§ 11.1)                                                                                                         | `git worktree unlock <path>`, for the lock's owner to decide                                                           | text  |
-| The removal check: `dirty`, `unobservable`, `persist-would-refuse`                                                                           | commit or discard the named changes; retry the observation; the persist step's own remedy                              | text  |
-| A handover over unshared work; a pause's report of it (§ 8.1, § 8.5)                                                                         | push the work branch (`git push`); commit or stash the named changes                                                   | text  |
-| `arc base sync` on a detached checkout holding commits not on base                                                                           | `git switch -c <name>`, naming the commits                                                                             | text  |
-| Activation on a detached `HEAD` holding commits not on base (§ 6.1)                                                                          | `git switch -c <name>`, then `arc activate`                                                                            | text  |
-| Adoption where another branch holds `<type>/<slug>` (§ 6.1)                                                                                  | another `--type`, or a rename of that branch                                                                           | text  |
-| Adoption of a branch another work item links                                                                                                 | `git switch -c <name>`                                                                                                 | text  |
-| Activation before the flip on a `Branch` naming base (§ 6.1)                                                                                 | `git switch -c <type>/<slug>`, set `Branch`, then `arc activate`                                                       | text  |
-| The close, or `arc release commit --close` before committing, on a detached checkout or one on no linked branch (§ 9.2, § 9.3)               | `git switch <work branch>`, naming it                                                                                  | text  |
-| The close, or `--close` before committing, for a work item with no branch link (§ 9.2)                                                       | `arc activate`                                                                                                         | text  |
-| The default close, or `--close` before committing, where no base ref resolves after the fetch (§ 9.2)                                        | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`; with no `origin`, `git branch <base> <commit>`       | text  |
-| Adoption or reattachment, refusing, or deactivation, skipping its report, where no base ref resolves (§ 5.2, § 8.8)                          | the same                                                                                                               | text  |
-| The default close where its base refresh emptied a set that was not empty before it (§ 9.2)                                                  | `arc task close <id>`, rerun, for a task that produced no commit, naming the commits the refresh found on base         | text  |
-| The close, or `--close` before committing, naming an ID no task carries, or over a task list that does not read (§ 9.1, § 9.3)               | the task list's IDs, or the line it could not read                                                                     | text  |
-| `--commit` naming a commit not reachable from `HEAD` (§ 9.2)                                                                                 | commits `HEAD` holds, after `git merge --ff --no-edit <sha>` for one activation's report marks                         | text  |
-| Activation's report of the commits it records as excluded, or deactivation's of those no task captured (§ 5.2, § 8.8)                        | `arc task close <ids> --commit <sha>…` for any that is task work, or `arc task close`                                  | text  |
-| The default close's report of the commits it attributed, and of the tasks it closes where attribution placed its whole set elsewhere (§ 9.2) | `arc task close <ids> --commit <sha>…` for a task holding work a commit carries                                        | text  |
-| A `created` link's old remote branch deletion named as text, its tracking ref holding commits `HEAD` lacks (§ 6.1)                           | `git merge --ff --no-edit <sha>`, then `git push origin --delete <old name>`                                           | text  |
-| `arc release commit --close` whose close fails after the commit (§ 9.3)                                                                      | `arc task close <ids>`                                                                                                 | typed |
-| An abandon failing after its batch (§ 8.6)                                                                                                   | `arc teardown <slug>`                                                                                                  | typed |
-| The workspace close throwing after the records land, before the flip (§ 2.5)                                                                 | `arc user close <slug>`                                                                                                | typed |
-| An abandon's or teardown's report of a kept adopted branch (§ 12.4)                                                                          | `git switch` off it where a checkout holds it, then `git branch -D <name>`                                             | text  |
-| `arc materialize` while a checkout with no marker holds the branch                                                                           | `arc materialize <slug> --here`, run from that checkout (§ 8.4)                                                        | text  |
-| The spawning arm given `--from` (§ 13)                                                                                                       | `arc start --here --from <seed>` from the checkout meant for the new work                                              | text  |
-| `arc resume --here` from the flip (§ 8.1)                                                                                                    | `arc materialize <slug> --here`                                                                                        | typed |
-| `arc park` from the flip (§ 2.2)                                                                                                             | `arc pause <slug> --reason <text>`                                                                                     | text  |
-| `arc pause` on a stub (§ 8.1)                                                                                                                | `arc start <slug>`, since a stub is not in flight                                                                      | text  |
-| The exclusivity check at a spawn or `arc materialize` (§ 6.4)                                                                                | work in the checkout it names, or release it there with `arc locus release`                                            | text  |
-| The close with no IDs, or `--close` before committing with none, where no task is open (§ 9.1, § 9.3)                                        | a deferred task's close, `arc task close <id>` or `--close=<id>`, or a new task for the work; never a closed task's ID | text  |
-| `arc task defer` on a task that is not open (§ 9.1)                                                                                          | a new task for corrective work, since a closed task stays closed                                                       | text  |
-| A hand change of a task's marker to or from closed (§ 9.4)                                                                                   | to `[x]`, the close's two forms; to `[~]`, `arc task defer <id>`; otherwise, a new task                                | text  |
-| A verb that starts at the flip, run before it (§ 8, § 9)                                                                                     | the path that serves until the flip: `arc park`, the `Owner` edit, the hand `[x]` or `[~]`                             | text  |
+| Refusal or report                                                                                                                                                          | Repair it names                                                                                                                         | Form  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| A verb advancing a paused work unit (§ 8.2)                                                                                                                                | `arc resume <slug>`                                                                                                                     | typed |
+| A write from the flip over a lifecycle listing with a malformed or missed record, or an unreadable one (§ 2.1)                                                             | the repair each named record's diagnostic gives, then the verb again                                                                    | text  |
+| A first `arc pause` given no reason (§ 8.1)                                                                                                                                | `arc pause <slug> --reason <text>`                                                                                                      | text  |
+| `work-item.slug-edges` on a slug a pause waits on (§ 18.1)                                                                                                                 | `arc pause <slug> --waits-on <other>`, `--waits-on-note <text>`, or `--no-waits-on`                                                     | text  |
+| `meta.verb-owned-field` on a hand edit of `Owner` or the pause section (§ 18.1)                                                                                            | `arc handover <slug> --to <identity>` for `Owner`; `arc pause <slug>` or `arc resume <slug>` for the pause                              | text  |
+| The removal check: `locked` (§ 11.1)                                                                                                                                       | `git worktree unlock <path>`, for the lock's owner to decide                                                                            | text  |
+| The removal check: `dirty`, `unobservable`, `persist-would-refuse`                                                                                                         | commit or discard the named changes; retry the observation; the persist step's own remedy                                               | text  |
+| A handover over unshared work; a pause's report of it (§ 8.1, § 8.5)                                                                                                       | push the work branch (`git push -u origin <branch>`); commit or stash the named changes                                                 | text  |
+| A handover where `origin` cannot be reached: base's fetch fails, or the work branch's fails and `git ls-remote` does not show `origin` lacking it (§ 8.5)                  | retry once `origin` is reachable                                                                                                        | text  |
+| `arc base sync` on a detached checkout holding commits not on base                                                                                                         | `git switch -c <name>`, naming the commits                                                                                              | text  |
+| Activation on a detached `HEAD` holding commits not on base (§ 6.1)                                                                                                        | `git switch -c <name>`, then `arc activate`                                                                                             | text  |
+| Adoption where another branch holds `<type>/<slug>` (§ 6.1)                                                                                                                | another `--type`, or a rename of that branch                                                                                            | text  |
+| Adoption of a branch another work item links                                                                                                                               | `git switch -c <name>`                                                                                                                  | text  |
+| Activation before the flip on a `Branch` naming base (§ 6.1)                                                                                                               | `git switch -c <type>/<slug>`, set `Branch`, then `arc activate`                                                                        | text  |
+| The close, or `arc release commit --close` before committing, on a detached checkout or one on no linked branch (§ 9.2, § 9.3)                                             | `git switch <work branch>`, naming it                                                                                                   | text  |
+| The close, or `--close` before committing, for a work item with no branch link (§ 9.2)                                                                                     | `arc activate` for a Planning work item; `arc deactivate <slug>`, then `arc activate`, for an Active one                                | text  |
+| The default close, or `--close` before committing, where no base ref resolves after the fetch (§ 9.2)                                                                      | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`; with no `origin`, `git branch <base> <commit>`                        | text  |
+| Adoption or reattachment, refusing, or deactivation, skipping its report, where no base ref resolves (§ 5.2, § 8.8)                                                        | the same                                                                                                                                | text  |
+| `arc materialize`'s spawn of a work unit with no branch link where no base ref resolves (§ 8.4)                                                                            | the same                                                                                                                                | text  |
+| The default close where its base refresh emptied a set that was not empty before it (§ 9.2)                                                                                | `arc task close <id>`, rerun, for a task that produced no commit, naming the commits the refresh found on base                          | text  |
+| The close, or `--close` before committing, naming an ID no task carries, or over a task list that does not read (§ 9.1, § 9.3)                                             | the task list's IDs, or the line it could not read                                                                                      | text  |
+| `--commit` naming a commit not reachable from `HEAD` (§ 9.2)                                                                                                               | commits `HEAD` holds, after `git merge --ff --no-edit <sha>` for one activation's report marks                                          | text  |
+| Activation's report of the commits it records as excluded, or deactivation's of those no task captured (§ 5.2, § 8.8)                                                      | `arc task close <ids> --commit <sha>…` for any that is task work, or `arc task close`                                                   | text  |
+| The default close's report of the commits it attributed, and of the tasks it closes where attribution placed its whole set elsewhere (§ 9.2)                               | `arc task close <ids> --commit <sha>…` for a task holding work a commit carries                                                         | text  |
+| A `created` link's old remote branch deletion named as text, its tracking ref holding commits `HEAD` lacks (§ 6.1)                                                         | `git merge --ff --no-edit <sha>`, then `git push origin --delete <old name>`                                                            | text  |
+| `arc release commit --close` whose close fails after the commit (§ 9.3)                                                                                                    | `arc task close <ids>`                                                                                                                  | typed |
+| An abandon failing after its batch (§ 8.6)                                                                                                                                 | `arc teardown <slug>`                                                                                                                   | typed |
+| A rename whose remote leg or workspace rename fails after its batch (§ 7.1)                                                                                                | `arc rename <old> <new>`, rerun                                                                                                         | typed |
+| Rename's report of an adopted branch's old remote branch, kept (§ 7.1)                                                                                                     | `git push origin --delete <old name>`, for the branch's owner to decide                                                                 | text  |
+| The workspace close throwing after the records land, before the flip (§ 2.5)                                                                                               | `arc user close <slug>`                                                                                                                 | typed |
+| An abandon's or teardown's report of a kept adopted branch (§ 12.4)                                                                                                        | `git switch` off it where a checkout holds it, then `git branch -D <name>`                                                              | text  |
+| `arc materialize` while a checkout with no marker holds the branch                                                                                                         | `arc materialize <slug> --here`, run from that checkout (§ 8.4)                                                                         | text  |
+| A spawn or `arc materialize --here` from the flip meeting a registration with no folder, at its path or on its branch, that a lock other than the projection's holds (§ 6) | `git worktree unlock <path>`, for the lock's owner to decide, then the command again                                                    | text  |
+| `arc materialize` of a linked work unit whose fetch fails where the clone holds neither the branch nor its remote-tracking ref (§ 8.4)                                     | where `origin` lacks the branch, `git push -u origin <branch>` from the clone that holds it; otherwise retry once `origin` is reachable | text  |
+| `arc start` on a started Planning work unit, from the flip (§ 8.4)                                                                                                         | the checkout here that holds it, named, or `arc materialize <slug>` where none does                                                     | text  |
+| The spawning arm given `--from` (§ 13)                                                                                                                                     | `arc start --here --from <seed>` from the checkout meant for the new work                                                               | text  |
+| `arc resume --here` from the flip (§ 8.1)                                                                                                                                  | `arc materialize <slug> --here`                                                                                                         | typed |
+| `arc park` from the flip (§ 2.2)                                                                                                                                           | `arc pause <slug> --reason <text>`                                                                                                      | text  |
+| `arc pause` on a stub (§ 8.1)                                                                                                                                              | `arc start <slug>`, since a stub is not in flight                                                                                       | text  |
+| The exclusivity check at a spawn or `arc materialize` (§ 6.4)                                                                                                              | work in the checkout it names, or release it there with `arc locus release`                                                             | text  |
+| The close with no IDs, or `--close` before committing with none, where no task is open (§ 9.1, § 9.3)                                                                      | a deferred task's close, `arc task close <id>` or `--close=<id>`, or a new task for the work; never a closed task's ID                  | text  |
+| `arc task defer` on a task that is not open (§ 9.1)                                                                                                                        | a new task for corrective work, since a closed task stays closed                                                                        | text  |
+| A hand change of a task's marker to or from closed (§ 9.4)                                                                                                                 | to `[x]`, the close's two forms; to `[~]`, `arc task defer <id>`; otherwise, a new task                                                 | text  |
+| A verb that starts at the flip, run before it (§ 8, § 9)                                                                                                                   | the path that serves until the flip: `arc park`, the `Owner` edit, the hand `[x]` or `[~]`                                              | text  |
 
 ### 17. Names
 
@@ -1507,6 +1741,14 @@ the change is stated here and built by this change; neither specification is edi
   `copyKey` in place of `patchId`, in two halves, the author line's hash and the patch-id's, and `lookup` matches a
   captured SHA, then, only where none matches in that repository, the copy key the caller passes, since a patch-id alone
   can join two different diffs (§ 5.2).
+- **Placement extends to the cohort document,** so archive can complete one in its batch (§ 2.2, § 4). Today only a
+  work unit's and an Errand's primary records carry placement on a write (`MutationSchema`, `lib/store/write.ts`),
+  though the cohort kind's checks read a cohort document's completed placement (`cohort.open-members`). A
+  `cohort/document` put may carry a `completed` placement naming only the quarter, and no other placement; read back,
+  a completed cohort document carries the sequence of the work unit archived in the same batch, its last open member,
+  with a closeout letter beside it, `a` for a leaf cohort or `b` for a parent, or the quarter's next number where no
+  member archives in its batch. `ArchiveSequenceSchema` stays digits alone; the letter is the cohort placement's own
+  field.
 - **D10's "reopen moves it back"** no longer applies to work units: no verb reopens an archived work unit, and a
   correction to one is a write to the completed item in place (§ 8.7).
 - **D15's verbs whose transitions persist inside them** name park, and the workspace's close at park; from the flip
@@ -1543,8 +1785,8 @@ holds until then is stated with it.
 - **Locus and session-init** (the change that derives locus from the checkout marker and the store):
     - the anchored work-unit marker admitted (`isWorktreeMarker`, `validateOccupancyMarkerTopology`) and every removal
       reader keyed on `spawnedByArc: true` (§ 11.4) — until then no anchored marker exists;
-    - the derived roster and its exclusivity check (§ 6.4, § 7.1) — until then Git's refusal and the cold start's own
-      check;
+    - the derived roster and its exclusivity check (§ 6.4, § 7.1, § 8.4, § 8.5) — until then Git's refusal and the cold
+      start's own check;
     - `arc locus release [<slug>]`, which runs the removal check and function on a spawned checkout and the release on
       an anchored one, and session start's offer of it to a former owner, its text precomposed by the CLI and its
       action a runnable command (§ 8.1, § 8.5) — before the flip it refuses `unsupported`, naming `arc park` and
@@ -1566,6 +1808,8 @@ holds until then is stated with it.
       settlement;
     - the Errand's exits and the session-init sweeps moved onto the removal function and check (§ 11.5), and the
       shipped-work readers it holds moved onto placement and `lookup` (§ 4);
+    - the stale-worktree sweep reporting a locked registration whose folder is missing with the remedy
+      `git worktree unlock <path>`, then `git worktree remove <path>`, a hand-deleted husk's among them (§ 11.3);
     - the entry fields' rule for where an executing work unit takes its inbound entries, which consumes § 14;
     - `resolveActiveWu`'s body (`lib/release/wu-resolution.ts`).
 - **The projection:** the removal check's projection part, the persist step, and the release slot (§ 11), each passing
@@ -1573,11 +1817,12 @@ holds until then is stated with it.
   decision, and move of a work unit's checkout is on the function, the check, and the doubled-force form; and its
   amendment of D13's parked work unit for the pause.
 - **The ref backend and its import:** the archive sequence under the quarter's compare-and-swap, renumbered by the merge
-  after fetch until published (§ 4); the item's ref moved under history at an end; a write to a completed item on a
-  clone lacking its history ref refusing with the unresolvable-state-version code, the calling verb pulling the ref by
-  name and retrying (§ 7.1); the import's branch links and its captures' copy keys, from § 5.2's function (§ 5.4),
-  parked work units mapped to paused ones (§ 8.9), and a `plan/` branch carried as a `created` link (§ 6.3); and the
-  review gate's repository ID adopted as the project ID (§ 5.3).
+  after fetch until published, and a completed cohort document's number and letter (§ 4, § 18.2); the item's ref moved
+  under history at an end; a write to a completed item on a clone lacking its history ref refusing with the
+  unresolvable-state-version code, the calling verb pulling the ref by name and retrying (§ 7.1); the import's branch
+  links and its captures' copy keys, from § 5.2's function (§ 5.4), parked work units mapped to paused ones (§ 8.9),
+  and a `plan/` branch carried as a `created` link (§ 6.3); and the review gate's repository ID adopted as the project
+  ID, in the project's identity record the verbs read (§ 5.3).
 - **The cutover:** the flip; the rewrite of the workflows — the task loop (§ 9.5), activation's push step running the
   typed actions activation's result names (§ 6.1), the person-to-person handoff's hand edit of `Owner`
   (`session-handoff.md`'s handoff note, `strategy-team-coordination.md`'s handoff passages) and `init-work-unit.md`'s
@@ -1800,7 +2045,8 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
 ## Success Criteria
 
 1. **Today's behavior holds before the flip.** Every lifecycle test passes over the in-repo implementation, unchanged
-   but for those a pre-flip fix changes, each named with its fix.
+   but for those a pre-flip fix, a setup chunk, or the removal function's porcelain and move changes alter (§ 1.4,
+   § 11), each named with its change.
 2. **Each pre-flip fix has its test:** the seed fix's arms (§ 13); the removal check refusing a dirty checkout before
    an abandon or a Planning park records anything (§ 11.3); the workspace closing after the transition's records, and a
    throw in the finalize writes leaving it in place (§ 2.5); the removal function pruning a registration whose folder
@@ -1823,7 +2069,7 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
    adopting or reattaching, of a clone where no base ref resolves after the fetch; the base arm creating the work
    branch; a linked branch keeping its name when `--type` names its type; and the old name's remote deletion named as a
    typed action for a `created` link, as text after the merge where its remote-tracking ref holds commits `HEAD` lacks,
-   and never for an adopted one.
+   and never for an adopted one; and adoption of a branch never pushed still refreshing base.
 7. **The pause is honored:** each verb § 8.2 names refuses on a paused work unit naming `arc resume`, and each other
    write proceeds; deactivation keeps the branch; and a start of another person's stub records the starter as `Owner`
    and reports the previous owner.
@@ -1866,16 +2112,19 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
    `--close` does before committing, running the fetch once; in a partial clone a commit whose objects are absent
    matches by SHA alone; an Errand open at the flip and promoted after it at the scale floor keeps its commits in the
    default capture; activation excludes a commit its branch's remote-tracking ref holds that `HEAD` lacks; the close
-   names `arc activate` for a work item with no branch link; closing a parent with open subtasks closes them, recording
-   the captures against each, and a parent the cascade closes records none; and a deferral of a parent's last open
-   subtask closes the parent, `[x]` where a subtask was already `[x]`.
+   names `arc activate` for a Planning work item with no branch link, and `arc deactivate <slug>`, then `arc activate`,
+   for an Active one; closing a parent with open subtasks closes them, recording the captures against each, and a parent
+   the cascade closes records none; and a deferral of a parent's last open subtask closes the parent, `[x]` where a
+   subtask was already `[x]`.
 9. **The reap keeps its rules:** an abandon discards a created branch, an archive's teardown deletes one merge-safe, an
    adopted branch is kept and reported, and an added ref carrying commits of its own is kept and reported.
 10. **The removal function and check** return each of their outcomes, an anchored checkout's kept marker among them, and
     every move of a work unit's checkout this change runs or prints takes the doubled-force form (§ 11.6).
-11. **The named cases pass:** a promoted work item projecting what a fresh start does (§ 7.2), and a stub's rename
-    invoked from a checkout holding a transient role writing with no branch switch and no second change request
-    (§ 7.1).
+11. **The named cases pass:** a promoted work item projecting what a fresh start does (§ 7.2); a stub's rename invoked
+    from a checkout holding a transient role writing with no branch switch and no second change request (§ 7.1); a
+    rename leaving the branch link under its new name (§ 7.1); and a spawn with no branch landing at its template's path
+    and rolling back with no branch to delete, an in-place start from a detached checkout leaving `HEAD` where it stood,
+    and a re-spawn over a hand-deleted checkout's registration clearing it and proceeding (§ 6).
 12. **The quality gates pass** at every gate the project declares.
 
 ## Open Questions
