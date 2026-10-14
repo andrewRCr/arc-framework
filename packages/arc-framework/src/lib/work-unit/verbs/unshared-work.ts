@@ -63,10 +63,11 @@ export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext,
 }
 
 async function linkedBranch(ctx: UnsharedWorkContext, record: StoreRecord, checkout: string | null): Promise<string | null> {
-  let currentBranch: string | null | undefined;
+  let currentBranch: string | undefined;
   if (checkout !== null && (record.links?.branches?.length ?? 0) > 0) {
     try { currentBranch = (await ctx.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: checkout })).stdout.trim(); }
-    catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; currentBranch = null; }
+    // Detached HEAD supplies no branch identity; select from the recorded links.
+    catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; }
   }
   const selected = selectWorkBranchLink(record, { repository: ctx.repository, currentBranch });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);

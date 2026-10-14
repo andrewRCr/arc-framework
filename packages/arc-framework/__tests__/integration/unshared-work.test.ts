@@ -1,16 +1,19 @@
 /** Published reachability uses refreshed named refs and treats deleted refs as absent. */
 import { afterEach, expect, it } from "vitest";
 import { join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { HandoverCommandInputSchema } from "../../src/handlers/lifecycle-collaboration.js";
+import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { readUnsharedWork } from "../../src/lib/work-unit/verbs/unshared-work.js";
 import { runHandover, runPause } from "../../src/lib/work-unit/verbs/pause-handover.js";
 import type { LocusPorts } from "../../src/lib/work-unit/locus-ports.js";
 const roots: string[] = [];
+const HANDOVER_TIMEOUT_MS = 30_000;
 afterEach(async () => { await removeGitBackedDirs(roots.splice(0)); });
-async function fixture(origin = true) {
+async function fixture(origin = true, planning = false) {
   const root = await createTempRepoCore({ prefix: "arc-unshared-", identity: "test-user" }); roots.push(root);
   const exec = makeGitExec(root);
   await exec("git", ["branch", "-M", "main"]);
@@ -23,11 +26,34 @@ async function fixture(origin = true) {
   await writeFile(join(root, "work.txt"), "work\n"); await exec("git", ["add", "work.txt"]); await exec("git", ["commit", "-m", "work"]);
   const sha = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   const harness = createLifecycleHarness();
-  const record = await harness.seedMeta("example", {}, undefined, { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const record = await harness.seedMeta("example", planning ? { state: "Planning", currentWorkflow: "draft-design" } : {}, undefined,
+    { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
   const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => root,
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   return { root, exec, sha, record, ...harness, context: { cwd: root, identity: "test-user", exec, baseBranch: "main", repository: "repo", locusPorts, store: harness.store } };
 }
+it.each([false, true])("checks the recorded branch from a detached holder before handover, origin=%s", async (origin) => {
+  const f = await fixture(origin, true); await f.exec("git", ["switch", "--detach", "main"]);
+  const head = (await f.exec("git", ["rev-parse", "HEAD"])).stdout;
+  const input = HandoverCommandInputSchema.parse({ slug: "example", to: "another-user" });
+  const params = { name: input.slug!, to: input.to };
+  await writeFile(join(f.root, "pending.txt"), "uncommitted\n");
+  expect(await runHandover(f.context, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("pending.txt") });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.record.reference }))).toEqual(f.record);
+  await rm(join(f.root, "pending.txt"));
+  if (origin) {
+    expect(await runHandover(f.context, params)).toMatchObject({ status: "rejected", remedy: { argv: ["git", "push", "-u", "origin", "feat/example"] } });
+    expect(lifecycleSuccess(await f.store.read({ reference: f.record.reference }))).toEqual(f.record);
+    await f.exec("git", ["push", "origin", "feat/example"]);
+  }
+  expect(await runHandover(f.context, params)).toMatchObject({ status: "handed-over", owner: "another-user",
+    report: { kind: "observed", branch: "feat/example", changedPaths: [], unsharedCommits: [], heldOnlyCommits: origin ? [] : [f.sha] } });
+  const handedOver = lifecycleSuccess(await f.store.read({ reference: f.record.reference }));
+  expect(handedOver.fields).toEqual({ ...ParsedMetaRecordSchema.parse(f.record.fields), owner: "another-user" });
+  expect(handedOver.links).toEqual(f.record.links); expect(handedOver.placement).toEqual(f.record.placement);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);
+  expect(await f.exec("git", ["symbolic-ref", "--quiet", "HEAD"]).catch(() => null)).toBeNull();
+}, HANDOVER_TIMEOUT_MS);
 it("reports never-pushed work and pause still succeeds while handover refuses with push action", async () => {
   const f = await fixture();
   expect(await readUnsharedWork(f.context, f.record)).toMatchObject({ kind: "observed", origin: "refreshed", unsharedCommits: [f.sha], changedPaths: [] });
