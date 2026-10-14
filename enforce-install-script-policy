@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "enforce-install-script-policy",
+  "claimId": "495d3ff7a0dc31b803fdd937d4485378",
+  "createdAt": "2026-10-14T16:21:49.967Z",
+  "updatedAt": "2026-10-14T16:21:49.967Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make root allowScripts actually stop the install scripts it denies",
+  "branch": "chore/enforce-install-script-policy",
+  "origin": "inbox",
+  "originEntry": "Make root `allowScripts` actually stop the install scripts it denies",
+  "originEntrySourceDigest": "sha256:6956d15acd5c343e106fc45426ecf988cff11a66cd5bc0088a3a3df8288cbbc9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
