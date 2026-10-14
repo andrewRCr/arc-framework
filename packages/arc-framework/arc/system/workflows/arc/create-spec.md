@@ -14,8 +14,6 @@ arc:
     - spec-review
     - adversarial-review
     - design-audit
-  extensions:
-    - pre-spec-finalization-review
 ---
 
 # Workflow: Create Spec
@@ -111,11 +109,10 @@ surfaces heavier derivation than the form assumed, fire the re-entry valve per
 
 ### Proportionality guard (all forms)
 
-As discovery crystallizes the settled design, run
-[`assess-design-proportionality`][assess-design-proportionality] with the chartered problem, the current spec
-candidate, and key existing substrate pointers when useful. Apply it at every form. On `proportionate`, continue
-silently. On `revise`, correct a wrong named mechanism, shape, or interface in the spec candidate when the design
-is already settled; when the finding exposes an unshaped or under-derived direction, fire
+As discovery crystallizes the settled design, run [`assess-design-proportionality`][assess-design-proportionality] with
+the chartered problem, the current spec candidate, and key existing substrate pointers when useful. Apply it at every
+form. On `proportionate`, continue silently. On `revise`, correct a wrong named mechanism, shape, or interface in the
+spec candidate when the design is already settled; when the finding exposes an unshaped or under-derived direction, fire
 [`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
 ### Scope-boundary carry-forward (all forms)
@@ -265,13 +262,8 @@ iteration flow; carry anything needing a decision into the review below. A findi
 a derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
 re-entry (route it to the design, never patch it into the spec).
 
-- **Extensions** · `#pre-spec-finalization-review`: If `pre-spec-finalization-review` appears in the
-  active-extensions list (established at session init), load and execute its
-  [`.actions`][pre-spec-finalization-review] — a team's own spec-review ceremony layered on the default
-  self-review. Otherwise, skip.
-
 The finalization boundary also carries an advisory adversarial fire-point — design _and_ artifact attacked from
-fresh context, distinct from both the self-review above and any team extension:
+fresh context, distinct from the self-review above:
 
 > [!IMPORTANT]
 > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
@@ -368,7 +360,6 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
-[pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md
 [template-spec-outline]: ../../../reference/templates/arc/work-unit/spec/template-spec-outline.md
 [template-spec-detailed-prd]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md

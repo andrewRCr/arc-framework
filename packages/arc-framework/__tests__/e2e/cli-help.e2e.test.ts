@@ -1,6 +1,6 @@
 /** Complete built-CLI navigation coverage derived from the registered command tree. */
 
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -11,6 +11,22 @@ import { scanCommanderSource } from "../../src/lib/command-input/source-scanner.
 import { runCli } from "../helpers/run-cli.js";
 
 describe("built CLI navigation", () => {
+  it("rejects the retired extension command and omits it from root help", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-retired-command-"));
+    try {
+      await mkdir(join(cwd, ".arc/system/extensions"), { recursive: true });
+      await mkdir(join(cwd, ".arc/system/workflows"), { recursive: true });
+      const removed = await runCli(["extensions", "status", "--json"], { cwd });
+      expect(removed.exitCode).toBe(1);
+      expect(removed.stderr).toContain("unknown command 'extensions'");
+      const help = await runCli(["--help"], { cwd });
+      expect(help.exitCode).toBe(0);
+      expect(help.stdout).not.toMatch(/^ {2}extensions\b/mu);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it.each(["", "review", "user", "errand", "release", "delivery"])("covers every child exactly once in %s help", async (path) => {
     const cwd = await mkdtemp(join(tmpdir(), "arc-inventory-help-"));
     try {

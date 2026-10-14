@@ -159,10 +159,10 @@ formalization-ready gate:
 - **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
   for create-spec.
 
-At loop-exit, assess the draft's formalization-readiness with the
-[assess-draft-readiness][assess-draft-readiness] method. On **ready**, the draft crosses into create-spec; on
-**not-ready**, re-synthesize against the returned gaps and keep iterating. For a gap of inbound entries not yet
-integrated, run [route-discovered-work][route-discovered-work] at this owner's-pass fire-point:
+At loop-exit, assess the draft's formalization-readiness with the [assess-draft-readiness][assess-draft-readiness]
+method. On **ready**, the draft crosses into create-spec; on **not-ready**, re-synthesize against the returned gaps and
+keep iterating. For a gap of inbound entries not yet integrated, run [route-discovered-work][route-discovered-work] at
+this owner's-pass fire-point:
 
 ```yaml
 route-discovered-work:

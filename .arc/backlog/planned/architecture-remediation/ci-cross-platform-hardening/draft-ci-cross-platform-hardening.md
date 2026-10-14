@@ -30,8 +30,8 @@
    surface). **Boundary with `ci-content-aware-depth`:** CI cost/efficiency — content-aware depth, the
    merge-safety gate, and `concurrency` cancel-in-progress — is owned there; dependency caching already ships via
    `setup-node`. This facet is scoped to cross-platform verifiability; the two share `.github/workflows/ci.yml`,
-   so sequence them (rebase the later WU on the earlier). _Captured during
-   `state-ref-write-safety` task generation, 2026-06-26._
+   so sequence them (rebase the later WU on the earlier). _Captured during `state-ref-write-safety` task generation,
+   2026-06-26._
 
 2. **SHA-pin GitHub Actions + add Renovate/Dependabot.** Both workflow files reference actions by floating major
    tag (`actions/checkout@v5`, `setup-node@v5`, `setup-python@v5`, `upload-pages-artifact@v3`, `deploy-pages@v4`)

@@ -4,12 +4,11 @@ Instrument-produced baseline of the CLI package's test-suite cost, taken 2026-09
 `test-suite-right-sizing` execution. It grounds every later target in retained measurement rather than projection.
 
 **Status: schema-v4 corrected baseline; schema-v3 first baseline retained historically.** The figures below the correction
-notice are medians of three complete retained runs
-captured at `3548ac2ca` with the repository-owned `benchmark:test-cost` entry after the member-boundary review
-corrections. Fixture-build and CLI-startup figures below are standalone probes; CI figures come from workflow runs.
-Every schema-v3 record carries a successful outcome established from Vitest's completed module states and empty
-run-level unhandled-error set; raw runs remain regenerable and gitignored, while the normalized evidence below is
-the durable record.
+notice are medians of three complete retained runs captured at `3548ac2ca` with the repository-owned
+`benchmark:test-cost` entry after the member-boundary review corrections. Fixture-build and CLI-startup figures below
+are standalone probes; CI figures come from workflow runs. Every schema-v3 record carries a successful outcome
+established from Vitest's completed module states and empty run-level unhandled-error set; raw runs remain regenerable
+and gitignored, while the normalized evidence below is the durable record.
 
 ## Contents
 
@@ -50,20 +49,18 @@ of complete retained records, not an arithmetic update to old measurements.
 | `e2e`                 | 279.810 s  | 1,706.160 s      | 54    | 537            |
 
 The added environment/preparation terms have median tier totals of 0.293 s, 0.661 s, 1.017 s, and 0.285 s
-respectively.
-Those are within-run term totals, **not** differences from schema v3: code and host conditions also changed. The
-new integration ranking starts with `decompose-v3-repository-plan.test.ts` (42.572 s), `user.test.ts` (42.264 s),
-`config-validate.test.ts` (41.455 s), and `review-fan-out-lifecycle.test.ts` (38.462 s). Later target scoring that
-uses summed or maximum-file cost needs both sides captured under schema v4 in the same mode.
+respectively. Those are within-run term totals, **not** differences from schema v3: code and host conditions also
+changed. The new integration ranking starts with `decompose-v3-repository-plan.test.ts` (42.572 s), `user.test.ts`
+(42.264 s), `config-validate.test.ts` (41.455 s), and `review-fan-out-lifecycle.test.ts` (38.462 s). Later target
+scoring that uses summed or maximum-file cost needs both sides captured under schema v4 in the same mode.
 
 Two earlier E2E attempts failed and produced no eligible retained run. The fully captured second attempt timed
 out one `delivery-position.e2e.test.ts` case at Vitest's 30-second default; the first attempt's detailed
 diagnostic was not retained. Giving that case a 60-second limit allowed three complete successful samples. The
-new E2E ranking starts with `candidate-lineage.e2e.test.ts` (269.163 s),
-`delivery-position.e2e.test.ts` (164.487 s), `command-input-no-input.e2e.test.ts` (144.544 s), and
-`errand.e2e.test.ts` (127.953 s). Its schema-v3 ranking, substrate share, and summed-time figures below remain
-historical and cannot be promoted to schema-v4 evidence. Wall-clock and CI-job observations are not
-arithmetically changed by this metric correction.
+new E2E ranking starts with `candidate-lineage.e2e.test.ts` (269.163 s), `delivery-position.e2e.test.ts` (164.487 s),
+`command-input-no-input.e2e.test.ts` (144.544 s), and `errand.e2e.test.ts` (127.953 s). Its schema-v3 ranking, substrate
+share, and summed-time figures below remain historical and cannot be promoted to schema-v4 evidence. Wall-clock and
+CI-job observations are not arithmetically changed by this metric correction.
 
 ---
 
@@ -122,15 +119,15 @@ those complete file costs and exceeds wall clock because files run in parallel; 
 in-process Vitest action and excludes admission wait.
 
 The superseded hand baseline used a test-time-only reporter window, so its summed figures were lower bounds. The
-reporter derives that old window from
-test results alone — `min(start)` to `max(start + duration)` — so a file's transform, module import, and
-file-level hooks fall outside it, and the window sums to the file's test durations. On one unit-tier run the
-summed window was 123.5 s against the same run's reported 78.8 s of transform and 131.3 s of import. The omission
-matters most for levers that act on that fixed term: module-registry reuse across files moves almost nothing else,
-and splitting a file re-pays it once per new file. A per-file figure that counts it is `collectDuration +
-setupDuration + duration`, read from the run's file task rather than the JSON payload — `duration` includes the
-file's tests and hooks, `collectDuration` already includes its import time, and the payload carries no run-level end
-time, so wall clock has to be taken from the run itself. The instrument implements that complete metric directly.
+reporter derives that old window from test results alone — `min(start)` to `max(start + duration)` — so a file's
+transform, module import, and file-level hooks fall outside it, and the window sums to the file's test durations. On one
+unit-tier run the summed window was 123.5 s against the same run's reported 78.8 s of transform and 131.3 s of import.
+The omission matters most for levers that act on that fixed term: module-registry reuse across files moves almost
+nothing else, and splitting a file re-pays it once per new file. A per-file figure that counts it is
+`collectDuration + setupDuration + duration`, read from the run's file task rather than the JSON payload — `duration`
+includes the file's tests and hooks, `collectDuration` already includes its import time, and the payload carries no
+run-level end time, so wall clock has to be taken from the run itself. The instrument implements that complete metric
+directly.
 
 **Five measurement conditions, and their complete modes are not interchangeable.** Every retained mode also
 names its project set and worker sizing. Mixing modes produced two wrong conclusions during planning.
@@ -453,9 +450,8 @@ Cumulative share is of that tier's summed file time.
 | `user-status.test.ts`                        | 2.52    | 172   | 49%        |
 
 The first two files are 29% of the complete-cost tier. Neither spawns the ARC CLI: `classify-change` drives
-`classify-change.sh` through
-`bash`, and `codex-cli` spawns `git` 18 times and `sh` once. Both use `it.each`, so static `it(` counts understate
-their case counts — `classify-change` declares 63 `it(` calls but executes 122 cases.
+`classify-change.sh` through `bash`, and `codex-cli` spawns `git` 18 times and `sh` once. Both use `it.each`, so static
+`it(` counts understate their case counts — `classify-change` declares 63 `it(` calls but executes 122 cases.
 
 ### `integration` — 361.01 s over 137 files
 

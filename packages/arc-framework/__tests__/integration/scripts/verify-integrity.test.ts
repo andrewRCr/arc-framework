@@ -50,10 +50,6 @@ async function writeMinimalArcInstall(root: string): Promise<void> {
     join(arc, "system/methods/example.md"),
     "---\nname: example\ndescription: Example method\noverride-active: false\n---\n",
   );
-  await write(
-    join(arc, "system/extensions/example.md"),
-    "---\nname: example\ndescription: Example extension\nactive: false\n---\n",
-  );
 
   await writeExecutable(
     join(arc, "system/.internal/scripts/arc-lib.sh"),
@@ -74,6 +70,20 @@ describe("verify-integrity.sh", () => {
       tmpDir = undefined;
     }
   });
+
+  it("checks surviving method structure without the retired directory", async () => {
+    tmpDir = await initInTempRepo(DEFAULT_PROMPTS);
+    await rm(join(tmpDir, ".arc/system/extensions"), { recursive: true, force: true });
+    const script = join(tmpDir, ".arc/system/.internal/scripts/verify-integrity.sh");
+    const clean = await runScript(script, [], { cwd: tmpDir });
+    expect(clean.exitCode).toBe(0);
+    expect(clean.stdout).not.toContain("Extensions directory missing");
+    await write(join(tmpDir, ".arc/system/methods/example.md"),
+      "---\nname: example\ndescription: Example method\n---\n");
+    const malformed = await runScript(script, [], { cwd: tmpDir });
+    expect(malformed.exitCode).toBe(2);
+    expect(malformed.stdout).toContain("example.md: missing frontmatter key(s): override-active");
+  }, 30_000);
 
   it.each([
     ["none", false],

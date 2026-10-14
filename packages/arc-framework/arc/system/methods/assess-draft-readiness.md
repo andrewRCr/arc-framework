@@ -38,8 +38,8 @@ gaps that block it — each tagged by kind, so the caller can route without re-j
    check produces.
 
 **The bar is identical at every planning depth** · `[invariant]`. Depth (via
-[resolve-planning-depth][resolve-planning-depth]) sets
-how far a draft travels to clear it — fewer passes at `low` / `medium`, more at `high` — never how high it sits.
+[resolve-planning-depth][resolve-planning-depth]) sets how far a draft travels to clear it — fewer passes at `low` /
+`medium`, more at `high` — never how high it sits.
 
 ### The verdict
 

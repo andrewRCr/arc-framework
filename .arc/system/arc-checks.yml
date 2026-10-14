@@ -21,17 +21,6 @@ checks:
       - .arc/system/rules/DEV-RULES.PROJECT.md
       - .arc/reference/strategies/STRATEGY-INDEX.md
       - .arc/reference/briefs/AGENT-BRIEF.PROJECT.md
-      - .arc/system/extensions/post-context-load.md
-      - .arc/system/extensions/post-task-completion.md
-      - .arc/system/extensions/post-work-unit-activate.md
-      - .arc/system/extensions/post-work-unit-archive.md
-      - .arc/system/extensions/pre-activation.md
-      - .arc/system/extensions/pre-commit-review.md
-      - .arc/system/extensions/pre-merge.md
-      - .arc/system/extensions/pre-pr-open.md
-      - .arc/system/extensions/post-pr-open.md
-      - .arc/system/extensions/pre-push-review.md
-      - .arc/system/extensions/pre-spec-finalization-review.md
       - .arc/system/methods/assess-boundary-fit.md
       - .arc/system/methods/assess-design-proportionality.md
       - .arc/system/methods/assess-draft-readiness.md
@@ -140,6 +129,7 @@ checks:
       - '!.arc/user/*/USER-INBOX.md'
       - '!.arc/**/temp-*.md'
       - '!arc/**'
+      - '!packages/arc-framework/__tests__/fixtures/**'
   lint:md:
     command:
       - npm

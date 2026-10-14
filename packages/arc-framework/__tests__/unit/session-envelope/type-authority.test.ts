@@ -63,7 +63,6 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/git/supersession.ts", type: "SupersessionResult" },
     { file: "lib/git/supersession.ts", type: "SupersessionSnapshotAnalysisResult" },
     { file: "lib/session-init/current-husk-advisory.ts", type: "CurrentHuskAdvisory" },
-    { file: "commands/extensions/types.ts", type: "ExtensionsSessionInitResult" },
     { file: "commands/active/types.ts", type: "ActiveSessionInitResult" },
     { file: "commands/config/types.ts", type: "ConfigSessionInitResult" },
     { file: "lib/release/routing.ts", type: "ReleaseRoutingValue" },

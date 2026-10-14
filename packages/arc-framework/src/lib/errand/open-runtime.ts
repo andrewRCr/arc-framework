@@ -121,7 +121,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
         options.changeRequestReentry,
         options.pausedHeadReentry,
       ),
-      recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, record),
+      recoverOpen: (record) => recoverOpenIdentityBranch(options.exec, options.base, record),
       claim: async (record) => {
         const claimed = await transactTransientIdentities({
           exec: options.exec,
@@ -217,6 +217,7 @@ function matchesExpectedResumeGeneration(
 
 async function recoverOpenIdentityBranch(
   exec: GitExec,
+  base: string,
   record: OrdinaryErrandRecord,
 ): Promise<
   | { kind: "ready"; expectedBranchHead: string | null }
@@ -238,6 +239,14 @@ async function recoverOpenIdentityBranch(
     head = (await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`])).stdout.trim();
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  const baseArgs = ["merge-base", "--is-ancestor", head, base];
+  try {
+    await exec("git", baseArgs);
+    return { kind: "ready", expectedBranchHead: head };
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: baseArgs });
+    if (failure.exitCode !== 1) return { kind: "error", message: failure.message };
   }
   const proof = await provePauseHead(exec, { remote: "origin", branch: record.branch, savedHead: head });
   if (proof.kind === "proven") return { kind: "ready", expectedBranchHead: head };

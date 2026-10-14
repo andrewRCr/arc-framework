@@ -56,9 +56,8 @@ wrapper-optional class, execution-only, tracked by git history); each corrects a
    concern may be reviewed in a **bounded few in-session review passes** — the **extended errand** — without
    becoming a Work Unit: staging review for reviewer ergonomics crosses neither floor. What crosses the **scale**
    floor is needing a _durable_ plan, not needing a second pass. **Commit-count and review-pass-count both drop out
-   of the gate**; concern-count stays
-   (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing spectrum, not a
-   cardinality gate.
+   of the gate**; concern-count stays (multi-concern always decomposes). The errand is the shared sub-floor of one
+   work-sizing spectrum, not a cardinality gate.
 
    **Single-session binding is the errand's structural identity.** An errand carries no durable context machinery —
    no meta, no SESSION-NOTES, no task list — so it is bound to a single session by construction. Pause/resume is a

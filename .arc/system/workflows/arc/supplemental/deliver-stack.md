@@ -11,9 +11,6 @@ arc:
     - review-response
     - review-chunking
     - validate-criteria
-  extensions:
-    - pre-push-review
-    - pre-merge
 ---
 
 # Workflow: Deliver Stack
@@ -163,17 +160,16 @@ arc delivery publish -
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
 work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact push-gate result
 admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts
-every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and
-ordinary top-branch push, then
-requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
-over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
-opens under the configured hold; the landing sequence releases that lock only after readiness. The verb composes every
-request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` — one shared type and
-scope taken from the authored terminal title, positions from the canonical plan, and non-terminal summaries from the
-plan's member titles — so delivery identity and the complete range stay visible even when the host cannot link the
-requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
-presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A
-failed request step retains its reservation for `reconcile` or an exact publication retry.
+every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary
+top-branch push, then requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the
+originating branch over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒
+`true`) so every request opens under the configured hold; the landing sequence releases that lock only after readiness.
+The verb composes every request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` —
+one shared type and scope taken from the authored terminal title, positions from the canonical plan, and non-terminal
+summaries from the plan's member titles — so delivery identity and the complete range stay visible even when the host
+cannot link the requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
+presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A failed
+request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
@@ -238,11 +234,11 @@ Only after every request ID exists, compose the exact non-terminal native-link r
 arc delivery native link -
 ```
 
-An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
-an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
-`recommendedOptInText` and
-`recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
-After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without an
+operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and `recommendedOptOutText` — before asking the operator to choose. This is the choice surface,
+not a capability check. After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged
+request:
 
 ```bash
 arc delivery native link -
@@ -395,11 +391,10 @@ On `requested / await`, pass the returned `action` unchanged to:
 arc review hosted await -
 ```
 
-`pending / await` retains the newly returned `action` unchanged for one more bounded call;
-`pending / inspect-or-extend` retains the request for the diagnostic below, then stops. Submitting `action`
-unchanged checks once; on explicit direction, add
-`continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
-records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
+`pending / await` retains the newly returned `action` unchanged for one more bounded call; `pending / inspect-or-extend`
+retains the request for the diagnostic below, then stops. Submitting `action` unchanged checks once; on explicit
+direction, add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another
+review or records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
 continuing or stopping:
 
 ```bash
@@ -412,17 +407,16 @@ arc review checks await \
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
-inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
-when retrieval is partial or unavailable.
-`unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
-hosted-review `action`, and ends this foreground attempt.
-`pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
-that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
-action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
-release the draft lock. Before any push that moves the reviewed head while this action is pending, including a fix for a
-failure this observation found, re-enter the action through hosted await until it concludes and handle its result first,
-so its findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives
-up that result.
+inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures` when
+retrieval is partial or unavailable. `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and
+`diagnosticFailures`, retains the same hosted-review `action`, and ends this foreground attempt. `pending / await`,
+`green / complete`, and `not-required / complete` retain the same hosted-review `action`; only that action re-enters
+hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This
+observation does not become review settlement, feed the review driver, move the exact head, or release the draft lock.
+Before any push that moves the reviewed head while this action is pending, including a fix for a failure this
+observation found, re-enter the action through hosted await until it concludes and handle its result first, so its
+findings join the same push. At `pending / inspect-or-extend`, push only on explicit Owner direction, which gives up
+that result.
 
 Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
 finding settlement, execute the returned settlement plan in phase order through:
@@ -431,14 +425,17 @@ finding settlement, execute the returned settlement plan in phase order through:
 arc review hosted settle -
 ```
 
+On `head-pending / retry`, surface `remedy.text` and end this foreground attempt. A later re-entry passes
+`remedy.stdin` unchanged through `remedy.argv`.
+
 `resolve-review-applicability` renders `selectionAction.interactionText` before the Owner's typed choice.
 
 **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only when the typed
 member-rewrite result carries `selectionAction.projection.applicability.judgmentRequired: true`, or a projection in
-`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual
-and show its `supplemental | fresh` recommendation before selection. A
-`judgmentRequired: false` result is final, `merge-safety` never fires the method, and mechanical eligibility or
-terminal position never substitutes for this result.
+`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual and
+show its `supplemental | fresh` recommendation before selection. A `judgmentRequired: false` result is final,
+`merge-safety` never fires the method, and mechanical eligibility or terminal position never substitutes for this
+result.
 
 Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
 `selection` to:
@@ -740,15 +737,15 @@ conflict route remain authoritative.
 ### Complete a review-fix verification continuation
 
 `applied / verify-review-fix` from refresh settlement, `rematerialized / verify-review-fix`,
-`rebound / verify-review-fix` from terminal correction settlement, and
-`review-fix-verification-required / verify-review-fix` from execution entry all enter the same exact verification
+`rebound / verify-review-fix` from terminal correction settlement, and `review-fix-verification-required /
+verify-review-fix` from execution entry all enter the same exact verification
 continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
-`memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
-conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
-arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind
-`arc check gate commit --all --force` to `verification.target` in its own checkout. Rerun by default. Reuse is
-admissible only under `commitGateReuseCriteria` when an existing passed result names exactly `targetTree` and every covered
-input is unchanged; inconclusive evidence reruns the commit gate.
+`memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved conflicted
+dependent; the rematerialized selector contains every contribution the arbiter found changed. An arbiter-accepted
+contribution-equivalent dependent member is absent and re-verifies nothing. Bind `arc check gate commit --all --force`
+to `verification.target` in its own checkout. Rerun by default. Reuse is admissible only under `commitGateReuseCriteria`
+when an existing passed result names exactly `targetTree` and every covered input is unchanged; inconclusive evidence
+reruns the commit gate.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
 describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the

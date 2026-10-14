@@ -13,6 +13,7 @@ import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
+import { readRangeMergedInPaths } from "../../lib/checks/merged.js";
 import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
@@ -38,6 +39,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   notice?: string;
   divergent?: string[];
   rewritten?: string[];
+  /** Files a range's file check left unchecked because a merge on the range brought them in unchanged from the base. */
+  mergedIn?: string[];
   logPath?: string;
   costMs?: number;
   lastCostMs?: number;
@@ -213,9 +216,16 @@ async function runRequestedCheck(
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
   if (selected.status === "not selected") return { id, kind, ...forecast, outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
+  let mergedIn: string[] = [];
   if (check.mode === "files") {
     paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths });
     if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
+    const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
+    mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
+      remoteBase: resolved.remoteBase, tree: checkedTree, inputs: check.inputs, paths });
+    const left = new Set(mergedIn);
+    paths = paths.filter(path => !left.has(path));
+    if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: MERGED_IN_ONLY, mergedIn };
   }
   if (request.dryRun) forecast = resolveCheckForecast(check, root, paths, io.platform);
   if (usesFormingWorktree(check, request)) {
@@ -226,8 +236,11 @@ async function runRequestedCheck(
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
   }
+  if (mergedIn.length > 0) result.mergedIn = mergedIn;
   return { ...result, ...forecast };
 }
+
+const MERGED_IN_ONLY = "every changed file was merged in unchanged";
 
 function usesFormingWorktree(check: CheckDeclaration["checks"][string], request: CheckRequest): boolean {
   return check.fixes && request.form.kind !== "pre-commit" && checkFixesAllowed(request);

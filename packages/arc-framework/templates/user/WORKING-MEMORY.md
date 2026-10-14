@@ -19,8 +19,7 @@ Body — context, scope, what to watch for or work around.
 **Post-install setup:**
 _Remove when: initial-setup sequence complete._
 
-- First session after `arc init`. Work through the initial-setup sequence,
-  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
-  The workflow guides onward steps.
+- First session after `arc init`. Work through the initial-setup sequence, starting at
+  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`. The workflow guides onward steps.
 
 ---

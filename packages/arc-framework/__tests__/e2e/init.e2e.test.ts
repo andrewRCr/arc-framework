@@ -206,7 +206,7 @@ describe("init", () => {
     expect(configContent).toContain("pm.mode: arc-in-git");
   });
 
-  it("init --yes installs per-file methods and extensions directories", async () => {
+  it("init --yes installs per-file methods directories", async () => {
     const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(result.exitCode).toBe(0);
 
@@ -221,12 +221,6 @@ describe("init", () => {
       "review-response", "review-triage",
       "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
-    const extensionNames = [
-      "post-context-load", "post-task-completion",
-      "post-work-unit-activate",
-      "post-work-unit-archive", "pre-activation", "pre-commit-review",
-      "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
-    ];
 
     for (const name of methodNames) {
       expect(
@@ -234,19 +228,13 @@ describe("init", () => {
         `system/methods/${name}.md`,
       ).toBe(true);
     }
-    for (const name of extensionNames) {
-      expect(
-        await pathExists(join(tmpDir, ".arc/system/extensions", `${name}.md`)),
-        `system/extensions/${name}.md`,
-      ).toBe(true);
-    }
 
     expect(
       await pathExists(join(tmpDir, ".arc/system/methods/README.md")),
     ).toBe(true);
     expect(
-      await pathExists(join(tmpDir, ".arc/system/extensions/README.md")),
-    ).toBe(true);
+      await pathExists(join(tmpDir, ".arc/system/extensions")),
+    ).toBe(false);
 
     // Legacy aggregates must not ship from a fresh install.
     expect(
@@ -256,7 +244,7 @@ describe("init", () => {
       await pathExists(join(tmpDir, ".arc/system/extensions/arc-extensions.md")),
     ).toBe(false);
 
-    // Every installed method and extension is registered with its expected classification.
+    // Every installed method is registered with its expected classification.
     const manifestRaw = await readFile(
       join(tmpDir, ".arc/system/.internal/manifest.json"),
       "utf-8",
@@ -269,17 +257,10 @@ describe("init", () => {
       expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
       expect(manifest.files[key]!.classification).toBe("Configurable");
     }
-    for (const name of extensionNames) {
-      const key = `system/extensions/${name}.md`;
-      expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
-      expect(manifest.files[key]!.classification).toBe("Configurable");
-    }
     expect(manifest.files["system/methods/README.md"]!.classification).toBe(
       "Framework",
     );
-    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
-      "Framework",
-    );
+    expect(Object.keys(manifest.files).some((path) => path.startsWith("system/extensions/"))).toBe(false);
   });
 
   it("init with --team sets team mode in arc-config.yml", async () => {

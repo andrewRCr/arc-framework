@@ -394,14 +394,7 @@ describe("classify-change.sh classify", () => {
     expect(await classify(files)).toBe("heavy");
   });
 
-  it.each([
-    ["an activated project extension", [".arc/system/extensions/pre-pr-open.md"]],
-    ["any project extension surface", [".arc/system/extensions/pre-merge.md"]],
-  ])("is heavy for behavior-bearing extension surfaces: %s", async (_label, files) => {
-    expect(await classify(files)).toBe("heavy");
-  });
-
-  it("keeps non-extension .arc/system markdown light", async () => {
+  it("keeps ordinary .arc/system markdown light", async () => {
     expect(await classify([".arc/system/workflows/arc/process-task-loop.md"])).toBe("light");
   });
 
@@ -521,7 +514,6 @@ describe("classify-change.sh tree-hash", () => {
   });
 
   it.each([
-    ["extension", "packages/arc-framework/arc/system/extensions/example.md"],
     ["internal machinery", "packages/arc-framework/arc/system/.internal/example.md"],
     ["authored template", "packages/arc-framework/arc/reference/templates/example.md"],
     ["template source", "packages/arc-framework/arc/reference/example.template.md"],
@@ -687,21 +679,21 @@ describe("classify-change.sh tree-hash", () => {
     expect(await treeHash(repo, after)).toBe(await treeHash(repo, before));
   });
 
-  it("changes when a project extension surface changes", async () => {
+  it("changes when the project check declaration changes", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
     const before = await writeAndCommit(
       repo,
       {
         "packages/arc-framework/src/a.ts": "export const x = 1;\n",
-        ".arc/system/extensions/pre-merge.md": "---\nactive: false\n---\n",
+        ".arc/system/arc-checks.yml": "checks: {}\n",
       },
-      "code + inactive extension",
+      "code + check declaration",
     );
     const after = await writeAndCommit(
       repo,
-      { ".arc/system/extensions/pre-merge.md": "---\nactive: true\n---\n" },
-      "extension activation only",
+      { ".arc/system/arc-checks.yml": "checks:\n  example:\n    command: [\"true\"]\n    gate: commit\n    inputs: [\"README.md\"]\n    mode: all\n" },
+      "check declaration only",
     );
 
     expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
@@ -848,7 +840,6 @@ describe("classify-change.sh decide (pure arms)", () => {
   });
 
   it.each([
-    ["extension", "packages/arc-framework/arc/system/extensions/example.md"],
     ["internal machinery", "packages/arc-framework/arc/system/.internal/example.md"],
     ["authored template", "packages/arc-framework/arc/reference/templates/example.md"],
     ["template source", "packages/arc-framework/arc/reference/example.template.md"],

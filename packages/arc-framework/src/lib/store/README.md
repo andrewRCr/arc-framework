@@ -4,8 +4,7 @@
 `createStore` takes one explicit port object and loads the selected backend on its first operation; construction
 performs no I/O. `createDefaultStorePorts` binds production dependencies with lazy identity, remote, and lock
 resolution. Every operation returns an `ok` result or a recovery-complete typed refusal. Defects and environment
-failures that
-cannot be classified remain thrown errors.
+failures that cannot be classified remain thrown errors.
 
 Owners and record references are validated opaque values. Use the constructors in `recordReferences` to name one
 role and its declared key; use the reference accessors to inspect it. A UID identifies an owner generation through

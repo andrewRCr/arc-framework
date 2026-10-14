@@ -326,6 +326,51 @@ describe("Markdown authority", () => {
     })).toThrow(/contradicts recipe mapping/u);
   });
 
+  it.each([true, false])("admits ignored paths only when individually named (explicit=%s)", async explicit => {
+    const options = {
+      root: "/repo",
+      paths: ["private/table.md"],
+      operation: "mutate" as const,
+      allowIgnoredPaths: new Set([explicit ? "private/table.md" : "private/other.md"]),
+      exec: scriptGitExec([
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [{ stdout: "/repo/.git" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
+        { match: ["ls-files", "--error-unmatch", "--", ":(literal)private/table.md"],
+          responses: [{ failure: { exitCode: 1, stderr: "untracked" } }] },
+        { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+          responses: [{ stdout: "README.md\0" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"),
+        isDirectory: () => !path.endsWith(".md"),
+        isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    };
+    if (explicit) {
+      await expect(validateExplicitMarkdownPaths(options)).resolves.toEqual(["private/table.md"]);
+    } else {
+      await expect(validateExplicitMarkdownPaths(options)).rejects.toMatchObject({ code: "markdown.ignored" });
+    }
+  });
+
+  it.each(["unavailable", "invalid-output"])("refuses unavailable invocation-checkout administration (%s)", async failure => {
+    await expect(validateExplicitMarkdownPaths({
+      root: "/repo", paths: ["private/table.md"], operation: "mutate",
+      allowIgnoredPaths: new Set(["private/table.md"]),
+      exec: scriptGitExec([
+        { match: ["rev-parse", "--absolute-git-dir"], responses: [failure === "unavailable"
+          ? { failure: { exitCode: 128, stderr: "cannot read repository configuration" } }
+          : { stdout: "" }] },
+        { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: ".git" }] },
+      ]).exec,
+      lstat: async (path: string) => ({
+        isFile: () => path.endsWith(".md"), isDirectory: () => !path.endsWith(".md"), isSymbolicLink: () => false,
+      }),
+      realpath: async (path: string) => path,
+    })).rejects.toMatchObject({ code: "markdown.selection-failed" });
+  });
+
   it("rejects invalid and ignored explicit selections", async () => {
     const boundaries = {
       root: "/repo",

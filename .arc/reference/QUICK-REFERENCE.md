@@ -448,9 +448,8 @@ message structure, and wrapper retry behavior.
 
 Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] §
-Commit Discipline for the trust model and opt-in semantics.
+`commit-message-preflight-failed`; audit entries land at `.arc/user/{identity}/.internal/.audit-log.jsonl`. See
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the trust model and opt-in semantics.
 
 ### Standalone Work History
 

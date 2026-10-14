@@ -293,7 +293,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(manifest.files[skillPath]?.layer).toBe("core");
   });
 
-  // --- Per-File Methods and Extensions ---
+  // --- Per-File Methods ---
 
   it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
@@ -334,27 +334,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     });
   });
 
-  it("installs all 13 per-file extensions plus README in system/extensions/", async () => {
-    const extensionFiles = [
-      "post-context-load.md",
-      "post-task-completion.md",
-      "post-work-unit-activate.md",
-      "post-work-unit-archive.md",
-      "pre-activation.md",
-      "pre-commit-review.md",
-      "pre-merge.md",
-      "pre-pr-open.md",
-      "post-pr-open.md",
-      "pre-push-review.md",
-      "pre-spec-finalization-review.md",
-      "README.md",
-    ];
-    for (const name of extensionFiles) {
-      const s = await stat(join(arcDir, "system/extensions", name));
-      expect(s.isFile(), `expected system/extensions/${name}`).toBe(true);
-    }
-  });
-
   it("installs the amend-design supplemental workflow as core Framework", async () => {
     const workflowPath = "system/workflows/arc/supplemental/amend-design.md";
     expect((await stat(join(arcDir, workflowPath))).isFile()).toBe(true);
@@ -365,7 +344,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it(
-    "registers all per-file methods/extensions in the manifest",
+    "registers all per-file methods in the manifest",
     async () => {
       const manifest = await readManifestFile(tempDir);
 
@@ -380,22 +359,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
-      const extensionNames = [
-        "post-context-load", "post-task-completion",
-        "post-work-unit-activate",
-        "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
-      ];
 
       for (const name of methodNames) {
         const key = `system/methods/${name}.md`;
-        const entry = manifest.files[key];
-        expect(entry, `manifest missing ${key}`).toBeDefined();
-        expect(entry!.classification, `${key} classification`).toBe("Configurable");
-      }
-
-      for (const name of extensionNames) {
-        const key = `system/extensions/${name}.md`;
         const entry = manifest.files[key];
         expect(entry, `manifest missing ${key}`).toBeDefined();
         expect(entry!.classification, `${key} classification`).toBe("Configurable");
@@ -406,9 +372,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       expect(methodsReadme).toBeDefined();
       expect(methodsReadme!.classification).toBe("Framework");
 
-      const extensionsReadme = manifest.files["system/extensions/README.md"];
-      expect(extensionsReadme).toBeDefined();
-      expect(extensionsReadme!.classification).toBe("Framework");
     },
   );
 
@@ -871,5 +834,24 @@ describe("join integration", () => {
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
     expect(hooksPath.trim()).toBe(".arc/system/.internal/githooks");
+  });
+});
+
+describe("fresh membership across recipe arms", () => {
+  it.each([
+    ["none", false], ["none", true], ["external", false], ["external", true],
+    ["arc-in-git", false], ["arc-in-git", true],
+  ] as const)("omits retired files and managed records for pm=%s, team=%s", async (pmMode, teamMode) => {
+    const cwd = await createTempRepo("arc-retired-install-");
+    try {
+      await runInit({ cwd, io: makeIOContext(cwd), templateDir, internalTemplateDir,
+        recipe: await loadRecipe(), prompts: { ...prompts, pm_mode: pmMode, team_mode: teamMode },
+        identityResult: "test-user" });
+      await expect(stat(join(cwd, ".arc/system/extensions"))).rejects.toMatchObject({ code: "ENOENT" });
+      for (const records of [(await readManifestFile(cwd)).files, await readPristineStore(cwd)]) {
+        expect(Object.keys(records).some((path) => path.startsWith("system/extensions/"))).toBe(false);
+      }
+      expect((await stat(join(cwd, ".arc/system/methods/test-first.md"))).isFile()).toBe(true);
+    } finally { await cleanupTempDir(cwd); }
   });
 });

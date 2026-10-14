@@ -28,6 +28,37 @@ describe("captured command output", () => {
   });
 });
 
+describe("push gate identifier", () => {
+  const pushGateId = "0123456789abcdef0123456789abcdef";
+
+  it("hands a push's identifier to Git's hooks alongside the inherited environment", async () => {
+    vi.stubEnv("ARC_TEST_INHERITED", "kept");
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"], { pushGateId });
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ extendEnv: false,
+      env: { ARC_PUSH_GATE_ID: pushGateId, ARC_TEST_INHERITED: "kept" } });
+  });
+
+  it("keeps the identifier when the call also forbids terminal prompts", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"], { cwd: "/repo", pushGateId,
+      interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" } });
+
+    expect(execaMock.mock.calls[0]?.[2]?.env).toMatchObject({ ARC_PUSH_GATE_ID: pushGateId, GIT_TERMINAL_PROMPT: "0" });
+  });
+
+  it("names no push when the caller supplies no identifier", async () => {
+    execaMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await createExecaGitExec()("git", ["push", "origin", "main"]);
+
+    expect(execaMock.mock.calls[0]?.[2]).toMatchObject({ env: undefined, extendEnv: true });
+  });
+});
+
 describe("local-only object access", () => {
   it("keeps byte-preserving Git reads noninteractive without invocation-specific policy", async () => {
     vi.stubEnv("GIT_SSH_COMMAND", undefined);

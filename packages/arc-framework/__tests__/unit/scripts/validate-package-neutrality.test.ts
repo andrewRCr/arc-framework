@@ -1,9 +1,9 @@
 /**
  * Unit tests for the validate-package-neutrality CLI dispatcher.
  *
- * Covers path classification (package-method / package-extension / other),
+ * Covers path classification (package-method / other),
  * frontmatter toggle violations (`active: true`, `override-active: true`),
- * body placeholder violations (non-neutral `.actions` / `.override` content),
+ * body placeholder violations (non-neutral `.override` content),
  * and the silent-skip behavior for `.arc/` copies and unrelated paths. Uses
  * an in-memory file reader — no filesystem dependency.
  */
@@ -35,25 +35,6 @@ const neutralMethod = [
   "",
 ].join("\n");
 
-const neutralExtension = [
-  "---",
-  "name: post-task-completion",
-  "description: Additional quality checks",
-  "active: false",
-  "---",
-  "",
-  "# Extension: post-task-completion",
-  "",
-  "## post-task-completion.actions",
-  "",
-  "[No extension configured]",
-  "",
-  "---",
-  "",
-  "[ref]: somewhere.md",
-  "",
-].join("\n");
-
 const activatableMethod = (name: string, active: boolean): string => neutralMethod
   .replaceAll("commit-format", name)
   .replace("override-active: false", `active: ${String(active)}\noverride-active: false`);
@@ -75,32 +56,24 @@ describe("classifyPackagePath", () => {
     ).toBe("package-method");
   });
 
-  it("classifies package-source extension files", () => {
+  it("ignores retired package-source extension paths", () => {
     expect(
       classifyPackagePath(
         "packages/arc-framework/arc/system/extensions/post-task-completion.md",
       ),
-    ).toBe("package-extension");
+    ).toBe("other");
   });
 
   it("does NOT classify .arc/ copies — local customizations are allowed", () => {
     expect(classifyPackagePath(".arc/system/methods/commit-format.md")).toBe(
       "other",
     );
-    expect(
-      classifyPackagePath(".arc/system/extensions/pre-merge.md"),
-    ).toBe("other");
   });
 
   it("does NOT classify README.md files — no toggle or placeholder body to check", () => {
     expect(
       classifyPackagePath(
         "packages/arc-framework/arc/system/methods/README.md",
-      ),
-    ).toBe("other");
-    expect(
-      classifyPackagePath(
-        "packages/arc-framework/arc/system/extensions/README.md",
       ),
     ).toBe("other");
   });
@@ -169,33 +142,13 @@ describe("extractSectionBody", () => {
 });
 
 describe("validateFiles", () => {
-  it("passes when a neutral method + neutral extension are the only candidates", () => {
+  it("passes when a neutral method is the only candidate", () => {
     const files = {
       "packages/arc-framework/arc/system/methods/commit-format.md": neutralMethod,
-      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
-        neutralExtension,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
-  });
-
-  it("flags a package-source extension that ships `active: true`", () => {
-    const activeTrue = neutralExtension.replace("active: false", "active: true");
-    const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
-        activeTrue,
-    };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(false);
-    expect(
-      result.diagnostics.some(
-        (d) =>
-          d.includes(
-            "packages/arc-framework/arc/system/extensions/post-task-completion.md",
-          ) && d.includes("`active: false`"),
-      ),
-    ).toBe(true);
   });
 
   it("flags a package-source method that ships `override-active: true`", () => {
@@ -219,12 +172,10 @@ describe("validateFiles", () => {
     ).toBe(true);
   });
 
-  it("accepts registered review activation and action-neutral extension defaults", () => {
+  it("accepts registered review activation defaults", () => {
     const validFiles = {
       "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", true),
       "packages/arc-framework/arc/system/methods/frontline-review.md": activatableMethod("frontline-review", false),
-      "packages/arc-framework/arc/system/extensions/pre-pr-open.md": neutralExtension
-        .replaceAll("post-task-completion", "pre-pr-open"),
     };
     expect(validateFiles(Object.keys(validFiles), fakeReader(validFiles))).toEqual({
       pass: true,
@@ -237,28 +188,6 @@ describe("validateFiles", () => {
     const result = validateFiles(Object.keys(drifted), fakeReader(drifted));
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((diagnostic) => diagnostic.includes("registry default true"))).toBe(true);
-  });
-
-  it("flags a package-source extension whose `.actions` body deviates from the placeholder", () => {
-    const customBody = neutralExtension.replace(
-      "[No extension configured]",
-      "**Custom local step** — run this tool.",
-    );
-    const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-completion.md":
-        customBody,
-    };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(false);
-    expect(
-      result.diagnostics.some(
-        (d) =>
-          d.includes(
-            "packages/arc-framework/arc/system/extensions/post-task-completion.md",
-          ) &&
-          d.includes("`.actions` body must be exactly `[No extension configured]`"),
-      ),
-    ).toBe(true);
   });
 
   it("flags a package-source method whose `.override` body deviates from the placeholder", () => {
@@ -284,38 +213,9 @@ describe("validateFiles", () => {
     ).toBe(true);
   });
 
-  it("collects toggle + body diagnostics from the same file", () => {
-    const both = neutralExtension
-      .replace("active: false", "active: true")
-      .replace("[No extension configured]", "**local step**");
-    const files = {
-      "packages/arc-framework/arc/system/extensions/post-task-completion.md": both,
-    };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(false);
-    expect(result.diagnostics.length).toBe(2);
-  });
-
-  it("silently skips .arc/ copies even when they carry the exact leak pattern — local customizations allowed", () => {
-    const localCustomExtension = neutralExtension
-      .replace("active: false", "active: true")
-      .replace(
-        "[No extension configured]",
-        "**Run local reviewer on the diff**",
-      );
-    const files = {
-      ".arc/system/extensions/post-task-completion.md": localCustomExtension,
-    };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(true);
-    expect(result.diagnostics).toEqual([]);
-  });
-
   it("silently skips package-source READMEs and unrelated paths", () => {
     const files = {
       "packages/arc-framework/arc/system/methods/README.md": "# Methods\n",
-      "packages/arc-framework/arc/system/extensions/README.md":
-        "# Extensions\n",
       "src/lib/frontmatter/method.ts": "// source file",
       ".arc/active/technical/tasks-foo.md": "# Tasks",
     };

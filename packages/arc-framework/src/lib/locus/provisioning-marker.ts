@@ -102,17 +102,8 @@ export async function establishReadyMarker(
   if (decoded.provisioning === "ready") {
     return { kind: "ready", value: observed };
   }
-  if (!observed.owned) {
-    return {
-      kind: "refused",
-      reason: "marker-conflict",
-      evidence: {
-        kind: "pending-marker",
-        checkoutPath,
-        markerBytes: observed.bytes,
-      },
-    };
-  }
+  const admission = await admitPendingMarker(options, checkoutPath, observed);
+  if (admission !== null) return admission;
   try {
     await options.dependencies.setupWorktree(
       checkoutPath,
@@ -147,7 +138,31 @@ export async function establishReadyMarker(
       },
     };
   }
-  return { kind: "ready", value: { marker: ready, bytes: promoted.bytes, owned: observed.owned } };
+  return { kind: "ready", value: { marker: ready, bytes: promoted.bytes, owned: true } };
+}
+
+async function admitPendingMarker(
+  options: ProvisionTransientLocusOptions,
+  checkoutPath: string,
+  observed: ReadyProvisioningMarker,
+): Promise<Exclude<MarkerEstablishmentResult, { kind: "ready" }> | null> {
+  if (observed.owned) return null;
+  const identity = options.identity;
+  const openErrand = options.protection === "full" && options.proposal.allocation.kind === "spawn"
+    && identity?.kind === "errand" && identity.purpose === "errand" && identity.state === "open";
+  try {
+    if (openErrand && options.expectedBranchHead !== null
+      && await options.dependencies.canResumePendingErrandCheckout?.(checkoutPath, options.expectedBranchHead) === true) {
+      return null;
+    }
+  } catch (error) {
+    return { kind: "error", error: toError(error), rollback: null };
+  }
+  return {
+    kind: "refused",
+    reason: "marker-conflict",
+    evidence: { kind: "pending-marker", checkoutPath, markerBytes: observed.bytes },
+  };
 }
 
 export function transientMarkerSubject(proposal: ProvisioningProposal): TransientWorktreeSubject | null {

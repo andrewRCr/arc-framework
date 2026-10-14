@@ -6,7 +6,6 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runDomainRulesSessionInitStatus } from "../commands/constitution.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionInitProbes } from "../commands/status.js";
 import { buildSessionInitStatusSummary, runSessionInitStatus } from "../commands/status.js";
 import { assertSessionInitProbeResult } from "../commands/status/schema.js";
@@ -229,10 +228,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
   const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
   const getDerivedLocusState = (
     id: string,
-    activeExtensions: readonly string[] = [],
   ): ReturnType<typeof runDerivedLocusStateProbe> => {
-    const key = `${id}:${JSON.stringify(activeExtensions)}`;
-    let pending = derivedLocusStatePromises.get(key);
+    let pending = derivedLocusStatePromises.get(id);
     if (pending === undefined) {
       pending = (async () => {
         const resolved = await resolvedSettingsP;
@@ -240,11 +237,10 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          activeExtensions,
           exec,
         });
       })();
-      derivedLocusStatePromises.set(key, pending);
+      derivedLocusStatePromises.set(id, pending);
     }
     return pending;
   };
@@ -373,8 +369,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     return oraclePromise;
   };
   const probes: SessionInitProbes = {
-    derivedLocusState: async (id, activeExtensions) => {
-      return getDerivedLocusState(id, activeExtensions);
+    derivedLocusState: async (id) => {
+      return getDerivedLocusState(id);
     },
     remoteContext: getRemoteContext,
     user: async (id) => {
@@ -505,7 +501,6 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       compactionSeedGitSnapshotP,
       fallback: () => runDirtyStateStatus({ exec }),
     }),
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     hooksPath: () => runHooksPathSessionAdvisory({

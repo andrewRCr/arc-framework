@@ -5,8 +5,6 @@ arc:
   methods:
     - commit-format
     - session-state
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Session Handoff
@@ -66,8 +64,8 @@ Carry slot values forward to the steps that consume them; refresh only at the do
 
 ## Handoff Mode Dispatch
 
-After probe-1, if `handoffLocus.ok !== true`, surface its error and stop.
-Then dispatch only on `handoffLocus.value`; branch on its `kind`:
+After probe-1, if `handoffLocus.ok !== true`, surface its error and stop. Then dispatch only on `handoffLocus.value`;
+branch on its `kind`:
 
 - **`refused`** — render `recommendedPromptText` verbatim and stop. Incomplete housekeep, unshipped grooming,
   incomplete partial Errands, ambiguous topology, and unproven preservation never fall through to another path.
@@ -85,10 +83,9 @@ Session state is split across tracked project state and personal session state (
 [session-state method][arc-methods-session] default — if your project overrides session-state,
 follow the override instead):
 
-- **Active meta file** (tracked) — project state for the active work unit:
-  `meta-{name}.md` in `.arc/active/`. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
-  `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
-  planning cycles with no active WU, no tracked meta file exists.
+- **Active meta file** (tracked) — project state for the active work unit: `meta-{name}.md` in `.arc/active/`. Carries
+  `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`, `**Last Completed:**`, `**Blockers:**`, and
+  `**Next Action:**`. Between work units or during planning cycles with no active WU, no tracked meta file exists.
 - **SESSION-NOTES.md** (gitignored) — path from `pathSet.value.sessionNotes` when `pathSet.ok` (checkout-local
   to the active worktree; `null` between WUs or without identity). Per-WU session context: completed work,
   decisions, debugging insights, things tried. Replaced each handoff (not appended). Write only at the emitted
@@ -108,13 +105,11 @@ follow the override instead):
 [Active-WU Handoff Format](#active-wu-handoff-format).
 
 **Errand-session handoff** — the exact ordinary Errand selected by `handoffLocus`. Preserve its checkpoint and
-retain the selected checkout for the next session. Use
-[Errand-Session Handoff Path](#errand-session-handoff-path).
+retain the selected checkout for the next session. Use [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
 captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, backlog artifacts as applicable), then
-sync + confirm. Use
-[Between-WUs Handoff Path](#between-wus-handoff-path).
+sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
 
 **When context changes** — capture working-directory paths or environment expectations in the active
 meta file only when they change next-session orientation.
@@ -146,15 +141,10 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
 
 3. **Preserve and leave the exact Errand** — before leaving, retain the exact surviving return checkout from the
    same derived frame: the marker parent when it resolves to one registered checkout, otherwise the physical primary
-   row. Push the checkpoint through the normal Errand path, then invoke
-   `arc errand leave <slug> --state paused --json`. Render `recommendedPromptText` verbatim. The driver validates
-   the exact claim and head, stores the resumable identity tail, closes local occupancy, and reports
-   `parentCheckoutPath`. Require that field to match the retained parent when one existed. Refusal or error stops;
-   never hand-build the sequence.
-
-    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-      (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
-      actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+   row. Push the checkpoint through the normal Errand path, then invoke `arc errand leave <slug> --state paused --json`.
+   Render `recommendedPromptText` verbatim. The driver validates the exact claim and head, stores the resumable identity
+   tail, closes local occupancy, and reports `parentCheckoutPath`. Require that field to match the retained parent when
+   one existed. Refusal or error stops; never hand-build the sequence.
 
     From `checkoutPath`, push the selected branch. Set its upstream on the first push; otherwise use the existing
     upstream. If the push fails, retain the local checkpoint and stop without invoking `arc errand leave`.
@@ -194,8 +184,7 @@ Use this path when `handoffLocus.value.kind === "between-work-units"`.
     ```
 
    Read updated `worktree`, `dirty`, `head`, and `recommendedSummaryLine`; unchanged slots remain stable from
-   probe-1. If nothing changed, the
-   refresh is harmless and becomes the sync baseline.
+   probe-1. If nothing changed, the refresh is harmless and becomes the sync baseline.
 4. **Run [Sync](#sync)**.
 5. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
    **Next session** unless the user gave a concrete next action during handoff.
@@ -211,11 +200,9 @@ Update session state files before ending session:
    Remove entries whose triggers are met, AND entries whose information is now carried in tracked
    state (the criterion catches drift introduced by earlier sessions). Surface removals in the
    handoff summary; do not silently rewrite.
-2. **Update the active meta file + commit** — advance
-   `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and any other load-bearing fields.
-   Meta-file changes land as a dedicated `chore(arc): handoff — <position>` commit per
-   [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape — at handoff, the meta file is the
-   entire staged change.
+2. **Update the active meta file + commit** — advance `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and
+   any other load-bearing fields. Meta-file changes land as a dedicated `chore(arc): handoff — <position>` commit per
+   [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape — at handoff, the meta file is the entire staged change.
 
     **Skip threshold.** Update fields only when changes are materially relevant to next-session
     orientation. Test: "Would the next session do anything different at step 0 with this change?"
@@ -265,11 +252,10 @@ Update session state files before ending session:
     ```
 
     `Last Completed` + `Next Task` lines always present; wrap each `prev → curr` pair so the arrow
-    and curr value sit on a continuation line (keeps body lines under
-    `hooks.body_max_line_length` when task titles are long). `State` line included only when value
-    changed; `Blockers` line included only when delta exists. Prev-value derived from
-    `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from
-    staged content.
+    and curr value sit on a continuation line (keeps body lines under `hooks.body_max_line_length` when task titles are
+    long). `State` line included only when value changed; `Blockers` line included only when delta exists. Prev-value
+    derived from `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from staged
+    content.
 
     **Subject-length guard.** Apply [`commit-format`][commit-format]'s literal-workflow-subject identity fallback to
     the WU-name component of `<position>`; keep the exact identity in the body and `Context:` footer.
@@ -538,18 +524,12 @@ First, run the [Same-session finalize pass](#same-session-finalize-pass) — a n
 unfinalized PR. Running it before sync lets a re-anchored post-merge note ride the sync push.
 
 For active-WU and between-WUs handoff, sync is gated on `syncInterlock.value`. `arc sync` (the orchestrator) owns
-the matrix dispatch
-internally — push-ordering invariant, worktree+notes coherence, notes-vs-worktree blocking,
-and partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations
-Strategy][session-ops] § Push Toggles for the underlying model.
+the matrix dispatch internally — push-ordering invariant, worktree+notes coherence, notes-vs-worktree blocking, and
+partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations Strategy][session-ops] § Push
+Toggles for the underlying model.
 
 - **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
   output. Both values fire sync at handoff.
-
-    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions
-      list (established at session init), load and execute its `.actions` before invoking sync.
-      Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke
-      bypasses. Otherwise, skip.
 
     > [!CAUTION]
     > `sync-interlock` release — auto-invoke `arc sync`:
@@ -567,11 +547,10 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
   **Notes-push-failed (the Act site).** When the envelope carries `retryOffer` — the notes leg is still
   failing after its silent auto-retries, and the partial-push marker is already persisted — surface a primed
-  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, repeat the pre-push extension
-  check and re-invoke `arc sync --json`;
-  a resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still
-  fails, the marker persists knowingly — report it in § Confirm Handoff so the next session inherits it.
-  Resolve the offer conversationally; never block on a TTY prompt.
+  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, re-invoke `arc sync --json`; a
+  resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still fails, the
+  marker persists knowingly — report it in § Confirm Handoff so the next session inherits it. Resolve the offer
+  conversationally; never block on a TTY prompt.
 
 - **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
   ready. The latest `recommendedSummaryLine` carries the unpushed / Reconcile surface (see §
@@ -631,8 +610,8 @@ or `**Errand:**`):
 
 - `recommendedSummaryLine` non-null: prepend it verbatim. Read from `arc sync --json`'s envelope when sync ran
   (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from the latest probe
-  otherwise
-  (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or dispatch.
+  otherwise (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or
+  dispatch.
 - `identity` present, `user.value.notesDriftSurface` present, and the sync result did not report the notes leg
   saved or pushed successfully: branch on `notesDriftSurface.register` and render the matching advisory below.
   Suppress when `arc sync --json` shows notes save/push success; the sync already captured the drift.
@@ -663,9 +642,8 @@ Finalize this session's PRs that merged outside an attended ceremony. A no-op un
 that has not been finalized — resolve this session's candidate branches (the WU or `chore/<slug>` branches whose
 PRs this session opened) and return when there are none.
 
-Resolve each candidate branch's exact local head with
-`git rev-parse --verify "refs/heads/<branch>^{commit}"`, then invoke the typed resolver once — never a wait-loop
-(never block on CI):
+Resolve each candidate branch's exact local head with `git rev-parse --verify "refs/heads/<branch>^{commit}"`, then
+invoke the typed resolver once — never a wait-loop (never block on CI):
 
 ```bash
 arc review change-request resolve --head-ref <branch> --head-sha <head-sha>

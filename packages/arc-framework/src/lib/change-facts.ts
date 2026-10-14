@@ -304,13 +304,11 @@ const CODE_SURFACE_GLOBS = [
   "scripts/*.sh",
   ".github/workflows/ci.yml",
   ".arc/system/arc-checks.yml",
-  ".arc/system/extensions/*",
 ] as const;
 
 const GENUINE_DOCS_GLOBS = [".arc/*", "docs/*", "mkdocs.yml"] as const;
 
 const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
-  "packages/arc-framework/arc/system/extensions/*",
   "packages/arc-framework/arc/system/.internal/*",
   "packages/arc-framework/arc/reference/templates/*",
   "packages/arc-framework/arc/*.template.md",

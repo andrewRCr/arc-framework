@@ -340,7 +340,7 @@ describe("auditLoadSetManifest", () => {
             readMode: { kind: "partial-strategic" },
           },
           {
-            path: ".arc/system/extensions/post-context-load.md",
+            path: ".arc/reference/strategies/project/extra-context.md",
             readMode: { kind: "full" },
           },
         ],
@@ -354,7 +354,7 @@ describe("auditLoadSetManifest", () => {
         membership: {
           added: [
             {
-              path: ".arc/system/extensions/post-context-load.md",
+              path: ".arc/reference/strategies/project/extra-context.md",
             },
           ],
           removed: [],

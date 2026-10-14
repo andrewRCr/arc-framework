@@ -3,7 +3,7 @@ import type { GitExec } from "../git/exec.js";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
-import { readCheckMergedParents } from "./merged.js";
+import { readCheckMerges, type CheckMerge } from "./merged.js";
 import { readMergeCheckPaths } from "./merge.js";
 import { createWorktreeSnapshot, stagedIndexTree, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
 
@@ -13,6 +13,9 @@ export interface ResolvedCheckRequest {
   tree: string;
   base?: string;
   merged?: string[];
+  merges?: CheckMerge[];
+  /** The base branch's remote tip, never its local branch: what a file must already be on to count as merged in. */
+  remoteBase?: string;
   mergePaths?: string[];
   mergePathsUnresolved?: true;
   snapshot?: WorktreeSnapshot;
@@ -39,8 +42,15 @@ async function revision(git: GitExec, root: string, ref: string): Promise<string
  * @returns The resolved base commit or an unavailable coordinate
  */
 export async function resolveCheckBaseBranch(git: GitExec, root: string, branch: string, remote?: string): Promise<string | undefined> {
-  const preferred = remote === undefined ? `${branch}@{upstream}` : `refs/remotes/${remote}/${branch}`;
-  return await revision(git, root, preferred) ?? await revision(git, root, `refs/heads/${branch}`);
+  return await revision(git, root, remoteBranchRef(branch, remote)) ?? await revision(git, root, `refs/heads/${branch}`);
+}
+
+function remoteBranchRef(branch: string, remote?: string): string {
+  return remote === undefined ? `${branch}@{upstream}` : `refs/remotes/${remote}/${branch}`;
+}
+
+function pushRemote(request: CheckRequest): string | undefined {
+  return request.form.kind === "pre-push" ? request.form.remote : undefined;
 }
 
 async function automaticBase(git: GitExec, root: string, request: CheckRequest, head: string | undefined): Promise<string | undefined> {
@@ -49,7 +59,7 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest, 
     const upstream = await revision(git, root, "@{upstream}");
     if (upstream !== undefined) return upstream;
   }
-  const base = await resolveCheckBaseBranch(git, root, request.baseBranch ?? "main", request.form.kind === "pre-push" ? request.form.remote : undefined);
+  const base = await resolveCheckBaseBranch(git, root, request.baseBranch ?? "main", pushRemote(request));
   if (base === undefined) return undefined;
   const resolved = await resolveSoleMergeBase({
     exec: (command, args, options) => git(command, args, { ...options, cwd: root }),
@@ -76,9 +86,12 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   const baseResolution = await resolveRequestBase(git, root, request, scope, head);
   if (baseResolution.status === "refused") return baseResolution;
   const { base } = baseResolution;
-  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
+  const merges = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMerges(git, root, base, head) : [];
+  const merged = merges.flatMap(merge => merge.merged);
+  const remoteBase = scope.kind === "range" && merges.length > 0
+    ? await revision(git, root, remoteBranchRef(request.baseBranch ?? "main", pushRemote(request))) : undefined;
   const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
-  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) });
+  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged, merges } : {}), ...(remoteBase === undefined ? {} : { remoteBase }) });
 }
 
 async function resolveRequestBase(git: GitExec, root: string, request: CheckRequest, scope: CheckScope,
