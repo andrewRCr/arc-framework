@@ -31,6 +31,11 @@ README, public repo, community infrastructure, and release automation.
 
 ## Scope
 
+_Amended 2026-10-14:_ the scope below is a historical snapshot. The repository has been public in place with its full
+history since 2026-10-06, so making it public through a clean initial commit is no longer a WU5 deliverable. The full
+pre-public history remains public; this work unit does not replace it. The remaining public-release work follows the
+documentation sequence in `cohort-release-readiness.md`.
+
 WU5 takes the beta-tested, contributor-ready framework (WU4 output) and makes it public. This is
 primarily a content and infrastructure work unit — the framework, CLI, and contributor mechanics are
 done. WU5 writes the docs, sets up the community, and ships.
@@ -93,6 +98,11 @@ not "the only approach."
 
 ## Pre-Public Extraction Candidates
 
+_Amended 2026-10-14:_ the list below is a historical catalog, not a remaining pre-publication prerequisite. Public
+visibility with full history is already settled; extracting this content to a private archive before a clean initial
+commit is superseded. Any later content curation needs its own planning decision and does not make already-public
+history private.
+
 Content in `.arc/reference/supplemental/research/` that has value as personal/developer reference but
 doesn't belong in the public repo. Extract to a private archive before the clean initial commit.
 
@@ -122,6 +132,10 @@ doesn't belong in the public repo. Extract to a private archive before the clean
 ---
 
 ## Open Questions (Carried Forward)
+
+_Amended 2026-10-14:_ the going-public mechanism question below is settled: the existing repository became public in
+place with its full history on 2026-10-06. A fresh repository or squashed initial commit is no longer a release
+decision; the other questions remain for planning.
 
 - **GitHub Discussions:** Evaluate need based on beta testing experience
 - **Docs site versioning:** Start unversioned, add versioning later
