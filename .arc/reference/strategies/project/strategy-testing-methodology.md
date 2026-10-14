@@ -203,7 +203,9 @@ enforcement check holds that gate; feedback results are reported and resolved un
 
 At each increment boundary, run `arc check increment` and the single by-id feedback request recorded in
 [DEV-RULES.PROJECT][dev-rules-project]. The verb owns selection, reuse, and re-run decisions. Required CI enforces
-the declared merge checks, including E2E and portability; local E2E feedback runs the complete suite when selected.
+the declared merge checks, including E2E and portability. Local E2E feedback, when selected, runs only the changed E2E
+test files when nothing else changed, and the complete suite when a support file, setup, or the check's own
+configuration changed.
 
 ---
 

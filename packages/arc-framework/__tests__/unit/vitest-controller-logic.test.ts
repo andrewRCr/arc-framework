@@ -1,9 +1,9 @@
 /** Direct run-mode policies preserve configured membership, execution, and failure semantics. */
 import { expect, it } from "vitest";
-import type { TestResult } from "vitest/node";
+import type { TestResult, TestSpecification } from "vitest/node";
 import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
 import { checkVitestCompletion } from "../../src/lib/vitest-completion.js";
-import { localVitestTierArguments } from "../../src/lib/local-vitest-runner.js";
+import { localVitestTierArguments, selectLocalE2eSpecifications } from "../../src/lib/local-vitest-runner.js";
 import { requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "../../src/lib/build-runtime-setup.js";
 
 it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
@@ -45,6 +45,19 @@ const tiers = [
 ] as const;
 it.each(tiers)("selects configured tier %s", (tier, args) => {
   expect(localVitestTierArguments(tier)).toEqual(args);
+});
+const e2e = (name: string) => `/package/__tests__/e2e/${name}`;
+const specifications = ["a.test.ts", "b.test.ts", "c.test.ts"]
+  .map((name) => ({ moduleId: e2e(name) }) as TestSpecification);
+it("runs only the requested E2E specifications, in native order, when every requested path is one", () => {
+  const choice = selectLocalE2eSpecifications([e2e("c.test.ts"), e2e("a.test.ts"), e2e("c.test.ts")], specifications);
+  expect(choice.tier).toBe("e2e-focused");
+  expect(choice.specifications.map(({ moduleId }) => moduleId)).toEqual([e2e("a.test.ts"), e2e("c.test.ts")]);
+});
+it("runs the whole E2E suite when a requested path is a support file or nothing is requested", () => {
+  for (const requested of [[e2e("a.test.ts"), e2e("helpers.ts")], [e2e("global-setup.ts")], []]) {
+    expect(selectLocalE2eSpecifications(requested, specifications)).toEqual({ tier: "e2e", specifications });
+  }
 });
 it("retains each native portability boundary on the portability tier", () => {
   expect(localVitestTierArguments("portability")).toEqual([

@@ -1,6 +1,6 @@
 /** In-process Vitest adapter for repository-wide local test admission. */
 
-import { parseCLI } from "vitest/node";
+import { parseCLI, type TestSpecification } from "vitest/node";
 
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection } from "./vitest-discovery.js";
@@ -58,6 +58,46 @@ export async function runLocalVitestTier(
   const selection = await discoverVitestSelection(filter, options);
   await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
     packageRoot: resolve(import.meta.dirname, "../..") });
+}
+
+/**
+ * Run the local E2E check over the paths its selection supplied.
+ *
+ * @param checkoutRoot - Repository root the supplied paths are relative to.
+ * @param paths - Repository-relative paths the check selected; none runs the whole suite.
+ * @returns Completion after Vitest has closed its controller resources.
+ */
+export async function runLocalE2eCheck(checkoutRoot: string, paths: readonly string[]): Promise<void> {
+  const { filter, options } = parseCLI(["vitest", "run", ...localVitestTierArguments("e2e")]);
+  const requested = paths.map((path) => resolve(checkoutRoot, path));
+  const chosen: { tier: LocalHeavyTestTier } = { tier: "e2e" };
+  const selection = await discoverVitestSelection(filter, options, (specifications) => {
+    const choice = selectLocalE2eSpecifications(requested, specifications);
+    chosen.tier = choice.tier;
+    return choice.specifications;
+  });
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier: chosen.tier,
+    packageRoot: resolve(import.meta.dirname, "../..") });
+}
+
+/**
+ * Keep only the requested E2E specifications when every requested path is one. Any other path, such as a helper,
+ * fixture, or setup file, may reach any specification, so it keeps the whole suite, as does an empty request.
+ *
+ * @param requested - Absolute paths the check selected.
+ * @param specifications - Configured E2E specifications in native order.
+ * @returns The tier to admit and the specifications to run, in native order.
+ */
+export function selectLocalE2eSpecifications(
+  requested: readonly string[], specifications: TestSpecification[],
+): { tier: "e2e" | "e2e-focused"; specifications: TestSpecification[] } {
+  const configured = new Set(specifications.map((specification) => resolve(specification.moduleId)));
+  if (requested.length === 0 || requested.some((path) => !configured.has(path))) {
+    return { tier: "e2e", specifications };
+  }
+  const named = new Set(requested);
+  return { tier: "e2e-focused",
+    specifications: specifications.filter((specification) => named.has(resolve(specification.moduleId))) };
 }
 
 /**
