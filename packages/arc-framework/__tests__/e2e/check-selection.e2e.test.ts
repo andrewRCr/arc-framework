@@ -151,3 +151,46 @@ it("refuses an outside path scope and accepts the repaired relative scope", asyn
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
   expect(JSON.parse(repaired.stdout).result.checks[0].outcome).toBe("passed");
 });
+
+
+it("bounds default merge file checks while keeping project checks and explicit all scope complete", async () => {
+  const root = await createDeclaredCheckRepository({
+    bounded: { ...checks.files, widen: false, reads_index: true },
+    project: { command: [process.execPath, "-e", "process.stdout.write('whole project')"], gate: "merge",
+      inputs: ["docs/**"], widen: false },
+  });
+  repositories.push(root);
+  const result = await runArc(["check", "gate", "merge", "--force", "--json"], root);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).result.checks).toMatchObject([
+    { id: "bounded", outcome: "passed" }, { id: "project", outcome: "passed", output: "whole project" },
+  ]);
+  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: ["src/a.ts"] });
+  const explicit = await runArc(["check", "gate", "merge", "--all", "--force", "--json"], root);
+  expect(explicit.exitCode, explicit.stdout + explicit.stderr).toBe(0);
+  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: ["src/a.ts", "src/deleted.ts"] });
+});
+
+it("leaves unchanged bounded file inputs unselected at the default merge gate", async () => {
+  const root = await createDeclaredCheckRepository({
+    bounded: { ...checks.files, command: [process.execPath, "-e", "process.exit(13)"], widen: false },
+    project: { command: [process.execPath, "-e", ""], gate: "merge", inputs: ["docs/**"] },
+  });
+  repositories.push(root);
+  await writeFile(join(root, "src/a.ts"), "base\n");
+  const result = await runArc(["check", "gate", "merge", "--force", "--json"], root);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).result.checks).toMatchObject([
+    { id: "bounded", outcome: "not selected", reason: "inputs unchanged" }, { id: "project", outcome: "passed" },
+  ]);
+});
+
+it("checks all bounded file inputs when the default merge gate cannot resolve their change", async () => {
+  const root = await createDeclaredCheckRepository({ bounded: { ...checks.files, widen: false } });
+  repositories.push(root);
+  await writeFile(join(root, ".arc/system/arc-config.yml"), "branch.base: absent\n");
+  const result = await runArc(["check", "gate", "merge", "--force", "--json"], root);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ id: "bounded", outcome: "passed" }]);
+  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toMatchObject({ args: ["src/a.ts", "src/deleted.ts"] });
+});
