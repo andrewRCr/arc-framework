@@ -189,7 +189,10 @@ presentation. Co-present `payload.provisionalPassAssessment.summaryText` and an 
 for stopping or requesting a named next pass. This assessment is provisional until the approved response and policy
 continuation establish the verified action. Keep disposition approval distinct from any later one-pass ceiling
 authorization. Obtain complete-set approval over that exact report and canonical set before any mutation or
-commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
+commitment; the approver need not repeat its canonical digest. That approval is the fix round's structured gate:
+where the configured interlocks release them, the fix's commit, push, and approved settlement follow without another
+stop ([DEV-RULES.ARC § Review-Increment Invariant][review-increment-invariant]). Submit the exact approved set
+through a second call:
 
 ```bash
 arc review respond -
@@ -210,9 +213,21 @@ Candidate-bound private-member fix. Author only in its exact `authoring.checkout
 `authoring.head`; a missing or different locus stops before mutation. Never author this fix in the disposable member
 checkout. After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix`
 carrying the approved applicability and verification evidence. Require `candidate-advanced / continue-review` or
-idempotent
-`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
-before any Candidate-currentness or delivery-preparation read.
+idempotent `candidate-current / continue-review`, then commit its staged Candidate response as `taskCommit` under
+the same approved increment before any Candidate-currentness or delivery-preparation read.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved fixes as `taskCommit`:
+
+```text
+<type>(<scope>): <what the approved fixes change>
+
+Review disposition set: <identity>
+- <finding identity>: <verified severity> / <disposition> — <rationale>
+
+Context: tasks-{name}.md (code review)
+```
+
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
 carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction
@@ -264,3 +279,4 @@ push and change-request creation; do not push from this workflow.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [deliver-stack]: ../supplemental/deliver-stack.md
+[review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant

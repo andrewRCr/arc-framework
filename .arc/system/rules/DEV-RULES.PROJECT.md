@@ -31,7 +31,7 @@ These gate behaviors prevent misleading results:
 
 ### Size and complexity baseline
 
-`src/**` gates on function length, file length, cyclomatic complexity, nesting depth, and nested callbacks;
+`src/**` gates on function length, file length, cognitive complexity, nesting depth, and nested callbacks;
 `__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
 The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
 recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
@@ -138,7 +138,7 @@ guard-only dead ends.
 - TSDoc on the exported surface: a doc block on every exported function and a file-level doc comment describing
   the module's purpose, which lint enforces in `src/**`; add `@param` and `@returns` only where they say what the
   name and type do not
-- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cognitive
   complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
   ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
   authority
@@ -162,6 +162,9 @@ quality and merge gates.
 - **Line length**: 120 characters — wrap at natural phrase boundaries near the target width. Linting catches
   overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
   Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
+
+The commit check `lint:md:underwrap` checks changed indexed Markdown files without widening to the full corpus. It flags
+non-final paragraph lines below 75 columns when the next word would fit within 120; it never rewrites content.
 
 ### Documentation style
 
@@ -246,8 +249,7 @@ concerns freely.
 
 ### Leak patterns to avoid in adopter-facing content
 
-- Transitional framing ("under the old model", "until X ships", "pre-CLI",
-  "now hand-maintained")
+- Transitional framing ("under the old model", "until X ships", "pre-CLI", "now hand-maintained")
 - Project-internal migration concerns for ARC's own evolution ("forward-only migration",
   "backward-compat tooling")
 - Forward-pointers to internal-roadmap scope (active or backlog WUs — planned or provisional) —

@@ -446,6 +446,7 @@ async function resolveOfferedCorrectionScope(
   predecessorOperationId: string,
   completedPasses: number,
 ) {
+  if (input.standardReview.retrigger === "full-final") return null;
   const predecessor = await dependencies.resultReader.readResult(predecessorOperationId).catch(() => null);
   if (predecessor === null || predecessor.kind === "frontline"
     || predecessor.repositoryId !== input.target.repositoryId
@@ -486,7 +487,10 @@ async function resolveOfferedCorrectionScope(
   });
 }
 
-function localCoverageInteractionText(incrementalOffered: boolean): string {
+function localCoverageInteractionText(incrementalOffered: boolean, fullFinal: boolean): string {
+  if (fullFinal) {
+    return "This route requires complete coverage. Select complete and re-run `arc review local prepare`.";
+  }
   if (!incrementalOffered) {
     return "Only complete coverage is proven. If incremental was expected, check the approved response, "
       + "Candidate lineage, and live base/target; otherwise select complete and re-run "
@@ -567,7 +571,7 @@ export async function resolveLocalReviewCoverageSelection(input: {
     completedPasses,
     consumedPass: true,
     choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null),
+    interactionText: localCoverageInteractionText(correctionScope !== null, input.standardReview.retrigger === "full-final"),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
   if (!choices.some((choice) => canonicalize(choice) === canonicalize(input.coverageAdmission))) {

@@ -59,8 +59,8 @@ jobs:
   #            suite in this pull request; light for a docs-only change or an
   #            already-verified tree. A light run skips the code checks, the
   #            integration/e2e suite, and the portability leg.
-  # integration_target keeps the integration suite on a light pull request whose
-  # change touches content that suite reads but the weight's code tree leaves
+  # integration_target keeps integration and E2E on a light pull request whose
+  # change touches content those suites read but the weight's code tree leaves
   # out, such as ARC prose; the push gate does not run integration.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
@@ -176,7 +176,7 @@ jobs:
           echo "portability_target=$portability_target" >> "$GITHUB_OUTPUT"
 
           # integration_target reports whether the change touches content the
-          # integration suite reads that the weight's code tree leaves out (an
+          # integration and E2E suites read that the weight's code tree leaves out (an
           # unreadable PR diff fails safe to true). Rename detection stays off so
           # moving a file reports both of its paths.
           integration_target=false
@@ -363,10 +363,42 @@ jobs:
       with:
         name: arc-check-forecast
         path: .
+    - name: Install actionlint
+      run: |
+        mkdir -p "$RUNNER_TEMP/actionlint"
+        archive="$RUNNER_TEMP/actionlint/actionlint.tar.gz"
+        curl -fLSs https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$archive"
+        echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check
+        tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
+        echo "$RUNNER_TEMP/actionlint" >> "$GITHUB_PATH"
+    - id: workflows
+      run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck workflows
     - id: format-tables
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck format-tables
     - id: markdown-staged
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck markdown-staged
+    - id: markdown-underwrap
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PUSH_BEFORE: ${{ github.event.before }}
+      # This check is changed-file-only; the shared merge forecast selects all files.
+      run: |
+        if [ "$EVENT_NAME" = 'push' ]; then
+          base="$PUSH_BEFORE"
+          if [ -z "$base" ]; then
+            echo "::error::Under-wrap checking requires the pre-push commit"
+            exit 1
+          fi
+        else
+          base="$(node --import tsx --input-type=module -e '
+          import {readFileSync} from "node:fs";
+          import {parseCiCheckForecast} from "./packages/arc-framework/src/lib/ci-check-runner.ts";
+          const {base} = parseCiCheckForecast(JSON.parse(readFileSync(".arc-check-forecast.json", "utf8")));
+          if (base === undefined) throw new Error("Under-wrap checking requires the forecast base commit");
+          process.stdout.write(base);
+          ')"
+        fi
+        node --import tsx packages/arc-framework/src/cli.ts check run lint:md:underwrap --range "$base" --ci
     - id: arc-triggers
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-triggers
     - id: arc-domain-rules
@@ -561,7 +593,7 @@ jobs:
       contents: read
       actions: write # download runtime and upload writer durations
     needs: [classify, setup, build]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:

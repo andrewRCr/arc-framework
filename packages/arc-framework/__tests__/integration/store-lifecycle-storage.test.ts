@@ -218,16 +218,13 @@ describe("store lifecycle snapshot", () => {
       expect(await snapshot.fs.readFile(join(h.root, path))).toBe(await legacy.readFile(join(h.root, path)));
     }
   });
-  it("projects only selected record directories and omits both specified legacy-only metas", async () => {
+  it("projects only selected record directories and omits unplaceable legacy metas", async () => {
     const h = await fixture();
     await h.put(".arc/active/README.md", "Not a record");
     await h.put(".arc/completed/2026-q4/index.md", "Not a record");
     await h.put(".arc/completed/2026-q4/02_empty/README.md", "No meta");
     await h.put(".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }) + completion);
-    await h.put(".arc/backlog/planned/example/meta-example.md", makeMetaFixture("example", { state: "Planning" }).replace("`Planning`", "`Unknown`"));
     await h.put(".arc/completed/2026-Q4/01_upper/meta-upper.md", makeMetaFixture("upper", { state: "Shipped" }) + completion);
-    await h.put(".arc/active/meta-rejected.md", makeMetaFixture("rejected").replace("`Active`", "`Unknown`"));
-    await h.put(".arc/completed/2026-q4/03_rejected/meta-rejected.md", makeMetaFixture("rejected", { state: "Shipped" }) + completion);
     const head = await h.save();
     const listing = await h.store.list({ family: "work-item", kind: "work-item/meta", asOf: StateVersionSchema.parse(head) });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
@@ -236,7 +233,7 @@ describe("store lifecycle snapshot", () => {
     const legacy = createGitTreeReadFs({ cwd: h.root, revision: head, exec: h.exec });
     expect((await snapshot.fs.readdir(join(h.root, ".arc/completed/2026-q4"))).map((entry) => entry.name)).toEqual(["01_example"]);
     await expect(snapshot.fs.readdir(join(h.root, ".arc/backlog/planned/example"))).rejects.toMatchObject({ code: "ENOENT" });
-    for (const name of ["upper", "rejected"]) {
+    for (const name of ["upper"]) {
       expect(await readLifecycleSummary(h.root, name, "with-integration", snapshot.version, snapshot.fs)).toMatchObject({ state: "nonexistent" });
       expect(await readLifecycleSummary(h.root, name, "with-integration", head, legacy)).toMatchObject({ state: "shipped" });
     }
@@ -270,8 +267,6 @@ describe("store lifecycle snapshot", () => {
     await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
     await h.put(".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }) + completion);
     await h.put(".arc/completed/2026-Q4/01_upper/meta-upper.md", makeMetaFixture("upper", { state: "Shipped" }) + completion);
-    await h.put(".arc/active/meta-rejected.md", makeMetaFixture("rejected").replace("`Active`", "`Unknown`"));
-    await h.put(".arc/completed/2026-q4/02_rejected/meta-rejected.md", makeMetaFixture("rejected", { state: "Shipped" }) + completion);
     await h.put(broken, makeMetaFixture("broken").replace("- **Design:** [none]", "- **Design:** [TBD]"));
     const head = await h.save();
     const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
@@ -286,7 +281,7 @@ describe("store lifecycle snapshot", () => {
     expect(snapshot.version).toBe(repaired);
     expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: repaired, complete: true });
     expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: repaired, lifecycleComplete: true });
-    for (const name of ["upper", "rejected"]) {
+    for (const name of ["upper"]) {
       expect(await readLifecycleSummary(h.root, name, "with-integration", repaired, snapshot.fs)).toMatchObject({ state: "nonexistent" });
     }
   });
@@ -301,4 +296,35 @@ describe("store lifecycle snapshot", () => {
     await expect(storage.readSnapshot()).rejects.toMatchObject({ code: "store.lifecycle-incomplete" });
     await expect(storage.readSnapshot()).rejects.toThrow(missed ? /missed.*Repair/ : /Record access denied.*Restore access/);
   });
+});
+
+
+it.each([
+  [".arc/active/meta-broken.md", "Active"],
+  [".arc/backlog/planned/broken/meta-broken.md", "Planning"],
+  [".arc/completed/2026-q4/02_broken/meta-broken.md", "Shipped"],
+] as const)("refuses an unknown State at %s in deciding readers and resumes after repair", async (path, state) => {
+  const h = await fixture();
+  await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
+  await h.put(".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }) + completion);
+  const valid = makeMetaFixture("broken", { state }) + completion;
+  await h.put(path, valid.replace(`\`${state}\``, "`Unknown`"));
+  const head = await h.save();
+  const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
+  const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+  const reads = [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")];
+
+  for (const read of reads) {
+    await expect(read()).rejects.toMatchObject({ code: "store.lifecycle-incomplete", message: expect.stringContaining("broken") });
+    await expect(read()).rejects.toThrow(/State "Unknown"/);
+    await expect(read()).rejects.toThrow(/Repair.*then.*retry/);
+  }
+  await h.put(path, valid);
+  const repaired = await h.save();
+
+  const snapshot = await h.storage.readSnapshot();
+  expect(snapshot.version).toBe(repaired);
+  expect(await snapshot.fs.readFile(join(h.root, path))).toBe(valid.trimEnd());
+  expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: repaired, complete: true });
+  expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: repaired, lifecycleComplete: true });
 });

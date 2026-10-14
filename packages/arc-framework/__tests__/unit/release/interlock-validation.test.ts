@@ -340,6 +340,36 @@ describe("formatRefusal — three-line shape", () => {
     expect(lines[1]).toContain("--force");
   });
 
+  it("code 12 (destructive-flag): names the refs that already hold an amended HEAD", () => {
+    const decision: AuthorizationDecision = {
+      kind: "refuse",
+      code: 12,
+      identifier: "destructive-flag",
+      flag: "--amend",
+      head: { kind: "pushed", refs: ["origin/main"] },
+    };
+    expect(formatRefusal(decision).split("\n")).toEqual([
+      "Refused: destructive-flag (code 12)",
+      "`--amend` would rewrite `HEAD`, which is already on `origin/main`.",
+      "Commit the change as a new commit; amend a pushed commit only on explicit request, through raw `git`.",
+    ]);
+  });
+
+  it("code 12 (destructive-flag): keeps a retry when an amend's refs could not be read", () => {
+    const decision: AuthorizationDecision = {
+      kind: "refuse",
+      code: 12,
+      identifier: "destructive-flag",
+      flag: "--amend",
+      head: { kind: "unreadable", detail: "fatal: bad object" },
+    };
+    expect(formatRefusal(decision).split("\n")).toEqual([
+      "Refused: destructive-flag (code 12)",
+      "`--amend` needs an unpushed `HEAD`, and its remote-tracking refs could not be read: fatal: bad object",
+      "Resolve the Git error and retry, or commit the change as a new commit.",
+    ]);
+  });
+
   it("code 13 (branch-protection-violation): names the branch", () => {
     const decision: AuthorizationDecision = {
       kind: "refuse",

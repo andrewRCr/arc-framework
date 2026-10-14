@@ -6,6 +6,7 @@ arc:
     - source-grounding
     - assess-design-proportionality
     - disposition-report
+    - assess-boundary-fit
 related:
   - source-grounding
   - assess-design-proportionality
@@ -269,8 +270,9 @@ findings, or material ones deferred or rejected — and non-convergence. The app
 the completed pass established; performing the response never changes it.
 
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
-completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended, or
-Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result.
+completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended,
+re-entered, or Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result. Re-entered
+records an accepted re-entry offer, at any pass: the loop ends there, and the caller's re-entry owns what follows.
 
 At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another evaluator invocation. A converged
 pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the
@@ -279,10 +281,48 @@ current pass, and cap exhaustion resolves no material finding.
 **Re-inspection test.** Recommend another full pass when the folds changed the artifact so much that the last
 pass's assessment no longer holds. Otherwise, the caller's response check verifies the rework — the fix check where
 one is offered. This is a recommendation input, never a trigger or authorization; the share of majors landing in a
-previous pass's fixes may inform its cost-and-signal rationale.
+previous pass's fixes may inform its cost-and-signal rationale, except where it marks sustained non-convergence
+(below): there the re-entry offer comes before another pass.
+
+**Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
+Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
+convergence whatever its tag. The tags decide which look and whether design is still open: a local correction needs
+checking only where it stands, while a new-design fold weighs toward a fresh full pass, as the re-inspection test
+does. Within the loop, the tags locate the derivation signal for re-entry: offer
+[resolve-planning-depth][resolve-planning-depth]'s re-entry valve when a new-design fold, or one locus that keeps
+needing new design across passes or rounds, shows the design running deeper than the stage's level assumed — never on
+the tag alone, and never on a count of majors whose folds are local corrections. A new-design fold's proportionality
+read may already have raised that floor. A scale signal — a correction whose surface runs wider than the stage's
+level assumed — is its own reason to offer the valve, whatever the tag. A material finding that a correction is
+incomplete calls for another fix-check round, not re-entry.
+
+**Sustained non-convergence.** With fold verification on, read each finding's origin from § Pass record beside the
+tag of the fold that fixes it. From pass two on, when most of a pass's material findings originate in an earlier
+pass's or round's new-design fold, and their approved fixes are new design again, the loop is authoring the design
+rather than reviewing it: each look reviews design the previous one wrote, so another pass extends that chain
+instead of closing it. That is a floor-raising derivation signal at any pass count: offer the re-entry valve with a
+recommendation, and offer [assess-boundary-fit][assess-boundary-fit] as well when the design written in folds spans
+concerns that could stand apart. Material findings whose fixes are local corrections do not raise it, whatever their
+origin. Name the signal in the primary-facing report apart from the stop reason, so a stop at the cap never reads as
+the cap running out. A declined offer that lets the stage advance is an Owner-accepted risk with the signal named,
+never the design holding. The re-entry and boundary offers in this gate belong to planning stages: in an amendment,
+[amend-design][amend-design] routes the same signals through its own depth read and its ceiling, never a
+planning-workflow re-entry.
+
+**Readiness to advance.** Convergence speaks for the latest pass, not for the stage: whether a planning stage may
+close is the caller's call, and it asks whether the design holds. Once the response is complete, a stage whose folds
+are all local corrections may advance on a non-converged result, including at `cap-exhausted`; that is the design
+holding, not an accepted risk. A wrong rule or missing case is fixed where it stands; a remaining finding confined to
+implementation-level detail or minor grounding may be deferred to the next stage, which corrects in place. A
+new-design fold, a scale signal, or design the loop has not settled holds the stage. Task generation has no later
+planning stage to absorb a correction, so nothing is deferred past it: each correction is pinned before the stage
+closes.
 
 **Cap recommendation.** At `cap-exhausted` with material signal remaining, state a clear recommendation — another
-pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. The cap bounds
+pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. With fold
+verification on, weigh severity and the fold tags together: material signal from new-design folds argues for another
+pass or the re-entry offer, and for the offer under sustained non-convergence, where another pass would review the
+last one's design; signal confined to local corrections argues for a fix-check round or stopping. The cap bounds
 autonomy, not advice; it never settles whether review is done or permits another pass without approval.
 
 When another pass may yield useful fresh signal, the primary may recommend it with a cost-and-signal rationale in the
@@ -352,7 +392,7 @@ For a new-design fold, run [assess-design-proportionality][assess-design-proport
 disposition set; prefer removing the constraint that caused the defect over adding repair machinery. It may also
 raise the caller's re-entry floor. The Owner settles the tags by approving the tagged set. If the Owner retags a
 fold as new design, run that method before it lands; a `revise` result returns as a changed disposition for approval.
-Tags are recommendation inputs and a record, never the fix check's gate.
+Tags are recommendation inputs and a record, never the fix check's gate; § Exit gate reads them beside severity.
 
 **Fix check — standing and timing.** A fix check is an independent review of the folds after author grounding,
 before a successor pass launches, including after the last pass before its post-settle re-read. It is not a pass:
@@ -450,7 +490,7 @@ A planning pass entry carries:
 - the author's fold-grounding corrections after the pass and each round, plus other changes the Owner approved
   between those reviews;
 - the response-performance check and the consumption fact;
-- the stop reason and any conditional next-pass decision.
+- the stop reason, any conditional next-pass decision, and any re-entry or boundary offer with the Owner's settlement.
 
 Attach every round's set to the entry of the pass whose fixes it checks; it creates no new record kind. A stub
 groomed before it starts has no workspace yet: its commit-body summary line remains its only record, and it does
@@ -595,4 +635,5 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [assess-design-proportionality]: assess-design-proportionality.md
 [disposition-report]: disposition-report.md
 [resolve-planning-depth]: resolve-planning-depth.md
+[assess-boundary-fit]: assess-boundary-fit.md
 [mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard

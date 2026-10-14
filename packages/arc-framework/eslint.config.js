@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
+import sonarjs from "eslint-plugin-sonarjs";
 import { join } from "node:path";
 import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
@@ -178,13 +179,14 @@ export default tseslint.config(
   },
   {
     files: ["src/**/*.ts"],
+    plugins: { sonarjs },
     rules: {
       "max-lines-per-function": [
         "error",
         { max: 100, skipBlankLines: true, skipComments: true, IIFEs: true },
       ],
       "max-lines": ["error", { max: 1000, skipBlankLines: true, skipComments: true }],
-      complexity: ["error", { max: 15 }],
+      "sonarjs/cognitive-complexity": ["error", 15],
       "max-depth": ["error", { max: 4 }],
       "max-nested-callbacks": ["error", { max: 4 }],
       // A `default` never stands in for an unlisted union member, so adding a member fails every switch that

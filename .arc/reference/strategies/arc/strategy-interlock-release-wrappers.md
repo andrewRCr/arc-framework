@@ -53,15 +53,16 @@ flag or harness mode. Three components:
   `arc.pushInterlock`) against the wrapper's command scope on the permissiveness ladder
   (`manual` → `on-{primary}` → `on-workflow`). On scope-mismatch, refuses with exit code 11 and
   an audit entry; never invokes git.
-- **Destructive-flag refusal.** Commit-side: `--amend`, `--allow-empty`, `--no-verify`.
-  Push-side: `--force` / `-f`, `--force-with-lease`, `--delete` / `-d`, `--mirror`, and the
-  `+refspec` force-push pattern. All refuse with exit code 12 regardless of interlock state. The
-  wrapper is a deliberately narrow surface; destructive shapes route through raw `git`, where
-  the harness gate fires explicitly.
-- **Audit log.** One JSONL entry per invocation at
-  `.arc/user/{identity}/.internal/.audit-log.jsonl` — captures sanitized argv (commit message
-  bodies redacted), resolved interlock state, active work-unit pointer, and outcome shape (commit
-  hash / push refStatus / refusal code). Local-only by default; per-developer; gitignored.
+- **Destructive-flag refusal.** Commit-side: `--allow-empty`, `--no-verify`, and `--amend` once
+  `HEAD` is on a remote-tracking ref. Push-side: `--force` / `-f`, `--force-with-lease`,
+  `--delete` / `-d`, `--mirror`, and the `+refspec` force-push pattern. All refuse with exit
+  code 12 regardless of interlock state. The wrapper is a deliberately narrow surface;
+  destructive shapes route through raw `git`, where the harness gate fires explicitly. An amend
+  of an unpushed `HEAD` rewrites nothing published, so the wrapper runs it through the same
+  cascade as any commit.
+- **Audit log.** One JSONL entry per invocation at `.arc/user/{identity}/.internal/.audit-log.jsonl` — captures
+  sanitized argv (commit message bodies redacted), resolved interlock state, active work-unit pointer, and outcome shape
+  (commit hash / push refStatus / refusal code). Local-only by default; per-developer; gitignored.
 
 This layer is the universal benefit. Opt-in always engages it.
 
@@ -90,11 +91,10 @@ The trust shift: ARC's interlock layer becomes the canonical authorization point
 acceptance that ARC's mechanical enforcement is the review surface for matching invocations
 rather than the harness prompt.
 
-**Bypass mode** (`bypassPermissions`, dangerous mode, equivalents — often paired with
-custom user-level hooks running denylist logic for selective prompting). The harness
-allows Bash invocations without prompting. Allowlist
-install is a no-op — there is no harness prompt to skip — so the conditional layer doesn't
-engage. The unconditional layer (validation + audit) is the primary value prop.
+**Bypass mode** (`bypassPermissions`, dangerous mode, equivalents — often paired with custom user-level hooks running
+denylist logic for selective prompting). The harness allows Bash invocations without prompting. Allowlist install is a
+no-op — there is no harness prompt to skip — so the conditional layer doesn't engage. The unconditional layer
+(validation + audit) is the primary value prop.
 
 Opt-in under bypass records the decision to engage wrapper validation as the canonical
 authorization signal for matching invocations. Under bypass, this layer is the primary review
@@ -148,22 +148,19 @@ layer earns its place for this posture, or it doesn't.
 
 ## Per-Harness Reference Implementations
 
-Two harnesses ship with reference-implementation support: documented mode-detection patterns,
-canonical allowlist patterns, paste-ready output via
-`arc release setup print-patterns --harness <name>`, and full coverage in the setup workflow's
-per-harness reference notes.
+Two harnesses ship with reference-implementation support: documented mode-detection patterns, canonical allowlist
+patterns, paste-ready output via `arc release setup print-patterns --harness <name>`, and full coverage in the setup
+workflow's per-harness reference notes.
 
 **Claude Code.** Allowlist install lands in `.claude/settings.json` (project-scoped). Mode
 detection inspects `permissions.defaultMode`. Setup workflow Step 3 handles the JSON merge
 against the existing `permissions.allow` array.
 
-**Codex CLI.** Allowlist install lands in `~/.codex/rules/default.rules` as Starlark
-`prefix_rule()` calls. Mode detection inspects `approval_policy` in `~/.codex/config.toml`.
-Codex matches direct command argv; it does not split a shell script containing redirection for
-inner-prefix matching. Commit through direct prepared-file argv —
-`arc release commit -F <message-file>` — and verify that shape with `codex execpolicy check` against
-the installed rules.
-**Never claim a shell-wrapped heredoc matches the commit prefix rule** · `[invariant]`.
+**Codex CLI.** Allowlist install lands in `~/.codex/rules/default.rules` as Starlark `prefix_rule()` calls. Mode
+detection inspects `approval_policy` in `~/.codex/config.toml`. Codex matches direct command argv; it does not split a
+shell script containing redirection for inner-prefix matching. Commit through direct prepared-file argv — `arc release
+commit -F <message-file>` — and verify that shape with `codex execpolicy check` against the installed rules. **Never
+claim a shell-wrapped heredoc matches the commit prefix rule** · `[invariant]`.
 
 For any harness, use the quoted-heredoc transport with a verified non-colliding delimiter only after its resident
 matcher verifies redirection; otherwise use direct prepared-file argv. The push shape is the argument-free
@@ -240,15 +237,13 @@ layers compose identically either way.
 
 ### Friction reduction across layers
 
-The conditional value layer (harness-prompt bypass, § Trust Model) extends naturally across the
-harness/hook split because of the asymmetry between allowlist and denylist mechanics.
-Default-prompt harnesses gate everything by default and require explicit allowlist entries to
-skip the prompt — `arc release setup install` writes those entries for matching wrapper
-invocations. Custom user-level hooks usually run as denylists — specific patterns trigger the
-prompt, unrecognized commands fall through silently. Wrapper invocations
-(`arc release commit`, `arc release push`) typically aren't on the denylist by default, so they
-pass through without prompting in the common case. This mirrors how `arc sync` has worked since
-it landed: a denylist that matches `git push` does not match `arc sync`, so sync invocations
+The conditional value layer (harness-prompt bypass, § Trust Model) extends naturally across the harness/hook split
+because of the asymmetry between allowlist and denylist mechanics. Default-prompt harnesses gate everything by default
+and require explicit allowlist entries to skip the prompt — `arc release setup install` writes those entries for
+matching wrapper invocations. Custom user-level hooks usually run as denylists — specific patterns trigger the prompt,
+unrecognized commands fall through silently. Wrapper invocations (`arc release commit`, `arc release push`) typically
+aren't on the denylist by default, so they pass through without prompting in the common case. This mirrors how `arc
+sync` has worked since it landed: a denylist that matches `git push` does not match `arc sync`, so sync invocations
 execute silently while raw `git push` prompts as before.
 
 Edge case: if a custom hook uses a broad pattern that matches wrapper commands (e.g., a

@@ -76,7 +76,7 @@ it.each([false, true])("reports unknown skip IDs without excluding checks, json=
   if (json) expect(JSON.parse(result.stdout).result).toMatchObject({ ignoredSkips: ["id-not-declared"], checks: [{ outcome: "passed" }] });
   else {
     expect(result.stdout).toContain("ignored");
-    expect(result.stdout).toContain("content: passed");
+    expect(result.stdout).toContain("Checks: 1 passed.");
   }
   expect(await readFile(join(root, "receipt.json"), "utf8")).toBe("run\n");
 }, 60_000);

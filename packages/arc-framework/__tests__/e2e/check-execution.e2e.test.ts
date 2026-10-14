@@ -62,6 +62,30 @@ it("reports a command that never starts as couldn't run and succeeds after its d
   expect(JSON.parse(repaired.stdout).result.checks).toMatchObject([{ outcome: "passed" }]);
 });
 
+it("reports a command killed before it finishes as couldn't run and passes once it can finish", async () => {
+  const killed = {
+    // A runner relays a remote kill as the shell's exit status for SIGKILL.
+    relayed: { command: [process.execPath, "-e", "process.exit(137)"], inputs: ["src/**"] },
+    ...(process.platform === "win32" ? {} : {
+      signalled: { command: [process.execPath, "-e", "process.kill(process.pid, 'SIGKILL')"], inputs: ["src/**"] },
+    }),
+  };
+  const root = await createDeclaredCheckRepository(killed);
+  repositories.push(root);
+  const ids = Object.keys(killed);
+  const result = await runArc(["check", "run", ...ids, "--json"], root);
+  expect(result.exitCode, result.stderr).toBe(2);
+  expect(JSON.parse(result.stdout).result.checks).toEqual(expect.arrayContaining(ids.map(id => expect.objectContaining({
+    id, outcome: "couldn't run", reason: expect.stringContaining("killed before it finished"),
+    remedy: expect.stringContaining(`arc check run ${id}`),
+  }))));
+  await writeFile(join(root, ".arc/system/arc-checks.yml"), JSON.stringify({ checks: Object.fromEntries(ids.map(id =>
+    [id, { command: [process.execPath, "-e", "console.log('finished')"], inputs: ["src/**"] }])) }));
+  const finished = await runArc(["check", "run", ...ids, "--json"], root);
+  expect(finished.exitCode, finished.stderr).toBe(0);
+  expect(JSON.parse(finished.stdout).result.checks).toEqual(ids.map(() => expect.objectContaining({ outcome: "passed" })));
+});
+
 it("reports a missing program inside a started shell as failed", async () => {
   const root = await createDeclaredCheckRepository({ shell: {
     command: "arc-shell-program-does-not-exist", shell: true, inputs: ["src/**"],

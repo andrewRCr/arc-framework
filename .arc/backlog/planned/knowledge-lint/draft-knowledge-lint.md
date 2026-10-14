@@ -168,6 +168,27 @@
 - _Captured during:_ `quality-gate-hooks` draft close, 2026-10-07 (first captured during `judgment-authority-model`
   Task 4.3).
 
+### `[ ]` **Absorb the interim link checks into `arc lint`'s cross-reference and relocatability families**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-10-13).
+
+- _Shapes:_ § Design › Mechanical tier, check families 1 (cross-references) and 3 (relocatability).
+
+- _Observation:_ the `markdown-links` Errand landed an interim for both families ahead of this work unit, at the
+  Owner's direction: a project-only `lint:arc:links` (`packages/arc-framework/src/scripts/audit-links.ts`) sweeps
+  tracked `.arc/` Markdown outside `.arc/completed/` and the template sources, checking file targets and heading
+  anchors with GitHub's slug rules plus HTML `id` / `name` anchors; and the shipped `validate-links.sh` commit check
+  refuses any relative link from a `meta-`, `draft-`, `spec-`, `tasks-`, `notes-`, or `cohort-` file under
+  `active/` or `backlog/`. The live corpus had no relative link in a movable artifact, so the draft's "one-time sweep
+  of the ~38 known offending link-defs" may already be discharged; re-derive before planning it.
+
+- _Approach:_ when `arc lint` is designed, decide whether to absorb `audit-links.ts`'s resolver and slugger into
+  family 1 (covering both copies, with the stable-anchor grammar once `composable-workflows` settles it) and retire
+  `lint:arc:links`, and whether family 3 keeps the hook refusal or moves it under `arc lint`. Duplicate
+  link-definition detection is not in the interim.
+
+- _Captured during:_ the `markdown-links` Errand, 2026-10-12.
+
 ---
 
 ## Problem / Motivation

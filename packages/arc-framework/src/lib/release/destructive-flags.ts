@@ -16,16 +16,15 @@ import {
 } from "./commit-message-source.js";
 
 /**
- * Flags that `arc release commit` refuses unconditionally.
+ * Flags that `arc release commit` refuses unconditionally. `--amend` is not
+ * among them: the handler refuses it only once `HEAD` is on a remote-tracking
+ * ref (see {@link detectCommitAmend}).
  *
- * - `--amend`: amends route through raw git; the wrapper is the
- *   single-decision point for new commits.
  * - `--allow-empty`: smell signal; raw git for empty-commit intent.
  * - `--no-verify` / `-n`: bypasses pre-commit gates; refused here so the
  *   wrapper never lets a commit slip past hook validation.
  */
 export const COMMIT_DESTRUCTIVE_FLAGS = [
-  "--amend",
   "--allow-empty",
   "--no-verify",
   "-n",
@@ -69,21 +68,40 @@ function matchDestructive(token: string, flags: readonly string[]): string | nul
   return null;
 }
 
+/** Yield each commit argv token before `--` that is not an option's operand. */
+function* commitOptionTokens(argv: readonly string[]): Generator<string> {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined || token === "--") return;
+    yield token;
+    if (commitOptionConsumesNext(token, argv[index + 1])) index += 1;
+  }
+}
+
 /**
  * Return the matched commit-side destructive-flag identifier on first option
  * hit across `argv`, or null when none match. Option operands and tokens after
  * `--` remain data rather than being reinterpreted as flags.
  */
 export function detectCommitDestructive(argv: readonly string[]): string | null {
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index];
-    if (token === undefined || token === "--") break;
+  for (const token of commitOptionTokens(argv)) {
     const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS);
     if (match !== null) return match;
     if (containsNoVerifyShortOption(token)) return "-n";
-    if (commitOptionConsumesNext(token, argv[index + 1])) index += 1;
   }
   return null;
+}
+
+/**
+ * Report whether `argv` asks `git commit` to amend `HEAD`, which rewrites a
+ * published commit once `HEAD` is on a remote-tracking ref. Option operands
+ * and tokens after `--` remain data.
+ */
+export function detectCommitAmend(argv: readonly string[]): boolean {
+  for (const token of commitOptionTokens(argv)) {
+    if (token === "--amend") return true;
+  }
+  return false;
 }
 
 function containsNoVerifyShortOption(token: string): boolean {

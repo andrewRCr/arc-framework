@@ -123,6 +123,96 @@ describe("generate-tasks delivery authoring contract", () => {
     }
   });
 
+  it("stops the grounding audit's confirm gate only for a phase that leaves something to decide", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    expect(installed).toBe(packaged);
+    const between = (start: string, end: string): string => {
+      const from = packaged.indexOf(start);
+      const to = packaged.indexOf(end, from);
+      expect(from).toBeGreaterThan(-1);
+      expect(to).toBeGreaterThan(from);
+      return packaged.slice(from, to);
+    };
+    const low = between("### `low`", "### `medium`");
+    const medium = between("### `medium`", "### `high`");
+    const high = between("### `high`", "## Structural decomposition");
+    const loop = between("## Grounding audit & coherent revision", "### Audit the phase");
+    const surface = between("### Surface findings + decisions, confirm what needs deciding", "**Re-entry valve");
+    const grounding = between("## Grounding audit & coherent revision", "## Finalize the task list");
+
+    expect(low).toMatch(softWrappedProse("stops for the single substantive phase only when its audit leaves something to decide"));
+    expect(low).not.toMatch(softWrappedProse("The one review stop"));
+    for (const path of [medium, high]) {
+      expect(path).toMatch(softWrappedProse("stops only for a phase whose audit leaves something to decide"));
+      expect(path).not.toMatch(softWrappedProse("fires once per substantive phase"));
+    }
+    expect(loop).toMatch(softWrappedProse("The phase-at-a-time loop is intrinsic at **every** depth"));
+    expect(loop).toMatch(softWrappedProse("not the phase count or the resolved level"));
+    expect(loop).not.toMatch(softWrappedProse("fires once per substantive phase at **every** depth"));
+    expect(loop).toMatch(softWrappedProse("confirm before editing when the audit leaves something to decide"));
+    expect(grounding).not.toMatch(softWrappedProse("then confirm"));
+    expect(surface).toMatch(softWrappedProse(
+      "When the phase's audit returns a fix-before-starting finding, a masked design decision, or a floor-raising signal",
+    ));
+    expect(surface).toMatch(softWrappedProse("A phase with nothing to decide does not stop."));
+    expect(surface).toMatch(softWrappedProse("naming any \"carry as context\" findings and the home revision gives each"));
+
+    for (const unchanged of [
+      "Stop after a disproportionate provisional skeleton is identified.",
+      "Stop after the pre-save checklist passes.",
+    ]) {
+      expect(packaged).toMatch(softWrappedProse(unchanged));
+    }
+  });
+
+  it("stops between planning passes only when the pass leaves something to decide", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    expect(installed).toBe(packaged);
+    const between = (start: string, end: string): string => {
+      const from = packaged.indexOf(start);
+      const to = packaged.indexOf(end, from);
+      expect(from).toBeGreaterThan(-1);
+      expect(to).toBeGreaterThan(from);
+      return packaged.slice(from, to);
+    };
+    const generate = between("## Generate in the resolved level", "### `low`");
+    const medium = between("### `medium`", "### `high`");
+    const high = between("### `high`", "## Structural decomposition");
+    const unsettled = "only when it leaves a decision the spec does not settle";
+
+    expect(medium).toMatch(softWrappedProse(`Stop after the merged draft is written ${unsettled}`));
+    expect(medium).toMatch(softWrappedProse("Otherwise post the pass summary and continue to the grounding pass."));
+    expect(high).toMatch(softWrappedProse(`Stop after the skeleton is drafted ${unsettled}`));
+    expect(high).toMatch(softWrappedProse("Otherwise post the pass summary and continue to Pass 2."));
+    expect(high).toMatch(softWrappedProse(`Stop after the Pass 2 draft is written ${unsettled}`));
+    expect(high).toMatch(softWrappedProse("Otherwise post the pass summary and continue to Pass 3."));
+    expect(high).not.toMatch(softWrappedProse("a deliverable the user reviews before the next begins"));
+    expect(high).not.toMatch(softWrappedProse("against the reviewed skeleton"));
+
+    expect(generate).toMatch(softWrappedProse("lead with anything that needs a look, collapse clean results to a line"));
+    expect(generate).not.toMatch(softWrappedProse("where the review stops fall"));
+    expect(generate).not.toMatch(softWrappedProse("and where you stop."));
+    expect(packaged).not.toMatch(softWrappedProse("stop and surface now (per the surfacing discipline above) before continuing"));
+    const passBoundary = new RegExp(softWrappedProse("otherwise post the pass summary and continue.").source, "gmu");
+    expect([...packaged.matchAll(passBoundary)]).toHaveLength(2);
+  });
+
   it("teaches the member verifier shape in every shipped task-authoring reference", () => {
     const suffix = "— validate criteria at member scope";
     const references = [

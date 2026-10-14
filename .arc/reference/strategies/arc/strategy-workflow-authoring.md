@@ -180,9 +180,10 @@ section covers author-side declaration shape.
 
 **When to class-tag.** Tag sites that fit the class semantics:
 
-- `taskCommit` — per-task commits inside the task execution loop
+- `taskCommit` — per-task commits inside the task execution loop, and review-fix commits a complete-set
+  disposition approval releases
 - `workflowCommit` — ceremony commits (activate / integrate / handoff / archive)
-- `workflowPush` — ceremony pushes (handoff / activation / integration)
+- `workflowPush` — ceremony pushes (handoff / activation / integration) and review-fix pushes
 
 Ad-hoc commits, recovery operations, and push paths that should always run raw remain
 unannotated; they route as `raw` regardless of opt-in state.

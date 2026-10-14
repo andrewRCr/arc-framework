@@ -85,11 +85,14 @@ be remeasured with a schema-v5 entry; never upgrade them by changing their versi
 schema-v4 cost arithmetic and identifies the complete discarded warm-up before each retained sample.
 
 For measurements at named refs, prepare and warm each ref's checkout separately with the same project set, worker
-sizing, and host conditions. Each ref needs a schema-v5 measurement entry that completes the discarded warm-up
-before retaining each sample. If its entry predates that protocol, apply the same measurement instrumentation to the
-checkout before collecting new samples. A manually discarded run does not make an older record eligible. The
-comparison command analyzes retained files and does not prepare or warm refs. Never mix cold and warmed samples in
-one baseline or lever comparison.
+sizing, and host conditions. Each ref needs a schema-v5 measurement entry that completes the discarded warm-up before
+retaining each sample. `benchmark:test-cost --ref <ref>` does this for a commit whose `package-lock.json` matches the
+current checkout's: it runs that commit's own entry in a temporary detached checkout that shares this checkout's
+dependencies, retains the run here, stamps the summary with the resolved commit, and removes the checkout. The
+summary's budget standing reads that commit's own budget record. If its entry predates that protocol, apply the same
+measurement instrumentation to the checkout before collecting new samples. A manually discarded run does not make an
+older record eligible. The comparison command analyzes retained files and does not prepare or warm refs. Never mix
+cold and warmed samples in one baseline or lever comparison.
 
 The numerical baselines below are historical observations; this procedure does not refresh or relabel them.
 

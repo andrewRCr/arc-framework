@@ -503,7 +503,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("follow-up observation in the converged completion report");
 
       expect(method).toContain("`Pass N of M`");
-      expect(normalized).toContain("converged, `cap-exhausted`, suspended, or owner-accepted");
+      expect(normalized).toContain("converged, `cap-exhausted`, suspended, re-entered, or owner-accepted");
       expect(normalized).toContain("stop before another evaluator invocation");
       expect(normalized).toContain("same turn as the complete disposition report");
       expect(normalized).toContain("a recommendation is not authorization");
@@ -607,6 +607,8 @@ describe("PR-open lifecycle extensions", () => {
       ["fixed-material", "settlement does not rewrite the original pass as converged"],
       ["over-cap", "stop before another evaluator invocation"],
       ["conditional-permission", "replay cannot authorize another pass"],
+      ["local-correction-majors", "not offer the re-entry valve on the count of majors"],
+      ["sustained-nonconvergence", "offer the re-entry valve rather than another pass"],
     ] as const;
 
     for (const [name, expectedSignal] of cases) {
@@ -622,6 +624,60 @@ describe("PR-open lifecycle extensions", () => {
       expect(exercise).toContain("Do not read `expected.md`");
       expect(expected.toLowerCase()).toContain(expectedSignal);
       expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+    }
+  });
+
+  it("reads fold tags beside severity for the successor look and the re-entry offer", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("severity decides whether a fix needs a successor look");
+      expect(normalized).toContain("the tags decide which look and whether design is still open");
+      expect(normalized).toContain("never on a count of majors whose folds are local corrections");
+      expect(normalized).toContain("shows the design running deeper than the stage's level assumed — never on the tag alone");
+      expect(normalized).toContain("a scale signal — a correction whose surface runs wider than the stage's level assumed — is its own reason to offer the valve, whatever the tag");
+      expect(normalized).toContain("a new-design fold, a scale signal, or design the loop has not settled holds the stage");
+      expect(normalized).toContain("calls for another fix-check round, not re-entry");
+      expect(normalized).toContain("weigh severity and the fold tags together");
+      expect(normalized).toContain("whether a planning stage may close is the caller's call, and it asks whether the design holds");
+      expect(normalized).toContain("task generation has no later planning stage to absorb a correction");
+    }
+  });
+
+  it("names review that keeps authoring its own design as a re-entry signal, not cap exhaustion", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("most of a pass's material findings originate in an earlier pass's or round's new-design fold, and their approved fixes are new design again");
+      expect(normalized).toContain("another pass extends that chain instead of closing it");
+      expect(normalized).toContain("a floor-raising derivation signal at any pass count");
+      expect(normalized).toContain("[assess-boundary-fit][assess-boundary-fit] as well when the design written in folds spans concerns that could stand apart");
+      expect(normalized).toContain("material findings whose fixes are local corrections do not raise it, whatever their origin");
+      expect(normalized).toContain("so a stop at the cap never reads as the cap running out");
+      expect(normalized).toContain("an owner-accepted risk with the signal named, never the design holding");
+      expect(normalized).toContain("there the re-entry offer comes before another pass");
+      expect(normalized).toContain("and for the offer under sustained non-convergence, where another pass would review the last one's design");
+      expect(normalized).toContain("any re-entry or boundary offer with the owner's settlement");
+      expect(normalized).toContain("the re-entry and boundary offers in this gate belong to planning stages");
+      expect(normalized).toContain("re-entered records an accepted re-entry offer, at any pass: the loop ends there, and the caller's re-entry owns what follows");
+      expect(normalized).toContain("routes the same signals through its own depth read and its ceiling, never a planning-workflow re-entry");
+
+      const declared = method.match(/^arc:\n {2}methods:\n((?: {4}- .+\n)+)/mu)?.[1];
+      if (declared === undefined) throw new Error("missing adversarial-review arc.methods");
+      expect(declared).toContain("- assess-boundary-fit");
+    }
+  });
+
+  it("grounds an unchanged-behavior premise per caller and sweeps past the artifact's own file list", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/source-grounding.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("the target bounds which claims are checked; for each claim inside it, the sweep's reach comes from source — the importers and callers of the symbols it names");
+      expect(normalized).toContain("never from the artifact's own scope or file list, which is itself a claim under check");
+      expect(normalized).toContain("where the design or a proposed repair removes or changes an invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source");
+      expect(normalized).toContain("an inherited premise that behavior stays unchanged is a claim about the implementation it relies on");
+      expect(normalized).toContain("ground it per class of caller — those that read, write, or list through it — tracing each class's path on its own");
+      expect(normalized).toContain("since a premise can hold for writes and fail for reads");
     }
   });
 

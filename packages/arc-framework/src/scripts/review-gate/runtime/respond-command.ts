@@ -1748,7 +1748,8 @@ function errandNextPassCoverage(
   const reviewingSource = result.kind === "hosted" ? result.sourceIdentity : "delegated-agent";
   // The next pass keeps the reviewing source only while it stays configured; any other reports complete coverage,
   // which every source admits.
-  if (!configuredSources.includes(reviewingSource)) return "complete";
+  if (result.requirement.retrigger === "full-final"
+    || !configuredSources.includes(reviewingSource)) return "complete";
   if (result.kind === "attested-local") return "incremental-when-proven";
   const provider = HostedProviderIdSchema.safeParse(result.sourceIdentity);
   return provider.success && hostedProviderReviewsIncrementally(provider.data)
