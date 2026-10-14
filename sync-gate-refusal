@@ -3,7 +3,7 @@
   "slug": "sync-gate-refusal",
   "claimId": "1084d637b67c5c855c05e9b14d32858a",
   "createdAt": "2026-10-14T03:32:52.511Z",
-  "updatedAt": "2026-10-14T03:32:52.511Z",
+  "updatedAt": "2026-10-14T04:48:24.279Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Carry the push gate's refusal through arc sync's push result",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Carry the push gate's refusal through `arc sync`'s push result",
   "originEntrySourceDigest": "sha256:5d758f3a2049ab72efa552d55f0a99b337e2e4591cc335bd4ed2cc127b075d59",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/sync-gate-refusal",
+    "headSha": "0fe010bd92f282f1944f604056d180280842934c"
+  }
 }
