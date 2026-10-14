@@ -468,4 +468,9 @@ artifacts plus optional planning-module content selected by recipe conditions. T
 this surviving meaning in work-planning guidance. It admits no lifecycle-hook activation, action execution,
 workflow-step insertion, or blanket exemption.
 
+**Amended 2026-10-13 — A4:** The historical-analysis exclusion permits one approved link-definition correction in
+`analysis-workflow-clarity-audit.md`: its deleted `post-context-load.md` target points to the same installed source at
+the recorded retrieval revision. The required live link audit exposed the dangling reference; the analysis text and
+all other historical bodies remain unchanged.
+
 ---

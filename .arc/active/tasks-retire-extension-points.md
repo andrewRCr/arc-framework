@@ -133,23 +133,14 @@ _Purpose:_ Close the accepted workflow grammar and remove installed membership w
   identity/digest and its historical result binding; unrelated packets remain unchanged. Preserved malformed-method
   rejection, surviving sensitive paths, and stale-packet refusals.
 
-### `[ ]` **4.3 Remove extension files and installation membership — D1, D5, D8**
+### `[x]` **4.3 Remove extension files and installation membership — D1, D5, D8**
 
 - _Goal:_ Fresh installations omit the directory and old installations retain only unmanaged Configurable residue.
 
-- _Note:_ See `notes-retire-extension-points.md` § Installation and structural map.
-
-    - Delete all eleven extension documents and README from package source and `.arc/` together with all twelve recipe
-      paths, eleven `CONFIGURABLE_FILES` entries, and their self-hosted manifest keys. Preserve other manifest metadata.
-    - Keep `buildChangePlan` and `applyChangePlan` unchanged; regenerate local derived state only as needed for manual
-      package/render synchronization. Do not run `arc update` in this repository or add migration machinery.
-    - Update mixed init/update/framework-sync tests; replace current-support assertions with absence/retention checks.
-    - Build `test-first` (one behavior at a time):
-        - Every supported `pm.mode` × `team.mode` recipe arm installs/records no extension path or directory.
-        - An old manifest classifies eleven edited Configurable documents for retention and README for deletion;
-          the resulting manifest and pristine store contain none of the twelve paths.
-        - A subsequent update succeeds, leaves retained content untouched, and does not rediscover or read the residue.
-        - Surviving method installation and rendered Framework/package agreement remain correct.
+- _Outcome:_ Removed all twelve packaged and installed files, recipe/classification entries, and managed manifest
+  keys. Fresh installations omit the directory in all supported recipe arms; legacy updates retain edited
+  Configurable documents unmanaged, delete the README, and neither read nor rediscover residue on later updates. The
+  updater remains unchanged.
 
 ## **Phase 5:** Supported guidance, architectural record, and corpus closure
 
@@ -158,20 +149,14 @@ _Purpose:_ Make the supported customization boundary accurate and preserve the r
 _Exit criterion:_ The live-reference and citation sweeps are exhausted under the closed allowlist; package rendering,
 recipe membership, mixed contract coverage, and the historical event inventory agree.
 
-### `[ ]` **5.1 Describe supported customization and external-PM boundaries — D6**
+### `[x]` **5.1 Describe supported customization and external-PM boundaries — D6**
 
 - _Goal:_ Current guidance names only supported customization channels and makes the insertion/notification gap explicit.
 
-    - Update customization, session-operations, workflow-authoring, team-coordination, planning-module, and
-      file-classification strategies; rules, briefs, indices, templates, methods/self-review guidance, and directory
-      READMEs. Remove activation/loading/reserved-name/format/dispatch claims and dangling extension links.
-    - Retain config, check declarations, method overrides, QUICK-REFERENCE commands, and project strategy/workflow/
-      domain-rule channels. Preserve method fire-point declarations/loading and harness-native lifecycle hooks.
-    - Keep the task-list checkbox and planning checkpoint convention rows; set their Configurability Path to **None**,
-      remove the **Extension** definition, and add **None — the convention has no supported customization path**.
-    - State that project workflows may run beside ARC workflows and use methods; claim no supported insertion or
-      tracker-notification route. Add no planned replacement or internal work-unit pointer to shipped content.
-    - Render Framework counterparts and target Configurable sections without overwriting project overrides.
+- _Outcome:_ Revised supported customization guidance to config, checks, method overrides, commands, and project
+  content channels. Preserved method loading, native hooks, both conventions with None, and Origin linkage; made
+  workflow insertion and tracker-notification gaps explicit. Rendered Framework copies and preserved Configurable
+  overrides. One approved historical link now retrieves its unchanged target at the pre-removal revision.
 
 ### `[ ]` **5.2 Update internal inventories and recipe-derived counts — D6**
 

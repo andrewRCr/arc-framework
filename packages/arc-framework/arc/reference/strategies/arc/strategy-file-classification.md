@@ -25,7 +25,7 @@ Local modifications are overwritten; customization uses the override surfaces be
 **If you need to customize:** Framework files shouldn't be edited directly — changes are
 overwritten on every update. See [Configurability Architecture][config-arch] §
 [Which mechanism do I use?][config-arch-which] for the right customization surface (config
-settings, method overrides, extensions, or Configurable files).
+settings, method overrides or Configurable files).
 
 ### Configurable
 
@@ -218,7 +218,7 @@ governs which top-level directory a file belongs in.
 ### `system/` vs. `reference/`
 
 - **`system/` holds prescriptive / operational machinery** — content the methodology _runs_: workflows,
-  methods, extensions, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
+  methods, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
   This content governs behavior or is consumed by the process to do work.
 - **`reference/` holds consultative look-up material** — content you _consult_ to orient or decide: agent
   briefs (`reference/briefs/`), strategies, ADRs, PROJECT-PRD, TECHNICAL-OVERVIEW, QUICK-REFERENCE, and
@@ -238,7 +238,7 @@ _shape_ does.
 Within `system/`, content splits again by ownership:
 
 - **User-facing customization surfaces** sit at the top level of `system/` — `arc-config.yml`,
-  `extensions/`, `methods/`, `rules/`, `workflows/`. These are the surfaces teams override and extend.
+  `methods/`, `rules/`, `workflows/`. These are the surfaces teams override and extend.
 - **Framework-internal machinery** belongs under the hidden `system/.internal/` directory — CLI-managed
   state (`manifest.json`), githooks, scripts, and skill sources. The dotfile signals "framework-managed;
   don't edit."

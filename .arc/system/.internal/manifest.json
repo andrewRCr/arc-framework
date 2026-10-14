@@ -227,66 +227,6 @@
       "layer": "core",
       "pristine_hash": "797daf16c41d1c3946f574d483efa7bd7f03e659385595f53f41edb6b0d29b6e"
     },
-    "system/extensions/post-context-load.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "c4432673a1a196e1ddaab65e4e17006cd2938859aa3d8a6ce1eccc77ef9fb787"
-    },
-    "system/extensions/post-task-completion.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "bd9588190fb258e2713efb1af579c63b793a2792308f56604a8bb4462da65793"
-    },
-    "system/extensions/post-work-unit-activate.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "695672e36bbb809a95f4d86283601300ec6b4f90ec1f7062261abd03be1ed355"
-    },
-    "system/extensions/post-work-unit-archive.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "6f42b8fa403ba3d090383bf2f12776a4bc4f1c99409573bb27b9eb231f0dc927"
-    },
-    "system/extensions/pre-activation.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "ff4db2dc98149fc4965d7dd3bc1509d9ed473d6e4b33658fadba3127f42dddfa"
-    },
-    "system/extensions/pre-commit-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "71bbb543339882793d611904195d54ffe48785f34eb13d3d3b441e8db37392ac"
-    },
-    "system/extensions/pre-merge.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "b5cae79a6813a533ced9b9cd594bc71282f8d4b5c37a306acc41b9040549d920"
-    },
-    "system/extensions/pre-pr-open.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "0b0d161a6ed9831017d8d71faf13d45617419836f175bdf356c3ab7fe825b89d"
-    },
-    "system/extensions/post-pr-open.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "71ff84efd12db95a1b73b6586f4f2f1f5a5b0d3f1b38369456d0ee44205c43e9"
-    },
-    "system/extensions/pre-push-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "f5faf2289cac470519a28198ffac731a4653dd3cc7cb9bc560defea4e27f5cee"
-    },
-    "system/extensions/pre-spec-finalization-review.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "e781e845960a30cc5799790aef7f6ac63035ef8d08b0f06e55c0f6af8591f226"
-    },
-    "system/extensions/README.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "293d0481a98ae678d94c5ac0fbaea2b1857ff35df1bfaf075404f8189d9a84ac"
-    },
     "system/.internal/githooks/commit-msg": {
       "classification": "Framework",
       "layer": "core",

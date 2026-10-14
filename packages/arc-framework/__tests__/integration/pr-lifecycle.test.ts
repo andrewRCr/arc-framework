@@ -357,7 +357,7 @@ describe("PR lifecycle and review contracts", () => {
       const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
         .replace(/\s+/gu, " ");
 
-      expect(guidance).toContain("Agent-side review methods and extensions are best-effort ergonomics");
+      expect(guidance).toContain("Agent-side review methods are best-effort ergonomics");
       expect(guidance).toContain("Host-side merge controls are distinct from agent-layer discipline");
       expect(guidance).toContain("required status check is fail-closed repo configuration");
       expect(guidance).toContain("draft-state lock");

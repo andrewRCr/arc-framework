@@ -1,11 +1,9 @@
 ---
 purpose: <one-sentence description of what this workflow does>
 audience: agent                  # agent | collaborative (human and agent) | human
-arc:                              # omit if this workflow loads no methods/extensions
+arc:                              # omit if this workflow loads no methods
   methods:
     - <method-name>
-  extensions:
-    - <extension-name>
 ---
 
 <!--
@@ -22,7 +20,7 @@ Reference: strategy-workflow-authoring.md — full schema, author-side declarati
 # Workflow: {title}
 
 Body. Structure this however fits the workflow — numbered `## Steps`, named phases, or prose
-sections as needed. In-step markdown links to methods and extensions remain for reader
+sections as needed. In-step markdown links to methods remain for reader
 navigation; the frontmatter is the load contract.
 
 <!--

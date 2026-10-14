@@ -606,4 +606,4 @@ changes are complete.
 
 ---
 
-[arc-ext-post-context-load]: ../../../system/extensions/post-context-load.md
+[arc-ext-post-context-load]: https://github.com/andrewRCr/arc-framework/blob/966ecb587628cf2643e281f7c9a4823fc494ff74/.arc/system/extensions/post-context-load.md

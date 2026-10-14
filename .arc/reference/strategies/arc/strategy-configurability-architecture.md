@@ -3,11 +3,11 @@
 > **Full guide:** [Customization](https://andrewrcr.github.io/arc-framework/customization/) — design
 > philosophy, adoption defaults, validation scenarios, and the complete agent hooks guide.
 
-**Purpose:** Operational reference for ARC's customization mechanisms — configuration settings, extension
-points, method overrides, check declarations, and the convention inventory. Agents and workflows consult this document
+**Purpose:** Operational reference for ARC's customization mechanisms — configuration settings, method overrides,
+check declarations, and the convention inventory. Agents and workflows consult this document
 when encountering customization decisions.
 
-**Scope:** Configuration settings, extension points, method overrides, check declarations, content-level customization
+**Scope:** Configuration settings, method overrides, check declarations, content-level customization
 (project strategies, workflows, domain-specific rules), platform compatibility, and the full convention inventory.
 
 ---
@@ -16,7 +16,6 @@ when encountering customization decisions.
 
 - [The Customization Model](#the-customization-model) — mechanisms, boundary tests, convention inventory
 - [Configuration](#configuration) — `arc-config.yml` design, structural vs. runtime settings
-- [Extension Points](#extension-points) — adding behavior to workflows
 - [Method Overrides](#method-overrides) — replacing convention implementations
 - [Platform and Tool Compatibility](#platform-and-tool-compatibility) — platform commands, skills positioning
 
@@ -28,13 +27,12 @@ ARC's three-tier flexibility model draws a sharp line between principles (tier 1
 conventions (tier 2, configurable with defaults). Escape hatches (tier 3) acknowledge practices outside ARC's
 design envelope without blocking them.
 
-Customizing conventions — not principles — is the entire scope of the configurability architecture. Four
+Customizing conventions — not principles — is the entire scope of the configurability architecture. Three
 mechanisms handle different kinds of customization, and project documentation holds tool-command variation:
 
 | Mechanism         | What It Does                     | File                 | Example                                    |
 | ----------------- | -------------------------------- | -------------------- | ------------------------------------------ |
 | Config            | Toggles enforcement              | `arc-config.yml`     | `commit.format: any` disables hook check   |
-| Extension         | Adds steps to workflows          | `system/extensions/` | Post-task completion: update a tracker     |
 | Check declaration | Defines project checks and gates | `arc-checks.yml`     | Security checks before push                |
 | Method override   | Replaces default behavior        | `system/methods/`    | Session state: custom format, not default  |
 | QUICK-REFERENCE   | Environment/tool commands        | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
@@ -43,14 +41,13 @@ mechanisms handle different kinds of customization, and project documentation ho
 
 - If the customization changes a **value** that affects existing behavior → **config**
 - If it declares **project checks and their deadlines** → **check declaration**
-- If it adds **new steps** at a workflow point → **extension**
 - If it **replaces** how ARC does something with how the team does it → **method override**
 - If it changes **which CLI tool** to use for an operation → **QUICK-REFERENCE**
 - If it adds **domain-specific guidance** for your project → **project strategy**
 - If it adds **project-specific procedures** not covered by ARC → **project workflow**
 - If it extends **project standards** for a specific domain → **domain-specific dev-rules**
 
-Config, extensions, method overrides, and the check declaration are the four customization mechanisms. QUICK-REFERENCE
+Config, method overrides, and the check declaration are the three customization mechanisms. QUICK-REFERENCE
 is existing project documentation that naturally absorbs platform command variation.
 
 Beyond mechanisms, ARC supports **content-level customization** through project-owned files that add
@@ -67,17 +64,17 @@ These are project-owned files — teams create them, ARC doesn't ship them. `DEV
 rules are loaded on demand when work touches their domain.
 
 **Authoring project workflows.** Unlike `workflows/arc/` (framework-owned, wholesale replaced on update),
-`workflows/project/` is project-owned territory. Project workflows may load ARC methods or extensions by declaring them
-in the frontmatter's `arc.methods` / `arc.extensions` arrays — see [Workflow Authoring Strategy][workflow-authoring]
-for the schema and declaration rule, and [`template-workflow.md`][template-workflow] for canonical structure.
-Workflows with no method/extension dependencies can skip the schema.
+`workflows/project/` is project-owned territory. Project workflows may run beside ARC workflows and use ARC methods
+by declaring them in `arc.methods` — see [Workflow Authoring Strategy][workflow-authoring] for the schema and
+[`template-workflow.md`][template-workflow] for canonical structure. Workflows with no method dependencies can omit
+`arc`. ARC supplies no supported mechanism to insert an additional step inside one of its workflows.
 
 **DEV-RULES.PROJECT splitting:** `DEV-RULES.PROJECT.md` can be split into domain-specific files
 (`DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`, etc.) as project standards grow. The base file remains the entry
 point with cross-project standards; domain files extend it for specific areas.
 
 **None of these mechanisms or content channels apply to principles.** Config settings exist for conventions.
-Extension points exist at convention-level workflow boundaries. Method overrides replace convention-level
+Method overrides replace convention-level
 implementations. Content-level customization adds project-specific guidance alongside ARC's framework guidance.
 Principles (tier 1) are not configurable through any mechanism — they define what ARC is.
 
@@ -88,14 +85,14 @@ a configurability path (how teams adapt it).
 
 #### Core commitment conventions
 
-| Convention                                                  | Principle | Default                  | Configurability Path                                  |
-| ----------------------------------------------------------- | --------- | ------------------------ | ----------------------------------------------------- |
-| Document hierarchy (PROJECT-PRD → PRD → tasks)              | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
-| Template-first documents                                    | P1        | Copy-ready templates     | Structural contract — fill in, don't redesign         |
-| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
-| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps           |
-| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions     |
-| Markdown task list checkboxes                               | P7        | Markdown in git          | Extension — add tracker sync via post-task-completion |
+| Convention                                                  | Principle | Default                  | Configurability Path                                |
+| ----------------------------------------------------------- | --------- | ------------------------ | --------------------------------------------------- |
+| Document hierarchy (PROJECT-PRD → PRD → tasks)              | P1        | Full hierarchy           | Structural contract — workflows depend on structure |
+| Template-first documents                                    | P1        | Copy-ready templates     | Structural contract — fill in, don't redesign       |
+| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope |
+| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps         |
+| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions   |
+| Markdown task list checkboxes                               | P7        | Markdown in git          | None                                                |
 
 #### Operational discipline conventions
 
@@ -104,7 +101,7 @@ a configurability path (how teams adapt it).
 | Zero-tolerance quality gates           | P4        | Every check passes by its deadline  | Project declaration defines the checks               |
 | Event-based quality gates              | P4        | Commit / push / merge               | Check declaration — earliest gate per check          |
 | Pre-merge aggregate review             | P4        | Lightweight diff review before push | Method activation + override                         |
-| Planning checkpoint review             | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                         |
+| Planning checkpoint review             | P2 / P4   | No checkpoint stop                  | None                                                 |
 | Leave it cleaner (capture floor)       | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
 | Test-first assessment                  | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
 | Conventional commit format             | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
@@ -134,8 +131,7 @@ a configurability path (how teams adapt it).
   live here. See [Personal Configuration via Git Config](#personal-configuration-via-git-config).
 - **Method override** — A populated `.override` section in a file under `system/methods/` that substitutes
   ARC's default implementation with the team's alternative. See [Method Overrides](#method-overrides).
-- **Extension** — Additional steps added at preset workflow points via files under `system/extensions/`. See
-  [Extension Points](#extension-points).
+- **None** — the convention has no supported customization path.
 - **File-customizable** — The convention is configured by editing Configurable project-level files.
   DEV-RULES.PROJECT, QUICK-REFERENCE, agent-specific files — the file itself is the configuration. Changes
   are preserved across framework updates via three-way merge.
@@ -151,19 +147,17 @@ The agent learns about the active configuration during session initialization. T
 (`arc status --session-init --json`) resolves **final settings** by merging project YAML (`arc-config.yml`)
 with the current developer's local git-config — per-developer keys (`arc.commitInterlock`, `arc.pushInterlock`,
 `arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence in the resolution. Downstream
-logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML. The agent
-also enumerates active extensions in the same probe:
+logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML:
 
 1. **Platform**: Check `platform.type`; use QUICK-REFERENCE § Platform Commands for platform-appropriate PR/MR
    and issue commands. The section lists GitHub defaults and is project-editable for other platforms.
-2. **Active extensions**: Run `grep -l "^active: true" system/extensions/*.md` and map hits to extension
-   basenames — this is the active-extensions list consulted by fire-point directives in downstream workflows.
-   Methods are not enumerated at session init; method defaults and overrides always load on-demand when
-   workflows reference them (see [Session Operations Strategy][session-ops])
-3. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
+2. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
+
+Method defaults and overrides load on demand at their direct workflow or method fire-point
+(see [Session Operations Strategy][session-ops]).
 
 This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies
-it when encountering method references, extension fire points, or platform-specific operations.
+it when encountering method references or platform-specific operations.
 
 ---
 
@@ -381,100 +375,15 @@ the setting. The squash merge example demonstrates this — the config value tri
 
 ---
 
-## Extension Points
-
-Extension points let teams add behavior at specific locations in ARC workflows — additional context loading, tracker
-updates, or review — without modifying framework-owned files. Project checks belong in the check declaration.
-
-### Mechanism
-
-Each extension has its own file under `system/extensions/`. Files are framework-owned and project-filled: ARC
-provides the structure (YAML frontmatter plus an `.actions` section), teams populate `.actions` with their steps
-and flip `active: true` in the frontmatter. Classified Configurable — preserved through three-way merge during
-framework updates.
-
-Each preset file includes: which workflow it extends, when it fires, what the contract allows, and an empty
-`.actions` section.
-
-### Naming convention
-
-Extension files follow `{pre|post}-{lifecycle-event-name}`, where the event-name is the next concrete workflow
-step or git operation:
-
-- `pre-*` fires before the named event; `post-*` fires after.
-- Event-names reflect the **actual lifecycle boundary**. For example, `pre-pr-open` fires immediately before
-  creation and `post-pr-open` fires whenever a workflow enters an open change request, including re-entry.
-- The fire-point's **frequency** must match the name's semantic. If an extension is named `pre-commit-review`,
-  it must fire at every commit pathway — wiring that catches one workflow's commit step while another's skips
-  it violates the convention. Names that promise broad coverage demand broad wiring.
-
-### Fire-point family
-
-Seven extension fire-points span the work-unit and Errand lifecycles:
-
-| Extension                      | Fire-point                                                 | Wired into                                | Default                         |
-| ------------------------------ | ---------------------------------------------------------- | ----------------------------------------- | ------------------------------- |
-| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                          | inactive; no default `.actions` |
-| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                   | inactive                        |
-| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md` | inactive                        |
-| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
-| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
-| `pre-push-review`              | Every agent-managed workflow push                          | Push and pushing-`arc sync` workflows     | inactive; no default `.actions` |
-| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md` | inactive; no default `.actions` |
-
-All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
-to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
-supplying their own actions activate them like any other extension.
-
-### Reserved names
-
-Some extension names ship as files but without a default `.actions` body — namespace reserved for project use
-or for future defaults. Three entries from the family above carry this status today:
-
-- `pre-spec-finalization-review` — fires at `create-spec.md`'s spec-finalization gate, after the `spec-review`
-  self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
-  comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
-- `pre-push-review` — fires before every agent-managed workflow push.
-- `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
-
-New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
-
-### References in workflows
-
-Extension points appear as conditional steps in workflow documents, with a backtick anchor tag for grep-ability:
-
-```markdown
-- **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
-  list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
-  Otherwise, skip.
-```
-
-The agent checks the active-extensions list (enumerated at session init via `grep -l "^active: true"` on
-`system/extensions/*.md`). If the extension is active, the agent reads its `.actions` section and executes;
-otherwise the step short-circuits.
-
-### Preset vs. custom
-
-**Preset (convention, tier 2):** ARC defines these at specific, tested locations in workflow docs. They have
-defined contracts and corresponding files in `system/extensions/`. This is the expected customization path.
-
-**Custom (escape hatch, tier 3):** Teams may add their own extension points elsewhere in workflow docs. ARC does
-not block this, but custom points are outside the framework's design envelope — framework updates may conflict,
-and the team is responsible for maintaining them.
-
----
-
 ## Method Overrides
 
-Method overrides let teams replace ARC's default convention implementations with their own. Where config toggles
-enforcement and extensions add behavior, method overrides substitute behavior — a different way of satisfying the
+Method overrides let teams replace ARC's default convention implementations with their own ways of satisfying the
 same principle.
 
 ### Mechanism
 
-Each method has its own file under `system/methods/`, co-located with `system/extensions/`. Same
-classification (Configurable), same ownership model (framework-owned structure, project-filled `.override`
-sections).
+Each method has its own Configurable file under `system/methods/`: framework-owned structure with project-filled
+`.override` sections, preserved through three-way merge on update.
 
 Each preset method defines a contract — the invariant that both the default and any override must satisfy.
 Contracts are advisory, not mechanically enforced.
@@ -531,7 +440,7 @@ the override is purely agent-level.
 
 ### Preset vs. custom
 
-Same model as extension points. **Preset methods** are defined by ARC at tested locations with contracts — the
+**Preset methods** are defined by ARC at tested locations with contracts — the
 expected customization path. **Custom methods** may be defined by teams for operations ARC does not preset —
 escape hatch territory, not guaranteed compatible across updates.
 
@@ -596,16 +505,16 @@ lifecycle guarantees.
 ### Agent lifecycle hooks
 
 Most modern agent platforms support lifecycle hooks — event handlers that fire deterministically when platform
-events occur. These operate alongside ARC's methodology-layer customization (config, extensions, method
+events occur. These operate alongside ARC's methodology-layer customization (config, method
 overrides, check declarations) but at a different layer:
 
 - **ARC's customization mechanisms** supply methodology-directed configuration and procedure; the CLI resolves and
   runs declared checks
 - **Agent hooks** are platform-directed — the platform executes them regardless of agent decision-making
 
-Agent hooks are configured in the platform's native format (not in `arc-config.yml`). ARC does not ship hook
-configurations — the methodology describes what behaviors to trigger, and teams configure their platform
-accordingly. For detailed mapping of ARC behaviors to hook events, value assessment, and implementation guidance, see
+Agent hooks are configured in the platform's native format. The methodology describes what behaviors to trigger,
+and teams configure their platform accordingly. For detailed mapping of ARC behaviors to hook events, value
+assessment, and implementation guidance, see
 the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/) guide on the docs site.
 
 ---

@@ -249,8 +249,8 @@ Without arc-in-git (`pm.mode: none` or `external`):
 
 The planning module adds structure for teams that want built-in project management without
 external tools. Teams using Jira, Linear, or GitHub Issues use `pm.mode: external` — ARC
-provides extension points for syncing task completion, work unit activation, and archival
-events to external trackers.
+retains `Origin` linkage to tracker items, with no supported lifecycle notification or status-synchronization
+mechanism.
 
 ---
 

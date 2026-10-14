@@ -267,19 +267,11 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 
 ### Integration Mechanism
 
-ARC provides extension points at key workflow moments for syncing with external trackers.
-Configure these by populating the `.actions` section in the relevant file under
-[`system/extensions/`][arc-extensions-dir]:
+`Origin` provides linkage to an external tracker item. ARC currently supplies no supported tracker notification or
+status-synchronization mechanism.
 
-- **[`post-task-completion`][arc-ext-task-completion]** — fires after a task is marked `[x]`.
-  Use to sync task status to Jira, Linear, or GitHub Issues.
-- **[`post-work-unit-activate`][arc-ext-wu-activate]** — fires after a work unit moves from
-  backlog to active. Use to update sprint boards or project status.
-- **[`post-work-unit-archive`][arc-ext-wu-archive]** — fires after a work unit is archived.
-  Use to close epics or update project dashboards.
-
-No extension points are needed for task _assignment_ — the meta `**Owner:**` field (WU-level) and
-external tracker assignment serve different audiences and don't need real-time sync.
+The meta `**Owner:**` field records WU-level responsibility; external tracker assignment serves its own audience.
+These distinct assignment scopes do not require real-time synchronization.
 
 ---
 
@@ -300,7 +292,3 @@ external tracker assignment serve different audiences and don't need real-time s
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
-[arc-extensions-dir]: ../../../system/extensions/
-[arc-ext-task-completion]: ../../../system/extensions/post-task-completion.md
-[arc-ext-wu-activate]: ../../../system/extensions/post-work-unit-activate.md
-[arc-ext-wu-archive]: ../../../system/extensions/post-work-unit-archive.md
