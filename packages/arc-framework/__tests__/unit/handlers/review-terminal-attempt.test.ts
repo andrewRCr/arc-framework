@@ -45,14 +45,15 @@ function fixture() {
   return { reader, request, target: handle.admission.reviewTarget };
 }
 
-async function resolve(submitted: unknown, fault?: (result: ReviewResult) => ReviewResult) {
+async function resolve(submitted: unknown, fault?: (result: ReviewResult) => ReviewResult,
+  sources: readonly string[] = ["codex-pr", "coderabbit-pr"]) {
   const { reader, target } = fixture();
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewResolve("-", {
     resolveRoot: () => "/trusted-repository", readText: async () => JSON.stringify(submitted),
     resolve: parsed => resolveEvidenceBoundReviewPolicy(parsed, {
-      sources: ["codex-pr", "coderabbit-pr"], maxPasses: 2,
+      sources, maxPasses: 2,
       resultReader: { readResult: async id => { const result = await reader.readResult(id); return fault?.(result) ?? result; } },
       confirmTarget: async () => target,
       dispositionStore: { readDispositionRecord: async () => null, appendDispositionRecord: async () => { throw new Error("not used"); } },
@@ -96,6 +97,31 @@ describe("terminal review attempt input recovery", () => {
         payload: { completedPasses: 2, verifiedTerminalSignal: { confirmedFindingCount: 0, coverageAdequate: true } } },
     });
   });
+
+  it.each(["duplicate source", "wrong lane", "later source", "compatible prefix"])(
+    "replays a corrected terminal attempt with %s fallback history", async name => {
+      const { request } = fixture();
+      const fallback = { sourceId: name === "wrong lane" ? "coderabbit-cli"
+        : name === "duplicate source" ? "codex-pr" : "coderabbit-pr", outcome: "rate-limited" as const };
+      const terminal = { ...request.attempts[0], sourceId: "delegated-agent" };
+      const submitted = { ...request, lane: name === "wrong lane" ? "frontline" : "standard",
+        ...(name === "wrong lane" ? { invocation: undefined } : {}), attempts: [fallback, terminal] };
+      const sources = name === "compatible prefix" ? ["coderabbit-pr", "codex-pr", "delegated-agent"]
+        : ["codex-pr", "coderabbit-pr", "delegated-agent"];
+      const refusal = await resolve(submitted, undefined, sources);
+      const error = ReviewCommandErrorEnvelopeSchema.parse(refusal.result);
+      expect(error.error.code).toBe("invalid-input");
+      if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+      const corrected = ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
+      expect(corrected.attempts).toEqual([
+        ...(name === "compatible prefix" ? [fallback] : []), ...request.attempts,
+      ]);
+      expect(corrected.completedPasses).toBe(request.completedPasses);
+      expect(corrected.target).toEqual(request.target);
+      await expect(resolve(corrected, undefined, sources)).resolves.toMatchObject({ exitCodes: [],
+        result: { state: "pass-complete", nextAction: "none", payload: { completedPasses: 2 } } });
+    },
+  );
 
   it.each([
     ["identity", (result: ReviewResult): ReviewResult => ({ ...result, producerId: "hosted/wrong-id" })],

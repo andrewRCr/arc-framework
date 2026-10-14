@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe("terminal attempt recovery through the CLI and repository records", () => {
-  it("refuses a short pass count and completes the unchanged producer through its corrected replay", async () => {
+  it.each(["short pass count", "duplicate source"])("recovers %s through the unchanged terminal producer", async scenario => {
     const root = await createTempRepoCore({ prefix: "arc-terminal-input-", identity: "andrew" });
     roots.push(root);
     const exec = makeGitExec(root);
@@ -62,8 +62,11 @@ describe("terminal attempt recovery through the CLI and repository records", () 
         now: "2026-10-13T00:00:00Z" });
     }
     const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target, lane: "standard",
-      frontlineActive: false, standardReview, completedPasses: 1,
-      attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }],
+      frontlineActive: false, standardReview, completedPasses: scenario === "short pass count" ? 1 : 2,
+      attempts: scenario === "short pass count"
+        ? [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }]
+        : [{ sourceId: "codex-pr", outcome: "rate-limited" },
+          { sourceId: "coderabbit-pr", outcome: "clean", reviewOperationId: producerId }],
       scopeSelection: { mode: "whole-target", target }, invocation: { mode: "force", sourceId: "codex-pr" } });
     const input = join(root, ".git/terminal-request.json");
     await writeFile(input, JSON.stringify(request));
@@ -73,9 +76,10 @@ describe("terminal attempt recovery through the CLI and repository records", () 
     const error = ReviewCommandErrorEnvelopeSchema.parse(JSON.parse(refusal.stdout));
     expect(error.error.code).toBe("invalid-input");
     if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
-    expect(error.remedy.text).toContain("completedPasses to 2");
+    expect(error.remedy.text).toContain(scenario === "short pass count" ? "completedPasses to 2" : "sourceId to codex-pr");
     expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
-    expect(error.remedy.stdin).toMatchObject({ ...request, completedPasses: 2 });
+    expect(error.remedy.stdin).toMatchObject({ ...request, completedPasses: 2,
+      attempts: [{ sourceId: "codex-pr", outcome: "clean", reviewOperationId: producerId }] });
     await writeFile(input, JSON.stringify(error.remedy.stdin));
     const replay = await runCli(["review", "resolve", input], { cwd: root });
     expect(replay.exitCode, replay.stderr).toBe(0);
