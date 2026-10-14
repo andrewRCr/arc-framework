@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
 - **Design:** `spec-seam-lifecycle.md`
-- **Task List:** [none]
+- **Task List:** `tasks-seam-lifecycle.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Merge `origin/main` into the branch, then begin generate-tasks from `spec-seam-lifecycle.md`
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
