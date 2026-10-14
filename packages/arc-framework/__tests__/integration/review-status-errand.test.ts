@@ -13,6 +13,7 @@ import {
   TransientIdentityRecordV3Schema,
 } from "../../src/lib/errand/identity-record.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { handleReviewHostedRequest, handleReviewResolve } from "../../src/handlers/review.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -983,6 +984,103 @@ describe("Errand review status", () => {
         message: "The opening frontline phase is already closed for this review subject.",
       }],
     });
+  });
+
+  it("offers the first standard pass's hosted request only from the Errand's own checkout", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-resolve-first-pass-", identity: "andrew" });
+    roots.push(root);
+    const config = "branch.base: main\nreview.standard_sources: [codex-pr]\n";
+    await writeFile(join(root, ".git", "info", "exclude"), ".arc/\n", "utf8");
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"), config, "utf8");
+    const timestamps = { createdAt: "2026-09-13T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z" };
+    const errand = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug: "first-pass-errand", claimId: "0123456789abcdef0123456789abcdef",
+      purpose: "errand", origin: "description", originEntry: null, intent: "Request the first hosted pass",
+      branch: "chore/first-pass-errand", state: "open", savedHead: null, changeRequest: null, ...timestamps,
+    });
+    const routing = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug: "inbox-drain", claimId: "fedcba9876543210fedcba9876543210",
+      purpose: "housekeep-routing", branch: "chore/inbox-drain", state: "open", savedHead: null, changeRequest: null,
+      ...timestamps,
+    });
+    const recordIdentities = async (files: Record<string, string>): Promise<void> => {
+      for (const [path, content] of Object.entries(files)) {
+        await writeFile(join(root, path), content, "utf8");
+        await git(root, ["add", path]);
+      }
+      await git(root, ["commit", "-m", "identity snapshot"]);
+      await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    };
+    await recordIdentities({
+      [errand.slug]: serializeTransientIdentityRecord(errand),
+      [routing.slug]: serializeTransientIdentityRecord(routing),
+    });
+    const openCheckout = async (kind: "errand" | "housekeep", slug: string, claimId: string): Promise<string> => {
+      const checkout = `${root}-${slug}`;
+      await git(root, ["worktree", "add", "-b", `chore/${slug}`, checkout, "HEAD"]);
+      roots.push(checkout);
+      await writeWorktreeMarker(checkout, {
+        spawnedByArc: true, createdFor: { kind, slug, claimId }, spawningIdentity: "andrew",
+        createdAt: timestamps.createdAt, provisioning: "ready",
+      });
+      await mkdir(join(checkout, ".arc/system"), { recursive: true });
+      await writeFile(join(checkout, ".arc/system/arc-config.yml"), config, "utf8");
+      return checkout;
+    };
+    const errandRoot = await openCheckout("errand", errand.slug, errand.claimId);
+    const routingRoot = await openCheckout("housekeep", routing.slug, routing.claimId);
+    await writeFile(join(errandRoot, "change.txt"), "first\n", "utf8");
+    await git(errandRoot, ["add", "change.txt"]);
+    await git(errandRoot, ["commit", "-m", "change"]);
+    const headSha = await git(errandRoot, ["rev-parse", "HEAD"]);
+    const target = { repository: "owner/repo", pullRequest: 42, headSha };
+    const standardReview = {
+      obligation: "required", reasons: ["sensitive-change-set"],
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1,
+    };
+    const resolveStandard = async (checkout: string): Promise<unknown> => {
+      const output: string[] = [];
+      const exitCodes: number[] = [];
+      const previousCwd = process.cwd();
+      process.chdir(checkout);
+      try {
+        await handleReviewResolve("-", {
+          resolveRoot: () => checkout,
+          readText: async () => JSON.stringify({
+            schemaVersion: 1, target, lane: "standard", frontlineActive: true, completedPasses: 0, attempts: [],
+            standardReview, scopeSelection: { mode: "whole-target", target },
+            invocation: { mode: "force", sourceId: "codex-pr" },
+          }),
+          write: (text) => output.push(text),
+          setExitCode: (code) => exitCodes.push(code),
+        });
+      } finally {
+        process.chdir(previousCwd);
+      }
+      expect(exitCodes).toEqual([]);
+      return JSON.parse(output.join(""));
+    };
+    const expectNoAction = async (checkout: string): Promise<void> => {
+      const resolved = await resolveStandard(checkout);
+      expect(resolved).toMatchObject({ state: "ready", nextAction: "hosted-request" });
+      expect(resolved).not.toHaveProperty("action");
+    };
+    await expect(resolveStandard(errandRoot)).resolves.toMatchObject({
+      state: "ready", nextAction: "hosted-request",
+      action: {
+        schemaVersion: 1, target, provider: "codex-pr", coverage: "complete",
+        vehicle: { kind: "errand", standardReview },
+      },
+    });
+    // Outside the Errand's checkout the subject may be a delivery member, whose request carries its own vehicle.
+    await expectNoAction(root);
+    // A housekeeping routing checkout is not the ordinary Errand that hosted Errand review binds.
+    await expectNoAction(routingRoot);
+    // An Errand whose identity record cannot be read is not established, and the request still resolves.
+    await recordIdentities({ [errand.slug]: "not an identity record\n" });
+    await expectNoAction(errandRoot);
   });
 
   it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
