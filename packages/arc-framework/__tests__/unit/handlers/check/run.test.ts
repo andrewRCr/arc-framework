@@ -152,7 +152,7 @@ it("keeps a missing package the lockfile does not declare as a failed check", as
   const { root, io, ids } = await fixture({ lint: {} });
   await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {} } }));
   io.execute = async () => ({ started: true, exitCode: 2,
-    output: "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'left-pad' imported from /repo/src/index.js" });
+    output: `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'left-pad' imported from ${root}/src/index.js` });
   const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
   expect(result).toMatchObject({ kind: "result", exitCode: 1, result: { checks: [{ id: "lint", outcome: "failed" }] } });
   if (result.kind !== "result") throw new Error(result.error.message);

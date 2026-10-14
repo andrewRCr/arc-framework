@@ -1,10 +1,15 @@
 /** Recognizes a check that failed because a package its npm lockfile declares is not installed. */
 import { access, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
-/** Node's ESM loader names the package; its CommonJS loader and type checkers name the full specifier. */
-const MISSING_PACKAGE = /Cannot find package '([^']+)'/gu;
-const MISSING_MODULE = /Cannot find module '([^']+)'/gu;
+/**
+ * Node's ESM loader names the package and the file importing it; its CommonJS loader and type checkers name the full
+ * specifier alone.
+ */
+const MISSING = /Cannot find (?:package|module) '([^']+)'(?: imported from ([^\r\n]+))?/gu;
+
+/** A package an import could not resolve, and the directory resolution starts from when the message names it. */
+interface MissingImport { name: string; from?: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -19,15 +24,35 @@ function packageName(specifier: string): string | undefined {
   return second === undefined || second === "" ? undefined : `${first}/${second}`;
 }
 
-function missingPackageNames(output: string): string[] {
-  const specifiers = [...output.matchAll(MISSING_PACKAGE), ...output.matchAll(MISSING_MODULE)].map(match => match[1] ?? "");
-  return [...new Set(specifiers.map(packageName).filter((name): name is string => name !== undefined))];
+function missingImports(output: string): MissingImport[] {
+  const imports = new Map<string, MissingImport>();
+  for (const [, specifier = "", importer] of output.matchAll(MISSING)) {
+    const name = packageName(specifier);
+    if (name === undefined) continue;
+    const path = importer?.trim();
+    const from = path !== undefined && isAbsolute(path) ? dirname(path) : undefined;
+    imports.set(`${name}\0${from ?? ""}`, from === undefined ? { name } : { name, from });
+  }
+  return [...imports.values()];
+}
+
+/** npm 6's lockfile nests each package under its dependent's `dependencies`; key them by install path as later versions do. */
+function legacyPackages(dependencies: Record<string, unknown>, parent = ""): Record<string, unknown> {
+  const packages: Record<string, unknown> = {};
+  for (const [name, entry] of Object.entries(dependencies)) {
+    const location = `${parent}node_modules/${name}`;
+    packages[location] = entry;
+    if (isRecord(entry) && isRecord(entry.dependencies)) Object.assign(packages, legacyPackages(entry.dependencies, `${location}/`));
+  }
+  return packages;
 }
 
 async function readLockedPackages(directory: string): Promise<Record<string, unknown> | undefined> {
   try {
     const lockfile: unknown = JSON.parse(await readFile(join(directory, "package-lock.json"), "utf8"));
-    return isRecord(lockfile) && isRecord(lockfile.packages) ? lockfile.packages : undefined;
+    if (!isRecord(lockfile)) return undefined;
+    if (isRecord(lockfile.packages)) return lockfile.packages;
+    return isRecord(lockfile.dependencies) ? legacyPackages(lockfile.dependencies) : undefined;
   } catch {
     return undefined;
   }
@@ -42,36 +67,54 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/** Install locations the lockfile records for a package, leaving out optional ones npm may rightly skip. */
-function lockedLocations(name: string, packages: Record<string, unknown>): string[] {
-  return Object.entries(packages)
-    .filter(([key, entry]) => (key === `node_modules/${name}` || key.endsWith(`/node_modules/${name}`))
-      && !(isRecord(entry) && entry.optional === true))
-    .map(([key]) => key);
+/**
+ * The lockfile's install locations for a package that Node's resolver searches from a directory: its own
+ * `node_modules` and each ancestor's up to the lockfile's, leaving out optional entries npm may rightly skip.
+ */
+function reachableLocations(name: string, lockDirectory: string, from: string, packages: Record<string, unknown>): string[] {
+  const path = relative(lockDirectory, from);
+  if (path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)) return [];
+  const segments = path === "" ? [] : path.split(sep);
+  const locations: string[] = [];
+  for (let depth = segments.length; depth >= 0; depth--) {
+    const location = [...segments.slice(0, depth), "node_modules", name].join("/");
+    const entry = packages[location];
+    if (entry !== undefined && !(isRecord(entry) && entry.optional === true)) locations.push(location);
+  }
+  return locations;
+}
+
+async function uninstalledPackages(imports: readonly MissingImport[], checkDirectory: string, lockDirectory: string,
+  packages: Record<string, unknown>): Promise<string[]> {
+  const missing = new Set<string>();
+  for (const { name, from = checkDirectory } of imports) {
+    if (missing.has(name)) continue;
+    const locations = reachableLocations(name, lockDirectory, from, packages);
+    if (locations.length === 0) continue;
+    const installed = await Promise.all(locations.map(location => exists(join(lockDirectory, location))));
+    if (!installed.includes(true)) missing.add(name);
+  }
+  return [...missing];
 }
 
 /**
- * Name the packages a check's output could not resolve that the npm lockfile declares and no install location holds.
- * A package the lockfile does not declare is a defect in the checked code rather than an install gap, so it is left
- * out, as is every package when no directory has a `package-lock.json`.
+ * Name the packages a check's output could not resolve that the npm lockfile declares within the importer's reach, yet
+ * none of those install locations holds. Resolution starts from the importing file's directory where an ESM loader
+ * message names it, and from the check's own directory otherwise. A package the lockfile does not declare there is a
+ * defect in the checked code rather than an install gap, so it is left out, as is every package when no directory
+ * has a `package-lock.json`.
  * @param output - The check's combined output
- * @param directories - Directories to read `package-lock.json` from, in order; the first that has one is used
- * @returns Declared packages missing from every install location the lockfile records for them
+ * @param directories - The check's own directory, then further directories to read `package-lock.json` from in order;
+ * the first that has one is used
+ * @returns Declared packages missing from every install location the importer can resolve
  */
 export async function findUninstalledLockedPackages(output: string, directories: readonly string[]): Promise<string[]> {
-  const names = missingPackageNames(output);
-  if (names.length === 0) return [];
+  const imports = missingImports(output);
+  const [checkDirectory] = directories;
+  if (imports.length === 0 || checkDirectory === undefined) return [];
   for (const directory of directories) {
     const packages = await readLockedPackages(directory);
-    if (packages === undefined) continue;
-    const missing: string[] = [];
-    for (const name of names) {
-      const locations = lockedLocations(name, packages);
-      if (locations.length === 0) continue;
-      const installed = await Promise.all(locations.map(location => exists(join(directory, location))));
-      if (!installed.includes(true)) missing.push(name);
-    }
-    return missing;
+    if (packages !== undefined) return uninstalledPackages(imports, checkDirectory, directory, packages);
   }
   return [];
 }
