@@ -161,6 +161,11 @@ vi.mock("../../src/lib/release/wu-resolution.js", () => ({
   resolveActiveWu: (opts: unknown) => mockResolveActiveWu(opts),
 }));
 
+const mockReadPushGateRefusal = vi.fn();
+vi.mock("../../src/lib/checks/push-gate-record.js", () => ({
+  readCheckoutPushGateRefusal: async (input: unknown) => (await mockReadPushGateRefusal(input)) ?? null,
+}));
+
 const { handleSync } = await import("../../src/handlers/sync.js");
 
 // --- Test helpers ---
@@ -622,6 +627,67 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("names the push gate's failing checks, log, and retry when the gate refuses a worktree push", async () => {
+    mockGitExec.mockImplementation(scriptGitExec([
+      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+      { match: { prefix: ["push"] }, responses: [{ failure: { exitCode: 1, stderr: "error: failed to push some refs" } }] },
+      { match: { prefix: ["diff"] }, responses: [{ stdout: "", stderr: "" }] },
+    ]).exec);
+    setConfig("on-sync");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    const gate = { checks: [{ id: "lint:md:underwrap", outcome: "failed", logPath: "/repo/.git/arc-checks/underwrap.log",
+      remedy: "arc check run lint:md:underwrap --range abc1234" }] };
+    mockReadPushGateRefusal.mockResolvedValue(gate);
+
+    const outcome = await captureSyncJson();
+
+    expect(mockReadPushGateRefusal).toHaveBeenCalledWith(expect.objectContaining({ cwd: "/repo", branch: "main" }));
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed", detail: "push gate refused: lint:md:underwrap failed",
+      gate });
+    expect(capturedStderr.join("\n")).toContain("Retry: arc check run lint:md:underwrap --range abc1234");
+    expect(capturedStderr.join("\n")).toContain("log: /repo/.git/arc-checks/underwrap.log");
+  });
+
+  it("names the push gate's refusal in the paired JSON envelope", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: { status: "success", result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] } },
+      worktree: { status: "failed", error: new Error("git push: nonzero-exit (exit 1): error: failed to push some refs") },
+      notes: { status: "skipped", reason: "preceding-leg-failed" },
+      conditions: [],
+      exitCode: 1,
+    });
+    mockReadPushGateRefusal.mockResolvedValue({ error: "arc dev build is stale", checks: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed",
+      detail: "push gate could not run: arc dev build is stale", gate: { error: "arc dev build is stale", checks: [] } });
+  });
+
+  it("keeps Git's message when the gate recorded no refusal for the failed push", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: { status: "success", result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] } },
+      worktree: { status: "failed", error: new Error("git push: nonzero-exit (exit 1): ! [rejected] main (fetch first)") },
+      notes: { status: "skipped", reason: "preceding-leg-failed" },
+      conditions: [],
+      exitCode: 1,
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.worktree).toEqual({ action: "push", result: "failed",
+      detail: "git push: nonzero-exit (exit 1): ! [rejected] main (fetch first)" });
   });
 
   it("both manual → save only; no pushes; unpushed state surfaced in output", async () => {
