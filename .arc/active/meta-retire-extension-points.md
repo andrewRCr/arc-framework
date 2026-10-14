@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Retire extension validators and hook branches (line ~15)
+- **Last Completed:** Task 5.5 — Verify complete retirement (Phase 5 complete)
+- **Next Task:** Task 6.1 — Complete verification (line ~207)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Retire extension validators and hook branches
+- **Next Action:** In a fresh session, begin Task 6.1 via `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
