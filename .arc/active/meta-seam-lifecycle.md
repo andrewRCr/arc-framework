@@ -1,8 +1,8 @@
 # Metadata: Seam Lifecycle
 
-| **State**  | **Owner** | **Branch**            | **Class** | **Priority** |
-| ---------- | --------- | --------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/seam-lifecycle` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**            | **Class** | **Priority** |
+| --------- | --------- | --------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/seam-lifecycle` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-seam-lifecycle.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Pass `arc start --from` seeds through, and refuse `--from` on the spawning arm
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — the cold start takes a `draft-` or `spec-` seed as a document (Task 1.1.a)
 
 - **PR URL:** [none]
 - **Completed:** [none]
