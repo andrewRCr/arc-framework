@@ -64,12 +64,12 @@ mode and one-run invocation override, and any approved ceiling override as `--la
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
 option when the method is inactive. A user-directed skip of an enabled frontline lane is
 `lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. An explicit Owner selection
-of a configured standard source is
-`lanes.standard.invocation: { mode: "force", sourceId: "<source-id>" }`; configured order remains the default when
-it is absent. After the active Work Unit Owner explicitly accepts the current review terminus, carry
-`lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports a distinct
-`owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
-decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
+of a configured standard source is `lanes.standard.invocation: { mode: "force", sourceId: "<source-id>" }`; configured
+order remains the default when it is absent. After the active Work Unit Owner explicitly accepts the current review
+terminus, carry `lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports
+a distinct `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The
+Owner's decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains
+current.
 
 For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase
 is open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate

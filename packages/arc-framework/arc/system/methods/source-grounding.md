@@ -67,13 +67,19 @@ that it does what the claim says. Existence alone does not pass.
 
 **Propagation.** For each rule, concept, or complete-list claim, search everything it governs in the artifact and
 its upstream chain. Where the rule or list concerns code, tools, or shipped rules, search source too — callers,
-importers, and registries, by search or probe. A claim that a list is complete or that a composed outcome set covers
-every case belongs to this sweep.
+importers, and registries, by search or probe. The target bounds which claims are checked; for each claim inside it, the
+sweep's reach comes from source — the importers and callers of the symbols it names — never from the artifact's own
+scope or file list, which is itself a claim under check. Where the design or a proposed repair removes or changes an
+invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source and check
+each against the change. A claim that a list is complete or that a composed outcome set covers every case belongs to
+this sweep.
 
 **Reach.** Ground at source everything the artifact claims exists outside itself: code behavior, external tools,
 configuration, and what shipped rules and methods require. Re-ground inherited claims at source rather than citing
-the upstream artifact. Fidelity to upstream decisions stays with the stage's alignment checks; internal
-cross-references and use of defined terms stay with its coherence checks.
+the upstream artifact. An inherited premise that behavior stays unchanged is a claim about the implementation it relies
+on: ground it per class of caller — those that read, write, or list through it — tracing each class's path on its own,
+since a premise can hold for writes and fail for reads. Fidelity to upstream decisions stays with the stage's alignment
+checks; internal cross-references and use of defined terms stay with its coherence checks.
 
 **Proposed repairs.** At `fold` scope, ground a repair before it is proposed, not only once it lands. Check what a
 proposed repair asserts outside the artifact — what code or a tool does, what another artifact covers, how far a

@@ -8,6 +8,9 @@ import { access, readFile } from "node:fs/promises";
 
 import * as p from "../lib/terminal.js";
 import { z } from "zod";
+import { UserInboxRemoveInputSchema, type UserInboxRemoveOptions } from "./user-inbox-remove-input.js";
+
+export { UserInboxRemoveInputSchema, type UserInboxRemoveOptions } from "./user-inbox-remove-input.js";
 
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
@@ -384,25 +387,6 @@ export async function handleUserClose(wuName: string): Promise<void> {
 }
 
 export { handleUserInboxList, type UserInboxListCommandOptions } from "./user-inbox-list.js";
-
-/** Options for the `arc user inbox-remove` subcommand. */
-export interface UserInboxRemoveOptions {
-  /** UTF-8 file containing the capture's inner bold title, or `-` for stdin. */
-  inboxTitleFile?: string;
-  /** Compatibility alias of `inboxTitleFile`. */
-  inboxEntryFile?: string;
-}
-
-/** Validated, mutually exclusive title sources for inbox removal. */
-export const UserInboxRemoveInputSchema = z.object({
-  literal: z.string().min(1).optional(),
-  inboxTitleFile: z.string().min(1).optional(),
-  inboxEntryFile: z.string().min(1).optional(),
-}).strict().superRefine((value, refinement) => {
-  const count = [value.literal, value.inboxTitleFile, value.inboxEntryFile]
-    .filter((candidate) => candidate !== undefined).length;
-  if (count !== 1) refinement.addIssue({ code: "custom", message: "Provide exactly one inbox title source." });
-});
 
 /**
  * Drop the slug-matched entry from the developer's `USER-INBOX`. Idempotent —

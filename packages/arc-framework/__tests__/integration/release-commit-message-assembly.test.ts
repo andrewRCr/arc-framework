@@ -343,6 +343,7 @@ describe("latest retry message", () => {
           return retry;
         },
         cleanupConsumedMessageRetry: retryStore.cleanup,
+        listRemoteRefsContainingHead: async () => [],
         preflightRemedy: "unused",
         writeStderr: (message) => { stderr.push(message); },
         appendAudit: async () => ({ ok: true }),
@@ -380,6 +381,7 @@ describe("latest retry message", () => {
         createMessageSnapshot: snapshotMessage,
         persistMessageRetry: retryStore.persist,
         cleanupConsumedMessageRetry: retryStore.cleanup,
+        listRemoteRefsContainingHead: async () => [],
         preflightRemedy: "unused",
         writeStderr: (message) => { stderr.push(message); },
         appendAudit: async () => ({ ok: true }),

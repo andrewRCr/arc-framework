@@ -642,3 +642,50 @@ describe("release commit body wrapping", () => {
     expect(await readHookLog()).toEqual([]);
   });
 });
+
+describe("release commit amend", () => {
+  it("amends an unpushed HEAD, then refuses once HEAD is pushed, naming the ref", async () => {
+    const commit = await runCli(["release", "commit", "-m", "feat(release): add the tracked change"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+    expect(commit.exitCode).toBe(0);
+    await writeFile(join(repository, "tracked.txt"), "amended\n");
+    await git(["add", "tracked.txt"]);
+
+    const unsourced = await runCli(["release", "commit", "--amend", "--no-edit"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+    expect(unsourced.exitCode).toBe(16);
+    expect(unsourced.stderr).toContain("arc release commit --amend --no-edit -F <message-file>");
+
+    const amended = await runCli(["release", "commit", "--amend", "-m", "feat(release): add the tracked change"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(amended.exitCode).toBe(0);
+    expect(await readHookLog()).toEqual(["pre-commit", "commit-msg", "pre-commit", "commit-msg"]);
+    expect(await gitOutput(["log", "--format=%s"])).toBe("feat(release): add the tracked change\ninitial");
+    expect(await gitOutput(["show", "HEAD:tracked.txt"])).toBe("amended");
+
+    const remote = join(repository, ".git", "push-target.git");
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await git(["remote", "add", "origin", remote]);
+    await git(["push", "-u", "origin", "main"]);
+    const pushed = await gitOutput(["rev-parse", "HEAD"]);
+    await writeFile(join(repository, "tracked.txt"), "again\n");
+    await git(["add", "tracked.txt"]);
+
+    const refused = await runCli(["release", "commit", "--amend", "-m", "feat(release): add the tracked change"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(refused.exitCode).toBe(12);
+    expect(refused.stderr).toContain("`--amend` would rewrite `HEAD`, which is already on `origin/main`.");
+    expect(await gitOutput(["rev-parse", "HEAD"])).toBe(pushed);
+    expect(await readHookLog()).toHaveLength(4);
+  });
+});

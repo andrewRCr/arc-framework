@@ -6,7 +6,7 @@
  * compare normalized bytes without sorting keys or rebuilding the payload.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -196,8 +196,9 @@ describe("recovery-audit wire compatibility", () => {
 
   it("locks the complete post-seed dirty-path-drift report", async () => {
     fixture = await prepareSessionEnvelopeFixture("active-resume");
+    await writeFile(join(fixture.cwd, "dirty-before-seed.txt"), "work\n");
     await writeSeed(fixture);
-    await writeFile(join(fixture.cwd, "dirty-after-seed.txt"), "drift\n");
+    await rm(join(fixture.cwd, "dirty-before-seed.txt"));
     const normalized = await capture(fixture, ["recover", "audit", "--json"]);
     expect(normalized.verdict).toMatchObject({
       status: "stop",
@@ -207,6 +208,21 @@ describe("recovery-audit wire compatibility", () => {
       ]),
     });
     await expectGolden("recovery-audit-dirty-path-drift.json", normalized);
+  });
+
+  it("explains files dirtied after the seed as work in progress", async () => {
+    fixture = await prepareSessionEnvelopeFixture("active-resume");
+    await writeSeed(fixture);
+    await writeFile(join(fixture.cwd, "dirty-after-seed.txt"), "drift\n");
+    const normalized = await capture(fixture, ["recover", "audit", "--json"]);
+    expect(normalized.verdict).toMatchObject({
+      status: "ready",
+      stopReasons: [],
+      explainedDrift: [expect.objectContaining({
+        kind: "dirty-path-drift",
+        detail: expect.objectContaining({ resolvedPaths: [], addedPaths: ["dirty-after-seed.txt"] }),
+      })],
+    });
   });
 
   it("keeps missing and invalid seed stops targeted and machine-readable", async () => {

@@ -1,10 +1,16 @@
 /** Native process boundary shared by declared checks and CI invocation playback. */
 import { mkdtemp, open, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import { environmentForGitCwd } from "../git/process-executor.js";
 import type { CheckContentContext } from "../../handlers/check/run.js";
+
+/** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
+function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined {
+  const number = signal === undefined ? undefined : constants.signals[signal];
+  return number === undefined ? undefined : 128 + number;
+}
 
 /** Longest notice a check may report, so it stays one short line of the summary. */
 const NOTICE_LIMIT = 200;
@@ -56,7 +62,8 @@ async function readNotice(noticeFile: string): Promise<string | undefined> {
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
  * @param policy - Shell, output and checked-index policy
- * @returns Native execution status, diagnostics, and any notice the command reported
+ * @returns Native execution status, with a signal's end reported as a shell's exit status for it, diagnostics, and
+ * any notice the command reported
  */
 export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string }> {
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
@@ -68,7 +75,7 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
     const notice = noticeFile === undefined ? undefined : await readNotice(noticeFile);
-    return { started, exitCode: result.exitCode ?? 1, stdout: result.stdout,
+    return { started, exitCode: result.exitCode ?? signalExitCode(result.signal) ?? 1, stdout: result.stdout,
       output: [result.stdout, result.stderr, ...(!started ? [result.originalMessage] : [])].filter(Boolean).join("\n"),
       ...(notice === undefined ? {} : { notice }) };
   } finally {

@@ -115,6 +115,10 @@ function renderDerivedCleanup(row: DerivedCheckoutRow, entering: DerivedCheckout
     return [`Cleanup is available for retired checkout ${row.checkout.path}.`];
   }
   if (row.kind === "unresolved-checkout") {
+    const retry = row.diagnostics.find((diagnostic) => diagnostic.code === "pending-errand-provisioning");
+    if (retry !== undefined && entering.kind === "free-primary") {
+      return [`Provisioning is incomplete at ${row.checkout.path}. ${retry.message} Primary: ${entering.checkout.path}.`];
+    }
     if (!enteringRow) return [];
     const activeCandidateSchemaSkew = row.subject?.kind === "work-unit"
       && row.lifecycleLocation === "active"

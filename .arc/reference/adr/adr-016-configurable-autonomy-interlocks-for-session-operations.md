@@ -22,10 +22,9 @@ Other instances:
 - Commit control is stated in [DEV-RULES.ARC][dev-rules-arc] as a non-negotiable principle, but it functions as a
   sensible default. The real invariant is that the agent doesn't cross the merge-to-main boundary without the human.
 - Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
-  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
-  `plan-agile-wu-lifecycle.md`) each tackle session-operational facets, but without a shared frame they
-  risk local fixes that don't compose — and worktree mobility amplifies the pressure past what per-commit approval
-  ceremony can absorb without smoothing.
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`, `plan-agile-wu-lifecycle.md`) each tackle
+  session-operational facets, but without a shared frame they risk local fixes that don't compose — and worktree
+  mobility amplifies the pressure past what per-commit approval ceremony can absorb without smoothing.
 
 **Core insight:** Review is always human. The design axis is how many follow-on operations a single human approval
 triggers, not whether approval happens. Integration — merge to the integration branch or main — is the invariant
@@ -180,8 +179,8 @@ is _engaged_ by default until the user explicitly releases it.
 ### Positive
 
 - Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
-  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
-  `plan-agile-wu-lifecycle.md`) gain a shared frame. Each becomes smaller and internally coherent.
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`, `plan-agile-wu-lifecycle.md`) gain a shared
+  frame. Each becomes smaller and internally coherent.
 - Worktree/notes sync consistency becomes expressible — both operations pair at the same interlock with fixed
   ordering.
 - Status-file churn is eliminated for task-completion commits; commit atomicity story clarifies.

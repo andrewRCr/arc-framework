@@ -12,6 +12,7 @@ import {
   COMMIT_DESTRUCTIVE_FLAGS,
   PUSH_DESTRUCTIVE_FLAGS,
   PUSH_REFSPEC_FORCE_IDENTIFIER,
+  detectCommitAmend,
   detectCommitDestructive,
   detectPushDestructive,
 } from "../../../src/lib/release/destructive-flags.js";
@@ -19,7 +20,6 @@ import {
 describe("destructive-flags — commit refusal list", () => {
   it("exports the documented commit refusal list exactly", () => {
     expect([...COMMIT_DESTRUCTIVE_FLAGS]).toEqual([
-      "--amend",
       "--allow-empty",
       "--no-verify",
       "-n",
@@ -50,7 +50,6 @@ describe("detectCommitDestructive", () => {
   });
 
   it.each([
-    ["--amend"],
     ["--allow-empty"],
     ["--no-verify"],
     ["-n"],
@@ -59,7 +58,11 @@ describe("detectCommitDestructive", () => {
   });
 
   it("returns the first match when multiple destructive flags are present", () => {
-    expect(detectCommitDestructive(["--no-verify", "--amend"])).toBe("--no-verify");
+    expect(detectCommitDestructive(["--no-verify", "--allow-empty"])).toBe("--no-verify");
+  });
+
+  it("leaves --amend to the pushed-HEAD check rather than refusing it outright", () => {
+    expect(detectCommitDestructive(["--amend", "--no-edit"])).toBeNull();
   });
 
   it.each(["-qn", "-nq", "-qnmmessage"])(
@@ -76,7 +79,7 @@ describe("detectCommitDestructive", () => {
   it.each([
     ["separated short message", ["-m", "-n"]],
     ["separated long message", ["--message", "--no-verify"]],
-    ["separated file source", ["-F", "--amend"]],
+    ["separated file source", ["-F", "--allow-empty"]],
     ["ordinary required operand", ["--author", "--allow-empty"]],
     ["short message cluster", ["-qm", "-n"]],
     ["pathspec after terminator", ["--", "-n"]],
@@ -87,6 +90,25 @@ describe("detectCommitDestructive", () => {
 
   it("does not match destructive flags from the push list", () => {
     expect(detectCommitDestructive(["--force"])).toBeNull();
+  });
+});
+
+describe("detectCommitAmend", () => {
+  it.each([
+    [["--amend"]],
+    [["--amend", "--no-edit"]],
+    [["-m", "subject", "--amend"]],
+  ])("reports an amend in %j", (args) => {
+    expect(detectCommitAmend(args)).toBe(true);
+  });
+
+  it.each([
+    ["no amend", ["-m", "subject"]],
+    ["separated message operand", ["-m", "--amend"]],
+    ["separated file operand", ["-F", "--amend"]],
+    ["pathspec after terminator", ["--", "--amend"]],
+  ])("does not report an amend for %s", (_label, args) => {
+    expect(detectCommitAmend(args)).toBe(false);
   });
 });
 

@@ -186,8 +186,7 @@ the envelope uniformly.
 
 ## Classification Criteria
 
-When adding new content to ARC — strategy docs, method overrides, workflow
-guidance — classify it by asking:
+When adding new content to ARC — strategy docs, method overrides, workflow guidance — classify it by asking:
 
 **T1 — Constitutional?**
 
@@ -250,11 +249,10 @@ initiates the activity.
 ## Method Loading
 
 **Declaration mechanism.** Each workflow or method declares only the methods its own body may fire. Workflow
-declarations root a deduplicated transitive method graph, so a workflow
-never repeats its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring] for the schema. The
-frontmatter's `arc.methods` array is the declaration contract; the direct body fire-point
-triggers the load. An in-step Markdown link is a trigger only when that step uses it to invoke the named method;
-purely navigational links are not fire-points.
+declarations root a deduplicated transitive method graph, so a workflow never repeats its methods' dependencies. See
+[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` array is the
+declaration contract; the direct body fire-point triggers the load. An in-step Markdown link is a trigger only when that
+step uses it to invoke the named method; purely navigational links are not fire-points.
 
 ### Per-file Frontmatter Schema
 
@@ -563,13 +561,12 @@ commit, multiple atomic commits, or iteration before committing.
 A review-fix round has one structured gate: the complete-set approval of its finding
 dispositions. Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}` that approval
 releases the commit-interlock for the approved fixes, and under `arc.pushInterlock: on-workflow`
-it also releases their push and the approved hosted settlement. A `manual` setting keeps its own
-stop. The approval prompt names what it releases — for example
-`Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?` — and the
-round reports its result as information rather than as a new gate. The round returns to the
-approver when the performed fix exceeds the approved scope, a verification or gate failure is
-not a deterministic same-concern correction, host state is ambiguous, or a new finding arrives.
-Merge stays behind the integration-interlock.
+it also releases their push and the approved hosted settlement. A `manual` setting
+keeps its own stop. The approval prompt names what it releases — for example
+`Approve: 3 fixes → verify → commit → push → settle 2 threads → standard pass 2?` — and the round reports its result as
+information rather than as a new gate. The round returns to the approver when the performed fix exceeds the approved
+scope, a verification or gate failure is not a deterministic same-concern correction, host state is ambiguous, or a new
+finding arrives. Merge stays behind the integration-interlock.
 
 ### Push-Timing Reasoning
 
@@ -689,9 +686,8 @@ phase — there is no planning-variant. The `**State:**` field carries the phase
 CLI scaffold from a single field definition, so the rendered and parsed views cannot drift apart.
 
 **Always-present fields with `[none]` markers.** Every managed field is always present; empty optional fields
-use the `[none]` literal. Consumers (the probe, session-init,
-handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
-branching.
+use the `[none]` literal. Consumers (the probe, session-init, handoff workflow) get a uniform parse surface — no
+field-omission ambiguity, no per-state shape branching.
 
 **Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Design:**`) carry bare
 filenames. Path resolution derives from `dirname(meta-file)` — co-location of status, task list, and
@@ -874,11 +870,11 @@ span — the backticks signalling data the sweep reads, not prose. It is boolean
 renders only when `true`; the parser reads its absence as `false` — the same render rule `WU_Target`
 follows, where a managed field appears only at its non-default value. Flagged entries carry a
 tool-stamped `_Created:_` date descriptor (value backtick-delimited) as the aging anchor;
-`inbox.remind_after_days` (default 1) sets the delay before the first
-nudge (never the same day), and the nudge is rate-limited to once per calendar day until a housekeep
-drain clears the entry. The reminder is personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits
-the same field grammar but is never nudged (it has no singular owner). How `arc-inbox` constructs the
-field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
+`inbox.remind_after_days` (default 1) sets the delay before the first nudge (never the same day), and the nudge is
+rate-limited to once per calendar day until a housekeep drain clears the entry. The reminder is
+personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits the same field grammar but is never nudged (it has no
+singular owner). How `arc-inbox` constructs the field and stamps the date lives with that skill; this surface documents
+the grammar and the behavior.
 
 **Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
 **retain** a `## Errand` capture in place rather than route or flush it — to hold it privately until
@@ -1038,9 +1034,8 @@ tool-or-prompt boundary after compaction on Codex, where a session-scoped pendin
 requirement until recovery clears it. On Codex the tool and user-prompt channels share an atomic
 per-marker claim, so each pending marker's requirement is injected exactly once — no duplicate fires
 across parallel tool calls or the two channels — and the injection brackets the recovery window with
-`PENDING`/`COMPLETE` banners.
-`clear` remains deliberately unhooked for recovery; Codex may run a cleanup-only clear hook to remove
-a stale pending marker. If hooks are not installed, run the manual fallback when compaction erases ARC
+`PENDING`/`COMPLETE` banners. `clear` remains deliberately unhooked for recovery; Codex may run a cleanup-only clear
+hook to remove a stale pending marker. If hooks are not installed, run the manual fallback when compaction erases ARC
 operating context.
 
 Recovery restores ARC's operating context. It does not reload on-demand context that was pulled

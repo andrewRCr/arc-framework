@@ -18,6 +18,31 @@ describe("arc user inbox-remove", () => {
     await cleanupTempDir(tmpDir);
   });
 
+  it("names conflicting title sources, preserves the inbox, and permits a one-source retry", async () => {
+    const title = "seam-lifecycle";
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Observation:_ remove safely.\n\n---\n`;
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf8");
+
+    const refused = await runArcWithStdin(
+      ["user", "inbox-remove", title, "--inbox-title-file", "-"], tmpDir, `${title}\n`,
+    );
+    expect(refused.exitCode).toBe(1);
+    const output = refused.stdout + refused.stderr;
+    expect(output).toContain('positional title "seam-lifecycle"');
+    expect(output).toContain('--inbox-title-file "-"');
+    expect(output).toContain("arc user inbox-remove --inbox-title-file <path>");
+    expect(await readFile(inboxPath, "utf8")).toBe(inbox);
+
+    const retry = await runArcWithStdin(
+      ["user", "inbox-remove", "--inbox-title-file", "-"], tmpDir, `${title}\n`,
+    );
+    expect(retry.exitCode).toBe(0);
+    expect(await readFile(inboxPath, "utf8")).not.toContain(title);
+  });
+
   it("removes a Markdown-bearing capture title supplied through a file", async () => {
     const title = "Remove `arc inbox` after $(capture)";
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");

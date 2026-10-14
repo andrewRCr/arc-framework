@@ -316,11 +316,14 @@ describe("trusted review-gate workflows", () => {
     const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && " +
       "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
       "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
-    expect(jobValue(workflow, "e2e").if).toBe(broadSuiteCondition);
-    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
-    // A light run still owes the integration suite when the change touches content it reads that the weight leaves
-    // out, so integration and the build it consumes also run on the integration target.
     const integrationTarget = "needs.classify.outputs.integration_target == 'true'";
+    const contentSuiteCondition = broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    );
+    expect(jobValue(workflow, "e2e").if).toBe(contentSuiteCondition);
+    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
+    // Both suites read content outside the verified code tree, and the shared target also requests their build.
     expect(jobValue(workflow, "integration").if).toBe(broadSuiteCondition.replace(
       "needs.classify.outputs.weight != 'light')",
       `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
@@ -676,6 +679,16 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toMatch(softWrappedPattern(/same\s+hosted[^.]*action/iu));
       expect(pendingInspection).toMatch(softWrappedPattern(/exact\s+head[^.]*draft\s+lock/iu));
       expect(pendingInspection).toMatch(softWrappedPattern(/does\s+not[^.]*review\s+settlement/iu));
+      const draftLock = packaged.indexOf("release the draft lock.", checksAwait);
+      expect(draftLock).toBeGreaterThan(checksAwait);
+      const pushRule = packaged.slice(draftLock, draftLock + 700);
+      expect(pushRule).toMatch(softWrappedPattern(
+        /before\s+any\s+push\s+that\s+moves\s+the\s+reviewed\s+head\s+while\s+this\s+action\s+is\s+pending/iu,
+      ));
+      expect(pushRule).toMatch(softWrappedPattern(/through\s+hosted\s+await\s+until\s+it\s+concludes/iu));
+      expect(pushRule).toMatch(softWrappedPattern(
+        /`pending \/ inspect-or-extend`,\s+push\s+only\s+on\s+explicit\s+Owner\s+direction/iu,
+      ));
     }
   });
 

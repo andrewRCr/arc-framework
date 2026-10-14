@@ -600,7 +600,8 @@ function resolveEnvelope(
   });
 }
 
-function sourceDiagnostic(
+/** Describe a registered source's eligibility for one lane, scope, and target. */
+export function sourceDiagnostic(
   sourceId: string,
   lane: ReviewPolicyRequest["lane"],
   scope: z.infer<typeof ReviewScopeModeSchema>,
@@ -1030,7 +1031,8 @@ function resolveInvalidOverrideReason(
   return null;
 }
 
-function isSafeUnavailable(outcome: ReviewAttempt["outcome"]): boolean {
+/** Whether a source outcome permits falling through to the next configured source. */
+export function isSafeUnavailable(outcome: ReviewAttempt["outcome"]): boolean {
   return outcome === "rate-limited" || outcome === "transient-unavailable";
 }
 
