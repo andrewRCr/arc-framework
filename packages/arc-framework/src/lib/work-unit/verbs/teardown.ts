@@ -588,7 +588,7 @@ async function teardownBranchProjection(
     const holdingMarker = registered === undefined ? null : await (ctx.readMarker ?? readWorktreeMarker)(registered.path);
     const anchored = holdingMarker?.kind === "present" && !holdingMarker.marker.spawnedByArc;
     const removal = registered === undefined ? null : await checkWorktreeRemoval({ exec, checkoutPath: registered.path,
-      disposition: anchored ? "release" : "remove", folderExists: (path) => fs.directoryExists(path), check: ctx.projectionRemovalSlots?.check });
+      disposition: anchored || registered.path === primaryPath ? "release" : "remove", folderExists: (path) => fs.directoryExists(path), check: ctx.projectionRemovalSlots?.check });
     if (removal?.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal),
       ...(removal.reason === "dirty" && selfTeardown ? { huskRefusal: "dirty" as const } : {}) };
     const folderPresent = removal?.kind !== "missing";
