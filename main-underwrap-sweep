@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "main-underwrap-sweep",
+  "claimId": "089144c4b25fe9f6b97138c31a965a3b",
+  "createdAt": "2026-10-14T03:42:27.219Z",
+  "updatedAt": "2026-10-14T03:42:27.219Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrap main's under-wrapped Markdown lines that block branches merging main",
+  "branch": "chore/main-underwrap-sweep",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
