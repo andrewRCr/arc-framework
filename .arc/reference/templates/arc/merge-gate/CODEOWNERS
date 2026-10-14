@@ -25,7 +25,7 @@
 
 # --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
 # No owner on these lines clears the catch-all above, so these paths merge once
-# `merge-ok` is green, with no required review. Keep this block LAST.
+# `ci-ok` is green, with no required review. Keep this block LAST.
 #
 # Scoped by artifact PREFIX, NOT all of backlog/ — so shared inboxes keep the
 # catch-all owner and stay reviewed. The exact generated ROADMAP is planning;
