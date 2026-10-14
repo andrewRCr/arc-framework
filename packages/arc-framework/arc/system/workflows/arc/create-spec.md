@@ -111,11 +111,10 @@ surfaces heavier derivation than the form assumed, fire the re-entry valve per
 
 ### Proportionality guard (all forms)
 
-As discovery crystallizes the settled design, run
-[`assess-design-proportionality`][assess-design-proportionality] with the chartered problem, the current spec
-candidate, and key existing substrate pointers when useful. Apply it at every form. On `proportionate`, continue
-silently. On `revise`, correct a wrong named mechanism, shape, or interface in the spec candidate when the design
-is already settled; when the finding exposes an unshaped or under-derived direction, fire
+As discovery crystallizes the settled design, run [`assess-design-proportionality`][assess-design-proportionality] with
+the chartered problem, the current spec candidate, and key existing substrate pointers when useful. Apply it at every
+form. On `proportionate`, continue silently. On `revise`, correct a wrong named mechanism, shape, or interface in the
+spec candidate when the design is already settled; when the finding exposes an unshaped or under-derived direction, fire
 [`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
 ### Scope-boundary carry-forward (all forms)

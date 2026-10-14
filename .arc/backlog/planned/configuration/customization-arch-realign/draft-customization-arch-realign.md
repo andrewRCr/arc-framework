@@ -327,9 +327,8 @@ execution time. With method `active` flags landing, loading should respect activ
   default. Today this is implicit via the method file's structure (override section comes first
   conceptually); verify in practice with partial-read instructions.
 
-Coordinate with `plan-instruction-optimization` (skill-load caching) and
-`plan-workflow-template-loads` (the `arc.templates` frontmatter category for templates) — all
-three touch the workflow-frontmatter-driven load surface.
+Coordinate with `plan-instruction-optimization` (skill-load caching) and `plan-workflow-template-loads` (the
+`arc.templates` frontmatter category for templates) — all three touch the workflow-frontmatter-driven load surface.
 
 ---
 

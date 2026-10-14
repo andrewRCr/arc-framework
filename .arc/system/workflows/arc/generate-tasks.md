@@ -470,8 +470,8 @@ pre-save checklist and bundles the commit.
       entry has a blank line after it; soft cap ~12 lines per preamble.
 - [ ] Segmentation diagnostics are clean for the saved task-list corpus. Run `npm run -s lint:md:descriptors`
       before the interlock; it scans tracked and untracked task lists and emits the structural diagnostic family.
-- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
-      [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
+- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see [strategy-task-list-formatting § Parent
+      Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
       style — keeps preview rendering consistent across parent and subtask). Bold when detail bullets follow.
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
@@ -563,12 +563,11 @@ Run this only for a selected delivery-plan candidate in an active Planning flow,
 adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
 section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
 
-For active authoring, obtain the generated strict contract with
-`arc delivery plan inventory schema --json`, then supply one caller-authored inventory containing the exact
-form-owned design elements and revision digests. Do not infer author-judgment elements or copy schema/hashing
-mechanics into this workflow. Create the transient map with
-`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`,
-fill only the author slots, and run `arc delivery compose --json`.
+For active authoring, obtain the generated strict contract with `arc delivery plan inventory schema --json`, then supply
+one caller-authored inventory containing the exact form-owned design elements and revision digests. Do not infer
+author-judgment elements or copy schema/hashing mechanics into this workflow. Create the transient map with
+`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`, fill only
+the author slots, and run `arc delivery compose --json`.
 
 Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
 `independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
