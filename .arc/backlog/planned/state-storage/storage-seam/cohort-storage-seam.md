@@ -95,6 +95,10 @@ with that member's planning. Already settled by the contract and not reopened: U
 (A3), the store's operations and versions, `StoreLifecycleStorage`, the layout resolver, identity resolution, and the
 Errand record's schema.
 
+Amended 2026-10-14 — `seam-lifecycle` amends A3 forward in `spec-seam-lifecycle.md` § 5.1 and § 18.2: branch entries
+of `LinksSchema` gain required `linkedAs` (`created` or `adopted`) and `excluded` fields: whether ARC created or
+adopted the branch, and which commits are no task's work.
+
 1. **Which verb writes which field** — `seam-record-kinds`, whose field writers serve every member that writes a meta or
    task list — `seam-lifecycle`, `seam-decomposition`, `seam-locus`, and `seam-delivery-review` — while
    `seam-status-roadmap` reads the fields.
@@ -130,9 +134,10 @@ Errand record's schema.
 13. **The completed-item refusal** — `storage-ref-backend`, settled at its draft close (Owner, 2026-10-10). On a clone
     lacking an ended item's history ref, a read as of a state version, `changes` from one, or a write to a completed
     item refuses with the unresolvable-state-version code, naming each history ref it lacks, and the calling verb pulls
-    them by name and retries, with no stop. `seam-locus`'s restate and recovery consume it, as do `seam-lifecycle`'s
-    reopen, which pulls first, and any member's verb that writes a completed item's records, a resolving write to one
-    of its conflict records among them.
+    them by name and retries, with no stop. `seam-locus`'s restate and recovery consume it, as does any member's verb
+    that writes a completed item's records, a resolving write to one of its conflict records among them. Reopen stays
+    Integrating to Active (`runReopen`); corrections to archived work write the completed item in place
+    (`spec-seam-lifecycle.md` § 8.7).
 
 Stays with its member: the review family's schemas and the working-state split (delivery and review); personal surfaces,
 claims, the inbox listing verb's name, and the growth and contention tripwires' bounds (locus); the close verb's name
@@ -183,6 +188,19 @@ Errands land after the contract and before the members:
   inside CLI verbs, never in workflow prose (D15); workflow text changes once, in `storage-cutover`'s flip rewrite.
   Today's behavior includes the contract's fail-closed observations (A10, A12–A14): an incomplete Git observation never
   stands in for absence, an empty tree, or reconciliation authority, and a rerouted caller keeps that distinction.
+
+  Amended 2026-10-14 — lifecycle's pre-flip exceptions follow `spec-seam-lifecycle.md` § 1.5. Its five fixes each
+  carry their own test:
+
+    - The seed fix.
+    - Removal checks precede the first write of abandon from Planning or Active, and park from Planning.
+    - The workspace closes after the transition's record writes.
+    - The removal function prunes a registration whose folder is gone.
+    - Activation refuses a work unit whose `Branch` names base.
+
+  The same section also admits behavior-preserving setup deletions, the doubled-force checkout move form,
+  dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
+  `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
@@ -246,9 +264,12 @@ member whose consumer-map partition holds it:
   projection part and the persist step are slots `storage-projection` fills, empty until it does. The function checks
   the folder first: a missing one skips the removal check and the persist step, and its registration is unlocked if
   locked, then pruned. Each member moves its callers that remove a checkout onto the function and those that decide or
-  report whether one can be removed onto the removal check. `seam-lifecycle` moves `lib/work-unit/verbs/teardown.ts` and
-  `lib/work-unit/mutators/reconcile-work-unit-worktree.ts` onto the function, and onto the check
-  `lib/work-unit/lifecycle-guards.ts`, whose guard refuses a park or abandon before any mutation fires. `seam-locus`
+  report whether one can be removed onto the removal check. `seam-lifecycle` moves teardown's two removals onto the
+  function: `reconcileWorkUnitWorktree`'s teardown arm (`lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) and
+  `cleanupGitOwnedDecomposeCandidate`, called from `lib/work-unit/verbs/teardown.ts`. Abandon, from Planning or Active,
+  and park from Planning run the check before their first write; park from Active already reaches the function through
+  teardown (`parkActive`). The unused `worktree-clean` guard (`makeWorktreeCleanGuard`,
+  `lib/work-unit/lifecycle-guards.ts`) is deleted rather than moved (`spec-seam-lifecycle.md` § 11.3). `seam-locus`
   moves onto the function the Errand's exits through `lib/errand/terminal-occupancy.ts`, one of the register row's two
   direct `git status` readers, and onto the check `lib/session-init/stale-worktree-sweep.ts`,
   `lib/session-init/branch-gone-recovery.ts`, `lib/session-init/lifecycle-residue-sweep.ts`, and `arc errand leave`'s
@@ -290,7 +311,8 @@ member whose consumer-map partition holds it:
   § The `active/` layout). D17's lock lands last, inside `storage-projection`'s own work, which depends on
   `seam-lifecycle` and `seam-locus`: only after the members have moved every removal of a projected checkout onto the
   removal function, every decision to remove one onto its removal check, and every move to the `-f -f` form. Until then
-  teardown's plain `git worktree remove` (`reconcile-work-unit-worktree.ts`) and the Errand close's
+  teardown's plain `git worktree remove` calls — `reconcile-work-unit-worktree.ts` and
+  `cleanupGitOwnedDecomposeCandidate`'s removal callback in `teardown.ts` — and the Errand close's
   (`lib/errand/terminal-occupancy.ts`) would refuse on every locked worktree, so `storage-projection` leaves those files
   to the members.
 
@@ -315,6 +337,9 @@ are named by mechanism.
   `arc save`, write-back, or the worktree lock (`storage-projection`); or the flip, its workflow rewrite, and the
   deletion passes (`storage-cutover`).
 - Change any workflow's text before the flip.
+
+  Amended 2026-10-14 — the seed fix changes the session-init cold-start step once, to treat a draft or spec as seed
+  input rather than `Design` (`spec-seam-lifecycle.md` § 13). The flip's workflow rewrite stays with `storage-cutover`.
 - Take the delivery follow-ons (`delivery-observe-attest`, `delivery-correction-convergence`), review-lane contracts
   (`review-activity-contracts`), or the durable Owner terminus (`review-source-authority`,
   `review-protocol-alignment`).
@@ -346,6 +371,9 @@ _Consumes:_ the contract's kind registry and its in-repo implementation (`create
 _Exposes:_ the transition write path through the contract — placement as a record field, abandonment's lineage, archival
 and the archive sequence, parking, rename and promotion, branchless planning's write half, and the Class verb — and the
 prepared-write protocol; shared decisions 10 and 12.
+
+Amended 2026-10-14 — from the flip, pause replaces parking in this member's exposed lifecycle moves
+(`spec-seam-lifecycle.md` § 8.1).
 
 _Consumes:_ record kinds' kinds and field writers, and locus's inbound kind (item 9).
 
