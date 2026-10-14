@@ -116,7 +116,7 @@ describe("prepublication workflow boundary", () => {
       expect(recordedAttention).toBeLessThan(mergeChecks);
       expect(verification).toContain("    - review-chunking");
       expect(verification.slice(recordedAttention, mergeChecks))
-        .toMatch(/metrics when the resolver\s+supplies them/u);
+        .toMatch(softWrappedProse("metrics when the resolver supplies them"));
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);

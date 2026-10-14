@@ -311,11 +311,11 @@ The vocabulary + method shape is what makes those extensions composable.
 **Parallel structural concept — first-class approval-provenance state (captured for evaluation, not adopted):**
 
 Today the agent reconstructs "what approval surface authorized this fire?" at every commit site —
-walking back through recent prompts, class-tag context, and interlock-mode config. A structurally
-cleaner shape carries approval-provenance as first-class session state:
-`currentApprovalProvenance: { source: "task" | "workflow" | "incidental-prompt" | null, scope, timestamp }`.
-Approval gates populate it; fire sites consume it. The fire-site decision collapses to "is provenance
-fresh and in-scope? fire (route per `releaseOptedIn`) : prompt to establish provenance."
+walking back through recent prompts, class-tag context, and interlock-mode config. A
+structurally cleaner shape carries approval-provenance as first-class session state:
+`currentApprovalProvenance: { source: "task" | "workflow" | "incidental-prompt" | null, scope, timestamp }`. Approval
+gates populate it; fire sites consume it. The fire-site decision collapses to "is provenance fresh and in-scope? fire
+(route per `releaseOptedIn`) : prompt to establish provenance."
 
 Composes with this plan because:
 
@@ -378,9 +378,8 @@ each ripple is small. Not atomic because the design decisions warrant a plan doc
 - **Soft sequencing preference.** Land before plan-interlock-release-wrappers —
   the wrapper's interlock-validation library is cleaner if the commit-increment vocabulary is
   established. Not strict.
-- **Soft sequencing preference.** Land before `plan-coord-probe.md` —
-  cross-machine resume contract benefits from the handoff-clean leaf-default being
-  established methodology, not retrofit.
+- **Soft sequencing preference.** Land before `plan-coord-probe.md` — cross-machine resume contract benefits from the
+  handoff-clean leaf-default being established methodology, not retrofit.
 
 ### Provenance
 

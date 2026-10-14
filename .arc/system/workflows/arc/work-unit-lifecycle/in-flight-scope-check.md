@@ -23,9 +23,8 @@ including remote-only ones with no local branch or worktree.
 1. **Gather.** Run `arc active in-flight --json`. It returns `entries` (in-flight work units and errands) plus a
    `reachable` flag. A work-unit entry carries `branch`, `name`, `state`, `remoteOnly`, an optional `worktreePath`
    (absent when no worktree owns the branch), an optional `design` (the meta's scope pointer), and an optional
-   `cohort`. An errand
-   entry carries `branch`, `slug`, `remoteOnly`, and an optional `worktreePath`. The work unit being activated is
-   not yet in the set — its worktree is new, or, for cold-start, still bare.
+   `cohort`. An errand entry carries `branch`, `slug`, `remoteOnly`, and an optional `worktreePath`. The work unit being
+   activated is not yet in the set — its worktree is new, or, for cold-start, still bare.
 2. **Degrade.** An empty `entries` means nothing else is in flight — skip silently and produce no output.
    `reachable: false` (offline, or `--local`) means the set derives from last-known local refs: it may miss
    cross-machine work, but the advisory still runs over what is known. Never gates.
@@ -37,10 +36,9 @@ including remote-only ones with no local branch or worktree.
    plus `cohort` for the cohort-sibling tier; an errand carries no meta and no stated scope.
 4. **Surface.** Surface the method's posture as a concern the operator can act on — name the branch, where it is in
    flight (its `worktreePath`; "remotely on `origin/<branch>`" when `remoteOnly`; otherwise "local branch, no
-   worktree"), the overlap, and any
-   design-load note, then offer the choice. For example: `` `feat/x` is in flight in `../repo.x` and touches the
-   same module — parallelize, or sequence after it integrates? `` Proceed with activation unless the operator
-   redirects.
+   worktree"), the overlap, and any design-load note, then offer the choice. For example:
+   `` `feat/x` is in flight in `../repo.x` and touches the same module — parallelize, or sequence after it integrates? ``
+   Proceed with activation unless the operator redirects.
 
 ---
 

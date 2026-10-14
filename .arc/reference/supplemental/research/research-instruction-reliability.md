@@ -279,20 +279,16 @@ reports
 
 1. [How Many Instructions Can LLMs Follow at Once? (IFScale)][ifscale-reliability]
    — Jaroslawicz et al., 2025
-2. [When Instructions Multiply (ManyIFEval)][manyifeval-reliability]
-   — Harada et al., 2025
-3. [Exploiting Primacy Effect to Improve Large Language Models][primacy]
-   — 2025
-4. [Serial Position Effects of Large Language Models][serial-position]
-   — 2024
+2. [When Instructions Multiply (ManyIFEval)][manyifeval-reliability] — Harada et al., 2025
+3. [Exploiting Primacy Effect to Improve Large Language Models][primacy] — 2025
+4. [Serial Position Effects of Large Language Models][serial-position] — 2024
 5. [Implicit Intelligence: Evaluating Agents on What Users Don't Say][implicit]
    — 2026
 6. [Instruction-Following Evaluation for Large Language Models (IFEval)][ifeval]
    — 2023
 7. [Deconstructing Instruction-Following: Granular Evaluation][deconstructing]
    — 2025
-8. [RECAST: Strengthening LLMs' Complex Instruction Following][recast]
-   — 2025
+8. [RECAST: Strengthening LLMs' Complex Instruction Following][recast] — 2025
 
 ### Vendor Documentation
 

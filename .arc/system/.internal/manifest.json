@@ -25,7 +25,7 @@
     "reference/adr/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "21822f5f7aadf8017a40c09d04fc26b0acfc1e02109afb4efa75960af0890370"
+      "pristine_hash": "14e5aac99144f6452a7178e74dc28057d3c4876387fbbad934bcf4c4fe611e3f"
     },
     "reference/supplemental/analysis/README.md": {
       "classification": "Framework",
@@ -65,7 +65,7 @@
     "reference/templates/arc/template-adr.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "37f127983cdff3880bbc0353e770251ebbbdcaa471144cf59410e5878878cda4"
+      "pristine_hash": "0b280b8c3d5d2ac68291f705f98261f5704ea3be3896893243c6dc5a28601c0c"
     },
     "reference/templates/arc/template-contributing.md": {
       "classification": "Framework",
@@ -80,7 +80,7 @@
     "reference/templates/arc/merge-gate/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "ead02f2f14a1558239fa3d5312edf09d054778ef85f4e092674d782ffab48d66"
+      "pristine_hash": "331f6ecb9290ec6ea79509cc151d811067d28f63e7bc2d83df1f8822d705b5a5"
     },
     "reference/templates/arc/merge-gate/CODEOWNERS": {
       "classification": "Framework",
@@ -205,7 +205,7 @@
     "reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6a62eda71ab5dec2cf4ca368b8c539ccb57300333d4ced6f775ee5aee4ced980"
+      "pristine_hash": "d433c497839bd0e0099210de7127f0cded6418798d2bc586c7a2dce5c58ec7b1"
     },
     "reference/briefs/AGENT-BRIEF.PROJECT.md": {
       "classification": "Configurable",
@@ -365,12 +365,12 @@
     "system/methods/assess-draft-readiness.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "31df8dd23ea958124bd7c56de986851dbcb06d1f62904a027ad3a577ef7d0b3d"
+      "pristine_hash": "ede20d41284922e761c01a0f8315fc7a906e520d89f0c3faa637990e70b4a8d7"
     },
     "system/methods/assess-evidence-applicability.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "04c954d70b488b37b037cd259cc8ff67f01f72e826c0cd845dfb82cba0be45de"
+      "pristine_hash": "74ca34fe7b44c602940566c677f3fadb78e7da6ef38d74f395ca54aaedc8c382"
     },
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
@@ -460,7 +460,7 @@
     "system/methods/session-state.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "d29c1eb2c01d9a28f87092d32f4d0871c45d12d4638255273add65f4451aa9ff"
+      "pristine_hash": "0f0390a9cb3a7b8139132719ef36c4a3c509287970ac7ae9dafd0ec1362da16b"
     },
     "system/methods/source-grounding.md": {
       "classification": "Configurable",
@@ -660,7 +660,7 @@
     "system/workflows/arc/supplemental/setup-merge-gate.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "286e2cd5046c6efbe878ca64cdcd35472d33c63b0d342a8870bd47d9453519f9"
+      "pristine_hash": "57c245d4c36c23dc05d0a7e6e186f7d401191f363b32f62f40a3d3d4bcb6f508"
     },
     "system/workflows/arc/supplemental/add-agent.md": {
       "classification": "Framework",
@@ -685,7 +685,7 @@
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "bc8c354436614272f0671160315bef09b26f7a628da45d4bbc4522d4c133fce5"
+      "pristine_hash": "f796a3a97fcefb42a18b9e40f3156a8236e8a00aa8ea4b9de14b96c09a10dafb"
     },
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
