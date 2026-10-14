@@ -55,16 +55,16 @@ member already holds. Record kinds inherits none: it builds the kinds those rows
 | Member                 | Rows | From the map's partitions                                              |
 | ---------------------- | ---- | ---------------------------------------------------------------------- |
 | `seam-record-kinds`    | —    | none of its own; the kinds the other members' rows consume             |
-| `seam-lifecycle`       | 79   | lifecycle and in-flight, less decomposition and in-flight derivation   |
+| `seam-lifecycle`       | 80   | lifecycle and in-flight, less decomposition and in-flight derivation   |
 | `seam-decomposition`   | 19   | lifecycle and in-flight: `decompose-work-unit.md` and its modules      |
 | `seam-delivery-review` | 35   | delivery; review and evidence                                          |
-| `seam-locus`           | 63   | locus and session-init; user sync; in-flight derivation from lifecycle |
+| `seam-locus`           | 62   | locus and session-init; user sync; in-flight derivation from lifecycle |
 | `seam-status-roadmap`  | 16   | status and roadmap                                                     |
 
 - **Record kinds stand apart and ship first.** Lifecycle, decomposition, locus, and delivery all write records whose
   kinds items 1–8 of the shared decisions settle — the meta, task list, lineage, and cohort document — and status reads
   their parsed fields. Program work units land single-branch, so writers built inside lifecycle would hold every other
-  member until lifecycle's 79 rows ship. Record kinds builds the kinds' parsers, field schemas, field writers, and write
+  member until lifecycle's 80 rows ship. Record kinds builds the kinds' parsers, field schemas, field writers, and write
   checks (§ Shared contracts, item 11); every other member's `Depends On` names it, and its schemas were settled before
   the cut, so it is small and determinate.
 - **Two pairs of partitions merge.** Delivery (17 rows) and review (18) name each other under Shared with eight and nine
@@ -77,12 +77,12 @@ member already holds. Record kinds inherits none: it builds the kinds those rows
 - **In-flight derivation goes to locus.** The contract's seam ordering has `lib/git/in-flight-derivation.ts` and the
   locus worktree roster and evidence rewritten together, and the session-init slots that expose derivation marks are
   locus's. Lifecycle keeps the transition write path; locus takes what is in flight and where. The rows that move are
-  `in-flight-derivation.ts`, `transition-overlay.ts`, `commands/active/in-flight.ts`, `commands/active/roster.ts`,
-  `handlers/active.ts`, and `in-flight-scope-check.md`; `composed-lifecycle-index.ts` stays with lifecycle.
+  `in-flight-derivation.ts`, `commands/active/in-flight.ts`, `commands/active/roster.ts`, `handlers/active.ts`, and
+  `in-flight-scope-check.md`; `transition-overlay.ts` stays with lifecycle beside `composed-lifecycle-index.ts`.
 - **Rejected:** one member per partition (two thin members over one family, and locus and user sync colliding on 16
-  files); decomposition inside lifecycle (a 98-row member bundling a self-contained machine with the verbs); in-flight
+  files); decomposition inside lifecycle (a 99-row member bundling a self-contained machine with the verbs); in-flight
   derivation in lifecycle (locus would wait on it before rebuilding its roster and evidence); the kinds inside lifecycle
-  (every writing member would wait on its 79 rows), or each built by the first member needing it (ownership spread, and
+  (every writing member would wait on its 80 rows), or each built by the first member needing it (ownership spread, and
   two members may build one writer).
 
 ### Shared contracts
