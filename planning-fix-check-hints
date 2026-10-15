@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "planning-fix-check-hints",
+  "claimId": "bc3d7eca4e555b73f85108575304cc66",
+  "createdAt": "2026-10-15T16:51:07.434Z",
+  "updatedAt": "2026-10-15T16:51:07.434Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the existing fold fix-check offer and its timing at the four planning review fire-points.",
+  "branch": "chore/planning-fix-check-hints",
+  "origin": "inbox",
+  "originEntry": "Name the fix check at the planning fire-points that turn fold verification on",
+  "originEntrySourceDigest": "sha256:b763562c9972ac388db2d964a741c4763b33c252fa9d0721dd1d429436dcd729",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
