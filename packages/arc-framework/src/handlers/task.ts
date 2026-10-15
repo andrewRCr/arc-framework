@@ -74,6 +74,8 @@ export function renderTaskDefer(result: Awaited<ReturnType<typeof runTaskDefer>>
 export function renderTaskClose(result: TaskCloseResult): void {
   if (result.status === "refused") { refuse(result.reason, result.refusal, result.remedy); return; }
   p.log.success(`${result.changed ? "Closed" : "Unchanged"} ${result.ids.join(", ")}.`);
+  const attributed = new Set(result.attributions.map((item) => item.sha));
+  for (const sha of result.captured) if (!attributed.has(sha)) p.log.info(`Captured ${sha}.`);
   for (const warning of result.warnings) p.log.warn(warning);
   for (const item of result.attributions) p.log.info(`${item.sha} matches ${item.matched}; attributed to ${item.task ?? "the exclusions"}.`);
   if (result.uncapturedTasks.length > 0) p.log.info(`Tasks ${result.uncapturedTasks.join(", ")} received no commits. Add their work with arc task close ${result.uncapturedTasks.join(" ")} ${result.captured.map((sha) => `--commit ${sha}`).join(" ")}.`);

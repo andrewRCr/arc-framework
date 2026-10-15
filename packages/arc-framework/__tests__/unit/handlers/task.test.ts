@@ -23,3 +23,15 @@ it.each([
   expect(output).toContain("arc status --json");
   expect(process.exitCode).toBe(1);
 });
+
+it("reports ordinary captures separately from rewrite attribution", () => {
+  const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+  const ordinary = "a".repeat(40), rewrite = "b".repeat(40), matched = "c".repeat(40);
+  renderTaskClose({ status: "closed", ids: ["1.1"], changed: true, captured: [ordinary, rewrite],
+    warnings: [], uncapturedTasks: [], attributions: [{ sha: rewrite, matched, excluded: true }] });
+  const output = [...stdout.mock.calls, ...stderr.mock.calls].map(([chunk]) => String(chunk)).join("");
+  expect(output).toContain(`Captured ${ordinary}`);
+  expect(output).toContain(`${rewrite} matches ${matched}; attributed to the exclusions.`);
+  expect(output).not.toContain(`Captured ${rewrite}`);
+});
