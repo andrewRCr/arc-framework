@@ -43,6 +43,8 @@ describe("conventional subject policy", () => {
   it.each([
     ["feat: Add a stable endpoint", "feat: add a stable endpoint"],
     ["fix(sync): A retry keeps its lease", "fix(sync): a retry keeps its lease"],
+    ["feat:  Add a stable endpoint", "feat:  add a stable endpoint"],
+    ["fix(sync): \tA retry keeps its lease", "fix(sync): \ta retry keeps its lease"],
   ])("suggests the lowercase subject for %s", (subject, suggestion) => {
     expect(findings(subject)).toEqual([
       expect.objectContaining({

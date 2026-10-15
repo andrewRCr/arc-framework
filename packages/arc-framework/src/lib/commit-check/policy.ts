@@ -107,9 +107,10 @@ function validateConventionalSubject(parsed: ParsedCommitMessage): CommitCheckFi
       }),
     );
   }
-  if (CAPITALIZED_WORD_PATTERN.test(subject.description)) {
-    const prefix = subject.raw.slice(0, subject.raw.length - subject.description.length);
-    const description = subject.description.replace(CAPITALIZED_WORD_PATTERN, (word) => word.toLowerCase());
+  const trimmed = subject.description.trimStart();
+  if (CAPITALIZED_WORD_PATTERN.test(trimmed)) {
+    const prefix = subject.raw.slice(0, subject.raw.length - trimmed.length);
+    const description = trimmed.replace(CAPITALIZED_WORD_PATTERN, (word) => word.toLowerCase());
     findings.push(
       lineFinding("subject.capitalized-description", line, "Subject description starts with a capitalized word", {
         suggestions: [`${prefix}${description}`],
