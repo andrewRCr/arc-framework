@@ -179,7 +179,8 @@ export async function handleReleaseCommit(
 
   const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
   const { argv, wrap, close } = stripReleaseCommitOptions(opts.args);
-  const preflightRemedy = renderCommitMessageRemedy(argv);
+  const preflightRemedy = renderCommitMessageRemedy(argv, close === undefined ? []
+    : [close.length === 0 ? "--close" : `--close=${close.join(",")}`]);
   const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({

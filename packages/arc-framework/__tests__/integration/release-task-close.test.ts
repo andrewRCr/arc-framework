@@ -13,6 +13,7 @@ import { runReleaseCommit, type ReleaseCommitDeps } from "../../src/handlers/rel
 import { createRemoteRefsContainingHead, createSpawnGit, stripReleaseCommitOptions } from "../../src/handlers/release/commit-cli.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { recordReferences } from "../../src/lib/store/index.js";
+import { renderCommitMessageRemedy } from "../../src/lib/release/commit-message-remedy.js";
 import { TaskCloseCommandInputSchema } from "../../src/handlers/task.js";
 import { runTaskClose, type TaskVerbContext } from "../../src/lib/work-unit/verbs/task-close.js";
 import { AuditEntrySchema, type AuditEntry } from "../../src/lib/release/schema.js";
@@ -201,4 +202,33 @@ it("a malformed task precheck names its condition and line, then commits after r
   stored.content = original;
   expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
   expect(lifecycleSuccess(await h.store.read({ reference })).content).toContain("`[x]` **1.1");
+});
+
+
+it.runIf(process.platform !== "win32").each(["--close", "--close=1.1"].flatMap((close) =>
+  [false, true].map((persistFailure) => ({ close, persistFailure }))))("the prepared-file fallback preserves $close, persistence failure=$persistFailure", async ({ close, persistFailure }) => {
+  const h = await fixture(); await h.prepare("increment\n");
+  const parsed = stripReleaseCommitOptions([close, ...h.deps.argv]);
+  h.deps.taskClose = createTaskCloseOperations(parsed.close!, async () => h.ctx, () => {});
+  h.deps.preflightRemedy = renderCommitMessageRemedy(parsed.argv, [close]);
+  const errors: string[] = []; h.deps.writeStderr = (text) => { errors.push(text); };
+  const bytes = Buffer.from("feat: increment\n");
+  h.deps.preflightCommitMessage = async () => ({ kind: "refused", reason: "validation", message: "Repair the message",
+    ...(persistFailure ? { correctedMessageBytes: bytes } : {}) });
+  h.deps.persistMessageRetry = async () => { throw new Error("Retry storage is unavailable"); };
+  const before = await h.exec("git", ["rev-parse", "HEAD"], { cwd });
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 16 });
+  expect(await h.exec("git", ["rev-parse", "HEAD"], { cwd })).toEqual(before);
+  const retry = errors.join("").split("\n").find((line) => line.startsWith("arc release commit"));
+  if (retry === undefined) throw new Error("Missing prepared-file retry");
+  const path = join(cwd, ".git", "prepared-message"); await writeFile(path, bytes);
+  const { stdout } = await execFileAsync("/bin/sh", ["-c", `arc() { printf '%s\\0' "$@"; }\n${retry.replace("<message-file>", `'${path}'`)}`]);
+  const reparsed = stripReleaseCommitOptions(stdout.split("\0").slice(2, -1));
+  expect(reparsed.close).toEqual(close === "--close" ? [] : ["1.1"]);
+  h.deps.argv = reparsed.argv;
+  h.deps.taskClose = createTaskCloseOperations(reparsed.close!, async () => h.ctx, () => {});
+  h.deps.preflightCommitMessage = async () => ({ kind: "pass-through" });
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout;
+  expect((await h.captured())?.["1.1"]?.map((commit) => commit.sha)).toEqual([head]);
 });
