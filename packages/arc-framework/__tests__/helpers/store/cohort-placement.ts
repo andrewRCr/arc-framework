@@ -6,6 +6,9 @@ import type { Mutation } from "../../../src/lib/store/write.js";
 import type { ReferenceContext } from "./context.js";
 import { canonicalReference, recordKey } from "./model.js";
 import { publicRecord } from "./read.js";
+import type { MemoryRecord, MemoryState } from "./model.js";
+import { RecordVersionSchema } from "../../../src/lib/store/identity.js";
+import { randomUUID } from "node:crypto";
 
 /** Borrow a same-batch member number, or allocate the next standalone cohort number. */
 export function assignCompletedCohorts(context: ReferenceContext, writes: readonly Mutation[], since: number): void {
@@ -33,6 +36,34 @@ export function assignCompletedCohorts(context: ReferenceContext, writes: readon
       if (Number(version.slice("state:".length)) <= since) continue;
       const saved = snapshot.get(recordKey(reference));
       if (saved !== undefined) saved.placement = structuredClone(record.placement);
+    }
+  }
+}
+
+/** Preserve published sidecars and carry each unpublished one with its own closing member. */
+export function reconcileCompletedCohorts(context: ReferenceContext, records: Map<string, MemoryRecord>, remote: MemoryState,
+  originalMembers: readonly MemoryRecord[], highWater: Map<string, number>): void {
+  for (const cohort of records.values()) {
+    const placement = cohort.placement;
+    if (cohort.reference.kind !== "cohort/document" || placement?.kind !== "completed" || !("closeout" in placement)) continue;
+    const published = remote.records.get(recordKey(cohort.reference))?.placement;
+    let sequence;
+    if (published?.kind === "completed" && "closeout" in published && published.quarter === placement.quarter) sequence = published.sequence;
+    else {
+      const closingMembers = originalMembers.filter((member) => member.placement?.kind === "completed"
+        && "sequence" in member.placement && member.placement.quarter === placement.quarter && member.placement.sequence === placement.sequence
+        && ParsedMetaRecordSchema.parse(publicRecord(context, member, records).fields).cohort?.split("/").includes(cohort.reference.owner.name));
+      const numbers = closingMembers.flatMap((member) => {
+        const current = records.get(recordKey(member.reference))?.placement;
+        return current?.kind === "completed" && "sequence" in current ? [Number(current.sequence)] : [];
+      });
+      const number = numbers.length === 0 ? (highWater.get(placement.quarter) ?? 0) + 1 : Math.max(...numbers);
+      highWater.set(placement.quarter, Math.max(highWater.get(placement.quarter) ?? 0, number));
+      sequence = ArchiveSequenceSchema.parse(String(number).padStart(2, "0"));
+    }
+    if (sequence !== placement.sequence) {
+      cohort.placement = { ...placement, sequence };
+      cohort.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
     }
   }
 }

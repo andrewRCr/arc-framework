@@ -134,6 +134,12 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
   return { ...write.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
 }
 
+function cohortPlacement(write: Extract<Mutation, { action: "put" }>, prior?: MemoryRecord): ReadPlacement | undefined {
+  if (write.placement?.kind === "completed" && prior?.placement?.kind === "completed"
+    && "closeout" in prior.placement && prior.placement.quarter === write.placement.quarter) return prior.placement;
+  return write.placement ?? prior?.placement;
+}
+
 function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): WriteResult {
   let reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
@@ -172,7 +178,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     }
     const ownerPrimary = [...context.state.records.values()].find((record) => primary({ ...write, reference: record.reference })
       && record.reference.owner.type !== "person" && reference.owner.type !== "person" && record.reference.owner.uid === reference.owner.uid);
-    const selectedPlacement = write.reference.kind === "cohort/document" ? write.placement ?? prior?.placement : primary(write) ? placement(context, write, prior)
+    const selectedPlacement = write.reference.kind === "cohort/document" ? cohortPlacement(write, prior) : primary(write) ? placement(context, write, prior)
       : ["work-item", "review"].includes(familyOf(reference.kind)) ? ownerPrimary?.placement ?? prior?.placement : undefined;
     context.state.records.set(key, {
       reference, content: content!, version: allocated.version,

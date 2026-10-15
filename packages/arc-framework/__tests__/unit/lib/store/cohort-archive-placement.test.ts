@@ -1,5 +1,6 @@
 /** Completed cohort sidecars borrow the terminal member's backend-assigned sequence. */
 import { describe, expect, it } from "vitest";
+import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { MutationSchema } from "../../../../src/lib/store/write.js";
@@ -42,4 +43,39 @@ describe("cohort archive placement", () => {
     lifecycleSuccess(await batchLifecycleWrites(h.store, [recordPut(document, { placement: { kind: "completed", quarter } })], { verb: "archive", lifecycleAction: "archive" }));
     expect(lifecycleSuccess(await h.store.read({ reference: document.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "01", closeout: "a" });
   });
+});
+
+it.each([false, true])("keeps completed cohort coordinates on repeated placement and content correction, published=%s", async (published) => {
+  const h = createLifecycleHarness(); h.store.context.publication.remote = createMemoryRemote();
+  const document = await cohort(h, "group");
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [recordPut(document, { placement: { kind: "completed", quarter } })], { verb: "archive", lifecycleAction: "archive" }));
+  if (published) lifecycleSuccess(await h.store.sync());
+  const before = lifecycleSuccess(await h.store.read({ reference: document.reference }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [recordPut(before, { placement: { kind: "completed", quarter } })], { verb: "archive", lifecycleAction: "archive" }));
+  const repeated = lifecycleSuccess(await h.store.read({ reference: document.reference }));
+  expect(repeated.placement).toEqual(before.placement);
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [recordPut(repeated, { content: repeated.content + "\nCorrected context.\n", placement: { kind: "completed", quarter } })], { verb: "edit", lifecycleAction: "edit" }));
+  lifecycleSuccess(await h.store.sync());
+  expect(lifecycleSuccess(await h.store.read({ reference: document.reference })).placement).toEqual(before.placement);
+});
+
+it("renumbers only the unpublished cohort alongside its own closing member across two clients", async () => {
+  const left = createLifecycleHarness(), right = createLifecycleHarness(), remote = createMemoryRemote();
+  left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
+  const archives = [];
+  for (const [h, name] of [[left, "left"], [right, "right"]] as const) {
+    const document = await cohort(h, name), member = await h.seedMeta(`${name}-member`, { cohort: name });
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [recordPut(document, { placement: { kind: "completed", quarter } }),
+      recordPut(member, { placement: { kind: "completed", quarter }, content: writeMetaCurrentWorkflow(writeMetaState(member.content, "Shipped"), null) })],
+    { verb: "archive", lifecycleAction: "archive" }));
+    archives.push({ h, document, member });
+  }
+  const first = archives[0]!, second = archives[1]!;
+  lifecycleSuccess(await left.store.sync()); const published = lifecycleSuccess(await left.store.read({ reference: first.document.reference }));
+  lifecycleSuccess(await right.store.sync()); lifecycleSuccess(await left.store.sync());
+  for (const h of [left, right]) {
+    expect(lifecycleSuccess(await h.store.read({ reference: first.document.reference }))).toEqual(published);
+    expect(lifecycleSuccess(await h.store.read({ reference: second.member.reference })).placement).toMatchObject({ sequence: "02" });
+    expect(lifecycleSuccess(await h.store.read({ reference: second.document.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "02", closeout: "a" });
+  }
 });
