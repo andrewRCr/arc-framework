@@ -7,12 +7,13 @@ import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/id
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { computeDefaultCaptureSet } from "../../../src/lib/git/default-capture-set.js";
 import { scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
-import type { PromoteFloor } from "../../../src/lib/errand/promote.js";
+import type { PromoteFloor, PromotionFrameReceipt } from "../../../src/lib/errand/promote.js";
 const sha = "1".repeat(40), claimId = "a".repeat(32);
-async function fixture(floor: PromoteFloor = "derivation", failCut = false) {
+async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbox = false) {
   const harness = createLifecycleHarness(), owner = OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" });
   const identity = { version: 3, slug: "errand-source", claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
-    kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null,
+    kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: inbox ? "inbox" : "description", originEntry: inbox ? "Retained capture" : null,
+    ...(inbox ? { originEntrySourceDigest: `sha256:${"b".repeat(64)}` } : {}),
     state: "open", savedHead: null, changeRequest: null };
   const primary = await harness.seed(recordReferences["work-item/record"](owner), JSON.stringify(identity), { kind: "active" },
     { branches: [{ repository: "repo", ref: identity.branch, linkedAs: "created", excluded: [] }] });
@@ -90,4 +91,29 @@ it("includes the scale-floor Errand tip in the linked work branch's default task
   const work = meta.links?.branches?.at(-1); if (work === undefined) throw new Error("Missing promoted link");
   expect(await computeDefaultCaptureSet({ exec: git.exec, execRaw: raw.exec, cwd: "/checkout", baseBranch: "main", repository: "repo",
     tips: [`refs/heads/${work.ref}`], captures: Object.values(meta.links?.taskCaptures ?? {}).flat(), exclusions: work.excluded })).toMatchObject({ status: "available", commits: [{ sha }] });
+});
+
+it("settles a retained inbox capture after role-put recovery and retries an interrupted settlement", async () => {
+  const f = await fixture("derivation", true, true);
+  expect(await f.run()).toMatchObject({ outcome: "error" });
+  const landed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  const captures = new Set(["Retained capture"]); let offline = true, occupied = false;
+  const dependencies = { ...f.steps,
+    settleInbox: async (frame: PromotionFrameReceipt) => {
+      if (offline) return { kind: "error" as const, message: "Inbox unavailable" };
+      if (frame.originEntry !== null) captures.delete(frame.originEntry);
+      return { ...frame, originEntry: null, originEntrySourceDigest: null };
+    },
+    settleOccupancy: async (frame: PromotionFrameReceipt) => {
+      occupied = true; return frame;
+    } };
+  const run = () => promoteOrdinaryErrand({ ...f.options, protection: "full", dependencies });
+  expect(await run()).toMatchObject({ outcome: "error", error: { message: "Inbox unavailable" } });
+  expect(captures).toEqual(new Set(["Retained capture"])); expect(occupied).toBe(false);
+  offline = false;
+  expect(await run()).toMatchObject({ outcome: "idempotent", subject: { slug: "errand-source", claimId },
+    settlement: { state: "settled", originEntry: null } });
+  expect(captures.size).toBe(0); expect(occupied).toBe(true);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).version).toBe(landed.version);
+  expect(lifecycleSuccess(await f.store.history({ reference: landed.reference }))).toHaveLength(2);
 });
