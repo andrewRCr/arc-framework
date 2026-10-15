@@ -1,7 +1,7 @@
 /** Publication preserves Candidate authority and atomic record ordering off branch. */
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
@@ -102,4 +102,27 @@ it("preserves the resume remedy when a pause arrives after prepare, then publish
     provenance: { verb: "resume", lifecycleAction: "resume" } }));
   expect(await runPublish(ctx, params)).toMatchObject({ status: "published" });
   expect(claims).toBe(1);
+});
+
+
+it.each(["candidate", "branch"])("refuses a primary $0 race at the publication claim, then publishes a fresh retry", async (change) => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const otherCandidate = `sha256:${"c".repeat(64)}` as const;
+  const params = { ...parameters(async () => {}), claimPublicationBoundary: async () => {
+    const current = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+    lifecycleSuccess(await h.store.write({ action: "put", reference: current.reference, expected: current.version,
+      placement: { kind: "active" }, content: change === "candidate" ? writeMetaCandidate(current.content, otherCandidate) : current.content,
+      links: change === "branch" ? { branches: [{ repository: "project", ref: "feat/renewed", linkedAs: "created", excluded: [] }] } : current.links,
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  } };
+  expect(await runPublish(context(h.store), params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("primary changed") });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Active" });
+  const freshId = change === "candidate" ? otherCandidate : candidateId;
+  const fresh = { ...parameters(async () => {}), candidateId: freshId,
+    boundary: { ...params.boundary, candidateId: freshId },
+    refreshCandidateAuthorization: async () => ({ candidateId: freshId, candidateSubjectDigest, candidateCurrent: true }) };
+  expect(await runPublish(context(h.store), fresh)).toMatchObject({ status: "published",
+    boundary: { nextAction: { command: `git push -u origin ${change === "branch" ? "feat/renewed" : "feat/example"}` } } });
 });

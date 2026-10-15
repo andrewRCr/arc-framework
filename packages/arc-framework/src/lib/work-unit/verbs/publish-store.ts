@@ -1,6 +1,7 @@
 /** Candidate-authorized publication over one prepared reconcile followed by one lifecycle batch. */
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
+import type { StoreRecord } from "../../store/read.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { readWorkUnit, workUnitMetaPath } from "../../store/lifecycle-write.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
@@ -20,7 +21,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
     remedy: spineRemedy(reason, remedy?.text ?? "Repair the reported publication condition, then retry", remedy?.argv ?? ["arc", "publish", params.name]) });
   const facts = await inspectPublication(ctx, params, reject);
   if (facts.status !== "ready") return facts;
-  const { branch, metaPath } = facts;
+  const { metaPath } = facts;
   const authorized = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorized.status === "refused") return reject(authorized.reason);
   const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
@@ -39,6 +40,9 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   }
   const refreshed = await params.refreshCandidateAuthorization();
   if (refreshed.candidateId !== params.candidateId || !refreshed.candidateCurrent) return reject("Reconcile invalidated the Candidate; re-attest it.");
+  const current = await inspectPublication(ctx, { ...params, ...refreshed }, reject);
+  if (current.status !== "ready") return current;
+  const { branch, primary } = current;
   const authorization = authorizeActivePublication({ ...refreshed, boundary: params.boundary,
     standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorization.status === "refused") return reject(authorization.reason);
@@ -48,13 +52,13 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   try { await params.claimPublicationBoundary(boundary); }
   catch (error) { return reject(`The publication claim failed: ${String(error)}`); }
   const outcome = await executeTransition(ctx, { verb: "publish", slug: params.name,
-    inputs: { softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
+    inputs: { storeTransition: { primary }, softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
   return outcome.status === "ok" ? { status: "published", outcome, metaPath, reconcile: applied, boundary } : outcome.status === "rejected" ? reject(outcome.message, outcome.refusal, outcome.remedy) : reject(outcome.message);
 }
 
 async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store }, params: PublishParams,
   reject: PublicationReject): Promise<
-  { status: "ready"; branch: string; metaPath: string } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
+  { status: "ready"; branch: string; metaPath: string; primary: StoreRecord } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
   const meta = ParsedMetaRecordSchema.parse(read.result.fields), metaPath = workUnitMetaPath(read.result);
@@ -69,5 +73,5 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
       && params.boundary.candidateSubjectDigest === params.candidateSubjectDigest
       ? { status: "unchanged", boundary: params.boundary } : reject("Publication boundary belongs to a different Candidate.");
   }
-  return { status: "ready", branch, metaPath };
+  return { status: "ready", branch, metaPath, primary: read.result };
 }
