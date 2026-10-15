@@ -4,6 +4,7 @@
  * @module
  */
 
+import type { SessionAction } from "./actions.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import type {
@@ -62,6 +63,7 @@ export type LandedRetirementResidue =
       worktreePath: string;
       lifecycle: RetirementLifecycleResult;
       teardown: RetirementTeardownRemedy;
+      actions?: SessionAction[];
     }
   | {
       status: "blocked";
@@ -281,6 +283,7 @@ export async function runLandedRetirementSweep(
         argv: ["arc", "teardown", slug],
         text: `arc teardown ${slug}`,
       },
+      actions: [{ text: `arc teardown ${slug}`, argv: ["arc", "teardown", slug] }],
     };
   }));
   const retirements = projected.filter((entry): entry is LandedRetirementResidue => entry !== null);

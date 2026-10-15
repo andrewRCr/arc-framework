@@ -915,3 +915,53 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
     subject: { kind: "work-unit", key: name },
   };
 }
+
+
+describe("husk session actions", () => {
+  const baseOid = "b".repeat(40);
+  it.each([
+    ["work-unit", "primary", ["arc", "teardown", "retired"]],
+    ["work-unit", "linked", ["arc", "teardown", "retired", "--husk", "/wt/husk"]],
+    ["branch", "primary", ["arc", "teardown", "--branch", "review/leftover"]],
+    ["branch", "linked", null],
+    ["errand", "primary", null],
+    ["errand", "linked", null],
+  ] as const)("offers %s cleanup from %s", async (kind, locus, argv) => {
+    const subject = kind === "work-unit" ? { kind, name: "retired" }
+      : kind === "branch" ? { kind, ref: "review/leftover" } : { kind, slug: "tidy" };
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: locus === "primary" ? { kind: "primary" } : { kind: "linked", path: "/wt/current" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => stampedMarker(subject),
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } }, history: { kind: "complete" } },
+    });
+    const report = result.worktrees[0];
+    if (report?.kind !== "husk") throw new Error("expected a husk report");
+    expect(report.actions).toHaveLength(1);
+    expect(report?.actions?.[0]?.text).toContain(argv === null ? "/wt/husk" : "arc teardown");
+    if (argv === null) expect(report?.actions?.[0]).not.toHaveProperty("argv");
+    else expect(report?.actions?.[0]?.argv).toEqual(argv);
+  });
+  it("leaves an untrusted stamp for a manual decision", async () => {
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("missing stamp");
+    marker.marker.husk.authorization = "discard-confirmed";
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      scanWorktrees: async () => ({ ok: true, worktrees: [
+        { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+      ] }),
+    });
+    expect(result.worktrees[0]).toMatchObject({ stamp: { kind: "manual-only" }, actions: [{ text: expect.stringContaining("/wt/husk") }] });
+    const report = result.worktrees[0];
+    if (report?.kind !== "husk") throw new Error("expected a husk report");
+    expect(report.actions?.[0]).not.toHaveProperty("argv");
+  });
+});

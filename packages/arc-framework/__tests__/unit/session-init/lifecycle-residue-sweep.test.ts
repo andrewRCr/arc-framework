@@ -192,6 +192,7 @@ describe("runLandedRetirementSweep", () => {
         argv: ["arc", "teardown", "retired"],
         text: "arc teardown retired",
       },
+      actions: [{ argv: ["arc", "teardown", "retired"], text: "arc teardown retired" }],
     }]);
     expect(result.retirements[0]).not.toHaveProperty("lifecycle.authority");
   });

@@ -33,6 +33,7 @@ import {
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
+import type { SessionAction } from "./actions.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -110,7 +111,7 @@ export function findStaleWorktreeCandidates(
 /** Incomplete evidence blocks cleanup without claiming a negative merge proof. */
 export type EvidenceUnavailableDecision = { action: "blocked"; reason: "evidence-unavailable" };
 /** One swept worktree paired with its marker-gated cleanup disposition. */
-export type StaleWorktreeReport =
+export type StaleWorktreeReport = (
   | {
       kind: "branched";
       worktreePath: string;
@@ -126,7 +127,7 @@ export type StaleWorktreeReport =
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
       decision: HuskCleanupDecision | EvidenceUnavailableDecision;
-    };
+    }) & { actions?: SessionAction[] };
 
 export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
@@ -380,7 +381,7 @@ export async function runStaleWorktreeSweep(
     if (exactBaseOid === null && decision.action === "removable") {
       decision = { action: "blocked", reason: "evidence-unavailable" };
     }
-    worktrees.push({
+    worktrees.push(withHuskActions({
       kind: "husk",
       worktreePath: entry.path,
       branch: null,
@@ -392,7 +393,7 @@ export async function runStaleWorktreeSweep(
           ? stamp.subject.name
           : null,
       decision,
-    });
+    }, worktreeIdentity));
   }
 
   return {
@@ -402,4 +403,26 @@ export async function runStaleWorktreeSweep(
     retirements: retirementSweep.retirements,
     warnings,
   };
+}
+
+
+function withHuskActions(
+  report: Extract<StaleWorktreeReport, { kind: "husk" }>,
+  locus: WorktreeIdentity,
+): StaleWorktreeReport {
+  if (report.stamp.kind === "manual-only") {
+    return { ...report, actions: [{ text: `Inspect husk \`${report.worktreePath}\` (${report.stamp.reason}); cleanup requires a manual decision.` }] };
+  }
+  if (report.decision.action !== "removable") return report;
+  const subject = report.subject;
+  if (subject.kind === "work-unit") {
+    const argv = ["arc", "teardown", subject.name,
+      ...(locus.kind === "linked" ? ["--husk", report.worktreePath] : [])];
+    return { ...report, actions: [{ text: argv.join(" "), argv }] };
+  }
+  if (subject.kind === "branch" && locus.kind === "primary") {
+    return { ...report, actions: [{ text: `arc teardown --branch ${subject.ref}`,
+      argv: ["arc", "teardown", "--branch", subject.ref] }] };
+  }
+  return { ...report, actions: [{ text: `Husk \`${report.worktreePath}\` belongs to ${subject.kind} \`${subject.kind === "branch" ? subject.ref : subject.slug}\`; cleanup is manual because no exact husk cleanup driver serves it here.` }] };
 }

@@ -5,6 +5,8 @@
  * @module
  */
 
+import type { SessionAction } from "../session-init/actions.js";
+
 /** One independently projected retirement-cleanup leg. */
 export type RetirementCleanupProjection =
   | { status: "not-applicable" }
@@ -28,6 +30,8 @@ export interface SuccessorReadinessProjection {
   actionable: boolean;
   /** One default-spawn action, present only for one actionable candidate. */
   remedy: SuccessorStartRemedy | null;
+  /** Executable start, when exactly one candidate is ready. */
+  actions?: SessionAction[];
 }
 
 interface RetirementLifecycleResultBase {
@@ -91,6 +95,7 @@ export function projectSuccessorReadiness(
   return {
     candidates: projected,
     actionable,
+    ...(candidate === undefined ? {} : { actions: [{ text: `arc start ${candidate}`, argv: ["arc", "start", candidate] }] }),
     remedy: candidate === undefined
       ? null
       : {

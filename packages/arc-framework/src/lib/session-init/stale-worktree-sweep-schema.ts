@@ -1,6 +1,7 @@
 /** Complete runtime contract for advisory worktree and retirement cleanup. */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 import { withRemoteEvidence } from "../kernel/index.js";
 import { CurrentHuskAdvisorySchema } from "./current-husk-advisory.js";
 
@@ -33,7 +34,7 @@ const StaleWorktreeReportSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("husk"), worktreePath: z.string(), branch: z.null(), stampedBranch: z.string(),
     completedWorkUnit: z.string().nullable(), subject: WorktreeSubjectSchema,
-    stamp: HuskStampSchema, decision: HuskCleanupDecisionSchema,
+    stamp: HuskStampSchema, decision: HuskCleanupDecisionSchema, actions: SessionActionsSchema.optional(),
   }),
 ]);
 const RetirementCleanupProjectionSchema = z.discriminatedUnion("status", [
@@ -42,14 +43,14 @@ const RetirementCleanupProjectionSchema = z.discriminatedUnion("status", [
 ]);
 const SuccessorReadinessSchema = z.strictObject({
   candidates: z.array(z.string()).readonly(),
-  actionable: z.boolean(),
+  actionable: z.boolean(), actions: SessionActionsSchema.optional(),
   remedy: z.strictObject({
     argv: z.tuple([z.literal("arc"), z.literal("start"), z.string()]).readonly(), text: z.string(),
   }).nullable(),
 });
 const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
   z.strictObject({
-    status: z.literal("actionable"), worktreePath: z.string(),
+    status: z.literal("actionable"), worktreePath: z.string(), actions: SessionActionsSchema.optional(),
     lifecycle: z.strictObject({
       subject: z.strictObject({ slug: z.string(), branch: z.string().nullable() }),
       transition: z.literal("abandon"),

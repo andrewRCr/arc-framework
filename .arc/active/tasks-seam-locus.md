@@ -79,21 +79,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - Spec § 1.4, item 1 changes `unit/session-init/work-unit-state.test.ts`, `materializable-errands.test.ts`, and
           `inbox-state.test.ts`, and adds `errand-state.test.ts` in the same directory.
 
-    - `[ ]` **1.2.c The sweep's husks and the residue sweep**
+    - `[x]` **1.2.c The sweep's husks and the residue sweep**
 
-        - Husk rows keep today's commands as typed actions — `arc teardown <name>`, `--husk <path>` from a linked
-          checkout, `arc teardown --branch <ref>` on the primary — and an Errand's husk, a branch's from a linked
-          checkout, or a manual-only stamp, its text.
-        - A landed retirement's teardown remedy (`lib/session-init/lifecycle-residue-sweep.ts`,
-          `lib/work-unit/retirement-lifecycle-result.ts`) becomes a typed action; a `blocked` retirement carries none.
-        - The residue sweep reports no successor today: it projects successor readiness over an empty set
-          (`projectSuccessorReadiness([], true)`), so the successor's typed start applies where successor readiness
-          reports one, and is tested there.
-
-        - Build `test-first` (one behavior at a time):
-            - each husk row yields today's command as its typed action, and a manual-only stamp its text
-            - a landed retirement yields its typed teardown, and a `blocked` one none
-            - successor readiness reporting one ready successor yields its typed `arc start <slug>`
+        - Husk actions preserve today's primary and linked teardown forms, with manual text for unsupported subjects
+          and untrusted stamps. Landed retirements expose their teardown as an action; blocked ones stay quiet.
+          A unique authoritative successor exposes its typed start beside the existing remedy.
+        - Spec § 1.4, item 1 changes `unit/session-init/stale-worktree-sweep.test.ts`,
+          `unit/session-init/lifecycle-residue-sweep.test.ts`, and `unit/work-unit/retirement-lifecycle-result.test.ts`.
 
     - `[ ]` **1.2.d The materialize offer and recovery**
 
