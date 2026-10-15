@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_PROMPTS, initInTempRepo } from "../../helpers/integration.js";
+import { DEFAULT_PROMPTS, createTempRepo, initInTempRepo, removeGitBackedDir } from "../../helpers/integration.js";
 import { runScript } from "../../helpers/run-script.js";
 
 const execFileAsync = promisify(execFile);
@@ -66,9 +66,61 @@ describe("verify-integrity.sh", () => {
 
   afterEach(async () => {
     if (tmpDir !== undefined) {
-      await rm(tmpDir, { recursive: true, force: true });
+      await removeGitBackedDir(tmpDir);
       tmpDir = undefined;
     }
+  });
+
+  describe("frontmatter boundaries", () => {
+    const copies = [
+      { label: "package", script: verifyIntegrityScript },
+      { label: "project", script: join(repoRoot, ".arc/system/.internal/scripts/verify-integrity.sh") },
+    ];
+    const fields = ["name: example", "description: Example method", "override-active: false"];
+
+    async function verifyMethod(script: string, lines: string[]) {
+      tmpDir = await createTempRepo("arc-verify-frontmatter-");
+      await writeMinimalArcInstall(tmpDir);
+      await execFileAsync("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"], { cwd: tmpDir });
+      await write(join(tmpDir, ".arc/system/methods/example.md"), [...lines, ""].join("\n"));
+      return runScript(script, [], { cwd: tmpDir });
+    }
+
+    it.each(copies)("accepts keys and a closing fence beyond line 20 in the $label copy", async ({ script }) => {
+      const result = await verifyMethod(script, [
+        "---", ...Array.from({ length: 30 }, (_, index) => `# padding ${index}`), ...fields, "---", "# Body",
+      ]);
+
+      expect(result.exitCode, result.stdout).toBe(0);
+      expect(result.stdout).toContain("PASS  example.md: frontmatter present");
+    });
+
+    it.each(copies.flatMap((copy) => fields.map((field) => ({ ...copy, field }))))(
+      "ignores body text posing as $field in the $label copy",
+      async ({ script, field }) => {
+        const key = field.split(":")[0];
+        const result = await verifyMethod(script, [
+          "---", ...fields.filter((candidate) => candidate !== field), "---", "# Body", field,
+        ]);
+
+        expect(result.exitCode).toBe(2);
+        expect(result.stdout).toContain(`example.md: missing frontmatter key(s): ${key}`);
+      },
+    );
+
+    it.each(copies)("still rejects a missing opening fence in the $label copy", async ({ script }) => {
+      const result = await verifyMethod(script, ["# Body", ...fields, "---"]);
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout).toContain("example.md: missing frontmatter (file must start with ---)");
+    });
+
+    it.each(copies)("still rejects a missing closing fence in the $label copy", async ({ script }) => {
+      const result = await verifyMethod(script, ["---", ...fields]);
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout).toContain("example.md: frontmatter block not closed");
+    });
   });
 
   it("checks surviving method structure without the retired directory", async () => {
