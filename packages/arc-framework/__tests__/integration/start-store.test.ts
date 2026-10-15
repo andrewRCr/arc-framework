@@ -27,7 +27,7 @@ async function fixture() {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("demo", { state: "Planning", owner: "previous", workClass: "Novel", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
   const io = { ...createUserIOContext(), exec };
-  const ctx = buildExecutorContext({ cwd: root, io, store: h.store, identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+  const ctx = buildExecutorContext({ cwd: root, io, store: h.store, projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
   const path = join(root, "checkout");
   return { ...h, root, ctx, io, exec, base, meta, path,
     params: { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: path, repo: "repo", primaryWorktreePath: root } };
@@ -97,7 +97,8 @@ it.each(["start", "materialize", "materialize-without-base-refs"])("activates fr
   if (placement === "start") expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated" });
   else {
     lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { placement: { kind: "active" } }), provenance: { verb: "start", lifecycleAction: "start" } }));
-    expect(await runMaterialize(h.ctx, { ...h.params, identity: "previous" })).toMatchObject({ status: "materialized" });
+    const materialized = await runMaterialize(h.ctx, { ...h.params, identity: "previous" });
+    expect(materialized, JSON.stringify(materialized)).toMatchObject({ status: "materialized" });
   }
   const exec = makeGitExec(h.path);
   expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(placement === "start" ? h.base : refreshed);
