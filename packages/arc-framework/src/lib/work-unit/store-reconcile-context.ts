@@ -14,7 +14,7 @@ import { readPairedReferenceOwners } from "./paired-reference-owners.js";
 import { readTerminalReferenceAliases } from "./terminal-reference-aliases.js";
 import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
-export interface StoreReconcilePreparation { context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
+export interface StoreReconcilePreparation { primary: StoreRecord; context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
 /** Acquire complete lifecycle, lineage, and artifact evidence before planning edits. */
 export async function createStoreReconcilePrepareContext(store: Store, slug: string): Promise<StoreResult<StoreReconcilePreparation>> {
   const view = await readLifecycleView(store);
@@ -37,7 +37,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   if (lineage.result.enumeration.status === "valid") for (const group of lineage.result.enumeration.groups) retiredNames.add(group.origin);
   const artifactOwners = await readPairedReferenceOwners(store, acquired.result, retiredNames);
   if (artifactOwners.status === "refused") return artifactOwners;
-  return { status: "ok", result: { records: acquired.result, byPath, context: {
+  return { status: "ok", result: { primary, records: acquired.result, byPath, context: {
     index: view.result.index,
     additionalReferenceTransitions: aliases.result,
     artifactReferenceOwners: artifactOwners.result,

@@ -1,6 +1,6 @@
 /** Store-backed prepare/apply ceremony for one work unit's dependency and reference repairs. */
 import type { Store } from "../store/contract.js";
-import { recordPut } from "../store/lifecycle-write.js";
+import { recordPut, workUnitMetaPath } from "../store/lifecycle-write.js";
 import { writeMetaDependsOn } from "../store/kinds/meta/writers.js";
 import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import { applyPreparedLifecycleWrite, revalidateLifecycleRecords } from "./prepared-lifecycle-write.js";
@@ -14,7 +14,10 @@ export function buildStoreCurrentWuReconcile(store: Store): CurrentWuReconcileCe
     prepare: async (op) => {
       const acquired = await createStoreReconcilePrepareContext(store, op.slug);
       if (acquired.status === "refused") throw new Error(`${acquired.refusal.condition} ${acquired.refusal.remedy.text}`);
-      const result = await prepareCurrentWuReconcile(acquired.result.context, op);
+      const { primary } = acquired.result;
+      const result = await prepareCurrentWuReconcile(acquired.result.context, {
+        ...op, slug: primary.reference.owner.name, metaPath: workUnitMetaPath(primary),
+      });
       const writes = result.prepared.edits.map((edit) => {
         const record = acquired.result.byPath.get(edit.path);
         if (record === undefined) throw new Error(`Prepared edit ${edit.path} lacks its acquired record`);

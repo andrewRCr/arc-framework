@@ -13,6 +13,26 @@ import { prepareCurrentWuReconcile } from "../../../src/lib/work-unit/side-effec
 import { workUnitMetaPath } from "../../../src/lib/store/lifecycle-write.js";
 
 describe("store reconcile context", () => {
+  it.each([false, true])("reconciles a renamed subject through its former slug, stalePath=%s", async (stalePath) => {
+    const h = createLifecycleHarness();
+    await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+    const prior = await h.seedMeta("former", { dependsOn: ["done"] });
+    lifecycleSuccess(await h.store.write({ ...recordPut(prior, { content: writeMetaTitle(prior.content, SlugSchema.parse("current")) }),
+      reference: { ...prior.reference, owner: OwnerIdentitySchema.parse({ ...prior.reference.owner, name: "current" }) },
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    const current = lifecycleSuccess(await h.store.read({ reference: prior.reference }));
+    const before = lifecycleSuccess(await h.store.version());
+    const ceremony = buildStoreCurrentWuReconcile(h.store);
+    const op = { slug: "former", metaPath: workUnitMetaPath(stalePath ? prior : current) };
+    const prepared = await ceremony.prepare(op);
+    expect(prepared).toMatchObject({ status: "pending", prepared: { slug: "current", plan: { dependency: { after: [], discharged: ["done"] } } } });
+    expect(prepared.prepared.edits.map((edit) => edit.path)).toEqual([workUnitMetaPath(current)]);
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+    expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: "applied" });
+    expect(lifecycleSuccess(await h.store.read({ reference: current.reference })).fields).toMatchObject({ dependsOn: [] });
+    expect(await ceremony.prepare(op)).toMatchObject({ status: "clean", prepared: { slug: "current" } });
+  });
+
   it("refuses a clean plan when an acquired companion changes before apply", async () => {
     const h = createLifecycleHarness(), meta = await h.seedMeta("example");
     const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nExisting.\n");

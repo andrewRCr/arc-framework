@@ -10,6 +10,8 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import { readWorkUnit, usesOffBranchState, workUnitMetaPath } from "../lib/store/lifecycle-write.js";
+import { sameOwner } from "../lib/store/identity.js";
+import type { StoreRecord } from "../lib/store/read.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import { buildStoreCurrentWuReconcile } from "../lib/work-unit/store-current-wu-reconcile.js";
 import { readdir, readFile } from "node:fs/promises";
@@ -160,12 +162,14 @@ export async function handleWuReconcile(
 export async function handleStoreReconcile(store: Store, cwd: string, input: z.infer<typeof WuReconcileCommandInputSchema>): Promise<void> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
   const slug = await storeReconcileSlug(current, cwd);
-  if (slug === undefined || (input.slug !== undefined && input.slug !== slug)) {
+  if (slug === undefined) {
     emitConflict(input, input.slug ?? "", current.warnings.join("; ") || "The checkout does not hold exactly one matching work unit.");
     return;
   }
   const meta = await readWorkUnit(store, slug);
   if (meta.status === "refused") { emitConflict(input, slug, `${meta.refusal.condition} ${meta.refusal.remedy.text}`); return; }
+  const operandConflict = await requestedReconcileConflict(store, meta.result, input.slug);
+  if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict); return; }
   const ceremony = buildStoreCurrentWuReconcile(store);
   try {
     const prepared = await ceremony.prepare({ slug, metaPath: workUnitMetaPath(meta.result) });
@@ -175,6 +179,14 @@ export async function handleStoreReconcile(store: Store, cwd: string, input: z.i
     else emitHuman(envelope);
     if (result.status === "conflict") process.exitCode = 1;
   } catch (error) { emitConflict(input, slug, error instanceof Error ? error.message : String(error)); }
+}
+
+async function requestedReconcileConflict(store: Store, primary: StoreRecord, requested?: string): Promise<string | undefined> {
+  if (requested === undefined || requested === primary.reference.owner.name) return undefined;
+  const read = await readWorkUnit(store, requested);
+  if (read.status === "refused") return `${read.refusal.condition} ${read.refusal.remedy.text}`;
+  return sameOwner(read.result.reference.owner, primary.reference.owner)
+    ? undefined : "The requested work unit does not match the checkout's work-unit identity.";
 }
 
 async function resolveOwnedTarget(
