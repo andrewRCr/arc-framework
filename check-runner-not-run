@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "check-runner-not-run",
+  "claimId": "736f4b3399b736339a93d3e36fd37d03",
+  "createdAt": "2026-10-15T21:19:35.122Z",
+  "updatedAt": "2026-10-15T21:19:35.122Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let a check runner report that it could not run a command, preserving the reason and an actionable retry as a could-not-run check outcome.",
+  "branch": "chore/check-runner-not-run",
+  "origin": "inbox",
+  "originEntry": "Let a check runner report that it could not run a command",
+  "originEntrySourceDigest": "sha256:ebe7f4ca3716af418cefe0d514cc8b4ef82d85860ea6bcab4dc23188a202a152",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
