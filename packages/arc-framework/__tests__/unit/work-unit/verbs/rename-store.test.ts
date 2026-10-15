@@ -70,11 +70,11 @@ it("renames a paused work unit's group and shared stubs in one batch while in-fl
   expect(stubLatest?.provenance).toMatchObject({ verb: "rename", batchId: (latest?.provenance as { batchId?: string }).batchId });
   expect(git.calls).toEqual([]);
 });
-it("renames an archived owner without a holder and preserves its assigned archive number", async () => {
-  const h = createLifecycleHarness(); const primary = await h.seedMeta("source", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+it.each([null, `sha256:${"c".repeat(64)}` as const])("renames an archived owner retaining Candidate %s and its assigned archive number", async (candidateId) => {
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("source", { state: "Shipped", currentWorkflow: null, candidateId }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const git = scriptGitExec([]);
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts }, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
-  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toMatchObject({ reference: { owner: { name: "target" } }, placement: primary.placement });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toMatchObject({ reference: { owner: { name: "target" } }, placement: primary.placement, fields: { candidateId } });
   expect(git.calls).toEqual([]);
 });
 

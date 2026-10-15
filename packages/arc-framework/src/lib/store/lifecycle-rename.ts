@@ -36,7 +36,7 @@ export async function readStoreRenameSubject(store: Store, request: { sourceSlug
   if (collision.status === "refused" && collision.refusal.code !== "not-found") return collision;
   const fields = ParsedMetaRecordSchema.parse(primary.fields);
   const resuming = primary.reference.owner.name === target;
-  if (!resuming && fields.candidateId !== null) return malformed(primary, "A work unit with Candidate publication state cannot be renamed.");
+  if (!resuming && primary.placement?.kind !== "completed" && fields.candidateId !== null) return malformed(primary, "A work unit with Candidate publication state cannot be renamed.");
   const origin = resuming ? await renameOrigin(store, primary, source) : { status: "ok" as const, result: primary.reference.owner.name };
   if (origin.status === "refused") return origin;
   const advisories = view.result.entries.filter((entry) => entry.fields.state === "Integrating" && entry.fields.dependsOn.includes(origin.result))
