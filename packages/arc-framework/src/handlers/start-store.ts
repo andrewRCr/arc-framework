@@ -17,6 +17,7 @@ import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 import type { ExecuteTransitionContext } from "../lib/work-unit/lifecycle-executor.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { StartOptions } from "./start.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 
 type Input = StartOptions & { name?: string };
 /** Locus may supply cold-start admission independently of backlog graduation. */
@@ -68,6 +69,9 @@ async function resolveStartName(store: Store, requested: string): Promise<string
 }
 async function create(input: Input, ctx: StoreStartContext): Promise<void> {
   if (input.class !== undefined) { refuse("--class is only valid when graduating a backlog stub."); return; }
+  if (!input.here && input.from !== undefined) {
+    refuse(`Spawning creation cannot take a seed; run arc start --here --from ${quoteShellArgument(input.from)} from the intended checkout.`); return;
+  }
   if (input.here || input.from !== undefined) { refuse("In-place creation requires the cold-start checkout admission provider."); return; }
   const { settings } = await readConfigSettings(ctx.cwd);
   const baseRef = await resolveLifecycleBase(ctx.io.exec, ctx.cwd, settings["branch.base"]);

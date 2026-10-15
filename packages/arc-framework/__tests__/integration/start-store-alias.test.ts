@@ -1,5 +1,5 @@
 /** Retained names resolve to one canonical work item through start dispatch and graduation. */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
@@ -13,11 +13,12 @@ import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { readLifecycleView } from "../../src/lib/store/lifecycle-view.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
+import * as terminal from "../../src/lib/terminal.js";
 
 let root: string | undefined;
 const initialExitCode = process.exitCode;
 const START_TIMEOUT_MS = 30_000;
-afterEach(async () => { process.exitCode = initialExitCode; if (root !== undefined) await cleanupTempDir(root); root = undefined; });
+afterEach(async () => { vi.restoreAllMocks(); process.exitCode = initialExitCode; if (root !== undefined) await cleanupTempDir(root); root = undefined; });
 
 async function fixture() {
   root = await createTempRepo(); const exec = makeGitExec(root);
@@ -51,4 +52,23 @@ it("dispatches a former name to its canonical stub while refusing explicit creat
   expect(lifecycleSuccess(await h.store.read({ reference: alias.reference }))).toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
   expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
   expect(await h.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: h.path }).catch(() => null)).toBeNull();
+}, START_TIMEOUT_MS);
+
+it("directs a spawning seeded start to in-place admission from the intended checkout", async () => {
+  const h = await fixture(); const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation((message) => { errors.push(String(message)); });
+  const admitted: string[] = [];
+  const ctx = { cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+    admitColdStart: async (input: { from?: string }) => { admitted.push(input.from ?? ""); } };
+  const input = StartCommandInputSchema.parse({ name: "fresh", new: true, from: "draft-fresh.md" });
+  await handleStoreStart(input, ctx);
+  expect(process.exitCode).toBe(1);
+  expect(errors.join("\n")).toContain("arc start --here --from 'draft-fresh.md'");
+  expect(errors.join("\n")).toContain("intended checkout");
+  expect(await stat(h.path).catch(() => null)).toBeNull();
+  expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
+  process.exitCode = 0;
+  await handleStoreStart(StartCommandInputSchema.parse({ ...input, here: true }), ctx);
+  expect(process.exitCode).toBe(0);
+  expect(admitted).toEqual(["draft-fresh.md"]);
 }, START_TIMEOUT_MS);
