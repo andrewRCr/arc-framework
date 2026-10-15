@@ -203,3 +203,42 @@ it.each(["write", "publication"])("retries standalone closeout after interrupted
   expect([...remote.state.records.values()].find((record) => record.reference.kind === "cohort/document")?.placement)
     .toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
 });
+
+
+it.each([false, true])("archives the final member while an empty open child retains its parent, nested=%s", async (nested) => {
+  const h = await groupFixture(nested);
+  const empty = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "empty" })),
+    `# Cohort: empty\n\n**Purpose:** Await future work.\n\n**Parent:** \`${nested ? "parent" : "group"}\`\n`);
+  expect(await archive(h.store, "alpha")).toMatchObject({ status: "archived" });
+  const result = await archive(h.store, "beta");
+  expect(result).toMatchObject({ status: "archived", nestedParentSwept: null });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.beta.reference })).placement).toMatchObject({ kind: "completed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: empty.reference })).placement?.kind).not.toBe("completed");
+  const parent = nested ? h.parent! : h.group;
+  expect(lifecycleSuccess(await h.store.read({ reference: parent.reference })).placement?.kind).not.toBe("completed");
+  if (nested) {
+    expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed", closeout: "a" });
+  } else expect(result).toMatchObject({ cohortSwept: null });
+});
+
+
+it("refuses a changed empty-child observation before archiving and succeeds after re-preparation", async () => {
+  const h = await groupFixture();
+  const child = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "empty" })),
+    "# Cohort: empty\n\n**Purpose:** Await future work.\n\n**Parent:** `group`\n");
+  let inject = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "list") return async (input: Parameters<Store["list"]>[0]) => {
+      const result = await target.list(input);
+      if (inject && input.family === "cohort") {
+        inject = false;
+        lifecycleSuccess(await target.write({ ...recordPut(child), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      }
+      return result;
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "alpha")).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference }))).toEqual(h.alpha);
+  expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
+});

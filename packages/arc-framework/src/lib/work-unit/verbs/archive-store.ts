@@ -19,6 +19,7 @@ import type { TransitionOutcome } from "../lifecycle-executor.js";
 import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { isArchivalTriggeredWithDescendants } from "../lifecycle-membership.js";
+import { observeOpenCohorts, type OpenCohort } from "../../store/kinds/cohort/check-support.js";
 import type { ArchiveContext, ArchiveParams, ArchiveResult } from "./archive.js";
 
 /** Close session context and every newly completed cohort in the transition's single batch. */
@@ -119,17 +120,32 @@ async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: 
 async function prepareArchiveCohorts(store: Store, cohort: string | null, prospective: LifecycleIndex,
   quarter: Extract<WritePlacement, { kind: "completed" }>["quarter"], protectOpen = true): Promise<
   { status: "ready"; writes: Mutation[]; records: StoreRecord[] } | Extract<ArchiveResult, { status: "rejected" }>> {
-  const writes: Mutation[] = [], records: StoreRecord[] = [];
   const cohortPaths = cohort === null ? [] : [cohort, ...(cohort.includes("/") ? [cohort.split("/")[0] ?? ""] : [])];
+  if (cohortPaths.length === 0) return { status: "ready", writes: [], records: [] };
+  const open = await observeOpenCohorts(store);
+  if (open.status !== "known") return { status: "rejected", reason: open.status === "unavailable" ? open.condition : "Open cohort inventory is unavailable.",
+    remedy: { text: "Repair the cohort inventory, then retry archive." } };
+  return prepareObservedCohorts(store, cohortPaths, { prospective, quarter, protectOpen, open: open.value });
+}
+
+async function prepareObservedCohorts(store: Store, cohortPaths: readonly string[], snapshot: {
+  prospective: LifecycleIndex; quarter: Extract<WritePlacement, { kind: "completed" }>["quarter"];
+  protectOpen: boolean; open: readonly OpenCohort[];
+}): Promise<{ status: "ready"; writes: Mutation[]; records: StoreRecord[] } | Extract<ArchiveResult, { status: "rejected" }>> {
+  const writes: Mutation[] = [], records: StoreRecord[] = [];
+  const completing = new Set<string>();
   for (const path of cohortPaths) {
     const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: path.split("/").at(-1) }));
     const cohort = await store.read({ reference });
     if (cohort.status === "refused") return { status: "rejected", reason: cohort.refusal.condition, refusal: cohort.refusal };
     if (cohort.result.placement?.kind === "completed") continue;
-    const closing = isArchivalTriggeredWithDescendants(prospective, path);
-    if (!closing && !protectOpen) continue;
+    const children = snapshot.open.filter((child) => child.fields.parent === path && !completing.has(child.record.reference.owner.name));
+    records.push(...children.map((child) => child.record));
+    const closing = children.length === 0 && isArchivalTriggeredWithDescendants(snapshot.prospective, path);
+    if (closing) completing.add(cohort.result.reference.owner.name);
+    if (!closing && !snapshot.protectOpen) continue;
     records.push(cohort.result);
-    writes.push(recordPut(cohort.result, closing ? { placement: { kind: "completed", quarter } } : {}));
+    writes.push(recordPut(cohort.result, closing ? { placement: { kind: "completed", quarter: snapshot.quarter } } : {}));
   }
   return { status: "ready", writes, records };
 }
