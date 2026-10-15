@@ -7,6 +7,7 @@ arc:
     - assess-design-proportionality
     - disposition-report
     - assess-boundary-fit
+    - resolve-planning-depth
 related:
   - source-grounding
   - assess-design-proportionality
