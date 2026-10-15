@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/storage-ref-backend` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
-- **Depends On:** `seam-lifecycle`
+- **Depends On:** `seam-lifecycle`, `seam-locus`
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28)
 - **Design:** `spec-storage-ref-backend.md`
