@@ -143,7 +143,7 @@ describe("runWorkUnitState (presence tier)", () => {
       now: NOW,
     });
 
-    expect(result.inFlight.workUnits[0]).toEqual({
+    expect(result.inFlight.workUnits[0]).toMatchObject({
       name: "widget",
       branch: "feat/widget",
       state: "stale",
@@ -491,5 +491,39 @@ describe("runWorkUnitState (mergeable-sharpening tier)", () => {
 
     expect(result.inFlight.workUnits[0]?.state).toBe("awaiting-review");
     expect(result.warnings.some((w) => /sharpen|gh|pr/i.test(w))).toBe(true);
+  });
+});
+
+
+describe("work-unit session actions", () => {
+  it.each([
+    ["merged-needs-archival", { merged: true }, 0, true, /archive.*widget/i, "/repo"],
+    ["mergeable", { approved: true }, 2, true, /merge.*main.*integrat/i, undefined],
+    ["mergeable", { approved: true }, 0, true, /integrat/i, undefined],
+    ["mergeability-unavailable", { approved: true }, 0, false, /remote comparison/i, undefined],
+    ["blocked", { changesRequested: true }, 0, true, /requested changes|failing checks/i, undefined],
+    ["stale", {}, 0, true, /nudge.*widget/i, undefined],
+  ] as const)("offers text for %s", async (state, pr, behind, basePresent, text, checkout) => {
+    const result = await runWorkUnitState({
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(9)}`, behind, basePresent }),
+      roster: [rosterEntry()], identity: "andrew", baseBranch: "main",
+      staleThresholdDays: 3, nudge: NUDGE, now: NOW,
+      prSource: sourceOf({ "feat/widget": prFacts(pr) }),
+    });
+    const report = result.inFlight.workUnits[0];
+    expect(report?.state).toBe(state);
+    expect(report).toMatchObject({ actions: [{ text }] });
+    expect(report?.actions?.[0]).not.toHaveProperty("argv");
+    expect(report?.actions?.[0]?.checkout).toBe(checkout);
+    if (state === "mergeability-unavailable" && report?.state === state) {
+      expect(report.actions?.[0]?.text).toBe(report.mergeabilityGuidance);
+    }
+  });
+  it("keeps awaiting-review quiet", async () => {
+    const result = await runWorkUnitState({
+      exec: buildExec(), roster: [rosterEntry()], identity: "andrew", baseBranch: "main",
+      staleThresholdDays: 3, nudge: NUDGE, now: NOW,
+    });
+    expect(result.inFlight.workUnits[0]).not.toHaveProperty("actions");
   });
 });

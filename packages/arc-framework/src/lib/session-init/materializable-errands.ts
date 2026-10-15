@@ -9,16 +9,11 @@
  * @module
  */
 
+import type { z } from "zod";
+import { MaterializableErrandSchema } from "./errand-state-schema.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
 /** One exact ordinary-v3 identity tail that can be materialized. */
-export interface MaterializableErrand {
-  slug: string;
-  claimId: string;
-  branch: string;
-  expectedHead: string;
-  state: "paused" | "awaiting-merge";
-  originEntry: string | null;
-}
+export type MaterializableErrand = z.infer<typeof MaterializableErrandSchema>;
 
 export interface FindMaterializableErrandsOptions {
   /** Complete identity records whose exact generation authorizes resume. */
@@ -59,6 +54,9 @@ export function findMaterializableErrands(
       expectedHead: generation.expectedHead,
       state: generation.state,
       originEntry: record.originEntry,
+      actions: [{ text: `arc errand materialize ${record.slug} --claim-id ${record.claimId} --expected-head ${generation.expectedHead} --json`,
+        argv: ["arc", "errand", "materialize", record.slug, "--claim-id", record.claimId,
+          "--expected-head", generation.expectedHead, "--json"] }],
     }];
   });
   return { candidates: candidates.sort((left, right) => left.slug.localeCompare(right.slug)) };

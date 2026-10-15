@@ -18,6 +18,7 @@
  */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 
 import { hasExecuteBoundDisposition } from "../user-sync/inbox-writer.js";
 import { parseCrossWuEntries } from "../user-sync/parser.js";
@@ -30,6 +31,7 @@ export const InboxStateResultSchema = z
     routableCount: z.number().int().nonnegative(),
     executeBoundCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
+    actions: SessionActionsSchema.optional(),
   })
   .strict()
   .refine((value) => value.housekeepNeeded === (value.routableCount > 0), {
@@ -64,5 +66,7 @@ export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
   const executeBoundCount = entries.filter(
     (parse) => parse.ok && hasExecuteBoundDisposition(parse.entry.raw),
   ).length;
-  return { routableCount, executeBoundCount, housekeepNeeded: routableCount > 0 };
+  return { routableCount, executeBoundCount, housekeepNeeded: routableCount > 0,
+    ...(routableCount > 0 ? { actions: [{ text: "arc-session --housekeep" }] } : {}),
+  };
 }

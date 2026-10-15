@@ -30,6 +30,7 @@ import {
   projectWorkUnitPresenceFacts,
   type InFlightWorkUnitFacts,
   type BehindBaseRelation,
+  type InFlightWorkUnitReport,
 } from "./in-flight-work-unit-sweep.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
@@ -193,7 +194,10 @@ export async function runWorkUnitState(
     staleThresholdDays: options.staleThresholdDays,
   });
 
-  return { inFlight, nudge: options.nudge, warnings };
+  return {
+    inFlight: { workUnits: inFlight.workUnits.map((report) => withWorkUnitActions(report, options)) },
+    nudge: options.nudge, warnings,
+  };
 }
 
 async function overlayBehindBaseSnapshot(
@@ -337,4 +341,30 @@ async function readLocalBranchCommitterDates(exec: GitExec): Promise<BranchCommi
     if (branch !== "") dates.set(branch, timestamp);
   }
   return { dates, warnings: [] };
+}
+
+
+function withWorkUnitActions(
+  report: InFlightWorkUnitReport,
+  options: RunWorkUnitStateOptions,
+): WorkUnitStateResult["inFlight"]["workUnits"][number] {
+  switch (report.state) {
+    case "awaiting-review": return report;
+    case "merged-needs-archival": {
+      const checkout = options.roster.find((entry) => entry.branch === report.branch)?.worktreePath;
+      return { ...report, actions: [{ text: `Archive work unit \`${report.name}\` after its merged pull request.`,
+        ...(checkout === undefined ? {} : { checkout }) }] };
+    }
+    case "mergeable": {
+      const prefix = report.behindBase.status === "known" && report.behindBase.value
+        ? `Merge base \`${options.baseBranch}\` into \`${report.branch}\` first. ` : "";
+      return { ...report, actions: [{ text: `${prefix}Complete the integration workflow for \`${report.name}\`.` }] };
+    }
+    case "mergeability-unavailable":
+      return { ...report, actions: [{ text: report.mergeabilityGuidance }] };
+    case "blocked":
+      return { ...report, actions: [{ text: `The owner of \`${report.name}\` must address its pull request's requested changes or failing checks.` }] };
+    case "stale":
+      return { ...report, actions: [{ text: `Nudge the owner about review of \`${report.name}\` (\`${report.branch}\`, ${report.ageDays}d), once today.` }] };
+  }
 }

@@ -71,23 +71,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - Spec § 1.4, item 1 changes `unit/session-init/current-wu-reconcile.test.ts` and
           `unit/user-reference-reconcile.test.ts`; recommendation fields retain their existing values.
 
-    - `[ ]` **1.2.b The work-unit, Errand, and inbox slots**
+    - `[x]` **1.2.b The work-unit, Errand, and inbox slots**
 
-        - `workUnitState`: `merged-needs-archival` the archive, with the work unit's checkout; `mergeable` the
-          integration, after merging base where `behindBase` is known true; `mergeability-unavailable` its
-          `mergeabilityGuidance`; `blocked` its pull request's requested changes or failing checks; `stale` its nudge —
-          all text; `awaiting-review` none.
-        - `errandState`: a materializable Errand's `arc errand materialize` argv, typed; the current branch's Errand to
-          resume, or residue, as text.
-        - Only `mergeabilityGuidance` exists as text in code today; the slot composes each other text from the facts it
-          reports (`ErrandResumeResult`, `InFlightResidue`, the work-unit report), saying what `session-init.md` says
-          for that condition today, since the workflow composes it and its text does not change.
-        - `inboxState`: `housekeepNeeded`'s drain, `arc-session --housekeep`, text.
-
-        - Build `test-first` (one behavior at a time):
-            - each `workUnitState` event yields its text, the archive with the work unit's checkout
-            - `awaiting-review` carries no action
-            - a materializable Errand yields its typed materialize argv, and a resumable one its text
+        - Work-unit completion events carry text actions; archival includes its checkout and integration includes the
+          known base-first prerequisite. Awaiting review stays quiet. Errands carry exact materialize argv and resume
+          or residue text; a routable inbox carries the housekeeping command as text.
+        - Spec § 1.4, item 1 changes `unit/session-init/work-unit-state.test.ts`, `materializable-errands.test.ts`, and
+          `inbox-state.test.ts`, and adds `errand-state.test.ts` in the same directory.
 
     - `[ ]` **1.2.c The sweep's husks and the residue sweep**
 

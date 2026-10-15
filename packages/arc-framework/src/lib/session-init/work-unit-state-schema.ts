@@ -1,5 +1,6 @@
 /** Full contracts for in-flight completion reports and their session state. */
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 import { NudgeMarkerStateSchema } from "./nudge-schema.js";
 /** Evidence-qualified base relation; an unavailable read grants no mergeability. */
 export const BehindBaseRelationSchema = z.discriminatedUnion("status", [
@@ -29,7 +30,7 @@ export const InFlightWorkUnitReportSchema = z.discriminatedUnion("state", [
   z.strictObject({
     name: z.string(), branch: z.string(), ageDays: z.number(),
     state: z.enum(["awaiting-review", "stale", "blocked", "mergeable", "merged-needs-archival"]),
-    behindBase: BehindBaseRelationSchema,
+    behindBase: BehindBaseRelationSchema, actions: SessionActionsSchema.optional(),
   }).superRefine((value, context) => {
     if (value.state === "mergeable" && value.behindBase.status !== "known") {
       context.addIssue({ code: "custom", path: ["behindBase"], message: "mergeable requires known base evidence" });
@@ -38,7 +39,7 @@ export const InFlightWorkUnitReportSchema = z.discriminatedUnion("state", [
   z.strictObject({
     name: z.string(), branch: z.string(), ageDays: z.number(),
     state: z.literal("mergeability-unavailable"),
-    behindBase: BehindBaseRelationSchema,
+    behindBase: BehindBaseRelationSchema, actions: SessionActionsSchema.optional(),
     mergeabilityGuidance: z.string().min(1),
   }),
 ]);

@@ -27,7 +27,7 @@ import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-f
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
 
-import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
+import { detectErrandResume } from "./errand-resume-detection.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 import {
   classifyInFlightErrands,
@@ -99,16 +99,21 @@ export interface RunErrandStateOptions {
 export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
   let projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const oracleWarnings = [...(options.oracleWarnings ?? [])];
-  const residue = [...(options.residue ?? [])];
+  const residue = (options.residue ?? []).map((item) => ({ ...item,
+    actions: [{ text: `Inspect Errand residue \`${item.slug}\` on \`${item.branch}\` (${item.reason}); resolve the missing record, branch, or classification before cleanup.` }],
+  }));
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
   const slugByBranch = new Map(options.records.flatMap((record) =>
     record.branch === null ? [] : [[record.branch, record.slug] as const]));
 
-  const resume = detectErrandResume({
+  const detectedResume = detectErrandResume({
     currentBranch: options.currentBranch,
     hasBackingMeta: options.hasBackingMeta,
     slugByBranch,
   });
+  const resume = detectedResume.resumable
+    ? { ...detectedResume, actions: [{ text: `Resume Errand \`${detectedResume.slug}\` on the current branch with the run-errand workflow.` }] }
+    : detectedResume;
 
   if (!options.includeDiscovery) {
     return emptyDiscovery(projectedEvidence, resume, options.nudge, residue, oracleWarnings);
@@ -239,9 +244,9 @@ function timestampOf(
 
 function emptyDiscovery(
   evidence: CleanupRemoteEvidence,
-  resume: ErrandResumeResult,
+  resume: ErrandStateResult["resume"],
   nudge: ErrandNudgeState,
-  residue: InFlightResidue[],
+  residue: ErrandStateResult["residue"],
   warnings: string[],
 ): ErrandStateResult {
   return {
