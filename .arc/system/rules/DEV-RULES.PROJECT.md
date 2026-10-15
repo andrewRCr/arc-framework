@@ -70,6 +70,16 @@ At each increment boundary, run `arc check increment`, then request related unit
 arc check run test:changed test:e2e:local --changed
 ```
 
+Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them.
+Before a branch's first push, request content integration feedback over the whole branch:
+
+```bash
+arc check run test:integration:content --range
+```
+
+It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
+the shared test slot for several minutes, so it runs once per branch rather than at every increment.
+
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
 

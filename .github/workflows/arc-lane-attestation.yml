@@ -1,5 +1,10 @@
 name: ARC Lane Attestation
 
+# Publication audit (2026-10-06): the pre-flip audit recorded no secrets
+# across branch, tag, pull-request, notes, and backup refs, and verified
+# that this workflow skipped fork pull requests at the job level.
+# Recheck the public-fork threat model whenever this workflow changes.
+# This dated audit does not certify later workflow edits.
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited]

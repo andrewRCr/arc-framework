@@ -1,5 +1,6 @@
 /** Bound file-check command lines by conservative platform argument budgets. */
 import { posix, win32 } from "node:path";
+import type { CheckDeclaration } from "./declaration.js";
 
 /**
  * Translate repository paths relative to a check's working directory.
@@ -53,6 +54,20 @@ export function batchCheckPaths(command: readonly string[], paths: readonly stri
   }
   if (batch.length > 0) batches.push(batch);
   return batches;
+}
+
+/**
+ * Divide the paths a check's command receives: a project check, or a files check that withholds its paths, runs once
+ * with none.
+ * @param check - Validated declaration
+ * @param command - Program and fixed arguments
+ * @param paths - Received paths relative to the check's working directory
+ * @param platform - Operating-system identifier
+ * @returns Ordered path batches, or one empty batch
+ */
+export function checkArgumentBatches(check: CheckDeclaration["checks"][string], command: readonly string[],
+  paths: readonly string[], platform: NodeJS.Platform): string[][] {
+  return check.mode === "files" && check.pass_paths ? batchCheckPaths(command, paths, platform) : [[]];
 }
 
 function argumentUnits(value: string, platform: NodeJS.Platform, program = false): number {

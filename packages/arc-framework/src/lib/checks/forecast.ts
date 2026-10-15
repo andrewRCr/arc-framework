@@ -1,7 +1,7 @@
 /** Resolve native invocation plans without running declared checks. */
 import { relative, resolve, sep } from "node:path";
 import type { CheckDeclaration } from "./declaration.js";
-import { batchCheckPaths, checkFileArguments } from "./batching.js";
+import { checkArgumentBatches, checkFileArguments } from "./batching.js";
 
 /** Complete invocation metadata for one declared check. */
 export interface CheckForecast {
@@ -26,8 +26,7 @@ export function resolveCheckForecast(check: CheckDeclaration["checks"][string], 
   const command = typeof check.command === "string" ? [check.command] : check.command;
   const cwd = resolve(root, check.root);
   const received = checkFileArguments(root, cwd, paths, platform);
-  const batches = (check.mode === "files" ? batchCheckPaths(command, received, platform) : [[]])
-    .map(batch => [...command, ...batch]);
+  const batches = checkArgumentBatches(check, command, received, platform).map(batch => [...command, ...batch]);
   const shards = check.shards;
   return { cwd: relative(root, cwd).split(sep).join("/") || ".", mode: check.mode, shell: check.shell,
     fixes: check.fixes, ciOnly: check.ci_only, batches,
