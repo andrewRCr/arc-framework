@@ -18,20 +18,38 @@ function findings(
 }
 
 describe("conventional subject policy", () => {
-  it("accepts a valid current conventional subject", () => {
-    expect(findings("feat(api): add a stable endpoint")).toEqual([]);
+  it.each([
+    "feat(api): add a stable endpoint",
+    "feat: add a stable endpoint",
+    "fix(hook): ARC checks now name the failing rule",
+    "fix(ci): GitHub runners keep their cache",
+    "fix: `arc check` reports a skipped selection",
+  ])("accepts %s", (subject) => {
+    expect(findings(subject)).toEqual([]);
   });
 
   it.each([
     ["unknown(api): add a stable endpoint", "subject.invalid-type"],
-    ["feat: add a stable endpoint", "subject.missing-scope"],
     ["feat(API): add a stable endpoint", "subject.invalid-scope"],
     ["feat(api)!: add a stable endpoint", "subject.breaking-not-allowed"],
+    ["feat(api): Add a stable endpoint", "subject.capitalized-description"],
     ["not conventional", "subject.invalid-format"],
   ])("reports %s with %s", (subject, code) => {
     expect(findings(subject)).toEqual(
       expect.arrayContaining([expect.objectContaining({ code, location: { kind: "message-line", line: 1 } })]),
     );
+  });
+
+  it.each([
+    ["feat: Add a stable endpoint", "feat: add a stable endpoint"],
+    ["fix(sync): A retry keeps its lease", "fix(sync): a retry keeps its lease"],
+  ])("suggests the lowercase subject for %s", (subject, suggestion) => {
+    expect(findings(subject)).toEqual([
+      expect.objectContaining({
+        code: "subject.capitalized-description",
+        detail: expect.objectContaining({ suggestions: [suggestion] }),
+      }),
+    ]);
   });
 });
 

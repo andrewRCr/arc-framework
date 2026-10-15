@@ -66,8 +66,9 @@ how to exploit the flaw.
 ### Title
 
 Load [commit-format][commit-format] and compose a valid subject under the project's `commit.format`. Scope names
-the dominant locus of the change; scope, length, and breaking-change markers follow commit policy. Under
-`conventional`, a lowercase scope is required and `!` is rejected.
+the dominant locus of the change and is omitted when none dominates; scope, description case, length, and
+breaking-change markers follow commit policy. Under `conventional`, a scope is optional and lowercase, the description
+starts lowercase, and `!` is rejected.
 
 One grammar makes pull-request lists scannable and filterable, serves title-reading tools such as release drafting
 and prefix labelers, remains squash-safe if merge strategy changes, and gives the agent one grammar to compose.

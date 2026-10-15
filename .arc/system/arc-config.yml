@@ -62,7 +62,7 @@ worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.
-#   conventional - type(scope): description (default)
+#   conventional - type(scope): description; scope optional, description lowercase (default)
 #   custom       - validates against commit.custom_pattern ECMAScript source
 #   any          - no format validation
 commit.format: conventional
