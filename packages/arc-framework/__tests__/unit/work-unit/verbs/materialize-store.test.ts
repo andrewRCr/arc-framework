@@ -6,7 +6,7 @@ import { runMaterialize } from "../../../../src/lib/work-unit/verbs/materialize.
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
-import { writeMetaPause, renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaOwner, renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 
@@ -87,4 +87,31 @@ describe("store materialize", () => {
     expect((await h.read()).version).toBe(primary.version);
   });
 
+});
+
+it.each(["listing", "occupancy"])("refuses handover during %s before claiming and permits the new owner to retry", async (when) => {
+  const h = await harness();
+  const handover = async () => { lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, {
+    content: writeMetaOwner(h.meta.content, SlugSchema.parse("successor")) }),
+    provenance: { verb: "handover", lifecycleAction: "change-owner" } })); };
+  if (when === "listing") {
+    const list = h.store.list.bind(h.store); let once = true;
+    h.store.list = async (input) => {
+      const result = await list(input);
+      if (once && input.family === "work-item") { once = false; await handover(); }
+      return result;
+    };
+  } else {
+    let once = true;
+    h.ctx.guardValidators = { "worktree-occupancy": async () => {
+      if (once) { once = false; await handover(); }
+      return { ok: true };
+    } };
+  }
+  const request = { name: "demo", inPlace: true as const, identity: "starter", spawningIdentity: "starter" };
+  expect(await runMaterialize(h.ctx, request)).toMatchObject({ status: "rejected" });
+  expect(h.state().placement).toBeUndefined();
+  expect((await h.read()).fields).toMatchObject({ owner: "successor", state: "Planning" });
+  expect(await runMaterialize(h.ctx, { ...request, identity: "successor", spawningIdentity: "successor" }))
+    .toMatchObject({ status: "materialized" });
 });
