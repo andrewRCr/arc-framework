@@ -64,16 +64,12 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Note:_ Each slot's `recommendedAction` stays computed as today; only the actions are added. Rows whose condition
   exists only from the flip land with their arms in later phases; the removal rows land in Tasks 1.5 and 1.7.
 
-    - `[ ]` **1.2.a The reconciles**
+    - `[x]` **1.2.a The reconciles**
 
-        - `currentWuReconcile` (`lib/session-init/current-wu-reconcile.ts`): the apply, typed, with the work unit's
-          checkout, and the inspect, typed, beside `recommendedCommand`.
-        - `userReferenceReconcile` (`projectUserReferenceSessionResult`, `lib/user-reference-reconcile.ts`): the apply
-          and the inspect, typed; unavailable or conflicted rename evidence, its precomposed text.
-
-        - Build `test-first` (one behavior at a time):
-            - pending tracked repairs yield the typed apply with the work unit's checkout, and advisories the inspect
-            - pending rewrites yield the typed apply, and unavailable evidence its text
+        - Both reconciles emit typed inspection and apply actions; work-unit apply carries its checkout. Advisory-only
+          plans offer inspection, unavailable user-reference evidence its text, and clean results stay quiet.
+        - Spec § 1.4, item 1 changes `unit/session-init/current-wu-reconcile.test.ts` and
+          `unit/user-reference-reconcile.test.ts`; recommendation fields retain their existing values.
 
     - `[ ]` **1.2.b The work-unit, Errand, and inbox slots**
 

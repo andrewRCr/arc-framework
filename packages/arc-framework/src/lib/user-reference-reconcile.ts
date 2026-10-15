@@ -411,6 +411,9 @@ export function projectUserReferenceSessionResult(
   authority: UserReferenceEvidenceAuthorityResult,
   surfaces: Omit<PlanUserReferenceReconcileInput, "transitions">,
 ): UserReferenceReconcileSessionResult {
+  const inspect = {
+    text: "arc user reconcile-references --json", argv: ["arc", "user", "reconcile-references", "--json"],
+  };
   // No remote evidence was required, so there is nothing to reconcile and nothing to
   // report. Surfacing here would ask the operator to fix a configuration they chose.
   if (authority.status === "unavailable" && authority.remoteEvidence === "not-applicable") {
@@ -426,6 +429,7 @@ export function projectUserReferenceSessionResult(
   if (authority.status !== "ready") {
     return {
       status: authority.status,
+      actions: [{ text: `User-reference reconcile cannot establish ${authority.ref} authority (${authority.status}).` }],
       authority,
       plan: null,
       recommendedAction: "surface",
@@ -448,6 +452,8 @@ export function projectUserReferenceSessionResult(
   if (plan.edits.length > 0) {
     return {
       status: "pending",
+      actions: [inspect, { text: "arc user reconcile-references --apply --json",
+        argv: ["arc", "user", "reconcile-references", "--apply", "--json"] }],
       authority,
       plan,
       recommendedAction: "apply",
@@ -458,6 +464,7 @@ export function projectUserReferenceSessionResult(
   }
   return {
     status: "advisory",
+    actions: [inspect],
     authority,
     plan,
     recommendedAction: "surface",

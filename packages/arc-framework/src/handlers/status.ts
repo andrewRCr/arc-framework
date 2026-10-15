@@ -522,7 +522,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
             listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
           readFile: (path) => io.readFile(resolve(cwd, path)),
         },
-        { slug, metaPath },
+        { slug, metaPath, checkoutPath: cwd },
       ),
     deliveryPosition: async (context, { workUnitId }) => {
       const result = await readDeliveryPositionView(workUnitId, {

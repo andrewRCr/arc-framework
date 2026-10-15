@@ -16,7 +16,7 @@ import {
   type CurrentWuReconcilePrepareContext,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
 /** Current-WU reconcile probe input. */
-export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply">;
+export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply"> & { checkoutPath: string };
 
 /** Session-entry projection of one current-WU reconcile inspection. */
 export type CurrentWuReconcileSessionResult = z.infer<typeof CurrentWuReconcileSessionResultSchema>;
@@ -33,6 +33,10 @@ export async function runCurrentWuReconcileSessionProbe(
   op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
   const result = await prepareCurrentWuReconcile(ctx, op);
+  const inspect = {
+    text: `arc wu reconcile ${op.slug} --json`,
+    argv: ["arc", "wu", "reconcile", op.slug, "--json"],
+  };
   if (result.status === "clean") {
     return {
       status: "clean",
@@ -49,6 +53,10 @@ export async function runCurrentWuReconcileSessionProbe(
     const hasTrackedEdits = result.prepared.edits.length > 0;
     return {
       status: "pending",
+      actions: [inspect, ...(hasTrackedEdits ? [{
+        text: `arc wu reconcile ${op.slug} --apply --json`,
+        argv: ["arc", "wu", "reconcile", op.slug, "--apply", "--json"], checkout: op.checkoutPath,
+      }] : [])],
       slug: op.slug,
       dependency: result.prepared.plan.dependency,
       trackedReferences: result.prepared.plan.trackedReferences,
@@ -67,6 +75,7 @@ export async function runCurrentWuReconcileSessionProbe(
   }
   return {
     status: "conflict",
+    actions: [inspect],
     slug: op.slug,
     dependency: result.prepared.plan.dependency,
     trackedReferences: result.prepared.plan.trackedReferences,

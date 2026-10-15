@@ -1,5 +1,6 @@
 /** Full read-only current-work-unit reconcile session contract. */
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 import { ReferenceAdvisorySchema, ReferenceTransitionConflictSchema,
   TrackedReferenceReplacementSchema } from "../work-unit/reference-reconcile-schema.js";
 const NON_EMPTY_TEXT = z.string().min(1);
@@ -9,6 +10,7 @@ const conflictReason = z.enum(["self-dependency", "missing-evidence", "missing-t
 /** Complete reconcile facts and dispatch coherence. */
 export const CurrentWuReconcileSessionResultSchema = z.strictObject({
     status: z.enum(["clean", "pending", "conflict"]),
+    actions: SessionActionsSchema.optional(),
     slug: NON_EMPTY_TEXT,
     dependency: z.strictObject({
       before: z.array(z.string()).readonly(), after: z.array(z.string()).readonly(),

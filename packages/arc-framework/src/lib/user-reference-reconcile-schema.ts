@@ -1,5 +1,6 @@
 /** Full identity-global user-reference reconciliation session contract. */
 import { z } from "zod";
+import { SessionActionsSchema } from "./session-init/actions.js";
 import { ReachableReferenceTransitionSchema, TrackedReferenceReplacementSchema } from "./work-unit/reference-reconcile-schema.js";
 const NON_EMPTY_TEXT = z.string().min(1);
 const UserReferenceAuthoritySchema = z.union([
@@ -50,6 +51,7 @@ const UserReferenceAuthoritySchema = z.union([
 });
 
 const UserReferenceReconcileSessionObjectSchema = z.strictObject({
+  actions: SessionActionsSchema.optional(),
   status: z.enum(["clean", "pending", "advisory", "unavailable", "conflict"]),
   authority: UserReferenceAuthoritySchema,
   plan: z.strictObject({
