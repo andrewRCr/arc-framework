@@ -1086,6 +1086,10 @@ describe("trusted review-gate workflows", () => {
     expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
     expect(documents.errand).toContain("arc errand merge <slug> - --json");
     expect(documents.errand).not.toContain("gh pr merge");
+    expect(documents.errand).toMatch(softWrappedPattern(
+      /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
+    ));
+    expect(documents.errand).not.toMatch(/healthy\s+reading/u);
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
