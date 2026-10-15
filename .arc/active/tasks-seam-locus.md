@@ -32,7 +32,7 @@ its caller. Every work-unit state path this change resolves — a work item's me
 comes through one function under `lib/store/`, built in Task 1.9, since the `work-unit-paths` leg counts every
 layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imports.ts`).
 
-### `[ ]` **1.1 Register the shared action shape and each rebuilt slot's schema — § 4.2, § 4.3**
+### `[x]` **1.1 Register the shared action shape and each rebuilt slot's schema — § 4.2, § 4.3**
 
 - _Goal:_ Every slot § 4.2 names validates against a full schema registered in the session-envelope registry, which
   `arc schema` serves, and every condition wanting a repair carries `actions` in one registered shape.
@@ -45,30 +45,15 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           (spec § 1.4, item 1). Existing command fields stay unchanged. `session-envelope/actions.test.ts` covers text,
           argv, both absolute-path conventions, and refusals.
 
-    - `[ ]` **1.1.b Full schemas for the slots whose wire contract is a view today**
+    - `[x]` **1.1.b Full schemas for the slots whose wire contract is a view today**
 
-        - Replace the views in `commands/status/schema.ts` — `DerivedLocusFrameValueViewSchema`,
-          `SessionInitUserValueViewSchema`, `CurrentWuReconcileSessionValueViewSchema`,
-          `UserReferenceReconcileSessionValueViewSchema`, `StaleWorktreeSweepValueViewSchema`,
-          `ErrandStateValueViewSchema`, and `WorkUnitStateValueViewSchema`, whose nested members are `z.unknown()` or
-          `.loose()` today — with each slot's full strict schema, defined beside its producer and inferring the
-          producer's type, so no schema is a hand-written copy. The `user` value combines the producer's fields and the
-          recommendation's (`commands/status/types.ts`), so its schema composes the two.
-        - Carry each view's cross-field refinements over to its full schema. The derived frame's schema also serves the
-          recovery envelope (`session-recover-envelope`), the recovery audit's report (`recovery-audit-report`), and
-          `arc locus --json`'s envelope, which extends it (`LocusEnvelopeSchema`, `commands/locus.ts`), each changing
-          with it.
-        - Register each under a stable ID in `SESSION_ENVELOPE_SCHEMA_IDS`, beside those already registered, and
-          register `recovery`'s full schema, `SessionInitRecoveryValueSchema`
-          (`lib/session-init/branch-gone-cascade.ts`), which the envelope uses but the registry lacks. The `roster` slot
-          already takes the roster's schema as registered under `worktree-roster` (`WorktreeRosterResultSchema`,
-          `lib/git/worktree-roster.ts`), which changes with Task 2.2.a's rows and registers no second time, since the
-          registry refuses a schema instance twice (`schema.registry.duplicate-schema`).
-
-        - Build `test-first` (one behavior at a time):
-            - each rebuilt slot's producer output in the exit criterion's scenarios parses under its registered schema
-            - `arc schema` serves each slot's schema and the action shape by ID
-            - a field the producer does not emit refuses under the strict schema
+        - The seven slots now compose full strict producer-owned schemas with inferred result types, shared by locus,
+          recovery, and session-init. Discovery also registers recovery's existing full schema. Routing refinements
+          remain; user-reference validation admits the producer's quiet `remote-not-required` result.
+        - Spec § 1.4, item 1 changes `unit/status/schema.test.ts`, `unit/status/session-envelope-schema.test.ts`,
+          `unit/session-envelope/registry.test.ts`, `unit/session-envelope/type-authority.test.ts`,
+          `unit/session-envelope/boundary-disposition.test.ts`, and `helpers/production-schema-ids.ts`, and adds
+          `unit/session-envelope/slot-schemas.test.ts`. Wire fixtures retain their bytes.
 
 ### `[ ]` **1.2 Give each rebuilt slot its actions for today's conditions — § 4.3, § 12.4**
 

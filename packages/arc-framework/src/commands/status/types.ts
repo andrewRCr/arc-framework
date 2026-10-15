@@ -11,6 +11,7 @@
  * `identity` is populated by direct `git config` reads in the handler,
  * logically parallel to the probe fan-out.
  */
+import { SessionInitUserValueSchema, SessionUserValueSchema } from "../user/session-init-schema.js";
 import { z } from "zod";
 
 import type {
@@ -29,7 +30,6 @@ import type {
 import type { DomainRulesSessionInitResult } from "../constitution/types.js";
 import type {
   UserSessionInitStatusResult,
-  UserSessionNotesDriftSurface,
   UserStatusResult,
 } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -157,24 +157,13 @@ export type SessionInitBaseBranchSyncValue = BaseBranchSnapshotAnalysisResult & 
  * standalone probe result with the finalized clean-arm notes/disk drift
  * advisory (D3), resolved from the raw `notesDrift` signal.
  */
-export interface SessionUserValue extends UserSessionInitStatusResult {
-  /**
-   * Finalized clean-arm notes/disk drift advisory (D3), resolved from the raw
-   * `notesDrift` signal against the active WU name. Present only when the
-   * divergence surfaces (neither a safe auto-load nor benign); the safe sub-case
-   * is folded into `loadNeeded` instead. Rendered in the workflow's advisory tier.
-   */
-  notesDriftSurface?: UserSessionNotesDriftSurface;
-}
+export type SessionUserValue = z.infer<typeof SessionUserValueSchema>;
 
 /**
  * User slot in the session-init envelope. Extends the shared session-user
  * result with the same recommendation pair as the worktree slot.
  */
-export interface SessionInitUserValue extends SessionUserValue {
-  recommendedAction: RecommendedAction;
-  recommendedPromptText: string;
-}
+export type SessionInitUserValue = z.infer<typeof SessionInitUserValueSchema>;
 
 /**
  * Retired-subdir slot in the session-init envelope. Extends the raw detection

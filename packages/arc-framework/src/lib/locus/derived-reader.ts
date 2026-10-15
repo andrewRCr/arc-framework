@@ -1,5 +1,7 @@
 /** Dormant worktree-first reader over one fully injected evidence snapshot. */
 
+import type { z } from "zod";
+import { DerivedLocusFrameSchema } from "./derived-schema.js";
 import type {
   IdentitySnapshotDiagnostic,
   TransientIdentitySnapshot,
@@ -75,17 +77,7 @@ export type DerivedPrimaryAvailability =
   | { readonly kind: "unsafe"; readonly checkoutPath: string | null; readonly reasons: readonly string[] };
 
 /** Build-order migration frame selected beside the retiring record-backed state. */
-export interface DerivedLocusFrame {
-  readonly roster: readonly DerivedCheckoutRow[];
-  readonly entering: DerivedEnteringCheckout;
-  readonly primaryAvailability: DerivedPrimaryAvailability;
-  readonly identityDiscovery: DerivedIdentityDiscovery;
-  readonly active: {
-    readonly checkoutPath: string;
-    readonly subject: Extract<DerivedCheckoutRow["subject"], { kind: "work-unit" }>;
-    readonly context: NonNullable<DerivedCheckoutRow["context"]>;
-  } | null;
-}
+export type DerivedLocusFrame = z.infer<typeof DerivedLocusFrameSchema>;
 
 /** Select the canonical entering checkout from one worktree-derived evidence snapshot. */
 export async function readDerivedLocusFrame(

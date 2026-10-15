@@ -5,6 +5,14 @@
  * through the shared contract projection.
  */
 
+import { CurrentWuReconcileSessionResultSchema } from "../session-init/current-wu-reconcile-schema.js";
+import { UserReferenceReconcileSessionResultSchema } from "../user-reference-reconcile-schema.js";
+import { WorkUnitStateResultSchema } from "../session-init/work-unit-state-schema.js";
+import { ErrandStateResultSchema } from "../session-init/errand-state-schema.js";
+import { StaleWorktreeSweepResultSchema } from "../session-init/stale-worktree-sweep-schema.js";
+import { DerivedLocusFrameSchema } from "../locus/derived-schema.js";
+import { SessionInitUserValueSchema } from "../../commands/user/session-init-schema.js";
+import { SessionInitRecoveryValueSchema } from "../session-init/branch-gone-cascade.js";
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
 import { ActiveSessionInitResultSchema } from "../../commands/active/schema.js";
 import { ConfigSessionInitResultSchema } from "../../commands/config/status.js";
@@ -41,6 +49,15 @@ import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
+  currentWuReconcile: "current-wu-reconcile",
+  userReferenceReconcile: "user-reference-reconcile",
+  workUnitState: "session-work-unit-state",
+  errandState: "errand-state",
+  staleWorktreeSweep: "stale-worktree-sweep",
+  derivedLocusFrame: "derived-locus-frame",
+  sessionInitUser: "session-init-user",
+  sessionInitRecovery: "session-init-recovery",
+
   sessionAction: "session-action",
   activeSessionInit: "active-session-init",
   baseBranchSync: "base-branch-sync",
@@ -79,6 +96,15 @@ const STRICT_CURRENT_V1 = {
 } as const;
 
 const SESSION_ENVELOPE_SCHEMAS = [
+  [SESSION_ENVELOPE_SCHEMA_IDS.currentWuReconcile, CurrentWuReconcileSessionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.userReferenceReconcile, UserReferenceReconcileSessionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.workUnitState, WorkUnitStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.errandState, ErrandStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.staleWorktreeSweep, StaleWorktreeSweepResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.derivedLocusFrame, DerivedLocusFrameSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitUser, SessionInitUserValueSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitRecovery, SessionInitRecoveryValueSchema],
+
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionAction, SessionActionSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],

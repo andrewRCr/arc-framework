@@ -1,11 +1,17 @@
 /**
  * Runtime contracts for session-init and recovery status envelopes.
  *
- * Migrated value slots compose their owning strict schemas. Remaining views
- * validate workflow routing fields while their home-module types are still
- * handwritten, preserving payload fields outside those views.
+ * Value slots compose their producer-owned strict schemas and retain
+ * envelope-level routing and conditional-presence checks.
  */
 
+import { CurrentWuReconcileSessionResultSchema } from "../../lib/session-init/current-wu-reconcile-schema.js";
+import { UserReferenceReconcileSessionResultSchema } from "../../lib/user-reference-reconcile-schema.js";
+import { WorkUnitStateResultSchema } from "../../lib/session-init/work-unit-state-schema.js";
+import { ErrandStateResultSchema } from "../../lib/session-init/errand-state-schema.js";
+import { StaleWorktreeSweepResultSchema } from "../../lib/session-init/stale-worktree-sweep-schema.js";
+import { DerivedLocusFrameSchema } from "../../lib/locus/derived-schema.js";
+import { SessionInitUserValueSchema } from "../user/session-init-schema.js";
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
@@ -57,6 +63,29 @@ import { assertSessionEnvelopeContract } from "../../lib/session-envelope/valida
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
 import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
+// Keep composition declarations bounded while retaining each producer-owned inferred payload.
+const DerivedLocusFrameWireSchema: z.ZodType<
+  import("../../lib/locus/derived-reader.js").DerivedLocusFrame
+> = DerivedLocusFrameSchema;
+const SessionInitUserValueWireSchema: z.ZodType<
+  import("./types.js").SessionInitUserValue
+> = SessionInitUserValueSchema;
+const CurrentWuReconcileSessionResultWireSchema: z.ZodType<
+  import("../../lib/session-init/current-wu-reconcile.js").CurrentWuReconcileSessionResult
+> = CurrentWuReconcileSessionResultSchema;
+const UserReferenceReconcileSessionResultWireSchema: z.ZodType<
+  import("../../lib/user-reference-reconcile.js").UserReferenceReconcileSessionResult
+> = UserReferenceReconcileSessionResultSchema;
+const StaleWorktreeSweepResultWireSchema: z.ZodType<
+  import("../../lib/session-init/stale-worktree-sweep.js").StaleWorktreeSweepResult
+> = StaleWorktreeSweepResultSchema;
+const ErrandStateResultWireSchema: z.ZodType<
+  import("../../lib/session-init/errand-state.js").ErrandStateResult
+> = ErrandStateResultSchema;
+const WorkUnitStateResultWireSchema: z.ZodType<
+  import("../../lib/session-init/work-unit-state.js").WorkUnitStateResult
+> = WorkUnitStateResultSchema;
+
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 const CleanupRemoteEvidenceViewFields = {
   remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable", "not-applicable"]),
@@ -75,422 +104,6 @@ function requireRemoteFailureReason(
   }
 }
 
-/** Routing view of the read-only current-WU reconcile session fact. */
-export const CurrentWuReconcileSessionValueViewSchema = z
-  .object({
-    status: z.enum(["clean", "pending", "conflict"]),
-    slug: NON_EMPTY_TEXT,
-    dependency: z.object({ conflicts: z.array(z.unknown()) }).loose(),
-    trackedReferences: z.object({
-      edits: z.array(z.object({
-        path: NON_EMPTY_TEXT,
-        replacements: z.array(z.object({
-          subject: NON_EMPTY_TEXT,
-          targetSlug: NON_EMPTY_TEXT,
-        })),
-      })),
-      conflicts: z.array(z.object({
-        subject: z.string(),
-        reason: z.enum([
-          "ambiguous-history",
-          "rename-cycle",
-          "namespace-corrupt",
-        ]),
-      })).optional(),
-    }).loose(),
-    advisories: z.array(z.object({
-      path: NON_EMPTY_TEXT,
-      line: z.number().int().positive(),
-      context: z.string(),
-      referenceKind: z.enum(["narrative", "dangling-artifact"]),
-      subject: NON_EMPTY_TEXT,
-      suggestedDisposition: z.enum(["review-rename", "remove-or-retarget"]),
-    })),
-    reason: z.string().optional(),
-    recommendedAction: z.enum(["skip", "surface"]),
-    recommendedCommand: z.array(z.string()).nullable(),
-    recommendedPromptText: z.string(),
-  })
-  .loose()
-  .superRefine((value, context) => {
-    const clean = value.status === "clean";
-    if (value.recommendedAction !== (clean ? "skip" : "surface")) {
-      context.addIssue({ code: "custom", path: ["recommendedAction"], message: "must match reconcile status" });
-    }
-    if ((value.recommendedPromptText === "") !== clean) {
-      context.addIssue({ code: "custom", path: ["recommendedPromptText"], message: "must match reconcile status" });
-    }
-    if ((value.recommendedCommand === null) !== clean) {
-      context.addIssue({ code: "custom", path: ["recommendedCommand"], message: "must match reconcile status" });
-    }
-  });
-
-const UserReferenceAuthorityViewSchema = z.union([
-  z.object({
-    status: z.literal("ready"),
-    ref: NON_EMPTY_TEXT,
-    transitions: z.array(z.unknown()),
-    remoteEvidence: z.enum(["exact", "not-applicable"]),
-  }).loose(),
-  z.object({
-    status: z.literal("pending"),
-    ref: NON_EMPTY_TEXT,
-    reason: z.literal("base-object-pending-fetch"),
-    remoteEvidence: z.literal("pending-fetch"),
-  }).loose(),
-  z.object({
-    status: z.literal("unavailable"),
-    ref: NON_EMPTY_TEXT,
-    reason: z.literal("remote-base-absent"),
-    remoteEvidence: z.literal("exact"),
-  }).loose(),
-  z.object({
-    status: z.literal("unavailable"),
-    ref: NON_EMPTY_TEXT,
-    reason: z.literal("remote-not-required"),
-    remoteEvidence: z.literal("not-applicable"),
-  }).loose(),
-  z.object({
-    status: z.literal("unavailable"),
-    ref: NON_EMPTY_TEXT,
-    remoteEvidence: z.literal("unreachable"),
-    failureReason: z.enum(["timeout", "network", "auth", "error"]),
-  }).loose(),
-  z.object({
-    status: z.literal("conflict"),
-    ref: NON_EMPTY_TEXT,
-    reason: z.enum(["ambiguous-history", "namespace-corrupt"]),
-    remoteEvidence: z.enum(["exact", "not-applicable"]),
-  }).loose(),
-]).superRefine((value, context) => {
-  const carriesFailureReason = Object.hasOwn(value, "failureReason");
-  if (value.remoteEvidence === "unreachable" && !carriesFailureReason) {
-    context.addIssue({ code: "custom", path: ["failureReason"], message: "unreachable evidence requires a reason" });
-  }
-  if (value.remoteEvidence !== "unreachable" && carriesFailureReason) {
-    context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
-  }
-});
-
-/** Routing view of the read-only identity-global user-reference reconcile fact. */
-export const UserReferenceReconcileSessionValueViewSchema = z.object({
-  status: z.enum(["clean", "pending", "advisory", "unavailable", "conflict"]),
-  authority: UserReferenceAuthorityViewSchema,
-  plan: z.object({
-    status: z.enum(["clean", "pending", "advisory"]),
-    edits: z.array(z.unknown()),
-    advisories: z.array(z.unknown()),
-  }).nullable(),
-  recommendedAction: z.enum(["skip", "apply", "surface"]),
-  recommendedCommand: z.array(z.string()).nullable(),
-  recommendedPromptText: z.string(),
-}).loose().superRefine((value, context) => {
-  const authorityStatus = value.authority.status;
-  if (authorityStatus !== "ready") {
-    if (
-      value.status !== authorityStatus
-      || value.plan !== null
-      || value.recommendedAction !== "surface"
-      || value.recommendedCommand !== null
-      || value.recommendedPromptText === ""
-    ) {
-      context.addIssue({ code: "custom", path: ["status"], message: "must match unavailable authority" });
-    }
-    return;
-  }
-
-  if (value.plan === null) {
-    context.addIssue({ code: "custom", path: ["plan"], message: "ready authority requires a reconcile plan" });
-    return;
-  }
-  const expected = value.plan.status === "clean"
-    ? { status: "clean", action: "skip", command: null, promptEmpty: true }
-    : value.plan.status === "pending"
-      ? {
-          status: "pending",
-          action: "apply",
-          command: ["arc", "user", "reconcile-references", "--apply", "--json"],
-          promptEmpty: false,
-        }
-      : {
-          status: "advisory",
-          action: "surface",
-          command: ["arc", "user", "reconcile-references", "--json"],
-          promptEmpty: false,
-        };
-  const commandMatches = expected.command === null
-    ? value.recommendedCommand === null
-    : value.recommendedCommand !== null
-      && value.recommendedCommand.length === expected.command.length
-      && expected.command.every((part, index) => value.recommendedCommand?.[index] === part);
-  const planContentMatches = value.plan.status === "clean"
-    ? value.plan.edits.length === 0 && value.plan.advisories.length === 0
-    : value.plan.status === "pending"
-      ? value.plan.edits.length > 0
-      : value.plan.edits.length === 0 && value.plan.advisories.length > 0;
-  if (
-    value.status !== expected.status
-    || value.recommendedAction !== expected.action
-    || !commandMatches
-    || !planContentMatches
-    || (value.recommendedPromptText === "") !== expected.promptEmpty
-  ) {
-    context.addIssue({ code: "custom", path: ["status"], message: "must match the ready-authority reconcile plan" });
-  }
-});
-
-const WorktreeSubjectViewSchema = z
-  .object({ kind: z.enum(["work-unit", "errand", "branch"]) })
-  .loose();
-const HuskStampViewSchema = z
-  .object({ kind: z.enum(["legacy", "current", "manual-only"]) })
-  .loose();
-
-const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("removable") }).loose(),
-  z
-    .object({
-      action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "user-surfaces", "unmerged", "evidence-unavailable"]),
-    })
-    .loose(),
-  z.object({ action: z.literal("external") }).loose(),
-]);
-const HuskCleanupDecisionViewSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("removable") }).loose(),
-  z
-    .object({
-      action: z.literal("blocked"),
-      reason: z.enum([
-        "uncommitted", "head-moved", "evidence-mismatch", "evidence-unavailable",
-      ]),
-    })
-    .loose(),
-  z
-    .object({ action: z.literal("outside"), reason: z.enum(["untrusted-marker", "missing-stamp"]) })
-    .loose(),
-]);
-const StaleWorktreeReportViewSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("branched"), decision: BranchedCleanupDecisionViewSchema }).loose(),
-  z
-    .object({
-      kind: z.literal("husk"),
-      subject: WorktreeSubjectViewSchema,
-      stamp: HuskStampViewSchema,
-      decision: HuskCleanupDecisionViewSchema,
-    })
-    .loose(),
-]);
-const RetirementCleanupProjectionViewSchema = z
-  .object({ status: z.enum(["not-applicable", "pending", "completed", "blocked"]) })
-  .loose();
-const SuccessorReadinessViewSchema = z
-  .object({
-    candidates: z.array(z.string()),
-    actionable: z.boolean(),
-    remedy: z
-      .object({
-        argv: z.tuple([z.literal("arc"), z.literal("start"), z.string()]),
-        text: z.string(),
-      })
-      .strict()
-      .nullable(),
-  })
-  .strict();
-const LandedRetirementResidueViewSchema = z.discriminatedUnion("status", [
-  z
-    .object({
-      status: z.literal("actionable"),
-      lifecycle: z
-        .object({
-          subject: z.object({ slug: z.string(), branch: z.string().nullable() }).strict(),
-          transition: z.enum(["decompose", "abandon"]),
-          cleanup: z
-            .object({
-              branch: RetirementCleanupProjectionViewSchema,
-              worktree: RetirementCleanupProjectionViewSchema,
-              userWorkspace: RetirementCleanupProjectionViewSchema,
-            })
-            .strict(),
-          successorReadiness: SuccessorReadinessViewSchema,
-        })
-        .loose(),
-      teardown: z
-        .object({
-          argv: z.tuple([z.literal("arc"), z.literal("teardown"), z.string()]),
-          text: z.string(),
-        })
-        .strict(),
-    })
-    .loose(),
-  z
-    .object({
-      status: z.literal("blocked"),
-      subject: z.object({ slug: z.string(), branch: z.string() }).strict(),
-      reason: z.string(),
-    })
-    .loose(),
-]);
-const RenameMoveResidueViewSchema = z
-  .object({
-    oldSlug: z.string(),
-    newSlug: z.string(),
-    branch: z.string(),
-    head: z.string(),
-    from: z.string(),
-    to: z.string(),
-    remedy: z
-      .object({
-        argv: z.tuple([
-          z.literal("git"),
-          z.literal("worktree"),
-          z.literal("move"),
-          z.string(),
-          z.string(),
-        ]),
-        text: z.string(),
-      })
-      .strict(),
-  })
-  .strict();
-
-/** Thin routing view of the stale-worktree cleanup advisory. */
-export const StaleWorktreeSweepValueViewSchema = z
-  .object({
-    ...CleanupRemoteEvidenceViewFields,
-    worktrees: z.array(StaleWorktreeReportViewSchema),
-    renameMoves: z.array(RenameMoveResidueViewSchema),
-    retirements: z.array(LandedRetirementResidueViewSchema),
-  })
-  .loose()
-  .superRefine((value, context) => {
-    requireRemoteFailureReason(value, context);
-    if (value.remoteEvidence === "exact") return;
-    if (value.worktrees.some((report) => report.decision.action === "removable")) {
-      context.addIssue({ code: "custom", path: ["worktrees"], message: "incomplete evidence cannot remove worktrees" });
-    }
-    if (value.retirements.some((retirement) => retirement.status === "actionable")) {
-      context.addIssue({ code: "custom", path: ["retirements"], message: "incomplete evidence cannot authorize teardown" });
-    }
-  });
-
-const BehindBaseRelationViewSchema = z.discriminatedUnion("status", [
-  z.strictObject({ status: z.literal("known"), value: z.boolean(), remoteEvidence: z.literal("exact") }),
-  z.discriminatedUnion("remoteEvidence", [
-    z.strictObject({
-      status: z.literal("unavailable"),
-      remoteEvidence: z.literal("pending-fetch"),
-      reason: z.literal("base-object-pending-fetch"),
-    }),
-    z.strictObject({
-      status: z.literal("unavailable"),
-      remoteEvidence: z.literal("unreachable"),
-      failureReason: z.enum(["timeout", "network", "auth", "error"]),
-    }),
-    z.strictObject({
-      status: z.literal("unavailable"),
-      remoteEvidence: z.literal("exact"),
-      reason: z.literal("remote-base-absent"),
-    }),
-  ]),
-  z.strictObject({ status: z.literal("not-applicable"), remoteEvidence: z.literal("not-applicable") }),
-]);
-
-const WorkUnitReportViewSchema = z.discriminatedUnion("state", [
-  z.object({
-    state: z.enum(["awaiting-review", "stale", "blocked", "mergeable", "merged-needs-archival"]),
-    behindBase: BehindBaseRelationViewSchema,
-  }).loose().superRefine((value, context) => {
-    if (value.state === "mergeable" && value.behindBase.status !== "known") {
-      context.addIssue({ code: "custom", path: ["behindBase"], message: "mergeable requires known base evidence" });
-    }
-  }),
-  z.object({
-    state: z.literal("mergeability-unavailable"),
-    behindBase: BehindBaseRelationViewSchema,
-    mergeabilityGuidance: z.string().min(1),
-  }).loose(),
-]);
-
-/** Thin routing view of the work-unit state advisory. */
-export const WorkUnitStateValueViewSchema = z
-  .object({
-    inFlight: z.object({ workUnits: z.array(WorkUnitReportViewSchema) }).loose(),
-    nudge: z.object({ shouldNudge: z.boolean() }).loose(),
-  })
-  .loose();
-
-const ErrandReportViewSchema = z
-  .object({
-    state: z.enum(["in-progress", "awaiting-merge", "stale", "merged-cleanup", "blocked"]),
-    blockingReason: z.literal("evidence-unavailable").optional(),
-  })
-  .loose()
-  .superRefine((value, context) => {
-    if (value.state === "blocked" && value.blockingReason !== "evidence-unavailable") {
-      context.addIssue({ code: "custom", path: ["blockingReason"], message: "blocked Errands require a reason" });
-    }
-    if (value.state !== "blocked" && value.blockingReason !== undefined) {
-      context.addIssue({ code: "custom", path: ["blockingReason"], message: "classified Errands cannot be blocked" });
-    }
-  });
-const MaterializableErrandViewSchema = z
-  .object({
-    slug: NON_EMPTY_TEXT,
-    claimId: NON_EMPTY_TEXT,
-    branch: NON_EMPTY_TEXT,
-    expectedHead: NON_EMPTY_TEXT,
-    state: z.enum(["paused", "awaiting-merge"]),
-    originEntry: NON_EMPTY_TEXT.nullable(),
-  })
-  .loose();
-
-/** Thin routing view of the errand state advisory. */
-export const ErrandStateValueViewSchema = z
-  .object({
-    ...CleanupRemoteEvidenceViewFields,
-    resume: z.object({ resumable: z.boolean() }).loose(),
-    inFlight: z.object({ errands: z.array(ErrandReportViewSchema) }).loose(),
-    materializable: z.object({ candidates: z.array(MaterializableErrandViewSchema) }).loose(),
-    nudge: z.object({ shouldNudge: z.boolean() }).loose(),
-  })
-  .loose()
-  .superRefine((value, context) => {
-    requireRemoteFailureReason(value, context);
-    if (
-      value.remoteEvidence !== "exact"
-      && value.inFlight.errands.some((report) => report.state === "merged-cleanup")
-    ) {
-      context.addIssue({ code: "custom", path: ["inFlight", "errands"], message: "incomplete evidence cannot authorize cleanup" });
-    }
-  });
-
-const USER_REF_STATE = z.enum(["same", "local-ahead", "remote-ahead", "diverged", "remote-unavailable"]);
-const USER_CONTENT_RELATION = z.enum([
-  "remote-subset",
-  "local-subset",
-  "equal",
-  "mixed-uncontested",
-  "conflicting",
-]);
-const USER_DRIFT_DIRECTION = z.enum(["edits", "missing", "modified", "mixed", "behind"]);
-
-/** Thin routing view of the user session-init result before recommendation enrichment. */
-export const UserSessionInitValueViewSchema = z
-  .object({
-    state: z.enum(["disabled", "clean", "remote-ahead", "conflict", "remote-unavailable"]),
-    refState: USER_REF_STATE.optional(),
-    contentRelation: USER_CONTENT_RELATION.optional(),
-    coherenceState: z.enum(["partial-push", "partial-push-unverified"]).optional(),
-    qualifier: z.literal("clean-at-current-head").optional(),
-    localNoteFreshness: z
-      .object({ state: z.enum(["missing", "current-head", "ancestor", "outside-head-ancestry"]) })
-      .loose()
-      .optional(),
-    notesDrift: z.object({ direction: USER_DRIFT_DIRECTION }).loose().optional(),
-    loadNeeded: z.boolean().optional(),
-  })
-  .loose();
 
 /** Closed workflow recommendation action. */
 export const RecommendedActionSchema = z.enum(["pull", "prompt", "surface", "skip"]);
@@ -555,17 +168,6 @@ export const SessionInitWorktreeValueSchema = withRemoteEvidence({
   }
 });
 
-/** Recommendation-enriched user session view. */
-export const SessionInitUserValueViewSchema = UserSessionInitValueViewSchema.extend({
-  ...RECOMMENDATION_SHAPE,
-  notesDriftSurface: z
-    .object({
-      direction: z.enum(["edits", "missing", "modified", "mixed"]),
-      register: z.enum(["expected", "caution"]),
-    })
-    .loose()
-    .optional(),
-}).loose();
 
 const BaseDistanceSlotArms = [
   ...BaseDistanceSnapshotAnalysisResultSchema.options,
@@ -688,58 +290,6 @@ export const StatusIdentitySchema = z.strictObject({
   role: NON_EMPTY_TEXT.nullable(),
 });
 
-const DerivedSubjectViewSchema = z.object({
-  kind: z.enum(["work-unit", "errand", "partial-errand", "groom", "housekeep"]),
-  key: NON_EMPTY_TEXT,
-}).loose();
-
-const DerivedCheckoutRowViewSchema = z.object({
-  kind: z.enum([
-    "free-primary",
-    "unmanaged-checkout",
-    "work-unit",
-    "retired",
-    "transient",
-    "unresolved-checkout",
-  ]),
-  checkout: z.object({ path: NON_EMPTY_TEXT, primary: z.boolean() }).loose(),
-  subject: DerivedSubjectViewSchema.nullable(),
-  context: z.object({
-    metaPath: LoadSetPathSchema,
-    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
-    workflow: z.string().nullable(),
-    stage: z.string().nullable(),
-    taskListPath: LoadSetPathSchema.nullable(),
-    taskCursor: TaskListCursorFileResultSchema.nullable(),
-    cohortDocPath: LoadSetPathSchema.nullable(),
-    loadSet: LoadSetManifestSchema,
-    integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
-  }).loose().nullable(),
-  diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
-}).loose();
-
-/** Routing view of the worktree-derived entering-checkout frame. */
-export const DerivedLocusFrameValueViewSchema = z.object({
-  roster: z.array(DerivedCheckoutRowViewSchema),
-  entering: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("selected"), row: DerivedCheckoutRowViewSchema }),
-    z.strictObject({
-      kind: z.literal("unresolved"),
-      checkoutPath: NON_EMPTY_TEXT,
-      diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
-    }),
-  ]),
-  primaryAvailability: z.object({
-    kind: z.enum(["free", "occupied", "unsafe"]),
-  }).loose(),
-  identityDiscovery: z.object({ kind: z.enum(["absent", "error", "complete"]) }).loose(),
-  active: z.object({
-    checkoutPath: NON_EMPTY_TEXT,
-    subject: DerivedSubjectViewSchema,
-    context: DerivedCheckoutRowViewSchema.shape.context.unwrap(),
-  }).strict().nullable(),
-}).strict();
-
 /** Complete invocation-only compaction-seed write result. */
 export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("written"), path: NON_EMPTY_TEXT }),
@@ -757,9 +307,9 @@ export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
 const SessionInitEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("session-init"),
   identity: StatusIdentitySchema,
-  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
+  derivedLocusState: probe(DerivedLocusFrameWireSchema),
   locusGuidance: LocusSessionGuidanceSchema,
-  user: probe(SessionInitUserValueViewSchema),
+  user: probe(SessionInitUserValueWireSchema),
   worktree: probe(SessionInitWorktreeValueSchema),
   baseDistance: probe(SessionInitBaseDistanceValueSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
@@ -769,19 +319,19 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   domainRules: probe(DomainRulesSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueSchema),
   hooksPath: probe(HooksPathSessionAdvisorySchema),
-  currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
+  currentWuReconcile: probe(CurrentWuReconcileSessionResultWireSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
-  userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
+  userReferenceReconcile: probe(UserReferenceReconcileSessionResultWireSchema).optional(),
   roster: probe(WorktreeRosterResultSchema).optional(),
   recovery: probe(SessionInitRecoveryValueSchema).optional(),
-  sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
+  sweep: probe(StaleWorktreeSweepResultWireSchema).optional(),
   currentHusk: probe(CurrentHuskAdvisorySchema.nullable()).optional(),
   orphanBranchSweep: probe(OrphanBranchSweepResultSchema).optional(),
   retiredSubdirs: probe(SessionInitRetiredSubdirsValueViewSchema).optional(),
   errandSweep: probe(ErrandStalenessSweepResultSchema).optional(),
-  errandState: probe(ErrandStateValueViewSchema).optional(),
+  errandState: probe(ErrandStateResultWireSchema).optional(),
   materializableWorkUnits: probe(MaterializableWorkUnitDiscoveryResultSchema).optional(),
-  workUnitState: probe(WorkUnitStateValueViewSchema).optional(),
+  workUnitState: probe(WorkUnitStateResultWireSchema).optional(),
   inboxState: probe(InboxStateResultSchema).optional(),
   partialPushMarker: probe(PartialPushMarkerSurfaceResultSchema).optional(),
   compactionAdvisory: probe(NotesCompactionSessionAdvisoryResultSchema).optional(),
@@ -877,7 +427,8 @@ function sessionTypeAcceptsWorkflow(
   return workflow === null;
 }
 
-const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
+const SessionInitProbeResultRuntimeSchema: z.ZodType<SessionInitEnvelopeValue> =
+  SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
   const active = activeValue(value);
   const worktree = worktreeValue(value);
   const rosterSuccessful = value.roster?.ok === true;
@@ -946,7 +497,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
       });
     }
     if (derivedContext.integrationBoundary !== null
-      && (subject.kind !== "work-unit" || derivedContext.integrationBoundary.workUnit !== subject.key)) {
+      && derivedContext.integrationBoundary.workUnit !== subject.key) {
       context.addIssue({
         code: "custom",
         path: ["derivedLocusState", "value", "active", "context", "integrationBoundary", "workUnit"],
@@ -1097,7 +648,7 @@ export const SessionRecoverWorktreeValueSchema = withRemoteEvidence({
 const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   mode: z.literal("recover"),
   identity: StatusIdentitySchema,
-  derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
+  derivedLocusState: probe(DerivedLocusFrameWireSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueSchema),

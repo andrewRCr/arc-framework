@@ -15,6 +15,8 @@
  * @module
  */
 
+import type { z } from "zod";
+import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
@@ -58,14 +60,12 @@ import {
 import {
   projectRenameMoveRemedy,
   runLandedRetirementSweep,
-  type LandedRetirementResidue,
   type RenameMoveResidue,
 } from "./lifecycle-residue-sweep.js";
 import { locusWorkUnitAtPath } from "./locus-classification.js";
 import {
   projectCleanupRemoteEvidence,
   type CleanupBaseEvidence,
-  type CleanupRemoteEvidence,
 } from "./cleanup-remote-evidence.js";
 
 export interface StaleWorktreeSweepInput {
@@ -128,16 +128,7 @@ export type StaleWorktreeReport =
       decision: HuskCleanupDecision | EvidenceUnavailableDecision;
     };
 
-export type StaleWorktreeSweepResult = CleanupRemoteEvidence & {
-  /** Lingering shipped-WU worktrees, each with its cleanup disposition. */
-  worktrees: StaleWorktreeReport[];
-  /** Validated deferred rename moves that can run only from outside their source worktrees. */
-  renameMoves: RenameMoveResidue[];
-  /** Still-branched retirements projected from authoritative base evidence. */
-  retirements: LandedRetirementResidue[];
-  /** Roster warnings, passed through untouched. */
-  warnings: string[];
-};
+export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
 export interface RunStaleWorktreeSweepOptions {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */

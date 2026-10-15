@@ -20,6 +20,8 @@
  * @module
  */
 
+import type { z } from "zod";
+import { ErrandStateResultSchema } from "./errand-state-schema.js";
 import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-flight-derivation.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
@@ -34,7 +36,6 @@ import {
 } from "./in-flight-errand-sweep.js";
 import {
   findMaterializableErrands,
-  type MaterializableErrandsResult,
 } from "./materializable-errands.js";
 import {
   projectCleanupRemoteEvidence,
@@ -48,20 +49,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export type ErrandNudgeState = NudgeMarkerState;
 
 /** Composite errand state exposed by the session-init envelope. */
-export type ErrandStateResult = CleanupRemoteEvidence & {
-  /** Current-branch resume signal — cheap and always computed. */
-  resume: ErrandResumeResult;
-  /** Orient-only advisory over the oracle's in-flight `chore/` errands. */
-  inFlight: InFlightErrandSweepResult;
-  /** Exact ordinary-v3 tails that can be materialized locally. */
-  materializable: MaterializableErrandsResult;
-  /** Branch/record residue surfaced for advisory cleanup. */
-  residue: InFlightResidue[];
-  /** Rate-limit state shared by reminder and stale-errand surfaces. */
-  nudge: ErrandNudgeState;
-  /** Soft diagnostics; discovery failures should not block session-init. */
-  warnings: string[];
-};
+export type ErrandStateResult = z.infer<typeof ErrandStateResultSchema>;
 export interface RunErrandStateOptions {
   exec: GitExec;
   currentBranch: string | null;

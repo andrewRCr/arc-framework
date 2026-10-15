@@ -1,5 +1,7 @@
 /** Dormant checkout-row composition over authority, corroboration, and safety facts. */
 
+import type { z } from "zod";
+import { DerivedCheckoutDiagnosticSchema, DerivedCheckoutRowSchema } from "./derived-schema.js";
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { CompletedEvidenceRead } from "../work-unit/completed-index.js";
@@ -15,7 +17,6 @@ import { corroborateCheckoutRole } from "./role-corroboration.js";
 import {
   composePrimaryCheckoutRole,
   deriveCheckoutRole,
-  type DerivedCheckoutSubject,
   type DerivedTransientSubject,
   type PrimarySafetyProjection,
 } from "./role-derivation.js";
@@ -27,11 +28,7 @@ import type { LocusIdentityV1 } from "./schema/identity.js";
 import type { SubjectMetaProjection } from "./subject-meta.js";
 
 /** Stable dormant diagnostic attached only to the checkout whose facts failed. */
-export interface DerivedCheckoutDiagnostic {
-  readonly code: string;
-  readonly source?: string;
-  readonly message: string;
-}
+export type DerivedCheckoutDiagnostic = z.infer<typeof DerivedCheckoutDiagnosticSchema>;
 
 interface DerivedCheckoutRowBase {
   readonly checkout: RegisteredWorktree;
@@ -45,14 +42,7 @@ interface DerivedCheckoutRowBase {
 }
 
 /** Future internal row taxonomy; deliberately separate from the selected public locus schema. */
-export type DerivedCheckoutRow = DerivedCheckoutRowBase & (
-  | { readonly kind: "free-primary" | "unmanaged-checkout"; readonly subject: null }
-  | {
-      readonly kind: "work-unit" | "retired" | "transient";
-      readonly subject: DerivedCheckoutSubject;
-    }
-  | { readonly kind: "unresolved-checkout"; readonly subject: DerivedCheckoutSubject | null }
-);
+export type DerivedCheckoutRow = z.infer<typeof DerivedCheckoutRowSchema>;
 
 /** Project one registered checkout without consulting records, branches as authority, or process liveness. */
 export function projectDerivedCheckoutRow(options: {

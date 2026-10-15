@@ -8,6 +8,8 @@
  * @module
  */
 
+import type { z } from "zod";
+import { UserReferenceReconcileSessionResultSchema } from "./user-reference-reconcile-schema.js";
 import {
   enumerateTransitionReferenceTransitions,
   resolveReferenceTransition,
@@ -163,14 +165,7 @@ export type UserReferenceAuthorityResult =
   | { status: "conflict"; ref: string; reason: "ambiguous-history" | "namespace-corrupt" };
 
 /** Read-only session projection with CLI-owned dispatch. */
-export interface UserReferenceReconcileSessionResult {
-  status: "clean" | "pending" | "advisory" | "unavailable" | "conflict";
-  authority: UserReferenceEvidenceAuthorityResult;
-  plan: UserReferenceReconcilePlan | null;
-  recommendedAction: "skip" | "apply" | "surface";
-  recommendedCommand: readonly string[] | null;
-  recommendedPromptText: string;
-}
+export type UserReferenceReconcileSessionResult = z.infer<typeof UserReferenceReconcileSessionResultSchema>;
 
 const MANAGED_TARGET = /^- _WU_Target:_ `([a-z0-9]+(?:-[a-z0-9]+)*)( \((?:planned|provisional)\))?`$/u;
 const SLUG_CHAR = /[a-z0-9-]/u;

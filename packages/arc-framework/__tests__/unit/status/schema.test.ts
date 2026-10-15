@@ -1,18 +1,17 @@
-/** Unit coverage for deliberately thin session-envelope routing schemas. */
+/** Full session-slot contracts and evidence-qualified envelope routing. */
 
+import { ErrandStateResultSchema } from "../../../src/lib/session-init/errand-state-schema.js";
+import { WorkUnitStateResultSchema } from "../../../src/lib/session-init/work-unit-state-schema.js";
+import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
+import { SessionInitUserValueSchema, UserSessionInitStatusResultSchema } from "../../../src/commands/user/session-init-schema.js";
 import { describe, expect, it } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { buildBaseDistanceNotApplicable } from "../../../src/lib/git/base-distance.js";
 
 import {
-  ErrandStateValueViewSchema,
   SessionInitBaseBranchSyncValueViewSchema,
   SessionInitBaseDistanceValueSchema,
   SessionInitRetiredSubdirsValueViewSchema,
-  SessionInitUserValueViewSchema,
-  StaleWorktreeSweepValueViewSchema,
-  UserSessionInitValueViewSchema,
-  WorkUnitStateValueViewSchema,
 } from "../../../src/commands/status/schema.js";
 
 describe("shared git routing views", () => {
@@ -65,19 +64,15 @@ describe("shared git routing views", () => {
 
 describe("user and recommendation routing views", () => {
   const user = {
-    state: "clean",
-    refState: "same",
-    contentRelation: "equal",
-    coherenceState: "partial-push",
-    qualifier: "clean-at-current-head",
-    localNoteFreshness: { state: "current-head", retained: true },
-    notesDrift: { direction: "modified", retained: true },
-    loadNeeded: false,
-    detailLines: ["kept"],
+    identity: "test-user", state: "clean", summary: "Current", actionHint: null, shouldPromptToPull: false,
+    refState: "same", contentRelation: "equal", coherenceState: "partial-push", qualifier: "clean-at-current-head",
+    localNoteFreshness: { state: "current-head", commit: "a".repeat(40), commitShort: "a".repeat(7), ancestorDistance: 0 },
+    notesDrift: { direction: "modified", missingFiles: [], extraFiles: [], modifiedFiles: ["WORKING-MEMORY.md"] },
+    loadNeeded: false, detailLines: ["kept"],
   };
 
   it("pins mapped user fields and retains sync detail payloads", () => {
-    expect(UserSessionInitValueViewSchema.parse(user)).toEqual(user);
+    expect(UserSessionInitStatusResultSchema.parse(user)).toEqual(user);
   });
 
   it.each([
@@ -90,11 +85,11 @@ describe("user and recommendation routing views", () => {
     { ...user, notesDrift: { direction: "unknown" } },
     { ...user, loadNeeded: "yes" },
   ])("rejects a malformed user routing field", (value) => {
-    expect(UserSessionInitValueViewSchema.safeParse(value).success).toBe(false);
+    expect(UserSessionInitStatusResultSchema.safeParse(value).success).toBe(false);
   });
 
   it.each([
-    [SessionInitUserValueViewSchema, user],
+    [SessionInitUserValueSchema, user],
     [SessionInitBaseDistanceValueSchema, { verdict: "clean" }],
     [
       SessionInitBaseBranchSyncValueViewSchema,
@@ -108,7 +103,7 @@ describe("user and recommendation routing views", () => {
     ],
     [SessionInitRetiredSubdirsValueViewSchema, { candidates: [] }],
   ] as const)("rejects a corrupted recommendation action", (schema, value) => {
-    if (schema === SessionInitUserValueViewSchema) {
+    if (schema === SessionInitUserValueSchema) {
       expect(
         schema.safeParse({
           ...value,
@@ -131,12 +126,11 @@ describe("user and recommendation routing views", () => {
       notesDriftSurface: {
         direction: "edits",
         register: "caution",
-        detail: "kept",
       },
       recommendedAction: "surface",
       recommendedPromptText: "verbatim text",
     };
-    expect(SessionInitUserValueViewSchema.parse(value)).toEqual(value);
+    expect(SessionInitUserValueSchema.parse(value)).toEqual(value);
   });
 });
 
@@ -157,15 +151,14 @@ describe("deep advisory routing views", () => {
       remoteEvidence: "exact",
       worktrees: [
         {
-          kind: "branched",
+          kind: "branched", worktreePath: "/tmp/alpha", branch: "feat/alpha",
           decision: {
             action: "blocked",
             reason: "uncommitted",
-            detail: "kept",
-          },
+              },
         },
         {
-          kind: "husk",
+          kind: "husk", worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
           subject: { kind: "work-unit", name: "alpha" },
           stamp: {
             kind: "legacy",
@@ -177,11 +170,10 @@ describe("deep advisory routing views", () => {
       renameMoves: [],
       retirements: [],
       warnings: [],
-      retained: true,
     };
-    expect(StaleWorktreeSweepValueViewSchema.parse(value)).toEqual(value);
+    expect(StaleWorktreeSweepResultSchema.parse(value)).toEqual(value);
     expect(
-      StaleWorktreeSweepValueViewSchema.safeParse({
+      StaleWorktreeSweepResultSchema.safeParse({
         worktrees: [
           {
             kind: "branched",
@@ -198,16 +190,15 @@ describe("deep advisory routing views", () => {
         workUnits: [{
           state: "mergeable",
           behindBase: { status: "known", value: true, remoteEvidence: "exact" },
-          name: "alpha",
+          name: "alpha", branch: "feat/alpha", ageDays: 2,
         }],
-        retained: true,
-      },
-      nudge: { shouldNudge: false, markerPath: "kept" },
+        },
+      nudge: { shouldNudge: false, markerPath: "kept", today: "2026-01-02" },
       warnings: [],
     };
-    expect(WorkUnitStateValueViewSchema.parse(value)).toEqual(value);
+    expect(WorkUnitStateResultSchema.parse(value)).toEqual(value);
     expect(
-      WorkUnitStateValueViewSchema.safeParse({
+      WorkUnitStateResultSchema.safeParse({
         inFlight: {
           workUnits: [{ state: "mergeable", behindBase: "yes" }],
         },
@@ -220,6 +211,7 @@ describe("deep advisory routing views", () => {
     const value = {
       inFlight: {
         workUnits: [{
+          name: "alpha", branch: "feat/alpha", ageDays: 2,
           state: "mergeability-unavailable",
           behindBase: {
             status: "unavailable",
@@ -229,19 +221,19 @@ describe("deep advisory routing views", () => {
           mergeabilityGuidance: "Fetch remote evidence before deciding whether this work unit is mergeable.",
         }],
       },
-      nudge: { shouldNudge: false },
+      nudge: { shouldNudge: false, markerPath: null, today: "2026-01-02" }, warnings: [],
     };
-    expect(WorkUnitStateValueViewSchema.safeParse(value).success).toBe(true);
+    expect(WorkUnitStateResultSchema.safeParse(value).success).toBe(true);
     const missingGuidance = structuredClone(value);
     delete (missingGuidance.inFlight.workUnits[0] as { mergeabilityGuidance?: string }).mergeabilityGuidance;
-    expect(WorkUnitStateValueViewSchema.safeParse(missingGuidance).success).toBe(false);
+    expect(WorkUnitStateResultSchema.safeParse(missingGuidance).success).toBe(false);
   });
 
   it("pins errand resume, classification, materialization, and nudge fields", () => {
     const value = {
       remoteEvidence: "exact",
       resume: { resumable: true, slug: "kept" },
-      inFlight: { errands: [{ state: "in-progress", detail: "kept" }] },
+      inFlight: { errands: [{ slug: "alpha", branch: "chore/alpha", ageDays: 2, state: "in-progress" }] },
       materializable: {
         candidates: [{
           slug: "exact-title",
@@ -252,12 +244,12 @@ describe("deep advisory routing views", () => {
           originEntry: "Exact title",
         }],
       },
-      nudge: { shouldNudge: true, markerPath: "kept" },
-      residue: [],
+      nudge: { shouldNudge: true, markerPath: "kept", today: "2026-01-02" },
+      residue: [], warnings: [],
     };
-    expect(ErrandStateValueViewSchema.parse(value)).toEqual(value);
+    expect(ErrandStateResultSchema.parse(value)).toEqual(value);
     expect(
-      ErrandStateValueViewSchema.safeParse({
+      ErrandStateResultSchema.safeParse({
         ...value,
         materializable: {
           candidates: [{
@@ -274,13 +266,13 @@ describe("deep advisory routing views", () => {
   });
 
   it("rejects cleanup authority when remote evidence is incomplete", () => {
-    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+    expect(StaleWorktreeSweepResultSchema.safeParse({
       remoteEvidence: "pending-fetch",
       worktrees: [{ kind: "branched", decision: { action: "removable" } }],
       renameMoves: [],
       retirements: [],
     }).success).toBe(false);
-    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+    expect(StaleWorktreeSweepResultSchema.safeParse({
       remoteEvidence: "unreachable",
       failureReason: "network",
       worktrees: [],
@@ -300,7 +292,7 @@ describe("deep advisory routing views", () => {
         teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
       }],
     }).success).toBe(false);
-    expect(ErrandStateValueViewSchema.safeParse({
+    expect(ErrandStateResultSchema.safeParse({
       remoteEvidence: "not-applicable",
       resume: { resumable: false },
       inFlight: { errands: [{ state: "merged-cleanup" }] },
@@ -309,18 +301,18 @@ describe("deep advisory routing views", () => {
     }).success).toBe(false);
   });
 
-  it("accepts mapped-only payloads because the views are not full mirrors", () => {
+  it("refuses partial payloads missing producer fields", () => {
     expect(
-      WorkUnitStateValueViewSchema.safeParse({
+      WorkUnitStateResultSchema.safeParse({
         inFlight: { workUnits: [] },
         nudge: { shouldNudge: false },
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it.each([
     [
-      StaleWorktreeSweepValueViewSchema,
+      StaleWorktreeSweepResultSchema,
       {
         remoteEvidence: "exact",
         worktrees: [
@@ -340,7 +332,7 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      WorkUnitStateValueViewSchema,
+      WorkUnitStateResultSchema,
       {
         inFlight: {
           workUnits: [
@@ -357,7 +349,7 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      ErrandStateValueViewSchema,
+      ErrandStateResultSchema,
       {
         remoteEvidence: "exact",
         resume: { resumable: false, evidence: { retained: true } },
@@ -371,7 +363,7 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      UserSessionInitValueViewSchema,
+      UserSessionInitStatusResultSchema,
       {
         ...passthroughUser,
         localNoteFreshness: {
@@ -382,7 +374,7 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      SessionInitUserValueViewSchema,
+      SessionInitUserValueSchema,
       {
         ...passthroughUser,
         recommendedAction: "surface",
@@ -395,8 +387,8 @@ describe("deep advisory routing views", () => {
         evidence: { deep: { retained: true } },
       },
     ],
-  ] as const)("preserves legitimate unowned fields through thin schema %#", (schema, value) => {
-    expect(schema.parse(value)).toEqual(value);
+  ] as const)("rejects undeclared fields in the full slot schema %#", (schema, value) => {
+    expect(schema.safeParse(value).success).toBe(false);
   });
 
   it("requires movement only on healthy base-distance readings", () => {

@@ -69,9 +69,6 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "commands/constitution/types.ts", type: "DomainRulesSessionInitResult" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
-];
-
-const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     {
         file: "lib/session-init/stale-worktree-sweep.ts",
         type: "StaleWorktreeSweepResult",
@@ -82,6 +79,13 @@ const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     },
     { file: "lib/session-init/errand-state.ts", type: "ErrandStateResult" },
     { file: "commands/user/types.ts", type: "UserSessionInitStatusResult" },
+    { file: "lib/session-init/current-wu-reconcile.ts", type: "CurrentWuReconcileSessionResult" },
+    { file: "lib/user-reference-reconcile.ts", type: "UserReferenceReconcileSessionResult" },
+    { file: "lib/locus/derived-reader.ts", type: "DerivedLocusFrame" },
+
+];
+
+const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     { file: "commands/status/types.ts", type: "SessionInitProbeResult" },
     { file: "commands/status/types.ts", type: "SessionRecoverProbeResult" },
 ];

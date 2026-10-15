@@ -209,9 +209,6 @@
     }
   },
   "src/commands/status/schema.ts": {
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },

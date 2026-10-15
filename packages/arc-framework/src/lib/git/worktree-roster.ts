@@ -68,18 +68,12 @@ export const WorktreeRosterResultSchema = z.strictObject({
 export type WorktreeRosterResult = z.infer<typeof WorktreeRosterResultSchema>;
 
 /** Registered worktree topology without meta or lifecycle resolution. */
-export interface RegisteredWorktree {
-  /** Filesystem root registered with Git. */
-  path: string;
-  /** Exact commit currently checked out. */
-  head: string;
-  /** Local branch name, or `null` for a detached worktree. */
-  branch: string | null;
-  /** Whether Git reports the worktree at detached HEAD. */
-  detached: boolean;
-  /** Whether this is Git's primary worktree (the first porcelain stanza). */
-  primary: boolean;
-}
+export const RegisteredWorktreeSchema = z.strictObject({
+  path: z.string(), head: z.string(), branch: z.string().nullable(),
+  detached: z.boolean(), primary: z.boolean(),
+});
+/** Registered topology inferred from its runtime wire contract. */
+export type RegisteredWorktree = z.infer<typeof RegisteredWorktreeSchema>;
 
 /** Result of reading registered worktree topology. */
 export type RegisteredWorktreeScanResult =

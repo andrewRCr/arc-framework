@@ -14,6 +14,8 @@
  * @module
  */
 
+import type { z } from "zod";
+import { WorkUnitStateResultSchema } from "./work-unit-state-schema.js";
 import type { GitExec } from "../git/exec.js";
 import type { HistoryCompletenessResult } from "../git/history-completeness.js";
 import type { ObjectAvailabilityResult } from "../git/object-availability.js";
@@ -27,7 +29,6 @@ import {
   enumerateOwnedIntegratingWorkUnits,
   projectWorkUnitPresenceFacts,
   type InFlightWorkUnitFacts,
-  type InFlightWorkUnitSweepResult,
   type BehindBaseRelation,
 } from "./in-flight-work-unit-sweep.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
@@ -51,18 +52,7 @@ export type WorkUnitPrSource = (
 ) => Promise<Map<string, WorkUnitPrFacts>>;
 
 /** Composite work-unit completion-sweep state exposed by the session-init envelope. */
-export interface WorkUnitStateResult {
-  /** The classified owned in-flight work units across the completion tail. */
-  inFlight: InFlightWorkUnitSweepResult;
-  /**
-   * Once-per-calendar-day marker state for the batched `stale` nudge. The event
-   * states (`mergeable` / `merged-needs-archival`) bypass this gate and surface
-   * every session-init; only the time-gated `stale` overlay batches against it.
-   */
-  nudge: NudgeMarkerState;
-  /** Soft diagnostics; a degraded read should not block session-init. */
-  warnings: string[];
-}
+export type WorkUnitStateResult = z.infer<typeof WorkUnitStateResultSchema>;
 
 export interface RunWorkUnitStateOptions {
   exec: GitExec;

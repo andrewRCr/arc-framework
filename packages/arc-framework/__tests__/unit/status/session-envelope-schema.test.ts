@@ -16,7 +16,8 @@ function fixture(name: string): Record<string, unknown> {
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
   const derivedRow = {
     kind: "free-primary",
-    checkout: { path: "/redacted/primary", primary: true },
+    checkout: { path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, lifecycleLocation: null,
     subject: null,
     context: null,
     diagnostics: [],
@@ -406,12 +407,11 @@ describe("session-init envelope schema", () => {
     });
     expectInvalid(emptyPendingPlan);
 
-    // One edit makes the plan legitimately pending-shaped — the rule reads only
-    // `edits.length`, never element contents — so this payload is valid except for the
-    // command. The positive control proves that, and therefore that the rejection below
-    // is the command contract rather than a second defect in the same fixture.
+    // A complete pending edit supplies the positive control for the command contract.
     const realApplyCommand = clone(emptyPendingPlan);
-    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{
+      path: "/tmp/USER-INBOX.md", content: "Updated target", replacements: [{ subject: "old", targetSlug: "new" }],
+    }]);
     expectValid(realApplyCommand);
 
     const fakeApplyCommand = clone(realApplyCommand);
@@ -824,7 +824,11 @@ describe("session-init envelope schema", () => {
     ],
   ] as const)("rejects the stale-worktree routing field: %s", (_label, report, expectedPath) => {
     const value = fixture("orient");
-    setPath(value, ["sweep", "value", "worktrees"], [report]);
+    const complete = report.kind === "husk"
+      ? { worktreePath: "/tmp/alpha", branch: null, stampedBranch: "feat/alpha", completedWorkUnit: "alpha",
+          ...report, subject: { name: "alpha", ...report.subject }, stamp: { authorization: "merged-preserved", ...report.stamp } }
+      : { worktreePath: "/tmp/alpha", branch: "feat/alpha", ...report };
+    setPath(value, ["sweep", "value", "worktrees"], [complete]);
     expectContractFailure(value, expectedPath);
   });
 
@@ -868,7 +872,7 @@ describe("session-init envelope schema", () => {
     [
       "errand classification",
       ["errandState", "value", "inFlight", "errands"],
-      [{ state: "unknown" }],
+      [{ slug: "alpha", branch: "chore/alpha", ageDays: 0, state: "unknown" }],
       "errandState.value.inFlight.errands.0.state",
     ],
     [

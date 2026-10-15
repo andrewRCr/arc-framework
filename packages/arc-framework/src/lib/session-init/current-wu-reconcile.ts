@@ -8,28 +8,18 @@
  * @module
  */
 
+import type { z } from "zod";
+import { CurrentWuReconcileSessionResultSchema } from "./current-wu-reconcile-schema.js";
 import {
   prepareCurrentWuReconcile,
   type CurrentWuReconcileOp,
-  type CurrentWuReconcilePlan,
   type CurrentWuReconcilePrepareContext,
-  type DependencyReconcileConflictReason,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
 /** Current-WU reconcile probe input. */
 export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply">;
 
 /** Session-entry projection of one current-WU reconcile inspection. */
-export interface CurrentWuReconcileSessionResult {
-  status: "clean" | "pending" | "conflict";
-  slug: string;
-  dependency: CurrentWuReconcilePlan["dependency"];
-  trackedReferences: CurrentWuReconcilePlan["trackedReferences"];
-  advisories: CurrentWuReconcilePlan["advisories"];
-  reason?: DependencyReconcileConflictReason;
-  recommendedAction: "skip" | "surface";
-  recommendedCommand: readonly string[] | null;
-  recommendedPromptText: string;
-}
+export type CurrentWuReconcileSessionResult = z.infer<typeof CurrentWuReconcileSessionResultSchema>;
 
 /**
  * Inspect the active work unit without exposing any mutation capability.
