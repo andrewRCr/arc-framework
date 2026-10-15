@@ -72,6 +72,39 @@ describe("release wrapper abbreviated destructive flags", () => {
   });
 });
 
+describe("exact commit option precedence", () => {
+  it("commits tracked changes with --all without pushing them", async () => {
+    await git(["restore", "--staged", "tracked.txt"]);
+    const head = await git(["rev-parse", "HEAD"]);
+    const remoteHead = await git(["rev-parse", "refs/heads/topic"], remote);
+
+    const result = await runCli([
+      "release", "commit", "--all", "-m", "fix(test): commit tracked changes",
+    ], { cwd: repository });
+
+    expect(result.exitCode).toBe(0);
+    expect(await git(["rev-parse", "HEAD^"])).toBe(head);
+    expect(await git(["show", "HEAD:tracked.txt"])).toBe("changed");
+    expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(remoteHead);
+    expect(await git(["status", "--porcelain", "--untracked-files=no"])).toBe("");
+  });
+
+  it("refuses a destructive abbreviation following --all before Git runs", async () => {
+    const head = await git(["rev-parse", "HEAD"]);
+    const remoteHead = await git(["rev-parse", "refs/heads/topic"], remote);
+
+    const result = await runCli([
+      "release", "commit", "--all", "--no-verif", "-m", "fix(test): preserve the staged change",
+    ], { cwd: repository });
+
+    expect(result.exitCode).toBe(12);
+    expect(result.stderr).toContain("--no-verify");
+    expect(await git(["rev-parse", "HEAD"])).toBe(head);
+    expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(remoteHead);
+    expect(await git(["diff", "--cached", "--name-only"])).toBe("tracked.txt");
+  });
+});
+
 describe("abbreviated commit option filenames", () => {
   it.each(["--no-verif", "--amen"])("keeps %s as the pathspec filename", async (filename) => {
     await writeFile(join(repository, filename), "tracked.txt\n");

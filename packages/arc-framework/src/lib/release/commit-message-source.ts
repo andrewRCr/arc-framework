@@ -413,9 +413,14 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
   return false;
 }
 
+/** Report whether a token names an exact long option in the closed commit grammar. */
+export function isExactCommitLongOption(token: string): boolean {
+  return LONG_OPTION_NAMES.has(splitLongOption(token).name);
+}
+
 function resolveLongOperandOption(token: string): string | null {
   const { name, attached } = splitLongOption(token);
-  if (LONG_OPTION_NAMES.has(name)) return token;
+  if (isExactCommitLongOption(token)) return token;
   const matches = [...LONG_OPTION_NAMES].filter((option) => option.startsWith(name));
   const canonical = matches.length === 1 ? matches[0] : undefined;
   if (canonical === undefined) return null;

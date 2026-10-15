@@ -66,6 +66,24 @@ describe("detectCommitDestructive", () => {
     expect(detectCommitDestructive(["-m", "subject", token])).toBe(flag);
   });
 
+  it("preserves the exact --all option before checking destructive prefixes", () => {
+    expect(detectCommitDestructive(["--all", "-m", "subject"])).toBeNull();
+    expect(detectCommitAmend(["--all", "-m", "subject"])).toBe(false);
+  });
+
+  it.each(["--no-verify", "--no-verif", "--allow-empty", "--allow-empt"])(
+    "still detects %s after the exact --all option",
+    (flag) => {
+      const expected = flag.startsWith("--no-") ? "--no-verify" : "--allow-empty";
+      expect(detectCommitDestructive(["--all", flag])).toBe(expected);
+    },
+  );
+
+  it("keeps ambiguous prefixes conservative in both commit detectors", () => {
+    expect(detectCommitDestructive(["--a"])).toBe("--allow-empty");
+    expect(detectCommitAmend(["--a"])).toBe(true);
+  });
+
   it("returns the first match when multiple destructive flags are present", () => {
     expect(detectCommitDestructive(["--no-verify", "--allow-empty"])).toBe("--no-verify");
   });
