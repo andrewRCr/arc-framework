@@ -393,6 +393,14 @@
 - _Captured during:_ `delivery-post-landing-conflict-recovery` session-init, 2026-09-17 — entry was blocked by it;
   pointer corrected in `a30ebed17`.
 
+- _Recurred:_ `seam-locus`'s `create-spec` re-entry from `generate-tasks`, 2026-10-13 — the backward write was refused
+  at write time: `npx arc set-stage create-spec` returned "requires Design to point at a draft-* artifact", since
+  create-spec's finalization had already repointed `Design` to the spec. The re-entry ran under the `generate-tasks`
+  pointer with no durable sign that the spec was being re-authored, so a compaction or handoff mid re-entry would resume
+  in the wrong stage. The capture asked whether the forward-only model holds and, failing that, for a re-entry event
+  that keeps `Design` on the spec; the detour lean above is that answer's starting point. Routed from `USER-INBOX § Work
+  Unit`, housekeep drain (2026-10-15).
+
 #### Evidence — State the `Current Workflow` field's planning-only constraint, or widen it
 
 - _Additional routed evidence:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
@@ -509,3 +517,22 @@
   than as a standalone Errand. Also raised as a deferred major on PR #772.
 
 - _Captured during:_ Errand `current-workflow-lifecycle-name`, 2026-10-02.
+
+### `[ ]` **Project verification as its own stage, not task work**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-10-15).
+
+- _Shapes:_ the quick-scan lifecycle-stage signal entry (one stable per-WU stage value spanning the authored range and
+  the derived tail) and the verification-passed `Candidate` projection entry.
+
+- _Observation:_ Verification is not implementation, but it runs as every task list's final task by convention, so
+  the derived frame projects a WU in verification as `workflow: process-task-loop` / `workUnitStage: task-work` until
+  no open task remains — seen 2026-10-14 on `seam-lifecycle` (Task 8.1). The quick-scan entry's vocabulary lists
+  `verify` as a stage, but nothing yields it while verification is in progress.
+
+- _Approach:_ give in-progress verification a projected stage value — project it from the final-task convention, or
+  move verification out of the task list (Owner, 2026-10-14: "that could change"). Integration's substages
+  (prepublication, code review, …) need the same treatment for a glanceable signal. Re-ground against the storage
+  program's records first; this draft predates them.
+
+- _Captured during:_ read-only exploration session on cross-harness agent messaging, 2026-10-14.

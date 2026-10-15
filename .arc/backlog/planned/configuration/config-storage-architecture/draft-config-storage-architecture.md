@@ -183,6 +183,31 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
+### `[ ]` **Move the machine-local files in `.arc/system/.internal/` into a local-only folder**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § "`.internal/` → `.local/` rename (user dir only)", its "System dir untouched" decision, and the In scope
+  line keeping the system `.internal/` untouched.
+
+- _Observation:_ `.arc/system/.internal/` mixes tracked machinery with three machine-local files: the checkout marker
+  (`worktree-marker.json`), the pristine store (`pristine.json`), and the generated schemas (`schemas/`).
+  `storage-projection` starts `.arc/system/.local/`, a folder for machine-local files alone, for its aside folder, and
+  registers the three where they stand in `MACHINE_LOCAL_PATHS` (`draft-storage-projection.md` § Coordination, item 5),
+  so the system folder gains a local-only sibling while three local files stay outside it.
+
+- _Approach:_ move the three into `.arc/system/.local/`, reopening "System dir untouched" for the system folder. It
+  touches the marker's path (`lib/git/worktree-marker.ts`), the managed ignore blocks `arc init`, `join`, `reconfigure`,
+  and `update` write, the shipped Codex hook (`codex-recovery-marker.mjs`), the pristine store's readers
+  (`commands/diff.ts`, `commands/reconfigure.ts`), and the schema folder's exclude
+  (`lib/schema-command/editor-documents.ts`). Every live worktree's marker needs a one-off move at landing, or it reads
+  as unmarked until respawned.
+
+- _Wait:_ until `seam-locus` lands, since it rewrites the marker's admission and derivation; the marker moves once.
+
+- _Captured during:_ `storage-projection`'s draft refresh, disposing of the held `.arc/system/.internal/` capture,
+  2026-10-13.
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,

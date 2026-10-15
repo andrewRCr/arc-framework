@@ -189,6 +189,20 @@
 
 - _Captured during:_ the `markdown-links` Errand, 2026-10-12.
 
+### `[ ]` **Re-ground knowledge lint’s validator inventory after point-scanner removal**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Problem / Motivation; § Open questions — fragment orphan detection.
+
+- _Observation:_ The existing-lint inventory lists point-scanner as an extension fire-point checker and an optional
+  fragment-orphan owner. Retirement deletes that scanner and its validator.
+
+- _Approach:_ Update the inventory and choose fragment/method coverage from the actual surviving substrate. Do not
+  assert a current point validator or take the retired extension grammar as the future lint contract.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Problem / Motivation

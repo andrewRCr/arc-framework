@@ -402,6 +402,12 @@
 - _Recurred:_ `state-storage-register-batch-3` Errand (PR #743, 2026-09-29) — register rows plus ADR-035 and
   ADR-022 amendments, the same refusal, merged on Owner acceptance at zero passes; `arc review status` read
   `review-required` with no obligation level.
+- _Recurred:_ Errand `prepare-underwrap` (PR #972, 2026-10-13) — a whitespace-only rewrap of one workflow paragraph
+  routed to `standardReview: recommended` (`reviewed-routine-documentation`). The Owner asked to skip review, but the
+  driver refuses a standard-lane `invocation: { mode: "skip" }` (`review-policy-driver.ts`) and `run-errand`'s
+  Owner-directed review stop needs a completed pass, so one Codex pass (clean) was spent rather than the guard crossed
+  at the interlock. The verdict never blocks on `recommended` (`core/verdict.ts`); what is missing is the Owner's typed
+  waiver. Routed from `USER-INBOX § Work Unit`, housekeep drain (2026-10-15).
 
 ### `[ ]` **Hold the adversarial-pass recording verb to one call**
 

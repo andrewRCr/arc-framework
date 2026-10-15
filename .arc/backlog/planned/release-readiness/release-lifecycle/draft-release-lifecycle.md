@@ -82,6 +82,21 @@ downstream WUs surface the felt need.
 - _Captured during:_ the `noop-json-flag-retirement` errand, PR #652, 2026-09-19; placement decided with the Owner
   the same day.
 
+### `[ ]` **Rebase release event proposals on the retired hook mechanism**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: release-lifecycle`), housekeep drain (2026-10-15).
+
+- _Shapes:_ inbound "Post-integration / post-merge extension fire-point"; § What ARC needs internally, its optional
+  aggregation fire-points.
+
+- _Observation:_ The proposed post-integration/post-merge and pre-tag/post-release extension points assume a mechanism
+  retirement removes.
+
+- _Approach:_ Keep the release aggregation and governance questions, but decide the event/interface through the
+  replacement’s actual contract; do not plan declarative .actions or promise an existing extension hook.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ## Problem / Motivation
 
 ARC models the **contribution side** of release activity via per-WU Release Notes Entries (WOR
