@@ -27,7 +27,14 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const { store } = ctx.executor;
   const read = await readWorkUnit(store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-  const primary = read.result, meta = ParsedMetaRecordSchema.parse(primary.fields);
+  const primary = read.result, parsed = ParsedMetaRecordSchema.safeParse(primary.fields);
+  if (!parsed.success) {
+    const reason = `Metadata fields for \`${params.name}\` could not be read.`;
+    return { status: "rejected", reason, refusal: { code: "record-malformed", class: "recoverable",
+      reference: primary.reference, rule: "lifecycle.archive-fields", condition: reason,
+      remedy: { text: "Repair the work unit's metadata fields, then retry archive.", argv: ["arc", "archive", params.name] } } };
+  }
+  const meta = parsed.data;
   if (primary.placement?.kind === "completed" && meta.state === "Shipped" && meta.currentWorkflow === null) {
     return settleStoredArchive(store, primary, completedOutcome());
   }

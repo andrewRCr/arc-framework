@@ -293,3 +293,20 @@ it("refuses a changed empty-child observation before archiving and succeeds afte
   expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference }))).toEqual(h.alpha);
   expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
 });
+
+it("rejects a malformed selected meta without writes and archives after its bytes are repaired", async () => {
+  const h = createLifecycleHarness(), meta = await h.seedMeta("example");
+  const raw = [...h.store.state.records.values()].find((record) => record.reference.owner.name === "example");
+  if (raw === undefined) throw new Error("Missing stored metadata");
+  const original = raw.content;
+  raw.content = original.replace(/^# Metadata:.*$/mu, "No metadata heading");
+  const malformed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(malformed.fields).toBeUndefined();
+  expect(await archive(h.store, "example")).toMatchObject({ status: "rejected",
+    reason: expect.stringContaining("example"), refusal: { code: "record-malformed", reference: meta.reference,
+      remedy: { text: expect.stringMatching(/repair.*retry/isu), argv: ["arc", "archive", "example"] } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(malformed);
+  raw.content = original;
+  expect(await archive(h.store, "example")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).placement).toMatchObject({ kind: "completed" });
+});
