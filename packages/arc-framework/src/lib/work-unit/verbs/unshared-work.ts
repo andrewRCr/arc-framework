@@ -30,7 +30,7 @@ export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRe
     const checkoutPath = await findWorkUnitHoldingCheckout(ctx, record.reference.owner.name);
     const changes = checkoutPath === null ? { kind: "known" as const, paths: [] } : await readCheckoutChanges(ctx.exec, checkoutPath);
     if (changes.kind === "unobservable") return { kind: "unobservable", detail: changes.detail };
-    const branch = await linkedBranch(ctx, record, checkoutPath);
+    const branch = linkedBranch(ctx, record);
     const remote = await ctx.exec("git", ["remote"], { cwd: ctx.cwd });
     const origin = remote.stdout.split(/\s+/u).includes("origin");
     const sharing = branch === null ? await branchlessSharing(ctx, origin)
@@ -63,16 +63,8 @@ export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext,
   return ctx.locusPorts === undefined ? resolveLegacy() : ctx.locusPorts.findHoldingCheckout({ name, resolveLegacy });
 }
 
-async function linkedBranch(ctx: UnsharedWorkContext, record: StoreRecord, checkout: string | null): Promise<string | null> {
-  let currentBranch: string | undefined;
-  if (checkout !== null && (record.links?.branches?.length ?? 0) > 0) {
-    try { currentBranch = (await ctx.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: checkout })).stdout.trim(); }
-    // Detached HEAD supplies no branch identity; select from the recorded links.
-    catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; }
-  }
-  const holderLinked = record.links?.branches?.some((link) => (ctx.repository === undefined || link.repository === ctx.repository)
-    && workBranchName(link.ref) === currentBranch) === true;
-  const selected = selectWorkBranchLink(record, { repository: ctx.repository, currentBranch: holderLinked ? currentBranch : undefined });
+function linkedBranch(ctx: UnsharedWorkContext, record: StoreRecord): string | null {
+  const selected = selectWorkBranchLink(record, { repository: ctx.repository });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);
   return selected.kind === "none" ? null : workBranchName(selected.link.ref);
 }

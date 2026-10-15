@@ -5,7 +5,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
-import { HandoverCommandInputSchema } from "../../src/handlers/lifecycle-collaboration.js";
+import { HandoverCommandInputSchema, PauseCommandInputSchema } from "../../src/handlers/lifecycle-collaboration.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { readUnsharedWork } from "../../src/lib/work-unit/verbs/unshared-work.js";
 import { runHandover, runPause } from "../../src/lib/work-unit/verbs/pause-handover.js";
@@ -102,3 +102,28 @@ it("finds the selected repository's dirty holder when the executor defaults to a
   await rm(join(f.root, "pending.txt"));
   expect(await runHandover(ctx, params)).toMatchObject({ status: "handed-over", owner: "another-user" });
 });
+
+
+it("reports and refuses unpublished promoted work while the holder stays on its published Errand branch", async () => {
+  const f = await fixture();
+  await f.exec("git", ["switch", "-c", "chore/example", "main"]);
+  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  await f.exec("git", ["add", "-A"]); await f.exec("git", ["commit", "--allow-empty", "-m", "holder marker"]);
+  await f.exec("git", ["push", "origin", "chore/example"]);
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.record.reference, expected: f.record.version,
+    content: f.record.content, placement: { kind: "active" }, links: { branches: [
+      { repository: "repo", ref: "chore/example", linkedAs: "created", excluded: [] }, ...f.record.links!.branches!], },
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const ctx = { ...f.context, locusPorts: undefined };
+  const pause = PauseCommandInputSchema.parse({ slug: "example", reason: "Review" });
+  expect(await runPause(ctx, { name: pause.slug!, identity: "test-user", reason: pause.reason })).toMatchObject({ status: "paused",
+    report: { kind: "observed", branch: "feat/example", unsharedCommits: [f.sha] } });
+  const paused = lifecycleSuccess(await f.store.read({ reference: f.record.reference }));
+  const input = HandoverCommandInputSchema.parse({ slug: "example", to: "another-user" });
+  const params = { name: input.slug!, to: input.to };
+  expect(await runHandover(ctx, params)).toMatchObject({ status: "rejected", remedy: { argv: ["git", "push", "-u", "origin", "feat/example"] } });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.record.reference }))).toEqual(paused);
+  await f.exec("git", ["push", "origin", "feat/example"]);
+  expect(await runHandover(ctx, params)).toMatchObject({ status: "handed-over", owner: "another-user", report: { branch: "feat/example" } });
+  expect((await f.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("chore/example");
+}, HANDOVER_TIMEOUT_MS);
