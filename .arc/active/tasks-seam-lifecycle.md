@@ -903,69 +903,93 @@ repositories.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ All 19 locally applicable merge checks passed: full unit, integration and ARC contract suites, both
+  type checks, lint and build. A runner exit 255 required an unchanged-tree lint retry; CI-only E2E and portability
+  remain required at integration.
+
+- _Success criteria:_ All 16 criteria met, with provider and verification-boundary annotations. The four advisory passes
+  are complete; the final minor sharing-selection finding is fixed and verified, and the advisory loop is closed.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every lifecycle test passes over the in-repo implementation, unchanged but for those a pre-flip fix, a setup
+- `[x]` Every lifecycle test passes over the in-repo implementation, unchanged but for those a pre-flip fix, a setup
   chunk, or the removal function's porcelain and move changes alter, each named with its change.
 
-- `[ ]` Each pre-flip fix has its test: the seed fix's four cold-start seeds and the spawning arm's refusal; the removal
+- `[x]` Each pre-flip fix has its test: the seed fix's four cold-start seeds and the spawning arm's refusal; the removal
   check refusing a dirty checkout before an abandon or a Planning park records anything; the workspace closing after
   the transition's records and a throw in the finalize writes leaving it in place; the removal function pruning a
   registration whose folder is gone; and activation refusing a work unit whose `Branch` names base, naming the remedy.
 
-- `[ ]` Each rerouted verb's arm from the flip passes over the reference backend, writing the records the spec's § 2.2
+- `[x]` Each rerouted verb's arm from the flip passes over the reference backend, writing the records the spec's § 2.2
   names, promotion's put and branch cut among them.
 
-- `[ ]` At landing no `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths` count in
+    - **Verification boundary:** Operational arms are exercised over the checked reference backend and provider ports.
+      Live CLI default selection, projection, marker admission and runtime settlement await the provider bindings in
+      `spec-seam-lifecycle.md` § 19 before the flip.
+
+- `[x]` At landing no `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths` count in
   `eslint-suppressions.json` exceeds its count at the final merged base, in total or per file, but by the callers
   recorded when `completed-index.ts` joined the helper set; every remaining entry in the rerouted parts of the change's
   files sits in an in-repo arm; and `npm run -s lint:ts` passes with no suppression added for a new violation.
 
-- `[ ]` `arc pause`, `arc resume`, `arc handover`, `arc set-class`, `arc task close`, `arc task defer`,
+- `[x]` `arc pause`, `arc resume`, `arc handover`, `arc set-class`, `arc task close`, `arc task defer`,
   `arc release commit --close`, `arc materialize` (its branchless arms included), and `arc base sync`'s detached arm
   pass on their success paths and on each refusal they name, and each verb starting at the flip refuses before it,
   naming the path that serves until then.
 
-- `[ ]` Activation's arms pass: adoption from a spawned and from an anchored checkout, renaming the person's branch and
+- `[x]` Activation's arms pass: adoption from a spawned and from an anchored checkout, renaming the person's branch and
   recording it `adopted`, and keeping a name already in ARC's form; each refusal; the base arm; a linked branch keeping
   its name when `--type` names its type; and the old name's remote deletion as a typed action for a `created` link, as
   text after the merge where its remote-tracking ref holds commits `HEAD` lacks, and never for an adopted one; and
   adoption of a branch never pushed still refreshing base.
 
-- `[ ]` A pause is honored: each verb that advances the work refuses on a paused work unit, naming `arc resume`, and
+- `[x]` A pause is honored: each verb that advances the work refuses on a paused work unit, naming `arc resume`, and
   each other write proceeds; deactivation keeps the branch; and a start of another person's stub records the starter as
   `Owner` and reports the previous owner.
 
-- `[ ]` The close captures the right commits: every case in the spec's Success Criterion 8 passes — exclusions and
+- `[x]` The close captures the right commits: every case in the spec's Success Criterion 8 passes — exclusions and
   explicit closes, rebases and sync, attribution of rewritten copies and each named residual, the copy key's stability
   under every pinned source, base refresh and the emptied-set refusal, `--close`'s checks, and the parent cascade.
 
-- `[ ]` The reap keeps its rules: an abandon discards a created branch, an archive's teardown deletes one merge-safe, an
+    - **Verification boundary:** The remap case seeds additive old/new entries to prove consumption by updated and
+      lagging checkouts. The production capture/exclusion remap writer belongs to `history-policy`; its forcing event is
+      the first lease-guarded catch-up after cutover.
+
+- `[x]` The reap keeps its rules: an abandon discards a created branch, an archive's teardown deletes one merge-safe, an
   adopted branch is kept and reported, and an added ref carrying commits of its own is kept and reported.
 
-- `[ ]` The removal function and check return each of their outcomes, an anchored checkout's kept marker among them,
+- `[x]` The removal function and check return each of their outcomes, an anchored checkout's kept marker among them,
   and every move of a work unit's checkout this change runs or prints takes the doubled-force form.
 
-- `[ ]` A promoted work item projects what a fresh start does; a stub's rename run from a checkout holding a transient
+- `[x]` A promoted work item projects what a fresh start does; a stub's rename run from a checkout holding a transient
   role writes with no branch switch and no second change request; a rename leaves the branch link under its new name;
   and a spawn with no branch lands at its template's path and rolls back with no branch to delete, while an in-place
   start from a detached checkout leaves `HEAD` where it stood and a re-spawn over a hand-deleted checkout's registration
   clears it and proceeds.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+    - **Verification boundary:** Record/port and real-Git cases verify projection inputs and branchless placement. Live
+      promotion and anchored-marker settlement bind through `seam-locus` and `storage-projection` before the flip.
 
-- `[ ]` Off-branch spec-finalized repoint writes the spec Design, `generate-tasks`, and the begin-current-workflow
+- `[x]` All quality gates pass (tests, linting, type checking)
+
+    - **Verification boundary:** All 19 locally applicable merge checks passed. CI-only E2E and portability remain
+      required at integration.
+
+- `[x]` Off-branch spec-finalized repoint writes the spec Design, `generate-tasks`, and the begin-current-workflow
   action in one checked batch, preserving layered siblings; a refused batch leaves all three fields unchanged, the
   following stage advance is idempotent, and strict stage validation rejects a separate inconsistent tuple (A1).
 
-- `[ ]` Terminal lineage preserves the removed primary's exact branch-link list and cleanup retries use it. Missing
+- `[x]` Terminal lineage preserves the removed primary's exact branch-link list and cleanup retries use it. Missing
   branch authority refuses, and repair restores the teardown continuation without branch-name inference (A2).
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` Off-branch rename leaves a nonempty legacy personal workspace and its notes state unchanged; a workspace
+    - **Verification boundary:** Execution is verified for Candidate preparation. Required private/hosted review and CI
+      settle before merge.
+
+- `[x]` Off-branch rename leaves a nonempty legacy personal workspace and its notes state unchanged; a workspace
   conflict does not prevent the operational rename.

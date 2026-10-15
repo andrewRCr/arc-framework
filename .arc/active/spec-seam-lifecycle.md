@@ -2171,9 +2171,9 @@ this design open.
 ## Amendments
 
 - **A1** — 2026-10-14 — design: spec finalization advances Design and workflow atomically off-branch.
-  _Supersedes:_ § 2.2 field-verb row. _Trigger:_ 4.1 must-stop. _Work:_ 4.1.R. _Revalidated:_ pending → 4.9.
+  _Supersedes:_ § 2.2 field-verb row. _Trigger:_ 4.1 must-stop. _Work:_ 4.1.R. _Revalidated:_ 8.1.
 - **A2** — 2026-10-14 — spec-depth: terminal lineage retains branch authority for cleanup retries.
-  _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ pending → 6.9.
+  _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ 8.1.
 - **A3** — 2026-10-14 — design: off-branch rename leaves the legacy personal workspace untouched.
   _Supersedes:_ § 7.1 workspace clause and § 16 rename remedy row. _Trigger:_ F3 review. _Work:_ 4.R. _Revalidated:_ 4.R.
 

@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-lifecycle.md`
 - **Task List:** `tasks-seam-lifecycle.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:f5a6805bf0243ddc0e73384a02b042b087dc38f922caf88720f57ab07c951aaa`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 7.6 — The task close verb; Phase 7 complete
-- **Next Task:** Task 8.1 — Complete verification (line ~895 in `tasks-seam-lifecycle.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Fresh session: begin Task 8.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
