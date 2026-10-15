@@ -1,7 +1,7 @@
 /** Built-CLI refusals preserve local and remote commits for abbreviated destructive options. */
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -86,5 +86,26 @@ describe("abbreviated commit option filenames", () => {
     expect(await git(["rev-parse", "HEAD^"])).toBe(head);
     expect(await git(["show", "HEAD:tracked.txt"])).toBe("changed");
     expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(remoteHead);
+  });
+});
+
+describe("push-option values", () => {
+  it.each(["--push-option", "-o", "--push-opt"])("transmits flag-like data after %s", async (option) => {
+    await git(["config", "receive.advertisePushOptions", "true"], remote);
+    const hook = join(remote, "hooks", "pre-receive");
+    await writeFile(hook, [
+      "#!/bin/sh",
+      'printf "%s\\n" "$GIT_PUSH_OPTION_COUNT:$GIT_PUSH_OPTION_0" > "$GIT_DIR/push-options.txt"',
+      "",
+    ].join("\n"));
+    await chmod(hook, 0o755);
+    await git(["commit", "-m", "fix(test): publish the staged change"]);
+    const head = await git(["rev-parse", "HEAD"]);
+
+    const result = await runCli(["release", "push", option, "--for"], { cwd: repository });
+
+    expect(result.exitCode).toBe(0);
+    expect(await git(["rev-parse", "refs/heads/topic"], remote)).toBe(head);
+    expect((await readFile(join(remote, "push-options.txt"), "utf8")).trim()).toBe("1:--for");
   });
 });

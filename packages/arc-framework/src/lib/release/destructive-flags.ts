@@ -10,6 +10,8 @@
  * @module
  */
 
+import { pushOptionConsumesNext } from "./arg-grammar.js";
+
 import {
   commitOptionConsumesNext,
   walkCommitShortOption,
@@ -126,8 +128,19 @@ function containsNoVerifyShortOption(token: string): boolean {
  * {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
  */
 export function detectPushDestructive(argv: readonly string[]): string | null {
-  for (const token of argv) {
-    const match = matchDestructive(token, PUSH_DESTRUCTIVE_FLAGS);
+  let options = true;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined) continue;
+    if (token === "--") {
+      options = false;
+      continue;
+    }
+    if (options && pushOptionConsumesNext(token, argv[index + 1])) {
+      index += 1;
+      continue;
+    }
+    const match = options ? matchDestructive(token, PUSH_DESTRUCTIVE_FLAGS) : null;
     if (match !== null) return match;
     if (token.length > 1 && token.startsWith("+")) {
       return PUSH_REFSPEC_FORCE_IDENTIFIER;

@@ -160,6 +160,41 @@ describe("detectPushDestructive", () => {
     expect(detectPushDestructive([token])).toBe(flag);
   });
 
+  it.each([
+    ["--push-option", "--for"],
+    ["-o", "--delet"],
+    ["--push-opt", "--mirro"],
+    ["--push-option", "+topic:topic"],
+    ["--receive-p", "--for"],
+    ["--ex", "--for"],
+    ["--rep", "--for"],
+    ["--", "--for"],
+  ])("keeps the value in %j out of destructive matching", (...args) => {
+    expect(detectPushDestructive(args)).toBeNull();
+  });
+
+  it.each(["--r", "--p", "--no-push-option", "--made-up"])(
+    "does not hide a destructive flag after non-consuming %s",
+    (option) => {
+      expect(detectPushDestructive([option, "--for"])).toBe("--force");
+    },
+  );
+
+  it("still refuses a destructive option after a push-option operand", () => {
+    expect(detectPushDestructive(["--push-option", "--for", "--delet"])).toBe("--delete");
+  });
+
+  it.each([
+    ["--push-option=--for", "--delet"],
+    ["-o--for", "--delet"],
+  ])("does not consume an extra operand after attached values in %j", (...args) => {
+    expect(detectPushDestructive(args)).toBe("--delete");
+  });
+
+  it("still refuses a force refspec after an option terminator", () => {
+    expect(detectPushDestructive(["--", "-o", "+topic:topic"])).toBe(PUSH_REFSPEC_FORCE_IDENTIFIER);
+  });
+
   it("returns the canonical refspec identifier when an argv element starts with '+'", () => {
     expect(detectPushDestructive(["origin", "+main:main"])).toBe(
       PUSH_REFSPEC_FORCE_IDENTIFIER,
