@@ -3,7 +3,7 @@
   "slug": "check-tail-omission",
   "claimId": "7fdf08c16d7c9750a940c31331dea0aa",
   "createdAt": "2026-10-15T12:26:06.179Z",
-  "updatedAt": "2026-10-15T12:26:06.179Z",
+  "updatedAt": "2026-10-15T12:43:08.134Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report omitted output lines when human check failure tails are truncated while retaining complete JSON output",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Say how many lines a failing check's report tail left out",
   "originEntrySourceDigest": "sha256:b686af073656aa9b81f3126a175ea1605c0f6c06f03573744da1846b091febf4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/check-tail-omission",
+    "headSha": "e57a7fca82da72639addd8eae8e52bab73151857"
+  }
 }
