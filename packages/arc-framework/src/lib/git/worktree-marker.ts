@@ -84,7 +84,7 @@ export interface WorktreeHuskStamp {
 export interface WorktreeRenameMovePending {
   oldSlug: string;
   newSlug: string;
-  branch: string;
+  branch: string | null;
   head: string;
   from: string;
   to: string;
@@ -312,8 +312,7 @@ function isWorktreeRenameMovePending(value: unknown): value is WorktreeRenameMov
     && pending.oldSlug !== ""
     && typeof pending.newSlug === "string"
     && pending.newSlug !== ""
-    && typeof pending.branch === "string"
-    && pending.branch !== ""
+    && (pending.branch === null || (typeof pending.branch === "string" && pending.branch !== ""))
     && typeof pending.head === "string"
     && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(pending.head)
     && typeof pending.from === "string"

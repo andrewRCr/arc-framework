@@ -273,11 +273,14 @@ export type RenameWorktreeMoveResolution =
  */
 export async function resolveRenameWorktreeMove(
   exec: GitExec,
-  params: { branch: string; oldSlug: string; newSlug: string; currentLocus: string; marker?: WorktreeMarker },
+  params: { branch?: string; worktreePath?: string; oldSlug: string; newSlug: string; currentLocus: string; marker?: WorktreeMarker },
 ): Promise<RenameWorktreeMoveResolution> {
-  const registry = await resolveWorktreePathsByBranchResult(exec);
-  if (!registry.ok) throw new Error("could not read the registered worktree paths");
-  const from = registry.paths.get(params.branch);
+  let from = params.worktreePath;
+  if (from === undefined) {
+    const registry = await resolveWorktreePathsByBranchResult(exec);
+    if (!registry.ok) throw new Error("could not read the registered worktree paths");
+    from = params.branch === undefined ? undefined : registry.paths.get(params.branch);
+  }
   if (from === undefined) return { status: "in-place" };
 
   if (params.marker?.spawnedByArc === false) return { status: "anchored", worktreePath: from };

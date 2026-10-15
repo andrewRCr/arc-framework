@@ -7,6 +7,7 @@ import { makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { runRenameCommand } from "../../src/commands/rename.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { storeRenameAdapters } from "../../src/commands/rename-store.js";
 import { createInRepoRenameRetirementContext } from "../../src/lib/work-unit/direct-retirement-driver.js";
 import { readWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
@@ -80,4 +81,58 @@ it("preserves a marker changed between compensation's check and the inverse tran
   await expect(receipt.rollback()).rejects.toThrow("rollback");
   expect(await readFile(path)).toEqual(concurrent);
   expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", spawningIdentity: "another-user" } });
+});
+
+it("keeps a peer's advanced old remote head through a rename retry until the new branch preserves it", async () => {
+  const f = await fixture(false); const remote = join(f.root, ".git", "remote.git");
+  await f.exec("git", ["init", "--bare", remote]); await f.exec("git", ["remote", "add", "origin", remote]);
+  await f.exec("git", ["push", "origin", "feat/source"]);
+  let failPush = true;
+  f.command.io.exec = async (command, args, options) => {
+    if (failPush && args.join(" ") === "push -u origin feat/target") {
+      failPush = false; throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "temporary push failure" });
+    }
+    return f.exec(command, args, options);
+  };
+  const params = { sourceSlug: "source", targetSlug: "target" };
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "partial" });
+  const peer = join(f.root, ".git", "peer"); await f.exec("git", ["clone", "--branch", "feat/source", remote, peer]);
+  const peerExec = makeGitExec(peer);
+  await peerExec("git", ["config", "user.name", "Peer"]); await peerExec("git", ["config", "user.email", "peer@example.invalid"]);
+  await writeFile(join(peer, "peer-work"), "preserve this peer commit\n"); await peerExec("git", ["add", "peer-work"]);
+  await peerExec("git", ["commit", "-m", "peer work"]); await peerExec("git", ["push", "origin", "feat/source"]);
+  const advanced = (await peerExec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "partial", reason: expect.stringMatching(/preserv|fetch|merge/iu) });
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toContain(advanced);
+  await f.exec("git", ["fetch", "origin", "+refs/heads/feat/source:refs/remotes/origin/feat/source"]);
+  await f.exec("git", ["merge", "--ff-only", "refs/remotes/origin/feat/source"]);
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toBe("");
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/target"])).stdout).toContain(advanced);
+  expect(await readFile(join(f.root, "peer-work"), "utf8")).toBe("preserve this peer commit\n");
+}, 30_000);
+
+it.each([false, true])("defers the holder's own folder move while completing the logical rename, detached=%s", async (detached) => {
+  const f = await fixture(true);
+  if (detached) {
+    await f.exec("git", ["switch", "--detach"], { cwd: f.checkout });
+    lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+      content: f.primary.content, placement: { kind: "active" }, links: { branches: [] }, provenance: { verb: "unlink", lifecycleAction: "unlink" } }));
+  }
+  await mkdir(join(f.checkout, "inside"));
+  const boundCwd = join(f.checkout, "inside");
+  const command = { ...f.command, cwd: boundCwd, io: { ...f.command.io, exec: makeGitExec(boundCwd) } };
+  command.io.exec = async (cmd, args, options) => {
+    if (args[0] === "worktree" && args[1] === "move") throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "Permission denied: occupied directory" });
+    return f.exec(cmd, args, { cwd: boundCwd, ...options });
+  };
+  const result = await runRenameCommand(command, { sourceSlug: "source", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "renamed", checkout: { checkoutPath: f.checkout },
+    worktree: { followUpNotice: expect.stringContaining("git worktree move -f -f") } });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("target");
+  expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", renameMovePending: {
+    from: f.checkout, to: f.target, branch: detached ? null : "feat/target",
+  } } });
+  await f.exec("git", ["worktree", "move", "-f", "-f", f.checkout, f.target]);
+  expect(await readWorktreeMarker(f.target)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
 });

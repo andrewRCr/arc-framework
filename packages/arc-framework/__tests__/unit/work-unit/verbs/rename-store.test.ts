@@ -106,6 +106,7 @@ async function branchFixture(linkedAs: "created" | "adopted" = "created", failPu
     { match: ["remote"], responses: [{ stdout: "origin" }] },
     { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: detached ? [{ failure: { exitCode: 1, stderr: "detached" } }] : [() => ({ stdout: [...refs][0] ?? "" })] },
     { match: ["ls-remote", "--heads", "origin", "refs/heads/feat/source"], responses: [() => ({ stdout: remotePresent ? `${sha}\trefs/heads/feat/source` : "" })] },
+    { match: ["ls-remote", "--heads", "origin", "refs/heads/feat/target"], responses: [{ stdout: `${sha}\trefs/heads/feat/target` }] },
     { match: { prefix: ["for-each-ref", "--format=%(refname)"] }, responses: [(call) => ({ stdout: call.args.slice(2).filter((ref) => refs.has(ref.replace("refs/heads/", ""))).join("\n") })] },
     { match: { prefix: ["for-each-ref", "--format=%(upstream)"] }, responses: [{ stdout: "" }] },
     { match: { prefix: ["branch", "-m"] }, responses: [(call) => { const from = call.args[2], to = call.args[3]; if (from === undefined || to === undefined) throw new Error("Missing rename operands"); refs.delete(from); refs.add(to); return { stdout: "" }; }] },
