@@ -191,7 +191,7 @@ export function formatForeignWriteAdvisories(
   oracleWarnings: readonly InFlightWarning[] = [],
 ): string[] {
   return [
-    ...oracleWarnings.map(renderInFlightWarning),
+    ...oracleWarnings.filter((warning) => warning.code !== "branch-residue").map(renderInFlightWarning),
     ...(result.skipped ?? []).map(formatSkippedEntry),
     ...(result.indeterminate ?? []).map(formatIndeterminateProbe),
     ...(result.notes ?? []),
