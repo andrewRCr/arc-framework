@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "conventional-subject-grammar",
+  "claimId": "51165235537c34d895d1676c5ba643a6",
+  "createdAt": "2026-10-15T01:07:32.533Z",
+  "updatedAt": "2026-10-15T01:07:32.533Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the commit subject scope optional and the description lowercase, as Conventional Commits and Angular do",
+  "branch": "chore/conventional-subject-grammar",
+  "origin": "inbox",
+  "originEntry": "Align the commit subject grammar with Conventional Commits",
+  "originEntrySourceDigest": "sha256:da16decbefec5ab28d4d2d8ead34c6f5c2e4056ea428c7d4cc02f16e36172e7f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
