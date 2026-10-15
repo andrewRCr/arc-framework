@@ -10,6 +10,7 @@ import { acquireLifecycleRecords } from "./prepared-lifecycle-write.js";
 import type { CurrentWuReconcilePrepareContext } from "./side-effects/discharge-dep-edges.js";
 import { validateTransitionRecordEnumeration, type TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 import { queryTransitionDisposition } from "./transition-disposition-query.js";
+import { readTerminalReferenceAliases } from "./terminal-reference-aliases.js";
 import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
 export interface StoreReconcilePreparation { context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
@@ -29,19 +30,21 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   }
   const lineage = await storeLineageEnumeration(store);
   if (lineage.status === "refused") return lineage;
-  const aliases = await artifactAliasTransitions(store, acquired.result, view.result.index);
+  const aliases = await artifactAliasTransitions(store, acquired.result, view.result.index, lineage.result.aliases);
   if (aliases.status === "refused") return aliases;
   return { status: "ok", result: { records: acquired.result, byPath, context: {
     index: view.result.index,
     additionalReferenceTransitions: aliases.result,
-    enumerateTransitionRecords: () => Promise.resolve(lineage.result),
+    enumerateTransitionRecords: () => Promise.resolve(lineage.result.enumeration),
     queryDisposition: async (input) => {
       const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(input.origin) });
       if (lookup.status === "ok" && lookup.result.reference.owner.name !== input.origin) {
         return { status: "unique", disposition: { kind: "retarget", targetSlug: lookup.result.reference.owner.name } };
       }
       if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return { status: "namespace-corrupt" };
-      return queryTransitionDisposition(lineage.result, input);
+      const targets = lookup.status === "refused" ? lineage.result.aliases.get(input.origin) : undefined;
+      if (targets !== undefined && targets.length !== 1) return { status: "ambiguous" };
+      return queryTransitionDisposition(lineage.result.enumeration, { ...input, origin: targets?.[0] ?? input.origin });
     },
     listArtifactPaths: () => Promise.resolve([...byPath.keys()]),
     readFile: (path) => {
@@ -51,7 +54,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
     },
   } } };
 }
-async function artifactAliasTransitions(store: Store, records: readonly StoreRecord[], index: CurrentWuReconcilePrepareContext["index"]): Promise<StoreResult<ReachableReferenceTransition[]>> {
+async function artifactAliasTransitions(store: Store, records: readonly StoreRecord[], index: CurrentWuReconcilePrepareContext["index"], terminalAliases: ReadonlyMap<string, readonly string[]>): Promise<StoreResult<ReachableReferenceTransition[]>> {
   const candidates = artifactAliasCandidates(records);
   const transitions: ReachableReferenceTransition[] = [];
   for (const candidate of candidates) {
@@ -59,7 +62,10 @@ async function artifactAliasTransitions(store: Store, records: readonly StoreRec
     if (!slug.success || index.has(candidate)) continue;
     const lookup = await store.lookup({ kind: "slug", slug: slug.data });
     if (lookup.status === "refused") {
-      if (lookup.refusal.code === "not-found") continue;
+      if (lookup.refusal.code === "not-found") {
+        for (const targetSlug of terminalAliases.get(candidate) ?? []) transitions.push({ subject: candidate, outcome: { kind: "rename", targetSlug } });
+        continue;
+      }
       return lookup;
     }
     if (lookup.result.reference.kind === "work-item/meta" && lookup.result.reference.owner.name !== candidate) {
@@ -79,14 +85,19 @@ function artifactAliasCandidates(records: readonly StoreRecord[]): Set<string> {
   return candidates;
 }
 
-async function storeLineageEnumeration(store: Store): Promise<StoreResult<TransitionRecordEnumerationResult>> {
+async function storeLineageEnumeration(store: Store): Promise<StoreResult<{
+  enumeration: TransitionRecordEnumerationResult; aliases: ReadonlyMap<string, readonly string[]>;
+}>> {
   const listing = await store.list({ family: "lineage", kind: "lineage/transition" });
   if (listing.status === "refused") return listing;
-  if (listing.result.status === "absent") return { status: "ok", result: { status: "valid", groups: [] } };
+  if (listing.result.status === "absent") return { status: "ok", result: { enumeration: { status: "valid", groups: [] }, aliases: new Map() } };
   if (listing.result.status !== "complete" || listing.result.missed || listing.result.diagnostics.length > 0) {
-    return { status: "ok", result: { status: "namespace-corrupt" } };
+    return { status: "ok", result: { enumeration: { status: "namespace-corrupt" }, aliases: new Map() } };
   }
-  return { status: "ok", result: validateTransitionRecordEnumeration(listing.result.records.map((record) => ({
+  const enumeration = validateTransitionRecordEnumeration(listing.result.records.map((record) => ({
     filename: `${record.reference.owner.name}.json`, mode: "100644", type: "blob", content: Buffer.from(record.content),
-  }))) };
+  })));
+  if (enumeration.status !== "valid") return { status: "ok", result: { enumeration, aliases: new Map() } };
+  const aliases = await readTerminalReferenceAliases(store, listing.result.records);
+  return aliases.status === "refused" ? aliases : { status: "ok", result: { enumeration, aliases: aliases.result } };
 }

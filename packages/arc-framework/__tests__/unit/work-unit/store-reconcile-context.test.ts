@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
-import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
+import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import { writeMetaTitle } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
@@ -81,4 +81,29 @@ it.each([false, true])("owner reconcile repairs alias-backed artifact references
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe("# Notes\n\nRead `spec-successor.md`. Narrative origin context.\n");
   expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).toMatchObject({ dependsOn: dependency ? ["successor"] : [] });
   expect(await h.store.list({ family: "lineage", kind: "lineage/transition" })).toMatchObject({ status: "ok", result: { status: "absent" } });
+});
+
+it.each([false, true])("retains authenticated former-name retirement evidence, dependency=%s", async (dependency) => {
+  const h = createLifecycleHarness(), origin = await h.seedMeta("origin");
+  const dependent = await h.seedMeta("dependent", { dependsOn: dependency ? ["origin"] : [] });
+  const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
+  const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
+  expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
+  const renamed = lifecycleSuccess(await h.store.read({ reference: origin.reference }));
+  if (renamed.reference.owner.type !== "work-item") throw new Error("Expected a work item");
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "remove", reference: renamed.reference, expected: renamed.version },
+    { action: "put", reference: recordReferences["lineage/transition"](renamed.reference.owner), expected: null,
+      content: writeLineageRecord({ schemaVersion: 2, origin: { name: renamed.reference.owner.name, uid: renamed.reference.owner.uid },
+        kind: "abandon", successors: [], incoming: [], retiredBranches: [] }) }], { verb: "abandon", lifecycleAction: "abandon" }));
+  const ceremony = buildStoreCurrentWuReconcile(h.store);
+  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  expect(prepared.status).toBe("pending");
+  expect(prepared.prepared.plan.dependency.after).toEqual([]);
+  expect(prepared.prepared.plan.advisories).toContainEqual(expect.objectContaining({ subject: "origin", referenceKind: "dangling-artifact", suggestedDisposition: "remove-or-retarget" }));
+  expect(prepared.prepared.plan.advisories).toContainEqual(expect.objectContaining({ subject: "origin", referenceKind: "narrative", suggestedDisposition: "remove-or-retarget" }));
+  expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: dependency ? "applied" : "pending" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(content);
+  expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).toMatchObject({ dependsOn: [] });
 });
