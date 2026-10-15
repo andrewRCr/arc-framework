@@ -427,13 +427,6 @@ function scanCommitOption(args: readonly string[], index: number, arg: string, s
   return walk.consumedNext;
 }
 
-/** Whether recognized Git preview options suppress commit creation, respecting operands and `--`. */
-export function isCommitPreview(args: readonly string[]): boolean {
-  const state = createScanState(undefined);
-  scanCommitOptions(args, state);
-  return state.noCommit;
-}
-
 /**
  * Classify the commit-message input represented by `args`.
  *

@@ -19,7 +19,7 @@ function harness() {
       resolved: { commitInterlock: { value: "on-task-approval", source: "git-config" }, pushInterlock: { value: "manual", source: "default" },
         syncInterlock: { value: "on-handoff", source: "default" }, notesPush: { value: "on-sync", source: "default" }, releaseOptedIn: { value: "true", source: "git-config" } },
       defaultsApplied: [], warnings: [] },
-    spawnGit: async () => { committed = true; return { exitCode: 0, stdout: "", stderr: "" }; }, resolveHead: async () => "a".repeat(40),
+    spawnGit: async () => { committed = true; return { exitCode: 0, stdout: "", stderr: "" }; }, resolveHead: async () => (committed ? "a" : "b").repeat(40),
     listRemoteRefsContainingHead: async () => [],
     preflightCommitMessage: async () => ({ kind: "pass-through" }), createMessageSnapshot: () => { throw new Error("no snapshot required"); },
     persistMessageRetry: () => { throw new Error("no retry required"); }, cleanupConsumedMessageRetry: async () => false,
@@ -60,4 +60,16 @@ it("a postcommit close failure preserves the commit and names the standalone clo
   expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 1, committed: "a".repeat(40), continuation: { text: "Run arc task close 1.1.", argv: ["arc", "task", "close", "1.1"] } });
   expect(h.state().committed).toBe(true);
   expect(h.audit[0]).toMatchObject({ decision: "proceeded", outcome: { kind: "commit" } });
+});
+
+it.each(["before", "after"])("preserves standalone close when the %s commit observation fails", async (when) => {
+  const h = harness(); let reads = 0;
+  h.deps.resolveHead = async () => {
+    reads++;
+    if ((when === "before" && reads === 1) || (when === "after" && reads === 2)) throw new Error("HEAD unavailable");
+    return (reads === 1 ? "b" : "a").repeat(40);
+  };
+  expect(await runReleaseCommit(h.deps)).toMatchObject({ exitCode: 1, continuation: h.deps.taskClose!.continuation });
+  expect(h.state()).toEqual({ committed: true, checked: true, closed: false });
+  expect(h.errors.join("")).toContain("could not be verified");
 });

@@ -40,7 +40,6 @@ import {
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
 import {
-  isCommitPreview,
   rewriteCommitFileSource,
   rewriteCommitMessagesToFile,
 } from "../../lib/release/commit-message-source.js";
@@ -76,8 +75,8 @@ export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
 
 /**
  * Resolves the just-committed HEAD hash post-success. Real impl runs
- * `git rev-parse HEAD`; tests inject a stub. Called only when `spawnGit`
- * resolves with `exitCode: 0`.
+ * `git rev-parse HEAD`; tests inject a stub. Task-closing invocations also
+ * observe it before spawning Git to distinguish a commit from a preview.
  */
 export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
 
@@ -179,8 +178,8 @@ export interface ReleaseCommitDeps {
    */
   spawnGit: SpawnGit;
   /**
-   * HEAD resolver invoked post-success to capture the committed hash for
-   * the audit entry. Called only on `spawnGit` exit code 0.
+   * HEAD resolver invoked post-success for the audit and before Git when
+   * task closure requires evidence that this invocation created a commit.
    */
   resolveHead: ResolveHead;
   /** Classifies and validates deterministic message input after authorization. */
@@ -317,6 +316,7 @@ export async function runReleaseCommit(
     spawnStdin = preflight.transport.rawBytes;
   }
 
+  const beforeCloseHead = deps.taskClose === undefined ? undefined : await safeResolveHead(deps, writeStderr);
   let spawned: SpawnGitResult;
   try {
     spawned = await deps.spawnGit({
@@ -381,19 +381,33 @@ export async function runReleaseCommit(
   });
   surfaceAuditFailure(auditResult, writeStderr);
 
-  if (spawned.exitCode === 0 && deps.taskClose !== undefined && !isCommitPreview(deps.argv)) {
-    let failure: string | undefined;
-    try {
-      const closed = await deps.taskClose.close();
-      if (closed.status === "refused") failure = closed.reason;
-    } catch (error) { failure = error instanceof Error ? error.message : String(error); }
-    if (failure !== undefined) {
-      const committed = outcome.kind === "commit" ? outcome.hash : "unknown";
-      writeStderr(`Commit ${committed} landed, but task close failed: ${failure}\n${deps.taskClose.continuation.text}\n`);
-      return { exitCode: 1, committed, continuation: deps.taskClose.continuation };
-    }
+  if (spawned.exitCode === 0 && deps.taskClose !== undefined) {
+    return closeCommittedTasks(deps.taskClose, beforeCloseHead, outcome.kind === "commit" ? outcome.hash : "unknown", writeStderr);
   }
   return { exitCode: spawned.exitCode };
+}
+
+async function closeCommittedTasks(taskClose: ReleaseTaskClose, before: string | undefined, after: string,
+  writeStderr: (message: string) => void): Promise<ReleaseCommitResult> {
+  const knownHead = (value: string | undefined): boolean => value !== undefined && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
+  if (!knownHead(before) || !knownHead(after)) {
+    writeStderr(`Git returned success, but commit creation could not be verified; no tasks were closed.\n${taskClose.continuation.text}\n`);
+    return { exitCode: 1, continuation: taskClose.continuation };
+  }
+  if (before === after) {
+    writeStderr("Git did not advance HEAD; no tasks were closed.\n");
+    return { exitCode: 0 };
+  }
+  let failure: string | undefined;
+  try {
+    const closed = await taskClose.close();
+    if (closed.status === "refused") failure = closed.reason;
+  } catch (error) { failure = error instanceof Error ? error.message : String(error); }
+  if (failure !== undefined) {
+    writeStderr(`Commit ${after} landed, but task close failed: ${failure}\n${taskClose.continuation.text}\n`);
+    return { exitCode: 1, committed: after, continuation: taskClose.continuation };
+  }
+  return { exitCode: 0 };
 }
 
 async function refuseClosePrecheck(check: string, remedy: Remedy, ctx: RefuseContext): Promise<ReleaseCommitResult> {
@@ -462,10 +476,8 @@ async function readPushedHead(deps: ReleaseCommitDeps): Promise<PushedHeadReadin
 }
 
 /**
- * Resolve HEAD post-success, surfacing executor failure to stderr without
- * propagating. A throw here would mask a successful `git commit` and skip
- * the audit-emit path; capturing the failure as `"unknown"` keeps the audit
- * shape and exit code aligned with what git actually did.
+ * Observe HEAD without masking Git's result. An unavailable observation keeps
+ * the audit writable and leaves task closure to its explicit continuation.
  */
 async function safeResolveHead(
   deps: ReleaseCommitDeps,
@@ -475,7 +487,7 @@ async function safeResolveHead(
     return await deps.resolveHead({ cwd: deps.cwd });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    writeStderr(`warn: HEAD resolution failed; audit hash recorded as "unknown" (${detail})\n`);
+    writeStderr(`warn: HEAD resolution failed (${detail})\n`);
     return "unknown";
   }
 }
