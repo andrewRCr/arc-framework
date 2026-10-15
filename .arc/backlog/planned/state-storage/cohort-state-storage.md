@@ -15,8 +15,8 @@ still shaped by state living in code history: the storage-coupling register belo
 ```text
 Stage 1  storage-contract          design core; ships the contract over today's substrates
 Stage 2  storage-seam              every reader and writer through the contract; after storage-contract lands
-         storage-ref-backend       the refs/arc/* store, user sync onto it, import, explicit state fetch;
-                                   implements after seam-record-kinds ships
+         storage-ref-backend       the refs/arc/* store, personal state synced through it, import, explicit
+                                   state fetch; implements once seam-lifecycle ships
          storage-projection        the working copy
 Stage 3  storage-cutover           rehearse, quiesce, import, flip, retire notes; then deletion and documentation
 ```
@@ -27,8 +27,9 @@ Each member's `Depends On` edges are the source of truth. Two orderings are not 
   its draft settles the decisions they share — ref layout, each surface's concurrency mechanism, and the
   projection's caller-visible behavior — and may implement once its spec is approved. A `Depends On` edge clears
   only when the dependency ships, so this is recorded here rather than as an edge. Only `storage-seam` needs the
-  contract landed. `storage-ref-backend` also depends on `seam-record-kinds` (Owner, 2026-10-10), an edge: its
-  design runs alongside, and its implementation starts once that member ships.
+  contract landed. `storage-ref-backend`'s two edges gate different points: its implementation starts once
+  `seam-lifecycle` ships, whose code its first phase builds on, while `seam-locus` orders only its landing, since the
+  import's re-homing of Errands writes the `owner` field that member adds to the Errand record.
 - **The seam's design order.** `storage-seam` decomposed against the contract's consumer map into six members, the
   subcohort `state-storage/storage-seam`, whose `cohort-storage-seam.md` holds the members' design order and their other
   coordination. Every other member depends on `seam-record-kinds`, and `storage-cutover` on all six.
@@ -220,12 +221,15 @@ tags, and the completed register.
 ### `storage-ref-backend`
 
 _Exposes:_ the `refs/arc/*` backend, with local-only as the same backend with sync switched off; the backing-repository
-backend; the state remote's per-clone designation, and an upstream's state as a read-only source; user sync moved onto
-the store; the migrate verb, with the import as its one-time source; and the explicit state fetch.
+backend; the state remote's per-clone designation, and an upstream's state as a read-only source; personal state synced
+through the store, with `arc sync`'s rewiring left to `storage-cutover`; the migrate verb, with the import as its
+one-time source; and the explicit state fetch.
 
-_Consumes:_ the contract's approved interface, ref layout, and concurrency mechanisms, and `seam-record-kinds`, landed
-— its kind registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the backend's write path calls;
-implementation starts once it ships.
+_Consumes:_ the contract's approved interface, ref layout, and concurrency mechanisms; `seam-record-kinds`' kind
+registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the backend's write path calls;
+`seam-lifecycle`'s record placement, rename path, pause section, branch links, and capture keys, which the backend and
+its import build on, so implementation starts once it ships; and `seam-locus`'s Errand `owner` field, which the import
+needs before it re-homes Errands, so it lands after that member.
 
 ### `storage-projection`
 
