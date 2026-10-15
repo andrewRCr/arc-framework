@@ -511,6 +511,11 @@ export interface HandoffPathSet {
   workingMemory: string | null;
 }
 
+/** Passive handoff worktree evidence with the physical checkout identity used by its header. */
+export type SessionHandoffWorktreeValue = WorktreeSnapshotAnalysisResult & {
+  identity: WorktreeIdentity;
+};
+
 /**
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
@@ -548,7 +553,7 @@ export interface SessionHandoffResult {
    */
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
-  worktree: Probe<WorktreeSnapshotAnalysisResult>;
+  worktree: Probe<SessionHandoffWorktreeValue>;
   user: Probe<SessionUserValue>;
   syncInterlock: Probe<HandoffSyncInterlock>;
   active: Probe<ActiveSessionInitResult>;
@@ -805,6 +810,7 @@ export interface SessionRecoverProbes {
 export interface SessionHandoffProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
   /** Resolve the entering checkout and its exact subject context. */

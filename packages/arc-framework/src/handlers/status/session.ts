@@ -14,6 +14,7 @@ import { runHeadHashStatus } from "../../lib/git/head-hash.js";
 import type { GitExecInput } from "../../lib/git/index.js";
 import { runPushabilityStatus } from "../../lib/git/pushability.js";
 import { runPassiveWorktreeInspection } from "../../lib/git/worktree-sync.js";
+import { resolveWorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
@@ -47,6 +48,7 @@ function createHandoffProbes(
       });
     },
     dirty: () => runDirtyStateStatus({ exec }),
+    worktreeIdentity: () => resolveWorktreeIdentity(exec),
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";

@@ -32,6 +32,7 @@ import type {
   SessionRecoverProbeResult,
   SessionRecoverWorktreeValue,
   SessionHandoffResult,
+  SessionHandoffWorktreeValue,
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
@@ -752,6 +753,7 @@ export async function runSessionHandoffStatus(
 
   const userTask = userSlot(identity, (id) => probes.user(id));
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
@@ -770,11 +772,12 @@ export async function runSessionHandoffStatus(
     : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
-    user, worktree, dirty, releaseRouting,
+    user, worktree, worktreeIdentitySlot, dirty, releaseRouting,
     syncInterlock, head, pushability, restateCandidates, inboxState, surfaces,
   ] = await Promise.all([
     userTask,
     worktreeTask,
+    worktreeIdentityTask,
     dirtyTask,
     releaseRoutingTask,
     syncInterlockTask,
@@ -789,6 +792,11 @@ export async function runSessionHandoffStatus(
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
     : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
   const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
+
+  const enrichedWorktree = mapSlot(worktree, (value) => ({
+    ...value,
+    identity: worktreeIdentitySlot.ok ? worktreeIdentitySlot.value : { kind: "primary" },
+  } satisfies SessionHandoffWorktreeValue));
 
   const branch = worktree.ok ? worktree.value.branch : null;
   const handoffActiveWuName = derivedLocusState.ok
@@ -830,7 +838,7 @@ export async function runSessionHandoffStatus(
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),
-    worktree: toProbe(worktree),
+    worktree: toProbe(enrichedWorktree),
     user: toProbe(enrichedUser),
     syncInterlock: toProbe(syncInterlock),
     active: toProbe(active),

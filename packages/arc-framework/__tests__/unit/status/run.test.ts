@@ -756,6 +756,7 @@ function sessionHandoffProbes(
       derivedFrameFromActive(activeSessionInit(), identity, null, null)),
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSnapshot()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     user: vi.fn(async () => userSessionInit()),
     syncInterlock: vi.fn(async () => handoffSyncInterlock()),
     head: vi.fn(async () => headHash()),
