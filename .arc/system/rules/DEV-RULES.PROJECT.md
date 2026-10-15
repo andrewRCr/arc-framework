@@ -202,8 +202,8 @@ project-specific adherence rule applies on top, because this repository is ARC:
 
 **`(arc)` is not the default scope here.** It marks edits to installed ARC artifacts, which is no signal in a repo
 where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`, `fix(hook)`, `fix(strategy)`,
-`fix(method)`, `chore(backlog)`, `feat(session-init)` — and reserve `(arc)` for genuinely cross-cutting changes with
-no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) remain legitimate.
+`fix(method)`, `chore(backlog)`, `feat(session-init)` — and omit the scope for a genuinely cross-cutting change with
+no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) keep `(arc)`.
 
 **`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
 are `fix` / `refactor` / `feat` by intent, never `docs`.

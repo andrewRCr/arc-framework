@@ -52,7 +52,8 @@ delegation intentionally.
 
 **Errors (blocks commit):**
 
-- Conventional Commits format: `<type>(scope): description` (when `commit.format: conventional`)
+- Conventional Commits format: `<type>(scope): description`, where the scope is optional and lowercase and the
+  description starts lowercase (when `commit.format: conventional`)
 - Custom format pattern match against the `commit.custom_pattern` ECMAScript source (when
   `commit.format: custom`)
 - Subject line length: 10–`hooks.subject_max_length` characters (default 72; skipped when

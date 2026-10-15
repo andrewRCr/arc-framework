@@ -720,7 +720,7 @@
     "system/methods/pull-request-format.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "8c8738c881577e0b5cfb547b9f2a0f5ab52d00dcd845c1a1adae092cf604f31d"
+      "pristine_hash": "7cec1023ce74b7f1d9b11c18e2e1f29363974e9da574763a1faead3e0c2e2706"
     }
   }
 }

@@ -26,7 +26,7 @@ override-active: false
 Conventional commit format.
 
 ```text
-<type>(scope): Brief description (max 72 chars total, imperative mood)
+<type>(scope): brief description (max 72 chars total, imperative mood)
 
 - Key change or rationale (1-2 lines per bullet)
 - Impact if significant
@@ -54,7 +54,7 @@ message. The examples use `ARC_COMMIT_MESSAGE_9F3D`; verify it is absent or repl
 
 ```sh
 arc release commit -F - <<'ARC_COMMIT_MESSAGE_9F3D'
-<type>(scope): Brief description
+<type>(scope): brief description
 
 - Key change or rationale
 
@@ -64,7 +64,7 @@ ARC_COMMIT_MESSAGE_9F3D
 
 ```sh
 git commit -F - <<'ARC_COMMIT_MESSAGE_9F3D'
-<type>(scope): Brief description
+<type>(scope): brief description
 
 - Key change or rationale
 
@@ -97,8 +97,9 @@ No → `docs`"
 
 **Three-layer convention.** Each commit-message layer carries orthogonal information.
 
-- **Subject scope** — LOCUS of change. Lowercase functional-area or codified-surface name in parentheses.
-  Prefer narrow scopes when the work is bounded to one surface: `(workflow)`, `(method)`, `(strategy)`,
+- **Subject scope** — LOCUS of change, optional. Lowercase functional-area or codified-surface name in
+  parentheses, used when one area dominates the change; omit it when none does rather than reaching for a broad
+  one. Prefer narrow scopes when the work is bounded to one surface: `(workflow)`, `(method)`, `(strategy)`,
   `(hook)`, `(skill)`, `(template)`, `(rules)`, `(meta)`. Reserve `(arc)` for cross-cutting framework
   concerns AND ARC lifecycle ceremony invocations — it is not a default-when-uncertain catch-all.
   Project-defined scopes (`auth`, `api`, `deps`, etc.) follow the same locus principle.
@@ -107,7 +108,7 @@ No → `docs`"
   references, phase numbers, and other traceability metadata route through the `Context:` footer (see
   [commit-footer](commit-footer.md)). For ceremony commits, lead with the action verb:
   `handoff — <position>` / `activate <wu-name>` / `integrate <wu-name>` / `archive <wu-name>` /
-  `deactivate <wu-name>`.
+  `deactivate <wu-name>`. Start it lowercase; acronyms and names such as `ARC` or `GitHub` keep their case.
 
 - **Footer parenthetical** — LIFECYCLE ACTION. `(handoff)`, `(activation)`, `(integration)`,
   `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT; see
