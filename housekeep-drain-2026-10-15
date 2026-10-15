@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-drain-2026-10-15",
+  "claimId": "5b2724c0978f267176b1d633b85db8d2",
+  "createdAt": "2026-10-15T12:57:25.554Z",
+  "updatedAt": "2026-10-15T12:57:25.554Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the 2026-10-15 housekeep drain's captures to their backlog homes and mint the agent-session-bridge stub",
+  "branch": "chore/housekeep-drain-2026-10-15",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
