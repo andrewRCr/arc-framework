@@ -729,9 +729,14 @@ D16's bound at the move. ARC's own rewrites remap them from the rewrite's old-to
 (D16, D20), each remap adding the new commit's SHA and copy key beside the old entry, which stays, and adding nothing
 where an entry already holds that SHA, so a rerun changes nothing: the mapping proves the old commit left the rewriting
 checkout's branch, not every clone's, and a checkout that has not taken the rewrite still matches its old copy by SHA.
-An amend `arc release commit` makes, once the wrapper accepts one, is such a rewrite: it adds the amended commit's new
-entry to its captures and exclusions. No stored commit's reachability decides anything: a checkout behind its branch, or
-one lacking a commit another machine made, computes the close's set over the commits it holds.
+**Wrapper amend (A4).** From the flip, `runReleaseCommit` refuses `arc release commit --amend` before invoking Git,
+with or without `--close`, and names a new commit as the continuation. The refusal stays until the wrapper can add the
+amended commit's new SHA and copy key beside every matching capture and exclusion, keep each old entry, and recover a
+failed record write after Git succeeds without amending again. The in-repo arm retains its existing amend admission
+(`runReleaseCommit`'s remote-tracking containment check).
+
+No stored commit's reachability decides anything: a checkout behind its branch, or one lacking a commit another
+machine made, computes the close's set over the commits it holds.
 
 #### 5.3 Repository identity
 
@@ -1341,7 +1346,8 @@ then fails, the wrapper exits nonzero, its result reporting the commit and namin
 continuation — the commit is not yet captured, so the default capture still finds it, with every earlier commit of a
 split — never the wrapper, whose rerun would commit again. On the raw route the loop runs `arc task close` right after
 its commit, and the listing of commits not yet closed catches a skipped one. Like the close, `--close` starts at the
-flip and refuses `unsupported` before it.
+flip and refuses `unsupported` before it. Wrapper amendments from the flip follow § 5.2's refusal (A4), including
+when `--close` is supplied; a refused amend creates no commit or task close.
 
 #### 9.4 A hand close names the verb
 
@@ -2163,6 +2169,11 @@ up, `arc materialize` serves released and paused work, and ARC reports rather th
 15. **Rename leaves the legacy workspace untouched (A3).** Off-branch rename leaves a nonempty legacy personal
     workspace and its notes state unchanged; a workspace conflict does not prevent the operational rename.
 
+16. **Wrapper amendments refuse safely (A4).** With off-branch state, `arc release commit --amend`, both with and
+    without `--close`, refuses before Git changes `HEAD`, leaves task markers and captures unchanged, and names a new
+    commit as the continuation. Following that continuation creates a normal commit and, with `--close`, closes and
+    captures the selected task. The in-repo arm retains its existing amend behavior.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 19 each state what holds until their change lands, and none leaves
@@ -2176,5 +2187,7 @@ this design open.
   _Supersedes:_ § 12.1. _Trigger:_ 6.5 must-stop. _Work:_ 6.5.R. _Revalidated:_ 8.1.
 - **A3** — 2026-10-14 — design: off-branch rename leaves the legacy personal workspace untouched.
   _Supersedes:_ § 7.1 workspace clause and § 16 rename remedy row. _Trigger:_ F3 review. _Work:_ 4.R. _Revalidated:_ 4.R.
+- **A4** — 2026-10-14 — design: off-branch wrapper amendments refuse until additive remapping and recovery exist.
+  _Supersedes:_ § 5.2 wrapper-amend paragraph. _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

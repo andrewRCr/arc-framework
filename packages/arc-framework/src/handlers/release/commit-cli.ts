@@ -51,6 +51,8 @@ import {
   type SpawnGit,
 } from "./commit.js";
 import { createTaskCommandContext, renderTaskClose } from "../task.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
 import { createTaskCloseOperations } from "./task-close.js";
 import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
@@ -181,6 +183,7 @@ export async function handleReleaseCommit(
   const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({
+    stateOffBranch: createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec })).capabilities.stateOffBranch,
     cwd,
     identity,
     argv,

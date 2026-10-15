@@ -17,8 +17,8 @@ import {
 
 /**
  * Flags that `arc release commit` refuses unconditionally. `--amend` is not
- * among them: the handler refuses it only once `HEAD` is on a remote-tracking
- * ref (see {@link detectCommitAmend}).
+ * among them: the handler refuses it with off-branch state, or once `HEAD` is on
+ * a remote-tracking ref (see {@link detectCommitAmend}).
  *
  * - `--allow-empty`: smell signal; raw git for empty-commit intent.
  * - `--no-verify` / `-n`: bypasses pre-commit gates; refused here so the

@@ -959,6 +959,11 @@ repositories.
       lagging checkouts. The production capture/exclusion remap writer belongs to `history-policy`; its forcing event is
       the first lease-guarded catch-up after cutover.
 
+    - **A4 correction:** That boundary covers lease-guarded catch-up only. The wrapper-amend obligation also belonged
+      to this change under § 5.2; no production wrapper remapper was supplied. A4 supersedes that obligation with an
+      off-branch refusal before Git, retaining the in-repo behavior. The review-fix increment verifies the refusal and
+      the new-commit continuation against appended spec criterion 16; the preceding verification record stays intact.
+
 - `[x]` The reap keeps its rules: an abandon discards a created branch, an archive's teardown deletes one merge-safe, an
   adopted branch is kept and reported, and an added ref carrying commits of its own is kept and reported.
 

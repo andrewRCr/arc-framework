@@ -39,7 +39,7 @@ async function fixture(ids?: string) {
       resolved: { commitInterlock: { value: "on-task-approval", source: "git-config" }, pushInterlock: { value: "manual", source: "default" },
         syncInterlock: { value: "on-handoff", source: "default" }, notesPush: { value: "on-sync", source: "default" }, releaseOptedIn: { value: "true", source: "git-config" } }, defaultsApplied: [], warnings: [] },
     spawnGit: createSpawnGit(interaction, false), resolveHead: async () => (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout,
-    listRemoteRefsContainingHead: createRemoteRefsContainingHead(exec),
+    listRemoteRefsContainingHead: createRemoteRefsContainingHead(exec), stateOffBranch: true,
     preflightCommitMessage: async () => ({ kind: "pass-through" }), createMessageSnapshot: () => { throw new Error("no file input"); },
     persistMessageRetry: () => { throw new Error("no Git failure"); }, cleanupConsumedMessageRetry: async () => false, preflightRemedy: "correct message",
     writeStderr: () => {}, appendAudit: async ({ entry }) => { audit.push(AuditEntrySchema.parse(entry)); return { ok: true }; },
@@ -119,4 +119,65 @@ it("the close reuses its precommit bounded base refresh", async () => {
   await h.prepare("increment\n"); expect((await runReleaseCommit(h.deps)).exitCode).toBe(0);
   expect((await h.captured())?.["1.1"]).toHaveLength(1);
   expect(fetched).toBe(1);
+});
+
+it.each(["--dry-run", "--short", "--porcelain", "--long", "--null", "-z", "-qz"])("a successful %s preview preserves task markers and captures", async (flag) => {
+  const h = await fixture(); await h.prepare("increment\n");
+  const reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
+  const before = lifecycleSuccess(await h.store.read({ reference }));
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout;
+  h.deps.argv = [flag, ...h.deps.argv];
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout).toBe(head);
+  expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(before);
+  expect(await h.captured()).toBeUndefined();
+});
+
+it.each([false, true])("off-branch amend refuses before Git and the new-commit continuation succeeds, close=%s", async (close) => {
+  const h = await fixture(); await h.prepare("increment\n");
+  if (!close) h.deps.taskClose = undefined;
+  const reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
+  const before = lifecycleSuccess(await h.store.read({ reference }));
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout;
+  const normal = h.deps.argv; h.deps.argv = ["--amend", ...normal];
+  expect(await runReleaseCommit(h.deps)).toMatchObject({ exitCode: 12, continuation: { text: expect.stringMatching(/new commit/iu) } });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout).toBe(head);
+  expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(before);
+  expect(await h.captured()).toBeUndefined();
+  h.deps.argv = normal; expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout).not.toBe(head);
+  if (close) expect((await h.captured())?.["1.1"]).toHaveLength(1);
+});
+
+it.runIf(process.platform !== "win32").each(["corrected-message", "hook-failure"])("the %s retry retains close intent and captures the intended task", async (failure) => {
+  const h = await fixture(); await h.prepare("increment\n");
+  const reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
+  const tasks = lifecycleSuccess(await h.store.read({ reference }));
+  lifecycleSuccess(await h.store.write({ action: "put", reference, expected: tasks.version,
+    content: `${tasks.content}\n### \`[ ]\` **1.2 Next**\n\n- _Goal:_ Continue.\n`, provenance: { verb: "seed-tasks", lifecycleAction: "edit" } }));
+  const errors: string[] = []; h.deps.writeStderr = (text) => { errors.push(text); };
+  const messageBytes = Buffer.from("feat: increment\n"); const path = join(cwd, ".git", "retry");
+  h.deps.persistMessageRetry = async ({ bytes }) => { await writeFile(path, bytes); return { path }; };
+  h.deps.preflightCommitMessage = async () => failure === "corrected-message"
+    ? { kind: "refused", reason: "validation", message: "Correct wrapping", correctedMessageBytes: messageBytes }
+    : { kind: "passed", verdict: "pass", messageBytes };
+  const normalSpawn = h.deps.spawnGit;
+  if (failure === "hook-failure") h.deps.spawnGit = async () => ({ exitCode: 1, stdout: "", stderr: "pre-commit failed" });
+  expect((await runReleaseCommit(h.deps)).exitCode).toBe(failure === "corrected-message" ? 16 : 1);
+  const retry = errors.join("").split("\n").find((line) => line.startsWith("arc release commit"));
+  if (retry === undefined) throw new Error("Missing executable retry");
+  const { stdout } = await execFileAsync("/bin/sh", ["-c", `arc() { printf '%s\\0' "$@"; }\n${retry}`]);
+  const parsed = stripReleaseCommitOptions(stdout.split("\0").slice(2, -1));
+  expect(parsed.close).toEqual(failure === "corrected-message" ? [] : ["1.1"]);
+  if (failure === "hook-failure") {
+    const advanced = lifecycleSuccess(await h.store.read({ reference }));
+    lifecycleSuccess(await h.store.write({ action: "put", reference, expected: advanced.version,
+      content: advanced.content.replace("`[ ]` **1.1", "`[x]` **1.1"), provenance: { verb: "task-close", lifecycleAction: "close" } }));
+  }
+  h.deps.argv = parsed.argv; h.deps.preflightCommitMessage = async () => ({ kind: "pass-through" }); h.deps.spawnGit = normalSpawn;
+  h.deps.taskClose = createTaskCloseOperations(parsed.close!, async () => h.ctx, () => {});
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout;
+  expect((await h.captured())?.["1.1"]?.map((commit) => commit.sha)).toEqual([head]);
+  expect((await h.captured())?.["1.2"]).toBeUndefined();
 });

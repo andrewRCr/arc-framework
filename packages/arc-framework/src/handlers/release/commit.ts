@@ -4,9 +4,9 @@
  * Composes the destructive-flag detector, active-WU resolver, and
  * `authorizeRelease` interlock check into a short-circuit cascade
  * (12 → 10 → 13 → 11 → 16 → optional 17): cheapest checks fire first to minimize I/O on
- * common refusal paths. An amend adds one ref read to code 12: it proceeds
- * only while no remote-tracking ref contains `HEAD`, so it never rewrites a
- * pushed commit. Each refusal exits with the matched refusal
+ * common refusal paths. Off-branch amendments refuse before Git. On the in-repo
+ * arm an amend adds one ref read to code 12 and proceeds only while no
+ * remote-tracking ref contains `HEAD`. Each refusal exits with the matched refusal
  * code, prints a `formatRefusal()` message, and writes a
  * `decision: "refused"` audit entry. The wrapped `git commit`
  * subprocess never fires on a refusal path.
@@ -40,6 +40,7 @@ import {
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
 import {
+  isCommitPreview,
   rewriteCommitFileSource,
   rewriteCommitMessagesToFile,
 } from "../../lib/release/commit-message-source.js";
@@ -155,12 +156,16 @@ export type AppendAudit = (opts: {
 
 /** Optional task close ports supplied only when the wrapper receives --close. */
 export interface ReleaseTaskClose {
+  /** Leading wrapper options for a retry, retaining prechecked task IDs when available. */
+  readonly retryArgs?: readonly string[];
   precheck(): Promise<{ status: "ready" } | { status: "refused"; check: string; remedy: Remedy }>;
   close(): Promise<{ status: "closed" } | { status: "refused"; reason: string; remedy: Remedy }>;
   continuation: Remedy;
 }
 
 export interface ReleaseCommitDeps {
+  /** Capability selected by the invocation; off-branch amendments await additive remapping. */
+  stateOffBranch?: boolean;
   /** Optional precommit check and postcommit capture, after message authorization. */
   taskClose?: ReleaseTaskClose;
   cwd: string;
@@ -222,6 +227,14 @@ export async function runReleaseCommit(
       { kind: "refuse", code: 12, identifier: "destructive-flag", flag },
       { wu: null, deps, writeStderr, appendAudit },
     );
+  }
+
+  if (deps.stateOffBranch === true && detectCommitAmend(deps.argv)) {
+    const continuation = { text: "Off-branch wrapper amendments require additive capture remapping and recovery. Commit these changes as a new commit without --amend, retaining --close when selected." };
+    const refused = await refuse({ kind: "refuse", code: 12, identifier: "destructive-flag", flag: "--amend" },
+      { wu: null, deps, writeStderr, appendAudit });
+    writeStderr(`${continuation.text}\n`);
+    return { ...refused, continuation };
   }
 
   // Step 1, amend only (one ref read): an amend of a pushed `HEAD` refuses as a destructive flag.
@@ -324,7 +337,7 @@ export async function runReleaseCommit(
   if (spawned.exitCode !== 0 && preflight.kind === "passed") {
     try {
       const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
-      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, deps.argv)}\n`);
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, deps.argv, deps.taskClose?.retryArgs)}\n`);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
@@ -368,7 +381,7 @@ export async function runReleaseCommit(
   });
   surfaceAuditFailure(auditResult, writeStderr);
 
-  if (spawned.exitCode === 0 && deps.taskClose !== undefined) {
+  if (spawned.exitCode === 0 && deps.taskClose !== undefined && !isCommitPreview(deps.argv)) {
     let failure: string | undefined;
     try {
       const closed = await deps.taskClose.close();
@@ -411,7 +424,7 @@ async function refusePreflight(
         cwd: ctx.deps.cwd,
         bytes: correctedMessageBytes,
       });
-      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, ctx.deps.argv)}`;
+      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, ctx.deps.argv, ctx.deps.taskClose?.retryArgs)}`;
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       ctx.writeStderr(`warn: corrected commit-message retry could not be persisted: ${detail}\n`);

@@ -409,6 +409,31 @@ export function commitOptionConsumesNext(token: string, nextArg: string | undefi
   return walk.kind === "recognized" && walk.consumedNext;
 }
 
+function scanCommitOptions(args: readonly string[], state: ScanState): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--") break;
+    if (!arg.startsWith("-") || arg === "-") continue;
+
+    if (scanCommitOption(args, index, arg, state)) index += 1;
+  }
+}
+
+function scanCommitOption(args: readonly string[], index: number, arg: string, state: ScanState): boolean {
+  if (arg.startsWith("--")) return applyLongOption(state, arg, args, index);
+  const walk = walkCommitShortOption(arg, args[index + 1]);
+  if (walk.kind === "unsupported") { state.unsupported = true; return false; }
+  for (const member of walk.members) applyShortMember(state, member);
+  return walk.consumedNext;
+}
+
+/** Whether recognized Git preview options suppress commit creation, respecting operands and `--`. */
+export function isCommitPreview(args: readonly string[]): boolean {
+  const state = createScanState(undefined);
+  scanCommitOptions(args, state);
+  return state.noCommit;
+}
+
 /**
  * Classify the commit-message input represented by `args`.
  *
@@ -420,25 +445,7 @@ export function classifyCommitMessageInput(
 ): CommitMessageInputClassification {
   const state = createScanState(options.commitCleanup);
 
-  for (let index = 0; index < options.args.length; index += 1) {
-    const arg = options.args[index];
-    if (arg === undefined) break;
-    if (arg === "--") break;
-    if (!arg.startsWith("-") || arg === "-") continue;
-
-    if (arg.startsWith("--")) {
-      if (applyLongOption(state, arg, options.args, index)) index += 1;
-      continue;
-    }
-
-    const walk = walkCommitShortOption(arg, options.args[index + 1]);
-    if (walk.kind === "unsupported") {
-      state.unsupported = true;
-      continue;
-    }
-    for (const member of walk.members) applyShortMember(state, member);
-    if (walk.consumedNext) index += 1;
-  }
+  scanCommitOptions(options.args, state);
 
   const hasMessages = state.messages.length > 0;
   const hasFiles = state.files.length > 0;

@@ -16,6 +16,7 @@ export function createTaskCloseOperations(ids: readonly string[], resolveContext
   const continuation = { text: `Run arc task close${ids.length === 0 ? "" : ` ${ids.join(" ")}`}.`, argv: ["arc", "task", "close", ...ids] };
   return {
     continuation,
+    get retryArgs() { return selected.length === 0 ? ["--close"] : [`--close=${selected.join(",")}`]; },
     precheck: async () => {
       const ctx = await resolveContext();
       if (ctx === null) return { status: "refused", check: "current-work-unit", remedy: { text: "Run session-init to select the current work unit." } };
