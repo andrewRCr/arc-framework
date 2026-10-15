@@ -18,6 +18,7 @@
 
 import type { Store } from "../lib/store/contract.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
+import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
 import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
@@ -172,9 +173,8 @@ export async function resolveCohortValidationContext(cwd: string, store: Store):
   if (!store.capabilities.stateOffBranch) return { context: buildLiveCohortContextFromDisk(cwd), diagnostics: [] };
   const view = await readLifecycleView(store);
   if (view.status === "refused") return { diagnostics: [`${view.refusal.condition} ${view.refusal.remedy.text}`] };
-  const listing = view.result.listing;
-  if (listing.status === "unreadable") return { diagnostics: [`${listing.condition} ${listing.remedy.text}`] };
-  if (listing.status === "complete" && listing.missed) return { diagnostics: listing.diagnostics.map((diagnostic) => diagnostic.condition) };
+  try { requireCompleteInventory(store, view.result.listing); }
+  catch (error) { return { diagnostics: [error instanceof Error ? error.message : String(error)] }; }
   return { context: { liveMembersByDir: buildCohortMembership(view.result.index), existingCohortDocDirs: new Set() }, diagnostics: [] };
 }
 

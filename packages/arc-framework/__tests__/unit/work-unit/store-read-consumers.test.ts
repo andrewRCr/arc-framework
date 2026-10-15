@@ -9,6 +9,7 @@ import { resolveVerbTargetOrReport } from "../../../src/handlers/lifecycle.js";
 import { makeWorktreeOccupancyGuard } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import { buildLifecycleIndexFromRecords } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { handleLifecycleStatus } from "../../../src/handlers/status/lifecycle.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { testStorePorts } from "../../helpers/store/in-repo-ports.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
@@ -103,4 +104,31 @@ it("cohort validation derives activated membership from stored records instead o
   expect(resolved.diagnostics).toEqual([]);
   expect(resolved.context?.liveMembersByDir.get("core")).toEqual(new Set(["demo"]));
   expect(validateFiles([".arc/backlog/planned/core/cohort-core.md"], () => content, resolved.context, true)).toEqual({ pass: true, diagnostics: [] });
+});
+
+it.each(["missed", "diagnostic"])("cohort validation refuses an incomplete %s inventory and succeeds after repair", async (condition) => {
+  const h = createLifecycleHarness();
+  await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "core" })),
+    "# Cohort: core\n\n**Purpose:** Group work.\n\n**Parent:** [none]\n");
+  await h.seedMeta("demo", { cohort: "core" });
+  let repaired = false;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "list") return async (input: Parameters<Store["list"]>[0]) => {
+      const listing = await target.list(input);
+      if (repaired || listing.status !== "ok" || listing.result.status !== "complete") return listing;
+      return { status: "ok" as const, result: { ...listing.result, missed: condition === "missed",
+        diagnostics: condition === "diagnostic" ? [{ kind: "malformed" as const, key: "missing-meta",
+          condition: "A lifecycle record could not be decoded.", remedy: { text: "Repair missing-meta and retry." } }] : [] } };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const refused = await resolveCohortValidationContext("/absent", store);
+  expect(refused.context).toBeUndefined();
+  expect(refused.diagnostics.length).toBeGreaterThan(0);
+  expect(refused.diagnostics.join(" ")).toMatch(/repair.*retry/iu);
+  if (condition === "diagnostic") expect(refused.diagnostics.join(" ")).toContain("Repair missing-meta and retry.");
+  repaired = true;
+  const complete = await resolveCohortValidationContext("/absent", store);
+  expect(complete.diagnostics).toEqual([]);
+  expect(complete.context?.liveMembersByDir.get("core")).toEqual(new Set(["demo"]));
 });
