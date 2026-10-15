@@ -184,7 +184,7 @@ async function finalizeThroughStore(store: Store, values: {
     const metaPath = workUnitMetaPath(read.result);
     let content = read.result.content;
     if (resolvedClass !== null) content = writeMetaClass(content, resolvedClass);
-    const taskList = firePoint === "generate-tasks" ? `tasks-${name}.md` : null;
+    const taskList = firePoint === "generate-tasks" ? `tasks-${read.result.reference.owner.name}.md` : null;
     if (taskList !== null) content = writeMetaTaskList(content, taskList);
     const nextAction = TERMINAL_NEXT_ACTION[firePoint] ?? null;
     if (nextAction !== null) content = writeMetaNextAction(content, nextAction);
