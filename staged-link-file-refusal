@@ -3,7 +3,7 @@
   "slug": "staged-link-file-refusal",
   "claimId": "50473ba4da27f5fb7c20bd376ca99e6c",
   "createdAt": "2026-10-15T18:23:54.367Z",
-  "updatedAt": "2026-10-15T18:23:54.367Z",
+  "updatedAt": "2026-10-15T18:53:34.858Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report a typed, actionable lint refusal when an indexed Markdown file is missing from the working tree, preserving failure and naming stage-deletion or restore remedies.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse plainly, not with a raw `ENOENT`, when `lint:arc:links` meets a staged file missing from disk",
   "originEntrySourceDigest": "sha256:9b4a528f3313c63d8870f9d16e0ed1364f7444eafeef2dced6f9f270124e95f8",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/staged-link-file-refusal",
+    "headSha": "db6984fb533eee70aef1b940ef02bead5ce0d90c"
+  }
 }
