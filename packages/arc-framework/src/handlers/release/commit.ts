@@ -157,7 +157,7 @@ export type AppendAudit = (opts: {
 export interface ReleaseTaskClose {
   /** Leading wrapper options for a retry, retaining prechecked task IDs when available. */
   readonly retryArgs?: readonly string[];
-  precheck(): Promise<{ status: "ready" } | { status: "refused"; check: string; remedy: Remedy }>;
+  precheck(): Promise<{ status: "ready" } | { status: "refused"; check: string; reason: string; remedy: Remedy }>;
   close(): Promise<{ status: "closed" } | { status: "refused"; reason: string; remedy: Remedy }>;
   continuation: Remedy;
 }
@@ -281,7 +281,7 @@ export async function runReleaseCommit(
 
   if (deps.taskClose !== undefined) {
     const check = await deps.taskClose.precheck();
-    if (check.status === "refused") return refuseClosePrecheck(check.check, check.remedy, { deps, wu: wuAudit, writeStderr, appendAudit });
+    if (check.status === "refused") return refuseClosePrecheck(check.check, check.reason, check.remedy, { deps, wu: wuAudit, writeStderr, appendAudit });
   }
 
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
@@ -410,8 +410,8 @@ async function closeCommittedTasks(taskClose: ReleaseTaskClose, before: string |
   return { exitCode: 0 };
 }
 
-async function refuseClosePrecheck(check: string, remedy: Remedy, ctx: RefuseContext): Promise<ReleaseCommitResult> {
-  ctx.writeStderr(`${formatRefusal({ kind: "refuse", code: 17, identifier: "close-precheck-failed", check, remedy: remedy.text })}\n`);
+async function refuseClosePrecheck(check: string, reason: string, remedy: Remedy, ctx: RefuseContext): Promise<ReleaseCommitResult> {
+  ctx.writeStderr(`${formatRefusal({ kind: "refuse", code: 17, identifier: "close-precheck-failed", check, reason, remedy: remedy.text })}\n`);
   const result = await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry: buildAuditEntry({
     deps: ctx.deps, wu: ctx.wu, decision: "refused", refusalCode: 17, outcome: { kind: "close-precheck-failed", check },
   }) });

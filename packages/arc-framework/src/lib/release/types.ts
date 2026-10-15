@@ -101,7 +101,7 @@ export type AuthorizationDecision =
       identifier: "commit-message-preflight-failed";
       reason: "validation" | "input";
     }
-  | { kind: "refuse"; code: 17; identifier: "close-precheck-failed"; check: string; remedy: string };
+  | { kind: "refuse"; code: 17; identifier: "close-precheck-failed"; check: string; reason: string; remedy: string };
 
 // --- Refusal-message helper signature ---
 

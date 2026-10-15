@@ -37,7 +37,7 @@ it("pass-through message preflight still checks and closes around the commit", a
 });
 it.each(["branch-unlinked", "task-invalid", "base-unavailable", "paused", "unsupported"])("audits %s without committing", async (check) => {
   const h = harness(); h.deps.taskClose = { continuation: { text: "arc task close", argv: ["arc", "task", "close"] },
-    precheck: async () => ({ status: "refused", check, remedy: { text: "repair the task context" } }),
+    precheck: async () => ({ status: "refused", check, reason: "The task context is invalid.", remedy: { text: "repair the task context" } }),
     close: () => { throw new Error("must not close"); } };
   expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 17 });
   expect(h.state().committed).toBe(false);

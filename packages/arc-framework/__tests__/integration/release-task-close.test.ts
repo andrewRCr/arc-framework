@@ -182,3 +182,23 @@ it.runIf(process.platform !== "win32").each(["corrected-message", "hook-failure"
   expect((await h.captured())?.["1.2"]).toBeUndefined();
 });
 
+
+it("a malformed task precheck names its condition and line, then commits after repair", async () => {
+  const h = await fixture(); await h.prepare("increment\n");
+  const reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
+  const stored = [...h.store.state.records.values()].find((record) => record.reference.kind === "work-item/task-list");
+  if (stored === undefined) throw new Error("Missing task record");
+  const original = stored.content;
+  stored.content = `${original}\n- [ ] 1.1.1 Invalid numeric subtask\n`;
+  const errors: string[] = []; h.deps.writeStderr = (text) => { errors.push(text); };
+  const before = await h.exec("git", ["rev-parse", "HEAD"], { cwd });
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 17 });
+  expect(errors.join(" ")).toMatch(/Task list line \d+:/u);
+  expect(errors.join(" ")).toContain("task checkbox marker appeared at root level");
+  expect(errors.join(" ")).toContain("Repair that task-list line");
+  expect(await h.exec("git", ["rev-parse", "HEAD"], { cwd })).toEqual(before);
+  expect(h.audit).toMatchObject([{ refusalCode: 17, outcome: { kind: "close-precheck-failed", check: "task-invalid" } }]);
+  stored.content = original;
+  expect(await runReleaseCommit(h.deps)).toEqual({ exitCode: 0 });
+  expect(lifecycleSuccess(await h.store.read({ reference })).content).toContain("`[x]` **1.1");
+});
