@@ -3,14 +3,20 @@
   "slug": "housekeep-drain-2026-10-15",
   "claimId": "5b2724c0978f267176b1d633b85db8d2",
   "createdAt": "2026-10-15T12:57:25.554Z",
-  "updatedAt": "2026-10-15T12:57:25.554Z",
+  "updatedAt": "2026-10-15T13:19:53.253Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the 2026-10-15 housekeep drain's captures to their backlog homes and mint the agent-session-bridge stub",
   "branch": "chore/housekeep-drain-2026-10-15",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-drain-2026-10-15",
+    "headSha": "0a113a6c37f1863ee7a9a07503d246940ebed351"
+  }
 }
