@@ -3,6 +3,7 @@ import { readStoreRenameSubject, prepareStoreRename, type StoreRenameSubject } f
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { applyPreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
+import { readBranchTracking, restoreClearedBranchTracking, type BranchTracking } from "../rename-branch-tracking.js";
 import { sequenceLifecycleWrite } from "../sequence-lifecycle-write.js";
 import { findWorkUnitHoldingCheckout } from "./unshared-work.js";
 import { reconcileRenameLocalBranch, reconcileRenameRemoteBranch, readRemoteBranchOid, type RenameRemoteBranchResult } from "../rename-identity.js";
@@ -111,15 +112,22 @@ function renameSteps(ctx: StoreRenameContext, subject: StoreRenameSubject, targe
   return steps;
 }
 function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCommand: string[]): LifecycleGitStep {
-  let changed = false;
+  let changed = false, cleared: BranchTracking | undefined;
   const exec: GitExec = async (command, args, options) => {
+    const clearsTracking = command === "git" && args[0] === "branch" && args[1] === "--unset-upstream" && args[2] === branch.newBranch;
+    const prior = clearsTracking ? await readBranchTracking(ctx.exec, branch.newBranch) : undefined;
     const result = await ctx.exec(command, args, options);
+    if (prior !== undefined) cleared = prior;
     if (command === "git" && args[0] === "branch" && args[1] === "-m" && args[2] === branch.oldBranch && args[3] === branch.newBranch) changed = true;
     return result;
   };
   return { name: "local-branch-rename", retryCommand,
     run: async () => { await reconcileRenameLocalBranch({ exec }, branch); },
-    rollback: async () => { if (changed) await reconcileRenameLocalBranch(ctx, { oldBranch: branch.newBranch, newBranch: branch.oldBranch }); } };
+    rollback: async () => {
+      if (!changed) return;
+      await ctx.exec("git", ["branch", "-m", branch.newBranch, branch.oldBranch]);
+      if (cleared !== undefined) await restoreClearedBranchTracking(ctx.exec, branch.oldBranch, cleared);
+    } };
 }
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
   request: { sourceSlug: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Extract<RunRenameResult, { status: "partial" }>> {

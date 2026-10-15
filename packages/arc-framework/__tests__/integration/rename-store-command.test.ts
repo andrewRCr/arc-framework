@@ -136,3 +136,33 @@ it.each([false, true])("defers the holder's own folder move while completing the
   await f.exec("git", ["worktree", "move", "-f", "-f", f.checkout, f.target]);
   expect(await readWorktreeMarker(f.target)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
 });
+
+it.each([false, true])("rolls back only its tracking changes after record conflict, concurrent tracking=%s", async (concurrent) => {
+  const f = await fixture(false);
+  const key = "branch.feat/source";
+  await f.exec("git", ["config", "--local", `${key}.remote`, "."]);
+  await f.exec("git", ["config", "--local", "--add", `${key}.merge`, "refs/heads/main"]);
+  await f.exec("git", ["config", "--local", "--add", `${key}.merge`, "refs/heads/extra"]);
+  const batch = f.store.batch.bind(f.store); let once = true;
+  f.store.batch = async (input) => {
+    if (once) {
+      once = false;
+      lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+        placement: { kind: "active" }, content: f.primary.content, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      if (concurrent) {
+        await f.exec("git", ["config", "--local", "branch.feat/target.remote", "."]);
+        await f.exec("git", ["config", "--local", "branch.feat/target.merge", "refs/heads/main"]);
+      }
+    }
+    return batch(input);
+  };
+  const params = { sourceSlug: "source", targetSlug: "target" };
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("source");
+  expect((await f.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("feat/source");
+  expect((await f.exec("git", ["config", "--local", "--get-all", `${key}.remote`])).stdout.trim()).toBe(".");
+  expect((await f.exec("git", ["config", "--local", "--get-all", `${key}.merge`])).stdout.trim().split("\n"))
+    .toEqual(concurrent ? ["refs/heads/main"] : ["refs/heads/main", "refs/heads/extra"]);
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed" });
+  expect((await f.exec("git", ["for-each-ref", "--format=%(upstream)", "refs/heads/feat/target"])).stdout.trim()).toBe("");
+}, 30_000);
