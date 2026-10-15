@@ -1,6 +1,6 @@
 /** Real checkout placement and refusal rollback for store-held work units. */
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -10,6 +10,10 @@ import { createUserIOContext } from "../../src/lib/io-context.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { runActivate } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
+import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
+import { buildStoreCurrentWuReconcile } from "../../src/lib/work-unit/store-current-wu-reconcile.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
 let root: string | undefined;
@@ -82,3 +86,28 @@ describe("store-backed start checkouts", () => {
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
   }, timeout);
 });
+
+it.each(["start", "materialize", "materialize-without-base-refs"])("activates from a refreshed base after %s even when local main is older", async (placement) => {
+  const h = await fixture(); const remote = join(h.root, ".git", "remote.git");
+  await h.exec("git", ["init", "--bare", remote]); await h.exec("git", ["remote", "add", "origin", remote]);
+  await writeFile(join(h.root, "new-base"), "new base content\n"); await h.exec("git", ["add", "new-base"]);
+  await h.exec("git", ["commit", "-m", "new base"]); const refreshed = (await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  await h.exec("git", ["push", "origin", "main"]); await h.exec("git", ["reset", "--hard", h.base]);
+  await h.exec("git", ["update-ref", "refs/remotes/origin/main", h.base]);
+  if (placement === "start") expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated" });
+  else {
+    lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { placement: { kind: "active" } }), provenance: { verb: "start", lifecycleAction: "start" } }));
+    expect(await runMaterialize(h.ctx, { ...h.params, identity: "previous" })).toMatchObject({ status: "materialized" });
+  }
+  const exec = makeGitExec(h.path);
+  expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(placement === "start" ? h.base : refreshed);
+  if (placement === "materialize-without-base-refs") {
+    await exec("git", ["update-ref", "-d", "refs/heads/main"]);
+    await exec("git", ["update-ref", "-d", "refs/remotes/origin/main"]);
+  }
+  expect(await runActivate({ ...h.ctx, cwd: h.path, exec, projectId: async () => "repo", currentWuReconcile: buildStoreCurrentWuReconcile(h.store) },
+    { name: "demo", toBranch: "feat/demo", baseBranch: "main", nextAction: "Begin work" })).toMatchObject({ status: "activated" });
+  expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(refreshed);
+  expect(await readFile(join(h.path, "new-base"), "utf8")).toBe("new base content\n");
+  if (placement !== "materialize-without-base-refs") expect((await exec("git", ["rev-parse", "refs/heads/main"])).stdout.trim()).toBe(h.base);
+}, timeout);
