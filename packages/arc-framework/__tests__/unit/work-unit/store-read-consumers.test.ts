@@ -18,6 +18,10 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { resolveCohortValidationContext, validateFiles } from "../../../src/scripts/validate-cohort-consistency.js";
 import { resolveBacklogStub } from "../../../src/lib/work-unit/backlog-stub.js";
+import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
+import { createUserIOContext } from "../../../src/lib/io-context.js";
+import { runGraduate } from "../../../src/commands/start.js";
+import { writeMetaCohort } from "../../../src/lib/store/kinds/meta/writers.js";
 import { resolveDraftPresent } from "../../../src/handlers/plan.js";
 
 
@@ -131,4 +135,38 @@ it.each(["missed", "diagnostic"])("cohort validation refuses an incomplete %s in
   const complete = await resolveCohortValidationContext("/absent", store);
   expect(complete.diagnostics).toEqual([]);
   expect(complete.context?.liveMembersByDir.get("core")).toEqual(new Set(["demo"]));
+});
+
+
+it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses unprojectable cohort %s and resumes after repair", async (cohort) => {
+  const h = createLifecycleHarness();
+  const healthy = await h.seedMeta("healthy", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  await h.seedMeta("broken", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const raw = [...h.store.state.records.values()].find((record) => record.reference.owner.name === "broken");
+  if (raw === undefined) throw Error("Missing corruption basis");
+  const original = raw.content; raw.content = writeMetaCohort(original, cohort);
+  const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  await handleLifecycleStatus("/absent", async () => { throw Error("Status must not read Git"); }, "healthy", { json: true }, h.store);
+  expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ slug: "healthy", state: "planned",
+    warnings: [expect.stringContaining("broken")] });
+  const exec = async (_command: string, args: string[]) => {
+    if (args[0] === "rev-parse") return { stdout: "a".repeat(40) };
+    if (args[0] === "symbolic-ref") return { stdout: "refs/heads/person" };
+    throw Error(`Unexpected Git operation: ${args.join(" ")}`);
+  };
+  const ctx = buildExecutorContext({ cwd: "/absent", io: { ...createUserIOContext(), exec }, store: h.store,
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+  let physical = 0;
+  ctx.reconcileWorkUnitWorktree = async () => { physical++; return { mutation: "spawn", branch: null, worktreePath: "/spawn" }; };
+  const params = { name: "healthy", spawningIdentity: "test-user", baseBranch: "main", locationTemplate: "/spawn", repo: "repo" };
+  expect(await runGraduate(ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("broken") });
+  expect(physical).toBe(0);
+  expect(lifecycleSuccess(await h.store.read({ reference: healthy.reference }))).toEqual(healthy);
+  raw.content = original; output.mockClear();
+  await handleLifecycleStatus("/absent", async () => { throw Error("Status must not read Git"); }, "healthy", { json: true }, h.store);
+  const repaired = JSON.parse(String(output.mock.calls[0]?.[0])) as { slug: string; warnings?: string[] };
+  expect(repaired.slug).toBe("healthy"); expect(repaired.warnings ?? []).toEqual([]);
+  expect(await runGraduate(ctx, params)).toMatchObject({ status: "graduated" });
+  expect(physical).toBe(1);
+  expect(lifecycleSuccess(await h.store.read({ reference: healthy.reference })).placement).toEqual({ kind: "active" });
 });
