@@ -3,7 +3,7 @@
   "slug": "session-role-guidance",
   "claimId": "8dee86a3854b19dc8894c993ba87bfe6",
   "createdAt": "2026-10-15T18:54:55.723Z",
-  "updatedAt": "2026-10-15T18:54:55.723Z",
+  "updatedAt": "2026-10-15T19:16:53.248Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Align the arc-session skill opening with probe-derived role resolution, propagating package guidance to installed copies.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Align arc-session guidance with probe-based role resolution",
   "originEntrySourceDigest": "sha256:23b372f1c30bb5f76104e0a6cb26f1d9cd686baff98c188970f6da5ad002a7d9",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/session-role-guidance",
+    "headSha": "c9aef9500b1617b87d6c6c5b4742f1c304785c03"
+  }
 }
