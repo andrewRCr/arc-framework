@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "widen-integrity-frontmatter",
+  "claimId": "05afed5c25b1d417f52ada152f1e5150",
+  "createdAt": "2026-10-15T02:28:21.194Z",
+  "updatedAt": "2026-10-15T02:28:21.194Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Inspect the complete opening frontmatter block in the integrity verifier, retaining fence and required-key failures, then declare the existing planning-depth re-entry dependency.",
+  "branch": "chore/widen-integrity-frontmatter",
+  "origin": "inbox",
+  "originEntry": "Widen the integrity verifier's frontmatter window past 20 lines",
+  "originEntrySourceDigest": "sha256:d97c1a938f29683f5ec78bcc73b6d9286973e41ead96bc853db3f662d1777921",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
