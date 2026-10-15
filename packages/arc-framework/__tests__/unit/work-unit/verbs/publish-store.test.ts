@@ -74,3 +74,32 @@ it("a rerun after reconcile lands reaches the publication batch and preserves ig
     .toMatchObject({ state: "Integrating", lastCompleted: "Old completed work", nextTask: "Old pointer" });
   expect(claims).toBe(2);
 });
+
+it("preserves the resume remedy when a pause arrives after prepare, then publishes after resume", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const ctx = context(h.store), apply = ctx.currentWuReconcile.apply;
+  let pauseOnce = true, claims = 0;
+  ctx.currentWuReconcile.apply = async (prepared) => {
+    if (pauseOnce) {
+      pauseOnce = false;
+      lifecycleSuccess(await h.store.write({ action: "put", reference: primary.reference, expected: primary.version,
+        placement: { kind: "active" }, content: writeMetaPause(primary.content, { pausedBy: SlugSchema.parse("test-user"),
+          since: "2026-10-15T00:00:00Z", reason: "Wait.", waitsOn: null, resumeNotes: null, open: false }),
+        provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    }
+    return apply(prepared);
+  };
+  const params = { ...parameters(async () => {}), claimPublicationBoundary: async () => { claims++; } };
+  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed", reason: "paused",
+    remedy: { argv: ["arc", "resume", "example"] } });
+  const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  expect(paused.fields).toMatchObject({ state: "Active", pause: expect.any(Object) });
+  expect(claims).toBe(0);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: paused.reference, expected: paused.version,
+    placement: { kind: "active" }, content: writeMetaPause(paused.content, null),
+    provenance: { verb: "resume", lifecycleAction: "resume" } }));
+  expect(await runPublish(ctx, params)).toMatchObject({ status: "published" });
+  expect(claims).toBe(1);
+});

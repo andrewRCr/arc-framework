@@ -26,9 +26,13 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
   if (prepared.status === "conflict") return reject(`Current-work-unit reconcile refused: ${prepared.reason}`);
   const applied = await ctx.currentWuReconcile.apply(prepared.prepared);
-  if (applied.status === "conflict") return { status: "reconcile-failed", metaPath, reconcile: applied,
-    reason: applied.refusal?.condition ?? "The prepared reconcile became stale.",
-    remedy: spineRemedy("Prepared input changed", "Prepare the work unit again", ["arc", "wu", "reconcile", params.name, "--apply"]) };
+  if (applied.status === "conflict") {
+    const reason = applied.refusal?.condition ?? applied.reason;
+    const remedy = applied.remedy ?? applied.refusal?.remedy;
+    return { status: "reconcile-failed", metaPath, reconcile: applied, reason,
+      remedy: spineRemedy(reason, remedy?.text ?? "Prepare the work unit again",
+        remedy?.argv ?? ["arc", "wu", "reconcile", params.name, "--apply"]) };
+  }
   if (applied.status !== "clean" && applied.prepared.plan.advisories.length > 0 && params.allowAdvisories !== true) {
     return { status: "reconcile-pending", metaPath, reconcile: applied, reason: "Reconcile advisories require review.",
       remedy: spineRemedy("Reconcile advisories remain", "Inspect the reconcile", ["arc", "wu", "reconcile", params.name]) };
