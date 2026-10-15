@@ -555,6 +555,9 @@ For a large target with a stable, contract-closed authored partition (segments, 
 sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
 reviewer when no such partition exists or seams are dense.
 
+Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
+of the folds, before any successor pass or the final post-settle re-read.
+
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
 SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
@@ -649,3 +652,4 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
 [authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
+[fold-verification]: ../../methods/adversarial-review.md#fold-verification
