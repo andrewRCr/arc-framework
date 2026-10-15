@@ -7,7 +7,7 @@ export function pauseProseProblem(pause: MetaPause): string | null {
   if (prose.some((text) => text?.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---"))) {
     return "Pause body contains a section boundary; remove the heading or delimiter and retry.";
   }
-  return pause.resumeNotes?.split(/\r?\n/u).includes("### Resume Notes") === true
+  return pause.resumeNotes?.split(/\r?\n/u).some((line) => /^### Resume Notes\s*$/u.test(line)) === true
     ? "Pause notes contain the reserved ### Resume Notes heading; remove that heading and retry."
     : null;
 }

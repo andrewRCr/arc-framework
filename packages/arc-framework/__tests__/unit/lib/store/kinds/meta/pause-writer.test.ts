@@ -32,7 +32,7 @@ it.each(["`other`", "\\`other\\`", "waiting for `other`", "`two\nlines`"])("pres
   expect(parseMetaRecord(writeMetaPause(original, value)).pause).toEqual(value);
 });
 
-it("refuses the reserved resume-notes heading before rendering", () => {
-  expect(() => writeMetaPause(original, { ...pause, resumeNotes: "### Resume Notes\n\nContinue here." }))
+it.each(["", " ", "\t", "\u00a0", "\f"])("refuses reserved resume-notes heading with trailing whitespace %j", (whitespace) => {
+  expect(() => writeMetaPause(original, { ...pause, resumeNotes: `### Resume Notes${whitespace}\n\nContinue here.` }))
     .toThrow(/reserved/iu);
 });
