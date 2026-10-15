@@ -24,6 +24,7 @@
  */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 
 import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
@@ -122,6 +123,7 @@ export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
 export type CascadeResolution = z.infer<typeof CascadeResolutionSchema>;
 
 const RecoveryRecommendationFields = {
+  actions: SessionActionsSchema.optional(),
   recommendedAction: z.enum(["switch", "prompt", "surface"]),
   recommendedPromptText: z.string(),
 };

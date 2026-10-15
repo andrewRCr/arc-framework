@@ -77,6 +77,25 @@ export function inferBranchGoneRecovery(
   recovery: CascadeResolution,
   dirty: DirtyStateResult,
 ): SessionInitRecoveryValue {
+  const recommendation = recommendBranchGoneRecovery(recovery, dirty);
+  if (recovery.kind === "pending") {
+    return { ...recommendation, actions: [{ ...recovery.refreshRemedy, argv: [...recovery.refreshRemedy.argv] }] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch") {
+    if (recovery.candidate.worktreePath !== undefined) {
+      return { ...recommendation, actions: [{ text: `Continue recovery in checkout \`${recovery.candidate.worktreePath}\`.` }] };
+    }
+    if (recommendation.recommendedAction === "switch") {
+      return { ...recommendation, actions: [{ text: `After any needed git fetch, run git switch ${recovery.candidate.branch}.` }] };
+    }
+  }
+  return { ...recommendation, actions: [{ text: recommendation.recommendedPromptText }] };
+}
+
+function recommendBranchGoneRecovery(
+  recovery: CascadeResolution,
+  dirty: DirtyStateResult,
+): SessionInitRecoveryValue {
   switch (recovery.kind) {
     case "pending":
       return {

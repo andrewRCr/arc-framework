@@ -87,17 +87,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - Spec § 1.4, item 1 changes `unit/session-init/stale-worktree-sweep.test.ts`,
           `unit/session-init/lifecycle-residue-sweep.test.ts`, and `unit/work-unit/retirement-lifecycle-result.test.ts`.
 
-    - `[ ]` **1.2.d The materialize offer and recovery**
+    - `[x]` **1.2.d The materialize offer and recovery**
 
-        - `materializableWorkUnits`: `arc materialize <slug>`, typed; its refresh remedy, `arc active in-flight --json`,
-          typed.
-        - `recovery` (`inferBranchGoneRecovery`, `lib/session-init/recommended-action.ts`): its refresh remedy, typed; a
-          checkout to switch to, that checkout's path as text; an exact, clean switch to a branch with no checkout,
-          `git switch <branch>` after any needed `git fetch`, text; every other outcome, its precomposed text.
-
-        - Build `test-first` (one behavior at a time):
-            - a remote-only work unit yields its typed materialize, and pending discovery the typed refresh
-            - each recovery outcome yields its row's action and form
+        - Materializable work units carry typed materialize actions and pending discovery its exact refresh. Recovery
+          carries the refresh as argv, a destination checkout or clean branch switch as text, and its existing decision
+          text for every other outcome; recommendation fields retain their values.
+        - Spec § 1.4, item 1 changes `unit/session-init/materializable-work-units.test.ts` and `unit/status/run.test.ts`,
+          and adds `unit/session-init/recommended-action-recovery.test.ts`.
 
     - `[ ]` **1.2.e The orphan-branch sweep**
 

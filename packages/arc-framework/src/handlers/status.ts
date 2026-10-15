@@ -812,7 +812,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
               refreshRemedy: null,
             };
       }
-      const materializable = findMaterializableWorkUnits({ entries, identity });
+      const materializable = findMaterializableWorkUnits({ entries, identity, pendingBranchCount });
       return pendingBranchCount > 0
         ? {
             ...materializable,

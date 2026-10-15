@@ -2611,7 +2611,7 @@ describe("runSessionInitStatus — branch-gone recovery gating", () => {
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(result.recovery).toEqual({
+    expect(result.recovery).toMatchObject({
       ok: true,
       value: {
         kind: "pending",

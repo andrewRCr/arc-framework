@@ -21,6 +21,7 @@
  */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 
 import type { InFlightEntry } from "../git/in-flight-derivation.js";
 import { RemoteFailureReasonSchema, SlugSchema } from "../kernel/index.js";
@@ -29,6 +30,7 @@ import { RemoteFailureReasonSchema, SlugSchema } from "../kernel/index.js";
 export const MaterializableWorkUnitSchema = z.strictObject({
   name: SlugSchema,
   branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
+  actions: SessionActionsSchema.optional(),
 });
 
 /** One remote-only work unit that can be materialized onto this machine. */
@@ -39,12 +41,15 @@ export interface FindMaterializableWorkUnitsOptions {
   entries: readonly InFlightEntry[];
   /** Operator to filter to; `null` disables owner filtering. */
   identity: string | null;
+  /** Advertised branches whose objects are still awaiting explicit discovery. */
+  pendingBranchCount?: number;
 }
 
 /** Runtime authority for the materializable-work-unit advisory result. */
 export const MaterializableWorkUnitsResultSchema = z.strictObject({
   candidates: z.array(MaterializableWorkUnitSchema),
   warnings: z.array(z.string()).optional(),
+  actions: SessionActionsSchema.optional(),
 });
 
 /** Remote-only owned work units and optional upstream diagnostics. */
@@ -64,6 +69,7 @@ export const MaterializableDiscoveryRefreshRemedySchema = z.strictObject({
 const DiscoveryCommonFields = {
   candidates: z.array(MaterializableWorkUnitSchema),
   warnings: z.array(z.string()).optional(),
+  actions: SessionActionsSchema.optional(),
 };
 
 /** Discovery-domain evidence contract installed into session status during composition cutover. */
@@ -136,7 +142,12 @@ export function findMaterializableWorkUnits(
     if (identity !== null && entry.owner !== undefined && entry.owner !== identity) continue;
     const name = SlugSchema.safeParse(entry.name);
     if (!name.success) continue;
-    candidates.push({ name: name.data, branch: entry.branch });
+    candidates.push({ name: name.data, branch: entry.branch,
+      actions: [{ text: `arc materialize ${name.data}`, argv: ["arc", "materialize", name.data] }],
+    });
   }
-  return { candidates };
+  return { candidates,
+    ...((options.pendingBranchCount ?? 0) > 0
+      ? { actions: [composeMaterializableDiscoveryRefreshRemedy()] } : {}),
+  };
 }
