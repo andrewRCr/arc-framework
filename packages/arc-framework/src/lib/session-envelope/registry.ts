@@ -5,6 +5,8 @@
  * through the shared contract projection.
  */
 
+import { PausedWorkResultSchema } from "../session-init/paused-work.js";
+import { InboundBackPressureResultSchema } from "../session-init/inbound-back-pressure.js";
 import { CurrentWuReconcileSessionResultSchema } from "../session-init/current-wu-reconcile-schema.js";
 import { UserReferenceReconcileSessionResultSchema } from "../user-reference-reconcile-schema.js";
 import { WorkUnitStateResultSchema } from "../session-init/work-unit-state-schema.js";
@@ -72,6 +74,8 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   errandStalenessSweep: "errand-staleness-sweep",
   hooksPathSessionAdvisory: "hooks-path-session-advisory",
   inboxState: "inbox-state",
+  pausedWork: "paused-work",
+  inboundBackPressure: "inbound-back-pressure",
   loadSetAuditVerdict: "load-set-audit-verdict",
   loadSetManifest: "load-set-manifest",
   materializableWorkUnits: "materializable-work-units",
@@ -119,6 +123,8 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.hooksPathSessionAdvisory, HooksPathSessionAdvisorySchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.pausedWork, PausedWorkResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.inboundBackPressure, InboundBackPressureResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict, LoadSetAuditVerdictSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest, LoadSetManifestSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitDiscoveryResultSchema],

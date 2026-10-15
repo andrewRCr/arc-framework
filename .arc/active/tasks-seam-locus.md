@@ -104,26 +104,20 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   compatibility scenarios add only `recovery.value.actions` to `session-init-branch-gone.json`; the other golden values
   retain their bytes (spec § 1.4, item 1).
 
-### `[ ]` **1.3 Add `pausedWork` and `inboundBackPressure`, reporting nothing — § 4.2, § 4.4, § 4.6**
+### `[x]` **1.3 Add `pausedWork` and `inboundBackPressure`, reporting nothing — § 4.2, § 4.4, § 4.6**
 
 - _Goal:_ The session-init envelope carries both new slots with their registered schemas, each reporting nothing before
   the flip, in a value later phases extend.
 
-    - `pausedWork` is present whenever the identity resolves, as `{ items: [] }`; its item schema carries the slug,
-      reason, what it waits on, its `resumable` and `review-due` marks, and its actions.
-    - `inboundBackPressure` is present when one work unit is current (`active.resolution === "single"`), as `null`; its
-      record arm carries the pending count, the oldest entry's age, both thresholds, and actions past either.
-    - Each is composed in `runSessionInitStatus` (`commands/status/run.ts`) with its own failure isolation, and each
-      presence rule joins the envelope's validation (`requireExactPresence`, `commands/status/schema.ts`). Each
-      registered schema admits both arms' values.
-
-    - Build `test-first` (one behavior at a time):
-        - over the in-repo implementation both slots are present by their rules, empty, and parse under their schemas
-        - a failure composing either fails that slot alone
-
-    - `[ ]` **1.3.a The slots' arms from the flip reporting nothing until Tasks 5.4 and 5.6**
+    - `[x]` **1.3.a The slots' arms from the flip reporting nothing until Tasks 5.4 and 5.6**
 
         - _Retired in:_ Phase 5
+
+- _Outcome:_ The two producer-owned schemas are registered; both slots enforce their presence rules and isolate failures.
+  Spec § 1.4, item 1 changes `unit/status/run.test.ts`, `unit/session-envelope/registry.test.ts`,
+  `unit/session-envelope/type-authority.test.ts`, and `helpers/production-schema-ids.ts`, and adds
+  `unit/status/run-dormant-slots.test.ts`. The active-resume, branch-gone, current-husk, and orient session-init goldens
+  add only the eligible empty slots; all other golden values retain their bytes.
 
 ### `[ ]` **1.4 Read each registration's folder once per scan — § 2.1**
 

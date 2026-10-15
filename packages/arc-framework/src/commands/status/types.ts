@@ -11,6 +11,8 @@
  * `identity` is populated by direct `git config` reads in the handler,
  * logically parallel to the probe fan-out.
  */
+import type { PausedWorkResult } from "../../lib/session-init/paused-work.js";
+import type { InboundBackPressureResult } from "../../lib/session-init/inbound-back-pressure.js";
 import { SessionInitUserValueSchema, SessionUserValueSchema } from "../user/session-init-schema.js";
 import { z } from "zod";
 
@@ -226,6 +228,10 @@ export interface StatusResult {
 
 /** Session-init-scoped composite result — `--session-init` consumer shape. */
 export interface SessionInitProbeResult {
+  /** Paused work for the resolved identity; dormant until off-branch state is active. */
+  pausedWork?: Probe<PausedWorkResult>;
+  /** Current work unit's inbound figures; dormant until off-branch state is active. */
+  inboundBackPressure?: Probe<InboundBackPressureResult>;
   mode: "session-init";
   identity: StatusIdentity;
   /** Worktree-derived entering-checkout frame selected for session-init consumers. */
@@ -598,6 +604,10 @@ export interface SessionHandoffResult {
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes {
+  /** Independently probe the resolved identity's paused work. */
+  pausedWork?: (identity: string) => Promise<PausedWorkResult>;
+  /** Independently probe the current work unit's inbound figures. */
+  inboundBackPressure?: (workUnitId: string) => Promise<InboundBackPressureResult>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;

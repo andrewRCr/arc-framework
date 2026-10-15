@@ -22,6 +22,8 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/recover/audit.ts", type: "RecoveryAuditVerdict" },
     { file: "lib/recover/report.ts", type: "RecoverAuditReport" },
     { file: "lib/session-init/inbox-state.ts", type: "InboxStateResult" },
+    { file: "lib/session-init/paused-work.ts", type: "PausedWorkResult" },
+    { file: "lib/session-init/inbound-back-pressure.ts", type: "InboundBackPressureResult" },
     {
         file: "lib/session-init/errand-staleness-sweep.ts",
         type: "ErrandStalenessSweepResult",

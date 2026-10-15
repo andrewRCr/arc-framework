@@ -5,6 +5,8 @@
  * envelope-level routing and conditional-presence checks.
  */
 
+import { PausedWorkResultSchema } from "../../lib/session-init/paused-work.js";
+import { InboundBackPressureResultSchema } from "../../lib/session-init/inbound-back-pressure.js";
 import { CurrentWuReconcileSessionResultSchema } from "../../lib/session-init/current-wu-reconcile-schema.js";
 import { UserReferenceReconcileSessionResultSchema } from "../../lib/user-reference-reconcile-schema.js";
 import { WorkUnitStateResultSchema } from "../../lib/session-init/work-unit-state-schema.js";
@@ -333,6 +335,8 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   materializableWorkUnits: probe(MaterializableWorkUnitDiscoveryResultSchema).optional(),
   workUnitState: probe(WorkUnitStateResultWireSchema).optional(),
   inboxState: probe(InboxStateResultSchema).optional(),
+  pausedWork: probe(PausedWorkResultSchema).optional(),
+  inboundBackPressure: probe(InboundBackPressureResultSchema).optional(),
   partialPushMarker: probe(PartialPushMarkerSurfaceResultSchema).optional(),
   compactionAdvisory: probe(NotesCompactionSessionAdvisoryResultSchema).optional(),
   inFlightComposition: ClassCompositionSchema.optional(),
@@ -554,7 +558,7 @@ const SessionInitProbeResultRuntimeSchema: z.ZodType<SessionInitEnvelopeValue> =
     requireExactPresence(value, context, "orphanBranchSweep", true);
   }
 
-  for (const key of ["retiredSubdirs", "partialPushMarker"] as const) {
+  for (const key of ["retiredSubdirs", "partialPushMarker", "pausedWork"] as const) {
     requireExactPresence(value, context, key, identityKnown);
   }
   for (const key of ["errandSweep", "inboxState"] as const) {
@@ -563,6 +567,7 @@ const SessionInitProbeResultRuntimeSchema: z.ZodType<SessionInitEnvelopeValue> =
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
   requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
+  requireExactPresence(value, context, "inboundBackPressure", active?.resolution === "single");
   const owningSubject = value.derivedLocusState.ok
     && value.derivedLocusState.value.active?.subject.kind === "work-unit"
     ? value.derivedLocusState.value.active.subject

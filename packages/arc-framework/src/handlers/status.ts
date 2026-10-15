@@ -57,6 +57,8 @@ import { readDeliveryPositionView } from "../lib/session-init/delivery-position.
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState } from "../lib/session-init/errand-state.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
+import { runPausedWork } from "../lib/session-init/paused-work.js";
+import { runInboundBackPressure } from "../lib/session-init/inbound-back-pressure.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import {
   composeMaterializableDiscoveryRefreshRemedy,
@@ -853,6 +855,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       });
     },
     inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+    pausedWork: () => Promise.resolve(runPausedWork()),
+    inboundBackPressure: () => Promise.resolve(runInboundBackPressure()),
     partialPushMarker: (id) => runPartialPushMarkerSurface({
       exec,
       identity: id,

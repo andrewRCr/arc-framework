@@ -21,6 +21,8 @@
  * @module
  */
 
+import { runPausedWork } from "../../lib/session-init/paused-work.js";
+import { runInboundBackPressure } from "../../lib/session-init/inbound-back-pressure.js";
 import type {
   HandoffPathSet,
   HandoffSurfacePaths,
@@ -36,6 +38,7 @@ import type {
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
+  SessionInitProbes,
   SessionInitRetiredSubdirsValue,
   SessionInitUserValue,
   SessionInitWorktreeValue,
@@ -186,6 +189,7 @@ export async function runSessionInitStatus(
     && derivedLocusState.value.active?.subject.kind === "work-unit"
       ? derivedLocusState.value.active.subject.key
       : null;
+  const dormantState = await probeDormantSessionState(probes, identity, owningWorkUnitId);
   const deliveryPositionProbe = probes.deliveryPosition;
   const deliveryPosition = owningWorkUnitId === null
     ? undefined
@@ -538,6 +542,7 @@ export async function runSessionInitStatus(
       ? { materializableWorkUnits: toProbe(materializableWorkUnits) }
       : {}),
     ...(inboxState !== undefined ? { inboxState: toProbe(inboxState) } : {}),
+    ...dormantState,
     ...(partialPushMarker !== null ? { partialPushMarker: toProbe(partialPushMarker) } : {}),
     ...(compactionAdvisory !== undefined ? { compactionAdvisory: toProbe(compactionAdvisory) } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
@@ -885,5 +890,23 @@ function composeHandoffPathSet(options: {
         : null,
       workingMemory: surfaces.workingMemoryPath,
     },
+  };
+}
+
+
+async function probeDormantSessionState(
+  probes: SessionInitProbes,
+  identity: string | null,
+  workUnitId: string | null,
+): Promise<Pick<SessionInitProbeResult, "pausedWork" | "inboundBackPressure">> {
+  const [pausedWork, inboundBackPressure] = await Promise.all([
+    identity === null ? undefined : safeProbe("pausedWork", () =>
+      probes.pausedWork === undefined ? Promise.resolve(runPausedWork()) : probes.pausedWork(identity)),
+    workUnitId === null ? undefined : safeProbe("inboundBackPressure", () =>
+      probes.inboundBackPressure === undefined ? Promise.resolve(runInboundBackPressure()) : probes.inboundBackPressure(workUnitId)),
+  ]);
+  return {
+    ...(pausedWork !== undefined ? { pausedWork: toProbe(pausedWork) } : {}),
+    ...(inboundBackPressure !== undefined ? { inboundBackPressure: toProbe(inboundBackPressure) } : {}),
   };
 }
