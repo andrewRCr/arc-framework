@@ -83,15 +83,18 @@ describe("store archive", () => {
 function archive(store: Store, name: string) {
   return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
 }
-async function groupFixture() {
+async function groupFixture(nested = false) {
   const h = createLifecycleHarness();
+  const parent = nested ? await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "parent" })),
+    "# Cohort: parent\n\n**Purpose:** Deliver the group.\n") : undefined;
   const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
-    "# Cohort: group\n\n**Purpose:** Deliver both members.\n");
-  const alpha = await h.seedMeta("alpha", { cohort: "group" }), beta = await h.seedMeta("beta", { cohort: "group" });
-  return { ...h, group, alpha, beta };
+    `# Cohort: group\n\n**Purpose:** Deliver both members.\n${nested ? "\n**Parent:** `parent`\n" : ""}`);
+  const cohort = nested ? "parent/group" : "group";
+  const alpha = await h.seedMeta("alpha", { cohort }), beta = await h.seedMeta("beta", { cohort });
+  return { ...h, group, alpha, beta, parent };
 }
-it("closes a cohort after overlapping member batches and preserves a repairing completed-subject retry", async () => {
-  const h = await groupFixture();
+it.each([false, true])("refuses a stale final-member batch and retries atomic closeout, nested=%s", async (nested) => {
+  const h = await groupFixture(nested);
   let arrived = 0; let release!: () => void;
   const barrier = new Promise<void>((resolve) => { release = resolve; });
   const store: Store = new Proxy(h.store, { get(target, key) {
@@ -103,11 +106,27 @@ it("closes a cohort after overlapping member batches and preserves a repairing c
     };
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
-  await Promise.all([archive(store, "alpha"), archive(store, "beta")]);
-  expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference })).placement).toMatchObject({ kind: "completed" });
-  expect(lifecycleSuccess(await h.store.read({ reference: h.beta.reference })).placement).toMatchObject({ kind: "completed" });
-  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed", closeout: "a" });
-  expect(await archive(h.store, "beta")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("cohort-group") });
+  const results = await Promise.all([archive(store, "alpha"), archive(store, "beta")]);
+  expect(results.filter((result) => result.status === "archived")).toHaveLength(1);
+  const refused = results.findIndex((result) => result.status === "rejected");
+  expect(refused).toBeGreaterThanOrEqual(0);
+  expect(results[refused]).toMatchObject({ status: "rejected", refusal: { rule: "cohort.archive-closeout" } });
+  const last = refused === 0 ? h.alpha : h.beta;
+  expect(lifecycleSuccess(await h.store.read({ reference: last.reference }))).toEqual(last);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement?.kind).not.toBe("completed");
+  expect(await archive(h.store, last.reference.owner.name)).toMatchObject({ status: "archived", destination: { sequence: "02" } });
+  const primaryHistory = lifecycleSuccess(await h.store.history({ reference: last.reference }));
+  const primaryProvenance = primaryHistory[0]?.provenance;
+  if (primaryProvenance === undefined || !("batchId" in primaryProvenance)) throw new Error("Missing member archive batch");
+  for (const cohort of [h.group, ...(h.parent === undefined ? [] : [h.parent])]) {
+    const completed = lifecycleSuccess(await h.store.read({ reference: cohort.reference }));
+    expect(completed.placement).toMatchObject({ kind: "completed", sequence: "02", closeout: cohort === h.parent ? "b" : "a" });
+    expect(lifecycleSuccess(await h.store.history({ reference: cohort.reference }))[0]?.provenance)
+      .toMatchObject({ batchId: primaryProvenance.batchId });
+  }
+  const completed = lifecycleSuccess(await h.store.read({ reference: last.reference }));
+  expect(await archive(h.store, last.reference.owner.name)).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: last.reference }))).toEqual(completed);
 });
 it("refuses a cohort preparation whose version changed and succeeds after re-preparation", async () => {
   const h = await groupFixture(); let inject = true;
@@ -150,4 +169,37 @@ it("retains a persisted archive through a failed publish and its completed-subje
   expect(await archive(h.store, "example")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
   expect([...remote.state.records.values()].find((record) => record.reference.kind === "work-item/meta")?.placement).toMatchObject({ kind: "completed" });
+});
+
+it.each(["write", "publication"])("retries standalone closeout after interrupted %s without another primary archive", async (stage) => {
+  const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
+  left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
+  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
+  let interrupted = false;
+  const store: Store = new Proxy(right.store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      const standalone = input.writes.length > 0 && input.writes.every((write) => write.reference.kind === "cohort/document");
+      if (standalone && !interrupted) {
+        interrupted = true;
+        if (stage === "write") throw new Error("Closeout write unavailable");
+        const result = await target.batch(input); remote.condition = "down"; return result;
+      }
+      return target.batch(input);
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "beta")).toMatchObject({ status: "rejected", persisted: true,
+    remedy: { argv: ["arc", "archive", "beta"] } });
+  expect(interrupted).toBe(true);
+  const member = lifecycleSuccess(await right.store.read({ reference: left.beta.reference }));
+  expect(member.placement).toMatchObject({ kind: "completed", sequence: "02" });
+  const history = lifecycleSuccess(await right.store.history({ reference: member.reference }));
+  remote.condition = "available";
+  expect(await archive(store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" },
+    cohortSwept: expect.stringContaining("03a_cohort-group") });
+  expect(lifecycleSuccess(await right.store.read({ reference: member.reference })).version).toBe(member.version);
+  expect(lifecycleSuccess(await right.store.history({ reference: member.reference }))).toEqual(history);
+  expect([...remote.state.records.values()].find((record) => record.reference.kind === "cohort/document")?.placement)
+    .toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
 });

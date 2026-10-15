@@ -270,4 +270,29 @@ arm and reopen permit); `executor-context-status.ts` (status-roadmap's ROADMAP r
   when checked on 2026-09-19: `graduation-cleanup`, `delivery-native-stack-composition`, and `review-checkout-lifecycle`
   each cover other refs.
 
+## A5 — Local archive admission and reconciled closeout
+
+The superseded § 2.2 archive clause promised “the cohort document completed in the same batch when its last open member
+archives”. Its unqualified timing did not distinguish local admission from completion learned only after independent
+clients reconcile their state. A5 keeps the local batch promise and explicitly permits a later standalone closeout for
+the latter case; § 4 and criterion 17 carry the binding behavior.
+
+`prepareArchiveCohorts` prepares prospective membership before `runStoreArchive` reaches its atomic write. Two local
+calls may both prepare while another member is open. The cohort's whole-batch `checkCohortArchiveCloseout` uses the
+found and proposed membership to refuse a stale final-member decision before mutation; fresh retry completes the member,
+leaf cohort and eligible parent together. Existing open empty cohorts remain valid: the refusal requires a transition
+from held open membership to none in this archive batch.
+
+Independent clients can first learn the sibling's completion in `publishArchive`'s sync. `settleStoredArchive` then
+prepares a standalone closeout, and `publishCohortCloseout` publishes it before success. No member archives in that
+later batch, so the checked reference backend’s `assignCompletedCohorts` assigns the next quarter number.
+`persistedFailure` preserves a completed subject's archive retry through a failed publication or closeout;
+`runStoreArchive` resumes settlement without another primary archive write. These are existing batch, placement,
+numbering and retry contracts; no remote membership transaction is introduced.
+
+The propagation footprint is § 2.2's archive row, § 4's closeout timing, criterion 17, Task 4.5's additive locator and
+this record. § 18.2's member-shared versus standalone numbering and § 19's expected backend numbering remain valid. The
+original Goals, criteria and recorded verification outcomes remain preserved. Closure is the approved review-fix
+increment's full verification; this design note does not attest that it has run.
+
 ---

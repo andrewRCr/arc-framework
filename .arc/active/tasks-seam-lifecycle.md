@@ -499,6 +499,8 @@ in-repo arm passes today's tests unchanged, and no ratchet floor grows.
   both handoff anchors, and `Session Type`, resets `Next Action`, completes the cohort document in the same batch when
   its last open member archives, and writes no `PR URL` or `Branch`, reporting the sequence the backend assigned.
 
+    - _Amended in:_ review-fix (A5)
+
     - `[x]` **4.5.a A cohort document's completed placement**
 
         - Completed cohort placements carry the backend-assigned member sequence with leaf/parent letters, or their
