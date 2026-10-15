@@ -13,13 +13,15 @@ import type { UserIOContext } from "../../../src/commands/user/types.js";
 async function fixture(mode: PrWithdrawMode = "close") {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("demo", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-demo.md" }, { kind: "active" }, {
-    branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }],
+    branches: [{ repository: "repo", ref: "chore/retained", linkedAs: "adopted", excluded: [] },
+      { repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] },
+      { repository: "elsewhere", ref: "feat/foreign", linkedAs: "created", excluded: [] }],
   });
   await h.seed(recordReferences["work-item/task-list"](meta.reference.owner), "# Task List: demo\n\n### `[x]` **1.1 Done**\n");
   let unavailable = true;
   const writeArgs = mode === "close" ? ["pr", "close", "feat/demo"] : ["pr", "ready", "feat/demo", "--undo"];
   const git = scriptGitExec([
-    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/demo" }] },
+    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "chore/retained" }] },
     { command: "gh", match: ["pr", "view", "feat/demo", "--json", "state,isDraft"], responses: [{ stdout: JSON.stringify({ state: "OPEN", isDraft: false }) }] },
     { command: "gh", match: writeArgs, responses: [() => unavailable ? { failure: { exitCode: 1, stderr: "network unavailable" } } : { stdout: "withdrawn" }] },
   ]);

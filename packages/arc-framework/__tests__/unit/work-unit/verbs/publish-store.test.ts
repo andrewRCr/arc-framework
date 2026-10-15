@@ -154,3 +154,22 @@ it("refuses unresolved renewed review while Integrating and publishes after read
     reason: expect.stringContaining("obligations remain open"), remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await runPublish(context(h.store), params)).toMatchObject({ status: "unchanged", boundary: { locus: "publication-pending" } });
 });
+
+
+it.each(["Active", "Integrating"] as const)("uses the logical work branch for %s publication from a retained Errand branch", async (state) => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId, state, currentWorkflow: state === "Active" ? "process-task-loop" : "integrate-work-unit" }, { kind: "active" }, { branches: [
+    { repository: "repo", ref: "chore/retained", linkedAs: "adopted", excluded: [] },
+    { repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] },
+    { repository: "elsewhere", ref: "feat/foreign", linkedAs: "created", excluded: [] },
+  ] });
+  const ctx = { ...context(h.store), projectId: async () => "repo", exec: async () => ({ stdout: "chore/retained", stderr: "" }) };
+  const result = await runPublish(ctx, parameters(async () => {}));
+  expect(result).toMatchObject({ status: state === "Active" ? "published" : "unchanged", boundary: {
+    nextAction: { kind: "continue-publication", command: "git push -u origin feat/example" },
+  } });
+  const persisted = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  expect(persisted.fields).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  expect(persisted.links).toEqual(primary.links);
+  if (state === "Integrating") expect(persisted).toEqual(primary);
+});
