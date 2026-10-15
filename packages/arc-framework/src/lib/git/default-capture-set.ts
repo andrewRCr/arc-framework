@@ -111,7 +111,8 @@ export type LinkedCheckoutBranch =
   | { kind: "linked"; link: BranchLink }
   | { kind: "no-link" }
   | { kind: "detached" }
-  | { kind: "unlinked"; branch: string };
+  | { kind: "unlinked"; branch: string }
+  | { kind: "ambiguous"; branch: string };
 
 /** Resolve only the branch relation; each consumer owns its refusal policy. */
 export async function resolveLinkedCheckoutBranch(input: {
@@ -126,6 +127,8 @@ export async function resolveLinkedCheckoutBranch(input: {
     });
   if (result === null) return { kind: "detached" };
   const branch = result.stdout.trim();
-  const link = links.find((candidate) => candidate.ref.replace(/^refs\/heads\//u, "") === branch);
+  const matches = links.filter((candidate) => candidate.ref.replace(/^refs\/heads\//u, "") === branch);
+  if (matches.length > 1) return { kind: "ambiguous", branch };
+  const link = matches[0];
   return link === undefined ? { kind: "unlinked", branch } : { kind: "linked", link };
 }

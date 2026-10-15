@@ -2,7 +2,7 @@
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import type { GitExec, RawGitExec } from "../../git/exec.js";
 import { computeCopyKeys } from "../../git/copy-key.js";
-import { computeDefaultCaptureSet, resolveLinkedCheckoutBranch, type DefaultCaptureSetResult, type DefaultCaptureCommit } from "../../git/default-capture-set.js";
+import { computeDefaultCaptureSet, resolveLinkedCheckoutBranch, type DefaultCaptureSetResult, type DefaultCaptureCommit, type LinkedCheckoutBranch } from "../../git/default-capture-set.js";
 import type { Store } from "../../store/contract.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
@@ -38,10 +38,7 @@ export async function prepareTaskClose(ctx: TaskVerbContext, params: TaskClosePa
   if (repository === undefined) return refuseTask("Project identity is unavailable.", "Resolve the project's stable identity, then retry arc task close.");
   const relation = await resolveLinkedCheckoutBranch({ exec: ctx.exec, cwd: ctx.cwd, repository, branches: basis.meta.links?.branches ?? [] });
   if (relation.kind !== "linked") {
-    const fields = ParsedMetaRecordSchema.parse(basis.meta.fields);
-    const repair = relation.kind === "no-link" ? fields.state === "Planning" ? "Run arc activate." : `Run arc deactivate ${ctx.slug}, then arc activate.`
-      : `Run git switch ${(basis.meta.links?.branches ?? []).filter((link) => link.repository === repository).map((link) => workBranchName(link.ref)).join(" or ")}.`;
-    return refuseTask(`Task close requires a linked work branch (${relation.kind}).`, repair, "branch-unlinked");
+    return unlinkedTaskRefusal(basis.meta, relation, ctx.slug, repository);
   }
   if ((params.commits?.length ?? 0) > 0) return { ...basis, branch: relation.link, repository };
   const snapshot = await computeDefaultCaptureSet({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, baseBranch: ctx.baseBranch,
@@ -138,4 +135,12 @@ async function readTaskInventory(store: Store): Promise<TaskRefusal | undefined>
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return refuseTask(error instanceof Error ? error.message : String(error), "Repair the named lifecycle records, then retry the task verb.", "inventory-incomplete"); }
   return undefined;
+}
+
+function unlinkedTaskRefusal(meta: StoreRecord, relation: Exclude<LinkedCheckoutBranch, { kind: "linked" }>, slug: string, repository: string): TaskRefusal {
+  const fields = ParsedMetaRecordSchema.parse(meta.fields);
+  const repair = relation.kind === "ambiguous" ? `Repair duplicate branch links for ${relation.branch} in this project, then retry arc task close.`
+    : relation.kind === "no-link" ? fields.state === "Planning" ? "Run arc activate." : `Run arc deactivate ${slug}, then arc activate.`
+      : `Run git switch ${(meta.links?.branches ?? []).filter((link) => link.repository === repository).map((link) => workBranchName(link.ref)).join(" or ")}.`;
+  return refuseTask(`Task close requires a linked work branch (${relation.kind}).`, repair, "branch-unlinked");
 }

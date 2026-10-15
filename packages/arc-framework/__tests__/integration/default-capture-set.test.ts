@@ -5,6 +5,10 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { computeDefaultCaptureSet, resolveLinkedCheckoutBranch } from "../../src/lib/git/default-capture-set.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { runTaskClose } from "../../src/lib/work-unit/verbs/task-close.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { recordReferences } from "../../src/lib/store/identity.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 
 describe("default capture set", () => {
@@ -66,6 +70,25 @@ describe("default capture set", () => {
     expect(await resolveLinkedCheckoutBranch({ ...input, branches: [] })).toEqual({ kind: "no-link" });
     await exec("git", ["switch", "main"]);
     expect(await resolveLinkedCheckoutBranch(input)).toEqual({ kind: "unlinked", branch: "main" });
+  });
+
+  it("refuses duplicate canonical links before closing tasks and retries with repaired exclusions", async () => {
+    const excluded = await commit("excluded\n"), h = createLifecycleHarness();
+    const short = { repository: "project", ref: "feat/work", linkedAs: "created" as const, excluded: [] };
+    const qualified = { ...short, ref: "refs/heads/feat/work", excluded: [{ repository: "project", sha: excluded }] };
+    const meta = await h.seedMeta("work", { taskList: "tasks-work.md" }, { kind: "active" }, { branches: [short, qualified] });
+    const tasks = await h.seed(recordReferences["work-item/task-list"](meta.reference.owner),
+      "# Task List: work\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Work**\n");
+    const ctx = { store: h.store, cwd, slug: "work", exec, projectId: async () => "project", baseBranch: "main" };
+    expect(await runTaskClose(ctx)).toMatchObject({ status: "refused", reason: expect.stringContaining("ambiguous"),
+      remedy: { text: expect.stringContaining("Repair duplicate branch links") } });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(meta);
+    expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference }))).toEqual(tasks);
+    lifecycleSuccess(await h.store.write({ ...recordPut(meta, { links: { branches: [qualified] } }),
+      provenance: { verb: "code-link", lifecycleAction: "repair-links" } }));
+    expect(await runTaskClose(ctx)).toMatchObject({ status: "closed", captured: [] });
+    expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain("`[x]` **1.1 Work**");
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).links?.branches).toEqual([qualified]);
   });
 
   it("omits commits introduced by a base merge", async () => {
