@@ -1,5 +1,6 @@
 /** Give owned in-flight operational records a checkout without changing their state or pause. */
 import { stat } from "node:fs/promises";
+import { localPathsEqual } from "../../local-path-identity.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { boundedGitInvocation, type GitExec } from "../../git/exec.js";
@@ -87,7 +88,6 @@ async function missingBranchRemedy(ctx: Bound, branch: string, refreshed: boolea
   return `The clone has neither ${branch} nor its remote-tracking ref. Once origin is reachable, run git fetch origin +refs/heads/${branch}:refs/remotes/origin/${branch}, then retry materialize.`;
 }
 async function refuseUnmarkedHolder(ctx: Bound, params: MaterializeParams, branch: string): Promise<void> {
-  if (params.inPlace) return;
   const roster = await scanRegisteredWorktrees(ctx.exec);
   if (!roster.ok) throw new Error(roster.message);
   for (const item of roster.worktrees) {
@@ -95,6 +95,7 @@ async function refuseUnmarkedHolder(ctx: Bound, params: MaterializeParams, branc
     const present = await stat(item.path).then(() => true, (error: unknown) => {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return false; throw error;
     });
+    if (present && params.inPlace && await localPathsEqual(item.path, ctx.cwd)) continue;
     if (present) throw new Error(`Checkout ${item.path} already has ${branch} out; run arc materialize ${params.name} --here from that checkout.`);
   }
 }

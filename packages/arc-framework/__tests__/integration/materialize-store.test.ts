@@ -20,10 +20,11 @@ async function fixture(link = true) {
   const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { state: "Planning", owner: "starter", currentWorkflow: "draft-design" }, { kind: "active" }, link ? { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] } : undefined);
   let marker: WorktreeMarker | undefined;
   const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(null), writeAnchoredMarker: (_cwd: string, value: WorktreeMarker) => { marker = value; return Promise.resolve({ kind: "created" as const, bytes: Buffer.from(JSON.stringify(value)) }); } };
-  const ctx = buildExecutorContext({ cwd: root, io: { ...createUserIOContext(), exec }, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+  const contextAt = (cwd: string) => buildExecutorContext({ cwd, io: { ...createUserIOContext(), exec: makeGitExec(cwd) }, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+  const ctx = contextAt(root);
   const path = join(root, "checkout"), remote = join(root, "origin.git");
   const origin = async () => { await exec("git", ["init", "--bare", remote]); await exec("git", ["remote", "add", "origin", remote]); await exec("git", ["push", "origin", "main"]); };
-  return { ...h, root, exec, ctx, meta, path, origin, marker: () => marker, params: { name: "demo", baseBranch: "main", identity: "starter", spawningIdentity: "starter", locationTemplate: path, primaryWorktreePath: root, repo: "repo" } };
+  return { ...h, root, exec, ctx, contextAt, meta, path, origin, marker: () => marker, params: { name: "demo", baseBranch: "main", identity: "starter", spawningIdentity: "starter", locationTemplate: path, primaryWorktreePath: root, repo: "repo" } };
 }
 describe("store materialize real refs", () => {
   it("materializes a released local branch with no origin", async () => {
@@ -53,6 +54,21 @@ describe("store materialize real refs", () => {
   it("refuses an unmarked holder and names materialize --here at that checkout", async () => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "-b", "feat/demo", h.path, "main"]);
     expect(await runMaterialize(h.ctx, { ...h.params, locationTemplate: join(h.root, "next") })).toMatchObject({ status: "rejected", reason: expect.stringContaining(`Checkout ${h.path} already has feat/demo out; run arc materialize demo --here`) });
+  }, timeout);
+  it("redirects in-place materialize to the unmarked holder and succeeds there", async () => {
+    const h = await fixture(); await h.exec("git", ["worktree", "add", "-b", "feat/demo", h.path, "main"]);
+    const head = (await h.exec("git", ["rev-parse", "HEAD"])).stdout;
+    const params = { name: "demo", inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
+    expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(`Checkout ${h.path} already has feat/demo out; run arc materialize demo --here from that checkout.`) });
+    expect(h.marker()).toBeUndefined();
+    expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout).toBe("main");
+    expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+    expect(await runMaterialize(h.contextAt(h.path), params)).toMatchObject({ status: "materialized", inPlace: true, branch: "feat/demo", worktreePath: h.path });
+    expect(h.marker()).toMatchObject({ spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" } });
+    expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.path })).stdout).toBe("feat/demo");
+    expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(head);
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
   }, timeout);
   it.each([false, true])("clears a projection-locked missing branch registration, --here=%s", async (here) => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "-b", "feat/demo", h.path, "main"]);
