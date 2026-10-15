@@ -5,7 +5,7 @@ import type { Store } from "../../store/contract.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { recordReferences } from "../../store/identity.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
-import { readWorkUnit, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import { readWorkUnit, workUnitMetaPath, recordPut } from "../../store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../../store/lifecycle-record-path.js";
 import { resolveTaskListCursor } from "../../task-list/cursor.js";
 import { executeTransition, type ExecuteTransitionContext } from "../lifecycle-executor.js";
@@ -22,6 +22,7 @@ export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: St
   if (task.status === "rejected") return task;
   const requested = task.requested;
   const outcome = await executeTransition(ctx, { verb: "reopen", slug: params.name, inputs: {
+    storeTransition: { primary, preparedRecords: [task.record], additionalWrites: [recordPut(task.record)] },
     prMerged: params.prMerged, prWithdrawMode: params.withdrawMode ?? "close",
     ...(requested === undefined ? {} : { currentWorkflowOverride: "process-task-loop" }),
   } });
@@ -32,7 +33,7 @@ export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: St
 }
 
 async function storedTaskAuthority(store: Store, primary: StoreRecord, binding: string | null, nextTask?: string): Promise<
-  { status: "ready"; requested: string | undefined } | Extract<ReopenResult, { status: "rejected" }>> {
+  { status: "ready"; requested: string | undefined; record: StoreRecord } | Extract<ReopenResult, { status: "rejected" }>> {
   const task = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (task.status === "refused") return { status: "rejected", reason: task.refusal.condition, refusal: task.refusal };
   const path = lifecycleRecordPath(primary, task.result);
@@ -44,5 +45,5 @@ async function storedTaskAuthority(store: Store, primary: StoreRecord, binding: 
     const expected = `Task ${cursor.cursor.leaf.id} — ${cursor.cursor.leaf.title}`;
     if (requested !== expected) return { status: "rejected", reason: `Reopen requires --task '${expected}' for the open executable task.` };
   } else if (requested !== undefined) return { status: "rejected", reason: "The canonical task list has no open task; omit --task." };
-  return { status: "ready", requested };
+  return { status: "ready", requested, record: task.result };
 }

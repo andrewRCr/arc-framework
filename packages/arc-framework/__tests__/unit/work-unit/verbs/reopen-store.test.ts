@@ -1,6 +1,7 @@
 /** Reopening keeps cursor authority while the meta and tasks live outside code history. */
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
@@ -53,4 +54,29 @@ it("paused reopen returns typed resume before an open cursor's missing-task reje
   const paused = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
   expect(await runReopen(ctx(h.store), { name: "example", prMerged: false })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "resume", "example"] } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(paused);
+});
+
+it("binds the inspected task version through the atomic reopen write and permits a fresh retry", async () => {
+  const h = await fixture(true), executor = ctx(h.store);
+  const tasks = lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/task-list"](h.meta.reference.owner) }));
+  const batch = h.store.batch.bind(h.store); let once = true, withdrawn = false;
+  h.store.batch = async (input) => {
+    if (once) {
+      once = false;
+      lifecycleSuccess(await h.store.write({ ...recordPut(tasks, { content: tasks.content.replace("[ ]", "[x]") }),
+        provenance: { verb: "task-close", lifecycleAction: "close" } }));
+    }
+    return batch(input);
+  };
+  executor.sideEffects = { "withdraw-pr": Object.assign(async () => undefined, { prepareWithdrawal: async () => ({
+    name: "withdraw-pr", run: async () => { withdrawn = true; }, retryCommand: ["gh", "pr", "close", "feat/example"],
+  }) }) };
+  expect(await runReopen(executor, { name: "example", prMerged: false, nextTask: "Task 1.1 — Build feature" }))
+    .toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  expect(withdrawn).toBe(false);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).toMatchObject({ state: "Integrating" });
+  expect(await runReopen(executor, { name: "example", prMerged: false })).toMatchObject({ status: "reopened" });
+  expect(withdrawn).toBe(true);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields)
+    .toMatchObject({ state: "Active", currentWorkflow: "prepare-work-unit" });
 });
