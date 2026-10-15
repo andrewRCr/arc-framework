@@ -10,6 +10,7 @@ import { acquireLifecycleRecords } from "./prepared-lifecycle-write.js";
 import type { CurrentWuReconcilePrepareContext } from "./side-effects/discharge-dep-edges.js";
 import { validateTransitionRecordEnumeration, type TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 import { queryTransitionDisposition } from "./transition-disposition-query.js";
+import { readPairedReferenceOwners } from "./paired-reference-owners.js";
 import { readTerminalReferenceAliases } from "./terminal-reference-aliases.js";
 import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
@@ -32,9 +33,14 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   if (lineage.status === "refused") return lineage;
   const aliases = await artifactAliasTransitions(store, acquired.result, view.result.index, lineage.result.aliases);
   if (aliases.status === "refused") return aliases;
+  const retiredNames = new Set(lineage.result.aliases.keys());
+  if (lineage.result.enumeration.status === "valid") for (const group of lineage.result.enumeration.groups) retiredNames.add(group.origin);
+  const artifactOwners = await readPairedReferenceOwners(store, acquired.result, retiredNames);
+  if (artifactOwners.status === "refused") return artifactOwners;
   return { status: "ok", result: { records: acquired.result, byPath, context: {
     index: view.result.index,
     additionalReferenceTransitions: aliases.result,
+    artifactReferenceOwners: artifactOwners.result,
     enumerateTransitionRecords: () => Promise.resolve(lineage.result.enumeration),
     queryDisposition: async (input) => {
       const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(input.origin) });
@@ -80,6 +86,9 @@ function artifactAliasCandidates(records: readonly StoreRecord[]): Set<string> {
     for (const match of record.content.matchAll(/\b[a-z0-9]+(?:-[a-z0-9]+)*\b/gu)) candidates.add(match[0]);
     for (const match of record.content.matchAll(/[a-z]+-([a-z0-9]+(?:-[a-z0-9]+)*)\.md/gu)) {
       if (match[1] !== undefined) candidates.add(match[1]);
+      if (match[0].startsWith("spec-") && match[1] !== undefined && /-(prd|rfc)$/u.test(match[1])) {
+        candidates.add(match[1].replace(/-(prd|rfc)$/u, ""));
+      }
     }
   }
   return candidates;

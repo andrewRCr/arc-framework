@@ -26,6 +26,7 @@ import {
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
   type ReachableReferenceTransition,
+  type ArtifactReferenceOwner,
 } from "../reference-reconcile.js";
 import type { TransitionRecordEnumerationResult } from "../transition-record-enumeration.js";
 import type {
@@ -139,6 +140,8 @@ export interface PreparedCurrentWuReconcile {
 export interface CurrentWuReconcileContext {
   /** Alias-backed reference evidence acquired from the current artifacts. */
   additionalReferenceTransitions?: readonly ReachableReferenceTransition[];
+  /** Store-resolved artifact owner interpretations, including ambiguous paired names. */
+  artifactReferenceOwners?: ReadonlyMap<string, readonly ArtifactReferenceOwner[]>;
   index: LifecycleIndex;
   queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
   enumerateTransitionRecords?: () => Promise<TransitionRecordEnumerationResult>;
@@ -152,7 +155,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -613,7 +616,8 @@ async function prepareReferencePlan(
       conflicts: [{ subject: "", reason: projected.reason }],
     };
   }
-  return planReferenceReconcile({ transitions: [...projected.transitions, ...ctx.additionalReferenceTransitions ?? []], artifacts });
+  return planReferenceReconcile({ transitions: [...projected.transitions, ...ctx.additionalReferenceTransitions ?? []], artifacts,
+    artifactOwners: ctx.artifactReferenceOwners });
 }
 
 function byteSort(left: string, right: string): number {

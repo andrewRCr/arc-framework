@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
-import { writeMetaTitle } from "../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaDesign } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
@@ -106,4 +106,36 @@ it.each([false, true])("retains authenticated former-name retirement evidence, d
   expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: dependency ? "applied" : "pending" });
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(content);
   expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).toMatchObject({ dependsOn: [] });
+});
+
+it.each(["prd", "rfc"])("owner reconcile preserves a renamed paired spec's %s suffix", async (half) => {
+  const h = createLifecycleHarness(), origin = await h.seedMeta("origin");
+  for (const role of ["prd", "rfc"]) await h.seed(recordReferences["work-item/companion"](origin.reference.owner, `spec-${role}`), "# Design\n");
+  lifecycleSuccess(await h.store.write({ ...recordPut(origin, { content: writeMetaDesign(origin.content, ["spec-origin-prd.md", "spec-origin-rfc.md"]) }),
+    provenance: { verb: "repoint-design", lifecycleAction: "repoint-design" } }));
+  const dependent = await h.seedMeta("dependent");
+  const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), `# Notes\n\nRead \`spec-origin-${half}.md\`.\n`);
+  expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
+  const ceremony = buildStoreCurrentWuReconcile(h.store);
+  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  expect(prepared.status).toBe("pending");
+  expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: "applied" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content)
+    .toBe(`# Notes\n\nRead \`spec-successor-${half}.md\`.\n`);
+});
+
+it("refuses ambiguous paired-suffix ownership before rewriting an active owner's artifacts", async () => {
+  const h = createLifecycleHarness(); await h.seedMeta("origin"); await h.seedMeta("origin-prd");
+  const dependent = await h.seedMeta("dependent");
+  const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), "# Notes\n\nRead `spec-origin-prd.md`.\n");
+  expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
+  const ceremony = buildStoreCurrentWuReconcile(h.store);
+  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  expect(prepared.status).toBe("conflict");
+  expect(prepared.prepared.edits).toEqual([]);
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
 });

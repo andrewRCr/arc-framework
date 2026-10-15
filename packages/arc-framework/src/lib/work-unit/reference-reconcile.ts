@@ -34,6 +34,9 @@ export interface ReferenceArtifactSnapshot {
   content: string;
 }
 
+/** One evidenced interpretation of an artifact filename's owner and preserved suffix. */
+export interface ArtifactReferenceOwner { subject: string; suffix: string }
+
 /** One mechanical reference replacement within an artifact. */
 export interface TrackedReferenceReplacement {
   subject: string;
@@ -128,16 +131,19 @@ export function enumerateTransitionReferenceTransitions(
   return { status: "valid", transitions };
 }
 
+interface ReferenceReconcileInput {
+  transitions: readonly ReachableReferenceTransition[];
+  artifacts: readonly ReferenceArtifactSnapshot[];
+  artifactOwners?: ReadonlyMap<string, readonly ArtifactReferenceOwner[]>;
+}
+
 /**
  * Plan mechanical and advisory reference handling across exact artifact snapshots.
  *
  * @param input - Reachable transitions and current-WU artifact snapshots
  * @returns Mechanical edits, advisory findings, and any history conflicts
  */
-export function planReferenceReconcile(input: {
-  transitions: readonly ReachableReferenceTransition[];
-  artifacts: readonly ReferenceArtifactSnapshot[];
-}): ReferenceReconcilePlan {
+export function planReferenceReconcile(input: ReferenceReconcileInput): ReferenceReconcilePlan {
   const outcomes = groupOutcomes(input.transitions);
   const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
@@ -146,14 +152,14 @@ export function planReferenceReconcile(input: {
       return slugOffsets(artifact.content, subject)
         .some((offset) => !insideAnyRange(offset, cohortFieldRanges))
         || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
-          .some((match) => match[1] !== "cohort" && match[2] === subject);
+          .some((match) => match[1] !== "cohort" && artifactOwner(input.artifactOwners, match[1] ?? "", match[2] ?? "").subject === subject);
     }))
     .sort(byteSort);
   for (const subject of referencedSubjects) {
     resolutions.set(subject, resolveReferenceTransition(input.transitions, subject));
   }
 
-  const conflicts: ReferenceTransitionConflict[] = [];
+  const conflicts = ambiguousArtifactOwners(input, outcomes);
   for (const [subject, resolution] of resolutions) {
     if (resolution.kind === "conflict") conflicts.push({ subject, reason: resolution.reason });
   }
@@ -172,10 +178,12 @@ export function planReferenceReconcile(input: {
       (span: string, prefix: string, subject: string, offset: number) => {
         codeRanges.push({ start: offset, end: offset + span.length });
         if (prefix === "cohort") return span;
+        const owner = artifactOwner(input.artifactOwners, prefix, subject);
+        subject = owner.subject;
         const resolution = resolutions.get(subject);
         if (resolution?.kind === "rename") {
           replacements.push({ subject, targetSlug: resolution.targetSlug });
-          return `\`${prefix}-${resolution.targetSlug}.md\``;
+          return `\`${prefix}-${resolution.targetSlug}${owner.suffix}.md\``;
         }
         if (resolution?.kind === "decompose" || resolution?.kind === "removed") {
           advisories.push(advisoryAt(
@@ -221,6 +229,18 @@ export function planReferenceReconcile(input: {
     advisories: advisories.sort(compareAdvisories),
     conflicts: [],
   };
+}
+
+function artifactOwner(owners: ReferenceReconcileInput["artifactOwners"], prefix: string, subject: string): ArtifactReferenceOwner {
+  return owners?.get(`${prefix}-${subject}.md`)?.[0] ?? { subject, suffix: "" };
+}
+function ambiguousArtifactOwners(input: ReferenceReconcileInput,
+  outcomes: ReadonlyMap<string, readonly ReachableReferenceTransition["outcome"][]>): ReferenceTransitionConflict[] {
+  return input.artifacts.flatMap((artifact) => [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)].flatMap((match) => {
+    const owners = input.artifactOwners?.get(`${match[1]}-${match[2]}.md`) ?? [];
+    return owners.length > 1 && owners.some((owner) => outcomes.has(owner.subject))
+      ? [{ subject: match[2] ?? "", reason: "ambiguous-history" as const }] : [];
+  }));
 }
 
 function cohortFieldValueRanges(content: string): Array<{ start: number; end: number }> {
