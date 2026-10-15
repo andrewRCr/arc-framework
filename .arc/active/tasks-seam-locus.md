@@ -37,22 +37,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Goal:_ Every slot § 4.2 names validates against a full schema registered in the session-envelope registry, which
   `arc schema` serves, and every condition wanting a repair carries `actions` in one registered shape.
 
-    - `[ ]` **1.1.a The action shape**
+    - `[x]` **1.1.a The action shape**
 
-        - Each reported condition that wants a repair carries `actions`, a non-empty array, absent when the condition
-          wants none; each action is the store's remedy (`RemedySchema`, `lib/store/refusal.ts`: `text`, optional
-          `argv`) plus an optional absolute `checkout`. The shape is registered once in `SESSION_ENVELOPE_SCHEMAS`
-          (`lib/session-envelope/registry.ts`) and imported by every slot schema that carries one.
-        - Today's command fields stay beside `actions` until the deletion pass, since the workflow text reads some of
-          them until the flip's rewrite: `currentWuReconcile`'s and `userReferenceReconcile`'s `recommendedCommand`, the
-          residue sweep's `teardown` and rename `remedy`, and `successorReadiness.remedy` (`commands/status/schema.ts`),
-          and both `refreshRemedy`s (`lib/session-init/materializable-work-units.ts`,
-          `lib/session-init/branch-gone-cascade.ts`). Their exact-tuple schemas stay unchanged but the rename
-          `remedy`'s, which Task 1.8 doubles.
-
-        - Build `test-first` (one behavior at a time):
-            - an action with text alone, with an argv, and with a checkout each parse; a relative checkout refuses
-            - an empty `actions` array refuses
+        - `SessionActionSchema` extends the store's remedy with an optional absolute checkout; the shared
+          `SessionActionsSchema` refuses empty collections. Schema discovery serves `session-action`, and
+          `session-envelope/registry.test.ts` and `helpers/production-schema-ids.ts` include its stable ID
+          (spec § 1.4, item 1). Existing command fields stay unchanged. `session-envelope/actions.test.ts` covers text,
+          argv, both absolute-path conventions, and refusals.
 
     - `[ ]` **1.1.b Full schemas for the slots whose wire contract is a view today**
 

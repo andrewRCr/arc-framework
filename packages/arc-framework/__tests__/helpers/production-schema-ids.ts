@@ -131,6 +131,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "schema-install-envelope",
   "schema-list-envelope",
   "schema-refusal-envelope",
+  "session-action",
   "session-init-envelope",
   "session-recover-envelope",
   "severity-gating-policy",

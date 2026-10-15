@@ -24,6 +24,7 @@ import { BaseDistanceSnapshotResultSchema } from "../git/base-distance.js";
 import { DirtyStateResultSchema } from "../git/dirty-state.js";
 import { WorktreeSnapshotAnalysisResultSchema } from "../git/worktree-sync.js";
 import { WorktreeRosterResultSchema } from "../git/worktree-roster.js";
+import { SessionActionSchema } from "../session-init/actions.js";
 import { CurrentHuskAdvisorySchema } from "../session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
@@ -40,6 +41,7 @@ import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
+  sessionAction: "session-action",
   activeSessionInit: "active-session-init",
   baseBranchSync: "base-branch-sync",
   baseDistance: "base-distance",
@@ -77,6 +79,7 @@ const STRICT_CURRENT_V1 = {
 } as const;
 
 const SESSION_ENVELOPE_SCHEMAS = [
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionAction, SessionActionSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseDistance, BaseDistanceSnapshotResultSchema],
