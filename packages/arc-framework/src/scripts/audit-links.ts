@@ -123,7 +123,17 @@ export function auditLinks(paths: readonly string[], io: LinkAuditIo): LinkAudit
   };
   const diagnostics: string[] = [];
   for (const source of paths) {
-    visit(parse(io.readFile(source)), (node) => {
+    let markdown: string;
+    try {
+      markdown = io.readFile(source);
+    } catch (error) {
+      if (typeof error !== "object" || error === null || !("code" in error) || error.code !== "ENOENT") throw error;
+      diagnostics.push(
+        `${source}: indexed Markdown file is missing from the working tree; stage its deletion or restore the file`,
+      );
+      continue;
+    }
+    visit(parse(markdown), (node) => {
       if (!LINK_NODE_TYPES.has(node.type) || node.url === undefined) return;
       const problem = checkTarget(source, node.url, io, anchors);
       if (problem === null) return;
