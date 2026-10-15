@@ -3,7 +3,7 @@
   "slug": "dependency-audit-triage",
   "claimId": "c75a5f86f3d760414996d5209d78522b",
   "createdAt": "2026-10-15T17:40:09.572Z",
-  "updatedAt": "2026-10-15T17:40:09.572Z",
+  "updatedAt": "2026-10-15T18:22:57.967Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Assess the saved development-dependency advisories, apply compatible fixes where available, and record the remaining exposure for Owner disposition.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Triage the vulnerable-package entries reported by npm on 2026-10-14",
   "originEntrySourceDigest": "sha256:e5a07ffb8f1993b8a177d3c8c5c21787b87ac92d6d44aebf7c4b91e607e59aee",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/dependency-audit-triage",
+    "headSha": "b14545c69ba93c11c3c18fc0df9f49607c6f3914"
+  }
 }
