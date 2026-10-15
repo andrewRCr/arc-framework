@@ -69,7 +69,9 @@ async function linkedBranch(ctx: UnsharedWorkContext, record: StoreRecord, check
     // Detached HEAD supplies no branch identity; select from the recorded links.
     catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; }
   }
-  const selected = selectWorkBranchLink(record, { repository: ctx.repository, currentBranch });
+  const holderLinked = record.links?.branches?.some((link) => (ctx.repository === undefined || link.repository === ctx.repository)
+    && workBranchName(link.ref) === currentBranch) === true;
+  const selected = selectWorkBranchLink(record, { repository: ctx.repository, currentBranch: holderLinked ? currentBranch : undefined });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);
   return selected.kind === "none" ? null : workBranchName(selected.link.ref);
 }

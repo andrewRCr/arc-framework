@@ -32,8 +32,8 @@ async function fixture(origin = true, planning = false) {
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   return { root, exec, sha, record, ...harness, context: { cwd: root, identity: "test-user", exec, baseBranch: "main", repository: "repo", locusPorts, store: harness.store } };
 }
-it.each([false, true])("checks the recorded branch from a detached holder before handover, origin=%s", async (origin) => {
-  const f = await fixture(origin, true); await f.exec("git", ["switch", "--detach", "main"]);
+it.each([false, true])("checks recorded work independently of the holder branch before handover, origin=%s", async (origin) => {
+  const f = await fixture(origin, true); await f.exec("git", origin ? ["switch", "--detach", "main"] : ["switch", "main"]);
   const head = (await f.exec("git", ["rev-parse", "HEAD"])).stdout;
   const input = HandoverCommandInputSchema.parse({ slug: "example", to: "another-user" });
   const params = { name: input.slug!, to: input.to };
@@ -52,7 +52,8 @@ it.each([false, true])("checks the recorded branch from a detached holder before
   expect(handedOver.fields).toEqual({ ...ParsedMetaRecordSchema.parse(f.record.fields), owner: "another-user" });
   expect(handedOver.links).toEqual(f.record.links); expect(handedOver.placement).toEqual(f.record.placement);
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);
-  expect(await f.exec("git", ["symbolic-ref", "--quiet", "HEAD"]).catch(() => null)).toBeNull();
+  const branch = await f.exec("git", ["symbolic-ref", "--quiet", "HEAD"]).then((result) => result.stdout.trim(), () => null);
+  expect(branch).toBe(origin ? null : "refs/heads/main");
 }, HANDOVER_TIMEOUT_MS);
 it("reports never-pushed work and pause still succeeds while handover refuses with push action", async () => {
   const f = await fixture();
