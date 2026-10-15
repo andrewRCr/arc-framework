@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Register the shared action shape and each rebuilt slot's schema
-- **Blockers:** [none]
+- **Last Completed:** Task 1.4 — Read each registration's folder once per scan
+- **Next Task:** Task 1.5 — Take the removal check's outcomes (line ~133 in `tasks-seam-locus.md`)
+- **Blockers:** Task 1.5 waits for `seam-lifecycle` to land its removal check, function, and release.
 
-- **Next Action:** Begin Task 1.1 — register the action shape (Task 1.1.a), then each rebuilt slot's full schema
+- **Next Action:** Wait for `seam-lifecycle` to ship; then merge `main`, reconcile the shared files, and begin Task 1.5.a.
 
 - **PR URL:** [none]
 - **Completed:** [none]
