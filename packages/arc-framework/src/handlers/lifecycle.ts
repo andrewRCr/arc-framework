@@ -1399,9 +1399,10 @@ export async function handlePublish(
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
 
-async function resolvePublicationTarget(base: VerbBase, verb: "publish" | "reopen", slug?: string, json = false): Promise<string | null> {
+/** Resolve publication through the selected work-unit identity before reading its evidence. */
+export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<string | null> {
   if (!usesOffBranchState(base.store)) return resolveVerbTargetOrReport(verb, slug, base.cwd, json);
-  if (slug !== undefined) return slug;
+  if (slug !== undefined) return canonicalVerbTarget(slug, base.store, json);
   const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: base.store });
   if (current.status === "resolved") return current.candidate.reference.owner.name;
   refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
