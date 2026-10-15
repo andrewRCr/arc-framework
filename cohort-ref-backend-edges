@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "cohort-ref-backend-edges",
+  "claimId": "3047ecb1e4dc5ec5c7a5e757e1b358a3",
+  "createdAt": "2026-10-15T16:36:10.419Z",
+  "updatedAt": "2026-10-15T16:36:10.419Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Correct storage-ref-backend's stale dependency and scope lines in cohort-state-storage.md",
+  "branch": "chore/cohort-ref-backend-edges",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
