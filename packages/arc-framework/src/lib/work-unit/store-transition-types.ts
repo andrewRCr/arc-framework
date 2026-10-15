@@ -28,6 +28,8 @@ export interface StoreTransitionInputs {
   placement?: WritePlacement;
   links?: Links;
   additionalWrites?: Mutation[];
+  /** Acquired inputs whose exact versions must still hold immediately before the batch. */
+  preparedRecords?: readonly StoreRecord[];
   provenance?: CallerProvenance;
   gitSteps?: LifecycleGitStep[];
 }

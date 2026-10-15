@@ -19,6 +19,7 @@ import { makePauseGuard } from "./lifecycle-guards.js";
 import type { LifecycleGitStep, LifecycleGitContinuation } from "./store-transition-types.js";
 import type { RecoverablePrWithdrawalHandler } from "./side-effects/withdraw-pr.js";
 import { sequenceLifecycleWrite } from "./sequence-lifecycle-write.js";
+import { revalidateLifecycleRecords } from "./prepared-lifecycle-write.js";
 
 type Rejected = Extract<TransitionOutcome, { status: "rejected" }>;
 
@@ -39,18 +40,26 @@ export async function executeStoreTransition(
   const position = resolveSlugPosition(view.result.index, slug);
   const edge = resolveTransitionEdge(verb, position, inputs.commitment);
   if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
-  const guardFailure = await validateStoreGuards(ctx, edge, view.result.index, slug, position, inputs);
+  const basis = await selectPrimary(ctx.store, slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
+  if (basis !== undefined && "status" in basis) return basis;
+  if (!agreesWithInventory(basis, view.result.entries, slug)) {
+    return { status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.` };
+  }
+  const guardFailure = await validateStoreGuards(ctx, edge, view.result.index, slug, position, inputs, basis);
   if (guardFailure !== undefined) return guardFailure;
   const inputFailure = validateStoreInputs(edge, inputs);
   if (inputFailure !== undefined) return inputFailure;
   const effects = await prepareStoreSideEffects(ctx, edge, slug, inputs);
   if ("status" in effects) return effects;
-  const prepared = await prepareWrites(ctx.store, edge, slug, inputs);
+  const prepared = prepareWrites(edge, inputs, basis);
   if ("status" in prepared) return prepared;
   const sequence = await sequenceLifecycleWrite({ side: edge.fromFlip.git,
     steps: inputs.storeTransition?.gitSteps ?? [],
-    write: () => batchLifecycleWrites(ctx.store, prepared,
-      inputs.storeTransition?.provenance ?? { verb, lifecycleAction: verb }),
+    write: async () => {
+      const valid = await revalidateLifecycleRecords(ctx.store, inputs.storeTransition?.preparedRecords ?? []);
+      return valid.status === "refused" ? valid : batchLifecycleWrites(ctx.store, prepared,
+        inputs.storeTransition?.provenance ?? { verb, lifecycleAction: verb });
+    },
   });
   if (sequence.status === "failed") return { status: "rejected", stage: "git", message: sequence.reason };
   if (sequence.status === "refused") return { status: "rejected", stage: "store", refusal: sequence.refusal,
@@ -60,6 +69,12 @@ export async function executeStoreTransition(
   return { status: "ok", verb, from: edge.from, to: edge.to, legsFired: [], sideEffectsFired: fired,
     advisories, softFieldsWritten: [], branchFieldWritten: null, suggestion: inputs.suggestion ?? null,
     ...((sequence.continuation ?? continuation) === undefined ? {} : { continuation: sequence.continuation ?? continuation }) };
+}
+
+function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly import("../store/lifecycle-index.js").LifecycleEntry[], slug: string): boolean {
+  if (basis === undefined) return true;
+  const indexed = entries.find((entry) => entry.reference.owner.name === slug);
+  return indexed !== undefined && sameReference(indexed.reference, basis.reference) && indexed.version === basis.version;
 }
 
 function validateStoreInputs(edge: TransitionRecord, inputs: TransitionInputs): Rejected | undefined {
@@ -77,12 +92,9 @@ function validateStoreInputs(edge: TransitionRecord, inputs: TransitionInputs): 
   return undefined;
 }
 
-async function prepareWrites(store: Store, edge: TransitionRecord, slug: string, inputs: TransitionInputs): Promise<Mutation[] | Rejected> {
+function prepareWrites(edge: TransitionRecord, inputs: TransitionInputs, primary: StoreRecord | undefined): Mutation[] | Rejected {
   const supplied = inputs.storeTransition;
   const creation = supplied?.create;
-  const basis = await selectPrimary(store, slug, creation, supplied?.primary);
-  if (basis !== undefined && "status" in basis) return basis;
-  const primary = basis;
   const additional = supplied?.additionalWrites ?? [];
   if (edge.fromFlip.artifacts === "remove") {
     if (primary === undefined) return { status: "rejected", stage: "inputs", message: "Removal requires a primary record basis." };
@@ -123,8 +135,8 @@ function placementFor(edge: TransitionRecord, record: StoreRecord | undefined): 
 
 async function validateStoreGuards(ctx: ExecuteTransitionContext & { store: Store }, edge: TransitionRecord,
   index: import("./lifecycle-index.js").LifecycleIndex, slug: string,
-  position: import("./lifecycle-state.js").LifecyclePosition | null, inputs: TransitionInputs): Promise<Rejected | undefined> {
-  const guards = { ...DEFAULT_GUARD_VALIDATORS, ...ctx.guardValidators, unpaused: makePauseGuard(ctx.store) };
+  position: import("./lifecycle-state.js").LifecyclePosition | null, inputs: TransitionInputs, primary?: StoreRecord): Promise<Rejected | undefined> {
+  const guards = { ...DEFAULT_GUARD_VALIDATORS, ...ctx.guardValidators, unpaused: makePauseGuard(ctx.store, primary) };
   for (const name of edge.guards) {
     const guard = guards[name];
     if (guard === undefined) return { status: "rejected", stage: "guard", message: `guard \`${name}\` is not wired.` };
@@ -181,6 +193,9 @@ async function selectPrimary(store: Store, slug: string, creation: Extract<Mutat
     if (read.status === "refused") return { status: "rejected", stage: "store", message: read.refusal.condition, refusal: read.refusal };
     if (primary !== undefined && !sameReference(primary.reference, read.result.reference)) {
       return { status: "rejected", stage: "inputs", message: "The prepared primary does not belong to the selected work unit." };
+    }
+    if (primary !== undefined && primary.version !== read.result.version) {
+      return { status: "rejected", stage: "store", message: "The prepared primary changed; restart the lifecycle command to prepare it again." };
     }
     primary ??= read.result;
   }

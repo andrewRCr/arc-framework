@@ -28,6 +28,7 @@
 
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
 import { usesOffBranchState } from "../store/lifecycle-write.js";
 import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import type { MetaFileCandidate } from "../../commands/active/types.js";
@@ -197,12 +198,13 @@ export function buildFootgunGuards(
 
 /** Bind the authoritative pause gate for advancing work, dormant before the flip.
  * @param store - Store selected by the invocation.
+ * @param basis - Exact primary version used by the store transition.
  * @returns Guard that names the resume action for every present pause.
  */
-export function makePauseGuard(store?: Store): GuardValidator {
+export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidator {
   return async ({ slug }) => {
     if (store === undefined || !usesOffBranchState(store)) return { ok: true };
-    const checked = await checkAdvancingPause(store, slug);
+    const checked = await checkAdvancingPause(store, slug, basis);
     return checked.status === "clear" ? { ok: true } : { ok: false, message: checked.reason,
       ...(checked.remedy === undefined ? {} : { remedy: checked.remedy }) };
   };

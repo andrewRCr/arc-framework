@@ -8,6 +8,7 @@ import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lif
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
@@ -77,4 +78,76 @@ describe("store archive", () => {
     expect(own.batchId).toBeTruthy();
     expect(own.batchId).toBe(groupProvenance.batchId);
   });
+});
+
+function archive(store: Store, name: string) {
+  return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
+}
+async function groupFixture() {
+  const h = createLifecycleHarness();
+  const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Deliver both members.\n");
+  const alpha = await h.seedMeta("alpha", { cohort: "group" }), beta = await h.seedMeta("beta", { cohort: "group" });
+  return { ...h, group, alpha, beta };
+}
+it("closes a cohort after overlapping member batches and preserves a repairing completed-subject retry", async () => {
+  const h = await groupFixture();
+  let arrived = 0; let release!: () => void;
+  const barrier = new Promise<void>((resolve) => { release = resolve; });
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      if (input.writes.some((write) => write.reference.kind === "work-item/meta" && write.action === "put" && write.placement?.kind === "completed")) {
+        if (++arrived === 2) release(); await barrier;
+      }
+      return target.batch(input);
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  await Promise.all([archive(store, "alpha"), archive(store, "beta")]);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference })).placement).toMatchObject({ kind: "completed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.beta.reference })).placement).toMatchObject({ kind: "completed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed", closeout: "a" });
+  expect(await archive(h.store, "beta")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("cohort-group") });
+});
+it("refuses a cohort preparation whose version changed and succeeds after re-preparation", async () => {
+  const h = await groupFixture(); let inject = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "read") return async (input: Parameters<Store["read"]>[0]) => {
+      const result = await target.read(input);
+      if (inject && input.reference.kind === "cohort/document" && result.status === "ok") {
+        inject = false;
+        lifecycleSuccess(await target.write({ ...recordPut(result.result), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      }
+      return result;
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "alpha")).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference }))).toEqual(h.alpha);
+  expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
+  expect(await archive(store, "beta")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed" });
+});
+it("publishes before reporting and closes a shared cohort after another client's sibling archive arrives", async () => {
+  const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
+  left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
+  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
+  expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" } });
+  const completed = lifecycleSuccess(await right.store.read({ reference: left.group.reference }));
+  expect(completed.placement).toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
+  lifecycleSuccess(await left.store.sync());
+  expect(lifecycleSuccess(await left.store.read({ reference: left.group.reference }))).toEqual(completed);
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("03a_cohort-group") });
+});
+it("retains a persisted archive through a failed publish and its completed-subject retry publishes the final report", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const meta = await h.seedMeta("example"); remote.condition = "down";
+  expect(await archive(h.store, "example")).toMatchObject({ status: "rejected", persisted: true, remedy: { argv: ["arc", "archive", "example"] } });
+  const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(completed.placement).toMatchObject({ kind: "completed" });
+  remote.condition = "available";
+  expect(await archive(h.store, "example")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
+  expect([...remote.state.records.values()].find((record) => record.reference.kind === "work-item/meta")?.placement).toMatchObject({ kind: "completed" });
 });

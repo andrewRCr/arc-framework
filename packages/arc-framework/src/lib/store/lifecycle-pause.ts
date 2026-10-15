@@ -3,16 +3,18 @@ import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "./contract.js";
 import type { StoreRefusal, Remedy } from "./refusal.js";
 import { readWorkUnit } from "./lifecycle-write.js";
+import type { StoreRecord } from "./read.js";
 /** Pause admission for a verb which advances work. */
 export type AdvancingPauseResult = { status: "clear" }
   | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy };
 /** Refuse advancing a present pause, preserving store-read refusals.
  * @param store - Operational state contract.
  * @param slug - Work unit being advanced.
+ * @param basis - Optional exact record already bound to the caller's mutation.
  * @returns Clear admission or actionable refusal.
  */
-export async function checkAdvancingPause(store: Store, slug: string): Promise<AdvancingPauseResult> {
-  const read = await readWorkUnit(store, slug);
+export async function checkAdvancingPause(store: Store, slug: string, basis?: StoreRecord): Promise<AdvancingPauseResult> {
+  const read = basis === undefined ? await readWorkUnit(store, slug) : { status: "ok" as const, result: basis };
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const parsed = ParsedMetaRecordSchema.safeParse(read.result.fields);
   if (!parsed.success) {
