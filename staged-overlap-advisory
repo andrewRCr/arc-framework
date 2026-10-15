@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "staged-overlap-advisory",
+  "claimId": "f8ef651c31834ea29251184b8e2fcf5b",
+  "createdAt": "2026-10-15T12:44:28.009Z",
+  "updatedAt": "2026-10-15T12:44:28.009Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep unrelated branch-residue warnings out of the pre-commit staged-artifact advisory while preserving overlap reporting",
+  "branch": "chore/staged-overlap-advisory",
+  "origin": "inbox",
+  "originEntry": "Keep branch residue out of the pre-commit in-flight advisory, reporting only staged overlaps",
+  "originEntrySourceDigest": "sha256:a525fd9ff0ed90f41d62fdd6872e6509bdff3a8f2a819420abbb7f8562b04b2f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
