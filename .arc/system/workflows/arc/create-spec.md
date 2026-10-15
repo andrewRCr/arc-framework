@@ -281,6 +281,10 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
+sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
+reviewer when no such partition exists or seams are dense.
+
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
 SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
@@ -370,3 +374,4 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
 [route-discovered-work]: ../../methods/route-discovered-work.md
+[authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
