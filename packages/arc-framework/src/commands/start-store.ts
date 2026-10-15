@@ -43,6 +43,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   const exec = ctx.exec;
   const outcome = await executeTransition(ctx, { verb: "start", slug: name, inputs: {
     class: cls.data,
+    materializesCurrentCheckout: params.inPlace === true,
     storeTransition: { primary: read.result, content, placement: { kind: "active" }, gitSteps: [{
       name: "occupy-planning-checkout", retryCommand,
       run: async () => {

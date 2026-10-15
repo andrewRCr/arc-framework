@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { runCreateNew, runGraduate } from "../../../src/commands/start.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createDefaultLocusPorts, type LocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
-import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
@@ -27,7 +27,7 @@ function admittedPorts(): LocusPorts {
   } };
 }
 
-async function fixture(ports?: LocusPorts) {
+async function fixture(ports?: LocusPorts, productionOccupancy = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-start-marker-")); roots.push(root);
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("demo", { state: "Planning", owner: "previous", workClass: "Novel", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
@@ -41,7 +41,7 @@ async function fixture(ports?: LocusPorts) {
   };
   const io = { ...createUserIOContext(), exec };
   const ctx = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, identity: "starter", teamMode: false, internalTemplateDir: getInternalTemplatePath() });
-  ctx.guardValidators = { ...ctx.guardValidators, "worktree-occupancy": () => ({ ok: true }) };
+  if (!productionOccupancy) ctx.guardValidators = { ...ctx.guardValidators, "worktree-occupancy": () => ({ ok: true }) };
   let batches = 0;
   const originalBatch = h.store.batch.bind(h.store);
   h.store.batch = (input) => { batches++; return originalBatch(input); };
@@ -121,4 +121,30 @@ describe("public store start marker boundary", () => {
     else await expect(readFile(h.markerPath)).rejects.toMatchObject({ code: "ENOENT" });
     expect((await h.read()).version).toEqual(h.meta.version); expect(h.mutations).toEqual([]);
   });
+});
+
+
+it.each([false, true])("uses the actual graduation placement with an occupied caller, here=%s", async (inPlace) => {
+  const h = await fixture(undefined, true);
+  await h.seedMeta("held");
+  await writeWorktreeOwnershipMarker(h.root, { createdByArc: true,
+    createdFor: { kind: "work-unit", name: "held" }, spawningIdentity: "starter" });
+  const originalMarker = await readFile(h.markerPath);
+  let spawned = false;
+  h.ctx.reconcileWorkUnitWorktree = async () => {
+    spawned = true;
+    return { mutation: "spawn", branch: null, worktreePath: join(h.root, "spawn") };
+  };
+  const result = await h.graduate(inPlace);
+  if (inPlace) {
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("held") });
+    expect(spawned).toBe(false);
+    expect(await h.read()).toEqual(h.meta);
+  } else {
+    expect(result).toMatchObject({ status: "graduated", worktreePath: join(h.root, "spawn") });
+    expect(spawned).toBe(true);
+    expect((await h.read()).placement).toEqual({ kind: "active" });
+  }
+  expect(await readFile(h.markerPath)).toEqual(originalMarker);
+  expect(h.mutations).toEqual([]);
 });
