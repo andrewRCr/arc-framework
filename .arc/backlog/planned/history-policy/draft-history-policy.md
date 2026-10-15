@@ -113,6 +113,24 @@
 - _Drain note:_ narrower since `spec-seam-lifecycle.md` § 9.2 attributes a hand rewrite that keeps the commit's author
   line to its original task; what remains is rewrites that write a new author line.
 
+### `[ ]` **Re-pin an open pull request's design link in the lease-guarded catch-up with base**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: history-policy`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, beside the inbound entries remapping task captures and branch-link exclusions in the same
+  catch-up.
+
+- _Observation:_ `pull-request-surface-policy` links the design document from the pull-request body by a commit-pinned
+  permalink. A rewrite moves the pinned commit out of reach, so the rewrites ARC performs re-pin it. A review fix that
+  rewrites the branch re-pins through the review-fix keep-current step; the catch-up with base under the default
+  `rewrite-with-lease` is this work unit's.
+
+- _Approach:_ after the catch-up rewrites an open pull request's branch, update the body's pinned link to the design
+  document's commit on the new head.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
 ---
 
 ## Problem / Motivation

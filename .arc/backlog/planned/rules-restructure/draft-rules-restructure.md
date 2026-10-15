@@ -106,6 +106,20 @@
   bullet as the worked mixed-class example. Settle the authoritative surface among the rules preamble,
   workflow-authoring conventions, and configurability strategy rather than relying on precedent.
 
+### `[ ]` **Remove extension declarations from candidate domain-rule trigger models**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: rules-restructure`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope; § Alternatives — Extension declaration; § Unknowns and Assumptions — Loading surface.
+
+- _Observation:_ The candidate auto-load model declares a domain on an extension and dispatches it at
+  session-init/workflow fire points. Retirement removes this declaration and activation surface.
+
+- _Approach:_ Re-evaluate trigger alternatives against the current domain-rules probe and surviving method/CLI
+  interfaces, without designing an extension migration or reintroducing .actions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Problem / Motivation

@@ -60,6 +60,21 @@
 
 - _Captured during:_ `goal-aware-direction` grooming, 2026-10-11.
 
+### `[ ]` **Re-evaluate the association-only PM option after extension retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: external-pm-composition`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Keep association-only integration; the "Notified" capability level.
+
+- _Observation:_ The option “retain Origin plus project-authored extension prose” loses its extension substrate. The
+  retirement also removes external setup’s notify step and all three PM-facing hooks.
+
+- _Approach:_ Evaluate association-only support using Origin alone until typed notification is implemented. Consume
+  the amended provisional PM strategy: retain provider-neutral lifecycle intent without claiming a currently supported
+  notification or synchronization mechanism.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ## Planning Continuity
 
 - **Readiness:** rough

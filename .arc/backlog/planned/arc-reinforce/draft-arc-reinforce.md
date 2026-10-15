@@ -36,6 +36,20 @@ destinations. Artifact named `arc-reinforce`; "backpressure" is the working term
   user/team-configurable ARC surfaces that projects can actually change.
 - _Coordination:_ `frictionless-capture` owns out-of-session CLI capture, not the in-session feedback trigger.
 
+### `[ ]` **Remove retired extension activation from guidance-routing destinations**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-reinforce`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Routing Model — Axis 2; § Skill Shape path branching; § Workflow Shape activation scaffolding.
+
+- _Observation:_ The design routes guidance to extension activation, treats extension introduction as a complex-path
+  signal, and promises .actions/activation scaffolding. Retirement removes that destination.
+
+- _Approach:_ Retain supported guidance homes and method overrides; remove the retired activation route and
+  scaffolding. Let any future lifecycle customization contract supply its own supported destination.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ## Problem / Motivation
 
 When the user observes an unwanted agent behavior that traces clearly to a guidance gap (no rule,

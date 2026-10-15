@@ -333,6 +333,26 @@
 
 - _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
 
+### `[ ]` **Absorb the sustained non-convergence signal into depth-aware navigation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Concern 2 — depth-aware navigation as the correction for sizing mis-calls.
+
+- _Observation:_ PR #965 landed an interim in `adversarial-review` § Exit gate. From pass two on, when most of a pass's
+  material findings originate in an earlier new-design fold and their approved fixes are new design again, the loop
+  is named sustained non-convergence: a floor-raising derivation signal that offers `resolve-planning-depth`'s
+  re-entry valve at any pass count, plus an `assess-boundary-fit` read when the design written in folds spans
+  separable concerns. The offers belong to planning stages (an amendment routes through its own depth read and
+  ceiling), the report names the signal apart from the stop reason, `re-entered` joined the stop reasons, and the
+  pass record keeps any offer and its settlement. Evidence: `seam-locus`'s draft and spec loops.
+
+- _Approach:_ fold the signal into the work unit's navigation design. Test its threshold against more loops, decide
+  whether re-entry stays an offer or becomes a routed default, and decide whether the signal belongs in the review
+  method or the navigation layer.
+
+- _Captured during:_ the `review-nonconvergence` Errand, 2026-10-13.
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer
