@@ -66,3 +66,14 @@ describe("store start graduation", () => {
     expect((await h.read()).version).toEqual(h.meta.version);
   });
 });
+
+it("refuses a conflicting start Class before checkout occupation and accepts the recorded Class on retry", async () => {
+  const h = await harness();
+  const params = { name: "demo", inPlace: true as const, spawningIdentity: "starter" };
+  expect(await runGraduate(h.ctx, { ...params, cls: "Light" }))
+    .toMatchObject({ status: "rejected", reason: expect.stringContaining("conflicts") });
+  expect(h.state()).toEqual({ occupation: undefined, occupied: false });
+  expect(await h.read()).toEqual(h.meta);
+  expect(await runGraduate(h.ctx, { ...params, cls: "Novel" })).toMatchObject({ status: "graduated" });
+  expect((await h.read()).fields).toMatchObject({ workClass: "Novel", owner: "starter" });
+});
