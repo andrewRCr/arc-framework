@@ -23,7 +23,7 @@ export async function runPlanningBaseSync(ctx: PlanningBaseSyncContext): Promise
     const bases = await Promise.all([`refs/heads/${ctx.baseBranch}`, `refs/remotes/origin/${ctx.baseBranch}`].map((ref) => localLifecycleTip(ctx.exec, ctx.cwd, ref)));
     const known = bases.filter((tip): tip is string => tip !== null);
     if (known.length === 0) throw new Error(`No base ref resolves; fetch the base or run git branch ${ctx.baseBranch} <commit>`);
-    const walk = await ctx.exec("git", ["rev-list", "HEAD", "--not", ...known], { cwd: ctx.cwd, objectAccess: "local-only" });
+    const walk = await ctx.exec("git", ["--no-replace-objects", "rev-list", "HEAD", "--not", ...known], { cwd: ctx.cwd, objectAccess: "local-only" });
     const commits = walk.stdout.trim().split(/\s+/u).filter(Boolean);
     if (commits.length !== 0) return { status: "refused", base: ctx.baseBranch, reason: "detached-planning-commits", commits,
       remedy: { text: `Detached Planning checkout holds commits not on base: ${commits.join(", ")}. Run git switch -c <name> to preserve them, then retry arc base sync.` } };

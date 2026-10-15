@@ -18,6 +18,7 @@ async function fixture(options: { branch?: string; commits?: string[]; result?: 
   await writeWorktreeMarker(cwd, { spawnedByArc: true, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
   let head = options.commits?.length ? ahead : base; let synced = false;
   const exec: GitExec = async (_command, args) => {
+    if (args[0] === "--no-replace-objects") args = args.slice(1);
     if (args[0] === "symbolic-ref") { if (options.branch === undefined) throw makeGitProcessError({ command: "git", args, exitCode: 1 }); return { stdout: options.branch }; }
     if (args[0] === "rev-parse") return { stdout: args.at(-1) === "HEAD" ? head : base };
     if (args[0] === "rev-list") return { stdout: (options.commits ?? []).join("\n") };
