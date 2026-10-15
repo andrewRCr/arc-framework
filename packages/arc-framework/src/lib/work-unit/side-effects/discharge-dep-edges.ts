@@ -25,6 +25,7 @@ import {
   type ReferenceAdvisory,
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
+  type ReachableReferenceTransition,
 } from "../reference-reconcile.js";
 import type { TransitionRecordEnumerationResult } from "../transition-record-enumeration.js";
 import type {
@@ -136,6 +137,8 @@ export interface PreparedCurrentWuReconcile {
 
 /** I/O boundary for inspecting and applying one dependent-owned plan. */
 export interface CurrentWuReconcileContext {
+  /** Alias-backed reference evidence acquired from the current artifacts. */
+  additionalReferenceTransitions?: readonly ReachableReferenceTransition[];
   index: LifecycleIndex;
   queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
   enumerateTransitionRecords?: () => Promise<TransitionRecordEnumerationResult>;
@@ -149,7 +152,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -610,7 +613,7 @@ async function prepareReferencePlan(
       conflicts: [{ subject: "", reason: projected.reason }],
     };
   }
-  return planReferenceReconcile({ transitions: projected.transitions, artifacts });
+  return planReferenceReconcile({ transitions: [...projected.transitions, ...ctx.additionalReferenceTransitions ?? []], artifacts });
 }
 
 function byteSort(left: string, right: string): number {

@@ -6,6 +6,7 @@ import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { writeMetaTitle } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
+import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 import { buildStoreCurrentWuReconcile } from "../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import { createStoreReconcilePrepareContext } from "../../../src/lib/work-unit/store-reconcile-context.js";
 import { prepareCurrentWuReconcile } from "../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
@@ -61,4 +62,23 @@ describe("store reconcile context", () => {
     expect(result.prepared.plan.dependency.after).toEqual(["live"]);
     expect(result.prepared.plan.dependency.discharged).toEqual(["done"]);
   });
+});
+
+it.each([false, true])("owner reconcile repairs alias-backed artifact references and reports narrative references, dependency=%s", async (dependency) => {
+  const h = createLifecycleHarness(); await h.seedMeta("origin");
+  const dependent = await h.seedMeta("dependent", { dependsOn: dependency ? ["origin"] : [] });
+  const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
+  const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
+  expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(content);
+  const ceremony = buildStoreCurrentWuReconcile(h.store);
+  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  expect(prepared.status).toBe("pending");
+  expect(prepared.prepared.plan.advisories).toContainEqual(expect.objectContaining({ subject: "origin", referenceKind: "narrative" }));
+  expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: "applied" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe("# Notes\n\nRead `spec-successor.md`. Narrative origin context.\n");
+  expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).toMatchObject({ dependsOn: dependency ? ["successor"] : [] });
+  expect(await h.store.list({ family: "lineage", kind: "lineage/transition" })).toMatchObject({ status: "ok", result: { status: "absent" } });
 });
