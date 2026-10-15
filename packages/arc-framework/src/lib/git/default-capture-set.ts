@@ -120,14 +120,16 @@ export async function resolveLinkedCheckoutBranch(input: {
 }): Promise<LinkedCheckoutBranch> {
   const links = input.branches.filter((link) => link.repository === input.repository);
   if (links.length === 0) return { kind: "no-link" };
-  const result = await input.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: input.cwd })
+  const result = await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: input.cwd })
     .catch((error: unknown) => {
       if (error instanceof Error && "exitCode" in error && error.exitCode === 1) return null;
       throw error;
     });
   if (result === null) return { kind: "detached" };
-  const branch = result.stdout.trim();
-  const matches = links.filter((candidate) => candidate.ref.replace(/^refs\/heads\//u, "") === branch);
+  const currentRef = result.stdout.trim();
+  const branch = currentRef.replace(/^refs\/heads\//u, "");
+  const matches = links.filter((candidate) => (candidate.ref.startsWith("refs/heads/")
+    ? candidate.ref : `refs/heads/${candidate.ref}`) === currentRef);
   if (matches.length > 1) return { kind: "ambiguous", branch };
   const link = matches[0];
   return link === undefined ? { kind: "unlinked", branch } : { kind: "linked", link };

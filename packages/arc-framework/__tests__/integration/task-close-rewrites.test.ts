@@ -9,7 +9,7 @@ import { createExecaGitExec, createExecaRawGitExec } from "../../src/lib/git/pro
 import { computeCopyKeys } from "../../src/lib/git/copy-key.js";
 import { recordPut, batchLifecycleWrites } from "../../src/lib/store/lifecycle-write.js";
 import { recordReferences, type Links } from "../../src/lib/store/index.js";
-import { runTaskClose, type TaskVerbContext } from "../../src/lib/work-unit/verbs/task-close.js";
+import { prepareTaskClose, runTaskClose, type TaskVerbContext } from "../../src/lib/work-unit/verbs/task-close.js";
 
 let cwd: string; let time: number;
 const h = () => createLifecycleHarness();
@@ -284,4 +284,19 @@ it("rejects an annotated-tag object and captures the underlying commit on retry"
   expect((await links()).taskCaptures?.["1.1.a"]?.map((capture) => capture.sha)).toEqual([work]);
   expect(lifecycleSuccess(await records.store.read({ reference: tasksReference })).content)
     .toContain("`[x]` **1.1.a Earlier**");
+});
+
+it.each(["feat/demo", "refs/heads/feat/demo"])("prepares and closes a linked task with a same-named tag, stored ref=%s", async (ref) => {
+  const work = await commit("work beside tag\n");
+  await git(["tag", "feat/demo"]);
+  const prior = await links();
+  await putLinks({ ...prior, branches: prior.branches?.map((branch) => ({ ...branch, ref })) });
+  const primary = lifecycleSuccess(await records.store.read({ reference: await meta() }));
+  const taskReference = recordReferences["work-item/task-list"](primary.reference.owner);
+  const before = lifecycleSuccess(await records.store.read({ reference: taskReference }));
+  expect(await prepareTaskClose(ctx, { ids: ["1.1.a"] }, { precommit: true })).toMatchObject({ status: "prepared", branch: { ref } });
+  expect(lifecycleSuccess(await records.store.read({ reference: taskReference }))).toEqual(before);
+  expect(await runTaskClose(ctx, { ids: ["1.1.a"] })).toMatchObject({ status: "closed", captured: [work] });
+  expect((await links()).taskCaptures?.["1.1.a"]?.map((capture) => capture.sha)).toEqual([work]);
+  expect(lifecycleSuccess(await records.store.read({ reference: taskReference })).content).toContain("`[x]` **1.1.a Earlier**");
 });

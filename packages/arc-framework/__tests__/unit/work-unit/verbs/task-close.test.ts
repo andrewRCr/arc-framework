@@ -19,7 +19,7 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
   const taskRef = recordReferences["work-item/task-list"](meta.reference.owner);
   await seed(taskRef, content);
   const git = scriptGitExec([
-    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/demo\n" }] },
+    { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo\n" }] },
     { match: ["remote"], responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: "" }] },
@@ -154,14 +154,14 @@ it("a malformed sibling lifecycle record refuses before task writes", async () =
 });
 
 it.each(["detached", "unlinked"])("%s checkout refuses and names its work branch", async (kind) => {
-  const h = await harness(); h.ctx.exec = scriptGitExec([{ match: ["symbolic-ref", "--quiet", "--short", "HEAD"],
+  const h = await harness(); h.ctx.exec = scriptGitExec([{ match: ["symbolic-ref", "--quiet", "HEAD"],
     responses: [kind === "detached" ? { failure: { exitCode: 1 } } : { stdout: "other-branch" }] }]).exec;
   expect(await runTaskClose(h.ctx)).toMatchObject({ status: "refused", code: "branch-unlinked", remedy: { text: expect.stringContaining("git switch feat/demo") } });
 });
 it("a base refresh that empties the set refuses; its rerun closes with no capture", async () => {
   const h = await harness(); const before = await h.readTasks();
   h.ctx.exec = scriptGitExec([
-    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/demo" }] },
+    { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo" }] },
     { match: ["remote"], responses: [{ stdout: "origin" }] },
     { match: { prefix: ["fetch"] }, responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
@@ -174,7 +174,7 @@ it("a base refresh that empties the set refuses; its rerun closes with no captur
 it("release precheck accepts an emptied precommit set for the new commit to follow", async () => {
   const h = await harness(); const { prepareTaskClose } = await import("../../../../src/lib/work-unit/verbs/task-close.js");
   h.ctx.exec = scriptGitExec([
-    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/demo" }] },
+    { match: ["symbolic-ref", "--quiet", "HEAD"], responses: [{ stdout: "refs/heads/feat/demo" }] },
     { match: ["remote"], responses: [{ stdout: "origin" }] },
     { match: { prefix: ["fetch"] }, responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
