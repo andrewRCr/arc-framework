@@ -78,9 +78,10 @@ describe("abbreviated commit option filenames", () => {
     const head = await git(["rev-parse", "HEAD"]);
     const remoteHead = await git(["rev-parse", "refs/heads/topic"], remote);
 
+    // This case exercises interactive passthrough even when the test runner is in CI.
     const result = await runArcAnchored([
       "release", "commit", "--pathspec-from-f", filename, "-m", "fix(test): preserve the pathspec operand",
-    ], repository);
+    ], repository, { env: { CI: "" } });
 
     expect(result.exitCode).toBe(0);
     expect(await git(["rev-parse", "HEAD^"])).toBe(head);
