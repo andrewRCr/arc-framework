@@ -48,17 +48,6 @@
 - _Captured during:_ `plan-amendment` Phase 4 close, assessing a routed-in scope-expansion proposal against that
   work unit's design, 2026-09-12.
 
-### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);
-  captured during `decomposition-doctrine` re-grounding.
-- _Concern:_ unqualified `Depends On` means blocks-start, leaving implement-time and integrate-time ordering in
-  unchecked prose that readily goes stale. The inverse also fails: recording a true later-boundary dependency as
-  today's edge falsely blocks planning.
-- _Fold-in:_ evaluate lifecycle-qualified degrees such as required-to-plan, required-to-implement, and
-  required-to-integrate against this WU's state axes. Preserve today's unqualified blocks-start reading as the
-  default, enforce each degree at its owning ceremony, and keep later-boundary session orientation advisory.
-
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
