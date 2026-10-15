@@ -32,7 +32,7 @@ async function harness(options: { branch?: string | null; commits?: string[]; li
       const tip = branches.get(ref.replace("refs/heads/", "")); return tip === undefined ? fail() : { stdout: tip };
     }
     if (args.includes("rev-list")) return { stdout: [...(options.commits ?? []), ...(options.remoteHead === undefined ? [] : [options.remoteHead])].join("\n") };
-    if (args[0] === "merge-base") return options.remoteHead === args[2] && !(options.commits ?? []).includes(args[2] ?? "") ? fail() : { stdout: "" };
+    if (args.includes("merge-base")) return options.remoteHead === args.at(-2) && !(options.commits ?? []).includes(args.at(-2) ?? "") ? fail() : { stdout: "" };
     if (args[0] === "switch") { current = args[2] ?? null; head = args[3] ?? head; if (current !== null) branches.set(current, head); return { stdout: "" }; }
     if (args[0] === "branch" && args[1] === "-m") {
       const from = args[2] ?? "", to = args[3] ?? ""; branches.set(to, branches.get(from) ?? head); branches.delete(from); if (current === from) current = to; return { stdout: "" };

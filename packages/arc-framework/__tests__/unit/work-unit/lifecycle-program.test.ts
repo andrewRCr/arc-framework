@@ -26,7 +26,7 @@ function repository() {
       const tip = state.branches.get(ref.replace("refs/heads/", "")); return tip === undefined ? absent() : { stdout: tip };
     }
     if (args.includes("rev-list")) return { stdout: state.commits.join("\n") };
-    if (args[0] === "merge-base") return { stdout: "" };
+    if (args.includes("merge-base")) return { stdout: "" };
     if (args[0] === "for-each-ref") return { stdout: args[1] === "--format=%(upstream)" ? "" : args.slice(2).filter((ref) => state.branches.has(ref.replace("refs/heads/", ""))).join("\n") };
     if (args[0] === "branch" && args[1] === "-m") {
       const from = args[2] ?? "", to = args[3] ?? "";

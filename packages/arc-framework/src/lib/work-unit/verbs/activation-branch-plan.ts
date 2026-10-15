@@ -28,7 +28,7 @@ export type ActivationBranchPlanResult =
 /** Choose and observe every refusing branch condition before the caller applies reconcile. */
 export async function planActivationBranch(input: ActivationBranchPlanInput): Promise<ActivationBranchPlanResult> {
   const branch = await checkoutBranch(input.exec, input.cwd);
-  const head = (await input.exec("git", ["rev-parse", "HEAD"], { cwd: input.cwd })).stdout.trim();
+  const head = (await input.exec("git", ["--no-replace-objects", "rev-parse", "HEAD"], { cwd: input.cwd, objectAccess: "local-only" })).stdout.trim();
   const currentLinked = input.primary.links?.branches?.some((link) =>
     link.repository === input.repository && workBranchName(link.ref) === branch) === true;
   const selected = selectWorkBranchLink(input.primary, { repository: input.repository,
@@ -92,7 +92,7 @@ export async function activationCaptureReport(exec: GitExec, cwd: string,
   let remoteTip: string | null = null;
   if (branch !== undefined) remoteTip = await optionalTip(exec, cwd, `refs/remotes/origin/${branch}`);
   for (const commit of inventory.commits) {
-    const held = await exec("git", ["merge-base", "--is-ancestor", commit.sha, "HEAD"], { cwd })
+    const held = await exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", commit.sha, "HEAD"], { cwd, objectAccess: "local-only" })
       .then(() => true, (error: unknown) => { if (isMissingExit(error)) return false; throw error; });
     if (!held && remoteTip !== null) { mergeRequired = true; }
     lines.push(`${commit.sha}: ${!held && remoteTip !== null ? `first git merge --ff --no-edit ${remoteTip}; then ` : ""}arc task close <ids> --commit ${commit.sha}`);
@@ -102,7 +102,7 @@ export async function activationCaptureReport(exec: GitExec, cwd: string,
 async function oldRemoteDeletion(exec: GitExec, cwd: string, branch: string) {
   const tip = await optionalTip(exec, cwd, `refs/remotes/origin/${branch}`);
   if (tip === null) return undefined;
-  const held = await exec("git", ["merge-base", "--is-ancestor", tip, "HEAD"], { cwd })
+  const held = await exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", tip, "HEAD"], { cwd, objectAccess: "local-only" })
     .then(() => true, (error: unknown) => { if (isMissingExit(error)) return false; throw error; });
   const argv = ["git", "push", "origin", "--delete", branch];
   return held ? { text: argv.join(" "), argv } : { text: `After git merge --ff --no-edit ${tip}, ${argv.join(" ")}` };
@@ -115,7 +115,7 @@ async function branchExists(exec: GitExec, cwd: string, branch: string): Promise
   return (await optionalTip(exec, cwd, `refs/heads/${branch}`)) !== null;
 }
 async function optionalTip(exec: GitExec, cwd: string, ref: string): Promise<string | null> {
-  try { return (await exec("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd })).stdout.trim() || null; }
+  try { return (await exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd, objectAccess: "local-only" })).stdout.trim() || null; }
   catch (error) { if (isMissingExit(error)) return null; throw error; }
 }
 function isMissingExit(error: unknown): boolean { return error instanceof Error && "exitCode" in error && error.exitCode === 1; }
