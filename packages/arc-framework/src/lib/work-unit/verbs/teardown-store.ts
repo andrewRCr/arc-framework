@@ -14,7 +14,7 @@ import type { Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
 import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
-import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown } from "../mutators/reconcile-work-unit-worktree.js";
+import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 
 type Bound = TeardownContext & { evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
@@ -75,6 +75,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
       ctx.notices.push(`Released checkout ${path}; its files were retained.`);
       return null;
     }
+    if (await fs.directoryExists(path)) await reconcileUserSurfacesForRemoval({ exec: ctx.exec, fs, chdir: ctx.chdir }, path);
     if (await isSelfTeardown(path, invokingPath)) ctx.chdir(ctx.primaryPath);
     const removed = await removeWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots, folderExists: (target) => fs.directoryExists(target) });
     if (removed.kind === "refused") throw new Error(describeRemovalRefusal(removed.check));

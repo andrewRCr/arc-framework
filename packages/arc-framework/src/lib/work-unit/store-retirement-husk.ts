@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { readWorktreeMarker, decodeWorktreeHuskStamp, type WorktreeMarker } from "../git/worktree-marker.js";
 import { decideHuskCleanup, isWorktreeClean } from "../git/worktree-cleanup.js";
-import { isContainedIn } from "../git/branch-containment.js";
+import { isContainedIn, isLandedInBase } from "../git/branch-containment.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
 import type { StoreRetirementEvidence } from "./store-retirement-evidence.js";
 import type { TeardownContext } from "./verbs/teardown.js";
@@ -32,7 +32,15 @@ async function readHusk(input: HuskInput, worktrees: readonly RegisteredWorktree
   const clean = await isWorktreeClean({ exec: input.ctx.exec, cwd: checkout.path });
   const decision = decideHuskCleanup({ marker, clean, head: checkout.head });
   if (decision.action !== "removable") throw Error(`Selected husk cleanup is blocked (${decision.reason}); preserve or discard changes, restore its stamped HEAD if appropriate, then retry.`);
+  const stamp = marker.marker.husk;
+  if (input.evidence.rule === "landed" && !await stampedHeadPreserved(input, stamp.sha, stamp.branch)) {
+    throw Error(`The selected husk's stamped commit ${stamp.sha} is not proven landed in base or preserved on its upstream. Preserve that exact commit on base or origin/${stamp.branch}, refresh those refs, then retry arc teardown ${input.evidence.name} --husk ${input.path}.`);
+  }
   return { path: checkout.path, head: checkout.head, marker: marker.marker };
+}
+async function stampedHeadPreserved(input: HuskInput, sha: string, branch: string): Promise<boolean> {
+  return await isLandedInBase(input.ctx.exec, sha, input.baseOid)
+    || await isContainedIn(input.ctx.exec, sha, `refs/remotes/origin/${branch}`);
 }
 async function huskEvidenceMatches(input: HuskInput, stamp: NonNullable<WorktreeMarker["husk"]>["evidence"]): Promise<boolean> {
   const selected = input.evidence.evidence;

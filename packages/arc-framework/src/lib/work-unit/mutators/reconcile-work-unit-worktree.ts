@@ -620,7 +620,8 @@ function isOccupiedWorktreeMoveFailure(error: unknown): boolean {
     .test(gitFailureText(error));
 }
 
-async function reconcileUserSurfacesForRemoval(
+/** Preserve linked identity-global user files in the primary checkout before physical removal. */
+export async function reconcileUserSurfacesForRemoval(
   ctx: ReconcileWorkUnitWorktreeContext,
   worktreePath: string,
 ): Promise<string> {

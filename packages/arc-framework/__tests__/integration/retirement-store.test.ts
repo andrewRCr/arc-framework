@@ -1,6 +1,6 @@
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { afterEach, describe, expect, it } from "vitest";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { createRetirementHarness, retirementLink } from "../helpers/store/retirement-harness.js";
@@ -10,13 +10,15 @@ import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js"
 import { createStoreTeardownContext } from "../../src/lib/work-unit/store-teardown-context.js";
 import { nodeReconcileWorkUnitWorktreeFs } from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import { runStoreAbandon } from "../../src/lib/work-unit/verbs/abandon-store.js";
+import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
+import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
 import { readStoreRetirementEvidence } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await cleanupTempDir(root); });
-async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" } = {}) {
+async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?: boolean; end?: "archive" | "decompose" } = {}) {
   const root = await createTempRepo(); roots.push(root);
   const exec = makeGitExec(root), execInput = makeGitExecInput(root);
   await exec("git", ["branch", "-M", "main"]); await writeFile(join(root, "base"), "base\n");
@@ -195,7 +197,7 @@ describe("store retirement real Git", () => {
 
 });
 
-async function huskFixture(options: { end?: "archive" } = {}) {
+async function huskFixture(options: { end?: "archive" | "decompose" } = {}) {
   const h = await fixture(options); await h.exec("git", ["switch", "main"]);
   const terminal = await readStoreRetirementEvidence(h.store, "demo", h.baseOid);
   const paths = [join(h.root, "checkout-one"), join(h.root, "checkout-two")] as const;
@@ -205,3 +207,44 @@ async function huskFixture(options: { end?: "archive" } = {}) {
   h.ctx.readMarker = readWorktreeMarker;
   return { ...h, terminal, paths, huskMarker };
 }
+
+it.each([false, true])("preserves ignored user files and refuses divergent copies before removing a linked checkout, husk=%s", async (husk) => {
+  const h = await huskFixture(); const path = h.paths[0];
+  if (!husk) {
+    const marker = { ...h.huskMarker }; delete marker.husk; await writeWorktreeMarker(path, marker);
+    h.setHolder(path);
+  }
+  const local = join(path, ".arc", "user", "test-user"); const canonical = join(h.root, ".arc", "user", "test-user");
+  await mkdir(local, { recursive: true }); await mkdir(canonical, { recursive: true });
+  await writeFile(join(local, "personal.md"), "unique local work\n"); await writeFile(join(canonical, "personal.md"), "different primary work\n");
+  const params = { name: "demo", base: "main", ...(husk ? { huskPath: path } : {}) };
+  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("personal.md") });
+  expect(await readFile(join(local, "personal.md"), "utf8")).toBe("unique local work\n");
+  expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("different primary work\n");
+  await rm(join(canonical, "personal.md"));
+  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "torn-down", worktreeRemoved: path });
+  expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("unique local work\n");
+});
+
+it.each(["archive", "decompose"] as const)("keeps an unlanded %s husk after its refs disappear and removes it after landing", async (end) => {
+  const h = await huskFixture({ end }); const path = h.paths[0];
+  await h.exec("git", ["branch", "-D", "feat/demo"]); await h.exec("git", ["push", "origin", "--delete", "feat/demo"]);
+  const params = { name: "demo", base: "main", huskPath: path };
+  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringMatching(/preserv|landed/iu) });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(h.workOid);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  await h.exec("git", ["merge", "--ff-only", h.workOid]); await h.exec("git", ["push", "origin", "main"]);
+  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "torn-down", worktreeRemoved: path });
+  expect(await readFile(join(h.root, "work"), "utf8")).toBe("work\n");
+});
+
+it("revalidates stamped-commit preservation before locked husk removal and accepts a repaired upstream", async () => {
+  const h = await huskFixture({ end: "archive" }); const path = h.paths[0];
+  const roster = await scanRegisteredWorktrees(h.exec); if (!roster.ok) throw new Error(roster.message);
+  const selected = await selectStoreRetirementHusk({ ctx: h.ctx, evidence: h.terminal, baseOid: h.baseOid, path }, roster.worktrees);
+  await h.exec("git", ["push", "origin", "--delete", "feat/demo"]);
+  await expect(selected.revalidate()).rejects.toThrow(/not proven landed/iu);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  await h.exec("git", ["push", "origin", "feat/demo"]);
+  await expect(selected.revalidate()).resolves.toBeUndefined();
+});
