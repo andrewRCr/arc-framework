@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "worktree-head-lock",
+  "claimId": "9532ace605ad32bf5048fd88ce278fd3",
+  "createdAt": "2026-10-15T23:22:34.831Z",
+  "updatedAt": "2026-10-15T23:22:34.831Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Investigate which process holds a worktree HEAD.lock across commit hooks using isolated native Git traces, and retain evidence before proposing any hook or ref-writer correction.",
+  "branch": "chore/worktree-head-lock",
+  "origin": "inbox",
+  "originEntry": "Find what holds a worktree's `HEAD.lock` while a commit's hooks run",
+  "originEntrySourceDigest": "sha256:9ae0a333e333c9ee7f9851c58a49b90c60e4efad8b26133c9a6e4ce5c360a7b7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
