@@ -39,6 +39,9 @@ export function creationMeta(input: WriteInput): MetaSource {
  */
 export function admitTrackedRole(context: InRepoContext, input: WriteInput): void {
   admitTrackedOwner(input.reference.owner);
+  if (input.reference.kind === "cohort/document" && input.action === "put" && input.placement !== undefined) {
+    unsupported("placement-move", "Tracked cohort writes cannot change placement.", "Use arc archive to archive the cohort with its final member.");
+  }
   if (input.action === "put" && input.links !== undefined) unsupported("links-write", "Tracked records store no links value.", "Use today's lifecycle or code-link verb until links are stored.");
   if (context.registry[input.reference.kind].inRepo.substrate !== "tracked") unsupported("unhomed-kind", "This kind has no home before the flip.", "Use the backend that serves this record kind.");
 }
