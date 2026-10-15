@@ -6,7 +6,8 @@ import { requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { lifecycleArtifactPath, requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
 import { readWorkUnit } from "../lib/store/lifecycle-write.js";
-import { writeMetaClass, writeMetaOwner } from "../lib/store/kinds/meta/writers.js";
+import { BEGIN_CURRENT_WORKFLOW_SENTINEL } from "../lib/active/current-workflow-consistency.js";
+import { writeMetaCurrentWorkflow, writeMetaNextAction, writeMetaClass, writeMetaOwner } from "../lib/store/kinds/meta/writers.js";
 import { WorkClassSchema, SlugSchema } from "../lib/kernel/index.js";
 import type { GraduateParams, GraduateResult } from "./start.js";
 
@@ -33,7 +34,10 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   const cls = WorkClassSchema.safeParse(params.cls ?? entry.fields.workClass);
   if (!cls.success) return { status: "rejected", reason: `Cannot start ${name}: Class is unresolved; supply --class Light, Heavy, or Novel.` };
   const starter = params.spawningIdentity;
-  const content = writeMetaOwner(writeMetaClass(read.result.content, cls.data), SlugSchema.parse(starter));
+  const workflow = graduationWorkflow(entry.fields);
+  const content = writeMetaNextAction(writeMetaCurrentWorkflow(
+    writeMetaOwner(writeMetaClass(read.result.content, cls.data), SlugSchema.parse(starter)), workflow),
+  BEGIN_CURRENT_WORKFLOW_SENTINEL);
   let occupation: StoreGraduationOccupation | undefined;
   const retryCommand = ["arc", "start", name, ...(params.inPlace ? ["--here"] : [])];
   const exec = ctx.exec;
@@ -59,4 +63,9 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   return { status: "graduated", outcome, metaPath: lifecycleArtifactPath({ ...entry, placement: { kind: "active" } }, "meta"),
     branch: null, backfilled: [], notice: null, worktreePath: occupation.worktreePath, previousOwner: entry.fields.owner,
     ...(occupation.postCreateNotice === undefined ? {} : { postCreateNotice: occupation.postCreateNotice }) };
+}
+
+function graduationWorkflow(fields: { currentWorkflow: string | null; design: readonly string[] }): string {
+  return fields.currentWorkflow ?? (fields.design.length > 0
+    && fields.design.every((name) => name.startsWith("spec-")) ? "generate-tasks" : "draft-design");
 }

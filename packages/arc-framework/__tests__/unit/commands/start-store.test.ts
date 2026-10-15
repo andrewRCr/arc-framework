@@ -8,7 +8,9 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
+import { recordReferences } from "../../../src/lib/store/identity.js";
 import { writeMetaClass } from "../../../src/lib/store/kinds/meta/writers.js";
+import { runStub } from "../../../src/lib/work-unit/verbs/stub.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 
 async function harness(refuse = false) {
@@ -99,4 +101,35 @@ it("refuses mixed inventory and primary versions before occupation and retries w
   expect((await h.read()).fields).toMatchObject({ owner: "previous", workClass: "Light" });
   expect(await runGraduate(h.ctx, params)).toMatchObject({ status: "graduated", previousOwner: "previous" });
   expect((await h.read()).fields).toMatchObject({ owner: "starter", workClass: "Light" });
+});
+
+
+it.each([false, true])("graduates a newly created stub with a valid planning tuple, here=%s", async (inPlace) => {
+  const h = await harness();
+  const created = await runStub({ executor: h.ctx, fs: {
+    mkdir: async () => { throw Error("no tracked scaffold"); },
+    writeFile: async () => { throw Error("no tracked scaffold"); },
+  } }, { name: "fresh", commitment: "planned", priority: "P1", owner: "previous", cls: "Light" });
+  expect(created, JSON.stringify(created)).toMatchObject({ status: "scaffolded" });
+  const before = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("fresh") }));
+  expect(lifecycleSuccess(await h.store.read({ reference: before.reference })).fields)
+    .toMatchObject({ currentWorkflow: null });
+  expect(await runGraduate(h.ctx, { name: "fresh", inPlace, spawningIdentity: "starter", baseBranch: "main",
+    locationTemplate: "../{repo}.{name}", repo: "repo" })).toMatchObject({ status: "graduated" });
+  expect(lifecycleSuccess(await h.store.read({ reference: before.reference })))
+    .toMatchObject({ placement: { kind: "active" }, fields: { state: "Planning", currentWorkflow: "draft-design",
+      nextAction: "[begin current workflow]", owner: "starter" } });
+});
+
+
+it("derives graduation's planning stage from the stored spec pointer", async () => {
+  const h = await harness();
+  const meta = await h.seedMeta("specified", { state: "Planning", currentWorkflow: null,
+    design: ["spec-specified.md"] }, { kind: "backlog", commitment: "planned" });
+  await h.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Specification\n");
+  expect(await runGraduate(h.ctx, { name: "specified", spawningIdentity: "starter", baseBranch: "main",
+    locationTemplate: "../{repo}.{name}", repo: "repo" })).toMatchObject({ status: "graduated" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields)
+    .toMatchObject({ state: "Planning", currentWorkflow: "generate-tasks",
+      design: ["spec-specified.md"], nextAction: "[begin current workflow]" });
 });
