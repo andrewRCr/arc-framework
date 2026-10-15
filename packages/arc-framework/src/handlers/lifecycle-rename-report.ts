@@ -1,5 +1,6 @@
 /** Human rename reports preserve store refusals and physical continuation instructions. */
 import * as p from "../lib/terminal.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { refuse } from "./lifecycle-shared.js";
 import type { RunRenameResult } from "../lib/work-unit/verbs/rename.js";
 /** Report the logical rename and every retained branch or pending physical action.
@@ -20,7 +21,11 @@ export function reportRenameResult(renameSource: string, renameTarget: string, r
   if (result.pendingIntegration) {
     lines.push("Visibility: pending integration of the rename branch");
   }
-  if (result.remote?.status === "retained") lines.push(`Remote:    retained personal branch ${result.remote.oldBranch}`);
+  if (result.remote?.status === "retained") {
+    lines.push(`Remote:    retained personal branch ${result.remote.oldBranch}`);
+    lines.push("Owner decision: delete it only if no longer needed.");
+    lines.push(`Command:   git push origin --delete ${quoteShellArgument(result.remote.oldBranch)}`);
+  }
   for (const branch of result.keptBranches ?? []) lines.push(`Branch:    kept ${branch}`);
   if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
   if (result.shape === "in-place" && result.recordBatch === undefined) {

@@ -20,5 +20,7 @@ it("names every preserved link and the adopted remote branch", () => {
   reportRenameResult("source", "target", { status: "renamed", shape: "in-place", recordBatch: "applied", pendingIntegration: false,
     advisories: [], keptBranches: ["errand/earlier", "personal/topic"], remote: { status: "retained", oldBranch: "feat/source", newBranch: "feat/target", oldOid: "a".repeat(40) } });
   expect(output.join("")).toContain("errand/earlier"); expect(output.join("")).toContain("personal/topic");
+  expect(output.join("")).toContain("Owner decision: delete it only if no longer needed.");
+  expect(output.join("")).toContain("git push origin --delete 'feat/source'");
   expect(output.join("")).toContain("retained personal branch feat/source"); expect(output.join("")).not.toContain("unmanaged");
 });
