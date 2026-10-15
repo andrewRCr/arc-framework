@@ -165,7 +165,8 @@ function rewriteArtifactSelfReferences(
   );
 }
 
-function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {
+/** Apply the generic filename rewrite used by every reference sweep. */
+export function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {
   const escaped = sourceSlug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp("`([a-z]+)-" + escaped + "\\.md`", "gu");
   return content.replace(pattern, (match, prefix: string) =>

@@ -10,7 +10,7 @@ import { readWorkUnit, recordPut, mergeLifecycleLinks } from "./lifecycle-write.
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { readPairedReferenceOwners } from "../work-unit/paired-reference-owners.js";
-import { planRenameReferences, applyRenameReferencePlan } from "../work-unit/rename-reference-sweep.js";
+import { planRenameReferences, applyRenameReferencePlan, rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
 import { writeMetaTitle, writeMetaDesign, writeMetaTaskList, writeMetaPause } from "./kinds/meta/writers.js";
 import { rewriteCohortMemberHeading } from "./kinds/cohort/index.js";
 import type { Store } from "./contract.js";
@@ -62,7 +62,7 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   const basis = await revalidateLifecycleRecords(store, [subject.primary]); if (basis.status === "refused") return basis;
   const records = groups.result;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
-  const ambiguity = await checkSharedPairedReferences(store, records, subject.primary, artifactRenames);
+  const ambiguity = await checkSharedPairedReferences(store, records, subject.primary, artifactRenames, subject.originName, targetSlug);
   if (ambiguity !== undefined) return ambiguity;
   const virtual = renameProjection(records, subject.primary);
   const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
@@ -151,12 +151,14 @@ function malformed(primary: StoreRecord, condition: string): StoreResult<never> 
 }
 
 async function checkSharedPairedReferences(store: Store, records: readonly StoreRecord[], primary: StoreRecord,
-  artifactRenames: ReadonlyMap<string, string>): Promise<StoreResult<never> | undefined> {
+  artifactRenames: ReadonlyMap<string, string>, source: string, target: string): Promise<StoreResult<never> | undefined> {
   const shared = records.filter((record) => !sameOwner(record.reference.owner, primary.reference.owner));
   const interpretations = await readPairedReferenceOwners(store, shared, new Set());
   if (interpretations.status === "refused") return interpretations;
   for (const [filename, owners] of interpretations.result) {
-    if (owners.length > 1 && artifactRenames.has(filename)
+    const reference = `\`${filename}\``;
+    const rewritten = artifactRenames.has(filename) || rewriteBacktickedArtifactReferences(reference, source, target) !== reference;
+    if (owners.length > 1 && rewritten
       && shared.some((record) => record.content.includes(`\`${filename}\``))) {
       return malformed(primary, `Ambiguous artifact reference ${filename}: possible owners ${owners.map((owner) => owner.subject).join(", ")}. Disambiguate the shared reference before retrying rename.`);
     }

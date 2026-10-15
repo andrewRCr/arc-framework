@@ -96,3 +96,40 @@ it.each(["prd", "rfc"])("refuses a shared %s reference with two live owners, the
   expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
   expect(lifecycleSuccess(await h.store.read({ reference: ordinary.reference }))).toEqual(ordinary);
 });
+
+it.each(["prd", "rfc"])("refuses the generic sweep of an ambiguous %s filename when the renamed stub has no spec", async (half) => {
+  const h = createLifecycleHarness();
+  let pairedOwner = await h.seedMeta("origin", { state: "Planning", currentWorkflow: "create-spec", design: ["draft-origin.md"] });
+  const paired = await h.seed(recordReferences["work-item/companion"](pairedOwner.reference.owner, `spec-${half}`),
+    "# Independent paired specification\n");
+  lifecycleSuccess(await h.store.write({ action: "put", reference: pairedOwner.reference, expected: pairedOwner.version,
+    placement: { kind: "active" }, content: writeMetaNextAction(writeMetaCurrentWorkflow(writeMetaDesign(pairedOwner.content,
+      [`spec-origin-${half}.md`]), "generate-tasks"), "[begin current workflow]"),
+    provenance: { verb: "repoint-design", lifecycleAction: "spec-finalized" } }));
+  pairedOwner = lifecycleSuccess(await h.store.read({ reference: pairedOwner.reference }));
+  const primary = await h.seedMeta(`origin-${half}`, { state: "Planning", currentWorkflow: null },
+    { kind: "backlog", commitment: "planned" });
+  const waiting = await h.seedMeta("waiting", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const draft = await h.seed(recordReferences["work-item/draft"](waiting.reference.owner), `Read \`spec-origin-${half}.md\`.\n`);
+  let checkout = "/holder/source";
+  const ctx = { store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts: {
+    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => checkout,
+    writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
+  }, renameCheckout: async () => { checkout = "/holder/successor"; return {
+    report: { checkout: { kind: "renamed" as const, checkoutPath: checkout, markerGeneration: "renamed" } }, rollback: async () => {},
+  }; } };
+  const request = { sourceSlug: `origin-${half}`, targetSlug: "successor" };
+  expect(await runStoreRename(ctx, request)).toMatchObject({ status: "rejected",
+    reason: expect.stringContaining(`spec-origin-${half}.md`), refusal: { code: "record-malformed" } });
+  expect(checkout).toBe("/holder/source");
+  for (const record of [pairedOwner, paired, primary, waiting, draft]) {
+    expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+  }
+  lifecycleSuccess(await h.store.write({ action: "put", reference: draft.reference, expected: draft.version,
+    content: "Read the paired design of origin.\n", provenance: { verb: "save", lifecycleAction: "edit" } }));
+  expect(await runStoreRename(ctx, request)).toMatchObject({ status: "renamed" });
+  expect(checkout).toBe("/holder/source");
+  expect(lifecycleSuccess(await h.store.read({ reference: paired.reference }))).toEqual(paired);
+  expect(lifecycleSuccess(await h.store.read({ reference: pairedOwner.reference }))).toEqual(pairedOwner);
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).reference.owner.name).toBe("successor");
+});
