@@ -46,7 +46,8 @@ export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRe
  */
 export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts">, name: string): Promise<string | null> {
   const resolveLegacy = async (): Promise<string | null> => {
-    const roster = await scanRegisteredWorktrees(ctx.exec);
+    const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: ctx.cwd, ...options });
+    const roster = await scanRegisteredWorktrees(exec);
     if (!roster.ok) throw new Error(roster.message);
     const held: string[] = [];
     for (const registration of roster.worktrees) {

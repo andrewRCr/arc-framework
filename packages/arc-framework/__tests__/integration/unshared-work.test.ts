@@ -9,6 +9,7 @@ import { HandoverCommandInputSchema } from "../../src/handlers/lifecycle-collabo
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { readUnsharedWork } from "../../src/lib/work-unit/verbs/unshared-work.js";
 import { runHandover, runPause } from "../../src/lib/work-unit/verbs/pause-handover.js";
+import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import type { LocusPorts } from "../../src/lib/work-unit/locus-ports.js";
 const roots: string[] = [];
 const HANDOVER_TIMEOUT_MS = 30_000;
@@ -84,4 +85,20 @@ it("no origin has no unshared count, reports held-only work, and admits only a c
   expect(await runHandover(f.context, { name: "example", to: "another-user" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("work.txt") });
   await f.exec("git", ["restore", "work.txt"]);
   expect(await runHandover(f.context, { name: "example", to: "another-user" })).toMatchObject({ status: "handed-over", owner: "another-user" });
+});
+
+it("finds the selected repository's dirty holder when the executor defaults to a nested repository", async () => {
+  const f = await fixture(false);
+  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  await f.exec("git", ["add", "-A"]); await f.exec("git", ["commit", "--allow-empty", "-m", "holder marker"]);
+  const nested = join(f.root, ".git", "nested"); await mkdir(nested);
+  await f.exec("git", ["init", "-b", "main", nested]);
+  const ctx = { ...f.context, locusPorts: undefined, exec: makeGitExec(nested) };
+  await writeFile(join(f.root, "pending.txt"), "preserve this work\n");
+  const input = HandoverCommandInputSchema.parse({ slug: "example", to: "another-user" });
+  const params = { name: input.slug!, to: input.to };
+  expect(await runHandover(ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("pending.txt") });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.record.reference }))).toEqual(f.record);
+  await rm(join(f.root, "pending.txt"));
+  expect(await runHandover(ctx, params)).toMatchObject({ status: "handed-over", owner: "another-user" });
 });
