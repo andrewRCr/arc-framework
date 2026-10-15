@@ -190,3 +190,30 @@ it("a changed acquired record refuses the batch and rolls back branch, marker, a
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).reference.owner.name).toBe("source");
   expect(h.git.calls.some((call) => call.args[0] === "push")).toBe(false);
 });
+
+it("retains failed checkout compensation and retries only after its owner repairs it", async () => {
+  const h = await branchFixture();
+  let repaired = false, marker = "source", checkoutPath = "/holder/source";
+  const ctx = { ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: async () => checkoutPath },
+    renameCheckout: async () => {
+      marker = repaired ? "target" : "concurrent-owner"; checkoutPath = "/holder/target";
+      if (!repaired) lifecycleSuccess(await h.store.write({ action: "put", reference: h.primary.reference,
+        expected: h.primary.version, content: h.primary.content, placement: { kind: "active" },
+        provenance: { verb: "race", lifecycleAction: "advance-version" } }));
+      return { report: { checkout: { kind: "renamed" as const, checkoutPath, markerGeneration: marker } },
+        rollback: async () => { if (!repaired) throw Error("marker generation changed"); marker = "source"; checkoutPath = "/holder/source"; } };
+    } };
+  const request = { sourceSlug: "source", targetSlug: "target" };
+  const result = await runStoreRename(ctx, request);
+  expect(result).toMatchObject({ status: "rejected", recovery: { kind: "rollback",
+    failures: [{ step: "checkout-rename", reason: expect.stringContaining("marker generation changed") }],
+    retryAfterRepair: [["arc", "rename", "source", "target"]],
+  } });
+  expect(result.status === "rejected" && result.reason).toContain("Retry only after");
+  expect(marker).toBe("concurrent-owner"); expect(checkoutPath).toBe("/holder/target");
+  expect(h.refs).toEqual(new Set(["feat/source"]));
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).reference.owner.name).toBe("source");
+  marker = "source"; checkoutPath = "/holder/source"; repaired = true;
+  expect(await runStoreRename(ctx, request)).toMatchObject({ status: "renamed" });
+  expect(marker).toBe("target"); expect(h.refs).toEqual(new Set(["feat/target"]));
+});

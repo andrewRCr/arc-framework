@@ -489,6 +489,8 @@ export async function occupyStoreGraduation(options: {
   inPlace: boolean;
   occupy: () => Promise<ReconcileWorkUnitWorktreeResult>;
   removeMarker?: typeof removeWorktreeMarkerGeneration;
+  /** Transfer compensation to the enclosing sequence before post-occupation validation. */
+  onOccupied?: (receipt: StoreGraduationOccupation) => void;
 }): Promise<StoreGraduationOccupation> {
   const before = options.inPlace ? await graduationCheckoutCoordinate(options.exec, options.cwd) : undefined;
   const result = await options.occupy();
@@ -505,15 +507,17 @@ export async function occupyStoreGraduation(options: {
     const after = await graduationCheckoutCoordinate(options.exec, options.cwd);
     if (after !== before) throw new Error("in-place graduation HEAD or branch changed during rollback; preserve the checkout and inspect its commits");
   };
+  const receipt = { worktreePath: result.worktreePath, rollback,
+    ...(result.postCreateNotice === undefined ? {} : { postCreateNotice: result.postCreateNotice }) };
+  options.onOccupied?.(receipt);
   if (options.inPlace) {
     const after = await graduationCheckoutCoordinate(options.exec, options.cwd);
     if (after !== before) {
-      await rollback();
+      if (options.onOccupied === undefined) await rollback();
       throw new Error("in-place graduation must leave HEAD and branch unchanged");
     }
   }
-  return { worktreePath: result.worktreePath, rollback,
-    ...(result.postCreateNotice === undefined ? {} : { postCreateNotice: result.postCreateNotice }) };
+  return receipt;
 }
 
 async function graduationCheckoutCoordinate(exec: GitExec, cwd: string): Promise<string> {

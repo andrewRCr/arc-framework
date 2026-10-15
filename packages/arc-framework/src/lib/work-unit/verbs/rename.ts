@@ -11,6 +11,7 @@
  */
 import { runStoreRename, type StoreRenameContext } from "./rename-store.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { LifecycleRollbackRecovery } from "../store-transition-types.js";
 import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 
@@ -66,7 +67,7 @@ export type RunRenameResult =
       worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
       checkout?: RenameWorktreeTransactionOutcome;
     }
-  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }
   | { status: "partial"; reason: string; remedy?: Remedy };
 
 /** Checkout identity report plus any physical move the transaction performed. */
@@ -187,7 +188,7 @@ class RenameTrackedRefusal extends Error {}
 async function runTrackedRename(
   ctx: RunRenameContext,
   plan: RenamePlan,
-): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }> {
+): Promise<{ status: "ok"; advisories: readonly string[] } | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }> {
   let source: RenameTransitionSourceEvidence;
   try {
     source = await ctx.retirement.captureSource({

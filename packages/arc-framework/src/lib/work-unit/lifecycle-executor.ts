@@ -31,7 +31,7 @@ import { posix } from "node:path";
 import type { Store } from "../store/contract.js";
 import type { StoreRefusal, Remedy } from "../store/refusal.js";
 import { executeStoreTransition, resumeStoreTransitionFinalization } from "./lifecycle-store-executor.js";
-import type { StoreTransitionInputs, LifecycleGitContinuation } from "./store-transition-types.js";
+import type { StoreTransitionInputs, LifecycleGitContinuation, LifecycleRollbackRecovery } from "./store-transition-types.js";
 
 import {
   type MetaFieldName,
@@ -414,9 +414,10 @@ export type TransitionOutcome =
       suggestion: string | null;
     }
   | {
-      /** Rejected before any mutation — illegal edge, guard failure, or missing input. */
+      /** Rejected before normal completion; failed physical rollback carries its remaining recovery. */
       status: "rejected";
       stage: "lookup" | "guard" | "inputs" | "store" | "git";
+      recovery?: LifecycleRollbackRecovery;
       refusal?: StoreRefusal;
       remedy?: Remedy;
       message: string;

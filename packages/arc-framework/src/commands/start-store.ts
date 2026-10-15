@@ -1,5 +1,5 @@
 /** Store-held backlog graduation with reversible branchless checkout occupation. */
-import type { ExecuteTransitionContext } from "../lib/work-unit/lifecycle-executor.js";
+import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { executeTransition } from "../lib/work-unit/lifecycle-executor.js";
 import { occupyStoreGraduation, type StoreGraduationOccupation } from "../lib/work-unit/atomic-graduation.js";
 import { requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
@@ -49,6 +49,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
       run: async () => {
         await requireMarkerExclusivity(ctx.locusPorts, { name });
         occupation = await occupyStoreGraduation({ cwd: ctx.cwd, exec, inPlace: params.inPlace === true,
+          onOccupied: (prepared) => { occupation = prepared; },
           occupy: () => ctx.reconcileWorkUnitWorktree(params.inPlace
             ? { mutation: "spawn", inPlace: true, preserveHead: true, wuName: name, spawningIdentity: starter }
             : { mutation: "spawn", detached: true, base: params.baseBranch, wuName: name,
@@ -59,7 +60,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
       rollback: async () => { await occupation?.rollback(); },
     }] },
   } });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  if (outcome.status !== "ok") return graduationRejection(outcome);
   if (occupation === undefined) throw new Error("store graduation committed without its checkout occupation");
   return { status: "graduated", outcome, metaPath: lifecycleArtifactPath({ ...entry, placement: { kind: "active" } }, "meta"),
     branch: null, backfilled: [], notice: null, worktreePath: occupation.worktreePath, previousOwner: entry.fields.owner,
@@ -69,4 +70,9 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
 function graduationWorkflow(fields: { currentWorkflow: string | null; design: readonly string[] }): string {
   return fields.currentWorkflow ?? (fields.design.length > 0
     && fields.design.every((name) => name.startsWith("spec-")) ? "generate-tasks" : "draft-design");
+}
+
+function graduationRejection(outcome: Exclude<TransitionOutcome, { status: "ok" }>): Extract<GraduateResult, { status: "rejected" }> {
+  return { status: "rejected", reason: outcome.message,
+    ...(outcome.status === "rejected" && outcome.recovery !== undefined ? { recovery: outcome.recovery } : {}) };
 }

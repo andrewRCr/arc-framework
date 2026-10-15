@@ -18,7 +18,7 @@ import { DEFAULT_GUARD_VALIDATORS, resolveTransitionEdge, transitionLookupReject
 import { makePauseGuard } from "./lifecycle-guards.js";
 import type { LifecycleGitStep, LifecycleGitContinuation } from "./store-transition-types.js";
 import type { RecoverablePrWithdrawalHandler } from "./side-effects/withdraw-pr.js";
-import { sequenceLifecycleWrite } from "./sequence-lifecycle-write.js";
+import { sequenceLifecycleWrite, type LifecycleWriteSequence } from "./sequence-lifecycle-write.js";
 import { revalidateLifecycleRecords } from "./prepared-lifecycle-write.js";
 
 type Rejected = Extract<TransitionOutcome, { status: "rejected" }>;
@@ -61,9 +61,7 @@ export async function executeStoreTransition(
         inputs.storeTransition?.provenance ?? { verb, lifecycleAction: verb });
     },
   });
-  if (sequence.status === "failed") return { status: "rejected", stage: "git", message: sequence.reason };
-  if (sequence.status === "refused") return { status: "rejected", stage: "store", refusal: sequence.refusal,
-    message: `${sequence.refusal.condition}${sequence.rollbackFailure === undefined ? "" : `; rollback failed: ${sequence.rollbackFailure}`}` };
+  if (sequence.status !== "written") return sequenceRejection(sequence);
   const { advisories, fired, continuation } = await fireStoreSideEffects(effects);
 
   return { status: "ok", verb, from: edge.from, to: edge.to, legsFired: [], sideEffectsFired: fired,
@@ -214,4 +212,11 @@ export async function resumeStoreTransitionFinalization(ctx: ExecuteTransitionCo
   const problems = checkCurrentWorkflowConsistency(fields);
   if (problems.length > 0) return { status: "rejected", stage: "store", message: `${problems.join("; ")}. Repair the stored workflow tuple through its lifecycle verb, then retry.` };
   return null;
+}
+
+function sequenceRejection(sequence: Exclude<LifecycleWriteSequence, { status: "written" }>): Rejected {
+  const recovery = sequence.recovery === undefined ? {} : { recovery: sequence.recovery };
+  if (sequence.status === "failed") return { status: "rejected", stage: "git", message: sequence.reason, ...recovery };
+  return { status: "rejected", stage: "store", refusal: sequence.refusal, ...recovery,
+    message: `${sequence.refusal.condition}${sequence.rollbackFailure === undefined ? "" : `; rollback failed: ${sequence.rollbackFailure}`}` };
 }

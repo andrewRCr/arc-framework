@@ -49,7 +49,7 @@ async function fixture(ports?: LocusPorts, productionOccupancy = false) {
     h.store.batch = async () => { batches++; await beforeRefusal?.(); return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", condition: "Moved concurrently", records: [meta.reference], remedy: { text: "Retry start" } } }; };
   };
   return { ...h, root, meta, ctx, io, mutations, rejectBatch, batches: () => batches,
-    markerPath: resolveWorktreeMarkerPath(root),
+    markerPath: resolveWorktreeMarkerPath(root), restoreBatch: () => { h.store.batch = originalBatch; },
     read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })),
     graduate: (inPlace = true) => runGraduate(ctx, { name: "demo", inPlace, spawningIdentity: "starter", baseBranch: "main", locationTemplate: join(root, "spawn"), repo: "repo" }),
   };
@@ -96,9 +96,18 @@ describe("public store start marker boundary", () => {
       concurrent = Buffer.from(`${JSON.stringify({ ...marker, createdAt: "2026-02-01T00:00:00.000Z" })}\n`);
       await writeFile(h.markerPath, concurrent);
     });
-    expect(await h.graduate()).toMatchObject({ status: "rejected", reason: expect.stringContaining("rollback failed") });
+    const result = await h.graduate();
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("rollback failed"), recovery: {
+      kind: "rollback", failures: [{ step: "occupy-planning-checkout" }],
+      retryAfterRepair: [["arc", "start", "demo", "--here"]],
+    } });
+    expect(result.status === "rejected" && result.reason).toContain("Retry only after");
     expect(await readFile(h.markerPath)).toEqual(concurrent);
     expect((await h.read()).version).toEqual(h.meta.version); expect(h.mutations).toEqual([]);
+    // The simulated owner releases the inspected claim; the failed command never removes it.
+    await rm(h.markerPath); h.restoreBatch();
+    expect(await h.graduate()).toMatchObject({ status: "graduated" });
+    expect((await h.read()).placement).toEqual({ kind: "active" });
   });
 
   it("refuses an existing marker without overwriting it or committing graduation", async () => {

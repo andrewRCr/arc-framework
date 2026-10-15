@@ -28,6 +28,7 @@
 
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import type { LifecycleRollbackRecovery } from "../lib/work-unit/store-transition-types.js";
 import { runStoreGraduate } from "./start-store.js";
 import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
 
@@ -322,7 +323,7 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; recovery?: LifecycleRollbackRecovery }
   | {
       status: "graduation-recovery-required";
       reason: string;

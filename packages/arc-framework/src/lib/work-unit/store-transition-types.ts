@@ -20,6 +20,15 @@ export interface LifecycleGitContinuation {
   argv: readonly string[];
 }
 
+/** Failed preparatory inverses require inspection and owner repair before the original verb retries. */
+export interface LifecycleRollbackRecovery {
+  kind: "rollback";
+  failures: readonly { step: string; reason: string }[];
+  inspect: readonly (readonly string[])[];
+  repair: string;
+  retryAfterRepair: readonly (readonly string[])[];
+}
+
 /** Writes the verb prepares in addition to the executor-owned state and workflow fields. */
 export interface StoreTransitionInputs {
   primary?: StoreRecord;
