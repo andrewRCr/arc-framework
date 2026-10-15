@@ -69,9 +69,24 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   if (branch === null) return reject("The work unit has no unambiguous branch link; activate its work branch first.");
   if (!params.candidateCurrent || meta.candidateId !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
   if (meta.state === "Integrating" && meta.currentWorkflow === "integrate-work-unit") {
-    return params.boundary.candidateId === params.candidateId
-      && params.boundary.candidateSubjectDigest === params.candidateSubjectDigest
-      ? { status: "unchanged", boundary: params.boundary } : reject("Publication boundary belongs to a different Candidate.");
+    return resumeIntegratingPublication(params, branch, reject);
   }
   return { status: "ready", branch, metaPath, primary: read.result };
+}
+
+async function resumeIntegratingPublication(params: PublishParams, branch: string, reject: PublicationReject):
+  Promise<Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
+  if (params.boundary.candidateId !== params.candidateId || params.boundary.candidateSubjectDigest !== params.candidateSubjectDigest) {
+    return reject("Publication boundary belongs to a different Candidate.");
+  }
+  if (["publication-pending", "hosted-review-pending", "delivery-status-required"].includes(params.boundary.locus)) {
+    return { status: "unchanged", boundary: params.boundary };
+  }
+  const authorization = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
+  if (authorization.status === "refused") return reject(authorization.reason, undefined,
+    { text: "Resolve pre-publication review, then retry publication.", argv: ["arc", "review", "pre-publication", params.name] });
+  return { status: "unchanged", boundary: projectPublicationBoundary({ workUnit: params.name, branch,
+    candidateId: params.candidateId, candidateSubjectDigest: params.candidateSubjectDigest,
+    reservation: authorization.reservation, terminus: authorization.terminus, changeRequest: null,
+    ...("standardLaneOwnerVersion" in params.boundary ? { standardLaneOwnerVersion: params.boundary.standardLaneOwnerVersion } : {}) }) };
 }

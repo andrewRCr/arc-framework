@@ -4,6 +4,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { CandidateReviewResumeBoundarySchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
@@ -125,4 +126,31 @@ it.each(["candidate", "branch"])("refuses a primary $0 race at the publication c
     refreshCandidateAuthorization: async () => ({ candidateId: freshId, candidateSubjectDigest, candidateCurrent: true }) };
   expect(await runPublish(context(h.store), fresh)).toMatchObject({ status: "published",
     boundary: { nextAction: { command: `git push -u origin ${change === "branch" ? "feat/renewed" : "feat/example"}` } } });
+});
+
+
+it("advances renewed publication readiness while Integrating and preserves the resulting publication retry", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId, state: "Integrating", currentWorkflow: "integrate-work-unit" }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const params = parameters(async () => {});
+  const result = await runPublish(context(h.store), params);
+  expect(result).toMatchObject({ status: "unchanged", boundary: { locus: "publication-pending",
+    nextAction: { kind: "continue-publication", command: "git push -u origin feat/example" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
+  if (result.status !== "unchanged") throw new Error("Missing publication continuation");
+  expect(await runPublish(context(h.store), { ...params, boundary: result.boundary })).toEqual(result);
+});
+it("refuses unresolved renewed review while Integrating and publishes after readiness is repaired", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("example", { candidateId, state: "Integrating", currentWorkflow: "integrate-work-unit" }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const params = parameters(async () => {});
+  const boundary = CandidateReviewResumeBoundarySchema.parse({ schemaVersion: 1, mode: "pre-publication-review",
+    workUnit: "example", candidateId, candidateSubjectDigest, locus: "candidate-review-pending", policy: null,
+    reservation: null, terminus: null, deliveryReviewTermini: [], nextAction: { kind: "continue-pre-publication-review",
+      command: "arc review pre-publication example", interactionText: "Resolve review" } });
+  expect(await runPublish(context(h.store), { ...params, boundary })).toMatchObject({ status: "rejected",
+    reason: expect.stringContaining("obligations remain open"), remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
+  expect(await runPublish(context(h.store), params)).toMatchObject({ status: "unchanged", boundary: { locus: "publication-pending" } });
 });
