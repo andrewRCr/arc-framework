@@ -1,5 +1,7 @@
 /** Completed cohort sidecars borrow the terminal member's backend-assigned sequence. */
 import { describe, expect, it } from "vitest";
+import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { seed, success, testProvenance } from "../../../helpers/store/suite-tools.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
@@ -78,4 +80,26 @@ it("renumbers only the unpublished cohort alongside its own closing member acros
     expect(lifecycleSuccess(await h.store.read({ reference: second.member.reference })).placement).toMatchObject({ sequence: "02" });
     expect(lifecycleSuccess(await h.store.read({ reference: second.document.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "02", closeout: "a" });
   }
+});
+
+
+it.each(["write", "batch"])("completes a schema-independent cohort through %s and sync", async (mode) => {
+  const fixture = createReferenceFixture();
+  const document = await seed(fixture, fixture.reference("cohort/document"));
+  const member = await seed(fixture, fixture.reference("work-item/meta"));
+  expect(document.fields).toBeUndefined();
+  const completion = { action: "put" as const, reference: document.reference, expected: document.version,
+    content: document.content, placement: { kind: "completed" as const, quarter } };
+  if (mode === "write") success(await fixture.store.write({ ...completion, provenance: testProvenance }));
+  else success(await fixture.store.batch({ writes: [completion, { action: "put", reference: member.reference,
+    expected: member.version, content: member.content, placement: { kind: "completed", quarter } }], provenance: testProvenance }));
+  const completed = success(await fixture.store.read({ reference: document.reference }));
+  expect(StoreRecordSchema.safeParse(completed).success).toBe(true);
+  expect(completed.placement).toMatchObject({ kind: "completed", quarter, closeout: "a" });
+  expect(completed.content).toBe(document.content);
+  fixture.remote(true); success(await fixture.store.sync());
+  const published = success(await fixture.store.read({ reference: document.reference }));
+  expect(StoreRecordSchema.safeParse(published).success).toBe(true);
+  success(await fixture.store.sync());
+  expect(success(await fixture.store.read({ reference: document.reference })).placement).toEqual(published.placement);
 });
