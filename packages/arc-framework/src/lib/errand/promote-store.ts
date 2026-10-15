@@ -5,12 +5,13 @@ import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { PromoteFloor, PromoteOrdinaryErrandDependencies, PromotionFrameReceipt, PromotionFrameResult } from "./promote.js";
 import { renderMetaFile } from "../store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema, MetaPrioritySchema, MetaWorkClassSchema } from "../active/meta-schema.js";
-import { RecordReferenceSchema, type RecordReference } from "../store/identity.js";
+import { RecordReferenceSchema, sameReference } from "../store/identity.js";
 import { batchLifecycleWrites, mergeLifecycleLinks, recordWritePlacement, workUnitMetaPath } from "../store/lifecycle-write.js";
 import { workBranchName } from "../store/lifecycle-branch.js";
 import { GitProcessError } from "../git/process-error.js";
 import type { GitExec } from "../git/exec.js";
-import type { Store } from "../store/contract.js";
+import type { Store, HistoryEntry } from "../store/contract.js";
+import { CommitShaSchema } from "../store/links.js";
 import type { StoreRecord } from "../store/read.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
@@ -57,14 +58,14 @@ async function replace(options: StorePromotionOptions, source: OrdinaryErrandRec
   if (inherited === undefined) return refused("The Errand's exact repository-qualified branch link is missing.");
   await options.exec("git", ["check-ref-format", "--branch", branch], { cwd: options.cwd });
   if (await localBranchExists(options, branch)) return refused(`The target branch ${branch} already exists; choose another work-unit name or type.`);
-  const tip = (await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", `refs/heads/${source.branch}^{commit}`],
-    { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim();
+  const tip = CommitShaSchema.parse((await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", `refs/heads/${source.branch}^{commit}`],
+    { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim());
   const reference = RecordReferenceSchema.parse({ ...basis.reference, kind: "work-item/meta", owner: { ...basis.reference.owner, name: options.name } });
   const content = promotionMeta(options, source);
   const placement = recordWritePlacement(basis);
   const links = mergeLifecycleLinks(basis.links, { branches: [{ repository: options.repository, ref: branch, linkedAs: "created", excluded: inherited.excluded }] });
   const written = await batchLifecycleWrites(options.store, [{ action: "put", reference, expected: basis.version, content,
-    ...(placement === undefined ? {} : { placement }), links }], { verb: "errand-promote", lifecycleAction: "promote" });
+    ...(placement === undefined ? {} : { placement }), links }], { verb: "errand-promote", lifecycleAction: "promote", codeHead: tip });
   if (written.status === "refused") return refused(`${written.refusal.code}: ${written.refusal.condition}\n${written.refusal.remedy.text}`);
   await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
   await options.exec("git", ["switch", branch], { cwd: options.cwd });
@@ -87,28 +88,35 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const meta = read.record, fields = ParsedMetaRecordSchema.parse(meta.fields);
   const history = await options.store.history({ reference: meta.reference });
   if (history.status === "refused") return refused(history.refusal.condition);
-  const source = sourceFromHistory(history.result, options.slug, fields.promotionReceipt);
-  if (source === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
+  const recovered = sourceFromHistory(history.result, options.slug, fields.promotionReceipt, meta);
+  if (recovered === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
+  const { source, tip } = recovered;
+  if (tip === undefined) return refused("The promotion role-write history lacks its exact cut commit. Inspect and repair that evidence before retrying this promotion.");
   const branch = `${options.type ?? "feat"}/${options.name}`;
   const linked = meta.links?.branches?.some((link) => link.repository === options.repository && link.ref === branch && link.linkedAs === "created");
   if (!linked) return refused("The promoted work branch's created link is missing.");
-  if (!(await localBranchExists(options, branch))) {
-    const tip = (await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", `refs/heads/${source.branch}^{commit}`],
-      { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim();
-    await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
-  }
+  const current = await localBranchTip(options, branch);
+  if (current !== undefined && current !== tip) return refused(
+    `Promotion branch conflict: ${branch} is at ${current}, but the role write recorded ${tip}. Preserve the existing branch, repair the target to that recorded cut (or move the unrelated branch aside), then retry this exact promotion.`);
+  if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
   await options.exec("git", ["switch", branch], { cwd: options.cwd });
   return receipt(options, meta, source, branch, "idempotent");
 }
-function sourceFromHistory(entries: readonly { reference: RecordReference; content: string | null }[], slug: string,
-  promotionReceipt: string | null): OrdinaryErrandRecord | undefined {
-  for (const entry of entries) {
+function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
+  promotionReceipt: string | null, meta: StoreRecord): { source: OrdinaryErrandRecord; tip: string | undefined } | undefined {
+  for (const [index, entry] of entries.entries()) {
     if (entry.reference.kind !== "work-item/record" || entry.content === null) continue;
     let decoded: unknown; try { decoded = JSON.parse(entry.content); } catch { continue; }
     const parsed = TransientIdentityRecordV3Schema.safeParse(decoded);
     if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand" || parsed.data.slug !== slug) continue;
     const source = parsed.data;
-    if (promotionReceipt === `errand-v1/${source.slug}/${source.claimId}`) return source;
+    if (promotionReceipt !== `errand-v1/${source.slug}/${source.claimId}`) continue;
+    const role = entries[index - 1];
+    const provenance = role?.provenance;
+    const tip = role?.reference.kind === "work-item/meta" && sameReference(role.reference, meta.reference)
+      && provenance !== undefined && "verb" in provenance && provenance.verb === "errand-promote"
+      && provenance.lifecycleAction === "promote" ? provenance.codeHead : undefined;
+    return { source, tip };
   }
   return undefined;
 }
@@ -120,9 +128,12 @@ function receipt(options: StorePromotionOptions, meta: StoreRecord, source: Ordi
     originEntrySourceDigest: source.origin === "inbox" ? CanonicalDigestSchema.parse(source.originEntrySourceDigest) : null };
 }
 async function localBranchExists(options: StorePromotionOptions, branch: string): Promise<boolean> {
-  try { await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `refs/heads/${branch}^{commit}`],
-    { cwd: options.cwd, objectAccess: "local-only" }); return true; }
-  catch (error) { if (error instanceof GitProcessError && error.exitCode === 1) return false; throw error; }
+  return (await localBranchTip(options, branch)) !== undefined;
+}
+async function localBranchTip(options: StorePromotionOptions, branch: string): Promise<string | undefined> {
+  try { return CommitShaSchema.parse((await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `refs/heads/${branch}^{commit}`],
+    { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim()); }
+  catch (error) { if (error instanceof GitProcessError && error.exitCode === 1) return undefined; throw error; }
 }
 function refused(message: string): PromotionFrameResult { return { kind: "refused", reason: "promotion-source-invalid", message }; }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }

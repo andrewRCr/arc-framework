@@ -6,7 +6,7 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { computeDefaultCaptureSet } from "../../../src/lib/git/default-capture-set.js";
-import { scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import type { PromoteFloor, PromotionFrameReceipt } from "../../../src/lib/errand/promote.js";
 const sha = "1".repeat(40), claimId = "a".repeat(32);
 async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbox = false) {
@@ -116,4 +116,80 @@ it("settles a retained inbox capture after role-put recovery and retries an inte
   expect(captures.size).toBe(0); expect(occupied).toBe(true);
   expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).version).toBe(landed.version);
   expect(lifecycleSuccess(await f.store.history({ reference: landed.reference }))).toHaveLength(2);
+});
+
+async function interruptedPromotion() {
+  const f = await fixture();
+  const branches = new Map([["chore/errand-source", sha]]);
+  let failCut = true, currentBranch = "chore/errand-source", settled = false;
+  const exec: typeof f.options.exec = async (command, args) => {
+    const ok = (stdout = "") => ({ stdout, stderr: "" });
+    if (args[0] === "check-ref-format") return ok("feat/example");
+    if (args.includes("rev-parse")) {
+      const branch = args.at(-1)!.replace(/^refs\/heads\//u, "").replace(/\^\{commit\}$/u, "");
+      const tip = branches.get(branch);
+      if (tip === undefined) throw makeGitProcessError({ command, args, exitCode: 1 });
+      return ok(tip);
+    }
+    if (args[0] === "branch") {
+      if (failCut) { failCut = false; throw makeGitProcessError({ command, args, exitCode: 128, stderr: "interrupted cut" }); }
+      branches.set(args[1]!, args[2]!); return ok();
+    }
+    if (args[0] === "switch") { currentBranch = args[1]!; return ok(); }
+    throw new Error(`Unexpected invocation: ${args.join(" ")}`);
+  };
+  const run = () => promoteOrdinaryErrand({ ...f.options, protection: "full", dependencies: {
+    ...createStorePromotionSteps({ ...f.options, exec }), settleInbox: async (frame) => frame,
+    settleOccupancy: async (frame) => { settled = true; return frame; },
+  } });
+  expect(await run()).toMatchObject({ outcome: "error" });
+  return { ...f, branches, run, state: () => ({ currentBranch, settled }) };
+}
+
+it("refuses a foreign retry target without switching or settlement, then recovers after owner repair", async () => {
+  const f = await interruptedPromotion(), foreign = "2".repeat(40);
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  lifecycleSuccess(await f.store.write({ action: "put", reference: meta.reference, expected: meta.version,
+    content: meta.content, placement: { kind: "active" }, provenance: { verb: "save", lifecycleAction: "update", codeHead: foreign } }));
+  const updated = lifecycleSuccess(await f.store.read({ reference: meta.reference }));
+  f.branches.set("feat/example", foreign);
+  expect(await f.run()).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/conflict.*repair.*retry/isu) });
+  expect(f.state()).toEqual({ currentBranch: "chore/errand-source", settled: false });
+  expect(f.branches.get("feat/example")).toBe(foreign);
+  expect(lifecycleSuccess(await f.store.read({ reference: meta.reference })).version).toBe(updated.version);
+  f.branches.delete("feat/example");
+  expect(await f.run()).toMatchObject({ outcome: "idempotent", settlement: { state: "settled" } });
+  expect(f.branches.get("feat/example")).toBe(sha);
+  expect(f.state()).toEqual({ currentBranch: "feat/example", settled: true });
+});
+
+it("recovers the recorded promotion cut even when the retained Errand branch moves", async () => {
+  const f = await interruptedPromotion();
+  f.branches.set("chore/errand-source", "2".repeat(40));
+  expect(await f.run()).toMatchObject({ outcome: "idempotent", settlement: { state: "settled" } });
+  expect(f.branches.get("feat/example")).toBe(sha);
+  const history = lifecycleSuccess(await f.store.history({ reference: f.primary.reference }));
+  expect(history[0]?.provenance).toMatchObject({ verb: "errand-promote", lifecycleAction: "promote", codeHead: sha });
+});
+
+it("refuses missing promotion-cut evidence without guessing and continues when the exact history is restored", async () => {
+  const f = await interruptedPromotion(), history = f.store.history.bind(f.store);
+  let restored = false;
+  f.store.history = async (input) => {
+    const result = await history(input);
+    if (restored || result.status !== "ok") return result;
+    return { ...result, result: result.result.map((entry) => {
+      if (!("verb" in entry.provenance) || entry.provenance.verb !== "errand-promote") return entry;
+      const provenance = { ...entry.provenance }; delete provenance.codeHead;
+      return { ...entry, provenance };
+    }) };
+  };
+  const before = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(await f.run()).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/cut commit.*repair.*retry/isu) });
+  expect(f.branches.has("feat/example")).toBe(false);
+  expect(f.state()).toEqual({ currentBranch: "chore/errand-source", settled: false });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(before);
+  restored = true;
+  expect(await f.run()).toMatchObject({ outcome: "idempotent", settlement: { state: "settled" } });
+  expect(f.branches.get("feat/example")).toBe(sha);
 });
