@@ -111,23 +111,34 @@ describe("lifecycle review driver", () => {
     expect(errand).toMatch(softWrappedProse("Bind the opened target's `scopeSelection` directly to whole-target"));
   });
 
-  it("carries a content-gated local-review attestation instead of a composed record", async () => {
-    const path = "reference/templates/arc/work-unit/template-pull-request.md";
+  it("shares an overridable change-focused policy with binding title constraints", async () => {
+    const errand = await readFile(resolve(packageArc, errandWorkflow), "utf8");
+    expect(errand).toContain("    - pull-request-format");
+    const path = "system/methods/pull-request-format.md";
     const [packaged, project] = await Promise.all([
       readFile(resolve(packageArc, path), "utf8"),
       readFile(resolve(projectArc, path), "utf8"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toContain("**Local review:** {carrier identity}");
-    expect(packaged).toContain("**Local review — content-gated.**");
-    expect(packaged).toMatch(softWrappedProse("Omit the field entirely when no local review ran"));
-    expect(packaged).not.toContain("## Review");
-    expect(packaged).not.toContain("**Hosted PR:**");
-    expect(packaged).not.toContain("**Triage:**");
-    expect(packaged).not.toContain("**Coverage:**");
-    expect(packaged).toContain("## Delivery-Member Variant");
-    expect(packaged).toMatch(softWrappedProse("Do not add a `Delivery` field"));
-    expect(packaged).toMatch(softWrappedProse("Design is content-gated for delivery members"));
-    expect(packaged).toContain("{type}({work-unit-slug}): [{position}/{total}] {member title}");
+    const contract = packaged.slice(packaged.indexOf("> - **Contract:**"), packaged.indexOf("## pull-request-format.override"));
+    expect(contract).toContain("squash");
+    expect(contract).toContain("valid commit subject");
+    expect(contract).toContain("multi-member delivery");
+    for (const type of ["feat", "fix", "chore", "docs", "refactor", "test", "perf", "revert"]) {
+      expect(contract).toContain(`\`${type}\``);
+    }
+    const headings = ["## Summary", "## Changes", "## Notes for Reviewers", "## Test Plan", "## Out of Scope"];
+    const block = packaged.match(/```markdown\n([\s\S]*?)```/u)?.[1] ?? "";
+    expect(block.match(/^## .+$/gmu)).toEqual(headings);
+    expect(block.match(/Omit/gu)).toHaveLength(4);
+    expect(packaged).toMatch(softWrappedProse("A credible alternative existed and the rationale is not visible in the diff"));
+    expect(packaged).toMatch(softWrappedProse("Errands list every qualifying decision"));
+    expect(packaged).toContain("commit-pinned permalink");
+    expect(packaged).toContain("spec-{name}-prd.md");
+    expect(packaged).toContain("spec-{name}-rfc.md");
+    expect(packaged).toContain("inherited defaults");
+    expect(packaged).toContain("undisclosed vulnerability");
+    expect(packaged).toContain("No process, provenance, or review metadata");
+    expect(packaged).toMatch(softWrappedProse("Do not supply a design reference"));
   });
 });

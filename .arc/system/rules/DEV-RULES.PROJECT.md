@@ -279,6 +279,9 @@ bound by this too; `strategies/project/` ships as an empty surface and may refer
 Operational rationale adopters need must stand alone in the adopter-facing source; rationale that doesn't earn that
 placement stays in the ADR itself, or routes to whatever capture surface the project uses for docs-site content.
 
+ARC concepts are domain vocabulary here when they are the change's subject. Naming this repository's work-unit or
+Errand identities to narrate how a change was made remains process.
+
 ### Package-source mirror inheritance
 
 Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).

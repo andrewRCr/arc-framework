@@ -11,6 +11,7 @@ arc:
     - review-triage
     - review-response
     - commit-footer
+    - pull-request-format
 ---
 
 # Workflow: Integrate Work Unit
@@ -121,21 +122,13 @@ branch itself to carry the creation head.
 Invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action: `locked / open-locked`
 creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
 
-Open the PR on the resolved action:
+Before creation, load [pull-request-format][pull-request-format] and follow its title and body guidance. Compose
+from the diff, design, and verification, not release notes. Open the single PR on the resolved action:
 
 ```bash
 gh pr create --base {base-branch} --head {type}/{name}            # open-plain
 gh pr create --base {base-branch} --head {type}/{name} --draft    # open-locked
 ```
-
-Single PR per WU. The PR title's Conventional Commits type carries the signal.
-
-**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Design / optional
-Local review / Summary / Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. The
-`Local review` field names the carrier that ran gated review locally before publication and nothing else; omit it
-when none ran. Do not add sections
-describing post-merge workflow continuity or next actions — those route to the meta file and SESSION-NOTES per
-[DEV-RULES.ARC][dev-rules-arc] § Write for the reader, not the author.
 
 ### 2) Review iteration
 
@@ -276,10 +269,10 @@ arc review respond -
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
 resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
-any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
-`arc review status`. Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and
-pass its exact ceiling override into the named hosted, local, or frontline admission; never reconstruct the
-authorization ID.
+any returned hosted settlement plan through the phase-ordered settlement path below, including its description upkeep
+after a pushed fix, then re-enter through `arc review status`. Retain any returned `payload.policyRequest` carrying
+`conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the named hosted, local, or
+frontline admission; never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -376,6 +369,15 @@ prior count.
 
   > [!CAUTION]
   > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+  After an approved fix is pushed, load [pull-request-format][pull-request-format] before editing the open
+  description. Update every section and qualifying decision the fix made inaccurate. For a design link, run
+  `git diff --quiet <pinned> HEAD -- <paths>` over every linked path of a layered design, and
+  `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose command
+  errors rather than treating them as successful checks. With no design link, skip the link checks. On GitHub, use
+  `gh pr edit <n> --body-file <path>` before review re-entry. This same description upkeep applies to the terminal
+  request after a delivery-owned pushed correction; the delivery workflow performs it after the continuation returns,
+  before following its review status, delivery position, or other returned step.
 
   Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
   for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
@@ -850,7 +852,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
-[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
+[pull-request-format]: ../../../methods/pull-request-format.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md
