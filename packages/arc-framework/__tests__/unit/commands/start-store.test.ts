@@ -8,6 +8,9 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
+import { writeMetaClass } from "../../../src/lib/store/kinds/meta/writers.js";
+import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
+
 async function harness(refuse = false) {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("demo", { state: "Planning", owner: "previous", workClass: "Novel", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
@@ -76,4 +79,24 @@ it("refuses a conflicting start Class before checkout occupation and accepts the
   expect(await h.read()).toEqual(h.meta);
   expect(await runGraduate(h.ctx, { ...params, cls: "Novel" })).toMatchObject({ status: "graduated" });
   expect((await h.read()).fields).toMatchObject({ workClass: "Novel", owner: "starter" });
+});
+
+it("refuses mixed inventory and primary versions before occupation and retries with the current Class", async () => {
+  const h = await harness(), list = h.store.list.bind(h.store);
+  let raced = false;
+  h.store.list = async (input) => {
+    const result = await list(input);
+    if (!raced && input.family === "work-item") {
+      raced = true;
+      lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaClass(h.meta.content, "Light") }),
+        provenance: { verb: "set-class", lifecycleAction: "set-class" } }));
+    }
+    return result;
+  };
+  const params = { name: "demo", inPlace: true as const, spawningIdentity: "starter" };
+  expect(await runGraduate(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed") });
+  expect(h.state()).toEqual({ occupation: undefined, occupied: false });
+  expect((await h.read()).fields).toMatchObject({ owner: "previous", workClass: "Light" });
+  expect(await runGraduate(h.ctx, params)).toMatchObject({ status: "graduated", previousOwner: "previous" });
+  expect((await h.read()).fields).toMatchObject({ owner: "starter", workClass: "Light" });
 });

@@ -25,6 +25,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   const name = read.result.reference.owner.name;
   const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === read.result.reference.owner.name);
   if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${name} is not a backlog stub that can graduate.` };
+  if (entry.version !== read.result.version) return { status: "rejected", reason: `${name} changed after its inventory read; retry start to use its current Class and ownership.` };
   const recordedClass = WorkClassSchema.safeParse(entry.fields.workClass);
   if (params.cls !== undefined && recordedClass.success && params.cls !== recordedClass.data) {
     return { status: "rejected", reason: `--class ${params.cls} conflicts with the recorded Class ${recordedClass.data}; re-cut weight via arc finalize, then retry start.` };
