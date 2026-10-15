@@ -95,6 +95,9 @@ describe("detectCommitDestructive", () => {
 
 describe("detectCommitAmend", () => {
   it.each([
+    [["--am"]],
+    [["--ame"]],
+    [["--amen"]],
     [["--amend"]],
     [["--amend", "--no-edit"]],
     [["-m", "subject", "--amend"]],

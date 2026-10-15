@@ -133,13 +133,13 @@ it.each(["--dry-run", "--short", "--porcelain", "--long", "--null", "-z", "-qz"]
   expect(await h.captured()).toBeUndefined();
 });
 
-it.each([false, true])("off-branch amend refuses before Git and the new-commit continuation succeeds, close=%s", async (close) => {
+it.each(["--am", "--ame", "--amen", "--amend"].flatMap((flag) => [false, true].map((close) => ({ flag, close }))))("off-branch $flag refuses before Git and the new-commit continuation succeeds, close=$close", async ({ flag, close }) => {
   const h = await fixture(); await h.prepare("increment\n");
   if (!close) h.deps.taskClose = undefined;
   const reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
   const before = lifecycleSuccess(await h.store.read({ reference }));
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout;
-  const normal = h.deps.argv; h.deps.argv = ["--amend", ...normal];
+  const normal = h.deps.argv; h.deps.argv = [flag, ...normal];
   expect(await runReleaseCommit(h.deps)).toMatchObject({ exitCode: 12, continuation: { text: expect.stringMatching(/new commit/iu) } });
   expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd })).stdout).toBe(head);
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(before);
@@ -181,3 +181,4 @@ it.runIf(process.platform !== "win32").each(["corrected-message", "hook-failure"
   expect((await h.captured())?.["1.1"]?.map((commit) => commit.sha)).toEqual([head]);
   expect((await h.captured())?.["1.2"]).toBeUndefined();
 });
+

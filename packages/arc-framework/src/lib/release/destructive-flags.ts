@@ -99,7 +99,7 @@ export function detectCommitDestructive(argv: readonly string[]): string | null 
  */
 export function detectCommitAmend(argv: readonly string[]): boolean {
   for (const token of commitOptionTokens(argv)) {
-    if (token === "--amend") return true;
+    if (["--am", "--ame", "--amen", "--amend"].includes(token)) return true;
   }
   return false;
 }
