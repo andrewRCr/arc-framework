@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "mint-work-item-dependencies",
+  "claimId": "07e0504d30ab0eceeedeac2449a68e8b",
+  "createdAt": "2026-10-15T17:36:44.664Z",
+  "updatedAt": "2026-10-15T17:36:44.664Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Mint the work-item-dependencies planned stub and move the dependency-edge entry into it from wu-lifecycle-state-model",
+  "branch": "chore/mint-work-item-dependencies",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
