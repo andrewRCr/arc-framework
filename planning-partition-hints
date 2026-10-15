@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "planning-partition-hints",
+  "claimId": "016fd86ebbaafa068b7c4e88888357ae",
+  "createdAt": "2026-10-15T14:03:42.891Z",
+  "updatedAt": "2026-10-15T14:03:42.891Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the existing authored-partition review mode at large-target planning fire-points with its fit and single-reviewer fallback",
+  "branch": "chore/planning-partition-hints",
+  "origin": "inbox",
+  "originEntry": "Name adversarial review's partition mode at the fire-points whose target can be large",
+  "originEntrySourceDigest": "sha256:5b5f5fc4767ee7f23c5f327890d1e2570521325de44909c1a9bd55d4b508d285",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
