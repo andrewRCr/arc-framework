@@ -6,6 +6,7 @@ import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js
 import { makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
+import { RenameCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runRenameCommand } from "../../src/commands/rename.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { storeRenameAdapters } from "../../src/commands/rename-store.js";
@@ -165,4 +166,28 @@ it.each([false, true])("rolls back only its tracking changes after record confli
     .toEqual(concurrent ? ["refs/heads/main"] : ["refs/heads/main", "refs/heads/extra"]);
   expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed" });
   expect((await f.exec("git", ["for-each-ref", "--format=%(upstream)", "refs/heads/feat/target"])).stdout.trim()).toBe("");
+}, 30_000);
+
+
+it("renames the promoted work branch while retaining the holder's Errand link and remote", async () => {
+  const f = await fixture(false);
+  await f.exec("git", ["switch", "-c", "chore/source", "main"]);
+  const before = (await f.exec("git", ["rev-parse", "chore/source"])).stdout.trim();
+  const remote = join(f.root, ".git", "remote.git");
+  await f.exec("git", ["init", "--bare", remote]); await f.exec("git", ["remote", "add", "origin", remote]);
+  await f.exec("git", ["push", "origin", "chore/source", "feat/source"]);
+  const errand = { repository: "repo", ref: "chore/source", linkedAs: "created" as const, excluded: [] };
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: f.primary.content, placement: { kind: "active" }, links: { branches: [errand, ...f.primary.links!.branches!] },
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const input = RenameCommandInputSchema.parse({ slug: "source", newSlug: "target" });
+  expect(await runRenameCommand(f.command, { sourceSlug: input.slug, targetSlug: input.newSlug })).toMatchObject({ status: "renamed",
+    keptBranches: ["chore/source"] });
+  const current = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(current.links?.branches).toEqual([errand, { ...f.primary.links!.branches![0], ref: "feat/target" }]);
+  expect((await f.exec("git", ["rev-parse", "chore/source"])).stdout.trim()).toBe(before);
+  expect((await f.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("chore/source");
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/chore/source"])).stdout).toContain(before);
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toBe("");
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/target"])).stdout).toContain(before);
 }, 30_000);

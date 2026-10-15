@@ -8,7 +8,6 @@ import { sequenceLifecycleWrite } from "../sequence-lifecycle-write.js";
 import { findWorkUnitHoldingCheckout } from "./unshared-work.js";
 import { reconcileRenameLocalBranch, reconcileRenameRemoteBranch, readRemoteBranchOid, type RenameRemoteBranchResult } from "../rename-identity.js";
 import { SlugSchema } from "../../kernel/index.js";
-import { GitProcessError } from "../../git/process-error.js";
 import type { BranchLink } from "../../store/links.js";
 import type { LifecycleGitStep } from "../store-transition-types.js";
 import type { Store } from "../../store/contract.js";
@@ -45,7 +44,7 @@ async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; tar
   await ctx.onPreparedAdvisories?.(subject.advisories);
   const passive = subject.primary.placement?.kind !== "active";
   const holder = passive ? null : await findWorkUnitHoldingCheckout(ctx, subject.primary.reference.owner.name);
-  const branch = passive ? undefined : await branchRename(ctx, subject, target, holder);
+  const branch = passive ? undefined : await branchRename(ctx, subject, target);
   const state: RenameRuntime = { cwd: ctx.cwd };
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
@@ -75,15 +74,10 @@ async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubjec
   if (written.status === "refused") return { status: "rejected", reason: `${written.refusal.condition}${written.rollbackFailure === undefined ? "" : `; rollback failed: ${written.rollbackFailure}`}`, refusal: written.refusal };
   return undefined;
 }
-async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null): Promise<BranchRename | undefined> {
+async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string): Promise<BranchRename | undefined> {
   if ((subject.primary.links?.branches?.length ?? 0) === 0) return undefined;
   const repository = await ctx.projectId?.();
-  let currentBranch: string | null | undefined;
-  if (holder !== null) {
-    try { currentBranch = (await ctx.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: holder })).stdout.trim(); }
-    catch (error) { if (!(error instanceof GitProcessError && error.exitCode === 1)) throw error; }
-  }
-  const selected = selectWorkBranchLink(subject.primary, { repository, currentBranch });
+  const selected = selectWorkBranchLink(subject.primary, { repository });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);
   if (selected.kind === "none") return undefined;
   const name = subject.resuming ? target : subject.originName, actual = workBranchName(selected.link.ref);
