@@ -734,6 +734,7 @@ describe("reconcileWorkUnitWorktree — teardown", () => {
   const clearSelection = (path: string) => ({
     kind: "clear" as const,
     checkout: {
+      folderPresent: true,
       path,
       head: "2".repeat(40),
       branch: "feat/demo",

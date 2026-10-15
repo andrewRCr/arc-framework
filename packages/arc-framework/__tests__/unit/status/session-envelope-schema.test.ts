@@ -16,7 +16,7 @@ function fixture(name: string): Record<string, unknown> {
   const value = JSON.parse(producerCompatible) as Record<string, unknown>;
   const derivedRow = {
     kind: "free-primary",
-    checkout: { path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
+    checkout: { folderPresent: true, path: "/redacted/primary", primary: true, head: "a".repeat(40), branch: "main", detached: false },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, lifecycleLocation: null,
     subject: null,
     context: null,

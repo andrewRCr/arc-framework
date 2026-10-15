@@ -13,6 +13,7 @@
 - [Sources of the ref-backend contracts](#sources-of-the-ref-backend-contracts)
 - [Calibration and evidence](#calibration-and-evidence)
 - [Obligations tracked elsewhere](#obligations-tracked-elsewhere)
+- [Registered folder presence completion coverage](#registered-folder-presence-completion-coverage)
 
 ## Consumer-map re-verification
 
@@ -269,5 +270,61 @@ Other work units' records hold these; each is named here only to find it.
   consuming side of § 4.3's actions.
 - **`USER-INBOX § Errand`:** "Make the routing method route out of a work unit past planning by default" (§ 7.8, and
   § 16's routing-method arms).
+
+## Registered folder presence completion coverage
+
+Task 1.4 - `tasks-seam-locus.md` implements spec § 1.4, item 2 of `spec-seam-locus.md`.
+`scanRegisteredWorktrees` observes each registered path once. A missing path reads absent; other observation failures
+retain presence. The shared topology schema requires `folderPresent`, and derived rows preserve it.
+
+These tests change for this observable item; paths are relative to `packages/arc-framework/__tests__/`. The scanner
+and derived-row tests exercise the new behavior, the locus E2E exercises its actual wire output, and other changes
+add the required field to topology fixtures.
+
+- `e2e/locus-folder-presence.e2e.test.ts`
+- `integration/recovery-locus.test.ts`
+- `integration/status.test.ts`
+- `unit/compaction-seed/emitter.test.ts`
+- `unit/errand/open-resume.test.ts`
+- `unit/errand/partial-settle-runtime.test.ts`
+- `unit/errand/terminal-authority.test.ts`
+- `unit/errand/terminal-occupancy.test.ts`
+- `unit/git/worktree-roster-folder.test.ts`
+- `unit/git/worktree-roster.test.ts`
+- `unit/handlers/locus.test.ts`
+- `unit/handlers/status-locus.test.ts`
+- `unit/handoff/locus-plan.test.ts`
+- `unit/locus/allocator.test.ts`
+- `unit/locus/derived-evidence.test.ts`
+- `unit/locus/derived-reader.test.ts`
+- `unit/locus/derived-roster.test.ts`
+- `unit/locus/provisioning.test.ts`
+- `unit/locus/role-authority-boundary.test.ts`
+- `unit/locus/session-guidance.test.ts`
+- `unit/recover/audit.test.ts`
+- `unit/recover/locus-context.test.ts`
+- `unit/scripts/integration/errand-merge-composition.test.ts`
+- `unit/scripts/review-gate/hosted/errand-authority.test.ts`
+- `unit/session-init/lifecycle-residue-sweep.test.ts`
+- `unit/session-init/locus-classification.test.ts`
+- `unit/session-init/stale-worktree-sweep.test.ts`
+- `unit/status/run.test.ts`
+- `unit/status/session-envelope-schema.test.ts`
+- `unit/work-unit/mutators/reconcile-work-unit-worktree.test.ts`
+- `unit/work-unit/teardown-selection.test.ts`
+- `unit/work-unit/verbs/teardown.test.ts`
+
+The session-envelope compatibility scenarios add only `folderPresent` on registered checkout records in these
+fixtures under `packages/arc-framework/__tests__/fixtures/session-envelope/`:
+
+- `recovery-audit-dirty-path-drift.json`
+- `recovery-audit-ready.json`
+- `session-init-active-resume.json`
+- `session-init-branch-gone.json`
+- `session-init-current-husk.json`
+- `session-init-orient.json`
+
+The unchanged `integration/rename-worktree-composition.test.ts` exercises the whole-record comparisons across an
+actual checkout move, with presence retained in both snapshots.
 
 ---

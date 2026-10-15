@@ -139,6 +139,7 @@ function baseOptions(overrides: Partial<ReaderOptions> = {}) {
     topology: {
       ok: true as const,
       worktrees: [{
+        folderPresent: true,
         path,
         head: "a".repeat(40),
         branch: "feat/demo",
@@ -202,8 +203,8 @@ describe("dormant derived roster reader", () => {
         topology: {
           ok: true,
           worktrees: [
-            { path: entering, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
-            { path: sibling, head: "b".repeat(40), branch: "feat/sibling", detached: false, primary: false },
+            { folderPresent: true, path: entering, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+            { folderPresent: true, path: sibling, head: "b".repeat(40), branch: "feat/sibling", detached: false, primary: false },
           ],
         },
         checkouts: [wuEvidence(entering), wuEvidence(sibling, "sibling")],
@@ -241,8 +242,8 @@ describe("dormant derived roster reader", () => {
         topology: {
           ok: true,
           worktrees: [
-            { path: origin, head: "a".repeat(40), branch: null, detached: true, primary: false },
-            { path: carrier, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+            { folderPresent: true, path: origin, head: "a".repeat(40), branch: null, detached: true, primary: false },
+            { folderPresent: true, path: carrier, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
           ],
         },
         checkouts: [
@@ -387,7 +388,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -435,7 +436,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [wuEvidence("/repo/demo"), wuEvidence(badPath, "bad")],
@@ -477,7 +478,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           healthy.topology.worktrees[0]!,
-          { path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
+          { folderPresent: true, path: badPath, head: "b".repeat(40), branch: "feat/bad", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -509,7 +510,7 @@ describe("dormant derived roster reader", () => {
         ok: true,
         worktrees: [
           baseOptions().topology.worktrees[0]!,
-          { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
+          { folderPresent: true, path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
         ],
       },
       checkouts: [
@@ -551,7 +552,7 @@ describe("dormant derived roster reader", () => {
       topology: {
         ok: true,
         worktrees: [
-          { path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
+          { folderPresent: true, path, head: "b".repeat(40), branch: "chore/repair", detached: false, primary: false },
         ],
       },
       checkouts: [{

@@ -37,6 +37,7 @@ function rowFor(
 ): DerivedCheckoutRow {
   const base = {
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "1".repeat(40),
       branch: "main",

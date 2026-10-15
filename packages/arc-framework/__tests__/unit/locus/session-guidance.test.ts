@@ -13,6 +13,7 @@ function primaryFrame(kind: "free-primary" | "unresolved-checkout"): DerivedLocu
   const row = {
     kind,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",

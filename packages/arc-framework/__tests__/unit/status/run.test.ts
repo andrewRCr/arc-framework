@@ -376,6 +376,7 @@ function derivedFrameFromActive(
     const row = {
       kind: "free-primary" as const,
       checkout: {
+        folderPresent: true,
         path: "/repo",
         head: "a".repeat(40),
         branch: "main",
@@ -433,6 +434,7 @@ function derivedFrameFromActive(
   const row = {
     kind: "work-unit" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: `feat/${key}`,

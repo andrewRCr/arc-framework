@@ -32,7 +32,7 @@ const TASK_CURSOR = {
 function baseRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
     kind: "free-primary",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -49,6 +49,7 @@ function workUnit(path = "/repo-wu"): DerivedCheckoutRow {
   return baseRow({
     kind: "work-unit",
     checkout: {
+      folderPresent: true,
       path,
       head: "b".repeat(40),
       branch: "fix/demo",
@@ -82,6 +83,7 @@ function transient(options: {
   return baseRow({
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: "/repo-child",
       head: "c".repeat(40),
       branch: "errand/demo",
@@ -207,7 +209,7 @@ describe("deriveRecoveryLocusContext", () => {
   it("ignores an arbitrary malformed sibling while recovering the entering work unit", () => {
     const malformed = baseRow({
       kind: "unresolved-checkout",
-      checkout: { path: "/repo-bad", head: "f".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/repo-bad", head: "f".repeat(40), branch: null, detached: true, primary: false },
       diagnostics: [{ code: "marker-unreadable", message: "bad sibling" }],
     });
     expect(derive(frame(workUnit(), [malformed])).frame).toMatchObject({
@@ -259,6 +261,7 @@ describe("deriveRecoveryLocusContext", () => {
     const unresolved = baseRow({
       kind: "unresolved-checkout",
       checkout: {
+        folderPresent: true,
         path: "/repo-child",
         head: "c".repeat(40),
         branch: "errand/demo",

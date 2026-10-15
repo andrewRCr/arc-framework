@@ -92,6 +92,7 @@ function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFra
   const row = {
     kind: "transient" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "errand/compaction-recovery",
@@ -145,6 +146,7 @@ function derivedWorkUnitFrame(options: {
   const row = {
     kind: "work-unit" as const,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "feat/compaction-recovery",

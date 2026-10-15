@@ -11,9 +11,11 @@ import type {
   ActiveMetaEvidence,
   DormantMarkerGenerationEvidence,
 } from "../../../src/lib/locus/derived-lifecycle-evidence.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import { projectDerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 
 const checkout: RegisteredWorktree = {
+  folderPresent: true,
   path: "/repo/demo",
   head: "a".repeat(40),
   branch: "feat/demo",
@@ -265,4 +267,11 @@ describe("dormant derived checkout rows", () => {
       primarySafety: { kind: "complete", clean: false, onBase: true },
     })).toMatchObject({ kind: "unresolved-checkout" });
   });
+});
+
+
+it("preserves missing-folder evidence on a schema-valid derived checkout row", () => {
+  const row = project({ checkout: { ...checkout, folderPresent: false } });
+  expect(row.checkout.folderPresent).toBe(false);
+  expect(DerivedCheckoutRowSchema.safeParse(row).success).toBe(true);
 });

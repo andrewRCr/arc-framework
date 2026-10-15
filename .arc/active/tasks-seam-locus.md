@@ -119,25 +119,16 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   `unit/status/run-dormant-slots.test.ts`. The active-resume, branch-gone, current-husk, and orient session-init goldens
   add only the eligible empty slots; all other golden values retain their bytes.
 
-### `[ ]` **1.4 Read each registration's folder once per scan — § 2.1**
+### `[x]` **1.4 Read each registration's folder once per scan — § 2.1**
 
 - _Goal:_ The registered-worktree scan carries whether each registration's folder is present, the derived roster's rows
   carry it, and session-init's readers that select or offer by a folder take it from those rows.
 
-    - `scanRegisteredWorktrees` (`lib/git/worktree-roster.ts`) adds `folderPresent` to each `RegisteredWorktree`, from
-      one `lstat` of its path: a missing path reads `false`, and any other failure reads present.
-    - The derived roster (`lib/locus/derived-roster.ts`, through `lib/locus/derived-evidence.ts`) carries it on each
-      row, and the derived frame's full schema (Task 1.1.b) admits it on each row, so it shows in `derivedLocusState`
-      and `arc locus --json`.
-    - The rename transaction's whole-record comparisons (`rename-worktree-transaction.ts`) keep holding, both reads
-      observing the same folder; the scan's other callers ignore the field.
-    - Git's `prunable` annotation is not read for this: it marks only an unlocked registration, and marks one whose
-      folder is present but no longer linked.
-
-    - Build `test-first` (one behavior at a time):
-        - a registration whose folder was deleted reads `folderPresent: false`, and a present one `true`
-        - a read failing with anything but a missing path reads present
-        - the derived row carries the field, and `derivedLocusState` parses under the rebuilt schema
+- _Outcome:_ Each registered checkout carries required `folderPresent` from one `lstat`; missing paths read absent and
+  other failures retain presence. Derived rows and locus/session JSON preserve it. Rename's whole-record comparisons
+  retain the field across the move. Spec § 1.4, item 2 adds `unit/git/worktree-roster-folder.test.ts` and
+  `e2e/locus-folder-presence.e2e.test.ts`; all changed tests and golden fixtures are enumerated in the completion notes
+  in `notes-seam-locus.md`. Golden values change only by the registered checkouts' folder fields.
 
 ### `[ ]` **1.5 Take the removal check's outcomes in the sweeps, recovery, and `arc errand leave` — § 12.1**
 

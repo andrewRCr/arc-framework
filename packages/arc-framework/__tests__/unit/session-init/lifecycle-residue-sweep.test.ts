@@ -18,6 +18,7 @@ const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
 function registered(overrides: Partial<RegisteredWorktree> = {}): RegisteredWorktree {
   return {
+    folderPresent: true,
     path: "/wt/project.old-name",
     head: HEAD,
     branch: "feat/new-name",

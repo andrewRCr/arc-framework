@@ -646,11 +646,11 @@ describe("scanRegisteredWorktrees", () => {
       },
     });
 
-    expect(await scanRegisteredWorktrees(exec)).toEqual({
+    expect(await scanRegisteredWorktrees(exec, () => Promise.resolve({}))).toEqual({
       ok: true,
       worktrees: [
-        { path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
-        { path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
+        { folderPresent: true, path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
+        { folderPresent: true, path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
       ],
     });
 

@@ -34,6 +34,7 @@ describe("checkout role authority boundary", () => {
 
   it("constructs fresh narrow projections instead of forwarding a RegisteredWorktree", () => {
     const checkout: RegisteredWorktree = {
+      folderPresent: true,
       path: "/repo/widget",
       primary: false,
       branch: "feat/widget",

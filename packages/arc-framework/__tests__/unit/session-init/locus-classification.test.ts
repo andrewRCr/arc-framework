@@ -59,7 +59,7 @@ describe("derived cleanup classification", () => {
 
 function baseRow(path: string, branch: string | null) {
   return {
-    checkout: { path, head: "a".repeat(40), branch, detached: branch === null, primary: false },
+    checkout: { folderPresent: true, path, head: "a".repeat(40), branch, detached: branch === null, primary: false },
     markerGeneration: `sha256:${"b".repeat(64)}`,
     parentCheckoutPath: null,
     origin: null,

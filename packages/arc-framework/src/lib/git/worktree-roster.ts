@@ -10,6 +10,8 @@
  * @module
  */
 
+import { lstat } from "node:fs/promises";
+
 import { validateState } from "../kernel/schema/vocabulary.js";
 import { z } from "zod";
 import { WorkUnitStateSchema } from "../kernel/index.js";
@@ -70,7 +72,7 @@ export type WorktreeRosterResult = z.infer<typeof WorktreeRosterResultSchema>;
 /** Registered worktree topology without meta or lifecycle resolution. */
 export const RegisteredWorktreeSchema = z.strictObject({
   path: z.string(), head: z.string(), branch: z.string().nullable(),
-  detached: z.boolean(), primary: z.boolean(),
+  detached: z.boolean(), primary: z.boolean(), folderPresent: z.boolean(),
 });
 /** Registered topology inferred from its runtime wire contract. */
 export type RegisteredWorktree = z.infer<typeof RegisteredWorktreeSchema>;
@@ -220,13 +222,20 @@ export async function resolveWorktreePathsByBranchResult(
   return { ok: true, paths: byBranch };
 }
 
+type FolderStat = (path: string) => Promise<unknown>;
+
 /**
- * Read Git's registered worktree topology without resolving managed metadata.
+ * Read registered topology and observe each registration's physical folder once.
  *
+ * Missing paths read absent; other observation failures retain presence.
  * @param exec - Injectable command executor (local only — no remote)
+ * @param lstatPath - Folder observation boundary, defaulting to Node lstat
  * @returns A bounded topology snapshot or an explicit read/parse failure
  */
-export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
+export async function scanRegisteredWorktrees(
+  exec: GitExec,
+  lstatPath: FolderStat = lstat,
+): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
@@ -241,14 +250,25 @@ export async function scanRegisteredWorktrees(exec: GitExec): Promise<Registered
 
   return {
     ok: true,
-    worktrees: worktrees.map((worktree, index) => ({
+    worktrees: await Promise.all(worktrees.map(async (worktree, index) => ({
       path: worktree.path,
       head: worktree.head as string,
       branch: worktree.branch,
       detached: worktree.detached,
       primary: index === 0,
-    })),
+      folderPresent: await registeredFolderPresent(worktree.path, lstatPath),
+    }))),
   };
+}
+
+async function registeredFolderPresent(path: string, lstatPath: FolderStat): Promise<boolean> {
+  try {
+    await lstatPath(path);
+    return true;
+  } catch (error) {
+    if (typeof error !== "object" || error === null || !("code" in error)) return true;
+    return error.code !== "ENOENT" && error.code !== "ENOTDIR";
+  }
 }
 
 interface EntryResolution {

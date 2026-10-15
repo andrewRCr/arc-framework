@@ -275,6 +275,7 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: retainedPath,
           head: "1111111111111111111111111111111111111111",
           branch: "feat/work-organization-reform",
@@ -466,8 +467,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/moved", head: "moved", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/moved", head: "moved", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -525,6 +526,7 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: "/wt/project.old-name",
           head,
           branch: "feat/new-name",
@@ -557,7 +559,7 @@ describe("runStaleWorktreeSweep", () => {
       readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/dirty", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/dirty", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -578,8 +580,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/recordless", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/errand", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/recordless", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/errand", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -629,7 +631,7 @@ describe("runStaleWorktreeSweep", () => {
       revalidateEvidence,
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -671,7 +673,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -702,7 +704,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -734,7 +736,7 @@ describe("runStaleWorktreeSweep", () => {
       },
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     });
 
@@ -755,7 +757,7 @@ describe("runStaleWorktreeSweep", () => {
       ),
       scanWorktrees: async () => ({
         ok: true as const,
-        worktrees: [{ path: "/wt/other", head: "stamped", branch: null, detached: true, primary: false }],
+        worktrees: [{ folderPresent: true, path: "/wt/other", head: "stamped", branch: null, detached: true, primary: false }],
       }),
     };
 
@@ -780,8 +782,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/absent", head: "one", branch: null, detached: true, primary: false },
-          { path: "/wt/malformed", head: "two", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/absent", head: "one", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/malformed", head: "two", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -802,8 +804,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/unreadable", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/readable", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/unreadable", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/readable", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -844,8 +846,8 @@ describe("runStaleWorktreeSweep", () => {
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [
-          { path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
-          { path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
+          { folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
         ],
       }),
     });
@@ -872,7 +874,7 @@ describe("runStaleWorktreeSweep", () => {
   it("scans eligible linked worktree residues without an identity in solo mode", async () => {
     const scanWorktrees = vi.fn(async () => ({
       ok: true as const,
-      worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      worktrees: [{ folderPresent: true, path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
     }));
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] },
@@ -899,6 +901,7 @@ function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
   return {
     kind: "work-unit",
     checkout: {
+      folderPresent: true,
       path,
       head: "a".repeat(40),
       branch: `feat/${name}`,
@@ -935,7 +938,7 @@ describe("husk session actions", () => {
       baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
       readMarker: async () => stampedMarker(subject),
       scanWorktrees: async () => ({ ok: true, worktrees: [
-        { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+        { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
       ] }),
       baseEvidence: { remoteSyncEnabled: true,
         snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
@@ -956,7 +959,7 @@ describe("husk session actions", () => {
       roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
       baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
       scanWorktrees: async () => ({ ok: true, worktrees: [
-        { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+        { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
       ] }),
     });
     expect(result.worktrees[0]).toMatchObject({ stamp: { kind: "manual-only" }, actions: [{ text: expect.stringContaining("/wt/husk") }] });

@@ -145,7 +145,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
 function workUnitRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedCheckoutRow {
   return {
     kind: "work-unit",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
     markerGeneration: null,
     parentCheckoutPath: null,
     origin: null,
@@ -173,7 +173,7 @@ function workUnitRow(overrides: Partial<DerivedCheckoutRow> = {}): DerivedChecko
 function transientRow(parentCheckoutPath: string): DerivedCheckoutRow {
   return {
     kind: "transient",
-    checkout: { path: "/repo", head: "a".repeat(40), branch: "chore/recover", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "chore/recover", detached: false, primary: true },
     markerGeneration: `sha256:${"d".repeat(64)}`,
     parentCheckoutPath,
     origin: null,
@@ -350,7 +350,7 @@ function publicIntegrationToTaskOptions(input: {
   const freshCursor = resolveTaskListCursor(freshContent);
   if (freshCursor.status !== "found") throw new Error("expected an appended correction cursor");
   const row = workUnitRow({
-    checkout: { path: checkoutPath, head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: checkoutPath, head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     subject: { kind: "work-unit", key: freshWorkUnit },
     context: {
       ...workUnitRow().context!,
@@ -411,7 +411,7 @@ function integrationTaskProgressionOptions(input: {
   if (seedCursor.status !== "found") throw new Error("expected a seed correction cursor");
   if (freshCursor.status === "malformed") throw new Error("expected a valid fresh task list");
   const row = workUnitRow({
-    checkout: { path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     context: {
       ...workUnitRow().context!,
       sessionType: "integration",
@@ -508,7 +508,7 @@ function verificationToPublicOptions(input: {
         },
       });
   const row = workUnitRow({
-    checkout: { path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     context: {
       ...workUnitRow().context!,
       sessionType: "integration",
@@ -559,7 +559,7 @@ describe("auditRecoveryState", () => {
 
   it("stops when the entering checkout differs from the seed", async () => {
     const row = workUnitRow({
-      checkout: { path: "/other", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
+      checkout: { folderPresent: true, path: "/other", head: "a".repeat(40), branch: "fix/demo", detached: false, primary: true },
     });
     const frame = derivedFrame({ roster: [row], entering: { kind: "selected", row } });
     const result = await run({
@@ -650,7 +650,7 @@ describe("auditRecoveryState", () => {
     const healthy = workUnitRow();
     const malformed = workUnitRow({
       kind: "unresolved-checkout",
-      checkout: { path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
+      checkout: { folderPresent: true, path: "/bad", head: "e".repeat(40), branch: null, detached: true, primary: false },
       context: null,
       diagnostics: [{ code: "marker-unreadable", message: "bad sibling" }],
       subject: null,

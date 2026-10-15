@@ -269,6 +269,7 @@ function installStatefulPrimaryProjection(
   ctx.scanWorktrees = async () => ({
     ok: true,
     worktrees: [{
+      folderPresent: true,
       path: CWD,
       head: primaryBranch === "plan/demo" ? "abc" : "deadbeef",
       branch: primaryBranch,
@@ -369,6 +370,7 @@ function selection(
   return {
     kind: "clear",
     checkout: {
+      folderPresent: true,
       path: checkoutPath,
       head: checkoutPath === "/repo" ? "abc" : "def",
       branch: checkoutPath === "/repo" ? "main" : "feat/demo",

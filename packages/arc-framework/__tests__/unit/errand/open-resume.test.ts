@@ -176,7 +176,7 @@ function resumeFixture(record: OrdinaryErrandRecord) {
   let provisioned = false;
   const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
     kind: "free-primary", subject: null,
-    checkout: { path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
     lifecycleLocation: null, diagnostics: [],
   };
@@ -319,7 +319,7 @@ function newOpenFixture() {
   let provisioned = false;
   const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
     kind: "free-primary", subject: null,
-    checkout: { path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+    checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
     lifecycleLocation: null, diagnostics: [],
   };

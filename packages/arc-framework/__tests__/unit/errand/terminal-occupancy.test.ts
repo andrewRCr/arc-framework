@@ -17,6 +17,7 @@ function row(primary = false): DerivedCheckoutRow {
   return {
     kind: "transient",
     checkout: {
+      folderPresent: true,
       path: primary ? "/repo" : "/repo/repair",
       head: HEAD,
       branch: "chore/repair",

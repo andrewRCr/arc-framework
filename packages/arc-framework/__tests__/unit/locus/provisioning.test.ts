@@ -94,6 +94,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       return {
         ok: true,
         worktrees: [{
+          folderPresent: true,
           path: WORKTREE_PATH,
           head: HEAD,
           branch: BRANCH,
@@ -300,7 +301,7 @@ describe("provisionTransientLocus", () => {
     const test = harness({
       scanWorktrees: async () => ({
         ok: true,
-        worktrees: [{ path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
+        worktrees: [{ folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true }],
       }),
     });
 

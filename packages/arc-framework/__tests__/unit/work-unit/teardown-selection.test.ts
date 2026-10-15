@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/work-unit/teardown-selection.js";
 
 const checkout = {
+  folderPresent: true,
   path: "/repo-wt",
   head: "b".repeat(40),
   branch: "feat/demo",

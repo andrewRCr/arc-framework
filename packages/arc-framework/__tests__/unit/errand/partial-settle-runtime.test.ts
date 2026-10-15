@@ -10,6 +10,7 @@ function primaryRow(kind: "free-primary" | "unresolved-checkout" = "free-primary
   return {
     kind,
     checkout: {
+      folderPresent: true,
       path: "/repo",
       head: "a".repeat(40),
       branch: "main",
@@ -45,6 +46,7 @@ function unresolvedSibling(): DerivedCheckoutRow {
   return {
     ...primaryRow("unresolved-checkout"),
     checkout: {
+      folderPresent: true,
       path: "/repo/sibling",
       head: "b".repeat(40),
       branch: "chore/other",
