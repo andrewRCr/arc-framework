@@ -358,7 +358,9 @@ async function parkPlanning(
 
   {
     if (ctx.removal === undefined) return { status: "rejected", reason: "checkout removal check is not wired." };
-    const removal = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: ctx.executor.cwd });
+    const removalOptions = ctx.removal;
+    const removal = await checkRetiringCheckout({ ...removalOptions, checkoutPath: ctx.executor.cwd,
+      exec: (command, args, options) => removalOptions.exec(command, args, { cwd: ctx.executor.cwd, ...options }) });
     if (removal.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal) };
   }
 

@@ -751,6 +751,20 @@ describe("park / resume reject a non-slug name", () => {
 });
 
 describe("Planning park removal preflight", () => {
+  it("observes operator locks in the selected repository and parks after unlock", async () => {
+    const { ctx, calls, writes } = buildCtx([PLANNING]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] === "worktree" && options?.cwd === ctx.executor.cwd
+        ? `worktree ${ctx.executor.cwd}\0HEAD ${"a".repeat(40)}\0branch refs/heads/plan/foo\0${locked ? "locked operator\0" : ""}\0` : "" }) };
+    expect(await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) }))
+      .toMatchObject({ status: "rejected", reason: expect.stringContaining("operator") });
+    expect(writes).toEqual([]);
+    expect(calls.some((call) => call.startsWith("relocate:") || call.startsWith("retirement:stage"))).toBe(false);
+    locked = false;
+    expect(await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) })).toMatchObject({ status: "parked" });
+  });
+
   it("refuses dirty work before relocating or staging", async () => {
     const { ctx, calls, writes, removals } = buildCtx([PLANNING]);
     ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
