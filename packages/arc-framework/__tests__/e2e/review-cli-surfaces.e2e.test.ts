@@ -64,6 +64,19 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("settle");
   });
 
+  it("names the full SHAs planning-lane needs in its help and its refusal", async () => {
+    const [help, refusal] = await Promise.all([
+      runCli(["review", "planning-lane", "--help"], { cwd: fixtureRoot }),
+      runCli(["review", "planning-lane", "origin/main", "b".repeat(40)], { cwd: fixtureRoot }),
+    ]);
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toMatch(/^\s+base\s+Full base commit SHA, 40 or 64 hex characters$/mu);
+    expect(help.stdout).toMatch(/^\s+head\s+Full head commit SHA, the same width as base$/mu);
+    expect(refusal.exitCode).toBe(64);
+    expect(refusal.stderr).toContain("git rev-parse <ref>");
+  });
+
   it.each([
     [["review", "changeset", "resolve"], "urn:arc:schema:review-chunking-resolve-request"],
     [["review", "planning-grooming", "resolve"], "urn:arc:schema:review-planning-grooming-resolve-request"],

@@ -503,7 +503,16 @@ describe("handleReviewPlanningLane", () => {
     expect(output).toEqual(["planning\n"]);
   });
 
-  it("fails closed without invoking the classifier when syntax-owned input is invalid", async () => {
+  const operandRefusal = "planning-lane: <base> and <head> must be full commit SHAs of the same width (40 or "
+    + "64 hex characters); resolve a ref or short SHA with `git rev-parse <ref>`\n";
+
+  it.each([
+    ["a ref name", "origin/main", "b".repeat(40), {}, [operandRefusal]],
+    ["a short SHA", "a".repeat(40), "bbbbbbb", {}, [operandRefusal]],
+    ["object IDs of different widths", "a".repeat(40), "b".repeat(64), {}, [operandRefusal]],
+    ["an empty repository path", "a".repeat(40), "b".repeat(40), { repository: " " },
+      ["planning-lane: --repository must name a non-empty path\n"]],
+  ])("refuses %s with the operands it needs, without invoking the classifier", async (_case, base, head, options, expected) => {
     let classified = false;
     const classify = async (): Promise<"planning"> => {
       classified = true;
@@ -513,21 +522,16 @@ describe("handleReviewPlanningLane", () => {
     const errors: string[] = [];
     const exitCodes: number[] = [];
 
-    await handleReviewPlanningLane(
-      "not-a-sha",
-      "b".repeat(40),
-      {},
-      {
-        classify,
-        write: (text) => output.push(text),
-        writeError: (text) => errors.push(text),
-        setExitCode: (code) => exitCodes.push(code),
-      },
-    );
+    await handleReviewPlanningLane(base, head, options, {
+      classify,
+      write: (text) => output.push(text),
+      writeError: (text) => errors.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
 
     expect(classified).toBe(false);
     expect(output).toEqual([]);
-    expect(errors).toEqual(["planning-lane: invalid exact-change operands\n"]);
+    expect(errors).toEqual(expected);
     expect(exitCodes).toEqual([64]);
   });
 
