@@ -204,6 +204,57 @@ it.each(["write", "publication"])("retries standalone closeout after interrupted
     .toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
 });
 
+async function nestedCloseoutFixture() {
+  const left = createLifecycleHarness(), right = createLifecycleHarness(), remote = createMemoryRemote();
+  const cohort = (name: string, parent?: string) => left.seed(
+    recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })),
+    `# Cohort: ${name}\n\n**Purpose:** Deliver the group.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`,
+  );
+  const parent = await cohort("parent");
+  await cohort("leaf", "parent"); await cohort("sibling", "parent");
+  await left.seedMeta("alpha", { cohort: "parent/leaf" });
+  const beta = await left.seedMeta("beta", { cohort: "parent/leaf" });
+  await left.seedMeta("gamma", { cohort: "parent/sibling" });
+  left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
+  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
+  return { left, right, remote, parent, beta };
+}
+
+it.each(["none", "write", "publication"])("settles parent eligibility learned during closeout sync, interruption=%s", async (stage) => {
+  const h = await nestedCloseoutFixture(); let syncs = 0, interrupted = false;
+  const store: Store = new Proxy(h.right.store, { get(target, key) {
+    if (key === "sync") return async () => {
+      if (++syncs === 2) expect(await archive(h.left.store, "gamma")).toMatchObject({ status: "archived" });
+      return target.sync();
+    };
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      const parentCloseout = input.writes.some((write) => write.reference.kind === "cohort/document"
+        && write.reference.owner.name === "parent" && write.action === "put" && write.placement?.kind === "completed");
+      if (parentCloseout && stage !== "none" && !interrupted) {
+        interrupted = true;
+        if (stage === "write") throw new Error("Parent closeout unavailable");
+        const result = await target.batch(input); h.remote.condition = "down"; return result;
+      }
+      return target.batch(input);
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const first = await archive(store, "beta");
+  if (stage === "none") expect(first).toMatchObject({ status: "archived", nestedParentSwept: expect.stringContaining("05b_cohort-parent") });
+  else expect(first).toMatchObject({ status: "rejected", persisted: true, remedy: { argv: ["arc", "archive", "beta"] } });
+  const member = lifecycleSuccess(await h.right.store.read({ reference: h.beta.reference }));
+  const history = lifecycleSuccess(await h.right.store.history({ reference: member.reference }));
+  h.remote.condition = "available";
+  expect(await archive(store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" },
+    nestedParentSwept: expect.stringContaining("05b_cohort-parent") });
+  expect(lifecycleSuccess(await h.right.store.read({ reference: member.reference }))).toEqual(member);
+  expect(lifecycleSuccess(await h.right.store.history({ reference: member.reference }))).toEqual(history);
+  lifecycleSuccess(await h.left.store.sync());
+  expect(lifecycleSuccess(await h.left.store.read({ reference: h.parent.reference })).placement)
+    .toMatchObject({ kind: "completed", sequence: "05", closeout: "b" });
+});
+
 
 it.each([false, true])("archives the final member while an empty open child retains its parent, nested=%s", async (nested) => {
   const h = await groupFixture(nested);

@@ -914,6 +914,11 @@ repositories.
 - _Success criteria:_ All 16 criteria met, with provider and verification-boundary annotations. The four advisory passes
   are complete; the final minor sharing-selection finding is fixed and verified, and the advisory loop is closed.
 
+- _Review-fix addendum (A5):_ The preceding outcome records Task 8.1's original 16-item checklist. The amended spec
+  has 17 numbered criteria. A5's archive-closeout criterion is tracked below. Corrective verification now covers
+  parent eligibility learned during closeout publication, interrupted parent writes and publication, and successful
+  completed-subject retry without changing the member record or its assigned number. All 16 archive-store cases pass.
+
 ---
 
 ## Success Criteria
@@ -1000,3 +1005,9 @@ repositories.
 
 - `[x]` Off-branch rename leaves a nonempty legacy personal workspace and its notes state unchanged; a workspace
   conflict does not prevent the operational rename.
+
+- `[x]` Archive closeout distinguishes local and reconciled completion (A5, spec criterion 17): overlapping local
+  archives complete the final member and eligible cohorts in one batch with a shared sequence, or refuse without
+  that member write and succeed on fresh retry. Completion learned through sync receives a separate cohort closeout,
+  published before success. A completed-subject retry preserves the member's assigned number and avoids another
+  primary archive write after interrupted publication or closeout.

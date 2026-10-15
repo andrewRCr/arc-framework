@@ -57,21 +57,30 @@ async function settleStoredArchive(store: Store, primary: StoreRecord, outcome: 
   try {
     const publication = await publishArchive(store, name);
     if (publication !== undefined) return publication;
-    const current = await store.read({ reference: primary.reference });
-    if (current.status === "refused") return reportFailure(name, current.refusal);
-    const meta = ParsedMetaRecordSchema.parse(current.result.fields), placement = current.result.placement;
-    if (placement?.kind !== "completed") throw new Error("The persisted archive no longer has completed placement.");
-    const view = await readLifecycleView(store);
-    if (view.status === "refused") return reportFailure(name, view.refusal);
-    requireCompleteInventory(store, view.result.listing);
-    const cohorts = await prepareArchiveCohorts(store, meta.cohort, view.result.index, placement.quarter, false);
-    if (cohorts.status === "rejected") return persistedFailure(name, cohorts.reason, cohorts.remedy, cohorts.refusal);
-    const closeout = await publishCohortCloseout(store, name, cohorts);
-    if (closeout !== undefined) return closeout;
-    const final = await store.read({ reference: primary.reference });
-    if (final.status === "refused") return reportFailure(name, final.refusal);
-    return await reportStoredArchive(store, final.result, outcome, cohortReferencesFor(meta.cohort));
+    for (;;) {
+      const plan = await prepareStoredCloseout(store, primary);
+      if (plan.status === "rejected") return plan;
+      if (plan.writes.length === 0) return await reportStoredArchive(store, plan.primary, outcome, cohortReferencesFor(plan.cohort));
+      const closeout = await publishCohortCloseout(store, name, plan);
+      if (closeout !== undefined) return closeout;
+    }
   } catch (error) { return persistedFailure(name, error instanceof Error ? error.message : String(error)); }
+}
+
+async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promise<
+  { status: "ready"; primary: StoreRecord; cohort: string | null; writes: Mutation[]; records: StoreRecord[] }
+  | Extract<ArchiveResult, { status: "rejected" }>> {
+  const name = primary.reference.owner.name;
+  const current = await store.read({ reference: primary.reference });
+  if (current.status === "refused") return reportFailure(name, current.refusal);
+  const meta = ParsedMetaRecordSchema.parse(current.result.fields), placement = current.result.placement;
+  if (placement?.kind !== "completed") throw new Error("The persisted archive no longer has completed placement.");
+  const view = await readLifecycleView(store);
+  if (view.status === "refused") return reportFailure(name, view.refusal);
+  requireCompleteInventory(store, view.result.listing);
+  const cohorts = await prepareArchiveCohorts(store, meta.cohort, view.result.index, placement.quarter, false);
+  return cohorts.status === "rejected" ? persistedFailure(name, cohorts.reason, cohorts.remedy, cohorts.refusal)
+    : { ...cohorts, primary: current.result, cohort: meta.cohort };
 }
 
 async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[] }): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
