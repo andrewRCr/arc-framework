@@ -264,3 +264,24 @@ it("a detached checkout follows the qualified-link repair and then closes succes
   expect(await runTaskClose(ctx, { ids: ["1.1.a"] })).toMatchObject({ status: "closed", captured: [sha] });
   expect((await links()).branches?.[0]?.ref).toBe("refs/heads/feat/demo");
 });
+
+
+it("rejects an annotated-tag object and captures the underlying commit on retry", async () => {
+  const work = await commit("tagged work\n");
+  await git(["tag", "-a", "evidence", "-m", "Evidence", work]);
+  const tag = await git(["rev-parse", "refs/tags/evidence"]);
+  expect(tag).not.toBe(work);
+  const reference = await meta();
+  const tasksReference = recordReferences["work-item/task-list"](reference.owner);
+  const beforeMeta = lifecycleSuccess(await records.store.read({ reference }));
+  const beforeTasks = lifecycleSuccess(await records.store.read({ reference: tasksReference }));
+  expect(await runTaskClose(ctx, { ids: ["1.1.a"], commits: [tag] }))
+    .toMatchObject({ status: "refused", reason: expect.stringContaining("not a commit") });
+  expect(lifecycleSuccess(await records.store.read({ reference }))).toEqual(beforeMeta);
+  expect(lifecycleSuccess(await records.store.read({ reference: tasksReference }))).toEqual(beforeTasks);
+  expect(await runTaskClose(ctx, { ids: ["1.1.a"], commits: [work] }))
+    .toMatchObject({ status: "closed", captured: [work] });
+  expect((await links()).taskCaptures?.["1.1.a"]?.map((capture) => capture.sha)).toEqual([work]);
+  expect(lifecycleSuccess(await records.store.read({ reference: tasksReference })).content)
+    .toContain("`[x]` **1.1.a Earlier**");
+});

@@ -119,6 +119,9 @@ async function explicitCommits(ctx: TaskVerbContext, requested: readonly string[
   for (const sha of commits) {
     if (!CommitShaSchema.safeParse(sha).success) return refuseTask(`Invalid commit SHA ${sha}.`, "Name a full commit SHA reachable from HEAD.");
     try {
+      const object = await ctx.exec("git", ["--no-replace-objects", "cat-file", "-t", sha], { cwd: ctx.cwd, objectAccess: "local-only" });
+      if (object.stdout.trim() !== "commit") return refuseTask(`Object ${sha} is not a commit.`,
+        "Name the full SHA of the underlying commit reachable from HEAD; tag, tree, and blob objects cannot be captured.");
       await ctx.exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", sha, "HEAD"], { cwd: ctx.cwd, objectAccess: "local-only" });
     } catch (error) {
       if (!(error instanceof GitProcessError && error.kind === "nonzero-exit" && (error.exitCode === 1 || error.exitCode === 128))) throw error;

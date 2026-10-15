@@ -13,7 +13,7 @@ function facade(store: Store): Store {
     list: (input) => store.list(input), write: (input) => store.write(input), batch: (input) => store.batch(input),
     version: () => store.version(), history: (input) => store.history(input), changes: (input) => store.changes(input), sync: () => store.sync() };
 }
-async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }) {
+async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit") {
   const { store, seedMeta, seed } = createLifecycleHarness();
   const meta = await seedMeta("demo", {}, { kind: "active" }, links);
   const taskRef = recordReferences["work-item/task-list"](meta.reference.owner);
@@ -23,6 +23,7 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
     { match: ["remote"], responses: [{ stdout: "" }] },
     { match: { prefix: ["--no-replace-objects", "rev-parse"] }, responses: [{ stdout: base }] },
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["--no-replace-objects", "cat-file", "-t"] }, responses: [{ stdout: `${objectType}\n` }] },
     { match: { prefix: ["--no-replace-objects", "merge-base"] }, responses: [{ stdout: "" }] },
   ]);
   const raw = scriptRawGitExec([
@@ -180,4 +181,14 @@ it("release precheck accepts an emptied precommit set for the new commit to foll
     { match: { prefix: ["--no-replace-objects", "rev-list"] }, responses: [{ stdout: first }, { stdout: "" }] },
   ]).exec;
   expect(await prepareTaskClose(h.ctx, {}, { precommit: true })).toMatchObject({ status: "prepared" });
+});
+
+
+it("refuses an explicit tag object before changing task marks or captures", async () => {
+  const h = await harness(tasks(), undefined, "tag");
+  const beforeTasks = await h.readTasks(), beforeMeta = await h.readMeta();
+  expect(await runTaskClose(h.ctx, { ids: ["1.1.a"], commits: [first] }))
+    .toMatchObject({ status: "refused", reason: expect.stringContaining("not a commit") });
+  expect(await h.readTasks()).toEqual(beforeTasks);
+  expect(await h.readMeta()).toEqual(beforeMeta);
 });
