@@ -1,4 +1,5 @@
 /** Recoverable physical operations around one atomic lifecycle record batch. */
+import { IncompleteWorktreePreparationError } from "./incomplete-worktree-preparation.js";
 import { quoteShellArgument } from "../release/commit-message-retry.js";
 import type { StoreResult, StoreRefusal } from "../store/refusal.js";
 import type { BatchResult } from "../store/write.js";
@@ -44,13 +45,18 @@ export async function sequenceLifecycleWrite(input: {
 }
 
 async function failedPreparation(error: unknown, steps: readonly LifecycleGitStep[]): Promise<LifecycleWriteSequence> {
-  const recovery = await rollback(steps);
+  const recovery = await rollback(steps, error instanceof IncompleteWorktreePreparationError ? error : undefined);
   return { status: "failed", reason: `${String(error)}${recovery === undefined ? "" : `; rollback failed: ${describeRecovery(recovery)}`}`,
     ...(recovery === undefined ? {} : { recovery }) };
 }
-async function rollback(steps: readonly LifecycleGitStep[]): Promise<LifecycleRollbackRecovery | undefined> {
+async function rollback(steps: readonly LifecycleGitStep[], incomplete?: IncompleteWorktreePreparationError): Promise<LifecycleRollbackRecovery | undefined> {
   const failures: { step: string; reason: string }[] = [];
   const retries = new Map<string, readonly string[]>();
+  if (incomplete !== undefined) {
+    const step = steps.at(-1);
+    failures.push({ step: step?.name ?? "checkout-preparation", reason: incomplete.recoveryReason });
+    if (step !== undefined) retries.set(JSON.stringify(step.retryCommand), [...step.retryCommand]);
+  }
   for (const step of [...steps].reverse()) {
     try { await step.rollback?.(); } catch (error) {
       failures.push({ step: step.name, reason: String(error) });

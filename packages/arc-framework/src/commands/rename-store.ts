@@ -17,10 +17,11 @@ import type { StoreRenameCheckoutReceipt, StoreRenameCheckoutRequest, StoreRenam
  */
 export function storeRenameAdapters(command: { cwd: string; io: UserIOContext }): Pick<StoreRenameContext, "renameCheckout"> {
   return {
-    renameCheckout: (request) => renameCheckout(command.io.exec, command.cwd, request),
+    renameCheckout: (request, onPrepared) => renameCheckout(command.io.exec, command.cwd, request, onPrepared),
   };
 }
-async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCheckoutRequest): Promise<StoreRenameCheckoutReceipt> {
+async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCheckoutRequest,
+  onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void): Promise<StoreRenameCheckoutReceipt> {
   let currentCwd = cwd;
   const git: GitExec = (command, args, options) => exec(command, args, { cwd: currentCwd, ...options });
   const original = await readWorktreeMarkerGeneration(request.checkoutPath);
@@ -46,14 +47,12 @@ async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCh
     sourceSlug: request.sourceSlug, targetSlug: request.targetSlug, expectedHead: head, expectedMarkerGeneration: digestBytes(original.bytes),
     renameMovePending: pending, ...(move === undefined ? {} : { move }) });
   if (outcome.kind === "refused" || outcome.kind === "unmanaged") throw new Error(`Checkout rename refused: ${outcome.kind === "refused" ? outcome.reason : "ownership unavailable"}.`);
-  const renamed = await readWorktreeMarkerGeneration(targetPath);
-  if (renamed.kind !== "present" || digestBytes(renamed.bytes) !== outcome.markerGeneration) throw new Error("Checkout marker changed after its rename transaction.");
-  return { report: { checkout: outcome, ...(worktree === undefined ? {} : { worktree }) },
+  const receipt: StoreRenameCheckoutReceipt = { report: { checkout: outcome, ...(worktree === undefined ? {} : { worktree }) },
     shape: original.marker.spawnedByArc && resolve(request.checkoutPath) !== resolve(primary ?? request.checkoutPath) ? "spawned" : "in-place",
     repositoryCwd: resolve(cwd) === resolve(request.checkoutPath) ? targetPath : cwd,
     rollback: async () => {
       const current = await readWorktreeMarkerGeneration(targetPath);
-      if (current.kind !== "present" || !current.bytes.equals(renamed.bytes)) throw new Error("Checkout marker changed before rename rollback.");
+      if (current.kind !== "present" || digestBytes(current.bytes) !== outcome.markerGeneration) throw new Error("Checkout marker changed before rename rollback.");
       const inverse = await driver.rename({ sourceCheckoutPath: targetPath, targetCheckoutPath: request.checkoutPath,
         sourceSlug: request.targetSlug, targetSlug: request.sourceSlug, expectedHead: head, expectedMarkerGeneration: outcome.markerGeneration,
         renameMovePending: null,
@@ -64,6 +63,10 @@ async function renameCheckout(exec: GitExec, cwd: string, request: StoreRenameCh
       const restored = await restoreWorktreeMarkerGeneration(request.checkoutPath, reverted.bytes, original.bytes);
       if (restored.kind !== "replaced") throw new Error("Checkout rename rollback lost the original marker generation.");
     } };
+  onPrepared?.(receipt);
+  const renamed = await readWorktreeMarkerGeneration(targetPath);
+  if (renamed.kind !== "present" || digestBytes(renamed.bytes) !== outcome.markerGeneration) throw new Error("Checkout marker changed after its rename transaction.");
+  return receipt;
 }
 function canMoveCheckout(spawned: boolean, checkout: string, primary: string | null, offset: number): boolean {
   return spawned && resolve(checkout) !== resolve(primary ?? checkout) && offset !== -1;

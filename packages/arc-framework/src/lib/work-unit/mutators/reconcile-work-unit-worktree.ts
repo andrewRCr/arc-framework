@@ -38,6 +38,7 @@
  * @module
  */
 
+import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
@@ -481,11 +482,7 @@ export async function reconcileWorkUnitWorktree(
     } catch (error) {
       const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);
       if (cleanupFailures.length === 0) throw error;
-      throw new AggregateError(
-        [error, ...cleanupFailures],
-        error instanceof Error ? error.message : String(error),
-        { cause: error },
-      );
+      throw new IncompleteWorktreePreparationError([worktreePath], cleanupFailures, error);
     }
   }
 

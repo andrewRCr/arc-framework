@@ -21,7 +21,7 @@ export interface StoreRenameCheckoutRequest { checkoutPath: string; sourceSlug: 
 /** Store and physical boundaries supplied by the production command adapter. */
 export interface StoreRenameContext {
   store: Store; cwd: string; exec: GitExec; baseBranch: string; projectId?: () => Promise<string>; locusPorts?: LocusPorts;
-  renameCheckout?: (request: StoreRenameCheckoutRequest) => Promise<StoreRenameCheckoutReceipt>;
+  renameCheckout?: (request: StoreRenameCheckoutRequest, onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void) => Promise<StoreRenameCheckoutReceipt>;
   onPreparedAdvisories?: (advisories: readonly string[]) => Promise<void>;
 }
 interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null }
@@ -100,7 +100,9 @@ function renameSteps(ctx: StoreRenameContext, subject: StoreRenameSubject, targe
     steps.push({ name: "checkout-rename", retryCommand,
       run: async () => {
         if (ctx.renameCheckout === undefined) throw new Error("The holding checkout's rename transaction is not bound.");
-        receipt = await ctx.renameCheckout({ checkoutPath: holder, sourceSlug: subject.originName, targetSlug: target }); remember(receipt);
+        receipt = await ctx.renameCheckout({ checkoutPath: holder, sourceSlug: subject.originName, targetSlug: target },
+          (prepared) => { receipt = prepared; remember(prepared); });
+        remember(receipt);
       }, rollback: async () => { await receipt?.rollback(); reset(); } });
   }
   return steps;

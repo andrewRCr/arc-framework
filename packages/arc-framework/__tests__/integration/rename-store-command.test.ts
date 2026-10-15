@@ -1,5 +1,7 @@
 /** Record rename composes the production marker, worktree and command adapters. */
 import { afterEach, expect, it } from "vitest";
+import { readFileSync, writeFileSync } from "node:fs";
+import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -191,3 +193,56 @@ it("renames the promoted work branch while retaining the holder's Errand link an
   expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toBe("");
   expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/target"])).stdout).toContain(before);
 }, 30_000);
+
+it("reports a failed inner checkout rollback before receipt return and retries after owner repair", async () => {
+  const f = await fixture(true), marker = await readFile(resolveWorktreeMarkerPath(f.checkout));
+  f.command.io.exec = async (command, args, options) => {
+    if (args[0] === "worktree" && args[1] === "move") {
+      if (args.at(-2) === f.checkout) {
+        await f.exec(command, args, options);
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "post-move failure" });
+      }
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "owner must repair blocked inverse move" });
+    }
+    return f.exec(command, args, options);
+  };
+  const params = { sourceSlug: "source", targetSlug: "target" };
+  const result = await runRenameCommand(f.command, params);
+  expect(result).toMatchObject({ status: "rejected", recovery: { kind: "rollback",
+    failures: [{ step: "checkout-rename", reason: expect.stringContaining("blocked inverse move") }],
+    inspect: [["arc", "locus", "--json"], ["git", "worktree", "list", "--porcelain"]],
+    repair: expect.stringMatching(/owner.*preserve/isu), retryAfterRepair: [["arc", "rename", "source", "target"]] } });
+  if (result.status !== "rejected") throw new Error("Expected rejected preparation");
+  expect(result.recovery?.failures[0]?.reason).toContain(f.target);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(await readWorktreeMarker(f.target)).toMatchObject({ kind: "present", marker: { wuName: "target" } });
+  await expect(readFile(resolveWorktreeMarkerPath(f.checkout))).rejects.toMatchObject({ code: "ENOENT" });
+  f.command.io.exec = f.exec;
+  await f.exec("git", ["worktree", "move", "-f", "-f", f.target, f.checkout]);
+  await writeFile(resolveWorktreeMarkerPath(f.checkout), marker);
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.owner.name).toBe("target");
+}, 30_000);
+
+it("retains compensation before the adapter's final marker observation and preserves a concurrent generation", async () => {
+  const f = await fixture(false), path = resolveWorktreeMarkerPath(f.checkout), original = await readFile(path);
+  const adapter = storeRenameAdapters(f.command).renameCheckout!;
+  let concurrent: Buffer | undefined;
+  const result = await runStoreRename({ store: f.store, cwd: f.root, exec: f.exec, baseBranch: "main", projectId: async () => "repo",
+    locusPorts: { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => f.checkout,
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) },
+    renameCheckout: (request, onPrepared) => adapter(request, (receipt) => {
+      onPrepared?.(receipt);
+      const marker = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      concurrent = Buffer.from(`${JSON.stringify({ ...marker, spawningIdentity: "another-user" })}\n`);
+      writeFileSync(path, concurrent);
+    }),
+  }, { sourceSlug: "source", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("marker changed"),
+    recovery: { kind: "rollback", failures: [{ step: "checkout-rename", reason: expect.stringContaining("marker changed") }],
+      retryAfterRepair: [["arc", "rename", "source", "target"]] } });
+  expect(await readFile(path)).toEqual(concurrent);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  await writeFile(path, original);
+  expect(await runRenameCommand(f.command, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+});

@@ -1,5 +1,6 @@
 /** Marker- and topology-bound transaction for renaming a work-unit checkout. */
 
+import { IncompleteWorktreePreparationError } from "./incomplete-worktree-preparation.js";
 import { isDeepStrictEqual } from "node:util";
 import { resolve } from "node:path";
 
@@ -270,10 +271,8 @@ async function rollbackAfterFailure(
   if (failures.length > 0) {
     const primary = cause === undefined ? failures[0] : normalizeError(cause);
     if (primary === undefined) return;
-    throw new AggregateError(
-      cause === undefined ? failures : [primary, ...failures],
-      primary.message,
-      { cause: primary },
+    throw new IncompleteWorktreePreparationError(
+      [request.sourceCheckoutPath, request.targetCheckoutPath], failures, cause,
     );
   }
 }

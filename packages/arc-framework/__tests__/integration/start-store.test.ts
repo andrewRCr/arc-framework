@@ -8,7 +8,8 @@ import { runGraduate, runCreateNew } from "../../src/commands/start.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
-import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { readWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { runActivate } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
@@ -111,4 +112,34 @@ it.each(["start", "materialize", "materialize-without-base-refs"])("activates fr
   expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(refreshed);
   expect(await readFile(join(h.path, "new-base"), "utf8")).toBe("new base content\n");
   if (placement !== "materialize-without-base-refs") expect((await exec("git", ["rev-parse", "refs/heads/main"])).stdout.trim()).toBe(h.base);
+}, timeout);
+
+it("retains failed spawn-cleanup evidence before occupation returns and graduates after owner repair", async () => {
+  const h = await fixture();
+  let concurrent: Buffer | undefined;
+  const exec: typeof h.exec = async (command, args, options) => {
+    if (command === "git" && args[0] === "worktree" && args[1] === "remove") {
+      await writeWorktreeOwnershipMarker(h.path, { createdByArc: true,
+        createdFor: { kind: "work-unit", name: "other" }, spawningIdentity: "other-owner" });
+      concurrent = await readFile(resolveWorktreeMarkerPath(h.path));
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "spawn cleanup blocked by owner" });
+    }
+    return h.exec(command, args, options);
+  };
+  const ctx = buildExecutorContext({ cwd: h.root, io: { ...h.io, exec }, store: h.store, projectId: async () => "repo",
+    identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+  const result = await runGraduate(ctx, { ...h.params, postCreateScript: "exit 7" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("post_create failed"),
+    recovery: { kind: "rollback", failures: [{ step: "occupy-planning-checkout", reason: expect.stringContaining("spawn cleanup blocked by owner") }],
+      inspect: [["arc", "locus", "--json"], ["git", "worktree", "list", "--porcelain"]],
+      repair: expect.stringMatching(/owner.*preserve/isu), retryAfterRepair: [["arc", "start", "demo"]] } });
+  if (result.status !== "rejected") throw new Error("Expected rejected preparation");
+  expect(result.recovery?.failures[0]?.reason).toContain(h.path);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.path);
+  expect(await readFile(resolveWorktreeMarkerPath(h.path))).toEqual(concurrent);
+  await h.exec("git", ["worktree", "remove", "--force", h.path]);
+  expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", worktreePath: h.path });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).placement).toMatchObject({ kind: "active" });
+  expect(await readWorktreeMarker(h.path)).toMatchObject({ kind: "present", marker: { wuName: "demo", spawningIdentity: "starter" } });
 }, timeout);
