@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Part 2 and the extension half of Part 4 superseded by ADR-038)
 
 ## Context
 

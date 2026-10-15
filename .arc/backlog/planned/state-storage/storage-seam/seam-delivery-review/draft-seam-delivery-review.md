@@ -236,6 +236,24 @@
 
 - _Drain note:_ `seam-locus` already took `handlers/review-locus-context.ts`, so it is not this member's to row.
 
+### `[ ]` **Read a task's captures as the branch commits they match, by SHA or copy key, each once**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-delivery-review`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Delivery and review records — `arc attest` and delivery's other readers of `taskCaptures`.
+
+- _Observation:_ from the flip `seam-lifecycle`'s close records a task's commits as captures that only grow: a
+  re-close after an amend adds the amended commit, and ARC's own rewrites add the new commit's entry beside the old,
+  so a task's captures can hold commits a rewrite replaced, which match nothing on a branch that took the rewrite
+  (`spec-seam-lifecycle.md` § 5.2, § 9.1). A reader that takes the entries themselves would count replaced commits, or
+  one commit twice. Its § 19 expects delivery and review's readers to take the branch's commits those captures match,
+  by SHA or copy key as the close matches, with keys from its one function (`lib/git/copy-key.ts`), each once.
+
+- _Approach:_ resolve a task's captures against the branch through the close's own matcher rather than reading the
+  entries.
+
+- _Captured during:_ `seam-lifecycle` generate-tasks, 2026-10-13, raised by the housekeep drain.
+
 ---
 
 ## Continuity

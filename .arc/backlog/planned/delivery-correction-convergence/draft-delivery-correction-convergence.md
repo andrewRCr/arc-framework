@@ -319,5 +319,5 @@ and each is a single `expectPinnedObservation` call to replace. They retire inde
 
 A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
 arrived either" has found behavior neither shape names. That is a finding, not a retirement. The recorded
-observations and the reasoning behind each awaited result are in
-`notes-concurrent-integration-characterization.md` § Characterization ledger.
+observations and the reasoning behind each awaited result are in `notes-concurrent-integration-characterization.md` §
+Characterization ledger.

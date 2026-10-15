@@ -198,7 +198,6 @@ describe("decompose workflow contract", () => {
     const fullControls = [
       "`commit-interlock`",
       "`workflowCommit`",
-      "`#pre-push-review`",
       "`push-interlock`",
       "`workflowPush`",
       "PR status",

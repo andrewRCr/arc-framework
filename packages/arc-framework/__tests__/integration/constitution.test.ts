@@ -139,7 +139,7 @@ describe("runDomainRulesSessionInitStatus", () => {
     expect(result.rules.map((r) => r.domain)).toEqual(["frontend"]);
   });
 
-  it("propagates missing-directory errors (matches extensions probe precedent)", async () => {
+  it("propagates missing-directory errors", async () => {
     await rm(fixture.dir, { recursive: true });
     await expect(runDomainRulesSessionInitStatus({ cwd: fixture.root })).rejects.toThrow();
   });

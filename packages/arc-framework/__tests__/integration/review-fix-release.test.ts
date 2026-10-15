@@ -73,9 +73,7 @@ describe("review-fix round release", () => {
 
     expect(occurrences(errand, commit)).toBe(2);
     expect(occurrences(errand, "`push-interlock` release — `workflowPush`: `origin <branch>`.")).toBe(2);
-    expect(errand).toMatch(softWrappedProse(
-      "**Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow",
-    ));
+
     expect(errand).not.toMatch(softWrappedProse("**Extensions** · `#pre-push-review`"));
     expect(errand).toMatch(softWrappedProse("Then apply and verify the approved fixes, then commit and push them:"));
     expect(occurrences(integrate, commit)).toBe(1);

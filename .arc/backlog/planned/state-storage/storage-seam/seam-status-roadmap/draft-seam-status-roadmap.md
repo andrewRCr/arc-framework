@@ -46,6 +46,26 @@
   instruction; `spec-seam-lifecycle.md` § 1.2 already takes `executor-context-status.ts` and
   `handlers/status/lifecycle.ts`.
 
+### `[ ]` **Show an open conflict's sides in status, for conflicts shown without markers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: seam-status-roadmap`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Members, Status and roadmap — the status surfaces and `arc view` rendered from typed listings;
+  `spec-storage-contract.md` D13 already has status and the refusing verbs report conflicts.
+
+- _Observation:_ conflict records never project as files (every `*/conflict-record` kind is `projection: "never"`,
+  `lib/store/registry.ts`), so a conflict shown without markers — D13's whole-record notice, or `storage-projection`'s
+  notice line for a hunk conflict it cannot place, or one in a file with no stamp — gives the person nowhere to read the
+  side they would resolve toward. `storage-projection`'s draft points its notices at status for that (§ Conflicts in the
+  file; § Coordination), and its remedy `arc save --resolve <conflict>` takes the file's text, edited by hand, as the
+  resolution.
+
+- _Approach:_ status (or `arc view` on a conflict record) shows each open conflict's subject, both sides' labels, and
+  both sides' content — for a hunk conflict the base lines, current side, and incoming side; for a whole-record conflict
+  both values.
+
+- _Captured during:_ `storage-projection` draft-design re-entry, fix-check round 4 (Owner-approved ask, 2026-10-13).
+
 ---
 
 ## Continuity

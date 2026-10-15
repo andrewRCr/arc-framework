@@ -101,6 +101,20 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
   per P4.1) is already captured in both drafts; this is only the missing surface candidate, not the routing
   decision.
 
+### `[ ]` **Reconcile extension audit assumptions without changing probe-slot scope**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: instruction-optimization`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Pillar 1 contract application; § Not Worth Pursuing — Extensions audit returned no findings.
+
+- _Observation:_ The audit excludes extension compression because the files are uniform inactive contracts. Retirement
+  removes those files, and the applied workflow declaration family loses extensions.
+
+- _Approach:_ Refresh the corpus boundary and contract assumptions at planning. Preserve Pillar 3’s additional probe
+  slots: “probe-envelope extensions” there names envelope expansion, not lifecycle extensions.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Problem / Motivation
@@ -684,5 +698,5 @@ half of Pillar 3 shipped externally. Roughly:
 
 Per ADR-022, the probe slots that parse `meta-*` / `SESSION-NOTES` fields derive from the managed
 operational-state document schema — not template-stabilized field names. Field retirement / addition is
-a schema change (caught by round-trip tests), not a template edit. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+a schema change (caught by round-trip tests), not a template edit. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

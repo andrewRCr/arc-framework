@@ -64,7 +64,7 @@ function expectProducerBackedResponseOrder(content: string, start: string, end: 
 }
 
 describe("trusted review-gate workflows", () => {
-  it("publishes independent CI truth and a thin compatibility alias", async () => {
+  it("publishes CI truth as the single ci-ok roll-up", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     // Shared setup is a required dependency so a failed install cannot roll up green
@@ -72,7 +72,6 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).toContain(
       "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
-    expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh integration --stdin0");
@@ -93,7 +92,6 @@ describe("trusted review-gate workflows", () => {
       "e2e",
       "portability",
       "ci_ok",
-      "merge-ok",
       "record-verified-tree",
     ];
     for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe("ubuntu-latest");
@@ -423,7 +421,6 @@ describe("trusted review-gate workflows", () => {
       "### 11) Post-merge worktree cleanup",
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
-    expect(finalGate).toContain("**Extension report** · `#pre-merge`");
     expect(finalGate).toMatch(softWrappedPattern(/approved\s+responses[\s\S]*already\s+performed[\s\S]*not\s+re-approved/iu));
     expect(finalGate).not.toMatch(softWrappedProse("exact candidate-tail diff"));
   });
@@ -825,6 +822,55 @@ describe("trusted review-gate workflows", () => {
     );
   });
 
+  it("refreshes ordinary and terminal delivery descriptions before review re-entry", async () => {
+    const integration = await readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md");
+    expect(integration).toContain("    - pull-request-format");
+    const review = sectionBetween(integration, "### 2) Review iteration", "## Phase 2:");
+    const push = review.indexOf('`push-interlock` release');
+    const upkeep = review.indexOf("load [pull-request-format][pull-request-format]", push);
+    expect(push).toBeGreaterThan(-1);
+    expect(upkeep).toBeGreaterThan(push);
+    expect(review.indexOf("Then settle every `afterFixFindingIds`", push)).toBeGreaterThan(upkeep);
+    for (const command of ["git diff --quiet <pinned> HEAD -- <paths>", "git merge-base --is-ancestor <pinned> HEAD"]) {
+      expect(review.slice(upkeep)).toContain(command);
+    }
+    expect(review.slice(upkeep)).toMatch(softWrappedProse("every linked path of a layered design"));
+    expect(review).toMatch(softWrappedProse("terminal request after a delivery-owned pushed correction"));
+    const delivery = await readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md");
+    const correction = sectionBetween(delivery,
+      "Before authoring or publishing any approved correction", "### Complete a review-fix verification continuation");
+    const upkeepAfterResult = sectionBetween(correction, "After every continuation result", "- `dispatch / dispatch`");
+    expect(upkeepAfterResult).toMatch(softWrappedProse("after the approved correction is pushed"));
+    expect(upkeepAfterResult).toContain("effectLog");
+    expect(upkeepAfterResult).toContain("pull-request-format");
+    expect(upkeepAfterResult).toContain("terminal request");
+    expect(upkeepAfterResult).toContain("canonical delivery bindings");
+    expect(upkeepAfterResult).toContain("published head");
+    for (const result of ["review-status-required", "position"]) expect(upkeepAfterResult).toContain(`\`${result}\``);
+    const authority = sectionBetween(correction,
+      "- `authority-required / dispatch-authority-action`", "- `idle / continue-work-unit`");
+    expect(authority).not.toContain("[description-upkeep]");
+    expect(review).toMatch(softWrappedProse("the delivery workflow performs it after the continuation returns"));
+  });
+
+  it("refreshes Errand descriptions after pushed fixes and before settlement re-entry", async () => {
+    const workflow = await readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md");
+    const review = sectionBetween(workflow, "4. **Enter the open PR.**", "5. **Settle the final head.**");
+    const push = review.indexOf('`push-interlock` release');
+    const update = review.indexOf("load [pull-request-format][pull-request-format]", push);
+    const settle = review.indexOf("Then settle every `afterFixFindingIds`", push);
+    expect(push).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(push);
+    expect(settle).toBeGreaterThan(update);
+    const upkeep = review.slice(update, settle);
+    expect(upkeep).toMatch(softWrappedProse("every section and qualifying decision"));
+    expect(upkeep).toContain("git diff --quiet <pinned> HEAD -- <paths>");
+    expect(upkeep).toContain("git merge-base --is-ancestor <pinned> HEAD");
+    expect(upkeep).toMatch(softWrappedProse("every linked path of a layered design"));
+    expect(upkeep).toMatch(softWrappedProse("when either test fails"));
+    expect(upkeep).toMatch(softWrappedProse("With no design link, skip the link checks"));
+  });
+
   it("settles the Errand exact head without importing WU products", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
@@ -833,20 +879,15 @@ describe("trusted review-gate workflows", () => {
     expect(full).toContain("arc base drift --json");
     expect(full).toContain("review applicability");
     expect(full).toMatch(/applicability-judgment-required[\s\S]*supplemental[\s\S]*fresh/u);
-    expect(full).toMatch(
-      softWrappedPattern(/When\s+gated\s+local\s+review\s+ran,[\s\S]*include\s+`\*\*Local review:\*\* \{carrier identity\}`/u),
-    );
-    expect(full).toMatch(softWrappedPattern(/otherwise\s+omit\s+the\s+field\s+entirely/u));
+    expect(full).toMatch(/load \[pull-request-format\]\[pull-request-format\]/iu);
+    expect(full).not.toContain("**Local review:**");
     expect(full).toMatch(softWrappedPattern(/`vehicle: errand`[\s\S]*outside\s+WU\s+composition-product\s+requirements/u));
     expect(full).toMatch(softWrappedPattern(/never\s+infer[\s\S]*absent\s+or\s+malformed\s+WU\s+state/iu));
     expect(full).toMatch(softWrappedPattern(/strict\s+Errand\s+record[\s\S]*exact\s+PR/iu));
 
-    const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
     const terminalMerge = full.lastIndexOf("arc errand merge <slug> - --json");
-    expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(terminalMerge);
-    expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     const interlockText = full.slice(interlock, terminalMerge);
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
     expect(pinnedInterlockText).toContain("Surface the request");
@@ -1045,6 +1086,10 @@ describe("trusted review-gate workflows", () => {
     expect(documents.errand).toMatch(softWrappedPattern(/Only\s+literal\s+`planning`[\s\S]*auto-merge-lane/iu));
     expect(documents.errand).toContain("arc errand merge <slug> - --json");
     expect(documents.errand).not.toContain("gh pr merge");
+    expect(documents.errand).toMatch(softWrappedPattern(
+      /Continue\s+only\s+from\s+a\s+`clean`\s+or\s+`reconcile`\s+verdict[^.]*whose\s+`headOid`\s+equals\s+the\s+exact\s+Errand\s+head;\s+an\s+`unavailable`\s+verdict\s+stops/u,
+    ));
+    expect(documents.errand).not.toMatch(/healthy\s+reading/u);
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
@@ -1258,11 +1303,9 @@ describe("trusted review-gate workflows", () => {
     expect(gate).not.toMatch(softWrappedProse("head mutation returns to the checkpoint"));
 
     const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
-    const preMerge = gate.indexOf("**Extension report** · `#pre-merge`");
     const approval = indexOfSoftWrappedProse(gate, "Approve (or redirect)?");
     const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
-    expect(lifecycleReady).toBeLessThan(preMerge);
-    expect(preMerge).toBeLessThan(approval);
+    expect(lifecycleReady).toBeLessThan(approval);
     expect(approval).toBeLessThan(merge);
   });
 
@@ -1270,7 +1313,7 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "**Push extension contract**");
+    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "`push-interlock` release");
     expect(resume).toMatch(softWrappedPattern(/`shipped`\s+in\s+`completed`;\s+`open`[\s\S]*Step\s+10/u));
     expect(resume).toMatch(softWrappedPattern(/`merged-at-head`[\s\S]*Verify\s+Phase\s+2\s+products[\s\S]*Step\s+10\s+tail/u));
     expect(resume).toContain("`closed-unmerged`");
@@ -1284,14 +1327,15 @@ describe("trusted review-gate workflows", () => {
       "### 2) Review iteration",
     );
     const resolver = creation.indexOf("arc review change-request resolve --head-ref");
-    const proposedTarget = creation.indexOf("proposedChangeRequest =");
+    const remoteReplay = creation.indexOf("--require-remote");
     const create = creation.indexOf("gh pr create --base");
     expect(resolver).toBeGreaterThan(-1);
-    expect(proposedTarget).toBeGreaterThan(resolver);
-    expect(create).toBeGreaterThan(proposedTarget);
+    expect(remoteReplay).toBeGreaterThan(resolver);
+    expect(create).toBeGreaterThan(remoteReplay);
     expect(creation).toMatch(softWrappedProse("`closed-unmerged / reopen-change-request`"));
     expect(creation).toMatch(softWrappedProse("pre-create exact-head validation"));
-    expect(creation).toMatch(softWrappedPattern(/`Local review`\s+field\s+names\s+the\s+carrier[\s\S]*omit\s+it\s+when\s+none\s+ran/u));
+    expect(creation).toContain("load [pull-request-format][pull-request-format]");
+    expect(creation).not.toContain("`Local review` field");
 
     const gate = sectionBetween(
       packaged,
@@ -1360,7 +1404,7 @@ describe("trusted review-gate workflows", () => {
     const resumeEntry = sectionBetween(
       packageIntegration,
       "### 1) Push the branch and open the PR",
-      "**Push extension contract**",
+      "`push-interlock` release",
     );
     expect(resumeEntry).toMatch(softWrappedProse("A merged PR proves only that the merge ran"));
     expect(resumeEntry).toMatch(softWrappedProse("Completion Notes"));
@@ -1483,7 +1527,6 @@ describe("trusted review-gate workflows", () => {
 
     expect(codeowners).toContain("* @andrewRCr");
     expect(jobValue(ci, "ci_ok").name).toBe("ci-ok");
-    expect(jobValue(ci, "merge-ok").name).toBe("merge-ok");
   });
 
   it("ships the merge-gate host-policy inventory with live-pair support", async () => {

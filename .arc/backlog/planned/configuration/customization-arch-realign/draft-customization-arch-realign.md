@@ -190,6 +190,45 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   Consumers of the outcome: `composable-workflows` D1's `extensions` declaration family, and the fire points
   `release-lifecycle` and `session-retitle` propose.
 
+### `[ ]` **Hold a head-moving push while a hosted review of that head is still pending**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-10-15).
+
+- _Shapes:_ its inbound entry "Replace agent-fired extension markers with CLI-fired lifecycle events", as a
+  deterministic pre-push check the CLI fires.
+
+- _Observation:_ a push that moves a pull request's head while a hosted review of it is pending throws that review's
+  result away: `arc review hosted await` reads the head first and returns `stale-target` without looking for the
+  review (`observeHostedReview` in `scripts/review-gate/hosted/await.ts`). On PR #928 a clean Codex result posted
+  as a CI fix was pushed. The `collect-review-before-push` Errand covers it in prose: `run-errand`,
+  `integrate-work-unit`, and `deliver-stack` collect a pending action before any head-moving push, but nothing
+  enforces that.
+
+- _Approach:_ a pre-push lifecycle check in the CLI that finds a pending hosted request whose target is the branch's
+  current remote head, and refuses with a typed remedy: collect it through `arc review hosted await -`, or push
+  anyway on explicit direction, giving the result up. Considered for the Errand and declined there, since an interim
+  guard in `arc release push` would be the redesign's job done early, and raw pushes would pass it.
+
+- _Captured during:_ the `collect-review-before-push` Errand, 2026-10-13.
+
+### `[ ]` **Design lifecycle customization from the extension retirement boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Proposed Principle; § Decision tree update; inbound lifecycle-event, firing-proportionality, and
+  workflow-pointer entries.
+
+- _Observation:_ Retirement removes all eleven files, active flags, agent fire points, scanners, and the CLI/probe
+  surfaces. The old “Extensions stay as-is” premise and “adds workflow steps → extension” row cease to describe
+  supported behavior.
+
+- _Approach:_ Design the CLI-fired replacement from the retirement ADR’s event inventory and pre-removal revision.
+  Preserve ordered halt-on-fail, event frequency, opaque PR payloads, retry-safe pre-create, idempotent open-PR
+  re-entry, and no mutation after readiness as inputs to that decision. Re-scope proportionality to the replacement
+  and reconsider the workflow-pointer entry’s assertion that lifecycle extensions already invoke project workflows.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Problem / Motivation

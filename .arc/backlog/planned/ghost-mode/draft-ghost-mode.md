@@ -47,6 +47,67 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
+### `[ ]` **Take pull-request titles and bodies off ghost mode's inventory, and split the surface-language rewrite**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Open, "The footprint inventory" (pull-request titles and bodies), and § Settled inputs, "Making it true"
+  (the `DEV-RULES.ARC` rewrite).
+
+- _Observation:_ `pull-request-surface-policy` makes pull-request titles and bodies meet D19 by default, before ghost
+  mode lands, so it is the inventory row's answer. It rewrites the pull-request half of `DEV-RULES.ARC` § Commit and PR
+  surface language; the commit half and the boundary ADR stay with ghost mode.
+
+- _Approach:_ record the row as answered by `pull-request-surface-policy`, and scope the rule rewrite to commits.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Carry or contest the commit-pinned design link as content under D19 in the boundary ADR**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" (the boundary ADR).
+
+- _Observation:_ `pull-request-surface-policy` replaces the `Design:` field with one line in `Notes for Reviewers`
+  linking the design document in the pull request's diff (the tracked spec before the cutover, the D18 export after) by
+  a commit-pinned permalink. It reads that link as content rather than an ARC artifact reference, for the one artifact
+  that exists to be reviewed, and adds the matching exception to `DEV-RULES.ARC` § `.arc/` artifact references. That is
+  its own reading of D19, not the contract's.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Correct the claim that the Release Notes Entry is the pull-request body's input**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" ("the Release Notes Entry ... is the ready input for the pull-request
+  body").
+
+- _Observation:_ D19 (`spec-storage-contract.md`) and ghost mode's draft both call the Release Notes Entry the body's
+  input, but `integrate-work-unit.md` opens the pull request at step 1 and composes that entry at step 5. Both are
+  composed from the same facts and neither derives from the other. D19 is shipped text, so the correction belongs here.
+
+- _Approach:_ correct the draft's line, and state the sibling relationship in the boundary ADR.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Update the delivery filename example now that D19 corrected it**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ghost-mode`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Settled inputs, "Making it true" (the inventory's first example).
+
+- _Observation:_ The draft says delivery's pull-request body names the design by its `draft-*` filename
+  (`lib/delivery/materialization.ts`). D19 corrected that: `describeDeliveryMemberPresentation` renders a
+  caller-supplied `designReference` and constructs no filename. The leak is the supplied reference, and
+  `pull-request-surface-policy` changes `deliver-stack.md`'s guidance to omit it until delivery adopts the pinned link.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
 ---
 
 ## Problem / Motivation

@@ -62,9 +62,9 @@ A design that merely avoids conflict with its surroundings has not yet demonstra
 - **Optimality.** Among the reasonable alternatives, is this the right design — would two competent engineers,
   given the same constraints, build materially the same thing?
 - **Material proportionality.** Delegate unsupported machinery, missed composition, speculative capability,
-  disproportionate rigor, and adequacy regression to
-  [`assess-design-proportionality`][assess-design-proportionality]. This lens retains broader efficacy and fit
-  analysis plus minor optimality residue; it does not duplicate the proportionality criterion.
+  disproportionate rigor, and adequacy regression to [`assess-design-proportionality`][assess-design-proportionality].
+  This lens retains broader efficacy and fit analysis plus minor optimality residue; it does not duplicate the
+  proportionality criterion.
 - **System coherence.** The design composes with the existing architecture, conventions, and adjacent designs
   rather than sitting beside them.
 - **Forward compatibility.** The design survives known upcoming directions — it does not bake in an assumption

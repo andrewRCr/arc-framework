@@ -14,8 +14,6 @@ arc:
     - spec-review
     - adversarial-review
     - design-audit
-  extensions:
-    - pre-spec-finalization-review
 ---
 
 # Workflow: Create Spec
@@ -264,13 +262,8 @@ iteration flow; carry anything needing a decision into the review below. A findi
 a derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
 re-entry (route it to the design, never patch it into the spec).
 
-- **Extensions** · `#pre-spec-finalization-review`: If `pre-spec-finalization-review` appears in the
-  active-extensions list (established at session init), load and execute its
-  [`.actions`][pre-spec-finalization-review] — a team's own spec-review ceremony layered on the default
-  self-review. Otherwise, skip.
-
 The finalization boundary also carries an advisory adversarial fire-point — design _and_ artifact attacked from
-fresh context, distinct from both the self-review above and any team extension:
+fresh context, distinct from the self-review above:
 
 > [!IMPORTANT]
 > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
@@ -337,8 +330,7 @@ Documents).
 adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
 settled spec as the last step before the commit below.
 
-After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
-save, arc-in-git), draft deletion + `notes-*` migration, meta update.
+After substeps 1-3, stage all edits — spec save (Write and save), draft deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -367,7 +359,6 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
-[pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md
 [template-spec-outline]: ../../../reference/templates/arc/work-unit/spec/template-spec-outline.md
 [template-spec-detailed-prd]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (extension half of per-file layout and declaration/loading superseded by ADR-038)
 
 ## Context
 

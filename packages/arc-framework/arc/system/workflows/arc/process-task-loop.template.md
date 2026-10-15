@@ -7,8 +7,6 @@ arc:
     - review-chunking
     - testing-standards
     - validate-criteria
-  extensions:
-    - post-task-completion
 ---
 
 # Workflow: Task Processing Loop
@@ -23,9 +21,9 @@ printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect -
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
 `review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
-`arc delivery review-fix continue -` procedure in
-[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
-and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
+`arc delivery review-fix continue -` procedure in [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md).
+It derives the exact member, operation, verification, and acknowledgment from
+canonical state; dispatch its machine actions and re-enter it without reconstructing a
 selector. `canonicalize-provisional` resumes the matching delivery-entry route. `refused` renders
 `recommendedActionText` and stops; any other result stops as an execution-entry contract violation.
 
@@ -256,8 +254,8 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      `— validate exit criterion at segment scope` role suffix, use `arc check segment` instead.
 
      **Unresolved member-report branch:** When item 3 returned an unresolved `[ ]`, leave the closing task `[ ]`.
-     Preserve the report as boundary evidence, but do not cascade parent completion, run the completion extension,
-     or apply the completion-only checklist. Run the quality request once after recording the preserved report.
+     Preserve the report as boundary evidence, but do not cascade parent completion or apply the completion-only
+     checklist. Run the quality request once after recording the preserved report.
      Report its result with the unresolved criteria and evidence span as the branch's verification status,
      then end with `Member criteria unresolved: <details>. Fix now or amend/defer?`. Do not execute the resolved
      completion branch.
@@ -274,7 +272,7 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      - **Quality request**: Run the request once over the final tracked edits, including this completion edit.
        Report feedback failures; failed enforcement holds the increment and follows the quality-gate-failure prompt
        below. Re-run after obvious fixes. If the segment request remains red, remove this task's `[x]` and completion
-       note, leave the segment open, and skip the completion extension and completion-only checklist. Whichever answer
+       note, leave the segment open, and skip the completion-only checklist. Whichever answer
        the failure prompt receives, it does not close the segment; this gate failure uses the ordinary failure path,
        while a failed verifier scenario still enters `amend-design` as above.
      - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned
@@ -284,11 +282,6 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
        require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
        or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
        verification, frontline review, or generic prepublication.
-     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
-       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
-       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
-       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
-       Integration.
      - **Second**: Verify completion against the pre-report checklist.
 
      **Pre-Report Checklist** (verify before generating the completion report):
@@ -328,15 +321,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
 > approval before advancing.
 
-  5. Await user instructions on how to proceed.
-     User may choose to commit changes or request modifications. Under
-     `arc.commitInterlock: manual`, task approval advances work only; committing remains an
-     explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),
-     the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session interlocks; on
-     approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
-     simple-vs-complex path decision and loads the format methods. A deferred delivery-member scale closeout is the
-     bounded exception to ordinary advancement: in manual mode, stop for the explicit commit invocation; in an
+  5. Await user instructions on how to proceed. User may choose to commit changes
+     or request modifications. Under `arc.commitInterlock: manual`, task approval
+     advances work only; committing remains an explicit user-invoked action.
+     Under `on-task-approval` (or `on-workflow`, which subsumes it), the commit-interlock
+     releases on task approval per [Configurability Architecture Strategy][config-arch]
+     § Session interlocks; on approval signal, invoke the [arc-commit skill][arc-commit-skill]
+     — it owns the simple-vs-complex path decision and loads the format methods.
+     A deferred delivery-member scale closeout is the bounded exception to ordinary
+     advancement: in manual mode, stop for the explicit commit invocation; in an
      auto-fire mode, commit on approval. After that commit lands, return to item 3, record and close the scale result,
      then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
      rather than invoking prepare-commits silently.
@@ -390,10 +383,10 @@ When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBO
 
 ### Incidental Commit Discipline
 
-Off-workflow / incidental commits follow the review-increment invariant
-([DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant): surface what landed (file list,
-summary, or diff sample), then end with the structured prompt — `Commit and proceed to
-<next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
+Off-workflow / incidental commits follow the review-increment invariant ([DEV-RULES.ARC][dev-rules-arc]
+§ Review-Increment Invariant): surface what landed (file list, summary, or diff
+sample), then end with the structured prompt — `Commit and proceed to <next-target>?`
+(releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
 Informal mid-discussion approval ("ok", "looks good") does not release commit.
 
 ## Task List Maintenance
@@ -412,12 +405,10 @@ updates**. Always update the task list file before reporting completion.
 
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[arc-ext-task-completion]: ../../extensions/post-task-completion.md
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [adversarial-review]: ../../methods/adversarial-review.md
 [review-chunking]: ../../methods/review-chunking.md
-[team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
 [strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

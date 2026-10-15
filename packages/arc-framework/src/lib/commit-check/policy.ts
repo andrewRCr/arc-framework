@@ -16,6 +16,10 @@ export const CONVENTIONAL_TYPES = new Set([
   "revert",
 ]);
 const SCOPE_PATTERN = /^[a-z][a-z0-9-]*$/;
+/** A first word written as a sentence start; acronyms and mixed-case names such as `ARC` or `GitHub` do not match. */
+const CAPITALIZED_WORD_PATTERN = /^\p{Lu}\p{Ll}*(?![\p{L}\p{N}])/u;
+/** Whitespace, punctuation, or emoji before a description's first word; a backtick opens a code span instead. */
+const LEADING_DECORATION_PATTERN = /^[^\p{L}\p{N}`]+/u;
 const POSIX_ONLY_PATTERN = /\[\[(?::[A-Za-z]+:|\.[^\]]+\.|=[^\]]+=)\]\]/;
 
 function lineFinding(
@@ -98,12 +102,20 @@ function validateConventionalSubject(parsed: ParsedCommitMessage): CommitCheckFi
       }),
     );
   }
-  if (subject.scope === null) {
-    findings.push(lineFinding("subject.missing-scope", line, "Subject scope is required"));
-  } else if (!SCOPE_PATTERN.test(subject.scope)) {
+  if (subject.scope !== null && !SCOPE_PATTERN.test(subject.scope)) {
     findings.push(
       lineFinding("subject.invalid-scope", line, "Subject scope has invalid characters", {
         scope: subject.scope,
+      }),
+    );
+  }
+  const fromFirstWord = subject.description.replace(LEADING_DECORATION_PATTERN, "");
+  if (CAPITALIZED_WORD_PATTERN.test(fromFirstWord)) {
+    const prefix = subject.raw.slice(0, subject.raw.length - fromFirstWord.length);
+    const description = fromFirstWord.replace(CAPITALIZED_WORD_PATTERN, (word) => word.toLowerCase());
+    findings.push(
+      lineFinding("subject.capitalized-description", line, "Subject description starts with a capitalized word", {
+        suggestions: [`${prefix}${description}`],
       }),
     );
   }

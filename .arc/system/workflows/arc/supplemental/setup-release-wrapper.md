@@ -192,8 +192,8 @@ writes:
 - `arc.releaseOptedIn = true` (per-developer git-config local flag) on the first successful install.
   Subsequent installs are flag-idempotent — the flag is not re-written if already set. This workflow
   writes only this key; for the full per-developer git-config key catalog (commit / push / sync
-  interlocks, notes-push policy) and how to set those values, see
-  `strategy-configurability-architecture.md` § Personal Configuration via Git Config.
+  interlocks, notes-push policy) and how to set those values, see `strategy-configurability-architecture.md` § Personal
+  Configuration via Git Config.
 
 **The agent's role ends with the verification confirmation in Step 4** · `[invariant]`. Recording
 mechanics, idempotency choices, and multi-harness partial-success handling live under
@@ -236,8 +236,7 @@ For paste-ready output, run `arc release setup print-patterns --harness claude-c
 ### Codex CLI
 
 **Mode detection.** Inspect `approval_policy` in `~/.codex/config.toml` (user-scoped) or
-`.codex/config.toml` (project-scoped, in effect when the project is marked
-`trust_level = "trusted"` in user config):
+`.codex/config.toml` (project-scoped, in effect when the project is marked `trust_level = "trusted"` in user config):
 
 - `"never"` — bypass-mode equivalent. No per-invocation prompt.
 - `"on-request"` — default-prompt mode. Approval requested per command.
@@ -291,9 +290,8 @@ For paste-ready output, run `arc release setup print-patterns --harness codex`.
 ## Agent-Adaptive Path
 
 For any harness outside the reference-implementation set (Claude Code, Codex CLI), the agent translates
-the six-element contract against the harness's own conventions. See
-`strategy-interlock-release-wrappers.md` § Agent-Adaptive Path for the architectural framing
-(workflow-as-contract, universal-route positioning).
+the six-element contract against the harness's own conventions. See `strategy-interlock-release-wrappers.md` §
+Agent-Adaptive Path for the architectural framing (workflow-as-contract, universal-route positioning).
 
 **Procedure:**
 

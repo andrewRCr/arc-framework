@@ -357,8 +357,8 @@ groupings. Use `### Cross-cohort` for named coordination across boundaries, not 
 → `completed/<dated>/<NN>a_cohort-<name>/` when the cohort's last member ships — as a pure `git mv` with no
 content edit. The archived doc's `Parent` field preserves nesting context; the archive directory uses the
 cohort doc's own slug, not the full parent path. It therefore adopts the movable-artifact relocatability and
-reference-hygiene invariant wholesale: inbound references to it are
-backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
+reference-hygiene invariant wholesale: inbound references to it are backticked-filename-only
+(no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
 _by construction_ — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
 derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
 special handling.
@@ -473,12 +473,11 @@ delivery shapes follow from the cut:
 
 **Branch scope:** One work unit per branch. Switching work units implies switching branches.
 
-**Per-WU meta file behavior on branches.** Each active WU carries its own
-`meta-{name}.md` at `active/`. The file is created by
-[activate-work-unit][activate-work-unit] on the WU's branch and deleted by
-[archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
-independent branches carry different files — no cross-branch mutation conflict is possible at
-the meta-file layer.
+**Per-WU meta file behavior on branches.** Each active WU carries its own `meta-{name}.md`
+at `active/`. The file is created by [activate-work-unit][activate-work-unit]
+on the WU's branch and deleted by [archive-work-unit][archive-work-unit] at
+the end of the WU's lifecycle. Parallel WUs on independent branches carry different
+files — no cross-branch mutation conflict is possible at the meta-file layer.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
@@ -495,7 +494,7 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 | Value         | Set By                                          | Meaning                                                                      |
 | ------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
 | `Planning`    | [init-work-unit][init-work-unit]                | Spec and task list being authored; task execution not yet begun              |
-| `Active`      | [activate-work-unit][activate-work-unit] Step 4 | Implementation or private preparation underway; publication has not begun    |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 3 | Implementation or private preparation underway; publication has not begun    |
 | `Integrating` | [prepare-work-unit][prepare-work-unit] Step 3   | Publication/public integration underway until the archive transition         |
 | `Shipped`     | [archive-work-unit][archive-work-unit]          | Archived final form; the default cadence may retain an incomplete merge tail |
 
@@ -1119,8 +1118,8 @@ Planned work units require a branch from inception (single-branch-per-WU per
 branch before a work unit is initialized — is sanctioned under partial protection: it runs without a
 planning branch, cut when the work formalizes into a tracked WU. Its lack of a `meta-{name}.md` is
 **temporal, not a protection trait** — the meta is minted at `init` under either mode; partial protection
-shapes only the ship layer (branch/PR), never the record. Routine commits
-may go directly to the base branch as documented exceptions:
+shapes only the ship layer (branch/PR), never the record. Routine commits may
+go directly to the base branch as documented exceptions:
 
 - Framework maintenance: documentation updates, linting fixes
 - Off-work-unit maintenance commits (no associated task list or work-unit branch)
@@ -1227,10 +1226,10 @@ lane: whether it warrants a hard gate or only a notification, and at what granul
 
 Three conditions compose the lane on any host:
 
-1. A **stable required status check present on every PR** — call it `merge-ok`. It runs unconditionally, so
-   branch protection always has a check to wait on. This is why the recipe uses a conditional status job and
-   **not** a path-ignored CI workflow: a required check that is path-filtered away never reports, stays
-   _Pending_, and blocks the merge indefinitely.
+1. A **stable required status check present on every PR** — call it `ci-ok`, since it asserts only that required
+   CI passed, not that the PR may merge. It runs unconditionally, so branch protection always has a check to wait
+   on. This is why the recipe uses a conditional status job and **not** a path-ignored CI workflow: a required
+   check that is path-filtered away never reports, stays _Pending_, and blocks the merge indefinitely.
 2. **Owner review required for reviewed-lane paths only** — a code-owners mapping that names owners for the
    constitutional surfaces and leaves auto-merge-lane paths unowned, so only reviewed-lane PRs require approval.
 3. **Native auto-merge enabled** — the PR merges itself the moment its required conditions are satisfied
@@ -1303,8 +1302,8 @@ the matrix governs _incidental_ cross-cutting work only. For that incidental cas
 | **Maintain** — an existing artifact | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
 
 Making a new stub is [route-discovered-work][route-discovered-work]'s `new-stub` outcome for a concern the record
-test calls a Work Unit, a transient act through `arc stub`.
-A stub change that also touches a foreign artifact is two concerns: make the stub, and route the foreign edit
+test calls a Work Unit, a transient act through `arc stub`. A stub change that
+also touches a foreign artifact is two concerns: make the stub, and route the foreign edit
 as its own maintain Errand.
 
 The record test alone decides the wrapper. A roadmap slot is when, not what: Errand-shaped work for later waits
@@ -1396,11 +1395,11 @@ adding parallelism.
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
 subdirs would be redundant — concurrency comes from more worktrees, not more metas in one `active/`.
-Artifact applicability scales with mode and `Class`; see
-[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
-the pre-PRD synthesis artifact, deleted at PRD creation per `create-spec.md` (with optional
-graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
-Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
+Artifact applicability scales with mode and `Class`; see [§ Spec-Flow Invariants](#spec-flow-invariants)
+for the invariants and scaling axes. `draft-*.md` is the pre-PRD synthesis artifact,
+deleted at PRD creation per `create-spec.md` (with optional graduation of substantive
+persisting content into `notes-*.md`); it never appears in `active/`. Archive-phase
+content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
 the meta file at integration — there is no separate `completion-<name>.md` artifact.
 
 ### Alignment

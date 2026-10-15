@@ -315,21 +315,19 @@ fi
 echo ""
 
 # ============================================================================
-# 6. Method/extension structure
+# 6. Method structure
 # ============================================================================
 
-echo "--- Methods & Extensions ---"
+echo "--- Methods ---"
 
 methods_dir="$ARC_DIR/system/methods"
-extensions_dir="$ARC_DIR/system/extensions"
 
-# Structural sanity check: each file under system/methods/ and system/extensions/
+# Structural sanity check: each file under system/methods/
 # opens with a YAML frontmatter block containing the required keys. Deep schema
 # validation (name matches basename, type checks, etc.) runs in pre-commit
 # CHECK[frontmatter-schema]; this is a post-hoc diagnostic, not a replacement.
-check_per_file_frontmatter() {
+check_method_frontmatter() {
     local file="$1"
-    local kind="$2"  # "method" or "extension"
     local file_label
     file_label=$(basename "$file")
 
@@ -340,21 +338,23 @@ check_per_file_frontmatter() {
         return
     fi
 
-    if ! head -n 20 "$file" | tail -n +2 | grep -qE '^---$'; then
-        error "$file_label: frontmatter block not closed within first 20 lines"
+    local frontmatter
+    if ! frontmatter=$(awk '
+        NR == 1 { next }
+        /^---$/ { closed=1; exit }
+        { print }
+        END { exit closed ? 0 : 1 }
+    ' "$file"); then
+        error "$file_label: frontmatter block not closed"
         return
     fi
 
     local required_keys
-    if [ "$kind" = "method" ]; then
-        required_keys="name description override-active"
-    else
-        required_keys="name description active"
-    fi
+    required_keys="name description override-active"
 
     local missing=""
     for key in $required_keys; do
-        if ! head -n 20 "$file" | grep -qE "^${key}:"; then
+        if ! printf '%s\n' "$frontmatter" | grep -qE "^${key}:"; then
             missing="${missing} ${key}"
         fi
     done
@@ -367,9 +367,8 @@ check_per_file_frontmatter() {
     pass "$file_label: frontmatter present"
 }
 
-check_per_file_dir() {
+check_methods_dir() {
     local dir="$1"
-    local kind="$2"  # "method" or "extension"
     local dir_label
     dir_label=$(basename "$dir")
 
@@ -383,16 +382,15 @@ check_per_file_dir() {
         [ -f "$file" ] || continue
         [ "$(basename "$file")" = "README.md" ] && continue
         found=true
-        check_per_file_frontmatter "$file" "$kind"
+        check_method_frontmatter "$file"
     done
 
     if [ "$found" = false ]; then
-        warn "${dir_label^} directory contains no ${kind} files: $dir"
+        warn "${dir_label^} directory contains no method files: $dir"
     fi
 }
 
-check_per_file_dir "$methods_dir" "method"
-check_per_file_dir "$extensions_dir" "extension"
+check_methods_dir "$methods_dir"
 
 echo ""
 

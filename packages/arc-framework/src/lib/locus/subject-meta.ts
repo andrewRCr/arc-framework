@@ -105,7 +105,6 @@ export async function projectCheckoutSubjectMeta(options: {
     | { kind: "contributor"; identity: string }
     | { kind: "completed"; path: string };
   candidates: readonly DormantMetaEvidence[];
-  activeExtensions?: readonly string[];
   foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
@@ -347,7 +346,6 @@ export async function projectCheckoutSubjectMeta(options: {
       planningStage,
       workUnitStage,
       taskListPath,
-      activeExtensions: options.activeExtensions ?? [],
       cohortDocPath,
     }),
     integrationBoundary,

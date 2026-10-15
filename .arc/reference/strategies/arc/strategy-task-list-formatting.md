@@ -228,8 +228,8 @@ replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent **placed after
 carries signal (synthesis, verification, or cross-cutting), or simply removed when title + Goal already capture the
 work. Goal opens the post-completion shape; Outcome (when added) closes it from below, with any retained
 retiring-phase or amendment bullet staying at its original depth — Goal-child depth for `_Amended in:_`, which is what
-keeps it outside the Goal's descriptor extent. See
-[process-task-loop § Completion notes content discipline][process-task-loop] for the threshold and granularity rules.
+keeps it outside the Goal's descriptor extent. See [process-task-loop § Completion notes content
+discipline][process-task-loop] for the threshold and granularity rules.
 
 **Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's description bullets at
 indent +2 shift from plan-content to outcome-content — same shape, no label change — except a `_Retired in:_ Phase N`
@@ -238,8 +238,8 @@ the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
 [verify-work-unit.md][verify-work-unit]) carries two required completion-note categories
-at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in
-lieu of `_Outcome:_`. All three (Goal + two categories) protected post-completion.
+at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in lieu of `_Outcome:_`. All three (Goal + two
+categories) protected post-completion.
 
 ### Revision Numbering (R Scheme)
 
@@ -488,12 +488,11 @@ criterion — the checkable operationalization of the PRD's success criteria. Se
 
 When a Delivery Plan is present, group criteria beneath plain `### Member {ordinal} —` headings carrying a
 backticked chunk key and one `### Cross-member seams` heading. A member's ordinary closing task walks its group;
-terminal verification walks
-the seam group and dispositions member groups from their recorded boundary evidence. Assign each criterion to the
-earliest member boundary whose validator can see its evidence; criteria that no member boundary can see belong to
-the seam group. A criterion an [amendment][amend-design] appends follows the same rule: it joins the group of the
-member carrying the corrective parent, or the seam group when the correction lands at the terminal. One appended to
-a closed member's group never resolves, because terminal verification dispositions member groups from their
+terminal verification walks the seam group and dispositions member groups from their recorded boundary evidence. Assign
+each criterion to the earliest member boundary whose validator can see its evidence; criteria that no member boundary
+can see belong to the seam group. A criterion an [amendment][amend-design] appends follows the same rule: it joins the
+group of the member carrying the corrective parent, or the seam group when the correction lands at the terminal. One
+appended to a closed member's group never resolves, because terminal verification dispositions member groups from their
 recorded boundary evidence and never re-derives one. A single-deliverable work unit omits the subgroup headings and
 retains the flat form.
 
@@ -506,10 +505,9 @@ Grouped member criteria are checked through `validate-criteria` during each memb
 Those checks record boundary evidence but leave the markers unchanged. The terminal
 [verification phase](#verification-phase) consumes those reports, checks seam and union coherence, dispositions
 the member groups, and owns marker changes. Flat criteria are checked during terminal verification. Markers are
-backtick-wrapped
-(matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always include
-"All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in the
-flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text
+backtick-wrapped (matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always
+include "All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in
+the flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text
 rule. Do not duplicate the PRD's criteria verbatim — operationalize them into checkable items.
 
 All items must be `[x]` or `[~]` (with annotations) before running archive. Any remaining

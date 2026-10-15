@@ -58,6 +58,31 @@
 - _Worked example:_ `delivery-rebuild-continuity` carries its cases into its spec's Testing section and keeps the
   model on a non-merging branch through implementation, retired at archive.
 
+### `[ ]` **Register deliberately kept branches so residue detection can tell them from leftovers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-10-15); homed at the
+  drain.
+
+- _Shapes:_ § Disposition lifecycle, the Reference disposition (code archived on a non-merging branch); inbound "Settle
+  what a spike that hardens into an executable model keeps, and for how long".
+
+- _Drain note:_ `operational-advisory-registers` was the other candidate home (residue re-emitted every session); the
+  registration is what makes a Reference disposition legible to residue detection, so it homes here.
+
+- _Observation:_ `arc errand check` and status report a `branch-residue` warning for every branch with no Errand
+  record or active work-unit meta, including branches kept on purpose: `spike/delivery-rebuild-continuity-model` is
+  the executable model `delivery-rebuild-continuity` keeps as a spike input while it is held at Planning, and it is
+  reported on every run.
+
+- _Approach:_ give a deliberately kept branch a canonical registration — a spike or reference model ARC knows is
+  intentional, with its owner and the work unit it serves — so residue detection skips it and status can say what it
+  is. A registration is a stored record, so it belongs under the storage seam; check where `synthesis-modality`'s
+  "Settle what a spike that hardens into an executable model keeps, and for how long" was routed (its Reference
+  disposition keeps a model on a non-merging branch) before placing it.
+
+- _Captured during:_ Errand `main-underwrap-sweep`, 2026-10-13; split from its Errand capture ("Keep branch residue
+  out of the pre-commit in-flight advisory, reporting only staged overlaps") on 2026-10-14.
+
 ---
 
 ## Concept
@@ -253,9 +278,9 @@ mechanisms:
 
 - **Workflow-interlock** fires at end of each loop pass (refinement batch in document modality; spike completion
   in prototype modality). Structural fire-site, always-stop.
-- **Commit-interlock release** at workflow-interlock approval. Under
-  `commit.interlock ∈ {on-task-approval, on-workflow}` plus `arc.releaseOptedIn`, commits fire through
-  `arc release commit` per the `workflowCommit` class-tag routing that already exists in ARC's machinery.
+- **Commit-interlock release** at workflow-interlock approval. Under `commit.interlock ∈ {on-task-approval,
+  on-workflow}` plus `arc.releaseOptedIn`, commits fire through `arc release commit` per the `workflowCommit`
+  class-tag routing that already exists in ARC's machinery.
 - **Within-pass commit cadence** is exploratory — no per-edit gates inside a spike or inside a refinement batch.
   Planning is not task execution; commit atomicity at the pass boundary is sufficient.
 

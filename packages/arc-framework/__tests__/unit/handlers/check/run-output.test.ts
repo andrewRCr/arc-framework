@@ -1,6 +1,6 @@
 /** Human reports expose when a pass ran against different worktree content. */
 import { expect, it } from "vitest";
-import { renderDeclaredChecks } from "../../../../src/handlers/check/run-output.js";
+import { renderDeclaredChecks, type DeclaredCheckEnvelope } from "../../../../src/handlers/check/run-output.js";
 
 it("labels a successful divergent run with its differing input paths", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
@@ -90,6 +90,7 @@ it("shows the failed output tail and full-log path while counting successful che
   } }, false);
   expect(result).toContain("/records/failure.log");
   expect(result).toContain("diagnostic-39");
+  expect(result).toContain("Output truncated: 20 earlier lines omitted in whole or part; full log: /records/failure.log");
   expect(result).not.toContain("diagnostic-0\n");
   expect(result).not.toContain("successful stdout");
   expect(result.split("\n").filter(line => line.startsWith("success:"))).toHaveLength(0);
@@ -155,4 +156,71 @@ it("leads with a no-evidence check and shows its output tail, but offers no retr
   expect(result).toContain("No unit tests reach the changed files.");
   expect(result).not.toContain("Retry:");
   expect(result).toContain("Checks: 1 no evidence, 1 passed.");
+});
+
+it("counts the files a merge brought in unchanged between a failure's output and its retry", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [{ id: "prose", kind: "enforcement", outcome: "failed", output: "docs/c.md:3: short line",
+      mergedIn: ["docs/a.md", "docs/b.md"], remedy: "arc check run prose --range abc" }],
+  } }, false);
+  expect(result).toBe("prose: failed [enforcement]\ndocs/c.md:3: short line\n"
+    + "Not checked, merged in unchanged: 2 files\nRetry: arc check run prose --range abc\nChecks: 1 failed.\n");
+});
+
+it("lists a passing check that left files unchecked, so a narrowed gate never reads as a full pass", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [
+      { id: "prose", kind: "enforcement", outcome: "passed", mergedIn: ["docs/a.md"] },
+      { id: "types", kind: "enforcement", outcome: "passed" },
+    ],
+  } }, false);
+  expect(result).toBe("prose: passed [enforcement]\nNot checked, merged in unchanged: 1 file\nChecks: 2 passed.\n");
+});
+
+it.each([
+  { label: "a partial oversized line", output: "x".repeat(9_000), tail: "x".repeat(8_192), omitted: 1 },
+  { label: "a complete line at the character boundary", output: `prefix\n${"x".repeat(8_192)}`,
+    tail: "x".repeat(8_192), omitted: 1 },
+  { label: "both limits together", output: Array.from({ length: 30 }, (_, index) =>
+    `${String(index).padStart(2, "0")}${"x".repeat(998)}`).join("\n"),
+    tail: `${"x".repeat(184)}\n${Array.from({ length: 8 }, (_, index) =>
+      `${index + 22}${"x".repeat(998)}`).join("\n")}`, omitted: 22 },
+])("reports character truncation for $label", ({ output, tail, omitted }) => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [{ id: "failure", kind: "enforcement", outcome: "failed", output,
+      logPath: "/records/failure.log", remedy: "arc check run failure" }],
+  } }, false);
+  const notice = `Output truncated: ${omitted} earlier ${omitted === 1 ? "line" : "lines"} omitted in whole or part; full log: /records/failure.log`;
+
+  expect(result).toContain(`\n${tail}\n${notice}\nRetry: arc check run failure\n`);
+});
+
+it("counts omitted CRLF lines when the output ends in a newline", () => {
+  const output = Array.from({ length: 21 }, (_, index) => `line-${index}`).join("\r\n") + "\r\n";
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [{ id: "failure", kind: "enforcement", outcome: "failed", output,
+      logPath: "/records/failure.log" }],
+  } }, false);
+  expect(result).toContain("Output truncated: 2 earlier lines omitted in whole or part; full log: /records/failure.log");
+  expect(result).toContain("line-20");
+  expect(result).not.toContain("line-1\n");
+});
+
+it("reports truncation without inventing a missing log path", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [{ id: "failure", kind: "enforcement", outcome: "failed", output: "x".repeat(9_000) }],
+  } }, false);
+  expect(result).toContain("Output truncated: 1 earlier line omitted in whole or part; full log unavailable");
+  expect(result).not.toContain("undefined");
+});
+
+it("keeps JSON output whole when the human tail exceeds both limits", () => {
+  const output = Array.from({ length: 40 }, (_, index) => `${index}: ${"x".repeat(1_000)}`).join("\n");
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
+    status: "completed", checks: [{ id: "failure", kind: "enforcement", outcome: "failed", output,
+      logPath: "/records/failure.log" }],
+  } }, true);
+  const envelope = JSON.parse(result) as DeclaredCheckEnvelope;
+  if (!("result" in envelope)) throw new Error("Expected a result envelope");
+  expect(envelope.result.checks[0]?.output).toBe(output);
 });

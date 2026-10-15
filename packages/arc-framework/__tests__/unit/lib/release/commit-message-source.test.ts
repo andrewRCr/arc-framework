@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyCommitMessageInput,
+  commitOptionConsumesNext,
   rewriteCommitFileSource,
   replaceCommitMessageSource,
   reusesCommitMessage,
@@ -365,5 +366,21 @@ describe("commit-message rewriting to file", () => {
       "-F",
       "/snap",
     ]);
+  });
+});
+
+describe("abbreviated long-option operands", () => {
+  it.each([
+    "--mess", "--fil", "--auth", "--dat", "--pathspec-from-f", "--clea",
+    "--trai", "--reuse-m", "--reedit-m", "--templ", "--fix", "--squ",
+  ])("consumes the required operand after %s", (option) => {
+    expect(commitOptionConsumesNext(option, "--no-verif")).toBe(true);
+  });
+
+  it.each([
+    "--all", "--s", "--f", "--p", "--no-v", "--untracked-f", "--made-up", "--",
+    "--pathspec-from-f=paths",
+  ])("does not consume an extra operand after %s", (option) => {
+    expect(commitOptionConsumesNext(option, "--no-verif")).toBe(false);
   });
 });

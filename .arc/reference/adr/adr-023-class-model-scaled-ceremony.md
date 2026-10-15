@@ -117,8 +117,8 @@ stage's depth names a durable artifact: the three **spec forms** `brief` / `outl
 (`low` → `brief`, `medium` → `outline`, `high` → `detailed`). `brief` is always `light`; `detailed` always
 `heavy` or `novel` (derivation forces it; the invent threshold separates the two, which share the form);
 `outline` is either `light` or `heavy`. `detailed` splits by work category into PRD (feature) / RFC (technical);
-the lighter forms do not split. The grammar that realizes the forms is
-`scalable-authoring-pipeline`'s; this decision fixes the ordinal and the form set.
+the lighter forms do not split. The grammar that realizes the forms is `scalable-authoring-pipeline`'s; this decision
+fixes the ordinal and the form set.
 
 **Topology — fixed floor → scalable middle → fixed ceiling.** Preference operates only in the band between the
 demand-set floor and a fixed ceiling. Band width _shrinks as pre-impl demand rises_ along either axis: an

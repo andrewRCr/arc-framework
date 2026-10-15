@@ -19,13 +19,22 @@ README, public repo, community infrastructure, and release automation.
   during `storage-contract` draft close, 2026-09-30.
 - _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history. After the cutover,
   state history rides the code remote by default, and the default backend gives no privacy on a public repository
-  (ADR-035; the register's `public-repo-flip` row).
+  (ADR-035; storage-coupling register row 43, now owned by `storage-cutover`).
 - _Approach:_ Decide at next planning whether release follows the cutover, and how state refs are treated when the
   repository goes public.
+- _Reconciled 2026-10-14:_ the repository has been public in place with its full history since 2026-10-06.
+  The 2026-10-10 backend decision publishes this repository's personal state with its project state;
+  `storage-cutover` owns the interim `user.notes_push: manual` until notes retire. The remaining planning question is
+  release timing relative to the cutover.
 
 ---
 
 ## Scope
+
+_Amended 2026-10-14:_ the scope below is a historical snapshot. The repository has been public in place with its full
+history since 2026-10-06, so making it public through a clean initial commit is no longer a WU5 deliverable. The full
+pre-public history remains public; this work unit does not replace it. The remaining public-release work follows the
+documentation sequence in `cohort-release-readiness.md`.
 
 WU5 takes the beta-tested, contributor-ready framework (WU4 output) and makes it public. This is
 primarily a content and infrastructure work unit — the framework, CLI, and contributor mechanics are
@@ -89,6 +98,11 @@ not "the only approach."
 
 ## Pre-Public Extraction Candidates
 
+_Amended 2026-10-14:_ the list below is a historical catalog, not a remaining pre-publication prerequisite. Public
+visibility with full history is already settled; extracting this content to a private archive before a clean initial
+commit is superseded. Any later content curation needs its own planning decision and does not make already-public
+history private.
+
 Content in `.arc/reference/supplemental/research/` that has value as personal/developer reference but
 doesn't belong in the public repo. Extract to a private archive before the clean initial commit.
 
@@ -118,6 +132,10 @@ doesn't belong in the public repo. Extract to a private archive before the clean
 ---
 
 ## Open Questions (Carried Forward)
+
+_Amended 2026-10-14:_ the going-public mechanism question below is settled: the existing repository became public in
+place with its full history on 2026-10-06. A fresh repository or squashed initial commit is no longer a release
+decision; the other questions remain for planning.
 
 - **GitHub Discussions:** Evaluate need based on beta testing experience
 - **Docs site versioning:** Start unversioned, add versioning later

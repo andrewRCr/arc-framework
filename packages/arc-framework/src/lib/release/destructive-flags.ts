@@ -10,8 +10,11 @@
  * @module
  */
 
+import { pushOptionConsumesNext } from "./arg-grammar.js";
+
 import {
   commitOptionConsumesNext,
+  isExactCommitLongOption,
   walkCommitShortOption,
 } from "./commit-message-source.js";
 
@@ -53,19 +56,25 @@ export const PUSH_DESTRUCTIVE_FLAGS = [
 export const PUSH_REFSPEC_FORCE_IDENTIFIER = "+refspec";
 
 /**
- * Match `argv` against a destructive-flag list, recognizing both the bare
- * flag token and the `<flag>=<value>` parameterized form. Git documents
- * `--force-with-lease[=<refname>[:<expect>]]`; treat any
- * `--force-with-lease=...` argv element as the same safety category. The
- * normalized identifier (the bare flag) is returned so refusal-message
- * lookup keys stay stable across attached-value variants.
+ * Match exact blocked flags and attached values first, then honor recognized
+ * exact option names before conservatively refusing remaining long-option
+ * prefixes of a listed flag, including ambiguous prefixes. Git
+ * accepts abbreviated long options; a refusal must not depend on spelling
+ * the full name. Return the canonical flag for stable refusal messages.
  */
-function matchDestructive(token: string, flags: readonly string[]): string | null {
+function matchDestructive(
+  token: string,
+  flags: readonly string[],
+  isExactLongOption?: (token: string) => boolean,
+): string | null {
   for (const flag of flags) {
     if (token === flag) return flag;
     if (token.startsWith(`${flag}=`)) return flag;
   }
-  return null;
+  if (isExactLongOption?.(token)) return null;
+  const name = token.split("=", 1)[0];
+  if (name === undefined || !name.startsWith("--") || name.length <= 2) return null;
+  return flags.find((flag) => flag.startsWith(name)) ?? null;
 }
 
 /** Yield each commit argv token before `--` that is not an option's operand. */
@@ -85,7 +94,7 @@ function* commitOptionTokens(argv: readonly string[]): Generator<string> {
  */
 export function detectCommitDestructive(argv: readonly string[]): string | null {
   for (const token of commitOptionTokens(argv)) {
-    const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS);
+    const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS, isExactCommitLongOption);
     if (match !== null) return match;
     if (containsNoVerifyShortOption(token)) return "-n";
   }
@@ -99,7 +108,7 @@ export function detectCommitDestructive(argv: readonly string[]): string | null 
  */
 export function detectCommitAmend(argv: readonly string[]): boolean {
   for (const token of commitOptionTokens(argv)) {
-    if (token === "--amend") return true;
+    if (matchDestructive(token, ["--amend"], isExactCommitLongOption) !== null) return true;
   }
   return false;
 }
@@ -119,15 +128,26 @@ function containsNoVerifyShortOption(token: string): boolean {
 
 /**
  * Return the matched push-side destructive-flag identifier on first hit
- * across `argv`, or null when none match. Matches both bare flag tokens
- * and `<flag>=<value>` parameterized forms (see {@link matchDestructive}).
+ * across `argv`, or null when none match. Matches exact flags, attached
+ * values, and conservative long-option prefixes (see {@link matchDestructive}).
  * Also recognizes the `+refspec` pattern (any token whose first character
  * is `+` and that has a body after the `+`), returning
  * {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
  */
 export function detectPushDestructive(argv: readonly string[]): string | null {
-  for (const token of argv) {
-    const match = matchDestructive(token, PUSH_DESTRUCTIVE_FLAGS);
+  let options = true;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined) continue;
+    if (token === "--") {
+      options = false;
+      continue;
+    }
+    if (options && pushOptionConsumesNext(token, argv[index + 1])) {
+      index += 1;
+      continue;
+    }
+    const match = options ? matchDestructive(token, PUSH_DESTRUCTIVE_FLAGS) : null;
     if (match !== null) return match;
     if (token.length > 1 && token.startsWith("+")) {
       return PUSH_REFSPEC_FORCE_IDENTIFIER;

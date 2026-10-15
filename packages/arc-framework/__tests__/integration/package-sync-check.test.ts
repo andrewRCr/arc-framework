@@ -51,7 +51,8 @@ async function check(paths: string[], options: { base?: string; merged?: string[
   if (options.base !== undefined) env.ARC_CHECK_BASE = options.base;
   if (options.merged !== undefined) env.ARC_CHECK_MERGED = options.merged.join(" ");
   if (options.indexFile !== undefined) env.GIT_INDEX_FILE = options.indexFile;
-  const result = await execa("bash", [script, ...paths], { cwd: root, env, reject: false });
+  // A runner's own check variables would otherwise return through execa's default merge with process.env.
+  const result = await execa("bash", [script, ...paths], { cwd: root, env, extendEnv: false, reject: false });
   return { exitCode: result.exitCode, output: result.stdout + result.stderr };
 }
 

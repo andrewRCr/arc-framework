@@ -41,7 +41,6 @@ export interface CompactionSeedEnvelope {
     currentWorkflow: string | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
-  extensions: SeedProbe<{ active: readonly string[] }>;
   taskCursor?: SeedProbe<TaskListCursorFileResult>;
 }
 
@@ -200,7 +199,6 @@ export async function emitCompactionSeed(
           sessionType: null,
           planningStage: null,
           taskListPath: null,
-          activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : [],
           cohortDocPath: null,
         });
       } else {
@@ -208,7 +206,6 @@ export async function emitCompactionSeed(
           state: options.envelope.derivedLocusState.value,
           identity,
           workingMemoryPath,
-          activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : [],
         });
         loadSet = recovery.loadSet;
         taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;

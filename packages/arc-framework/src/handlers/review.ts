@@ -1409,6 +1409,10 @@ function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDepen
   };
 }
 
+/** Ref names and short SHAs are refused, since the classifier reads two exact commits. */
+const PLANNING_LANE_OPERAND_REFUSAL = "planning-lane: <base> and <head> must be full commit SHAs of the same width "
+  + "(40 or 64 hex characters); resolve a ref or short SHA with `git rev-parse <ref>`\n";
+
 /**
  * Classify one exact Git change as planning or reviewed for the merge guard.
  *
@@ -1430,7 +1434,9 @@ export async function handleReviewPlanningLane(
     ...(options.repository === undefined ? {} : { repository: options.repository }),
   });
   if (!input.success) {
-    dependencies.writeError("planning-lane: invalid exact-change operands\n");
+    const fields = input.error.issues.map((issue) => issue.path[0]);
+    if (fields.some((field) => field !== "repository")) dependencies.writeError(PLANNING_LANE_OPERAND_REFUSAL);
+    if (fields.includes("repository")) dependencies.writeError("planning-lane: --repository must name a non-empty path\n");
     dependencies.setExitCode(64);
     return;
   }
@@ -1597,6 +1603,19 @@ async function errandFrontlinePhaseClosed(
   });
 }
 
+/**
+ * Whether a standard-lane request on an opened change request comes from the checkout of the open ordinary Errand
+ * that hosted Errand review binds. A checkout it cannot establish proves no Errand; the request still resolves,
+ * without the first pass's request.
+ */
+async function errandStandardVehicle(
+  request: ReviewPolicyCommandRequest,
+  input: { root: string; exec: GitExec },
+): Promise<boolean> {
+  if (request.lane !== "standard" || request.target.pullRequest === null) return false;
+  return readIndexedHostedReviewErrand(input.root, input.exec).then(() => true, () => false);
+}
+
 function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
@@ -1628,10 +1647,12 @@ async function resolveConfiguredReviewPolicy(
   const phaseClosed = await errandFrontlinePhaseClosed(request, {
     root, exec, publisher, operationStore, resultReader, dispositionStore,
   });
+  const errandVehicle = await errandStandardVehicle(request, { root, exec });
   return resolveEvidenceBoundReviewPolicy(request, {
     sources,
     maxPasses,
     ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
+    ...(errandVehicle ? { errandVehicle: true } : {}),
     resultReader,
     dispositionStore,
     readResponsePerformance,

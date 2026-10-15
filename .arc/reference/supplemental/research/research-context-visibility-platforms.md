@@ -59,8 +59,7 @@ UNVERIFIED (no reliable source).
 - No persistent indicator (feature request open)
 - Manual `/compact` available; auto-drops context files exceeding 75% of window
 - Error at hard limit: "context window has overflowed"
-- Sources: [AWS Docs — Context Management][q-context] [OFFICIAL],
-  [GitHub Issue #1366][q-fr-display] [COMMUNITY]
+- Sources: [AWS Docs — Context Management][q-context] [OFFICIAL], [GitHub Issue #1366][q-fr-display] [COMMUNITY]
 
 ### VS Code Agent Mode — UNVERIFIED for this research
 

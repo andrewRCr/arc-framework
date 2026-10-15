@@ -144,9 +144,8 @@ At `medium` / `high`, retain the coherence slice below alongside grounding; unch
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
 - **`medium`** — a bounded set of decisions to compose. The canonical procedures run **at scope, never whole**:
   the spec stage's authoring moves and [`spec-review`][spec-review]'s coherence slice over the affected elements;
-  [`task-audit`][task-audit] over the affected phases; and
-  [`resolve-plan-segmentation`][resolve-plan-segmentation] only when a new segment appears. Offer
-  [`adversarial-review`][adversarial-review] over the footprint, neutrally.
+  [`task-audit`][task-audit] over the affected phases; and [`resolve-plan-segmentation`][resolve-plan-segmentation] only
+  when a new segment appears. Offer [`adversarial-review`][adversarial-review] over the footprint, neutrally.
 - **`high`** — design that must be authored rather than corrected. The same procedures at scope, with the
   adversarial pass recommended. Run [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized
   floor; the write itself lands at the capture commit (§ The capture commit).

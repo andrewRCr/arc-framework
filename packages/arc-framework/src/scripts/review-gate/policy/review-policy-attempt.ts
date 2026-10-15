@@ -36,6 +36,11 @@ export const ReviewAttemptSchema = z.discriminatedUnion("outcome", [
 ]).readonly();
 export type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
 
+/** Whether a source outcome permits falling through to the next configured source. */
+export function isSafeUnavailable(outcome: ReviewAttempt["outcome"]): boolean {
+  return outcome === "rate-limited" || outcome === "transient-unavailable";
+}
+
 /**
  * Project one persisted lane attempt into the policy command's evidence vocabulary.
  *

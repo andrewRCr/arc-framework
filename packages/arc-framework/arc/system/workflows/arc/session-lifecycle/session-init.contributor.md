@@ -1,14 +1,14 @@
 ---
-purpose: Contributor-specific divergence from session-init — Step 3 item 7+, Step 5 freshness, Step 6 orientation.
+purpose: Contributor-specific divergence from session-init — Step 3 item 7+, Step 4 freshness, Step 5 orientation.
 audience: agent
 ---
 
 # Workflow: Session Initialization — Contributor Path
 
 Loaded from `session-init.md` Step 3 when `identity.role === "contributor"`. Steps 1–2 and Step 3 items
-1–6 are universal — they load via `session-init.md` before this file is consulted. Steps 4 and 7 are
-also universal — return to `session-init.md` for those. This file covers only the divergent surface:
-Step 3 item 7+ load shape, Step 5 freshness, and Step 6 orientation format.
+1–6 are universal — they load via `session-init.md` before this file is consulted. Step 6 is
+also universal — return to `session-init.md` for it. This file covers only the divergent surface:
+Step 3 item 7+ load shape, Step 4 freshness, and Step 5 orientation format.
 
 ## Step 3 (item 7+) — Active load set
 
@@ -34,9 +34,9 @@ task section). Companion paths come from `active.value.companions`.
 Step 3 "Resolve session type" — does not apply on the contributor path; contributors always load
 `process-task-loop.md` here.)
 
-## Step 5 — Contributor freshness check
+## Step 4 — Contributor freshness check
 
-Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-unit discovery
+Maintainer's `session-init.md` § 4 covers freshness (universal) and next-work-unit discovery
 (maintainer-only). Contributors keep freshness, drop discovery:
 
 - **Freshness:** Skip if SESSION-NOTES `Commit at Handoff` hash matches current HEAD. Otherwise
@@ -47,7 +47,7 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
   The handoff-hash check above is the freshness signal.
 - **Skip** maintainer next-work-discovery — work-unit lifecycle isn't a contributor concern.
 
-## Step 6 — Contributor orientation format
+## Step 5 — Contributor orientation format
 
 **ARC session initialized** · `{branch-name}` · contributor · {clean | uncommitted changes}
 
@@ -55,7 +55,7 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
 
 When `active.value.resolution === "single"` (or `"multiple"` after disambiguation resolves to one
 candidate), surface the chosen file's fields using maintainer's field bounds from
-`session-init.md` § 6:
+`session-init.md` § 5:
 
 - **Last completed**: One line. Task ID + title + commit state (or off-task-list description).
 - **Current task**: One line. Task ID + title, or `none` between work units.

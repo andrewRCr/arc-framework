@@ -82,11 +82,26 @@ their count and oldest date. Never infer lifecycle or owner from paths; use `arc
 Delegate pointed reads when they would flood context, under DEV-RULES' Sub-agent scope. They remain advisory until
 the primary reads the named section. Give the reader no primary-side door or allowed-outcome set.
 
+### Target lifecycle
+
+Use the target's lifecycle position from `arc status <slug> --json` before proposing or retaining any `fold` or
+`hold`, including own-work reconciliation, re-triage, and fallback holds. These rules govern the defaults below
+within each door's allowed outcomes.
+
+- **Active:** propose a route out — `new-stub`, `hold` on a follow-on stub, `errand`, or `capture`, as the door permits.
+  When the entry modifies that work and belongs there, carry admission as the alternative at the door's Owner stop.
+  Only the Owner selects admission. The work unit's owner then writes a spec amendment through
+  [amend-design][amend-design] or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>` for owner
+  adoption through the binding's `_Hold` capture and writer line.
+- **Integrating:** takes nothing and is not a routing target. The route back in is `arc reopen`; reconsider the
+  target only after its lifecycle position changes.
+
 ### Integration and re-triage
 
-Default to `fold` at the owner's own pass and where the binding permits an Errand's route-to-home to weave into a
-backlog stub. Default to `hold` at the drain, on fast-path routes into another work unit, and for a foreign owner.
-A started work unit takes no woven note from anyone but its owner. Carry-out rules live in the binding below.
+Subject to the lifecycle rules above, default to `fold` at the owner's own pass and where the binding permits an
+Errand's route-to-home to weave into a backlog stub. Default to `hold` at the drain, on fast-path routes into another
+work unit, and for a foreign owner. A started work unit takes no woven note from anyone but its owner. Carry-out
+rules live in the binding below.
 
 With `host`, apply own-work reconciliation above at the ready-making owner's pass; other concerns run the same
 gate using the current home as incumbent: staying is `hold <host>`, folding is `fold <host>`, and leaving can name
@@ -160,7 +175,8 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 ### Binding: carrying out outcomes
 
-- **Inbound entries:** the draft's `## Inbound Buffer — Pending Integration` section. A held entry carries
+- **Inbound entries:** backlog and Planning targets use the draft's `## Inbound Buffer — Pending Integration`
+  section; admitted Active entries take the amendment or task route above. A held entry carries
   `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gated `hold` into a started work
   unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
 - **Writer line:** only a change off the base whose one concern is routing — the drain's or a route-only Errand's —
@@ -200,6 +216,7 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 ---
 
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
 [classify-work-unit]: classify-work-unit.md
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md

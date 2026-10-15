@@ -54,6 +54,9 @@ npm run -s lint:md:fix:file -- "path/to/file.md"
 # Certify the exact staged candidate (normally run by pre-commit)
 npm run -s lint:md:staged
 
+# Check under-wrapping while writing a file, before staging (feedback only)
+npm run -s lint:md:underwrap -- --worktree "path/to/file.md"
+
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
@@ -326,6 +329,13 @@ arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
 arc demote <slug>
 
+# Set the current WU's planning-stage pointer; --advance also resets Next Action for the new stage.
+arc set-stage <draft-design|create-spec|generate-tasks> [--advance]
+# Advance the current WU's Design pointer at a planning event.
+arc repoint-design <draft-created|spec-finalized>
+# Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
+arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
+
 # Activate a planning WU: Planning → Active (activate-work-unit.md)
 arc activate [slug] --type <type> --task <first task> --action <next action>
 # Deactivate a premature activation: Active → Planning (deactivate-work-unit.md)
@@ -448,9 +458,8 @@ message structure, and wrapper retry behavior.
 
 Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] §
-Commit Discipline for the trust model and opt-in semantics.
+`commit-message-preflight-failed`; audit entries land at `.arc/user/{identity}/.internal/.audit-log.jsonl`. See
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the trust model and opt-in semantics.
 
 ### Standalone Work History
 

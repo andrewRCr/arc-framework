@@ -4,6 +4,8 @@ import {
   affectedPaths,
   classifyPlanningLane,
   isIntegrationTargetPath,
+  isCodeSurfacePath,
+  isPackagedContentSensitivePath,
   isPortabilitySurfacePath,
   parseRawDiff,
   resolveChangeSet,
@@ -28,6 +30,13 @@ describe("status portability surface", () => {
   });
 });
 
+describe("retired unmanaged content", () => {
+  it("does not select code or sensitive-content gates for inert residue", () => {
+    expect(isCodeSurfacePath(".arc/system/extensions/inert.md")).toBe(false);
+    expect(isPackagedContentSensitivePath("packages/arc-framework/arc/system/extensions/inert.md")).toBe(false);
+  });
+});
+
 describe("integration target paths", () => {
   it.each([
     "packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md",
@@ -47,11 +56,10 @@ describe("integration target paths", () => {
   it.each([
     "packages/arc-framework/src/lib/change-facts.ts",
     "packages/arc-framework/__tests__/integration/classify-change.test.ts",
-    "packages/arc-framework/arc/system/extensions/README.md",
+    "packages/arc-framework/arc/system/.internal/scripts/verify-integrity.sh",
     "packages/arc-framework/arc/reference/templates/template-tasks.md",
     "packages/arc-framework/arc/system/arc-config.yml",
     ".arc/system/arc-checks.yml",
-    ".arc/system/extensions/post-context-load.md",
     ".github/workflows/ci.yml",
     ".claude/skills/arc-session/SKILL.md",
   ])("leaves %s to the code weight, which covers its content", (path) => {

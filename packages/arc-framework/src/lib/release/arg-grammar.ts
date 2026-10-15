@@ -15,9 +15,9 @@
  * - `-u <remote> <branch>` / `--set-upstream <remote> <branch>` — the flag
  *   is preserved; only the positional pair is stripped
  *
- * Value-taking flags (`-o` / `--push-option`) consume the following token as
- * their value, preventing it from being misread as the start of a positional
- * pair. Single positional tokens (no following non-flag) pass through unchanged;
+ * Required-value options (`-o` / `--push-option`, `--repo`, `--receive-pack`,
+ * and `--exec`), including unique long-option abbreviations, consume the next
+ * token as data so it is not misread as the start of a positional pair. Single positional tokens (no following non-flag) pass through unchanged;
  * other flags and flag-with-`=value` forms also pass through. Arg-grammar
  * issues outside this narrow scope continue to fall through to git's own
  * parser.
@@ -35,8 +35,32 @@ export type NormalizeReleasePushArgsResult =
     };
 
 const SET_UPSTREAM_FLAGS: ReadonlySet<string> = new Set(["-u", "--set-upstream"]);
-const VALUE_TAKING_FLAGS: ReadonlySet<string> = new Set(["-o", "--push-option"]);
+const VALUE_TAKING_FLAGS: ReadonlySet<string> = new Set([
+  "-o", "--push-option", "--repo", "--receive-pack", "--exec",
+]);
+const LONG_OPTIONS = [
+  ...[...VALUE_TAKING_FLAGS].filter((option) => option.startsWith("--")),
+  "--verbose", "--quiet", "--all", "--branches", "--mirror", "--delete", "--tags",
+  "--dry-run", "--porcelain", "--force", "--force-with-lease", "--force-if-includes",
+  "--recurse-submodules", "--thin", "--set-upstream", "--progress", "--prune", "--verify",
+  "--follow-tags", "--signed", "--atomic", "--ipv4", "--ipv6",
+];
+const LONG_OPTION_NAMES = LONG_OPTIONS.flatMap((option) => [option, `--no-${option.slice(2)}`]);
 const EXPECTED_REMOTE = "origin";
+
+/**
+ * Report whether a push option consumes the next token as a required value.
+ * Exact names take precedence over unique long-option prefixes; attached,
+ * optional, negated, ambiguous, and unknown forms consume no extra token.
+ */
+export function pushOptionConsumesNext(token: string, nextArg: string | undefined): boolean {
+  if (nextArg === undefined || token.includes("=")) return false;
+  if (VALUE_TAKING_FLAGS.has(token)) return true;
+  if (!token.startsWith("--") || token.length <= 2 || LONG_OPTION_NAMES.includes(token)) return false;
+  const matches = LONG_OPTION_NAMES.filter((option) => option.startsWith(token));
+  const canonical = matches.length === 1 ? matches[0] : undefined;
+  return canonical !== undefined && VALUE_TAKING_FLAGS.has(canonical);
+}
 
 /**
  * Normalize positional `<remote> <branch>` arguments against the wrapper's
@@ -60,7 +84,7 @@ export function normalizeReleasePushArgs(
     const arg = argv[i];
     if (arg === undefined) break;
 
-    if (VALUE_TAKING_FLAGS.has(arg)) {
+    if (pushOptionConsumesNext(arg, argv[i + 1])) {
       out.push(arg);
       const value = argv[i + 1];
       if (value !== undefined) {

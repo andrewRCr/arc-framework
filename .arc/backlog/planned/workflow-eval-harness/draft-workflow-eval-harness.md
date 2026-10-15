@@ -78,9 +78,8 @@
   reader check, a task-generation spec correction, and decomposition that authors a new member spec outside
   `create-spec`. Include extraction that retains a requirement while allocating away its required definition;
   check the prospective retained contract and exact finish preview before apply. Check the shared review over
-  the affected footprint before the native approval boundary, without
-  widening a local correction into an unrelated whole-spec review. Judge agent outputs rather than merely
-  matching instruction text.
+  the affected footprint before the native approval boundary, without widening a local correction into an unrelated
+  whole-spec review. Judge agent outputs rather than merely matching instruction text.
 
 - _Files:_ `spec-spec-reader-standard.md`, archived with `spec-reader-standard`, carries the reader contract and
   example judgments. Package `create-spec`, `generate-tasks.template`, `decompose-work-unit`,

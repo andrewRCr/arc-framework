@@ -480,8 +480,8 @@ conventions above (append-only, primary-on-base, one session per checkout).
 
 - **A commit is blocked because the readiness view "wants" a row for a work unit you never touched.** In-flight
   rows derive from remote refs, so a branch appearing (or vanishing) on the remote changes every worktree's
-  expected render. Re-render against the staged tree —
-  `arc status --project --staged --write` — stage the result, and commit. (Known limitation.)
+  expected render. Re-render against the staged tree — `arc status --project --staged --write` — stage the result, and
+  commit. (Known limitation.)
 
 - **A personal-notes push is refused: the same file diverged at the same commit.** Two machines saved divergent
   notes onto the same base commit; there is no automatic union. Choose one machine, manually combine the

@@ -1,9 +1,6 @@
 ---
 purpose: Resume a parked work unit — re-attach its preserved branch to the active set and remove the tracked-branch pointer-record.
 audience: agent
-arc:
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Resume Work Unit
@@ -99,9 +96,6 @@ renderer is downstream. Default: a dedicated `chore(arc):` re-render commit, rid
 delta is trivial.
 
 Under full protection, push the grooming branch and open the PR:
-
-- **Extensions** · `#pre-push-review`: If `pre-push-review` is in the active-extensions list, load and execute its
-  `.actions` before the push. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/resume-{name}`.

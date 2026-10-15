@@ -16,7 +16,7 @@ Your project-specific standards — testing requirements, architecture rules, an
 
 ## Rule Authority
 
-Every rule ARC states — here, in a method, in a workflow, in an extension, in a strategy — is a **default**
+Every rule ARC states — here, in a method, in a workflow, in a strategy — is a **default**
 unless marked **invariant**.
 
 **`[configurable]` is a different axis.** It says the _project_ may set a rule's shape; this reading says
@@ -435,12 +435,12 @@ recommended option with a one-line rationale; never a bare fork. The user still 
 
 Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-index] entries that fire.
 
-### Method and extension loading
+### Method loading
 
-A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what that workflow may fire**, not a
+A workflow's `arc.methods` frontmatter is an **index of what that workflow may fire**, not a
 preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire.
 Declare what your own body fires, never what you would carry only on a declared method's behalf. Load declared
-content only when its direct consumer reaches the callout, signature block, extension marker, or other fire-point
+content only when its direct consumer reaches the callout, signature block, or other fire-point
 that invokes it. A declaration the current path never reaches is not a reason to load it. Don't proceed from
 intuition at a fire-point when the declared content is one read away.
 
@@ -474,8 +474,9 @@ Movable `.arc/` artifacts relocate between lifecycle states (`active/` ↔ `back
 ### `.arc/` artifact references
 
 Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` — are
-project-internal: shipped or published content cannot reference them at all. Two rules keep internal references
-stable across relocation:
+project-internal. Except for the commit-pinned link to the design document in a pull request's diff, shipped or
+published content cannot reference them and the following filename-only/no-links rule applies. Two rules keep
+internal references stable across relocation:
 
 - **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
@@ -502,10 +503,17 @@ what the artifact delivers, not the author's workflow continuity, which belongs 
 
 ### Commit and PR surface language
 
-Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge: backticked
+Commit prose reads as **the operation performed**, legible without ARC-specific knowledge: backticked
 artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a load-bearing term (a
 `Class` value, a named internal procedure) is not. Traceability — task IDs, phases, lifecycle action — routes to
 the `Context:` footer; the prose carries the change. Illustrative, not exhaustive.
+
+Before composing or editing a pull-request title or body, inside or outside a workflow, load
+[pull-request-format][pull-request-format] for every Errand request and any request beyond planning- or
+lifecycle-only records from grooming sets, housekeep sweeps, and lifecycle verbs. By default, titles and bodies
+carry no ARC process vocabulary, artifact references, or process, provenance, or review metadata, except the
+method's pinned design link. A project's domain vocabulary belongs when it is the change's subject; target-project
+prescriptions and method overrides govern as the method specifies.
 
 ---
 
@@ -548,3 +556,4 @@ Load these documents when you reach the relevant work — not during session ini
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
 [contributor-briefing]: ../../reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md
 [session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md
+[pull-request-format]: ../../system/methods/pull-request-format.md

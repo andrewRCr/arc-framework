@@ -253,8 +253,8 @@ closer examination.
 
 For the full design history — external research findings on dual-scope idiomaticity across eight
 representative dev tools, the `release.enabled` semantic walkthrough, naming convergence on
-`releaseOptedIn`, and the `user.notes_push` deferral rationale — see
-`notes-release-wrappers-ergonomics.md` § Phase 6.R: Configuration Scope Refactor — Design History.
+`releaseOptedIn`, and the `user.notes_push` deferral rationale — see `notes-release-wrappers-ergonomics.md` § Phase 6.R:
+Configuration Scope Refactor — Design History.
 
 This is a scope-clarification amendment, not a reversal of the decision. The trust-model framing, two-layer
 authorization model, wrapper authorization scaffolding, sync forensic umbrella, and bypass-universality
