@@ -78,7 +78,7 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   reports?: CheckReportStore;
   now?(): number;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
 
 /**
@@ -350,11 +350,12 @@ const KILLED_EXIT_CODE = 137;
 const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
+  result: { started: boolean; exitCode: number; output: string; notRunReason?: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
   const { rewritten, reason } = await finishCheckRewrites(selected, io, request);
   const { divergent } = selected;
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
+  if (result.notRunReason !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: result.notRunReason };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
   if (result.exitCode === KILLED_EXIT_CODE && check.no_evidence_exit !== KILLED_EXIT_CODE) {
     return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
@@ -408,7 +409,7 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
   const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
   const notices = new Set<string>();
-  const ran = (result: { started: boolean; exitCode: number }) => ({ ...result, output: outputs.join("\n"),
+  const ran = (result: { started: boolean; exitCode: number; notRunReason?: string }) => ({ ...result, output: outputs.join("\n"),
     ...(notices.size > 0 ? { notice: [...notices].join("; ") } : {}) });
   let exitCode = 0;
   // A batch that found nothing to examine neither fails the check nor shows the others examined anything, so the
@@ -420,7 +421,7 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
       if (result.notice !== undefined) notices.add(result.notice);
-      if (!result.started) return ran(result);
+      if (!result.started || result.notRunReason !== undefined) return ran(unavailableBatchResult(exitCode, result));
       if (result.exitCode === check.no_evidence_exit) continue;
       examined = true;
       // A kill never hides another batch's failure, which is a verdict where the kill is none.
@@ -431,4 +432,10 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
     return ran({ started: false, exitCode: 1 });
   }
   return ran({ started: true, exitCode: examined ? exitCode : check.no_evidence_exit ?? exitCode });
+}
+
+/** A completed batch failure remains a verdict when a later runner reports no result. */
+function unavailableBatchResult(previousExit: number, result: { started: boolean; exitCode: number; notRunReason?: string }) {
+  return result.notRunReason !== undefined && previousExit !== 0 && previousExit !== KILLED_EXIT_CODE
+    ? { started: true, exitCode: previousExit } : result;
 }

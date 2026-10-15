@@ -11,7 +11,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files"; inputs?: string[] }>, failSecondTreeWrite = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -216,4 +216,36 @@ it.each(exitCases)("classifies $outcomes with exit $exit regardless of result ki
     }));
     expect(declaredChecksExitCode(checks)).toBe(exit);
   }
+});
+
+it.each([1, 255])("reports runner unavailability at exit %s with a retry, then passes after recovery", async exitCode => {
+  const { root, io, ids } = await fixture({ heavy: { no_evidence_exit: 1 } });
+  io.execute = async () => ({ started: true, exitCode, output: "ssh disconnected",
+    notice: "not run: VM connection dropped", notRunReason: "VM connection dropped" });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 2, result: { checks: [{
+    id: "heavy", outcome: "couldn't run", reason: "VM connection dropped", output: "ssh disconnected",
+    notice: "not run: VM connection dropped", remedy: expect.stringMatching(/^arc check run heavy\b/u),
+  }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks[0]).not.toHaveProperty("record");
+  io.execute = async () => ({ started: true, exitCode: 0, output: "complete" });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed", output: "complete" }] },
+  });
+});
+
+it("keeps a completed batch failure when a later batch cannot run", async () => {
+  const { root, io, ids } = await fixture({ lint: { mode: "files", inputs: ["**"] } });
+  const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
+  const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
+  const git = io.git;
+  io.git = async (file, args, options) => args[0] === "diff"
+    ? { stdout: raw, stderr: "" } : git(file, args, options);
+  let batch = 0;
+  io.execute = async () => ++batch === 1 ? { started: true, exitCode: 1, output: "lint violation" }
+    : { started: true, exitCode: 255, output: "ssh disconnected", notRunReason: "VM connection dropped" };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nssh disconnected" }] },
+  });
 });
