@@ -67,3 +67,15 @@ it("pre-flip pause and handover refuse unsupported with the existing path", asyn
   expect(await runPause(context(inRepo), { name: "example", identity: "andrew", reason: "Wait." })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("arc park") });
   expect(await runHandover(context(inRepo), { name: "example", to: "another-person" })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("Owner") });
 });
+
+it("rejects a reserved resume-notes heading with an actionable correction and accepts the repaired notes", async () => {
+  const { store, seedMeta } = createLifecycleHarness(); const record = await seedMeta("example"); const ctx = context(store);
+  expect(await runPause(ctx, { name: "example", identity: "andrew", reason: "Wait.", resumeNotes: "### Resume Notes\n\nContinue here." }))
+    .toMatchObject({ status: "rejected", reason: expect.stringMatching(/reserved.*remove/iu) });
+  expect(lifecycleSuccess(await store.read({ reference: record.reference }))).toEqual(record);
+  expect(await runPause(ctx, { name: "example", identity: "andrew", reason: "Wait.", resumeNotes: "Continue here.\n\n### Details\n\nKeep this example." }))
+    .toMatchObject({ status: "paused" });
+  expect(lifecycleSuccess(await store.read({ reference: record.reference })).fields).toMatchObject({ pause: {
+    resumeNotes: "Continue here.\n\n### Details\n\nKeep this example.",
+  } });
+});

@@ -1,7 +1,7 @@
 /** Whole-section editing for metadata Session Context and Pause. */
 
 import type { MetaPause } from "../../../active/meta-schema.js";
-import { renderMetaPauseBody } from "./pause-section.js";
+import { pauseProseProblem, renderMetaPauseBody } from "./pause-section.js";
 import { locateMetaFieldBlock, type MetaFieldBlockLocation } from "./line-reading.js";
 
 interface SectionSpan {
@@ -81,10 +81,8 @@ export function writeMetaPause(content: string, pause: MetaPause | null): string
     for (const target of [...targets].reverse()) result = `${result.slice(0, target.start)}${result.slice(target.end)}`;
     return result;
   }
-  const prose = [pause.reason, pause.resumeNotes, pause.waitsOn?.kind === "note" ? pause.waitsOn.text : null];
-  if (prose.some((text) => text?.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---"))) {
-    throw new Error("Cannot write Pause: body contains a section boundary.");
-  }
+  const problem = pauseProseProblem(pause);
+  if (problem !== null) throw new Error(`Cannot write Pause: ${problem}`);
   const target = targets[0];
   const ending = target?.lineEnding || block.lines[block.h1Index]?.lineEnding || "\n";
   const body = renderMetaPauseBody(pause).replace(/\r?\n/gu, ending);

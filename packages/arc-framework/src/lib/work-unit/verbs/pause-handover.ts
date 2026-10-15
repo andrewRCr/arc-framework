@@ -1,4 +1,5 @@
 /** Verb-owned pause, resume, and ownership changes over the operational store. */
+import { pauseProseProblem } from "../../store/kinds/meta/pause-section.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../../active/meta-schema.js";
 import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState } from "../../store/lifecycle-write.js";
@@ -57,7 +58,9 @@ function preparePause(prior: unknown, params: PauseParams, now: Date): { status:
     since: previous?.since ?? now.toISOString(), reason: params.reason ?? previous?.reason,
     waitsOn, resumeNotes: params.resumeNotes === false ? null : params.resumeNotes ?? previous?.resumeNotes ?? null,
     open: params.open ?? previous?.open ?? false });
-  return pause.success ? { status: "ready", pause: pause.data } : { status: "rejected", reason: `Invalid pause fields: ${pause.error.message}` };
+  if (!pause.success) return { status: "rejected", reason: `Invalid pause fields: ${pause.error.message}` };
+  const problem = pauseProseProblem(pause.data);
+  return problem === null ? { status: "ready", pause: pause.data } : { status: "rejected", reason: problem };
 }
 function requestedWait(params: PauseParams, previous: MetaPause["waitsOn"]): MetaPause["waitsOn"] | { kind: "work-unit"; slug: string } {
   if (params.waitsOn === false) return null;

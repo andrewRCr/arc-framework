@@ -31,3 +31,8 @@ it.each(["`other`", "\\`other\\`", "waiting for `other`", "`two\nlines`"])("pres
   const value = { ...pause, waitsOn: { kind: "note" as const, text } };
   expect(parseMetaRecord(writeMetaPause(original, value)).pause).toEqual(value);
 });
+
+it("refuses the reserved resume-notes heading before rendering", () => {
+  expect(() => writeMetaPause(original, { ...pause, resumeNotes: "### Resume Notes\n\nContinue here." }))
+    .toThrow(/reserved/iu);
+});

@@ -1,6 +1,17 @@
 /** Semantic reader and body renderer for the verb-owned Pause section. */
 import { MetaPauseSchema, type MetaPause } from "../../../active/meta-schema.js";
 
+/** Explain prose that would interfere with the managed Pause section's grammar. */
+export function pauseProseProblem(pause: MetaPause): string | null {
+  const prose = [pause.reason, pause.resumeNotes, pause.waitsOn?.kind === "note" ? pause.waitsOn.text : null];
+  if (prose.some((text) => text?.split(/\r?\n/u).some((line) => /^## /u.test(line) || line.trim() === "---"))) {
+    return "Pause body contains a section boundary; remove the heading or delimiter and retry.";
+  }
+  return pause.resumeNotes?.split(/\r?\n/u).includes("### Resume Notes") === true
+    ? "Pause notes contain the reserved ### Resume Notes heading; remove that heading and retry."
+    : null;
+}
+
 /** Render the whole section body using labels distinct from managed fields.
  * @param value - Schema-valid pause state.
  * @returns Canonical section body.
