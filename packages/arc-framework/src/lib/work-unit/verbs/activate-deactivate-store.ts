@@ -1,4 +1,5 @@
 /** Store-capability activation and deactivation around the shared lifecycle executor. */
+import { resolveProjectIdentity } from "../../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
 import type { Store } from "../../store/contract.js";
@@ -25,8 +26,10 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   if (record.state !== "Planning" || primary.placement?.kind !== "active") return { status: "rejected", reason: `${params.name} is not a Planning work unit held in active placement.` };
   const peers = await readOtherPrimaries(store, primary);
   if (peers.status === "rejected") return peers;
+  const repository = await resolveProjectIdentity(ctx.projectId);
+  if (repository.status === "unavailable") return { ...repository, status: "rejected" };
   const plan = await planActivationBranch({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, name: params.name,
-    toBranch: params.toBranch, baseBranch: params.baseBranch, repository: await ctx.projectId(), primary, otherPrimaries: peers.records });
+    toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
   const metaPath = lifecycleArtifactPath(entry, "meta");
   const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });

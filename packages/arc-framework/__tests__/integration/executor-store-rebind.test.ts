@@ -4,6 +4,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveVerbBase, buildExecutor } from "../../src/handlers/lifecycle-shared.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
+import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
+import { runActivate } from "../../src/lib/work-unit/verbs/activate-deactivate.js";
+import { runTaskClose } from "../../src/lib/work-unit/verbs/task-close.js";
 import { readWorkUnit } from "../../src/lib/store/lifecycle-write.js";
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -48,4 +51,45 @@ it("preserves an injected backend replacing the production base's default instan
   const rebound = executor.withCwd?.(child); expect(rebound?.store).toBe(h.store);
   if (rebound?.store === undefined) throw new Error("Missing replacement store");
   expect(lifecycleSuccess(await readWorkUnit(rebound.store, "example")).fields).toMatchObject({ nextAction: "Replacement orientation" });
+});
+
+const projectUid = "a09e9654-95ad-4e6c-a74f-460845f0bd36";
+async function seedProject(h: ReturnType<typeof createLifecycleHarness>) {
+  return h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "project", uid: projectUid })), "{}");
+}
+it("lazily binds the production project UID once across rebinding and real activation", async () => {
+  const { child, base } = await fixture(), h = createLifecycleHarness();
+  await seedProject(h);
+  const primary = await h.seedMeta("example", { state: "Planning", currentWorkflow: "draft-design" });
+  const list = h.store.list.bind(h.store); let identityReads = 0;
+  h.store.list = async (input) => { if (input.kind === "project-registry/identity") identityReads++; return list(input); };
+  const { executor } = await buildExecutor({ ...base, store: h.store });
+  expect(identityReads).toBe(0);
+  expect(typeof executor.projectId).toBe("function");
+  expect(await executor.projectId?.()).toBe(projectUid);
+  const rebound = executor.withCwd?.(child);
+  expect(await rebound?.projectId?.()).toBe(projectUid);
+  expect(await runActivate(executor, { name: "example", toBranch: "feat/example", nextAction: "Continue", baseBranch: "main" }))
+    .toMatchObject({ status: "activated", branch: "feat/example" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).links?.branches)
+    .toEqual([{ repository: projectUid, ref: "feat/example", linkedAs: "created", excluded: [] }]);
+  expect(identityReads).toBe(1);
+});
+it("refuses missing project identity without closing tasks and succeeds after a repaired invocation", async () => {
+  const { base } = await fixture(), h = createLifecycleHarness();
+  await base.io.exec("git", ["switch", "-c", "feat/example"], { cwd: base.cwd });
+  const primary = await h.seedMeta("example", { taskList: "tasks-example.md" }, { kind: "active" },
+    { branches: [{ repository: projectUid, ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const tasks = await h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
+    "# Task List: example\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Work**\n");
+  const context = async () => {
+    const { executor } = await buildExecutor({ ...base, store: h.store });
+    return { store: executor.store, projectId: executor.projectId, exec: executor.exec!, cwd: base.cwd, slug: "example", baseBranch: "main" };
+  };
+  expect(await runTaskClose(await context())).toMatchObject({ status: "refused", reason: "Project identity record is missing.",
+    remedy: { text: expect.stringContaining("identity record") } });
+  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference }))).toEqual(tasks);
+  await seedProject(h);
+  expect(await runTaskClose(await context())).toMatchObject({ status: "closed", captured: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain("`[x]` **1.1 Work**");
 });

@@ -1,4 +1,5 @@
 /** Atomic task closure and deferral over operational records, with additive code captures. */
+import { resolveProjectIdentity } from "../../store/project-identity.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import type { GitExec, RawGitExec } from "../../git/exec.js";
 import { computeCopyKeys } from "../../git/copy-key.js";
@@ -34,8 +35,10 @@ export interface PreparedTaskClose { status: "prepared"; store: Store; meta: Sto
 export async function prepareTaskClose(ctx: TaskVerbContext, params: TaskCloseParams, options: { precommit?: boolean } = {}): Promise<PreparedTaskClose | TaskRefusal> {
   const basis = await readTaskBasis(ctx, params.ids ?? [], "close");
   if (basis.status === "refused") return basis;
-  const repository = await ctx.projectId?.();
-  if (repository === undefined) return refuseTask("Project identity is unavailable.", "Resolve the project's stable identity, then retry arc task close.");
+  const project = await resolveProjectIdentity(ctx.projectId);
+  if (project.status === "unavailable") return { status: "refused", code: project.refusal?.code ?? "project-identity-unavailable",
+    reason: project.reason, remedy: project.remedy, ...(project.refusal === undefined ? {} : { refusal: project.refusal }) };
+  const repository = project.id;
   const relation = await resolveLinkedCheckoutBranch({ exec: ctx.exec, cwd: ctx.cwd, repository, branches: basis.meta.links?.branches ?? [] });
   if (relation.kind !== "linked") {
     return unlinkedTaskRefusal(basis.meta, relation, ctx.slug, repository);
