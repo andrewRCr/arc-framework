@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "storage-reader-census-wording",
+  "claimId": "743e9647f20385a8ecfe88c91f48d96e",
+  "createdAt": "2026-10-15T20:56:13.392Z",
+  "updatedAt": "2026-10-15T20:56:13.392Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Remove retired extensions from the storage-coupling reader census while retaining the open migration row for surviving readers.",
+  "branch": "chore/storage-reader-census-wording",
+  "origin": "inbox",
+  "originEntry": "Drop extensions from the storage-coupling register's reader census row",
+  "originEntrySourceDigest": "sha256:4abdac483eb0f4f0ba11838209788ab19ecbf16adeb8ac7a78362f24649f10fb",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
