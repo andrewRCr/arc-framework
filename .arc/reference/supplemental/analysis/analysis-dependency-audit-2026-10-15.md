@@ -4,12 +4,15 @@ Assessment of the dependency graph at `e78a193203a69d7d6057324ae80c0b2a50565f59`
 Package manifests, the lockfile, and install-script policy remain unchanged. This is a dated assessment of the
 repository's use of the reported dependencies, not a claim that development dependencies are harmless.
 
+**Disposition owner:** andrew. **Decision date:** 2026-10-15. The retained-risk dispositions below were accepted.
+
 ## Audit reconciliation
 
 The saved 2026-10-14 report lists 15 vulnerable-package entries: 6 high and 9 low. These entries derive from three
-advisories, rather than 15 independent vulnerabilities. Fresh installed-tree and lockfile-only audits both list
-9 entries: 5 high and 4 low. The production-only audit lists zero. Exit 1 from the two full audits means findings
-remain; it is not a command failure or a clean result.
+advisories, rather than 15 independent vulnerabilities. Fresh default and lockfile-only audits both list 9 entries: 5
+high and 4 low. The production-only audit lists zero. Exit 1 from the two full audits means findings remain; it is not a
+command failure or a clean result. Both full-audit commands use npm's lockfile model; their agreement is not independent
+validation of the physical installation.
 
 All nine currently flagged packages also appear in the saved report: `braces`, `esbuild`, `fast-glob`, `globby`,
 `katex`, `markdownlint`, `markdownlint-cli2`, `micromark-extension-math`, and `micromatch`. Six propagated entries are
