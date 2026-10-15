@@ -173,6 +173,20 @@ describe("formatForeignWriteWarnings", () => {
 });
 
 describe("formatForeignWriteAdvisories", () => {
+  it.each([true, false])("omits branch residue while retaining staged overlaps (overlap=%s)", (hasOverlap) => {
+    const overlaps = hasOverlap
+      ? [{ branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] }]
+      : [];
+
+    expect(formatForeignWriteAdvisories({ overlaps }, [{
+      code: "branch-residue",
+      branch: "spike/retained-model",
+      rendered: "Branch `spike/retained-model` has no errand record or active work-unit meta; cleanup may be required.",
+    }])).toEqual(hasOverlap
+      ? ["feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)"]
+      : []);
+  });
+
   it("surfaces oracle warnings before overlap advisories", () => {
     expect(formatForeignWriteAdvisories(
       {
