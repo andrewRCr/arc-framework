@@ -13,8 +13,8 @@
  *   re-runnable `arc teardown <name>` (its own containment guards decide the
  *   reap, so the offer is safe even when `merged` cannot be proven here).
  * - Otherwise, `merged` (commits landed in the integration base) gates the
- *   interlock-gated `git branch -d` offer; an unmerged orphan is surfaced as
- *   not-removable, never force-deleted.
+ *   `git branch -D` action: patch-equivalent rebased commits need not be
+ *   reachable from base, so `-d` would refuse. Unmerged orphans stay advisory.
  *
  * Excluded from the scan: bare (unprefixed) branches such as the base branch,
  * branches checked out in any worktree (the stale-worktree sweep's domain),
@@ -23,12 +23,13 @@
  * the record.
  *
  * The scan is local and network-free. Branch hygiene only: the sweep never
- * infers work-unit state from a branch's presence, and never offers `-D`.
+ * infers work-unit state from a branch's presence; deletion requires shipped or landed evidence.
  *
  * @module
  */
 
 import { z } from "zod";
+import { SessionActionsSchema } from "./actions.js";
 
 import { isLandedInBase } from "../git/branch-containment.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
@@ -58,6 +59,7 @@ export const OrphanBranchReportSchema = z.union([
   z.strictObject({
     branch: OrphanBranchNameSchema,
     merged: z.boolean(),
+    actions: SessionActionsSchema.optional(),
     shippedWorkUnit: SlugSchema.nullable(),
     blockingReason: z.null().optional(),
   }),
@@ -120,7 +122,7 @@ export async function analyzeOrphanBranchesSnapshot(
       shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
     };
   }));
-  return { ...evidence, orphans };
+  return { ...evidence, orphans: orphans.map(withOrphanActions) };
 }
 
 function unavailableOrphans(
@@ -212,5 +214,18 @@ export async function runOrphanBranchSweep(
     }),
   );
 
-  return { orphans, remoteEvidence: "not-applicable" };
+  return { orphans: orphans.map(withOrphanActions), remoteEvidence: "not-applicable" };
+}
+
+
+function withOrphanActions(report: OrphanBranchReport): OrphanBranchReport {
+  if (report.shippedWorkUnit !== null) {
+    return { ...report, actions: [{ text: `arc teardown ${report.shippedWorkUnit}`,
+      argv: ["arc", "teardown", report.shippedWorkUnit] }] };
+  }
+  if (report.merged === true) {
+    return { ...report, actions: [{ text: `git branch -D ${report.branch}`,
+      argv: ["git", "branch", "-D", report.branch] }] };
+  }
+  return report;
 }

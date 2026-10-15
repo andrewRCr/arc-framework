@@ -55,14 +55,11 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           `unit/session-envelope/boundary-disposition.test.ts`, and `helpers/production-schema-ids.ts`, and adds
           `unit/session-envelope/slot-schemas.test.ts`. Wire fixtures retain their bytes.
 
-### `[ ]` **1.2 Give each rebuilt slot its actions for today's conditions — § 4.3, § 12.4**
+### `[x]` **1.2 Give each rebuilt slot its actions for today's conditions — § 4.3, § 12.4**
 
 - _Goal:_ Each rebuilt slot carries, for every condition it reports today that wants a repair, the action § 4.3's table
   gives it — typed where running it as given repairs the condition, text where the repair takes a decision, with its
   checkout where its verb works on the checkout it runs in — and a condition wanting no repair carries none.
-
-- _Note:_ Each slot's `recommendedAction` stays computed as today; only the actions are added. Rows whose condition
-  exists only from the flip land with their arms in later phases; the removal rows land in Tasks 1.5 and 1.7.
 
     - `[x]` **1.2.a The reconciles**
 
@@ -95,19 +92,17 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - Spec § 1.4, item 1 changes `unit/session-init/materializable-work-units.test.ts` and `unit/status/run.test.ts`,
           and adds `unit/session-init/recommended-action-recovery.test.ts`.
 
-    - `[ ]` **1.2.e The orphan-branch sweep**
+    - `[x]` **1.2.e The orphan-branch sweep**
 
-        - Both of the sweep's paths — `runOrphanBranchSweep` and the snapshot analysis session-init calls with supplied
-          evidence (`analyzeOrphanBranchesSnapshot`, `lib/session-init/orphan-branch-sweep.ts`) — give a shipped work
-          unit's branch `arc teardown <name>` and a `merged` one `git branch -D <name>`, both typed, since
-          `git branch -d` tests reachability and refuses the rebased or single-commit squash-merged branch the `merged`
-          verdict admits. The module's doc, which says the sweep never offers `-D`, says what it offers.
-        - Session-init's offer text keeps `git branch -d`; no workflow text changes.
+        - Both producer paths attach typed teardown for shipped work units and `git branch -D` for landed branches;
+          unmerged or unproven branches carry no action. The module describes that evidence boundary.
+        - Spec § 1.4, item 1 changes `unit/session-init/orphan-branch-sweep.test.ts`, adds
+          `e2e/session-init-orphan-actions.e2e.test.ts`, and changes the branch-gone envelope golden with its recovery
+          action. The real-CLI scenario executes the offered argv and deletes a rebased orphan that `-d` refuses.
 
-        - Build `test-first` (one behavior at a time):
-            - a shipped work unit's orphan yields `arc teardown <name>`, typed, through both paths
-            - a rebased orphan whose commits all landed yields `git branch -D <name>`, which deletes it as given
-            - an unmerged orphan carries no action
+- _Outcome:_ Every existing repair condition now has its shared action form beside today's command fields. The envelope
+  compatibility scenarios add only `recovery.value.actions` to `session-init-branch-gone.json`; the other golden values
+  retain their bytes (spec § 1.4, item 1).
 
 ### `[ ]` **1.3 Add `pausedWork` and `inboundBackPressure`, reporting nothing — § 4.2, § 4.4, § 4.6**
 
