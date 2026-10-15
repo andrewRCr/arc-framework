@@ -17,6 +17,7 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 
+type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
 type Bound = TeardownContext & { evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
@@ -32,11 +33,11 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
     const bound: Bound = { ...ctx, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
-    const { links, retiring, head } = await selectRetiringLinks(bound);
+    const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
     let worktreeRemoved = selected === undefined ? await retireHolder(bound, ctx.cwd) : null;
-    const { branchDeleted, remoteBranchDeleted } = await reapRetirementLinks(bound, links, retiring, head);
+    const { branchDeleted, remoteBranchDeleted } = await reapRetirementLinks(bound, links, retiring, generation);
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
     return { status: "torn-down", mode: evidence.rule === "discard" ? "abandoned" : "shipped", branch: retiring,
       branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
@@ -115,9 +116,10 @@ async function prepareCreatedBranch(ctx: Bound, branch: string): Promise<boolean
   }
   return true;
 }
-async function reapRetiringBranch(ctx: Bound, branch: string): Promise<{ local: boolean; remote: boolean }> {
+async function reapRetiringBranch(ctx: Bound, branch: string, generation: RetiringGeneration): Promise<{ local: boolean; remote: boolean }> {
   return locked(ctx, async () => {
     const local = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), tracking = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
+    if (local !== generation.localHead || tracking !== generation.trackingHead) throw new Error("The retiring branch ref generation changed; retry teardown.");
     const landed = tracking === null || await isLandedInBase(ctx.exec, tracking, ctx.baseOid);
     if (ctx.evidence.rule === "landed" && local !== null) {
       const safety = await assessReapSafety(ctx.exec, { branch, base: ctx.baseOid });
@@ -134,13 +136,13 @@ async function reapRetiringBranch(ctx: Bound, branch: string): Promise<{ local: 
     return { local: local !== null, remote };
   });
 }
-async function reapAdditionalBranch(ctx: Bound, branch: string, retiringHead: string | null): Promise<boolean> {
+async function reapAdditionalBranch(ctx: Bound, branch: string, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
   if (ctx.execInput === undefined) throw new Error("Ref-set cleanup requires stdin-capable Git I/O; bind it and retry teardown.");
   const localHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remoteTrackingHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
   if (localHead === null && remoteTrackingHead === null) return false;
   const containers: { ref: string; oid: string }[] = [];
   for (const ref of [`refs/heads/${ctx.baseBranch}`, `refs/remotes/origin/${ctx.baseBranch}`]) { const oid = await localLifecycleTip(ctx.exec, ctx.cwd, ref); if (oid !== null) containers.push({ ref, oid }); }
-  const result = await reapZeroDeltaBranch(ctx.exec, ctx.execInput, ctx.baseBranch, { branch, localHead, remoteTrackingHead, containers, retiringHead,
+  const result = await reapZeroDeltaBranch(ctx.exec, ctx.execInput, ctx.baseBranch, { branch, localHead, remoteTrackingHead, containers, retiringContainer,
     prepareCheckout: () => prepareCreatedBranch(ctx, branch),
     withWorkItemLock: (operation) => locked(ctx, operation) }, localHead ?? remoteTrackingHead, ctx.primaryPath);
   if (result.kind === "preserved") ctx.notices.push(`Kept ${branch}: ${result.reason}`);
@@ -162,9 +164,11 @@ async function selectRetiringLinks(ctx: Bound) {
     const selected = selectWorkBranchLink({ links: { branches: links } }, { repository });
     if (selected.kind === "ambiguous") throw new Error(selected.reason);
     const retiring = selected.kind === "none" ? null : workBranchName(selected.link.ref);
-    const head = retiring === null ? null : await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/heads/${retiring}`)
-      ?? await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/remotes/origin/${retiring}`);
-    return { links, retiring, head };
+    const localHead = retiring === null ? null : await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/heads/${retiring}`);
+    const trackingHead = retiring === null ? null : await localLifecycleTip(ctx.exec, ctx.primaryPath, `refs/remotes/origin/${retiring}`);
+    const container = localHead !== null ? { ref: `refs/heads/${retiring}`, oid: localHead }
+      : trackingHead !== null ? { ref: `refs/remotes/origin/${retiring}`, oid: trackingHead } : null;
+    return { links, retiring, generation: { localHead, trackingHead, container } };
 }
 
 async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean): Promise<boolean> {
@@ -185,7 +189,7 @@ function teardownRetryRemedy(params: TeardownParams): Remedy {
     argv: ["arc", "teardown", params.name, ...(params.huskPath === undefined ? [] : ["--husk", params.huskPath])] };
 }
 
-async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, head: string | null) {
+async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, generation: RetiringGeneration) {
   let branchDeleted = false, remoteBranchDeleted = false;
   const createdRetiring = links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
   const retiringReady = retiring !== null && createdRetiring && await locked(ctx, () => prepareCreatedBranch(ctx, retiring));
@@ -194,12 +198,12 @@ async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["b
       const branch = workBranchName(link.ref);
       if (link.linkedAs === "adopted") { reportAdopted(ctx, branch); continue; }
       if (branch === retiring) continue;
-      const blocked = await reapAdditionalBranch(ctx, branch, head);
+      const blocked = await reapAdditionalBranch(ctx, branch, generation.container);
       additionalBlocked = blocked || additionalBlocked;
     }
   if (additionalBlocked) throw new Error(`Additional branch cleanup remains blocked. The retiring refs were retained; repair the named checkout or ref observation and retry teardown. ${ctx.notices.join(" ")}`);
   if (retiring !== null && retiringReady) {
-    const reaped = await reapRetiringBranch(ctx, retiring);
+    const reaped = await reapRetiringBranch(ctx, retiring, generation);
     branchDeleted = reaped.local; remoteBranchDeleted = reaped.remote;
   }
   return { branchDeleted, remoteBranchDeleted };

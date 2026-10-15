@@ -13,6 +13,7 @@ import { runStoreAbandon } from "../../src/lib/work-unit/verbs/abandon-store.js"
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
 import { readStoreRetirementEvidence } from "../../src/lib/work-unit/store-retirement-evidence.js";
+import { TeardownCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -196,6 +197,50 @@ describe("store retirement real Git", () => {
   });
 
 });
+
+
+it.each(["local", "tracking"].flatMap((source) => ["moved", "absent"].map((fault) => ({ source, fault }))))("retains additional refs when the $source preservation ref is $fault before deletion", async ({ source, fault }) => {
+  const input = TeardownCommandInputSchema.parse({ name: "demo" });
+  const h = await fixture({ secondary: true });
+  if (source === "tracking") { await h.exec("git", ["switch", "main"]); await h.exec("git", ["update-ref", "-d", "refs/heads/feat/demo"]); }
+  const ref = source === "local" ? "refs/heads/feat/demo" : "refs/remotes/origin/feat/demo";
+  const normal = h.ctx.execInput!; let injected = false;
+  h.ctx.execInput = async (args, input, options) => {
+    if (!injected && args[0] === "update-ref" && input.includes("delete refs/heads/chore/demo ")) {
+      injected = true; await h.exec("git", fault === "absent" ? ["update-ref", "-d", ref] : ["update-ref", ref, h.baseOid]);
+    }
+    return normal(args, input, options);
+  };
+  expect(await runTeardown(h.ctx, { name: input.name!, base: "main" })).toMatchObject({ status: "rejected",
+    remedy: { argv: ["arc", "teardown", "demo"] } });
+  expect(injected).toBe(true);
+  expect(await h.local("refs/heads/chore/demo")).toBe(h.workOid);
+  expect(await h.local("refs/remotes/origin/chore/demo")).toBe(h.workOid);
+  await h.exec("git", ["update-ref", ref, h.workOid]); h.ctx.execInput = normal;
+  expect(await h.teardown()).toMatchObject({ status: "torn-down", remoteBranchDeleted: true });
+  for (const name of ["feat/demo", "chore/demo"]) {
+    expect(await h.local(`refs/heads/${name}`)).toBeNull(); expect(await h.local(`refs/remotes/origin/${name}`)).toBeNull();
+  }
+  expect((await h.exec("git", ["ls-remote", "origin", "refs/heads/chore/demo"])).stdout).toContain(h.workOid);
+}, 30_000);
+it("does not adopt a new retiring generation after additional ref deletion, then completes a fresh retry", async () => {
+  const input = TeardownCommandInputSchema.parse({ name: "demo" });
+  const h = await fixture({ secondary: true }), normal = h.ctx.execInput!; let injected = false;
+  h.ctx.execInput = async (args, input, options) => {
+    const result = await normal(args, input, options);
+    if (!injected && args[0] === "update-ref" && input.includes("delete refs/heads/chore/demo ")) {
+      injected = true; await h.exec("git", ["update-ref", "refs/heads/feat/demo", h.baseOid]);
+    }
+    return result;
+  };
+  expect(await runTeardown(h.ctx, { name: input.name!, base: "main" })).toMatchObject({ status: "rejected",
+    remedy: { argv: ["arc", "teardown", "demo"] } });
+  expect(await h.local("refs/heads/feat/demo")).toBe(h.baseOid);
+  expect(await h.local("refs/remotes/origin/feat/demo")).toBe(h.workOid);
+  expect((await h.remote()).stdout).toContain(h.workOid);
+  await h.exec("git", ["update-ref", "refs/heads/feat/demo", h.workOid]); h.ctx.execInput = normal;
+  expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+}, 30_000);
 
 async function huskFixture(options: { end?: "archive" | "decompose" } = {}) {
   const h = await fixture(options); await h.exec("git", ["switch", "main"]);

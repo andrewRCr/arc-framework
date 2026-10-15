@@ -49,7 +49,17 @@ export async function createRetirementHarness(options: { ended?: boolean; state?
     worktreeFs: { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: () => Promise.resolve(true), removeFile: () => Promise.resolve() },
     withWorkItemLock: (operation) => operation(),
   };
-  const execInput: GitExecInput = async (_args, commands) => { for (const line of commands.split("\n")) { if (line.startsWith("delete ")) { const ref = line.split(" ")[1] ?? ""; refs.delete(ref); } } return ""; };
+  const execInput: GitExecInput = async (args, commands) => {
+    const operations = commands.split("\n").filter((line) => line.startsWith("verify ") || line.startsWith("delete "))
+      .map((line) => { const [operation, ref = "", expected = ""] = line.split(" "); return { operation, ref, expected }; });
+    for (const operation of operations) {
+      if (refs.get(operation.ref) !== operation.expected) throw makeGitProcessError({ command: "git", args, exitCode: 1,
+        stderr: `Ref generation changed: ${operation.ref}` });
+    }
+    for (const operation of operations) if (operation.operation === "delete") refs.delete(operation.ref);
+    return "";
+  };
+
   ctx.execInput = execInput;
   return { ...h, meta, ctx, refs, state: () => ({ current, mutations }) };
 }

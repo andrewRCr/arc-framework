@@ -162,7 +162,7 @@ export interface WorkItemZeroDeltaBranch {
   localHead: string | null;
   remoteTrackingHead: string | null;
   containers: readonly { ref: string; oid: string }[];
-  retiringHead: string | null;
+  retiringContainer: { ref: string; oid: string } | null;
   prepareCheckout: () => Promise<boolean>;
   withWorkItemLock: (operation: () => Promise<AbandonBranchCleanupResult>) => Promise<AbandonBranchCleanupResult>;
 }
@@ -224,11 +224,13 @@ async function prepareWorkItemBranch(exec: GitExec, record: WorkItemZeroDeltaBra
 }
 
 async function deleteWorkItemZeroDeltaRefs(execInput: GitExecInput, cwd: string, record: WorkItemZeroDeltaBranch): Promise<void> {
-  const lines = ["start", ...record.containers.map((container) => `verify ${container.ref} ${container.oid}`),
+  const containers = [...record.containers, ...(record.retiringContainer === null ? [] : [record.retiringContainer])];
+  const verifications = [...new Set(containers.map((container) => `verify ${container.ref} ${container.oid}`))];
+  const commands = ["start", ...verifications,
     ...(record.localHead === null ? [] : [`delete refs/heads/${record.branch} ${record.localHead}`]),
     ...(record.remoteTrackingHead === null ? [] : [`delete refs/remotes/origin/${record.branch} ${record.remoteTrackingHead}`]), "prepare", "commit", ""];
-  if ([record.branch, ...record.containers.map((container) => container.ref)].some((ref) => /[\0\r\n]/u.test(ref))) throw new Error("Invalid work-item ref transaction operand");
-  await execInput(["update-ref", "--stdin"], lines.join("\n"), { cwd });
+  if ([record.branch, ...containers.map((container) => container.ref)].some((ref) => /[\0\r\n]/u.test(ref))) throw new Error("Invalid work-item ref transaction operand");
+  await execInput(["update-ref", "--stdin"], commands.join("\n"), { cwd });
 }
 
 /** Retain the branch result even when releasing its checkout locks fails afterward. */
@@ -353,7 +355,7 @@ async function deleteErrandZeroDeltaLocal(exec: GitExec, execInput: GitExecInput
 async function proveZeroDelta(exec: GitExec, workItem: WorkItemZeroDeltaBranch | null, expectedHead: string, baseOid: string): Promise<ZeroDeltaBranchResult | undefined> {
   const args = workItem === null ? ["merge-base", "--is-ancestor", expectedHead, baseOid]
     : ["rev-list", expectedHead, ...(workItem.remoteTrackingHead === null ? [] : [workItem.remoteTrackingHead]), "--not",
-      ...workItem.containers.map((container) => container.oid), ...(workItem.retiringHead === null ? [] : [workItem.retiringHead])];
+      ...workItem.containers.map((container) => container.oid), ...(workItem.retiringContainer === null ? [] : [workItem.retiringContainer.oid])];
   try {
     const proof = await exec("git", args);
     if (workItem !== null && proof.stdout.trim() !== "") return { kind: "preserved", reason: "the ref carries work beyond base and the retiring branch", independentWork: true };
