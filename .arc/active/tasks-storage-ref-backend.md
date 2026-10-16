@@ -332,21 +332,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ `write` and `batch` land a put or removal as one commit per ref in one compare-and-swap transaction under the
   refs' locks, all or none, with nothing landing on refs an owner has left.
 
-    - `[ ]` **4.2.a Validation and resolution**
-        - Step 1's input schemas, a primary's put without placement refusing `record-malformed`; step 2 resolves a
-          reference by UID, or by slug among live owners through 3.3.a's scan, and mints a UID with `randomUUID` for an
-          owner nothing holds, the batch's other records naming it taking the same UID; with no identity configured, a
-          write naming a person-owned record refuses `not-found` naming `arc.identity` before any lock, as the
-          reference backend refuses it (`recordAdmission`, `__tests__/helpers/store/refusals.ts`)
-        - The serialization rules, key rules, parsers, entry stamps, and writer rules land in Phase 5, and resolution to
-          ended owners in Phase 7
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, through `createRefStore`, as every later write case is
-            - a primary's put without placement refuses `record-malformed`
-            - a create by slug mints a UID, and the batch's other record naming that slug takes it
-            - a write by slug to a live owner lands on that owner's ref
-            - with no identity, a personal write refuses `not-found` naming `arc.identity`, changing nothing, and lands
-              once the identity is set
+    - `[x]` **4.2.a Validation and resolution**
+        - Input schemas refuse missing primary placement before Git; personal writes without identity refuse before
+          resolution or locks and retry on the same store after configuration. Live names and authoritative UIDs resolve
+          to current owners; a new slug's records share one minted UID, exercised through minimal tree/commit creation.
 
     - `[ ]` **4.2.b Locks, reads, and expected versions**
         - Steps 3 and 4: the refs' locks (4.1), `AdvisoryLockTimeoutError` refusing `lock-held` naming the lock's path as
@@ -888,6 +877,8 @@ close, and renames and role changes.
           kinds' checks
         - `history` lists a record's versions across a rename and a role change, from the paths its former slugs and
           roles give
+        - a read by UID carrying the owner's prior name expands the current metadata's slug paths and returns its
+          current name, including slug-named companions
 
 ## **Phase 7:** Changes, reads as of a state version, and lookup
 
