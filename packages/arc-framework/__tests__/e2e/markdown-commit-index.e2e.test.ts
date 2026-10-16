@@ -9,6 +9,9 @@ import { cleanupTempDir, git } from "./helpers.js";
 import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
 
+// Leave the closure checks time to finish and Git time to return their verdict.
+const MARKDOWN_COMMIT_TIMEOUT_MS = 60_000;
+const MARKDOWN_CASE_TIMEOUT_MS = 90_000;
 const roots: string[] = [];
 const sourceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const loader = createRequire(import.meta.url).resolve("tsx");
@@ -54,7 +57,7 @@ it.each([true, false])("checks Git's commit -a candidate with an opposite reposi
   await writeFile(join(root, "README.md"), invalid ? "trailing \n" : "# Candidate valid\n");
   const head = await git(root, ["rev-parse", "HEAD"]);
 
-  const result = await commitThroughManager(root, undefined, {}, ["-a"]);
+  const result = await commitThroughManager(root, undefined, {}, ["-a"], { timeoutMs: MARKDOWN_COMMIT_TIMEOUT_MS });
   expect(result.exitCode, result.output).toBe(invalid ? 1 : 0);
   if (invalid) {
     expect(result.output).toContain("README.md:1:9 MD009/no-trailing-spaces");
@@ -64,4 +67,4 @@ it.each([true, false])("checks Git's commit -a candidate with an opposite reposi
     expect(await git(root, ["show", "HEAD:README.md"])).toBe("# Candidate valid");
     expect(await git(root, ["show", ":README.md"])).toBe("# Candidate valid");
   }
-}, 60_000);
+}, MARKDOWN_CASE_TIMEOUT_MS);

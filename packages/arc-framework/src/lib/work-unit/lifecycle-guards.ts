@@ -26,11 +26,14 @@
  * @module
  */
 
+import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
+import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
+import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import type { MetaFileCandidate } from "../../commands/active/types.js";
 import type { ReaderResult } from "../active/meta-reader.js";
-import type { GitExec } from "../git/exec.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
-import type { GuardValidator } from "./lifecycle-executor.js";
+import type { GuardValidator, GuardResult } from "./lifecycle-executor.js";
 import type { LifecycleIndex } from "./lifecycle-index.js";
 import { deriveState, resolveSlugState } from "./lifecycle-resolver.js";
 import { resolveLifecyclePosition } from "./lifecycle-state.js";
@@ -77,6 +80,8 @@ function candidateSlug(candidate: MetaFileCandidate): string | null {
 
 /** Dependencies for {@link makeWorktreeOccupancyGuard}. */
 export interface WorktreeOccupancyDeps {
+  /** The same operational store bound by the lifecycle invocation. */
+  store?: Store;
   /** The worktree root whose `active/` is checked for occupancy. */
   cwd: string;
   /**
@@ -147,6 +152,7 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
     // (in-place, or a branch-creating spawn) materializes here and is checked.
     if (!materializesInCurrentCheckout(inputs)) return { ok: true };
 
+    if (deps.store !== undefined) return readStoreOccupancy(deps.cwd, deps.store, slug);
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
 
     for (const candidate of candidates) {
@@ -170,62 +176,49 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
   };
 }
 
-/** Dependencies for {@link makeWorktreeCleanGuard}. */
-export interface WorktreeCleanDeps {
-  /** Git executor — runs `git status --porcelain` scoped to the worktree being torn down. */
-  exec: GitExec;
-}
-
-/**
- * Build the `worktree-clean` guard — refuses a worktree-teardown leg (`park`,
- * `abandon`) when the WU's worktree carries uncommitted work, *before* any
- * mutation fires. This is the table-level fail-fast that keeps a dirty teardown
- * from half-applying (e.g. `abandon` removing the artifact set, then throwing on
- * the dirty-worktree leg with the branch/worktree still intact).
- *
- * The worktree to check is the teardown op's target — `inputs.worktreeOp.worktreePath`
- * (every cell declaring this guard carries a teardown `worktreeOp`). An edge that
- * declares the guard but supplies no teardown op resolves cleanly (`ok`): there is
- * no worktree to gate (the verb-orchestrated arms drive their own teardown). The
- * underlying {@link isWorktreeClean} treats an exec failure as not-clean, so
- * uncertainty rejects (the safe default).
- *
- * @param deps - The git executor the clean check runs through.
- * @returns An async guard validator.
- */
-export function makeWorktreeCleanGuard(deps: WorktreeCleanDeps): GuardValidator {
-  return async ({ inputs }) => {
-    const op = inputs.worktreeOp;
-    // No teardown target ⇒ no worktree to gate (the verb drives its own teardown).
-    if (op?.mutation !== "teardown") return { ok: true };
-    if (await isWorktreeClean({ exec: deps.exec, cwd: op.worktreePath })) return { ok: true };
-    return {
-      ok: false,
-      message:
-        `refusing to tear down a dirty worktree: \`${op.worktreePath}\` has uncommitted work — ` +
-        `commit or stash it first (\`--force\` stays the rollback-only path).`,
-    };
-  };
-}
-
 /**
  * Assemble the index-aware / IO guard validators — the foot-gun guards the
  * executor leaves to its caller — into the map `executeTransition` merges over
  * its pure defaults.
  *
- * @param deps - The worktree-occupancy guard's dependencies plus the git executor for `worktree-clean`.
- * @returns The `name-collision` + `worktree-occupancy` + `worktree-clean` validators.
+ * @param deps - The worktree-occupancy guard's dependencies.
+ * @returns The `name-collision` + `worktree-occupancy` validators.
  */
 export function buildFootgunGuards(
-  deps: WorktreeOccupancyDeps & WorktreeCleanDeps,
+  deps: WorktreeOccupancyDeps,
 ): {
   "name-collision": GuardValidator;
   "worktree-occupancy": GuardValidator;
-  "worktree-clean": GuardValidator;
 } {
   return {
     "name-collision": nameCollisionGuard,
     "worktree-occupancy": makeWorktreeOccupancyGuard(deps),
-    "worktree-clean": makeWorktreeCleanGuard(deps),
   };
+}
+
+/** Bind the authoritative pause gate for advancing work, dormant before the flip.
+ * @param store - Store selected by the invocation.
+ * @param basis - Exact primary version used by the store transition.
+ * @returns Guard that names the resume action for every present pause.
+ */
+export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidator {
+  return async ({ slug }) => {
+    if (store === undefined || !usesOffBranchState(store)) return { ok: true };
+    const checked = await checkAdvancingPause(store, slug, basis);
+    return checked.status === "clear" ? { ok: true } : { ok: false, message: checked.reason,
+      ...(checked.remedy === undefined ? {} : { remedy: checked.remedy }) };
+  };
+}
+
+/** Enforce identity-based occupancy using the bound store's resolver. */
+async function readStoreOccupancy(cwd: string, store: Store, slug: string): Promise<GuardResult> {
+      const current = await resolveCurrentWorkUnit({ cwd: cwd, store: store });
+  if (current.status === "none" && current.warnings.length === 0) return { ok: true };
+  if (current.status !== "resolved" || current.candidate.record === undefined) return {
+    ok: false, message: `Unable to resolve this checkout's work-unit occupancy. ${current.warnings.join(" ")}`,
+  };
+  const name = current.candidate.reference.owner.name;
+  if (name === slug) return { ok: true };
+  if (!usesOffBranchState(store) && !OCCUPYING.has(current.candidate.record.state?.toLowerCase() ?? "")) return { ok: true };
+  return { ok: false, message: `worktree already holds an active work unit \`${name}\` — one active work unit per worktree.` };
 }

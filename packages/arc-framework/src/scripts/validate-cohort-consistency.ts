@@ -16,6 +16,12 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import { readLifecycleView } from "../lib/store/lifecycle-view.js";
+import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
+import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -121,6 +127,7 @@ export function validateFiles(
   paths: string[],
   readFile: (path: string) => string,
   liveContext?: LiveCohortContext,
+  stateOffBranch = false,
 ): ValidationResult {
   const metas: BacklogFile[] = [];
   const cohortDocs: BacklogFile[] = [];
@@ -134,6 +141,7 @@ export function validateFiles(
   const diagnostics = checkCohortConsistency({
     metas,
     cohortDocs,
+    stateOffBranch,
     liveMembersByDir: liveContext?.liveMembersByDir,
     existingCohortDocDirs: liveContext?.existingCohortDocDirs,
   });
@@ -156,10 +164,28 @@ export function deriveScanRoot(paths: string[]): string {
   return process.cwd();
 }
 
+/** Bind authoritative membership to the same selected store as the capability.
+ * @param cwd - Legacy checkout scan root.
+ * @param store - Selected operational store.
+ * @returns Live membership or actionable unavailable-inventory diagnostics.
+ */
+export async function resolveCohortValidationContext(cwd: string, store: Store): Promise<{ context?: LiveCohortContext; diagnostics: string[] }> {
+  if (!store.capabilities.stateOffBranch) return { context: buildLiveCohortContextFromDisk(cwd), diagnostics: [] };
+  const view = await readLifecycleView(store);
+  if (view.status === "refused") return { diagnostics: [`${view.refusal.condition} ${view.refusal.remedy.text}`] };
+  try { requireCompleteInventory(store, view.result.listing); }
+  catch (error) { return { diagnostics: [error instanceof Error ? error.message : String(error)] }; }
+  return { context: { liveMembersByDir: buildCohortMembership(view.result.index), existingCohortDocDirs: new Set() }, diagnostics: [] };
+}
+
 // --- CLI entry ---
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
   const argvPaths = process.argv.slice(2);
-  const liveContext = buildLiveCohortContextFromDisk(deriveScanRoot(argvPaths));
-  runPathListScript((paths, readFile) => validateFiles(paths, readFile, liveContext));
+  const cwd = deriveScanRoot(argvPaths);
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  const resolved = argvPaths.length === 0 ? { context: undefined, diagnostics: [] } : await resolveCohortValidationContext(cwd, store);
+  runPathListScript((paths, readFile) => resolved.diagnostics.length === 0
+    ? validateFiles(paths, readFile, resolved.context, store.capabilities.stateOffBranch)
+    : { pass: false, diagnostics: resolved.diagnostics });
 }

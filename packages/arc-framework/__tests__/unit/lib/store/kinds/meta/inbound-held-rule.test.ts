@@ -67,3 +67,9 @@ describe("metadata held inbound entries", () => {
     expect(await checkMetaInboundHeld(inputFor(content), grammar)).toEqual([]);
   });
 });
+
+it("refuses activation while inbound is held and admits once cleared", async () => {
+  const planning = content.replace("`Active`", "`Planning`");
+  expect(await checkMetaInboundHeld(inputFor(content, planning), grammar)).toMatchObject([{ rule: "meta.inbound-held" }]);
+  expect(await checkMetaInboundHeld(inputFor(content, planning, null), grammar)).toEqual([]);
+});

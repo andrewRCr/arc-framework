@@ -27,6 +27,11 @@
  */
 
 import { basename, join } from "node:path";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { IncompleteWorktreePreparationError, describeWorktreePreparationFailure } from "../lib/work-unit/incomplete-worktree-preparation.js";
+import { removeDisposableSpawn, type SpawnedCheckoutCoordinate } from "../lib/work-unit/spawned-worktree-claim.js";
+import type { LifecycleRollbackRecovery } from "../lib/work-unit/store-transition-types.js";
+import { runStoreGraduate } from "./start-store.js";
 import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
@@ -40,7 +45,7 @@ import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
-import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import {
   buildLifecycleIndex,
   type LifecycleIndex,
@@ -236,7 +241,7 @@ interface GraduateBaseParams {
   /** Backlog-stub name to graduate (its current tier is resolved from the index). */
   name: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input; an unresolved `[TBD]` is refused. */
-  cls: string;
+  cls?: string;
   /**
    * Persist `cls` into the relocated meta post-transition (the `--class` path: the
    * caller supplied a resolved weight the stub's meta lacked). Off when the meta
@@ -246,7 +251,9 @@ interface GraduateBaseParams {
   /** Optional mini-handoff seed for the user workspace open side-effect. */
   sessionNotesSeed?: string;
   /** Read-only producer that closes every graduation choice before mutation. */
-  prepareTransaction(): Promise<GitGraduationTransactionResult>;
+  prepareTransaction?: () => Promise<GitGraduationTransactionResult>;
+  /** Starter identity for off-branch occupation, including --here. */
+  spawningIdentity?: string;
 }
 
 /** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
@@ -318,7 +325,7 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; recovery?: LifecycleRollbackRecovery }
   | {
       status: "graduation-recovery-required";
       reason: string;
@@ -328,7 +335,9 @@ export type GraduateResult =
       status: "graduated";
       outcome: TransitionOutcome;
       metaPath: string;
-      branch: string;
+      branch: string | null;
+      /** Previous owner of a store-held backlog stub. */
+      previousOwner?: string | null;
       /** Fields the post-relocate forward-reconcile backfilled; empty when the meta was complete. */
       backfilled: MetaFieldName[];
       /** The one-line "backfilled N field(s)" ceremony notice, or `null` on a no-op reconcile. */
@@ -360,17 +369,19 @@ export async function runGraduate(
   ctx: ExecuteTransitionContext,
   params: GraduateParams,
 ): Promise<GraduateResult> {
+  if (usesOffBranchState(ctx.store)) return runStoreGraduate(ctx, params);
   const branch = `plan/${params.name}`;
   const preflight = await preflightGraduate(
     ctx,
     params.name,
-    params.cls,
+    params.cls ?? "",
     params.inPlace ? undefined : params.sourceIndex,
   );
   if (preflight !== null) return { status: "rejected", reason: preflight };
 
   let transaction: ValidatedGraduationTransaction;
   try {
+    if (params.prepareTransaction === undefined) return { status: "rejected", reason: "In-repo graduation requires its prepared Git transaction." };
     const prepared = await params.prepareTransaction();
     if (prepared.status !== "ready") {
       const detail = prepared.detail === undefined ? "" : ` ${prepared.detail}`;
@@ -488,7 +499,7 @@ export interface ColdStartParams {
   identity: string;
   /** Explicit WU name; defaults to the branch-derived slug when omitted. */
   name?: string;
-  /** Raw spec input (`--from`) — classified into `Origin` / `Design` / pass-through. */
+  /** Raw spec input (`--from`) — classified into `Origin` or pass-through. */
   from?: string;
 }
 
@@ -508,8 +519,6 @@ export interface ColdStartResult {
   wuName: string;
   /** Parsed `Origin`, when the spec input was an issue reference. */
   origin?: string;
-  /** Parsed `Design`, when the spec input was an ARC spec artifact. */
-  design?: string;
   /** Spec input the parser left for assessment (no meta field set). */
   passthrough?: ColdStartPassthrough;
   /**
@@ -597,29 +606,7 @@ export async function runColdStart(
   const occupancyRefusal = await coldStartOccupancyRefusal(params.worktreePath);
   if (occupancyRefusal !== null) return { ok: false, reason: occupancyRefusal };
 
-  let origin: string | undefined;
-  let design: string | undefined;
-  let passthrough: ColdStartPassthrough | undefined;
-  const from = params.from?.trim();
-  if (from) {
-    const parsed = parseSpecInput(from);
-    if (parsed.ok) {
-      switch (parsed.value.kind) {
-        case "issue":
-          origin = parsed.value.origin;
-          break;
-        case "arc-spec":
-          design = parsed.value.design;
-          break;
-        case "document":
-          passthrough = { kind: "document", value: parsed.value.document };
-          break;
-        case "description":
-          passthrough = { kind: "description", value: parsed.value.description };
-          break;
-      }
-    }
-  }
+  const { origin, passthrough } = coldStartSeed(params.from);
 
   // Protected-base auto-cut: bring up `plan/<name>` in place, then scaffold onto
   // it. A scaffold failure below rolls this back so the worktree returns to its
@@ -646,7 +633,6 @@ export async function runColdStart(
       spawningIdentity: params.identity,
       createdByArc: false,
       origin,
-      design,
     });
     await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
   } catch (err) {
@@ -662,7 +648,7 @@ export async function runColdStart(
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
-  return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
+  return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, passthrough, cutFromBase } };
 }
 
 async function rollbackColdStart(
@@ -710,7 +696,7 @@ export interface CreateNewResult {
   /** Filesystem path of the newly spawned worktree. */
   worktreePath: string;
   /** The `plan/<name>` branch the worktree was created on. */
-  branch: string;
+  branch: string | null;
   /** The resolved WU name (meta filename / H1 / user subdir). */
   wuName: string;
   /** Notice surfaced when no post-create provisioning script is configured. */
@@ -767,22 +753,27 @@ export async function runCreateNew(
     };
   }
   const repo = basename(primaryWorktreePath);
-  const branch = `plan/${wuName}`;
+  const offBranch = usesOffBranchState(ctx.store);
+  const branch = offBranch ? null : `plan/${wuName}`;
 
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
   let postCreateNotice: string | undefined;
+  let markerGeneration: Buffer | undefined;
+  let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
   try {
     const spawnResult = await reconcileWorkUnitWorktree(
       {
         exec: ctx.io.exec,
+        store: ctx.store,
+        locusPorts: ctx.locusPorts,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
         writeEditorDocuments: ctx.writeEditorDocuments,
       },
       {
         mutation: "spawn",
-        branch,
+        ...(offBranch ? { detached: true } : { branch: branch ?? undefined }),
         base: baseBranch,
         locationTemplate,
         repo,
@@ -798,8 +789,11 @@ export async function runCreateNew(
     }
     worktreePath = spawnResult.worktreePath;
     postCreateNotice = spawnResult.postCreateNotice;
+    markerGeneration = spawnResult.markerGeneration;
+    spawnCoordinate = spawnResult.spawnCoordinate;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = offBranch ? describeWorktreePreparationFailure(err, ["arc", "start", wuName, "--new"])
+      : err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
@@ -812,17 +806,12 @@ export async function runCreateNew(
       wuName,
       spawningIdentity: params.identity,
       createdByArc: false,
-      sessionNotesSeed: buildStartSessionNotesSeed({
-        wuName,
-        branch,
-        kind: "create-new",
-        commit: START_CEREMONY_PENDING_COMMIT,
-      }),
+      ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
+        wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
+      }) }),
     });
   } catch (err) {
-    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: `could not scaffold the work unit: ${message}` };
+    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate }, err);
   }
 
   return {
@@ -836,6 +825,24 @@ export async function runCreateNew(
   };
 }
 
+async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {
+  offBranch: boolean; worktreePath: string; branch: string | null; wuName: string; markerGeneration?: Buffer;
+  spawnCoordinate?: SpawnedCheckoutCoordinate;
+}, error: unknown): Promise<Extract<CreateNewOutcome, { ok: false }>> {
+  let failure = error;
+  if (spawn.offBranch) {
+    try {
+      await removeDisposableSpawn({ exec: ctx.io.exec, path: spawn.worktreePath,
+        markerGeneration: spawn.markerGeneration, coordinate: spawn.spawnCoordinate });
+    } catch (cleanupError) {
+      failure = new IncompleteWorktreePreparationError([spawn.worktreePath], [cleanupError], error);
+    }
+  } else await rollbackSpawnedWorktree(ctx.io.exec, spawn.worktreePath, spawn.branch);
+  const message = spawn.offBranch ? describeWorktreePreparationFailure(failure, ["arc", "start", spawn.wuName, "--new"])
+    : failure instanceof Error ? failure.message : String(failure);
+  return { ok: false, reason: `could not scaffold the work unit: ${message}` };
+}
+
 /**
  * Best-effort teardown of a spawned-but-unscaffolded worktree — force-remove the
  * worktree and delete its branch. Errors are swallowed so the original scaffold
@@ -845,12 +852,23 @@ export async function runCreateNew(
 async function rollbackSpawnedWorktree(
   exec: SpawnWorktreeContext["io"]["exec"],
   worktreePath: string,
-  branch: string,
+  branch: string | null,
 ): Promise<void> {
   try {
     await exec("git", ["worktree", "remove", "--force", worktreePath]);
-    await exec("git", ["branch", "-D", branch]);
+    if (branch !== null) await exec("git", ["branch", "-D", branch]);
   } catch {
     // Best-effort — the original scaffold failure is the one worth surfacing.
+  }
+}
+
+function coldStartSeed(from?: string): { origin?: string; passthrough?: ColdStartPassthrough } {
+  if (!from?.trim()) return {};
+  const parsed = parseSpecInput(from.trim());
+  if (!parsed.ok) return {};
+  switch (parsed.value.kind) {
+    case "issue": return { origin: parsed.value.origin };
+    case "document": return { passthrough: { kind: "document", value: parsed.value.document } };
+    case "description": return { passthrough: { kind: "description", value: parsed.value.description } };
   }
 }

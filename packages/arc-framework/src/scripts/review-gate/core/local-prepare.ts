@@ -58,7 +58,8 @@ function localReviewerInstructions(
       + scope.requiredFindings
         .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
         .join(", ")
-      + " at their original loci, including loci outside the changed lines.";
+      + " at their original loci, including loci outside the changed lines, and check whether the defect each"
+      + " describes recurs elsewhere in the complete change set, beyond this pass's range.";
   return `${guidance.reviewerInstructions}\n\n`
     + `Incremental correction pass. The requested change set for this pass is `
     + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `

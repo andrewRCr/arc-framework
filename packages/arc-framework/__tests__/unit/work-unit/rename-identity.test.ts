@@ -82,7 +82,7 @@ describe("rename remote branch leg", () => {
     const calls: string[][] = [];
     const exec: GitExec = async (command, args) => {
       calls.push([command, ...args]);
-      return { stdout: "" };
+      return { stdout: args[0] === "ls-remote" ? `${OLD_OID}\trefs/heads/${NEW_BRANCH}\n` : "" };
     };
 
     await expect(reconcileRenameRemoteBranch({ exec }, {
@@ -94,6 +94,7 @@ describe("rename remote branch leg", () => {
 
     expect(calls).toEqual([
       ["git", "push", "-u", "origin", NEW_BRANCH],
+      ["git", "ls-remote", "--heads", "origin", `refs/heads/${NEW_BRANCH}`],
       [
         "git",
         "push",
@@ -123,6 +124,7 @@ describe("rename remote branch leg", () => {
   it("treats an already-absent old remote head as complete", async () => {
     const { exec } = scriptGitExec([
       { match: ["push", "-u", "origin", NEW_BRANCH], responses: [{ stdout: "" }] },
+      { match: ["ls-remote", "--heads", "origin", `refs/heads/${NEW_BRANCH}`], responses: [{ stdout: `${OLD_OID}\trefs/heads/${NEW_BRANCH}\n` }] },
       {
         match: ["push", "origin", `--force-with-lease=refs/heads/${OLD_BRANCH}:${OLD_OID}`, `:refs/heads/${OLD_BRANCH}`],
         responses: [{ failure: {
@@ -143,6 +145,7 @@ describe("rename remote branch leg", () => {
   it("surfaces both OIDs when the old remote head moves after preflight", async () => {
     const { exec } = scriptGitExec([
       { match: ["push", "-u", "origin", NEW_BRANCH], responses: [{ stdout: "" }] },
+      { match: ["ls-remote", "--heads", "origin", `refs/heads/${NEW_BRANCH}`], responses: [{ stdout: `${OLD_OID}\trefs/heads/${NEW_BRANCH}\n` }] },
       {
         match: ["push", "origin", `--force-with-lease=refs/heads/${OLD_BRANCH}:${OLD_OID}`, `:refs/heads/${OLD_BRANCH}`],
         responses: [{ failure: { exitCode: 1, stderr: " ! [rejected] (stale info)" } }],

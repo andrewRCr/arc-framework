@@ -74,7 +74,7 @@ function buildCtx(opts: {
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       if (op.mutation === "spawn") {
-        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch ?? null };
       }
       if (op.mutation === "teardown") {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };

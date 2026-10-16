@@ -5,11 +5,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createRemoteRefsContainingHead,
-  createSpawnGit,
-  stripNoWrap,
-} from "../../../../src/handlers/release/commit-cli.js";
+import { createRemoteRefsContainingHead, createSpawnGit, stripNoWrap, stripReleaseCommitOptions } from "../../../../src/handlers/release/commit-cli.js";
 import { createGitExec } from "../../../../src/lib/io-context.js";
 import { isGitProcessError } from "../../../../src/lib/git/process-error.js";
 import { cleanupTempDir, createTempRepo } from "../../../helpers/integration.js";
@@ -110,5 +106,17 @@ describe("stripNoWrap", () => {
     ["--", "--no-wrap"],
   ])("preserves --no-wrap when it is a Git operand in %j", (...args) => {
     expect(stripNoWrap(args)).toEqual({ argv: args, wrap: true });
+  });
+});
+
+describe("leading task close arguments", () => {
+  it.each([
+    [["--close=1.1,1.2", "--no-wrap", "-m", "subject"], ["1.1", "1.2"]],
+    [["--no-wrap", "--close", "-m", "subject"], []],
+  ])("strips leading wrapper options in %j", (args, close) => {
+    expect(stripReleaseCommitOptions(args)).toEqual({ argv: ["-m", "subject"], wrap: false, close });
+  });
+  it("leaves --close after Git's first operand untouched", () => {
+    expect(stripReleaseCommitOptions(["-m", "--close=1.1"])).toEqual({ argv: ["-m", "--close=1.1"], wrap: true });
   });
 });

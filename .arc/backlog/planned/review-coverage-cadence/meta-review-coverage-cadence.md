@@ -1,23 +1,23 @@
-# Metadata: Seam Lifecycle
+# Metadata: review-coverage-cadence
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** `state-storage/storage-seam`
-- **Depends On:** `seam-record-kinds`
+- **Cohort:** [none]
+- **Depends On:** [none]
 
-- **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
-- **Design:** `draft-seam-lifecycle.md`
+- **Origin:** [internal]
+- **Design:** `draft-review-coverage-cadence.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** —
 
 - **PR URL:** [none]
 - **Completed:** [none]

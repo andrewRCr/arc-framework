@@ -157,9 +157,21 @@ describe("runActivate — raise a planning WU to Active", () => {
   const params: ActivateParams = {
     name: "foo",
     toBranch: "feat/foo",
+    baseBranch: "main",
     nextTask: "Task 1.1 — first task.",
     nextAction: "Begin Task 1.1.",
   };
+
+  it("refuses a base-naming meta before reconciliation or mutation", async () => {
+    const { ctx, calls } = buildCtx([{ slug: "foo", state: "Planning", branch: "main" }]);
+    const result = await runActivate(ctx, params);
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("git switch -c feat/foo");
+    expect(result.reason).toContain("Branch");
+    expect(result.reason).toContain("arc activate");
+    expect(calls).toEqual([]);
+  });
 
   it("rotates plan/ onto the working branch, sets Active, and writes the orientation inputs", async () => {
     const { ctx, calls, softFields } = buildCtx([PLANNING]);

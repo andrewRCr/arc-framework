@@ -8,16 +8,11 @@
  * leg keys on direction alone, never the protection mode.
  *
  * It owns the **standalone** branch operations: the `plan/ → <type>/` rotate at
- * `activate`, the preserve at `park@Active`, the local + remote teardown at
- * `park@Planning` / pre-merge `abandon`, and the merged-safe local delete the
+ * `activate`, the preserve at `park@Active`, and the merged-safe local delete the
  * post-merge teardown verb uses. Branch *creation* is not a standalone op here —
  * `reconcile-work-unit-worktree` owns branch birth in both placement modes (spawn via
  * `git worktree add -b`, in-place via `git checkout -b`); `create` is a no-op in
  * this leg.
- *
- * Branch deletion targets the *current* branch of the WU's worktree, so the
- * executor sequences a worktree teardown (with locus-hop) ahead of it — this leg
- * runs the bare `git branch -D` and is not responsible for that ordering.
  *
  * The git seam is injected (three-layer architecture).
  *
@@ -27,9 +22,6 @@
 import { assessReapSafety } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
-
-/** The default remote a teardown deletes the branch from. */
-const DEFAULT_REMOTE = "origin";
 
 /** Dependencies for {@link reconcileBranch}. */
 export interface ReconcileBranchContext {
@@ -42,8 +34,6 @@ export interface ReconcileBranchContext {
  * carries exactly the operands it needs:
  *
  * - `rename` — rotate `branch` → `toBranch` (the `plan/ → <type>/` activate flip).
- * - `delete` — force-tear down `branch` locally and on `remote` (default `origin`);
- *   the park / pre-merge `abandon` path, where the branch is discarded outright.
  * - `delete-merged` — a **local-only** merged-safe delete: remove `branch` only
  *   when its commits are provably preserved — contained in its upstream
  *   (`remote`/`branch`, pushed) or landed in `base` (merged), via the shared
@@ -59,7 +49,6 @@ export interface ReconcileBranchContext {
  */
 export type ReconcileBranchOp =
   | { mutation: "rename"; branch: string; toBranch: string }
-  | { mutation: "delete"; branch: string; remote?: string }
   | { mutation: "delete-merged"; branch: string; base: string; remote?: string }
   | { mutation: "preserve" }
   | { mutation: "create" };
@@ -68,10 +57,7 @@ export type ReconcileBranchOp =
  * Reconcile a work unit's branch per `op`.
  *
  * Rotate renames locally (`git branch -m`) and clears any inherited upstream,
- * with same-name renames treated as no-ops; teardown force-deletes the local
- * branch (`git branch -D`) then best-effort deletes the remote ref — an unpushed
- * planning branch has no remote to delete, so that failure is swallowed while the
- * authoritative local teardown still lands. Merged-safe delete removes only the
+ * with same-name renames treated as no-ops. Merged-safe delete removes only the
  * local branch, and only when its tip is contained in its upstream. Preserve and
  * create perform no git operation.
  *
@@ -94,11 +80,6 @@ export async function reconcileBranch(
       if (upstream.trim() !== "") {
         await ctx.exec("git", ["branch", "--unset-upstream", op.toBranch]);
       }
-      return;
-    }
-    case "delete": {
-      await ctx.exec("git", ["branch", "-D", op.branch]);
-      await deleteRemoteBranch(ctx.exec, op.remote ?? DEFAULT_REMOTE, op.branch);
       return;
     }
     case "delete-merged": {

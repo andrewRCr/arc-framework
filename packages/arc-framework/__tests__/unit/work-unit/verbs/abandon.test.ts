@@ -111,7 +111,7 @@ interface Harness {
   recordedTransitions: LineageRecord[];
 }
 
-function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
+function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
@@ -131,7 +131,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
@@ -144,16 +144,6 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
-    // The `worktree-clean` IO guard is a caller-supplied seam (production binds the
-    // real `git status` read via `buildFootgunGuards`); the started-WU abandon
-    // cells declare it as the fail-fast that keeps a dirty teardown from
-    // half-applying (artifacts removed, branch/worktree intact).
-    guardValidators: {
-      "worktree-clean": () =>
-        worktreeClean
-          ? { ok: true }
-          : { ok: false, message: "refusing to tear down a dirty worktree: /repo/../wt-foo has uncommitted work." },
-    },
   };
 
   // The artifact-removal seam: list the WU's files, delete each, drop the emptied subdir.
@@ -219,6 +209,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
 
   return {
     ctx: {
+      removal: { exec: async () => ({ stdout: "", stderr: "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) },
       executor,
       fs,
       retirement,
@@ -405,22 +396,6 @@ describe("runAbandon — started WU (active)", () => {
   });
 });
 
-describe("runAbandon — started WU on a dirty worktree", () => {
-  it("no longer gates on worktree cleanliness — the deferred teardown owns the worktree", async () => {
-    const { ctx, calls, removed } = buildCtx([ACTIVE], /* worktreeClean */ false);
-
-    const result = await runAbandon(ctx, BASE);
-
-    // The started-WU abandon edges dropped the `worktree-clean` guard along with the
-    // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
-    // artifact removal; structurally authorized `arc teardown` owns the worktree.
-    expect(result.status).toBe("abandoned");
-    if (result.status !== "abandoned") return;
-    expect(removed).toContain("/repo/.arc/active/meta-foo.md");
-    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
-  });
-});
-
 describe("runAbandon — backlog stub (provisional)", () => {
   it("removes the artifacts and drops the emptied subdir, with no branch or worktree teardown", async () => {
     const { ctx, calls, removed, rmdirs } = buildCtx([PROVISIONAL]);
@@ -505,5 +480,38 @@ describe("runAbandon — illegal sources", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/reopen|integrat/i);
     expect(removed).toEqual([]);
+  });
+});
+
+describe("abandon removal preflight", () => {
+  it("reads the selected repository's lock through an ambient executor and abandons after owner unlock", async () => {
+    const { ctx, removed, recordedTransitions } = buildCtx([ACTIVE]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] !== "worktree" ? "" : options?.cwd === CWD
+        ? `worktree ${CWD}\0HEAD ${"a".repeat(40)}\0branch refs/heads/feat/foo\0${locked ? "locked owner holds checkout\0" : ""}\0`
+        : `worktree /ambient\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0` }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("owner holds checkout") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]);
+    locked = false;
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(removed.length).toBeGreaterThan(0); expect(recordedTransitions).toHaveLength(1);
+  });
+  it.each(["Planning", "Active"])("refuses dirty %s work before recording or staging", async (state) => {
+    const { ctx, removed, recordedTransitions, calls } = buildCtx([{ ...ACTIVE, state }]);
+    ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed-file") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]); expect(calls).not.toContain("retirement:stage-transition");
+  });
+  it.each([PROVISIONAL, PARKED])("keeps no-checkout abandon available for $state $tier", async (meta) => {
+    const { ctx } = buildCtx([meta]);
+    ctx.removal = { exec: async () => ({ stdout: " M dirty\n" }), folderExists: async () => true };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+  });
+  it("retains dirty anchored changes while recording abandonment", async () => {
+    const { ctx, recordedTransitions } = buildCtx([ACTIVE]);
+    ctx.removal = { exec: async () => { throw Error("Git must not be read for release"); }, readMarker: async () => ({ kind: "present", marker: { spawnedByArc: false, wuName: "foo", spawningIdentity: "andrew", createdAt: "2026-01-01T00:00:00.000Z" } }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(recordedTransitions).toHaveLength(1);
   });
 });

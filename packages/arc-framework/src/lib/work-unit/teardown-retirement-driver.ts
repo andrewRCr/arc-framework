@@ -61,6 +61,7 @@ export async function revalidateHuskRetirementEvidence(
   readBlob: TeardownBlobReader,
 ): Promise<boolean> {
   const { evidence } = proof;
+  if (evidence.kind === "lineage") return false; // A Git-only reader cannot revalidate off-branch lineage.
   if (evidence.kind === "shipped") {
     let pinnedBase: string;
     try {
@@ -110,6 +111,7 @@ export async function revalidateHuskRetirementEvidenceStrict(
   readBlob: TeardownBlobReader,
 ): Promise<boolean> {
   const { evidence } = proof;
+  if (evidence.kind === "lineage") return false; // A Git-only reader cannot revalidate off-branch lineage.
   const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
     ...options,
     objectAccess: "local-only",

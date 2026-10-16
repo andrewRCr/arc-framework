@@ -44,20 +44,23 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
   }
 }
 
-async function readNotice(noticeFile: string): Promise<string | undefined> {
+async function readNotice(noticeFile: string, exitCode: number): Promise<{ notice?: string; notRunReason?: string }> {
   const text = await readNoticeStart(noticeFile).catch(() => "");
   // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
   // printed inside a summary line cannot move the cursor over that line. The command and a runner wrapping it
   // may each write a line, so every line is kept.
   const lines = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).filter(part => part !== "");
-  return lines.length === 0 ? undefined : lines.join("; ").slice(0, NOTICE_LIMIT);
+  const notRun = exitCode === 0 ? undefined : lines.find(line => line.startsWith("not run:"));
+  return { ...(lines.length === 0 ? {} : { notice: lines.join("; ").slice(0, NOTICE_LIMIT) }),
+    ...(notRun === undefined ? {} : { notRunReason: notRun.slice("not run:".length).trim().slice(0, NOTICE_LIMIT) || "runner reported no check result" }) };
 }
 
 /**
  * Spawn a check through the same native executable and environment boundary as local requests. The command, and
  * any runner wrapping it, may append lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
  * names; each appends rather than replacing the file, so neither erases the other's, and the lines are joined into
- * one short notice. The notice is best effort: when no file can be created, the command runs without one.
+ * one short notice. A nonzero exit with a `not run:` line reports unavailable execution separately.
+ * The notice is best effort: when no file can be created, the command runs without one.
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
@@ -65,7 +68,7 @@ async function readNotice(noticeFile: string): Promise<string | undefined> {
  * @returns Native execution status, with a signal's end reported as a shell's exit status for it, diagnostics, and
  * any notice the command reported
  */
-export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string }> {
+export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
   const noticeFile = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
   try {
@@ -74,10 +77,11 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
       reject: false, shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
-    const notice = noticeFile === undefined ? undefined : await readNotice(noticeFile);
-    return { started, exitCode: result.exitCode ?? signalExitCode(result.signal) ?? 1, stdout: result.stdout,
+    const exitCode = result.exitCode ?? signalExitCode(result.signal) ?? 1;
+    const notice = noticeFile === undefined ? {} : await readNotice(noticeFile, exitCode);
+    return { started, exitCode, stdout: result.stdout,
       output: [result.stdout, result.stderr, ...(!started ? [result.originalMessage] : [])].filter(Boolean).join("\n"),
-      ...(notice === undefined ? {} : { notice }) };
+      ...notice };
   } finally {
     if (noticeDirectory !== undefined) await rm(noticeDirectory, { recursive: true, force: true }).catch(() => undefined);
   }

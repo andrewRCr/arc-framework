@@ -14,8 +14,12 @@ import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 export async function checkMetaDependsOn(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   const versions = metaFieldVersions(input);
   const { next } = versions;
-  if (next === undefined || !metaFieldChanged(versions, "dependsOn")) return [];
-  const changed = next.dependsOn.filter((edge) => !versions.prior?.dependsOn.includes(edge));
+  if (next === undefined) return [];
+  const changed = metaFieldChanged(versions, "dependsOn")
+    ? next.dependsOn.filter((edge) => !versions.prior?.dependsOn.includes(edge)) : [];
+  const wait = next.pause?.waitsOn, priorWait = versions.prior?.pause?.waitsOn;
+  if (metaFieldChanged(versions, "pause") && wait?.kind === "work-unit"
+    && !(priorWait?.kind === "work-unit" && priorWait.slug === wait.slug)) changed.push(wait.slug);
   const problems: string[] = [];
   for (const edge of changed) {
     const slug = SlugSchema.safeParse(edge);

@@ -198,6 +198,8 @@ function composeBody(
         "Use raw `git` for this operation.",
       ];
     }
+    case 17:
+      return [`Task close precheck failed (${decision.check}): ${decision.reason}`, decision.remedy];
     case 16:
       return [
         `Commit-message preflight failed (${decision.reason}).`,

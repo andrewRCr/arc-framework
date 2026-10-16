@@ -21,6 +21,7 @@ export const RefusalCodeSchema = z.union([
   z.literal(14),
   z.literal(15),
   z.literal(16),
+  z.literal(17),
 ]);
 
 /** Active-work-unit identity persisted with an audit entry. */
@@ -70,6 +71,7 @@ const PreflightFailedOutcomeSchema = z.strictObject({
   kind: z.literal("preflight-failed"),
   reason: z.enum(["validation", "input"]),
 });
+const ClosePrecheckFailedOutcomeSchema = z.strictObject({ kind: z.literal("close-precheck-failed"), check: z.string().min(1) });
 const RefusedOutcomeSchema = z.strictObject({ kind: z.literal("refused") });
 
 /** Outcome variants represented in the version-2 audit log. */
@@ -79,6 +81,7 @@ export const AuditOutcomeSchema = z.discriminatedUnion("kind", [
   SyncOutcomeSchema,
   HookFailedOutcomeSchema,
   PreflightFailedOutcomeSchema,
+  ClosePrecheckFailedOutcomeSchema,
   RefusedOutcomeSchema,
 ]);
 
@@ -134,6 +137,9 @@ export const AuditEntrySchema = z.union([
     decision: z.literal("refused"),
     refusalCode: z.literal(16),
     outcome: PreflightFailedOutcomeSchema,
+  }),
+  z.strictObject({
+    ...commitShape, decision: z.literal("refused"), refusalCode: z.literal(17), outcome: ClosePrecheckFailedOutcomeSchema,
   }),
   z.strictObject({
     ...pushShape,
