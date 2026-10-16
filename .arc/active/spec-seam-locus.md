@@ -191,8 +191,11 @@ Paths are under `packages/arc-framework/src/`.
   `commands/status/run.ts`, `handlers/recover.ts`, `handlers/recover-probes.ts`, `lib/recover/audit.ts`,
   `lib/recover/committed-progress.ts`, `lib/recover/integration-correction.ts`, `lib/handoff/restate-candidates.ts`,
   `lib/handoff/session-notes-path.ts`, `lib/work-unit/reference-reconcile.ts` (the cut's successors, § 3.5),
-  `lib/load-set/projection.ts`, `lib/compaction-seed/emitter.ts`, and under
-  `lib/session-init/`: `branch-gone-cascade.ts`, `branch-gone-recovery.ts`, `cohort-doc.ts`, `current-husk-advisory.ts`,
+  `lib/load-set/projection.ts`, `lib/compaction-seed/emitter.ts`, the store's paths for a work item's artifact and a
+  cohort document, which every work-unit state path this change resolves comes through, beside the store's lifecycle
+  paths and sharing their placement mappings (`lifecycleArtifactPath`, `lib/store/lifecycle-storage.ts`;
+  `completedCohortPath`, `lib/store/lifecycle-record-path.ts`; § 2.1, § 4.9), and under `lib/session-init/`:
+  `branch-gone-cascade.ts`, `branch-gone-recovery.ts`, `cohort-doc.ts`, `current-husk-advisory.ts`,
   `current-wu-reconcile.ts`, `errand-state.ts`, `errand-staleness-sweep.ts`, `inbox-reminders.ts`, `inbox-state.ts`,
   `lifecycle-residue-sweep.ts`, `materializable-work-units.ts`, `orphan-branch-sweep.ts`, `recommended-action.ts`,
   `retired-subdir-detection.ts`, `stale-worktree-sweep.ts`, and `work-unit-state.ts`; with
@@ -268,6 +271,9 @@ builds on:
   change its locus reads (§ 3.1);
 - `lib/store/lifecycle-index.ts`, the store's lifecycle view, which that change also edits, and where this change has
   the view's input take the listing's filter and its entries carry each record's links (§ 3.1, A9);
+- `lib/store/lifecycle-storage.ts`, which that change also edits, and `lib/store/lifecycle-record-path.ts`, which it
+  creates, where this change adds the work-item and cohort-document paths that `lifecycleArtifactPath` and
+  `completedCohortPath` then call (§ 2.1, § 4.9);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
 - `lib/work-unit/locus-ports.ts`, which that change creates with the port record and its today-behavior default, and
   where this change has the port's refusal carry the check's message whole (§ 2.4);

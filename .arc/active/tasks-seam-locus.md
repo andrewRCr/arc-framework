@@ -29,7 +29,7 @@ teardown's completion on a missing folder are the transition-write-path change's
 (spec § 1.3). Every decision here runs the check with `disposition: "remove"`, since `release` reads only its projection
 part; the function and the release take the primary's path (`primaryWorktreePath`), and the release leaves the marker to
 its caller. Every work-unit state path this change resolves — a work item's meta or task list, or a cohort document —
-comes through one function under `lib/store/`, built in Task 1.9, since the `work-unit-paths` leg counts every
+comes through Task 1.9's work-item or cohort path under `lib/store/`, since the `work-unit-paths` leg counts every
 layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imports.ts`).
 
 ### `[x]` **1.1 Register the shared action shape and each rebuilt slot's schema — § 4.2, § 4.3**
@@ -304,13 +304,20 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
     - `emitCompactionSeed` (`lib/compaction-seed/emitter.ts`) opens the store over the checkout
       (`createStore(createDefaultStorePorts({ checkoutRoot, exec }))`) and records its `version()`; where `version()`
       refuses, the seed records `stateVersion: null`. `head` stays the code-head baseline the recovery audit reads.
-    - It takes the meta path from one function this task adds under `lib/store/`, which returns a work item's artifact
-      path for a slug and a work-unit placement, or a cohort document's for its coordinate, one slug or two, and a
-      cohort placement, through `resolveArcPath` (`lib/layout/projection.ts`), as `resolveCurrentWorkUnit` resolves its
-      own (`candidatePath`, `lib/store/current-work-unit.ts`), in place of the emitter's `.arc/active/meta-` and
-      `meta-(.+)\.md` patterns.
+    - It takes the meta path from the store's work-item path, which this task adds in `lib/store/lifecycle-storage.ts`:
+      given a slug, an artifact, a work unit's placement as the store reads it (`WorkUnitReadPlacementSchema`,
+      `lib/store/placement.ts`), and the work unit's `Cohort`, under which a backlog placement nests, it returns the
+      artifact's projected path through `resolveArcPath` (`lib/layout/projection.ts`), mapping the placement as
+      `lifecycleArtifactPath` maps a listed entry's (`placementOf`), and `lifecycleArtifactPath` then calls it, so one
+      mapping serves both. It replaces the emitter's `.arc/active/meta-` and `meta-(.+)\.md` patterns.
+    - Beside `completedCohortPath` (`lib/store/lifecycle-record-path.ts`) the task adds the store's cohort path, which
+      returns a cohort document's projected path from its `cohort/document` record. The coordinate comes from the
+      record's `Parent` and name. A record at placement `completed` takes its own quarter, sequence, and closeout,
+      closeout `a` mapping to the leaf's and `b` to the parent's; both are taken as `completedCohortPath` takes them,
+      and `completedCohortPath` then calls the new path. A record with no placement gives the planned document's path.
+      `workUnitMetaPath` (`lib/store/lifecycle-write.ts`) keeps its own mapping.
     - Recovery's archived-integration relocation (`archivedIntegrationRelocation`, `lib/recover/audit.ts`) takes its
-      active meta path from the function and recognizes the completed one through the layout's inverse
+      active meta path from the work-item path and recognizes the completed one through the layout's inverse
       (`identifyWorkUnitArtifactPath`, `lib/layout/identification.ts`) — the slug's meta at a completed placement — in
       place of its pattern, since it holds no quarter or sequence to resolve one from. Neither file gains a
       `work-unit-paths` entry.
@@ -322,10 +329,12 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - the seed carries the state version, injected distinct from `HEAD`, beside the code-head baseline, and parses
           under the advanced schema
         - a refusing `version()` records `stateVersion: null`
-        - the store's path function returns a meta's, a task list's, and a cohort document's projected path, a nested
-          cohort's among them
+        - the work-item path returns a meta's and a task list's projected path at an active, a backlog, and a completed
+          placement, a backlog work unit nested under its cohort among them
+        - the cohort path returns a planned and a completed cohort document's projected path, a nested cohort's among
+          them, and `lifecycleArtifactPath` and `completedCohortPath` return what they return today
         - the relocation recognizes the completed meta of any quarter and sequence, and no other slug's
-        - its meta path comes from that function for the current work unit
+        - its meta path comes from the work-item path for the current work unit
         - a version 1 seed refuses with the schema's message
 
 ### `[ ]` **1.10 Register the new verbs, refusing `unsupported` — § 14**
@@ -514,10 +523,12 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           ID from the port does, naming the port's failure (spec § 2.1).
         - From the flip the subject's meta read resolves the frame's cohort document itself: it takes the work unit's
           `Cohort` from its record and reads the `cohort/document` record through the store, its path from Task 1.9's
-          function; a work unit with no cohort, or a cohort with no document, still yields none. The cohort resolver
-          (`resolveActiveCohortDocPath`, `lib/session-init/cohort-doc.ts`), which reads the active meta by path
-          (`parseMetaRecord`) and checks the document on disk, stays the in-repo arm unchanged, and `arc view`'s calls of
-          it (`handlers/view.ts`), for either target, stay the status change's (spec § 16).
+          cohort path over that record, so a completed cohort's comes from its own quarter, sequence, and closeout,
+          never the work unit's, since a cohort can close after its member in a closeout of its own; a work unit with no
+          cohort, or a cohort with no document, still yields none. The cohort resolver (`resolveActiveCohortDocPath`,
+          `lib/session-init/cohort-doc.ts`), which reads the active meta by path (`parseMetaRecord`) and checks the
+          document on disk, stays the in-repo arm unchanged, and `arc view`'s calls of it (`handlers/view.ts`), for
+          either target, stay the status change's (spec § 16).
         - The Candidate mutation owner (`resolveCandidateMutationOwner`, `handlers/candidate-mutation-owner.ts`)
           projects the probe, so it follows with no reads of its own; its completed set is Task 3.7's.
 
@@ -527,6 +538,8 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
             - the Candidate mutation owner resolves the work unit the probe derives
             - the frame's cohort document resolves from the work unit's record, and a work unit with no cohort, or one
               whose cohort has no document, carries none
+            - a completed work unit whose cohort closed after it, in a closeout of its own, resolves the cohort's
+              projected path at the cohort's quarter, sequence, and closeout
             - over the in-repo implementation the cohort document resolves as today
             - an Integrating work unit with a Candidate recovers its integration boundary and session type from its link
             - a checkout on a branch other than its link's fails the topology corroboration
@@ -631,7 +644,7 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
       `resolveCurrentWorkUnit` (`lib/store/current-work-unit.ts`), and `coldStartOccupancyRefusal`'s call of
       `readActiveMetaCandidates` (`commands/start.ts`) takes the resolver's candidates.
     - A resolved work unit's `path`, which `resolveOriginatingMetaPath` and the delivery entry
-      (`handlers/delivery-entry.ts`) read, comes from Task 1.9's function for the resolved reference's slug at the
+      (`handlers/delivery-entry.ts`) read, comes from Task 1.9's work-item path for the resolved reference's slug at the
       active placement, and its `name` from the reference. Its `branch`, which the delivery entry's repository read, the
       review gate's pre-publication composition, and delivery execution read (`lib/delivery/repository-entry.ts`,
       `scripts/review-gate/policy/pre-publication-composition.ts`, `handlers/delivery-execution.ts`), comes from the
@@ -918,7 +931,7 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
     - `[ ]` **2.8.a One session-notes resolver**
 
         - From the flip six readers read `resolveWorkUnitSessionNotesPath` (`lib/handoff/session-notes-path.ts`), keyed
-          by the work unit, whose arm from the flip gives the meta's projected path through Task 1.9's function:
+          by the work unit, whose arm from the flip gives the meta's projected path through Task 1.9's work-item path:
           handoff's restate probe (`resolveSessionNotesPath`, called by `restateCandidates`,
           `handlers/status/session.ts`), which today finds no path where several work-unit folders hold a
           `SESSION-NOTES.md`; handoff's surfaces (`resolveHandoffSurfaces`), whose path the status run reads
@@ -941,8 +954,8 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
 
     - `[ ]` **2.8.b The load set's meta and task-list paths**
 
-        - The load-set projection (`resolveLoadSetManifest`) resolves the meta's path through Task 1.9's function from
-          the work unit's slug and placement, which its four callers supply in place of the path they build today
+        - The load-set projection (`resolveLoadSetManifest`) resolves the meta's path through Task 1.9's work-item path
+          from the work unit's slug and placement, which its four callers supply in place of the path they build today
           (`lib/locus/subject-meta.ts`, `commands/status/run.ts`, `lib/recover/locus-context.ts`,
           `lib/compaction-seed/emitter.ts`).
         - From the flip the task list's path is the work item's task-list record's, through the same function; until
