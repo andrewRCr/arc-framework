@@ -811,16 +811,17 @@ housekeeping claims together, as absent, a root-level error, or a complete snaps
   `lib/locus/derived-reader.ts`) carries the two acquisitions, each with its own status. A listing of Errands alone
   never stands in for the claims, and its readers that admit an Errand's terminal or merge (`authorizeErrandTerminal`,
   `lib/errand/terminal-authority.ts`; `selectCurrentErrandMergeIdentity`,
-  `scripts/integration/errand-merge-composition.ts`) still require both complete. The claims, this identity's own, admit
-  no diagnostic, as today. Of the Errands, which list everyone's, the listing's diagnostics refuse nothing by
-  themselves, since a diagnostic's key names an entry, not the slug and claim the subject is known by, and another
-  person's malformed record is not the subject's to repair and would otherwise stop every Errand's close and merge: the
-  gate resolves the subject Errand's record by `lookup` through its checkout claim (`CheckoutClaimSchema`'s `errand`
-  arm, `lib/store/lookup.ts`) and reads it, refusing, naming the record and what was reported, where either refuses with
-  anything but `not-found`; where the lookup finds none while the Errands' listing carries a diagnostic, it refuses
-  naming those diagnostics and their remedies, since one may be the subject's own record (§ 13). A lookup that finds
-  none beside no diagnostic refuses nothing here, as today's authority (`authorizeErrandTerminal`) refuses only on
-  diagnostics, then works from the marker's roster row.
+  `scripts/integration/errand-merge-composition.ts`) require the Errands acquisition complete and the claims either
+  complete without diagnostics or authoritatively absent (A20). An absent claims acquisition is an empty inventory; a
+  root-level claims error still refuses, and claims diagnostics still refuse. Of the Errands, which list everyone's, the
+  listing's diagnostics refuse nothing by themselves, since a diagnostic's key names an entry, not the slug and claim
+  the subject is known by, and another person's malformed record is not the subject's to repair and would otherwise stop
+  every Errand's close and merge: the gate resolves the subject Errand's record by `lookup` through its checkout claim
+  (`CheckoutClaimSchema`'s `errand` arm, `lib/store/lookup.ts`) and reads it, refusing, naming the record and what was
+  reported, where either refuses with anything but `not-found`; where the lookup finds none while the Errands' listing
+  carries a diagnostic, it refuses naming those diagnostics and their remedies, since one may be the subject's own
+  record (§ 13). A lookup that finds none beside no diagnostic refuses nothing here, as today's authority
+  (`authorizeErrandTerminal`) refuses only on diagnostics, then works from the marker's roster row.
 - **An Errand's owner is a field of its record from the flip,** where today the identity-scoped ref it lives on implies
   it, as the shipped record kinds settle once Errands list at project scope. The Errand record
   (`lib/errand/identity-record.ts`) gains an optional `owner`, the person's identity slug as `resolveIdentity` resolves
@@ -2586,6 +2587,11 @@ close.
     continuation pass through CLI-generated handler inputs with real Git, and the built CLI refuses in temporary
     repositories. Successful real-CLI destructive scenarios remain a required flip release check.
 
+25. **Absent claims admit an ordinary Errand (A20).** From the flip an authoritative absent claims acquisition is an
+    empty inventory for terminal and merge admission, beside a complete Errands acquisition and the exact subject
+    lookup. Complete claims with diagnostics and failed claims reads still refuse; repair restores admission. This
+    supersedes Criterion 5's requirement that both acquisitions be complete, only for authoritative claims absence.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2631,5 +2637,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ 1.13 segment. _Work:_ 1.R. _Revalidated:_ 1.13.
 - **A19** — 2026-10-16 — task: include the dormant handlers in the complete CLI-loading test inventory.
   _Supersedes:_ none. _Trigger:_ 1.13 must-stop. _Work:_ 1.R2. _Revalidated:_ 1.13.
+- **A20** — 2026-10-16 — design: authoritative claim absence is an empty terminal and merge inventory.
+  _Supersedes:_ § 3.2 ¶2; Criterion 5. _Trigger:_ 3.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.10.
 
 ---

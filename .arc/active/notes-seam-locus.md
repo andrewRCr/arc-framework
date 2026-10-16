@@ -695,4 +695,18 @@ Both affected assertions share that one inventory. Adding those modules retains 
 check over every handler. The changed test belongs to § 1.4, item 6; no runtime behavior changes. The original gate
 failure remains in `/tmp/arc-phase1-segment-check.log`, including its separate Markdown underwrap finding.
 
+## A20: authoritative empty claims
+
+The superseded § 3.2 statement was “still require both complete.” `listReference` returns `absent` when no selected
+claim records exist, and `acquireStoreClaims` preserves that outcome. A normal Errand therefore has a complete project
+Errands acquisition beside absent claims. Treating that absence as incomplete would prevent its terminal operation
+without an unrelated claim being created. The registered-CLI full-terminal scenario exposed the missing acquisition
+binding; tracing the effective gate exposed this additional admission conflict.
+
+The approved bounded rule admits authoritative claims absence as empty, while a failed read and claims diagnostics
+remain refusals. Errands still need a complete acquisition and the exact subject lookup. The public frame keeps the
+absence visible; no synthetic claim or fabricated complete snapshot grants authority. Task 3.R2 covers both terminal
+and merge gates, their repaired continuations, and real-Git handler closure. No Store contract or production backend
+capability changes.
+
 ---

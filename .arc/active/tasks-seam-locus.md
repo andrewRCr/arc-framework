@@ -1128,6 +1128,8 @@ inject a reference-backend store.
   absent, a root-level error, or a complete snapshot with its own diagnostics — and the readers that admit an Errand's
   terminal or merge require both complete; until the flip one transient-identity snapshot serves both.
 
+    - _Amended in:_ 3.R2 (A20)
+
     - `DerivedIdentityDiscovery` (`lib/locus/derived-reader.ts`) carries the two acquisitions, each with its own status.
       The derived evidence (`lib/locus/derived-evidence.ts`) acquires them from the flip — Errands through the store's
       listing at placement `active`, since a closed Errand's record stays at `completed` (Task 3.3.b) and discovery keys
@@ -1163,6 +1165,20 @@ inject a reference-backend store.
           listing diagnostic refuses, naming that diagnostic and its remedy, and one it cannot find beside none proceeds
           as today
         - over the in-repo implementation the discovery takes both from one pinned snapshot, as today
+
+### `[ ]` **3.R2 Admit authoritative claim absence at Errand terminal and merge gates — § 3.2 (A20)**
+
+- _Goal:_ An authoritative absent claims acquisition admits as an empty inventory beside a complete Errands acquisition
+  and the exact subject lookup; failed claims reads and complete claims with diagnostics still refuse (A20).
+
+    - Bind the independent acquisitions into the derived frame and make both admission gates use the effective rule.
+      Keep each acquisition's absent, error, and complete state visible; never borrow Errands' completeness for claims.
+    - Build `test-first` (one behavior at a time), over the reference backend and real-Git handler integration:
+        - an ordinary Errand with no grooming or housekeeping claims closes and abandons through CLI-generated inputs
+        - authoritative absent claims permit merge identity selection for the exact current Errand
+        - a failed claims read or a claims diagnostic refuses terminal and merge admission, and repair then admits
+        - another person's malformed Errand does not block the subject, while an unresolvable subject beside an Errands
+          diagnostic refuses with its remedy
 
 ### `[ ]` **3.3 Reroute the Errand runtimes through the store — § 8**
 
