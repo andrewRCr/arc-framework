@@ -34,7 +34,9 @@ export function createInRepoBackend(ports: StorePorts): Store {
     history: (input) => runOperation(() => dispatchedHistory(context, input)),
     changes: (input) => runOperation(() => trackedChanges(context, input)),
     lookup: (input) => runOperation(() => dispatchedLookup(context, input)),
-    sync: () => runOperation(async () => (await import("./sync.js")).syncInRepo(context)),
+    push: () => runOperation(async () => (await import("./sync.js")).pushInRepo(context)),
+    pull: () => runOperation(async () => (await import("./pull.js")).pullInRepo(context)),
+    maintain: () => Promise.resolve({ status: "ok", result: { measurements: null } }),
   };
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {

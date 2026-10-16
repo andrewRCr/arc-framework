@@ -18,7 +18,7 @@ describe.each(["pull", "publish"] as const)("reference identity %s", (direction)
     const quarter = ArchiveQuarterSchema.parse("2026-q4");
     const reference = fixture.reference("work-item/meta","imported");
     const first = success(await writer.write({action:"put",reference,expected:null,content:fixture.content(reference),placement:{kind:"completed",quarter},provenance:testProvenance}));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const imported = success(await reader.read({reference:first.reference}));
     expect(imported.placement).toEqual({kind:"completed",quarter,sequence:"01"});
     if (removed) success(await reader.write({action:"remove",reference:imported.reference,expected:imported.version,provenance:testProvenance}));
@@ -38,7 +38,7 @@ describe.each(["pull", "publish"] as const)("reference identity %s", (direction)
     const reference = fixture.reference("work-item/meta");
     const input = {action:"put" as const,reference,expected:null,content:fixture.content(reference),placement:{kind:"active" as const},provenance:testProvenance};
     const first = success(await writer.write(input));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(success(await reader.read({reference}))).toMatchObject({reference:first.reference,version:first.version});
     expect(success(await reader.read({reference:first.reference}))).toEqual(success(await reader.read({reference})));
     expect(await reader.write(input)).toMatchObject({status:"refused",refusal:{code:"version-conflict"}});
@@ -50,11 +50,11 @@ describe.each(["pull", "publish"] as const)("reference identity %s", (direction)
     const {fixture,writer,reader} = clients(direction);
     const reference = fixture.reference("work-item/meta");
     const first = success(await writer.write({action:"put",reference,expected:null,content:fixture.content(reference),placement:{kind:"active"},provenance:testProvenance}));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const before = success(await reader.version());
     const renamed = RecordReferenceSchema.parse({...first.reference,owner:{...first.reference.owner,name:"renamed-work"}});
     success(await writer.write({...update(fixture,success(await writer.read({reference:first.reference}))),reference:renamed}));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const named = RecordReferenceSchema.parse({...reference,owner:{...reference.owner,name:"renamed-work"}});
     for (const handle of [reference,named]) expect(success(await reader.read({reference:handle}))).toMatchObject({reference:renamed});
     expect(success(await reader.lookup({kind:"slug",slug:reference.owner.name}))).toEqual({reference:renamed});
@@ -69,11 +69,11 @@ describe.each(["pull", "publish"] as const)("reference identity %s", (direction)
     const first = success(await put(writer));
     const companion = RecordReferenceSchema.parse({...fixture.reference("work-item/companion"),owner:first.reference.owner});
     success(await writer.write({action:"put",reference:companion,expected:null,content:fixture.content(companion),provenance:testProvenance}));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const before = success(await reader.version());
     success(await writer.write({action:"remove",reference:first.reference,expected:first.version!,provenance:testProvenance}));
     const second = success(await put(writer));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(second.reference.owner).not.toEqual(first.reference.owner);
     expect(success(await reader.read({reference:named}))).toMatchObject({reference:second.reference});
     expect(success(await reader.read({reference:companion}))).toMatchObject({reference:companion});
@@ -88,12 +88,12 @@ it("prefers a live generation over an imported completed generation", async () =
   const remote = fixture.remote(true)!;
   const named = fixture.reference("work-item/meta");
   const first = await seed(fixture,named);
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const before = success(await remote.version());
   success(await fixture.store.write({...update(fixture,first),placement:{kind:"completed",quarter:ArchiveQuarterSchema.parse("2026-q4")}}));
   const next = RecordReferenceSchema.parse({...named,owner:{...named.owner,uid:randomUUID()}});
   const second = await seed(fixture,next);
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   expect(success(await remote.read({reference:named}))).toMatchObject({reference:second.reference});
   expect(success(await remote.read({reference:first.reference}))).toMatchObject({placement:{kind:"completed"}});
   expect(success(await remote.read({reference:named,asOf:before}))).toMatchObject({reference:first.reference});
@@ -106,7 +106,7 @@ it("refuses colliding independently created live names before publishing either 
   const local = await seed(fixture,named);
   const other = success(await remote.write({action:"put",reference:named,expected:null,content:fixture.content(named),placement:{kind:"active"},provenance:testProvenance}));
   const localBefore = success(await fixture.store.version()),remoteBefore = success(await remote.version());
-  expect(await fixture.store.sync()).toMatchObject({status:"refused",refusal:{code:"ambiguous-match",candidates:expect.arrayContaining([local.reference,other.reference])}});
+  expect(await fixture.store.push()).toMatchObject({status:"refused",refusal:{code:"ambiguous-match",candidates:expect.arrayContaining([local.reference,other.reference])}});
   expect(success(await fixture.store.version())).toBe(localBefore);
   expect(success(await remote.version())).toBe(remoteBefore);
   expect(await fixture.store.read({reference:other.reference})).toMatchObject({status:"refused",refusal:{code:"not-found"}});
@@ -123,7 +123,7 @@ it("prefers a live rename alias over an older completed generation's name", asyn
   const second = await seed(fixture,next);
   const renamed = RecordReferenceSchema.parse({...next,owner:{...next.owner,name:"renamed-work"}});
   success(await fixture.store.write({...update(fixture,second),reference:renamed}));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   expect(success(await remote.read({reference:named}))).toMatchObject({reference:renamed});
   expect(success(await remote.read({reference:first.reference}))).toMatchObject({placement:{kind:"completed"}});
 });

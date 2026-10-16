@@ -1,7 +1,7 @@
 /** Concurrent identity-keyed entry operations and observed removals. */
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { keyedReference, OwnerIdentitySchema } from "../../../../../src/lib/store/identity.js";
+import { keyedReference, OwnerIdentitySchema, RecordVersionSchema } from "../../../../../src/lib/store/identity.js";
 import { splitEntryList, type EntryListConfig } from "../../../../../src/lib/store/concurrency/entries.js";
 import { mergeEntryText } from "../../../../../src/lib/store/concurrency/entry-merge.js";
 
@@ -11,7 +11,7 @@ const incomingLabel = {actor:"incoming",time:"2026-10-01T01:00:00Z"};
 const config: EntryListConfig = {shape:"heading",sections:["One","Two"]};
 function entry(id: string,text = id,title = id): string {return `### **${title}**\n\n- _Id:_ \`${id}\`\n\n${text}\n\n`;}
 function doc(one: string,two = "",opening = "Opening"): string {return `${opening}\n\n## One\n\n${one}## Two\n\n${two}---\nFooter\n`;}
-function merge(base:string,current:string,incoming:string) {return mergeEntryText({base,current,incoming,record,currentLabel,incomingLabel},config);}
+function merge(base:string,current:string,incoming:string) {return mergeEntryText({base,current,incoming,record,baseVersion: null,currentLabel,incomingLabel},config);}
 function entries(content:string) {return splitEntryList(content,config).parts.filter((part)=>part.kind === "entry");}
 
 describe("entry insertion", () => {
@@ -71,7 +71,7 @@ describe("whole-entry editing", () => {
     const config: EntryListConfig = {shape:"heading",sections:["One","Two","Three"]};
     const document = (section:string)=>config.sections.map((name)=>`## ${name}\n\n${name === section ? entry("11111111") : ""}`).join("");
     const base = document("One"),current = document("Two"),incoming = document("Three");
-    const result = mergeEntryText({base,current,incoming,record,currentLabel,incomingLabel},config);
+    const result = mergeEntryText({base,current,incoming,record,baseVersion: null,currentLabel,incomingLabel},config);
     expect(result.content).toBe(current);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0]).toMatchObject({baseSection:"One",current:{section:"Two",label:currentLabel},
@@ -103,7 +103,7 @@ describe("observed removal", () => {
       const base = `${prefix}${newline}${newline}## One${newline}${newline}${value("base")}`;
       const edited = base.replace(`base${newline}`, `edited${newline}`);
       const result = mergeEntryText({ base, current: removalCurrent ? prefix : edited,
-        incoming: removalCurrent ? edited : prefix, record, currentLabel, incomingLabel }, grammar);
+        incoming: removalCurrent ? edited : prefix, record, baseVersion: null, currentLabel, incomingLabel }, grammar);
       expect(result.content).toBe(`${prefix}${newline}## One${newline}${newline}${value("edited")}`);
       expect(splitEntryList(result.content, grammar).parts.filter((part) => part.kind === "entry"))
         .toMatchObject([{ id: "11111111", section: "One", bytes: value("edited").trimEnd() }]);
@@ -119,7 +119,7 @@ describe("observed removal", () => {
       const value = (body: string) => `${shape === "heading" ? "### **Entry**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
       const base = `${heading}${newline}${newline}${value("base")}`;
       const edited = `${heading}${newline}${newline}${value("edited")}`;
-      const input = { base, current: removalCurrent ? heading : edited, incoming: removalCurrent ? edited : heading, record, currentLabel, incomingLabel };
+      const input = { base, current: removalCurrent ? heading : edited, incoming: removalCurrent ? edited : heading, record, baseVersion: null, currentLabel, incomingLabel };
       const result = mergeEntryText(input, grammar);
       expect(splitEntryList(result.content, grammar).parts.filter((part) => part.kind === "entry"))
         .toMatchObject([{ id: "11111111", section: "One", bytes: value("edited").trimEnd() }]);
@@ -157,7 +157,7 @@ describe("observed removal", () => {
     const base = `${opening}## Memories\n\n${value("base")}---\nFooter\n`;
     const edited = base.replace("base\n","edited\n");
     const removed = `${opening}---\nFooter\n`;
-    const result = mergeEntryText({base,current:removed,incoming:edited,record,currentLabel,incomingLabel},field);
+    const result = mergeEntryText({base,current:removed,incoming:edited,record,baseVersion: null,currentLabel,incomingLabel},field);
     expect(splitEntryList(result.content,field).parts.filter((part)=>part.kind === "entry")).toMatchObject([
       {id:"11111111",section:"Memories",bytes:value("edited").trimEnd()},
     ]);
@@ -184,7 +184,7 @@ describe("observed removal", () => {
     const base = doc(entry("11111111"));
     const edited = doc(entry("11111111","edited"));
     const removed = doc("");
-    const result = mergeEntryText({base,current:removed,incoming:edited,record,currentLabel:incomingLabel,incomingLabel:currentLabel},config);
+    const result = mergeEntryText({base,current:removed,incoming:edited,record,baseVersion: null,currentLabel:incomingLabel,incomingLabel:currentLabel},config);
     expect(entries(result.content)[0]!.bytes).toContain("edited");
     expect(result.conflicts).toEqual([]);
   });
@@ -345,7 +345,7 @@ it("merges field-header entries by stable IDs without retitle loss", () => {
   const base = `## Memories\n\n${value("Old","11111111","body")}`;
   const current = `## Memories\n\n${value("Retitled","11111111","edited")}`;
   const incoming = base+value("New","22222222","another");
-  const result = mergeEntryText({base,current,incoming,record,currentLabel,incomingLabel},field);
+  const result = mergeEntryText({base,current,incoming,record,baseVersion: null,currentLabel,incomingLabel},field);
   expect(result.content).toContain("**Retitled:**");
   expect(result.content).toContain("**New:**");
   expect(result.content).not.toContain("**Old:**");
@@ -357,4 +357,16 @@ it("refuses absent or duplicate identities before it can alias entries", () => {
   const duplicate = doc(entry("11111111")+entry("11111111","different"));
   expect(()=>merge(missing,missing,missing)).toThrow("distinct managed IDs");
   expect(()=>merge(duplicate,duplicate,duplicate)).toThrow("distinct managed IDs");
+});
+
+it("retains the version and side counts on a prose hunk whose mapped range spans an entry", () => {
+  const base = `## One\nBefore\n${entry("11111111", "body")}<!-- After -->\n`;
+  const current = base.replace("Before", "Current before");
+  const incoming = base.replace("<!-- After -->", "<!-- Incoming after -->");
+  const result = mergeEntryText({ base, current, incoming, record, baseVersion: RecordVersionSchema.parse("entry-basis"), currentLabel, incomingLabel }, config);
+  expect(result.conflicts).toHaveLength(1);
+  expect(result.conflicts[0]).toMatchObject({ baseVersion: "entry-basis", currentLines: 2, incomingLines: 2,
+    location: { kind: "hunk", start: 1, end: base.split("\n").indexOf("<!-- After -->") + 1 },
+    base: "Before\n<!-- After -->", current: { content: "Current before\n<!-- After -->" },
+    incoming: { content: "Before\n<!-- Incoming after -->" } });
 });

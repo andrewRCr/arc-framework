@@ -2386,3 +2386,44 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 - **A14** — 2026-10-05 — design: require completed Errand common-ancestor observations before treating ancestry as absent.
   _Supersedes:_ Goal 3 parity; D8 unchanged failures; A10/A12 bounded scope; SC7 common-basis cases. _Trigger:_ aggregate-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->
+
+- **A15** — 2026-10-16 — design: Two remote operations, `pull` and `push`, replace `sync`; `maintain()` joins the
+  contract. _Supersedes:_ D1. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 12. _Work:_ storage-ref-backend 1.10.
+  _Revalidated:_ storage-ref-backend 1.10.
+- **A16** — 2026-10-16 — design: A companion is keyed by its path among its work item's records: a name stores where it
+  does today, and any other path verbatim. _Supersedes:_ D2. _Trigger:_ `spec-storage-ref-backend.md` § 2.5, 3.2.
+  _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A17** — 2026-10-16 — design: `state-unresolvable` joins the local refusals; `history-diverged` stays as `pull`'s
+  notice; Git's message text is read in three named places: a receiver without atomic pushes, a server's per-ref refusal
+  line, and a remote failure's cause. _Supersedes:_ D4. _Trigger:_ `spec-storage-ref-backend.md` § 2.3, 6.9. _Work:_
+  storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A18** — 2026-10-16 — design: `pull` and `push` report five states beside `no-remote` and `no-identity`, none a
+  failure: `designation-ambiguous`, `move-incomplete`, `moved`, `designation-needed`, and `move-unfinished`, the last
+  stopping nothing; every publish outcome carries the push loop's retry count and time waited. _Supersedes:_ D4.
+  _Trigger:_ `spec-storage-ref-backend.md` § 2.2, 9.3. _Work:_ storage-ref-backend 1.10. _Revalidated:_
+  storage-ref-backend 1.10.
+- **A19** — 2026-10-16 — design: When a late write meets an item's end, the end's version stays current whichever side
+  is remote, and the late version goes into a conflict record. _Supersedes:_ D4, D6. _Trigger:_
+  `spec-storage-ref-backend.md` § 6.6. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A20** — 2026-10-16 — design: A hunk conflict record carries `baseVersion`, the record version its base line range
+  counts in, or null where the base held no such record, and `currentLines` and `incomingLines`, its current and
+  incoming sides' line counts. _Supersedes:_ D6. _Trigger:_ `spec-storage-ref-backend.md` § 3.7. _Work:_
+  storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A21** — 2026-10-16 — design: No stub rank is built until a consumer reads one; only the Errand queue keeps rank
+  keys. _Supersedes:_ D6, D10. _Trigger:_ `spec-storage-ref-backend.md` § 3.8. _Work:_ storage-ref-backend 1.10.
+  _Revalidated:_ storage-ref-backend 1.10.
+- **A22** — 2026-10-16 — design: The size cap reaches projected kinds only; a repository that goes public moves its
+  state to a backing repository only when it wants that state private; `refs/arc/project/moved` joins the ref table; a
+  backend over Git adds the refusals Git or canonical JSON needs — `store.git-path`, `store.json`, a key that is not one
+  path segment, and an owner's name or key over 2,040 bytes. _Supersedes:_ D10. _Trigger:_ `spec-storage-ref-backend.md`
+  § 3.2, 5.6, 9.5, 10.6. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A23** — 2026-10-16 — design: `stale info`, `reference already exists`, and `reference does not exist` join the retry
+  set as lost races, and a server's refusal of a state ref outside it is read by state, a lost race when the ref moved;
+  every push of a work item's or cohort's ref, live or under history, and every delete, is leased; a carried code ref's
+  own rejection is never a lost race for state. _Supersedes:_ D12. _Trigger:_ `spec-storage-ref-backend.md` § 6.5,
+  6.7–6.9. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
+- **A24** — 2026-10-16 — design: Where no remote holds the project's registry, the clone asks once about its code
+  remote, `push` or `off`; on a host whose forks copy state refs, a contributor's lone fork remote holding that copy is
+  designated without asking and adopts the upstream's ID, a residual the host trial checks. _Supersedes:_ D14.
+  _Trigger:_ `spec-storage-ref-backend.md` § 9.2, 9.8. _Work:_ storage-ref-backend 1.10. _Revalidated:_
+  storage-ref-backend 1.10.

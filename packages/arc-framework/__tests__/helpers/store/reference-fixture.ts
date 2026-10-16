@@ -85,7 +85,7 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
       const shape = KIND_SHAPES[kind];
       const name = shape.owner === "person" ? "test-user" : `${shape.owner}-${suffix}`;
       const owner = OwnerIdentitySchema.parse({ type: shape.owner, name });
-      const key = shape.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 }
+      const key = kind === "work-item/companion" ? suffix : shape.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 }
         : shape.key === "path" ? `scratch/${suffix}.md` : suffix;
       return RecordReferenceSchema.parse({ owner, kind, ...(shape.key === null ? {} : { key }) });
     },

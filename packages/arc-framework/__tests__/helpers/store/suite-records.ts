@@ -2,17 +2,19 @@
 
 import { expect, it } from "vitest";
 import {
-  KIND_REGISTRY, RecordReferenceSchema, OwnerIdentitySchema, ReadPlacementSchema, StoreRecordSchema,
+  KIND_REGISTRY, RecordReferenceSchema, OwnerIdentitySchema, ReadPlacementSchema, StoreRecordSchema, type StoreRecord,
 } from "../../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
-import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { assertion, everyKind, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
 import { registerPrimaryRoleAssertions } from "./suite-primary-role.js";
+import { parseCohortDocument } from "../../../src/lib/store/kinds/cohort/parser.js";
 
 /** Register item 1 over every served role and primary metadata behavior.
  * @param context - Item and fresh fixture registration.
  */
 export function registerRecordAssertions(context: SuiteContext): void {
   registerPrimaryRoleAssertions(context);
+  registerCohortClosePlacement(context);
   for (const key of [".internal/request.json", "work-unit/.internal/checkpoint.json"]) {
     assertion(context, "personal", `machine-local-path:${key}`, async (fixture) => {
       const record = await seed(fixture, fixture.reference("personal/document"));
@@ -21,7 +23,7 @@ export function registerRecordAssertions(context: SuiteContext): void {
       expect(await fixture.store.write({ action: "put", reference: excluded, expected: null,
         content: fixture.content(record.reference), provenance: testProvenance })).toMatchObject({ status: "refused" });
       expect(await fixture.store.read({ reference: excluded })).toMatchObject({ status: "refused" });
-      expect(await fixture.store.batch({ writes: [update(fixture, record),
+      expect(await fixture.store.batch({ writes: [mutationOf(update(fixture, record)),
         { action: "put", reference: excluded, expected: null, content: fixture.content(record.reference) }],
       provenance: testProvenance })).toMatchObject({ status: "refused" });
       expect(await fixture.settle()).toBe(before);
@@ -70,11 +72,13 @@ export function registerRecordAssertions(context: SuiteContext): void {
   everyKind(context, "keyed-independence", async (fixture, reference) => {
     const first = await seed(fixture, reference);
     const second = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference(reference.kind, "two"), owner: first.reference.owner }));
-    const foreign = fixture.reference(reference.kind, "foreign");
-    const foreignOwner = OwnerIdentitySchema.parse({ ...foreign.owner, name: "foreign-owner" });
-    if (foreignOwner.type === "person") fixture.identity(foreignOwner.name);
-    try { await seed(fixture, RecordReferenceSchema.parse({ ...foreign, owner: foreignOwner })); }
-    finally { if (first.reference.owner.type === "person") fixture.identity(first.reference.owner.name); }
+    if (first.reference.owner.type !== "project") {
+      const foreign = fixture.reference(reference.kind, "foreign");
+      const foreignOwner = OwnerIdentitySchema.parse({ ...foreign.owner, name: "foreign-owner" });
+      if (foreignOwner.type === "person") fixture.identity(foreignOwner.name);
+      try { await seed(fixture, RecordReferenceSchema.parse({ ...foreign, owner: foreignOwner })); }
+      finally { if (first.reference.owner.type === "person") fixture.identity(first.reference.owner.name); }
+    }
     expect(first.reference).not.toEqual(second.reference);
     expect(success(await fixture.store.read({ reference: first.reference })).version).toBe(first.version);
     expect(success(await fixture.store.read({ reference: second.reference })).version).toBe(second.version);
@@ -135,6 +139,65 @@ export function registerRecordAssertions(context: SuiteContext): void {
       expect(completed.placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
     });
   }
+  for (const rename of [false, true]) assertion(context, "work-item",
+    rename ? "companion-path-key-through-rename" : "companion-path-key", async (fixture) => {
+      const primary = await seed(fixture, fixture.reference("work-item/meta"));
+      const companions: StoreRecord[] = [];
+      for (const key of ["diagram.svg", "sub/notes.md"]) companions.push(await seed(fixture,
+        RecordReferenceSchema.parse({ owner: primary.reference.owner, kind: "work-item/companion", key })));
+      let owner = primary.reference.owner;
+      if (rename) {
+        owner = OwnerIdentitySchema.parse({ ...owner, name: "renamed-companions" });
+        success(await fixture.store.write({ ...update(fixture, primary),
+          reference: RecordReferenceSchema.parse({ ...primary.reference, owner }) }));
+      }
+      for (const record of companions) {
+        const read = success(await fixture.reopen().read({ reference: RecordReferenceSchema.parse({ ...record.reference, owner }) }));
+        expect(read.reference).toEqual({ ...record.reference, owner });
+        expect(read.content).toBe(record.content);
+        expect(read.version).toBe(record.version);
+      }
+      const listed = success(await fixture.store.list({ family: "work-item", kind: "work-item/companion", owner }));
+      expect(listed.status).toBe("complete");
+      if (listed.status !== "complete") throw new Error("Expected a complete companion listing");
+      expect(listed.records.map((record) => record.reference.key).sort()).toEqual(["diagram.svg", "sub/notes.md"]);
+    });
+  assertion(context, "work-item", "rename-and-reopen-onto-live-slug", async (fixture) => {
+    const first = await seed(fixture, fixture.reference("work-item/meta"));
+    const second = await seed(fixture, fixture.reference("work-item/meta", "two"));
+    const renamed = RecordReferenceSchema.parse({ ...first.reference,
+      owner: { ...first.reference.owner, name: second.reference.owner.name } });
+    const before = await fixture.settle();
+    expect(await fixture.store.write({ ...update(fixture, first), reference: renamed })).toMatchObject({
+      status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([renamed, second.reference]) },
+    });
+    expect(await fixture.settle()).toBe(before);
+    success(await fixture.store.write({ ...update(fixture, first),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const archived = success(await fixture.store.read({ reference: first.reference }));
+    const live = await seed(fixture, fixture.reference("work-item/meta"));
+    const reopen = { ...update(fixture, archived), placement: { kind: "active" as const } };
+    expect(await fixture.store.write(reopen)).toMatchObject({ status: "refused", refusal: {
+      code: "ambiguous-match", candidates: expect.arrayContaining([archived.reference, live.reference]),
+    } });
+    expect(success(await fixture.store.read({ reference: archived.reference }))).toEqual(archived);
+    const distinct = RecordReferenceSchema.parse({ ...archived.reference,
+      owner: { ...archived.reference.owner, name: "reopened" } });
+    success(await fixture.store.write({ ...reopen, reference: distinct }));
+    expect(success(await fixture.store.read({ reference: distinct })).placement).toEqual({ kind: "active" });
+    expect(success(await fixture.store.read({ reference: live.reference }))).toEqual(live);
+  });
+  assertion(context, "work-item", "primary-put-without-placement", async (fixture) => {
+    const record = await seed(fixture, fixture.reference("work-item/meta"));
+    const before = await fixture.settle();
+    expect(await fixture.store.write({ action: "put", reference: record.reference, expected: record.version,
+      content: record.content, provenance: testProvenance })).toMatchObject({ status: "refused", refusal: {
+      code: "record-malformed", rule: expect.stringMatching(/placement/iu),
+    } });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: record.reference }))).toEqual(record);
+    success(await fixture.store.write(update(fixture, record)));
+  });
   assertion(context, "work-item", "created-work-item-UID", async (fixture) => {
     const record = await seed(fixture, fixture.reference("work-item/meta"));
     expect(record.reference.owner.type).toBe("work-item");
@@ -201,5 +264,32 @@ export function registerDurabilityAssertions(context: SuiteContext): void {
 export function registerCapabilityAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) assertion(context, family, "state-off-branch", async (fixture) => {
     expect(fixture.store.capabilities).toEqual({ stateOffBranch: fixture.declarations.stateOffBranch });
+  });
+}
+
+function registerCohortClosePlacement(context: SuiteContext): void {
+  const parsed = { ...context, registration: { ...context.registration,
+    create: () => context.registration.create({ "cohort/document": { parser: parseCohortDocument } }),
+  } };
+  assertion(parsed, "cohort", "cohort-close-placement", async (fixture) => {
+    const quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const document = async (suffix: string, parent?: string) => {
+      const reference = fixture.reference("cohort/document", suffix);
+      return seed(fixture, reference, `# Cohort: ${reference.owner.name}\n\n**Purpose:** Preserve archive placement.\n`
+        + (parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`));
+    };
+    const prior = await document("prior");
+    success(await fixture.store.write({ ...update(fixture, prior, prior.content), placement: { kind: "completed", quarter } }));
+    const lone = await document("lone");
+    success(await fixture.store.write({ ...update(fixture, lone, lone.content), placement: { kind: "completed", quarter } }));
+    const closed = StoreRecordSchema.parse(success(await fixture.reopen().read({ reference: lone.reference })));
+    expect(closed.placement).toEqual({ kind: "completed", quarter, sequence: "02", closeout: "a" });
+    const parent = await document("parent");
+    const child = await document("child", parent.reference.owner.name);
+    success(await fixture.store.batch({ writes: [child, parent].map((record) => ({ action: "put" as const,
+      reference: record.reference, content: record.content, expected: record.version,
+      placement: { kind: "completed" as const, quarter } })), provenance: testProvenance }));
+    const closedParent = StoreRecordSchema.parse(success(await fixture.reopen().read({ reference: parent.reference })));
+    expect(closedParent.placement).toEqual({ kind: "completed", quarter, sequence: "04", closeout: "b" });
   });
 }

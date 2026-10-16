@@ -139,8 +139,8 @@ describe("reference record landing", () => {
       changes: () => fixture.store.changes({ from, to }),
       lookup: () => fixture.store.lookup(LookupInputSchema.parse({ kind: "slug", slug: reference.owner.name })),
       write: () => fixture.store.write({ action: "put", reference: fixture.reference("project-registry/counter"), content: fixture.content(fixture.reference("project-registry/counter")), expected: null, provenance: testProvenance }),
-      batch: () => fixture.store.batch({ writes: [], provenance: testProvenance }),
-      sync: () => fixture.store.sync(),
+      batch: () => fixture.store.batch({ writes: [{ action: "put", reference: fixture.reference("project-registry/counter"), expected: null, content: fixture.content(fixture.reference("project-registry/counter")) }], provenance: testProvenance }),
+      sync: () => fixture.store.push(),
     };
     expect(await operations[method]()).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal" } });
     expect(success(await remote.version())).toBe(remoteBefore);
@@ -155,7 +155,7 @@ describe("reference record landing", () => {
     const local = await seed(fixture, fixture.reference("work-item/meta"));
     const before = await fixture.settle();
     fixture.remoteState("contended");
-    expect(success(await fixture.store.sync())).toMatchObject({ publishes: [{ status: "failed", failure: {
+    expect(success(await fixture.store.push())).toMatchObject({ publishes: [{ status: "failed", failure: {
       code: "retries-exhausted", retryCount: 3, waitedMs: 30,
     } }] });
     const counter = success(await remote.read({ reference: fixture.reference("project-registry/counter", "contention") }));
@@ -163,7 +163,7 @@ describe("reference record landing", () => {
     expect(await fixture.settle()).toBe(before);
     expect(success(await fixture.store.read({ reference: local.reference }))).toEqual(local);
     fixture.remoteState("available");
-    expect(success(await fixture.store.sync())).toMatchObject({ publishes: [{ status: "reconciled" }] });
+    expect(success(await fixture.store.push())).toMatchObject({ publishes: [{ status: "reconciled" }] });
     expect(success(await remote.read({ reference: local.reference })).content).toBe(local.content);
   });
 

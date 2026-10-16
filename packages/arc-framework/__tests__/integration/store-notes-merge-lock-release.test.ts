@@ -15,7 +15,7 @@ for (const mode of ["callback", "provider"] as const) {
       `${mode} locking retains %s merge and release failures; effects: ${effects}`, async (kind) => {
         const h = await syncFixture();
         await h.b.inbox("remote contested bytes\n");
-        success(await h.b.store.sync());
+        success(await h.b.store.push());
         await h.a.inbox("local contested bytes\n");
         const remoteBefore = (await h.remote("git", ["rev-parse", syncNotesRef])).stdout.trim();
         const actual = h.a.ports.exec;
@@ -38,7 +38,7 @@ for (const mode of ["callback", "provider"] as const) {
         let returned: Error | undefined;
         if (mode === "callback") {
           h.a.ports.locks.notes = (operation) => withAdvisoryLock(h.a.lockPath, operation, { maxWaitMs: 100 });
-          try { await h.a.store.sync(); } catch (error) {
+          try { await h.a.store.push(); } catch (error) {
             expect(error).toMatchObject({ code: "store.sync-failed" });
             returned = (error as Error).cause as Error;
           }
@@ -77,7 +77,7 @@ for (const mode of ["callback", "provider"] as const) {
         await h.a.exec("git", ["fetch", "origin", `${syncNotesRef}:refs/arc/test/retained-remote`]);
         await h.a.exec("git", ["update-ref", syncNotesRef, remoteBefore, anchor!]);
         await h.a.inbox("combined local and remote contested bytes\n");
-        expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+        expect(success(await h.a.store.push()).publishes[0]?.status).toBe("pushed");
         expect((await h.remote("git", ["notes", "--ref", syncNotesRef, "show", "HEAD"])).stdout)
           .toContain("combined local and remote contested bytes");
       },

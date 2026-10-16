@@ -6,7 +6,7 @@ import { StoredProvenanceSchema } from "./links.js";
 import type { LookupInput, LookupResult } from "./lookup.js";
 import type { ListingOutcome, ListInput, ReadInput, StoreCapabilities, StoreRecord } from "./read.js";
 import type { StoreResult } from "./refusal.js";
-import type { SyncResult } from "./sync.js";
+import type { PullInput, PullResult, PushInput, PushResult, MaintainResult } from "./sync.js";
 import type { BatchInput, BatchResult, WriteInput, WriteResult } from "./write.js";
 
 /** Record history input. */
@@ -42,5 +42,12 @@ export interface Store {
   /** Resolve human handles, lineage, claims, and code links. */
   lookup(input: LookupInput): Promise<StoreResult<LookupResult>>;
   /** Publish every eligible family and retain independent failures. */
-  sync(): Promise<StoreResult<SyncResult>>;
+  push(input?: PushInput): Promise<StoreResult<PushResult>>;
+  /** Fetch and merge state without publishing it. */
+  pull(input?: PullInput): Promise<StoreResult<PullResult>>;
+  /** Maintain the store and report available growth measurements. */
+  maintain(): Promise<StoreResult<MaintainResult>>;
 }
+
+/** Read operations available over another remote's state. */
+export type ReadOnlyStore = Pick<Store, "capabilities" | "read" | "list" | "version" | "history" | "changes" | "lookup">;

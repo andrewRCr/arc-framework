@@ -46,6 +46,11 @@ export type InRepoHome = {
 };
 /** Pure generic entry shape and the sections in which entries live. */
 export interface EntryConfig { shape: "heading" | "field-header"; sections: readonly string[] }
+/** Where the ref backend stores one kind's records inside its family's ref. */
+export interface RefHome {
+  /** Path template; `<slug>`, `<uid>`, `<person>`, and `<key>` expand from the record's reference. */
+  path: string;
+}
 /** Kind-specific storage and projection mechanism, excluding its field schema. */
 export interface KindMechanism {
   merge: "single-writer" | "line" | "entry";
@@ -53,6 +58,7 @@ export interface KindMechanism {
   writerVerbs?: readonly string[];
   projection: "never" | "projection-defined" | LayoutRoleDescriptor;
   inRepo: InRepoHome;
+  ref?: RefHome;
   entry?: EntryConfig;
   interim?: true;
 }
@@ -75,49 +81,51 @@ const once: KindMechanism = {
   ...never, inRepo: unhomed,
 };
 
-/** Every role explicitly declares its mechanism and interim home. */
+const atRef = (path: string, mechanism: KindMechanism): KindMechanism => ({ ...mechanism, ref: { path } });
+
+/** Every role explicitly declares its mechanism and storage homes. */
 export const KIND_MECHANISMS = {
-  "work-item/meta": artifact("meta", "single-writer"),
-  "work-item/task-list": artifact("tasks", "single-writer"),
-  "work-item/record": machine(transient),
-  "work-item/draft": artifact("draft", "line"),
-  "work-item/spec": artifact("spec", "line"),
-  "work-item/notes": artifact("notes", "line"),
-  "work-item/companion": prose({ substrate: "tracked", finder: "companions" }, "projection-defined"),
-  "work-item/description": entry(unhomed),
-  "work-item/inbound": entry(unhomed),
-  "cohort/document": prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" }),
-  "project-inbox/inbox": { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, { shape: "heading", sections: ["Inbox"] }), projection: { kind: "inbox", scope: "project" } },
-  "review/candidate": machine({ substrate: "tracked", address: { kind: "candidate-record" } }),
-  "review/integration-boundary": machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } }),
-  "review/evidence": machine(unhomed),
-  "review/outcome": machine(unhomed),
-  "review/terminus": machine(unhomed),
-  "review/adversarial-pass": machine(unhomed),
-  "project-registry/identity": { ...machine(unhomed), writerRule: "create-only" },
-  "project-registry/counter": { ...machine(unhomed), writerRule: "cas" },
-  "lineage/transition": { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" },
-  "personal/inbox": { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, { shape: "heading", sections: ["Errand", "Work Unit"] }), projection: { kind: "inbox", scope: "identity" } },
-  "personal/working-memory": { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, { shape: "field-header", sections: ["Memories"] }), projection: { kind: "user-document", document: "working-memory" } },
-  "personal/document": prose({ substrate: "personal", finder: "personal-documents" }, "projection-defined"),
-  "personal/errand-queue": entry(unhomed),
-  "personal/session-context": { ...prose({ substrate: "personal", address: { kind: "user-document", document: "session-notes" } }, { kind: "user-document", document: "session-notes" }), interim: true },
-  "claims/groom": machine(transient),
-  "claims/housekeep": machine(transient),
+  "work-item/meta": atRef("meta-<slug>.md", artifact("meta", "single-writer")),
+  "work-item/task-list": atRef("tasks-<slug>.md", artifact("tasks", "single-writer")),
+  "work-item/record": atRef("errand-<uid>.json", machine(transient)),
+  "work-item/draft": atRef("draft-<slug>.md", artifact("draft", "line")),
+  "work-item/spec": atRef("spec-<slug>.md", artifact("spec", "line")),
+  "work-item/notes": atRef("notes-<slug>.md", artifact("notes", "line")),
+  "work-item/companion": atRef("<key>-<slug>.md", prose({ substrate: "tracked", finder: "companions" }, "projection-defined")),
+  "work-item/description": atRef("errand-<slug>.md", entry(unhomed)),
+  "work-item/inbound": atRef("inbound-<slug>.md", entry(unhomed)),
+  "cohort/document": atRef("cohort-<slug>.md", prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" })),
+  "project-inbox/inbox": atRef("ATOMIC-INBOX.md", { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, { shape: "heading", sections: ["Inbox"] }), projection: { kind: "inbox", scope: "project" } }),
+  "review/candidate": atRef("review/candidate-<uid>.json", machine({ substrate: "tracked", address: { kind: "candidate-record" } })),
+  "review/integration-boundary": atRef("review/integration-boundary-<uid>.json", machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } })),
+  "review/evidence": atRef("review/evidence-<key>-<uid>.json", machine(unhomed)),
+  "review/outcome": atRef("review/outcome-<key>-<uid>.json", machine(unhomed)),
+  "review/terminus": atRef("review/terminus-<key>-<uid>.json", machine(unhomed)),
+  "review/adversarial-pass": atRef("review/adversarial-pass-<key>-<uid>.json", machine(unhomed)),
+  "project-registry/identity": atRef("identity.json", { ...machine(unhomed), writerRule: "create-only" }),
+  "project-registry/counter": atRef("counters/<key>.json", { ...machine(unhomed), writerRule: "cas" }),
+  "lineage/transition": atRef("lineage/<uid>.json", { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" }),
+  "personal/inbox": atRef("<person>/USER-INBOX.md", { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, { shape: "heading", sections: ["Errand", "Work Unit"] }), projection: { kind: "inbox", scope: "identity" } }),
+  "personal/working-memory": atRef("<person>/WORKING-MEMORY.md", { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, { shape: "field-header", sections: ["Memories"] }), projection: { kind: "user-document", document: "working-memory" } }),
+  "personal/document": atRef("<person>/<key>", prose({ substrate: "personal", finder: "personal-documents" }, "projection-defined")),
+  "personal/errand-queue": atRef("<person>/errand-queue-<person>.md", entry(unhomed)),
+  "personal/session-context": atRef("<person>/<key>/SESSION-NOTES.md", { ...prose({ substrate: "personal", address: { kind: "user-document", document: "session-notes" } }, { kind: "user-document", document: "session-notes" }), interim: true }),
+  "claims/groom": atRef("groom-<key>-<person>.json", machine(transient)),
+  "claims/housekeep": atRef("housekeep-<key>-<person>.json", machine(transient)),
   "project-machinery/prose": prose(unhomed, "projection-defined"),
   "constitution/prose": prose(unhomed, "projection-defined"),
-  "work-item/conflict-record": once,
-  "cohort/conflict-record": once,
-  "project-inbox/conflict-record": once,
-  "review/conflict-record": once,
-  "project-registry/conflict-record": once,
-  "lineage/conflict-record": once,
-  "personal/conflict-record": once,
-  "claims/conflict-record": once,
+  "work-item/conflict-record": atRef("conflicts/<key>.json", once),
+  "cohort/conflict-record": atRef("conflicts/<key>.json", once),
+  "project-inbox/conflict-record": atRef("conflicts/<key>.json", once),
+  "review/conflict-record": atRef("review/conflicts/<key>.json", once),
+  "project-registry/conflict-record": atRef("conflicts/<key>.json", once),
+  "lineage/conflict-record": atRef("lineage/conflicts/<key>.json", once),
+  "personal/conflict-record": atRef("<person>/conflicts/<key>.json", once),
+  "claims/conflict-record": atRef("conflicts/<key>.json", once),
   "project-machinery/conflict-record": once,
   "constitution/conflict-record": once,
-  "project-inbox/routing-receipt": once,
-  "personal/routing-receipt": once,
+  "project-inbox/routing-receipt": atRef("receipts/<key>.json", once),
+  "personal/routing-receipt": atRef("<person>/receipts/<key>.json", once),
 } satisfies Record<KindId, KindMechanism>;
 
 /** A registered role with a replaceable parser slot and ordered format. */

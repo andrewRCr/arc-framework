@@ -2,7 +2,7 @@
 
 import {
   FAMILY_IDS, FAMILY_REGISTRY, familyOf, sameOwner, sameReference, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
-  type StoreRefusal, type StoreResult, type SyncResult,
+  type StoreRefusal, type StoreResult, type PushResult, type PullResult,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import type { ReferenceContext } from "./context.js";
@@ -74,7 +74,7 @@ function adopt(context: ReferenceContext, key: string, record: MemoryRecord | un
   context.state.snapshots.set(allocation.stateVersion, structuredClone(context.state.records));
 }
 
-function remoteFailure( remote: MemoryRemote): StoreRefusal | undefined {
+function remoteFailure(remote: MemoryRemote): Extract<StoreRefusal, { code: "unreachable" | "refused" }> | undefined {
   if (remote.condition === "down") return {
     code: "unreachable", class: "recoverable", cause: "network", condition: "The configured memory remote does not answer.",
     remedy: { text: "Restore the remote connection, then retry sync.", argv: ["arc", "sync"] },
@@ -84,6 +84,38 @@ function remoteFailure( remote: MemoryRemote): StoreRefusal | undefined {
     remedy: { text: `Change the remote policy named by the server: ${remote.message}` },
   };
   return undefined;
+}
+
+function syncSelection(context: ReferenceContext, publication: ReferencePublication): { states: PushResult["states"]; families: FamilyId[] } {
+  const states: PushResult["states"] = [];
+  const identityFamilies = FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity");
+  if (context.environment.identity === undefined) states.push({ status: "no-identity", families: identityFamilies,
+    remedy: { text: "Set arc.identity, then retry the identity-scope sync.", argv: ["git", "config", "arc.identity", "test-user"] } });
+  if (publication.remote === undefined) states.push({ status: "no-remote" });
+  return { states, families: FAMILY_IDS.filter((family) => context.environment.identity !== undefined || FAMILY_REGISTRY[family].scope === "project") };
+}
+
+/** Reconcile the local namespace against the remote without modifying its saved state.
+ * @param context - Local namespace, registry, and injected environment.
+ * @param publication - Remote state and this client's last common remote observation.
+ * @returns Configuration states and the remote's fetch-only outcome.
+ */
+export async function pullReference(context: ReferenceContext, publication: ReferencePublication): Promise<StoreResult<PullResult>> {
+  return withStateQueue(context.state, (): StoreResult<PullResult> => {
+    const admission = namespaceAdmission(context.state);
+    if (admission) return refused(admission);
+    const { states, families } = syncSelection(context, publication);
+    if (publication.remote === undefined) return ok({ states, pulls: [] });
+    const base = { remote: "memory", role: "state" as const, families, notices: [] };
+    const failure = remoteFailure(publication.remote);
+    if (failure) return ok({ states, pulls: [{ ...base, status: "failed", failure }] });
+    const prepared = prepareReconciliation(context, publication, families);
+    if (prepared.status === "refused") return prepared;
+    Object.assign(context.state, prepared.result.state);
+    setPublicationBase(publication, families, publication.remote.state.records);
+    return ok({ states, pulls: [{ ...base,
+      status: prepared.result.remoteMoved || prepared.result.imported > 0 ? "pulled" : "noop" }] });
+  });
 }
 
 function reconciledRecords(context: ReferenceContext, publication: ReferencePublication, families: FamilyId[]): { records: Map<string, MemoryRecord>; remoteMoved: boolean; archiveSequences: Map<string, number> } {
@@ -110,7 +142,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
       for (const created of storeConflicts(context, [conflict], { verb: "sync", lifecycleAction: "reconcile" })) generatedConflicts.add(recordKey(created));
     } else if (changedRemote && !equal(local, current) && local && current) {
       const result = mergeContents({ ...context, environment: { ...context.environment, actor: local.label.actor, now: () => Date.parse(local.label.time) } }, reference,
-          base ?? { ...current, content: "" }, current, local.content);
+          base, current, local.content);
       merged = { ...current, content: result.content };
       if (merged.content !== current.content) merged.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
       adopt(context, key, merged, remote.state);
@@ -173,19 +205,16 @@ function reconcileArchivePositions(context: ReferenceContext, records: Map<strin
  * @param publication - Configured remote and this client's last common state.
  * @returns Independent configuration states and one family-scoped publish result.
  */
-export async function syncReference(context: ReferenceContext, publication: ReferencePublication): Promise<StoreResult<SyncResult>> {
+export async function pushReference(context: ReferenceContext, publication: ReferencePublication): Promise<StoreResult<PushResult>> {
   return withStateQueue(context.state, async () => {
     const admission = namespaceAdmission(context.state);
     if (admission) return refused(admission);
-    const states: SyncResult["states"] = [];
-    const identityFamilies = FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity");
-    if (context.environment.identity === undefined) states.push({ status: "no-identity", families: identityFamilies,
-      remedy: { text: "Set arc.identity, then retry the identity-scope publishes.", argv: ["git", "config", "arc.identity", "test-user"] } });
-    if (publication.remote === undefined) { states.push({ status: "no-remote" }); return ok({ states, publishes: [] }); }
-    const families = FAMILY_IDS.filter((family) => context.environment.identity !== undefined || FAMILY_REGISTRY[family].scope === "project");
-    const failure = remoteFailure(publication.remote);
-    if (failure) return ok({ states, publishes: [{ status: "failed", families, failure: failure as Extract<SyncResult["publishes"][number], { status: "failed" }>["failure"] }] });
+    const { states, families } = syncSelection(context, publication);
+    if (publication.remote === undefined) return ok({ states, pulls: [], publishes: [] });
     const started = context.environment.now();
+    const failure = remoteFailure(publication.remote);
+    if (failure) return ok({ states, pulls: [], publishes: [{ status: "failed", families, retryCount: 0, waitedMs: context.environment.now() - started,
+      failure }] });
     for (let retry = 0; retry < 3; retry++) {
       const observedRemoteVersion = publication.remote.state.counter;
       const prepared = prepareReconciliation(context,publication,families);
@@ -194,13 +223,15 @@ export async function syncReference(context: ReferenceContext, publication: Refe
       const published = await withStateQueue(publication.remote.state, () => {
         if (publication.remote!.state.counter !== observedRemoteVersion) return undefined;
         Object.assign(context.state, prepared.result.state);
-        return finishPublish(publication, states, families, prepared.result);
+        return finishPublish(publication, states, families, prepared.result,
+          { retryCount: retry, waitedMs: context.environment.now() - started });
       });
       if (published !== undefined) return published;
       context.environment.wait(10);
     }
-    return ok({ states, publishes: [{ status: "failed", families, failure: {
-      code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs: context.environment.now() - started,
+    const waitedMs = context.environment.now() - started;
+    return ok({ states, pulls: [], publishes: [{ status: "failed", families, retryCount: 3, waitedMs, failure: {
+      code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs,
       condition: "The remote moved before every compare-and-swap publish attempt.",
       remedy: { text: "Retry at the next firing point or run arc sync after contention subsides.", argv: ["arc", "sync"] },
     } }] });
@@ -237,13 +268,18 @@ function prepareReconciliation(context: ReferenceContext, publication: Reference
   return ok({...result,state:prepared.state,remoteState,imported,exported,changed});
 }
 
-function finishPublish(publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: Reconciliation): StoreResult<SyncResult> {
+function finishPublish(publication: ReferencePublication, states: PushResult["states"], families: FamilyId[], result: Reconciliation,
+  measurements: { retryCount: number; waitedMs: number }): StoreResult<PushResult> {
   const remote = publication.remote!;
   Object.assign(remote.state, result.remoteState);
+  setPublicationBase(publication, families, result.records);
+  return ok({ states, pulls: [], publishes: [{ status: result.remoteMoved || result.imported > 0 ? "reconciled"
+    : result.changed || result.exported > 0 ? "pushed" : "noop", families, ...measurements }] });
+}
+
+function setPublicationBase(publication: ReferencePublication, families: readonly FamilyId[], records: ReadonlyMap<string, MemoryRecord>): void {
   for (const family of families) {
     for (const [key, record] of publication.base) if (familyOf(record.reference.kind) === family) publication.base.delete(key);
-    for (const [key, record] of result.records) if (familyOf(record.reference.kind) === family) publication.base.set(key, structuredClone(record));
+    for (const [key, record] of records) if (familyOf(record.reference.kind) === family) publication.base.set(key, structuredClone(record));
   }
-  return ok({ states, publishes: [{ status: result.remoteMoved || result.imported > 0 ? "reconciled"
-    : result.changed || result.exported > 0 ? "pushed" : "noop", families }] });
 }

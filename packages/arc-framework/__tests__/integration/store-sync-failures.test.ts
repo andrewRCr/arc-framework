@@ -17,7 +17,7 @@ async function preparedReconcile() {
   await h.a.exec("git", ["push", "origin", "HEAD:refs/heads/notes-a"]);
   await h.b.exec("git", ["fetch", "origin"]);
   await h.b.inbox("Remote notes\n");
-  success(await h.b.store.sync());
+  success(await h.b.store.push());
   await h.a.inbox("Local notes\n");
   return { h, remoteErrand };
 }
@@ -30,13 +30,13 @@ describe("Store sync failure behavior", () => {
     const away = `${h.origin}-away`;
     await rename(h.origin, away);
     try {
-      const publishes = success(await h.a.store.sync()).publishes;
+      const publishes = success(await h.a.store.push()).publishes;
       expect(publishes).toEqual([
-        { status: "failed", families: ["personal"], failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error", remedy: { text: expect.any(String) } }) },
-        { status: "failed", families: ["work-item", "claims"], failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error", remedy: { text: expect.any(String) } }) },
+        { status: "failed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number), failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error", remedy: { text: expect.any(String) } }) },
+        { status: "failed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number), failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error", remedy: { text: expect.any(String) } }) },
       ]);
     } finally { await rename(away, h.origin); }
-    expect(success(await h.a.store.sync()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
+    expect(success(await h.a.store.push()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
   });
 
   it("preserves an actual notes host refusal and still publishes the independent Errand ref", async () => {
@@ -46,12 +46,12 @@ describe("Store sync failure behavior", () => {
     const hook = join(h.origin, "hooks/pre-receive");
     await writeFile(hook, `#!/bin/sh\nwhile read old new ref; do\n  case "$ref" in\n    ${syncNotesRef}) echo 'notes policy rejects publish' >&2; exit 1;;\n  esac\ndone\nexit 0\n`, { mode: 0o755 });
     try {
-      const publishes = success(await h.a.store.sync()).publishes;
-      expect(publishes[0]).toMatchObject({ status: "failed", families: ["personal"], failure: { code: "refused", class: "terminal", message: expect.stringContaining("notes policy rejects publish") } });
-      expect(publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"] });
+      const publishes = success(await h.a.store.push()).publishes;
+      expect(publishes[0]).toMatchObject({ status: "failed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number), failure: { code: "refused", class: "terminal", message: expect.stringContaining("notes policy rejects publish") } });
+      expect(publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
       expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).not.toBe(remoteBefore);
     } finally { await unlink(hook); }
-    expect(success(await h.a.store.sync()).publishes[0]).toEqual({ status: "pushed", families: ["personal"] });
+    expect(success(await h.a.store.push()).publishes[0]).toEqual({ status: "pushed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) });
   });
 
   it.each([
@@ -67,7 +67,7 @@ describe("Store sync failure behavior", () => {
       if (args[0] === "ls-remote" && args.includes(syncNotesRef)) throw new GitProcessError({ kind, command, args: prefix ? ["--no-lazy-fetch", ...args] : args, stderr, ...(kind === "nonzero-exit" ? { exitCode: 128 } : { timedOut: true }) });
       return base(command, args, options);
     };
-    expect(success(await h.a.store.sync()).publishes[0]).toMatchObject({ status: "failed", families: ["personal"], failure: { code: "unreachable", class: "recoverable", cause } });
+    expect(success(await h.a.store.push()).publishes[0]).toMatchObject({ status: "failed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number), failure: { code: "unreachable", class: "recoverable", cause } });
   });
 
   it.each(["local", "spawn"] as const)("throws a notes %s failure with its original cause before publishing Errands", async (kind) => {
@@ -81,7 +81,7 @@ describe("Store sync failure behavior", () => {
       if (kind === "spawn" ? args[0] === "ls-remote" && args.includes(syncNotesRef) : args[0] === "rev-parse" && args.includes("--quiet") && args.includes(syncNotesRef)) throw original;
       return base(command, args, options);
     };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(before);
   });
 
@@ -101,7 +101,7 @@ describe("Store sync failure behavior", () => {
       return result;
     };
     let failure: unknown;
-    try { await h.a.store.sync(); } catch (error) { failure = error; }
+    try { await h.a.store.push(); } catch (error) { failure = error; }
     expect(failure).toBeInstanceOf(ArcError);
     expect(failure).toMatchObject({ cause: expect.any(UserSaveVerificationError) });
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(before);
@@ -117,7 +117,7 @@ describe("Store sync failure behavior", () => {
       try { return await withAdvisoryLock(h.a.lockPath, operation, { maxWaitMs: 20 }); }
       finally { await releaseAdvisoryLock(holder); }
     };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: expect.any(AdvisoryLockTimeoutError) });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: expect.any(AdvisoryLockTimeoutError) });
     expect(holds).toBe(2);
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(remoteErrand);
   });
@@ -131,7 +131,7 @@ describe("Store sync failure behavior", () => {
       if (args[0] === "ls-tree" && args.some((arg) => arg.includes("__incoming_")) && args.includes(".arc-user-notes-compaction-manifest.json")) { checked = true; throw original; }
       return base(command, args, options);
     };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
     expect(checked).toBe(true);
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(remoteErrand);
   });
@@ -142,7 +142,7 @@ describe("Store sync failure behavior", () => {
     await h.a.inbox();
     const held = await acquireAdvisoryLock(h.a.lockPath);
     try {
-      await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: expect.any(AdvisoryLockTimeoutError) });
+      await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: expect.any(AdvisoryLockTimeoutError) });
       expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(before);
       expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", syncNotesRef])).stdout).toBe("");
     } finally { await releaseAdvisoryLock(held); }
@@ -159,9 +159,9 @@ describe("Store sync failure behavior", () => {
       }
       return base(command, args, options);
     };
-    const publishes = success(await h.a.store.sync()).publishes;
-    expect(publishes[0]).toMatchObject({ status: "failed", families: ["personal"], failure: { code: "unreachable", class: "recoverable", cause: "network" } });
-    expect(publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"] });
+    const publishes = success(await h.a.store.push()).publishes;
+    expect(publishes[0]).toMatchObject({ status: "failed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number), failure: { code: "unreachable", class: "recoverable", cause: "network" } });
+    expect(publishes[1]).toEqual({ status: "pushed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
     expect(fetched).toBe(true);
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).not.toBe(remoteErrand);
   });
@@ -175,7 +175,7 @@ describe("Store sync failure behavior", () => {
       if (args[0] === "rev-parse" && args.includes("--quiet") && args.includes(syncNotesRef)) throw original;
       return base(command, args, options);
     };
-    await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
+    await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed", cause: original });
   });
 
   it("never reads excluded dot-named leaves while assembling the notes save", async () => {
@@ -185,7 +185,7 @@ describe("Store sync failure behavior", () => {
     await h.a.file(".hidden", "Machine-local secret\n");
     await chmod(hidden, 0);
     try {
-      expect(success(await h.a.store.sync()).publishes[0]).toEqual({ status: "pushed", families: ["personal"] });
+      expect(success(await h.a.store.push()).publishes[0]).toEqual({ status: "pushed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) });
       const head = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout;
       expect(JSON.parse((await h.remote("git", ["notes", "--ref", syncNotesRef, "show", head])).stdout).files).not.toHaveProperty(".hidden");
     } finally { await chmod(hidden, 0o600); }
@@ -204,9 +204,9 @@ describe("Store sync failure behavior", () => {
       return base(command, args, options);
     };
     try {
-      expect(success(await h.a.store.sync()).publishes).toEqual([
-        { status: "failed", families: ["personal"], failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error" }) },
-        { status: "failed", families: ["work-item", "claims"], failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error" }) },
+      expect(success(await h.a.store.push()).publishes).toEqual([
+        { status: "failed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number), failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error" }) },
+        { status: "failed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number), failure: expect.objectContaining({ code: "unreachable", class: "recoverable", cause: "error" }) },
       ]);
       expect(moved).toBe(true);
     } finally { if (moved) await rename(away, h.origin); }

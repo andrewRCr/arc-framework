@@ -24,7 +24,7 @@ export const KIND_SHAPES = {
   "work-item/draft": singleton("work-item"),
   "work-item/spec": singleton("work-item"),
   "work-item/notes": singleton("work-item"),
-  "work-item/companion": keyed("work-item", "name"),
+  "work-item/companion": keyed("work-item", "path"),
   "work-item/description": singleton("work-item"),
   "work-item/inbound": singleton("work-item"),
   "cohort/document": singleton("cohort"),

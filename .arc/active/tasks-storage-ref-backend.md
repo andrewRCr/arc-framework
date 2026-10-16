@@ -24,264 +24,111 @@ both existing backends, and the Git access the engine calls.
   evidence, and approved CI-source correction: preceding `main` unit jobs and reviewed-PR integration jobs, with their
   exact commits and source difference; `main` pushes never execute integration. Existing budgets remain unchanged.
 
-### `[ ]` **1.2 The sync inputs and results — § 2.1, § 2.2**
+### `[x]` **1.2 The sync inputs and results — § 2.1, § 2.2**
 
 - _Goal:_ Every input and result `pull`, `push`, and `maintain` carry is a schema a caller parses, and both existing
   backends' publish outcomes carry the retry figures, so the operations that follow change no result type.
 
-    - In `lib/store/sync.ts`: `PullInput`, `PushInput` with `carry`, the five new `SyncStateSchema` arms, `PullResult`,
-      `PullOutcome` with its `candidate` role, the eight `PullNotice` kinds, `PushResult`, `CarryOutcome` and
-      `CarryRefusal`, `MaintainResult`, and `retryCount` and `waitedMs` on every `pushed`, `noop`, `reconciled`, and
-      `failed` publish outcome; the in-repo-only statuses keep their shape
-    - `HistoryRefSchema` in `lib/store/refusal.ts`, which `sync.ts` and `read.ts` already import, so the refusal arm
-      of 1.4 reads it with no import cycle
-    - The required figures reach both producers in this task: the in-repo outcome literals (`sync-outcomes.ts`) carry a
-      retry count of zero and the elapsed time they already measure as `waitedMs`, and the reference backend's
-      (`__tests__/helpers/store/sync.ts`), whose publish loop tries up to three times, its attempts before the one that
-      settled and the time since its loop `started`; exact-shape assertions over publish outcomes gain the two fields
-    - Build `test-first` (one behavior at a time):
-        - each new state parses with its remedy, and a result reporting one state twice refuses
-        - a `HistoryRef` parses for each ref form, and refuses an unknown field
-        - each `PullNotice` kind parses with its fields, and an unknown kind refuses
-        - a `failed` pull outcome carries only an `unreachable` or `refused` failure, and only a `failed` one may take
-          the `candidate` role
-        - a carry outcome parses in each of its three statuses, and `MaintainResult` with measurements and with `null`
-        - a publish outcome without `retryCount` or `waitedMs` refuses
+- _Outcome:_ `sync.ts` exposes strict pull, push, and maintenance schemas, the five additional configuration states,
+  pull notices, and carried-ref results; `HistoryRefSchema` names work and cohort history. Both existing backends
+  report retry counts and elapsed time on shared publication outcomes, retaining the in-repo-only status shapes.
 
-### `[ ]` **1.3 `pull`, `push`, and `maintain` on `Store` and both backends — § 2.1**
+### `[x]` **1.3 `pull`, `push`, and `maintain` on `Store` and both backends — § 2.1**
 
 - _Goal:_ `Store` exposes `pull`, `push`, and `maintain` and no `sync`, and both existing backends serve them with
   today's behavior mapped onto the new results.
 
-- _Note:_ The three subtasks type-check only together, since `Store` and both backends change at once: propose
-  reviewing the parent as one increment.
+    - `[x]` **1.3.a The in-repo implementation**
+        - Fetch-only personal pulls preserve producer outcomes, load successful fetches, and retain typed remote
+          failures and thrown local faults. Publication is `push`; maintenance reports no measurements.
 
-    - `[ ]` **1.3.a The in-repo implementation**
-        - `pull` for the `personal` family alone composes `runUserFetch` (`commands/user/push-fetch.ts`) and `runUserLoad`
-          (`commands/user/save-load.ts`), which `runUserPull` composes but whose fetch kind and tips it drops; the load
-          runs after every successful fetch, as today's pull does
-        - Its outcome reads the fetch: a created ref, or a moved one whose tips differ, then its load, is `pulled`;
-          equal tips, a load finding no note, local notes ahead, and a fetch failing `absent-remote-ref` are `noop`;
-          diverged notes are `failed` `refused`, terminal, with the remedy `arc sync`; every other fetch failure,
-          `classifyGuardedFetchUpdateFailure`'s included, is `failed` `unreachable` with `classifyRemoteFailure`'s
-          cause; a failure of the load itself, a local fault, rethrows; no notices
-        - `no-remote` and `no-identity` report before any fetch, as `syncInRepo` reports them, `no-identity` naming
-          `personal`; a `PullInput.history` names refs this backend holds none of, so it is ignored
-        - `push` is today's `syncInRepo` (`lib/store/in-repo/sync.ts`) renamed, `pulls` empty; `maintain` returns
-          `{ measurements: null }`
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over real notes refs
-            - a remote note this clone lacks pulls as `pulled`, and loads to disk
-            - a repeated pull, a remote with no notes ref, and local notes ahead each report `noop`
-            - diverged notes report `failed` `refused` naming `arc sync`, and an unreachable remote `unreachable`
-              with its cause
-            - a clone with no remote reports `no-remote`, and one with no identity `no-identity`, fetching nothing
+    - `[x]` **1.3.b The reference backend**
+        - Pull reconciles archives and cohort positions locally, retaining the observed remote as its common basis
+          without publishing. Push retains publication with empty `pulls`, and maintenance reports no measurements.
 
-    - `[ ]` **1.3.b The reference backend**
-        - `pull` reconciles against its memory remote (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`) and
-          publishes nothing; `push` is today's `sync`, `pulls` empty; `maintain` returns no measurements
-        - Build `test-first` (one behavior at a time):
-            - a pull runs the archive reconciliation `push` runs (`reconcileArchivePositions` in `sync.ts`, with
-              `reconcileCompletedCohorts` in `cohort-placement.ts`): it renumbers an archived work unit's folder as
-              `push` does, and with it the unpublished cohort folder that took its number, and a cohort closed alone on
-              two clients into one quarter takes the next number after the remote's
+    - `[x]` **1.3.c The contract and its callers**
+        - `Store`, its lazy composition, archive publication, and every contract test/helper use `pull`, `push`, and
+          `maintain`; the old `sync` operation and result names are removed, and push assertions retain `pulls`.
 
-    - `[ ]` **1.3.c The contract and its callers**
-        - `lib/store/contract.ts` gains the three and drops `sync`, with no alias, under the pre-release posture;
-          `createStore` (`lib/store/create.ts`) delegates them
-        - The one production caller, the store archive's publication (`publishArchive`,
-          `lib/work-unit/verbs/archive-store.ts`), moves from `sync()` to `push()`, reading the `states` and `publishes`
-          it reads today
-        - Every test and helper calling `.sync()` moves to `.push()`: the suite's helpers (`suite-sync.ts`,
-          `suite-primary-role.ts`, `in-repo-remote.ts`, `in-repo-remote-recovery.ts`, `reference-recovery.ts`), the
-          `store-sync*` and `store-notes-*` integration files with `store-in-repo-fixture-sync.test.ts`, the
-          `reference-*` unit files, `cohort-archive-placement.test.ts`, and
-          `__tests__/unit/work-unit/verbs/task-close.test.ts` and `archive-store.test.ts`, whose `Store` facade and
-          proxy (the proxy intercepting `sync`) also take the three; exact-shape assertions gain `pulls: []`, those in
-          `envelopes.test.ts` among them
-        - Type-checked and exercised by the suite (1.9)
-
-### `[ ]` **1.4 The `state-unresolvable` refusal and its recovery case — § 2.3, § 14.2**
+### `[x]` **1.4 The `state-unresolvable` refusal and its recovery case — § 2.3, § 14.2**
 
 - _Goal:_ A read, write, or listing that names a state version or ended item's history this clone cannot resolve
   refuses recoverably with what it needs, and every backend produces or excludes the case by name.
 
-    - `LocalRefusalSchema` (`lib/store/refusal.ts`) gains the strict arm with `stateVersion?`, `historyRefs`,
-      `reference?`, and `field?`; it stays distinct from `unsupported`'s `uncovered-state-version`
-    - In the same task, since `refusalRecoveryTable` (`__tests__/helpers/store/recovery.ts`) is keyed by every refusal
-      code: its entry, the reference backend's produce and repair, refusing for a version it holds no snapshot
-      of (`recordsAt`, `changesReference`), where it throws today, and the in-repo fixture's exclusion
-    - Build `test-first` (one behavior at a time):
-        - the arm parses with no history refs and with several, and refuses an unknown field
-        - it classifies `recoverable`
-        - the recovery case reads a state version the backend holds nothing for, refuses, and after the remedy reads
-          from the current state
+- _Outcome:_ The strict recoverable refusal retains optional anchor/write evidence and required history refs.
+  Reference reads, listings, and changes return it for unknown anchors; known reversed intervals remain defects.
+  The exhaustive recovery case rebuilds the read from the current version, and the in-repo fixture excludes it.
 
-### `[ ]` **1.5 A cohort's archive placement — § 2.4**
+### `[x]` **1.5 A cohort's archive placement — § 2.4**
 
 - _Goal:_ A cohort's document closes by a `completed` placement write and reads back with its sequence and closeout
   letter, as seam-lifecycle ships it, and each backend serves or refuses it by name.
 
-- _Note:_ The schemas and both backends' handling are seam-lifecycle's and used as they ship: `MutationSchema`
-  (`lib/store/write.ts`) admits a `completed` placement on a `cohort/document` put, `CohortReadPlacementSchema`
-  (`lib/store/placement.ts`) reads `closeout: "a" | "b"`, `StoreRecordSchema` (`lib/store/read.ts`) checks it on cohort
-  documents, the in-repo implementation refuses the put `placement-move` (`admitTrackedRole`,
-  `lib/store/in-repo/write-admission.ts`), and the reference backend assigns both coordinates
-  (`assignCompletedCohorts`, `__tests__/helpers/store/cohort-placement.ts`), reading a document's `cohort` and `parent`
-  from its parser's fields and, with no parser registered, naming no parent, and renumbers an unpublished closed
-  cohort's folder in its sync (`reconcileCompletedCohorts`, beside it).
+    - `[x]` **1.5.a The suite item**
+        - Item 1's `cohort-close-placement` installs the cohort parser and checks the quarter's next sequence,
+          standalone closeout `a`, and parent closeout `b` through reopened reads. The in-repo fixture names its
+          `unsupported:placement-move` exclusion.
 
-    - `[ ]` **1.5.a The suite item**
-        - The suite item opens its fixture with the cohort kind's parser, `parseCohortDocument`
-          (`lib/store/kinds/cohort/parser.ts`), installed through the registration's registry overrides, as
-          `suite-write-checks.ts` installs a kind's parser (`__tests__/helpers/store/`), since a closeout `b` reads the
-          parent from parsed fields and the reference fixture registers no parser for a prose kind
-        - Build `test-first` (one behavior at a time):
-            - item 1's `cohort-close-placement`: a lone close reads back with the quarter's next sequence and closeout
-              `a`, and a close of a cohort another cohort's document names as its parent reads `b`; the in-repo fixture
-              excludes it by `placement-move`
-
-### `[ ]` **1.6 Hunk conflict records carry their base version and side counts — § 3.7**
+### `[x]` **1.6 Hunk conflict records carry their base version and side counts — § 3.7**
 
 - _Goal:_ Any clone can place a hunk conflict against the record version its base range counts in and draw each side's
   exact line count, an empty side apart from one blank line, on every backend that merges.
 
-- _Note:_ The schema, the merge library, and the reference backend's merge type-check only together: propose reviewing
-  the parent as one increment.
+    - `[x]` **1.6.a The record and the merge library**
+        - Hunk records require a nullable base version and nonnegative integer side counts. Line and entry-prose
+          merges retain the supplied basis and count clash lines before joining, distinguishing empty and blank sides.
 
-    - `[ ]` **1.6.a The record and the merge library**
-        - The `hunk` arm of `TextConflictRecordSchema` (`lib/store/conflict.ts`) gains `baseVersion` (a record version
-          or null), `currentLines`, and `incomingLines`
-        - `MergeTextInput` (`lib/store/concurrency/line-merge.ts`) takes the base's version, null where the caller
-          holds none; `mergeLineText` copies it into each hunk record, an entry merge's prose hunks among them
-          (`mapConflicts`, `entry-merge.ts`), and counts each side's lines from the clash
-        - Build `test-first` (one behavior at a time):
-            - a hunk record parses with a base version and with null, and refuses without `baseVersion` or either count
-            - a line merge's hunk carries the input's base version, and null where the input gives null
-            - a side that is empty counts 0 lines and one blank line counts 1, for current and incoming alike
-            - an entry merge's prose hunk spanning an entry carries the base version and its sides' counts
+    - `[x]` **1.6.b The reference backend's merges and the suite**
+        - Writes and pulls retain their actual common record version; independent creations carry null. Shared merge
+          assertions cover the basis and both side counts, while fixtures without concurrent merges skip them.
 
-    - `[ ]` **1.6.b The reference backend's merges and the suite**
-        - `mergeContents` (`__tests__/helpers/store/merge.ts`) passes the base's version; a write's clash records its
-          expected version, a pull's the record's version at the merge base, and a pull whose two sides each created
-          the record null (`reconciledRecords`)
-        - Merge items skip on a fixture whose backend does not merge concurrent writes (`mergesConcurrentWrites`), the
-          in-repo fixture among them
-        - Build `test-first` (one behavior at a time):
-            - a write's clash records its expected version as `baseVersion`, a pull's the merge base's, and a pull over
-              two creations null
-            - clashes whose current side is empty or one blank line count 0 and 1, and likewise for the incoming side
-
-### `[ ]` **1.7 `RefHome` and `ReadOnlyStore` — § 3.2, § 9.6**
+### `[x]` **1.7 `RefHome` and `ReadOnlyStore` — § 3.2, § 9.6**
 
 - _Goal:_ Every kind whose family has a ref names where the ref backend stores it, and a store over another remote's
   state has a type offering the read operations alone.
 
-    - `RefHome` and `KindMechanism.ref?` in `lib/store/registry.ts`, filled from § 3.2's table for every kind of a
-      family with a ref; `project-machinery`, `constitution`, and the reserved families carry none
-    - `ReadOnlyStore`, `Pick<Store, "capabilities" | "read" | "list" | "version" | "history" | "changes" | "lookup">`,
-      exported from `lib/store/contract.ts`
-    - Build `test-first` (one behavior at a time):
-        - every kind of a family with a ref carries a `RefHome`, and no kind of a family without one does
-        - each table path names only the placeholders its kind's key and owner supply
+- _Outcome:_ Every kind in a ref-owning family declares its stored-path template beside its interim home;
+  non-ref families retain none. Registry assertions check the complete path table and owner/key placeholders.
+  `ReadOnlyStore` exposes capabilities and the six read operations through the public contract. The approved lint
+  amendment recognizes the registry as the ref-path authority while retaining caller and checkout-path restrictions.
 
-### `[ ]` **1.8 The suite: write admission, merges, and listings — § 14.2**
+### `[x]` **1.8 The suite: write admission, merges, and listings — § 14.2**
 
 - _Goal:_ The suite's new write, merge, and listing assertions hold on the reference backend, and the in-repo fixture
   excludes each it cannot serve by the refusal that stops it.
 
-    - Reference backend changes in `__tests__/helpers/store/write.ts`, `merge.ts`, and `read.ts`; suite items in
-      `suite-records.ts`, `suite-merges.ts`, and `suite-listings.ts`; `indexIdentities` (`identities.ts`) already
-      refuses both live holders and treats a completed cohort as not live, so it is unchanged
-    - Each new case below names the suite item and assertion it lands in, so a fixture excludes it by that name; item
-      3's three register through the merge items' skip (`mergingKind`, `suite-merges.ts`), so a fixture declaring
-      `mergesConcurrentWrites: false` skips them as § 14.2 has it
-    - Build `test-first` (one behavior at a time):
-        - item 1's `rename-and-reopen-onto-live-slug`: a rename onto a live item's slug and a reopen whose slug a live
-          item has taken each refuse `ambiguous-match` naming both; a fixture whose backend refuses the move itself
-          excludes it by that refusal
-        - item 1's `primary-put-without-placement`: a primary's put without placement at its current version refuses
-          `record-malformed`, the reference backend parsing each write's mutation through `MutationSchema` and its
-          provenance through `CallerProvenanceSchema`, and each batch through `BatchInputSchema`, the refusal's rule
-          derived from the failing arm, since `WriteInputSchema` reports one generic issue; the in-repo fixture excludes
-          it by `placement-move`
-        - item 3's `stale-base-clash-conflict-record`: a write whose stale-base merge clashes files a conflict record
-          whose `history` names the verb `merge`, and a put of the stored content naming that record in `resolves`
-          removes it
-        - item 3's `entry-id-repeat`: an entry-kind put whose entries repeat an `_Id:_` refuses `record-malformed` naming
-          it, with a stale base and without, where the reference merge throws today
-        - item 3's `stale-merge-parser-refusal`: a stale put whose merged content the kind's parser refuses, through a
-          parser the registry override installs, refuses `record-malformed` (`land`)
-        - `keyed-independence` seeds a foreign owner only for work items, cohorts, and people, and checks two keys under
-          the store's one project for a project-owned kind (`suite-records.ts`)
-        - `diagnostic-oversized` selects only the kinds the size cap reaches, through `everyKind`'s `select`
-          (`suite-listings.ts`); the in-repo declarations drop their now-unused exclusions for never-projected kinds,
-          which `validateUsedAssertionExclusions` would otherwise refuse
+- _Outcome:_ Reference writes validate mutations, provenance, batches, repeated entry IDs, and final merged bytes
+  before publishing prepared state. Named shared cases cover live-slug collisions, missing primary placement,
+  merge-authored conflict history, explicit resolution, and parser-refused merges; the interim fixture names its
+  unsupported moves. Key independence respects one project, and size diagnostics select projected kinds only.
 
-### `[ ]` **1.9 The suite: `pull`, `push`, and `maintain` — § 2.1, § 14.2**
+### `[x]` **1.9 The suite: `pull`, `push`, and `maintain` — § 2.1, § 14.2**
 
 - _Goal:_ The shared suite holds every backend to `pull`, `push`, and `maintain`, and the reference backend passes it as
   the model the ref backend is held to.
 
-    - Suite items in `__tests__/helpers/store/suite-sync.ts`; in-repo exclusions in
-      `__tests__/helpers/store/in-repo-declarations.ts`
-    - Build `test-first` (one behavior at a time):
-        - every existing sync assertion runs through `push`, the declared `syncRetryCount` and `syncWaitedMs` still
-          compared against the contended failure's figures, and every shared outcome carrying a retry count and a time
-          waited
-        - `pull` merges another clone's write for each sync family, and the remote holds no new state after it; the
-          in-repo fixture excludes the item for `work-item` and `claims` by name
-        - `push` returns `pulls` empty on the two existing backends, reporting reconciliation through `publishes`, and a
-          backend whose loop pulls keeps them in the order it ran them
-        - `maintain()` returns measurements or `null`, and both existing backends return `null`
+- _Outcome:_ Named pull cases observe remote writes locally while preserving remote records and versions; the
+  personal case also leaves an unpublished local file absent remotely. The interim fixture excludes work-item and
+  claims pulls. Shared maintenance validates nullable measurements, publication cases retain retry measurements,
+  and existing-backend assertions retain empty push pulls.
 
-### `[ ]` **1.10 The contract specification's Amendments log — § 2.6**
+### `[x]` **1.10 The contract specification's Amendments log — § 2.6**
 
 - _Goal:_ The contract specification describes the types the code has: its Amendments log carries one row per row of
   the amendments table, in the change that alters Part A's types.
 
-    - Append to `spec-storage-contract.md`'s `## Amendments`, in `.arc/completed/2026-q4/04_storage-contract/`, ten rows
-      numbered on from the last row the base carries, after any seam-lifecycle lands, in the log's own grammar —
-      ``**A{n}** — <date> — design: <the amendment>. _Supersedes:_ <decision>. _Trigger:_ <the section of
-      `spec-storage-ref-backend.md` carrying it>. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend
-      1.10.`` — one per amended decision row: D1, D2, D4 twice, D4 with D6, D6, D6 with D10, D10, D12, and D14
-    - Documentation only; no test
+- _Outcome:_ The completed contract's Amendments log appends A15–A24, one per decision row in § 2.6,
+  preserving the original decisions and tracing each amendment to its ref-backend design sections.
 
-### `[ ]` **1.11 A companion keyed by its path — § 2.5, § 14.2**
+### `[x]` **1.11 A companion keyed by its path — § 2.5, § 14.2**
 
 - _Goal:_ Any file among a work item's records can be a companion, keyed by its path, while every name key today's
   callers build keeps its meaning and both existing backends serve what they served.
 
-    - `KIND_SHAPES["work-item/companion"]` (`lib/store/catalog.ts`) becomes `keyed("work-item", "path")`, its key
-      validated through `keySchemas`' `path` (`lib/store/identity.ts`); each caller that builds a companion reference
-      passes a name, which that schema admits (`recordReferences` in `kinds/meta/reference-rules.ts`,
-      `RecordReferenceSchema` in `in-repo/list.ts`)
-    - The in-repo implementation is unchanged: `companionPath` (`lib/store/in-repo/paths.ts`) refuses a key whose file
-      name `artifactMatcher` rejects
-    - `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) already places a name and a paired spec's halves
-      through `companionArtifactName` (`lib/store/companion-name.ts`), which the in-repo `companionPath` shares; it gains
-      the arm for any other key, placed at its path below the meta's folder, leaving `companionArtifactName` unchanged
-    - Its readers that match by file name match by that path instead, so a companion in a folder never shares a
-      projected path with another record: `renameProjection` and the artifact-rename map `ownedArtifactRenames`
-      (`lib/store/lifecycle-rename.ts`), whose map the Design and Task List rewrite, the paired-reference check, and the
-      reference sweep read, and `readLifecycleDesign` (`lib/store/lifecycle-design.ts`)
-    - Each fixture's `reference` hook builds a companion's key as a name, where its `path` arm builds
-      `scratch-<suffix>.md` (`in-repo-fixture.ts`) or `scratch/<suffix>.md` (`reference-fixture.ts`), so every assertion
-      `everyKind` runs keeps keying companions as it does today
-    - Build `test-first` (one behavior at a time):
-        - item 1's `companion-path-key`: a companion keyed `diagram.svg`, and one keyed `sub/notes.md`, writes, reads,
-          and lists under its key on the reference backend, and the in-repo fixture excludes it by its `unhomed-kind`
-          refusal
-        - item 1's `companion-path-key-through-rename`: such a companion keeps its key through its owner's rename, and
-          the in-repo fixture excludes it alike
-        - the in-repo implementation refuses a put of a companion keyed `sub/notes.md` `unsupported` `unhomed-kind`, as
-          it refuses one keyed `notes-extra`, and one keyed `research` stores at `research-<slug>.md` as before
-        - `lifecycleRecordPath` places a companion keyed `sub/notes.md` at that path below the meta's folder, while its
-          name and paired-half placements hold as `lifecycle-record-path.test.ts` asserts them
-        - on the reference backend, a rename of a work item holding companions keyed `sub/notes.md` and `other/notes.md`
-          sweeps both, and its Design lookup finds the draft beside a companion keyed `sub/draft-<slug>.md`
-        - a rename of a work item holding a draft and a companion keyed `sub/draft-<slug>.md` rewrites its meta's Design
-          to `draft-<new slug>.md`, leaving the companion's path as it was
+- _Outcome:_ Companion keys accept relative paths while conventional names and paired spec halves retain their
+  filenames. Lifecycle coordinates, Design lookup, and rename maps preserve complete relative paths, keeping nested
+  basename collisions distinct. Shared cases cover path-keyed records and owner renames; the interim backend retains
+  its flat-layout refusal and conventional-name behavior.
 
 ## **Phase 2:** Git access
 

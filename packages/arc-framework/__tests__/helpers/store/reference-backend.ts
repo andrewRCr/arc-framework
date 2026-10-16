@@ -3,7 +3,7 @@
 import type {
   BatchInput, BatchResult, ChangesInput, HistoryEntry, ListInput, ListingOutcome, LookupInput,
   LookupResult, ReadInput, RecordReference, StateVersion, Store, StoreRecord, StoreResult,
-  SyncResult, WriteInput, WriteResult,
+  PullInput, PullResult, PushInput, PushResult, MaintainResult, WriteInput, WriteResult,
 } from "../../../src/lib/store/index.js";
 import { currentStateVersion, type MemoryState } from "./model.js";
 import { missingRecord, namespaceAdmission, ok, refused } from "./refusals.js";
@@ -11,7 +11,7 @@ import { createReferenceContext, type ReferenceBackendOptions, type ReferenceCon
 import { changesReference, historyReference, listReference, readReference } from "./read.js";
 import { batchReference, writeReference } from "./write.js";
 import { lookupReference } from "./lookup.js";
-import { syncReference } from "./sync.js";
+import { pullReference, pushReference } from "./sync.js";
 
 /** Runtime configuration shared by reopened instances and the in-memory remote. */
 export type { ReferenceEnvironment, ReferenceBackendOptions } from "./context.js";
@@ -70,12 +70,22 @@ export class ReferenceBackend implements Store {
     const namespace = namespaceAdmission(this.state);
     if (namespace) return refused(namespace);
     const missingIdentity = input.references?.find((reference) => reference.owner.type === "person" && this.environment.identity === undefined);
-    return missingIdentity ? refused(missingRecord(missingIdentity, this.environment.identity)) : ok(changesReference(this.context, input));
+    return missingIdentity ? refused(missingRecord(missingIdentity, this.environment.identity)) : changesReference(this.context, input);
   }
 
   /** Resolve names, origins, logical claims and repository-qualified code links. */
   async lookup(input: LookupInput): Promise<StoreResult<LookupResult>> { return lookupReference(this.context, input); }
 
   /** Publish eligible families against the injected in-memory remote. */
-  async sync(): Promise<StoreResult<SyncResult>> { return syncReference(this.context, this.context.publication); }
+  async push(input?: PushInput): Promise<StoreResult<PushResult>> {
+    void input;
+    return pushReference(this.context, this.context.publication);
+  }
+  /** Fetch and reconcile against the memory remote without publishing. */
+  async pull(input?: PullInput): Promise<StoreResult<PullResult>> {
+    void input;
+    return pullReference(this.context, this.context.publication);
+  }
+  /** The memory backend has no Git maintenance or disk measurements. */
+  async maintain(): Promise<StoreResult<MaintainResult>> { return ok({ measurements: null }); }
 }

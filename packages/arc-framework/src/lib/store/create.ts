@@ -21,6 +21,8 @@ export function createStore(ports: StorePorts): Store {
     history: async (input) => (await get()).history(input),
     changes: async (input) => (await get()).changes(input),
     lookup: async (input) => (await get()).lookup(input),
-    sync: async () => (await get()).sync(),
+    push: async (input) => (await get()).push(input),
+    pull: async (input) => (await get()).pull(input),
+    maintain: async () => (await get()).maintain(),
   };
 }

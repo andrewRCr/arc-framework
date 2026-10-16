@@ -2,8 +2,13 @@
 
 import { z } from "zod";
 import { RemoteFailureReasonSchema } from "../kernel/index.js";
-import { RecordReferenceSchema } from "./identity.js";
+import { RecordReferenceSchema, StateVersionSchema } from "./identity.js";
 import { LookupInputSchema } from "./lookup.js";
+
+/** An ended work item's or cohort's history ref. */
+export const HistoryRefSchema = z.templateLiteral(["refs/arc/history/", z.enum(["work", "cohort"]), "/", z.uuid()]);
+/** A history ref fetched explicitly by name. */
+export type HistoryRef = z.infer<typeof HistoryRefSchema>;
 
 /** Human remedy, and executable arguments when one command advances. */
 export const RemedySchema = z.strictObject({ text: z.string().trim().min(1), argv: z.array(z.string()).min(1).optional() });
@@ -39,6 +44,8 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
   z.strictObject({ code: z.literal("not-found"), ...recoverable, reference: RecordReferenceSchema.optional(), lookup: LookupInputSchema.optional() })
     .refine((value) => value.reference !== undefined || value.lookup !== undefined, "Name the missing record or lookup"),
   z.strictObject({ code: z.literal("version-conflict"), ...recoverable, records: z.array(RecordReferenceSchema).min(1) }),
+  z.strictObject({ code: z.literal("state-unresolvable"), ...recoverable, stateVersion: StateVersionSchema.optional(),
+    historyRefs: z.array(HistoryRefSchema), reference: RecordReferenceSchema.optional(), field: z.string().min(1).optional() }),
   z.strictObject({ code: z.literal("record-malformed"), ...recoverable, reference: RecordReferenceSchema, rule: z.string().min(1) }),
   z.strictObject({ code: z.literal("identity-mismatch"), ...recoverable, expected: RecordReferenceSchema, actual: RecordReferenceSchema }),
   z.strictObject({ code: z.literal("ambiguous-match"), ...recoverable, candidates: z.array(RecordReferenceSchema).min(2) }),

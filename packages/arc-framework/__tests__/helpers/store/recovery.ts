@@ -32,6 +32,8 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   "lock-held": [{ id: "lock-held", class: "recoverable", produce: "Hold the injected surface write lock while a write waits.", repair: "Release that lock and repeat the original write." }],
   "namespace-corrupt": [{ id: "namespace-corrupt", class: "terminal", produce: "Break the namespace record index.", repair: "Rebuild the index from its saved record state." }],
   "checkout-not-writable": [{ id: "checkout-not-writable", class: "recoverable", produce: "Attempt a write in a checkout without authority.", repair: "Repeat the write in the authorized checkout named by its remedy." }],
+  "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state the backend holds no snapshot for.",
+    repair: "Read the current version and rebuild the query from that saved state." }],
   unsupported: (Object.keys(UNSUPPORTED_CASES) as (keyof typeof UNSUPPORTED_CASES)[]).map((value) => ({
     id: `unsupported:${value}`, class: UNSUPPORTED_CASES[value],
     produce: {

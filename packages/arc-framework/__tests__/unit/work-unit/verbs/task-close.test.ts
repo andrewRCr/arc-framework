@@ -11,7 +11,7 @@ const tasks = (parent = " ", a = " ", b = " ") => `# Task List: demo\n\n### \`[$
 function facade(store: Store): Store {
   return { capabilities: store.capabilities, read: (input) => store.read(input), lookup: (input) => store.lookup(input),
     list: (input) => store.list(input), write: (input) => store.write(input), batch: (input) => store.batch(input),
-    version: () => store.version(), history: (input) => store.history(input), changes: (input) => store.changes(input), sync: () => store.sync() };
+    version: () => store.version(), history: (input) => store.history(input), changes: (input) => store.changes(input), pull: (input) => store.pull(input), push: (input) => store.push(input), maintain: () => store.maintain() };
 }
 async function harness(content = tasks(), links: Links = { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, objectType = "commit") {
   const { store, seedMeta, seed } = createLifecycleHarness();

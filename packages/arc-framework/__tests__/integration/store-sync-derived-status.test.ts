@@ -21,7 +21,7 @@ describe("Store derived status publication", () => {
       if (path === join(h.a.root, ".arc/user/andrew/STATUS.USER.md")) throw Object.assign(new Error("Derived body must not be opened"), { code: "EACCES" });
       return read(path);
     };
-    success(await h.a.store.sync());
+    success(await h.a.store.push());
     const head = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
     const saved = JSON.parse((await h.remote("git", ["notes", `--ref=${syncNotesRef}`, "show", head])).stdout) as { files: Record<string, string> };
     expect(saved.files).not.toHaveProperty("STATUS.USER.md");

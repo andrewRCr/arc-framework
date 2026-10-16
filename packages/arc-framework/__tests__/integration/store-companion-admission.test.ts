@@ -40,7 +40,7 @@ describe("companion naming admission", () => {
     const foreign = h.reference("work-item/companion", "part-example", "research");
     expect(success(await h.store.read({ reference: foreign })).content).toBe("foreign companion\n");
   });
-  it.each(["research-part", "research2"])("refuses the unserved key %s without mutating a batch and accepts a corrected retry", async (key) => {
+  it.each(["research-part", "research2", "sub/notes.md", "notes-extra"])("refuses the unserved key %s without mutating a batch and accepts a corrected retry", async (key) => {
     const h = await fixture();
     const from = await h.commit("primaries");
     const primary = h.reference("work-item/meta");

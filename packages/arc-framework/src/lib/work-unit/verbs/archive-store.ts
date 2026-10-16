@@ -99,7 +99,7 @@ async function publishCohortCloseout(store: Store, name: string, cohorts: { writ
 }
 
 async function publishArchive(store: Store, name: string): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
-  const synced = await store.sync();
+  const synced = await store.push();
   if (synced.status === "refused") return reportFailure(name, synced.refusal);
   const relevant = (families: readonly string[]) => families.includes("work-item") || families.includes("cohort");
   const state = synced.result.states.find((entry) => entry.status === "no-identity" && relevant(entry.families));

@@ -10,6 +10,7 @@ const allKindNames = ["round-trip", "current-removal", "keyed-independence", "du
 function selected(name: string, kind: KindId): boolean {
   const d = KIND_REGISTRY[kind];
   const mutable = !["create-only", "write-once"].includes(d.writerRule);
+  if (name === "diagnostic-oversized") return d.projection !== "never";
   if (name === "current-removal") return !kind.endsWith("/conflict-record");
   if (name === "keyed-independence") return d.key !== null;
   if (name === "stale-writer" || name === "batch-stale-all-or-nothing") return mutable && d.merge === "single-writer";
@@ -74,6 +75,10 @@ Object.assign(familyExclusions["work-item"]?.assertions ?? {}, {
   "primary-role-reopen-sync-and-current-side-conflicts": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "primary-role-removal-retains-actual-historical-role": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "created-work-item-UID": "Tracked work-item identity remains its slug without a persisted UID.",
+  "companion-path-key": "Interim flat companion writes refuse unsupported:unhomed-kind for path keys.",
+  "companion-path-key-through-rename": "Interim flat companion writes refuse unsupported:unhomed-kind for path keys.",
+  "rename-and-reopen-onto-live-slug": "Interim writes refuse unsupported:rename or unsupported:placement-move before identity collisions can arise.",
+  "primary-put-without-placement": "Interim primary updates require placement and refuse unsupported:placement-move.",
   "UID-rename-and-generations": "Tracked writes neither mint UIDs nor rename work units.",
   "former-slug-after-rename": "Tracked writes do not perform rename; real transition alias lookup is covered separately.",
   "held-here-unsupported-remedy": "Tracked listings derive held-here from live checkout state and do not emit this unsupported case.",
@@ -86,12 +91,17 @@ for (const kind of ["work-item/meta", "work-item/record"]) for (const name of ["
   const assertions = familyExclusions["work-item"]?.assertions;
   if (assertions) assertions[`${name}:${kind}`] = "Interim writes do not create links, move placement, or create completed work units; recovery chooses a capable backend.";
 }
+for (const family of ["work-item", "claims"] as const) {
+  const assertions = familyExclusions[family]?.assertions;
+  if (assertions) assertions["pull-merges-without-publishing"] = "Interim pull serves personal notes only; transient identity reconciliation also publishes.";
+}
 if (familyExclusions.personal?.items) familyExclusions.personal.items[12] = "Lookup resolves work items and checkout claims, never personal files.";
 if (familyExclusions.personal?.assertions) Object.assign(familyExclusions.personal.assertions, {
   "all-readable-records-and-one-diagnostic-per-bad-entry": personalRaw,
   "no-identity-holds-every-identity-family-while-project-publishes": "Every interim publish is keyed by the identity; no project publish can proceed beside no-identity.",
 });
 if (familyExclusions.lineage?.assertions) familyExclusions.lineage.assertions["terminal-origin-UID-lookup"] = "Tracked transition origins use slugs without persisted UIDs.";
+if (familyExclusions.cohort?.assertions) familyExclusions.cohort.assertions["cohort-close-placement"] = "Interim cohort placement writes refuse unsupported:placement-move; use archive until the flip.";
 
 /** Static substrate coverage and explicit limitations registered with every fresh fixture. */
 export const inRepoDeclarations: FixtureDeclarations = {
@@ -100,6 +110,7 @@ export const inRepoDeclarations: FixtureDeclarations = {
   syncRetryCount: 4, syncWaitedMs: 30,
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => families.includes(KIND_REGISTRY[kind].family) && !["review/candidate", "review/integration-boundary", "lineage/transition", "work-item/record", "claims/groom", "claims/housekeep"].includes(kind)).map((kind) => [kind, KIND_REGISTRY[kind].inRepo.substrate === "personal" ? personalRaw : KIND_REGISTRY[kind].inRepo.substrate === "tracked" ? raw : unhomed])),
   refusalExclusions: {
+    "state-unresolvable": "The interim backend has no ref-store anchors or ended-item history refs; its saved-state coverage uses unsupported:uncovered-state-version.",
     "namespace-corrupt": "Tracked and personal files have no shared namespace index; unreadable transient ref structure throws an operation error instead of this typed refusal.",
     "unsupported:held-here": "Tracked listing supports checkout held-here selection.",
   },

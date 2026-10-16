@@ -34,6 +34,7 @@ describe("entry splitting", () => {
         .toMatchObject([{ section: "One", id: "80000000" }]);
       const record = keyedReference(OwnerIdentitySchema.parse({ type: "person", name: "owner" }), "personal/document", "list.md");
       expect(mergeEntryText({ base: stamped, current: stamped, incoming: stamped, record,
+        baseVersion: null,
         currentLabel: { actor: "current", time: "2026-10-01T00:00:00Z" },
         incomingLabel: { actor: "incoming", time: "2026-10-01T01:00:00Z" } }, config))
         .toEqual({ content: stamped, conflicts: [] });
@@ -70,7 +71,7 @@ describe("managed ID stamping", () => {
       expect(stampEntryIds(stamped,config,()=>{throw new Error("must not draw");})).toBe(stamped);
       expect(stamped.match(/<!--[\s\S]*?-->/u)?.[0]).toBe(content.match(/<!--[\s\S]*?-->/u)?.[0]);
       const record = keyedReference(OwnerIdentitySchema.parse({type:"person",name:"owner"}),"personal/document","list.md");
-      expect(mergeEntryText({base:stamped,current:stamped,incoming:stamped,record,currentLabel:{actor:"current",time:"2026-10-01T00:00:00Z"},incomingLabel:{actor:"incoming",time:"2026-10-01T01:00:00Z"}},config)).toEqual({content:stamped,conflicts:[]});
+      expect(mergeEntryText({base:stamped,current:stamped,incoming:stamped,record,baseVersion: null,currentLabel:{actor:"current",time:"2026-10-01T00:00:00Z"},incomingLabel:{actor:"incoming",time:"2026-10-01T01:00:00Z"}},config)).toEqual({content:stamped,conflicts:[]});
     }
   });
 

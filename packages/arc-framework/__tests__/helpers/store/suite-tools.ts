@@ -3,7 +3,7 @@
 import { expect, it } from "vitest";
 import {
   FAMILY_IDS, KIND_REGISTRY, familyOf, singletonReference, type FamilyId, type KindId, type Links,
-  type RecordReference, type StoreRecord, type StoreResult, type WritePlacement,
+  type RecordReference, type StoreRecord, type StoreResult, type WritePlacement, type WriteInput, type Mutation,
 } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture, ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
 
@@ -136,4 +136,14 @@ export function update(fixture: ConformanceFixture, record: StoreRecord, content
   const placement = record.placement?.kind === "completed" ? { kind: "completed" as const, quarter: record.placement.quarter } : record.placement;
   return { action: "put" as const, reference: record.reference, content, expected: record.version,
     provenance: testProvenance, ...(primary && placement ? { placement } : {}) };
+}
+
+/** Remove single-write provenance when composing an atomic batch with its own provenance.
+ * @param write - Valid single-write request.
+ * @returns The mutation carried inside the batch.
+ */
+export function mutationOf(write: WriteInput): Mutation {
+  const { provenance, ...mutation } = write;
+  void provenance;
+  return mutation;
 }

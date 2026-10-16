@@ -1,4 +1,4 @@
-/** Name-keyed companions retain their conventional filenames in lifecycle readers. */
+/** Companions retain conventional names and relative paths in lifecycle readers. */
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
@@ -32,4 +32,22 @@ it("acquires ordinary and paired companions at their conventional artifact coord
     expect(acquired.byPath.get(`.arc/active/${path}`)).toEqual(record);
     expect(await acquired.context.readFile(`.arc/active/${path}`)).toBe(record.content);
   }
+});
+
+it.each(["diagram.svg", "sub/notes.md"])("acquires a companion at its relative path %s", async (key) => {
+  const h = await fixture();
+  const record = await h.seed(recordReferences["work-item/companion"](h.meta.reference.owner, key), "companion bytes\n");
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
+  expect(acquired.byPath.get(`.arc/active/${key}`)).toEqual(record);
+  expect(await acquired.context.readFile(`.arc/active/${key}`)).toBe(record.content);
+});
+
+it("reads the root Design beside a nested companion with the same basename", async () => {
+  const h = createLifecycleHarness();
+  const meta = await h.seedMeta("example", { state: "Planning", currentWorkflow: "create-spec", design: ["draft-example.md"] });
+  await h.seed(recordReferences["work-item/companion"](meta.reference.owner, "sub/draft-example.md"),
+    "# Nested draft\n\n**Purpose:** Nested companion.\n");
+  const draft = await h.seed(recordReferences["work-item/draft"](meta.reference.owner),
+    "# Draft: example\n\n**Purpose:** Root design.\n");
+  expect(await readLifecycleDesign(h.store, meta)).toEqual({ content: draft.content, warnings: [] });
 });

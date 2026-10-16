@@ -14,12 +14,12 @@ it("publishes every accepted intermediate version and original provenance, then 
     current = success(await h.store.read({ reference: current.reference }));
   }
   const expected = success(await h.store.history({ reference: current.reference }));
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("pushed");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("pushed");
   expect(success(await remote.history({ reference: current.reference }))).toEqual(expected);
   const published = success(await remote.version());
   expect(success(await remote.changes({ from, to: published, references: [current.reference] }))).toEqual([...expected].reverse());
   for (let attempt = 0; attempt < 2; attempt++) {
-    expect(success(await h.reopen().sync()).publishes[0]?.status).toBe("noop");
+    expect(success(await h.reopen().push()).publishes[0]?.status).toBe("noop");
     expect(success(await remote.version())).toBe(published);
     expect(success(await remote.history({ reference: current.reference }))).toEqual(expected);
   }
@@ -28,7 +28,7 @@ it("publishes every accepted intermediate version and original provenance, then 
 it("imports every remote version with receiving-local snapshots and original caller facts", async () => {
   const h = createReferenceFixture(), remote = h.remote(true)!;
   const first = await seed(h, h.reference("personal/document"), "base\n");
-  success(await h.store.sync());
+  success(await h.store.push());
   let unrelated = await seed(h, h.reference("project-registry/counter", "local-clock"));
   for (let index = 0; index < 5; index++) {
     success(await h.store.write(WriteInputSchema.parse(update(h, unrelated))));
@@ -41,7 +41,7 @@ it("imports every remote version with receiving-local snapshots and original cal
     current = success(await remote.read({ reference: first.reference }));
   }
   const expected = success(await remote.history({ reference: first.reference }));
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("reconciled");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("reconciled");
   expect(success(await h.store.history({ reference: first.reference }))).toEqual(expected);
   expect(success(await h.store.read({ reference: first.reference, asOf: from }))).toEqual(first);
   expect(success(await h.store.read({ reference: unrelated.reference, asOf: from }))).toEqual(unrelated);
@@ -60,11 +60,11 @@ it("publishes create/remove history even when the final tree is empty", async ()
   }
   const expected = success(await h.store.history({ reference }));
   expect(expected).toHaveLength(4);
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("pushed");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("pushed");
   expect(success(await remote.history({ reference }))).toEqual(expected);
   expect(await remote.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(success(await remote.changes({ from, to: success(await remote.version()), references: [reference] }))).toEqual([...expected].reverse());
-  expect(success(await h.reopen().sync()).publishes[0]?.status).toBe("noop");
+  expect(success(await h.reopen().push()).publishes[0]?.status).toBe("noop");
 });
 
 it("receives remote create/remove history even when neither current tree changes", async () => {
@@ -75,11 +75,11 @@ it("receives remote create/remove history even when neither current tree changes
   success(await remote.write(WriteInputSchema.parse({ action: "remove", reference, expected: creation.version,
     provenance: { verb: "remote-remove", lifecycleAction: "remove" } })));
   const expected = success(await remote.history({ reference }));
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("reconciled");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("reconciled");
   expect(success(await h.store.history({ reference }))).toEqual(expected);
   expect(success(await h.store.changes({ from, to: success(await h.store.version()), references: [reference] }))).toEqual([...expected].reverse());
   expect(await h.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("noop");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("noop");
 });
 
 it("defers identity-scope history while eligible project history publishes, then transfers it once", async () => {
@@ -90,13 +90,13 @@ it("defers identity-scope history while eligible project history publishes, then
   const personalHistory = success(await h.store.history({ reference: personal.reference }));
   const projectHistory = success(await h.store.history({ reference: project.reference }));
   h.identity(undefined);
-  expect(success(await h.store.sync()).states).toEqual(expect.arrayContaining([expect.objectContaining({ status: "no-identity" })]));
+  expect(success(await h.store.push()).states).toEqual(expect.arrayContaining([expect.objectContaining({ status: "no-identity" })]));
   expect(await remote.history({ reference: personal.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(success(await remote.history({ reference: project.reference }))).toEqual(projectHistory);
-  h.identity("test-user"); success(await h.store.sync());
+  h.identity("test-user"); success(await h.store.push());
   expect(success(await remote.history({ reference: personal.reference }))).toEqual(personalHistory);
   expect(success(await remote.history({ reference: project.reference }))).toEqual(projectHistory);
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("noop");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("noop");
 });
 
 it("publishes primary role and rename history without replacing its UID or caller provenance", async () => {
@@ -111,7 +111,7 @@ it("publishes primary role and rename history without replacing its UID or calle
     provenance: { verb: "rename", lifecycleAction: "rename" } })));
   const expected = success(await h.store.history({ reference: renamed }));
   expect(expected).toHaveLength(3);
-  success(await h.store.sync());
+  success(await h.store.push());
   expect(success(await remote.history({ reference: renamed }))).toEqual(expected);
   expect(success(await remote.read({ reference: renamed }))).toEqual(success(await h.store.read({ reference: renamed })));
   expect(success(await remote.lookup({ kind: "slug", slug: first.reference.owner.name })).reference).toEqual(renamed);
@@ -127,7 +127,7 @@ it("retains conflict creation and implicit removal when resolution precedes the 
   success(await h.store.write(WriteInputSchema.parse({ ...update(h, success(await h.store.read({ reference: first.reference })), "resolved\n"),
     resolves: [conflict], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
   const expected = success(await h.store.history({ reference: conflict }));
-  success(await h.store.sync());
+  success(await h.store.push());
   expect(success(await remote.history({ reference: conflict }))).toEqual(expected);
   expect(expected).toMatchObject([{ version: null }, { content: original.content, provenance: { verb: "merge" } }]);
   expect(success(await remote.history({ reference: first.reference }))).toEqual(success(await h.store.history({ reference: first.reference })));
@@ -143,11 +143,11 @@ it("stages all history behind remote contention and publishes it once after repa
   if (!(h.store instanceof ReferenceBackend)) throw new Error("Expected the reference fixture's real backend");
   const before = structuredClone(h.store.state), expected = success(await h.store.history({ reference: current.reference }));
   h.remoteState("contended");
-  expect(success(await h.store.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
+  expect(success(await h.store.push()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
   expect(h.store.state).toEqual(before);
   expect(await remote.history({ reference: current.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  h.remoteState("available"); success(await h.store.sync());
+  h.remoteState("available"); success(await h.store.push());
   expect(success(await remote.history({ reference: current.reference }))).toEqual(expected);
-  expect(success(await h.store.sync()).publishes[0]?.status).toBe("noop");
+  expect(success(await h.store.push()).publishes[0]?.status).toBe("noop");
   expect(success(await remote.history({ reference: current.reference }))).toEqual(expected);
 });

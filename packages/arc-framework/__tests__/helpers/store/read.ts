@@ -9,11 +9,16 @@ import type { ReferenceContext } from "./context.js";
 import { canonicalReference, currentStateVersion, ownerNameKey, recordKey, savedReference, type MemoryRecord, type MemoryEvent } from "./model.js";
 import { malformed, missingRecord, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
 
-function recordsAt(context: ReferenceContext, asOf?: StateVersion): Map<string, MemoryRecord> {
-  if (asOf === undefined) return context.state.records;
+function recordsAt(context: ReferenceContext, asOf?: StateVersion): StoreResult<Map<string, MemoryRecord>> {
+  if (asOf === undefined) return ok(context.state.records);
   const snapshot = context.state.snapshots.get(asOf);
-  if (snapshot === undefined) throw new Error(`Unknown reference state version ${asOf}`);
-  return snapshot;
+  return snapshot === undefined ? stateUnavailable(asOf) : ok(snapshot);
+}
+
+function stateUnavailable(stateVersion: StateVersion): StoreResult<never> {
+  return refused({ code: "state-unresolvable", class: "recoverable", stateVersion, historyRefs: [],
+    condition: `Saved state ${stateVersion} is not available in this namespace.`,
+    remedy: { text: "Read the current version() and rebuild the read, listing, or change query from that saved state." } });
 }
 
 /** Build public bytes and metadata while preserving the owner's primary placement.
@@ -47,7 +52,9 @@ export function readReference(context: ReferenceContext, input: ReadInput): Stor
   const admission = input.asOf === undefined ? recordAdmission(context.state, input.reference, context.environment.identity)
     : namespaceAdmission(context.state) ?? (input.reference.owner.type === "person" && context.environment.identity === undefined ? missingRecord(input.reference, context.environment.identity) : undefined);
   if (admission) return refused(admission);
-  const records = recordsAt(context, input.asOf);
+  const saved = recordsAt(context, input.asOf);
+  if (saved.status === "refused") return saved;
+  const records = saved.result;
   const reference = input.asOf === undefined ? canonicalReference(context.state, input.reference) : savedReference(records, input.reference);
   const record = records.get(recordKey(reference));
   if (record === undefined) return refused(missingRecord(input.reference, context.environment.identity));
@@ -82,7 +89,9 @@ export function listReference(context: ReferenceContext, input: ListInput): Stor
   if (input.asOf === undefined && context.state.unreadable.has(input.family)) return ok({
     status: "unreadable", condition: "The family index cannot be read.", remedy: { text: "Restore the family index from a saved state." },
   });
-  const saved = recordsAt(context, input.asOf);
+  const snapshot = recordsAt(context, input.asOf);
+  if (snapshot.status === "refused") return snapshot;
+  const saved = snapshot.result;
   const owner = input.owner && (input.asOf === undefined && input.owner.type !== "person" && input.owner.uid === undefined
     ? context.state.identities.get(ownerNameKey(input.owner)) ?? input.owner : input.owner);
   const selected = [...saved.values()].filter((record) => familyOf(record.reference.kind) === input.family
@@ -125,19 +134,21 @@ export function historyReference(context: ReferenceContext, reference: RecordRef
 /** Read bounded changes by equality against saved-state anchors, never whole-store freshness.
  * @param context - Durable snapshots and events.
  * @param input - Exclusive from, inclusive to, and optional record restriction.
- * @returns Provenance for exactly the landed mutations in the requested interval.
+ * @returns Landed mutations in the interval, or a recoverable refusal for an unknown anchor.
  */
-export function changesReference(context: ReferenceContext, input: ChangesInput): HistoryEntry[] {
+export function changesReference(context: ReferenceContext, input: ChangesInput): StoreResult<HistoryEntry[]> {
   const states = [...context.state.snapshots.keys()];
   const from = states.indexOf(input.from);
   const to = states.indexOf(input.to);
-  if (from < 0 || to < from) throw new Error("Invalid reference changes interval");
+  if (from < 0) return stateUnavailable(input.from);
+  if (to < 0) return stateUnavailable(input.to);
+  if (to < from) throw new Error("Invalid reference changes interval");
   const included = new Set(states.slice(from + 1, to + 1));
   const restricted = input.references?.map((reference) => recordKey(canonicalReference(context.state, reference)));
-  return context.state.events.filter((event) => included.has(event.stateVersion)
+  return ok(context.state.events.filter((event) => included.has(event.stateVersion)
     && (context.environment.identity !== undefined || FAMILY_REGISTRY[familyOf(event.reference.kind)].scope !== "identity")
     && (restricted === undefined || restricted.includes(recordKey(event.reference))))
-    .map((event) => historyEntry(context,event));
+    .map((event) => historyEntry(context,event)));
 }
 
 function historyEntry(context:ReferenceContext,event:MemoryEvent): HistoryEntry {

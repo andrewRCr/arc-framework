@@ -41,13 +41,13 @@ describe.each(["initial", "reconcile-local", "reconcile-incoming"] as const)("id
       return base(command, args, options);
     };
     let failure: unknown;
-    try { await h.a.store.sync(); } catch (error) { failure = error; }
+    try { await h.a.store.push(); } catch (error) { failure = error; }
     expect(original).toBeDefined();
     expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
     expect((await h.a.exec("git", ["rev-parse", syncErrandRef])).stdout).toBe(localBefore);
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(remoteBefore);
     h.a.ports.exec = base;
-    expect(success(await h.a.store.sync()).publishes[1]?.status).toBe(stage === "initial" ? "pushed" : "reconciled");
+    expect(success(await h.a.store.push()).publishes[1]?.status).toBe(stage === "initial" ? "pushed" : "reconciled");
     expect((await h.remote("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.trim().split("\n"))
       .toEqual(stage === "initial" ? ["alpha", "gamma"] : ["alpha", "beta", "gamma"]);
   });
@@ -64,7 +64,7 @@ it("binds replacement stdin execution to the store checkout during identity reco
   const ambientBefore = (await h.b.exec("git", ["rev-parse", syncErrandRef])).stdout;
   await expect(h.b.exec("git", ["cat-file", "-e", pending.version!])).rejects.toMatchObject({ kind: "nonzero-exit" });
   h.a.ports.execInput = makeGitExecInput(h.cloneB);
-  expect(success(await h.a.store.sync()).publishes[1]?.status).toBe("reconciled");
+  expect(success(await h.a.store.push()).publishes[1]?.status).toBe("reconciled");
   expect((await h.remote("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.trim().split("\n"))
     .toEqual(["alpha", "beta", "gamma"]);
   expect((await h.remote("git", ["rev-parse", `${syncErrandRef}:gamma`])).stdout).toBe(pending.version);
@@ -92,12 +92,12 @@ it.each(["canceled", "output-limit", "unknown"] as const)("sync preserves an inc
     return base(command, args, options);
   };
   let failure: unknown;
-  try { await h.a.store.sync(); } catch (error) { failure = error; }
+  try { await h.a.store.push(); } catch (error) { failure = error; }
   expect(original).toBeDefined();
   expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
   expect((await h.a.exec("git", ["rev-parse", syncErrandRef])).stdout).toBe(localBefore);
   expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(remoteBefore);
   h.a.ports.exec = base;
-  expect(success(await h.a.store.sync()).publishes[1]?.status).toBe("pushed");
+  expect(success(await h.a.store.push()).publishes[1]?.status).toBe("pushed");
   expect((await h.remote("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.trim().split("\n")).toEqual(["alpha", "beta"]);
 });

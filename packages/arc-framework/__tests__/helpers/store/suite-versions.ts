@@ -3,7 +3,7 @@
 import { expect } from "vitest";
 import { KIND_REGISTRY, RecordReferenceSchema, sameReference, type KindId, type Mutation, type RecordReference } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
-import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { assertion, everyKind, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
 
 function mutable(kind: KindId): boolean { return !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule); }
 
@@ -17,7 +17,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
     const before = await fixture.settle();
     const put = { action: "put" as const, reference: derived, expected: null, content: "derived status", provenance: testProvenance };
     expect(await fixture.store.write(put)).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.any(String) } } });
-    expect(await fixture.store.batch({ writes: [update(fixture, existing), put], provenance: testProvenance })).toMatchObject({ status: "refused" });
+    expect(await fixture.store.batch({ writes: [mutationOf(update(fixture, existing)), mutationOf(put)], provenance: testProvenance })).toMatchObject({ status: "refused" });
     expect(await fixture.settle()).toBe(before);
     expect(success(await fixture.store.read({ reference: existing.reference }))).toEqual(existing);
     expect(await fixture.store.read({ reference: derived })).toMatchObject({ status: "refused" });
@@ -32,7 +32,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
     const currentFirst = success(await fixture.store.read({ reference: first.reference }));
     const currentSecond = success(await fixture.store.read({ reference: second.reference }));
     const before = success(await fixture.store.version());
-    const result = await fixture.store.batch({ writes: [update(fixture, first), update(fixture, second), update(fixture, third)], provenance: testProvenance });
+    const result = await fixture.store.batch({ writes: [first, second, third].map((record) => mutationOf(update(fixture, record))), provenance: testProvenance });
     expect(result).toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [first.reference, second.reference] } });
     expect(success(await fixture.store.version())).toBe(before);
     expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(currentFirst);
@@ -42,7 +42,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
   assertion(context, "work-item", "batch-mixed-atomic-write-and-removal", async (fixture) => {
     const remove = await seed(fixture, fixture.reference("work-item/meta"));
     const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
-    const writes: Mutation[] = [{ action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change)];
+    const writes: Mutation[] = [{ action: "remove", reference: remove.reference, expected: remove.version }, mutationOf(update(fixture, change))];
     const landed = success(await fixture.store.batch({ writes, provenance: testProvenance }));
     expect(landed.writes).toHaveLength(2);
     expect(await fixture.store.read({ reference: remove.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -53,7 +53,7 @@ export function registerBatchAssertions(context: SuiteContext): void {
     const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
     const before = await fixture.settle();
     const landed = success(await fixture.store.batch({ writes: [
-      { action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change),
+      { action: "remove", reference: remove.reference, expected: remove.version }, mutationOf(update(fixture, change)),
     ], provenance: testProvenance }));
     const changes = success(await fixture.store.changes({ from: before, to: await fixture.settle() }));
     expect(changes).toHaveLength(2);

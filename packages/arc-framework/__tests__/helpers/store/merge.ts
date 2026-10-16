@@ -46,13 +46,13 @@ export function mergeBase(context: ReferenceContext, write: WriteInput): MemoryR
 /** Merge a stale put using current/incoming roles and the kind's registered mechanism.
  * @param context - Registry and incoming side label.
  * @param reference - Canonical record generation.
- * @param base - The version both writers began from.
+ * @param base - The version both writers began from, or absence for independent creations.
  * @param current - Store's currently visible bytes and label.
  * @param incoming - New local bytes.
  * @returns Merged bytes and typed conflicts preserving current at each clash.
  */
-export function mergeContents(context: ReferenceContext, reference: RecordReference, base: MemoryRecord, current: MemoryRecord, incoming: string) {
-  const input = { record: reference, base: base.content, current: current.content, incoming,
+export function mergeContents(context: ReferenceContext, reference: RecordReference, base: MemoryRecord | undefined, current: MemoryRecord, incoming: string) {
+  const input = { record: reference, base: base?.content ?? "", baseVersion: base?.version ?? null, current: current.content, incoming,
     currentLabel: current.label, incomingLabel: { actor: context.environment.actor, time: new Date(context.environment.now()).toISOString() } };
   return context.registry[reference.kind].merge === "entry" ? mergeEntryText(input, entryConfig(context, reference)) : mergeLineText(input);
 }

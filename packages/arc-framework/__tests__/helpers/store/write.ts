@@ -5,7 +5,7 @@ import { isTerminalSnapshotRepair } from "../../../src/lib/store/kinds/lineage/r
 import { assignCompletedCohorts } from "./cohort-placement.js";
 import { randomUUID } from "node:crypto";
 import {
-  ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
+  MutationSchema, CallerProvenanceSchema, BatchInputSchema, ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
   type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
@@ -14,7 +14,8 @@ import {
   advanceMemoryState, canonicalReference, generationAliases, ownerNameKey, recordKey, type MemoryRecord,
 } from "./model.js";
 import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLock, versionConflict } from "./refusals.js";
-import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
+import { splitEntryList } from "../../../src/lib/store/concurrency/index.js";
+import { entryConfig, mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
 import { withStateQueue } from "./state-queue.js";
 import { checkPreparedWrites } from "./write-checks.js";
 import { indexIdentities } from "./identities.js";
@@ -98,6 +99,14 @@ function preflight(context: ReferenceContext, write: WriteInput, validatedConfli
   if (write.action === "put") {
     const links = write.links === undefined ? undefined : LinksSchema.safeParse(write.links);
     if (links?.success === false) return malformed(write.reference,`links: ${links.error.message}`);
+    if (definition.merge === "entry") {
+      const seen = new Set<string>();
+      for (const part of splitEntryList(write.content, entryConfig(context, write.reference)).parts) {
+        if (part.kind !== "entry" || part.id === undefined) continue;
+        if (seen.has(part.id)) return malformed(write.reference, `Entry ID ${part.id} occurs more than once.`);
+        seen.add(part.id);
+      }
+    }
     const parsed = definition.parser?.(write.content);
     if (parsed?.success === false) return malformed(write.reference, parsed.error);
     if (write.reference.kind.endsWith("/conflict-record")) {
@@ -140,7 +149,7 @@ function cohortPlacement(write: Extract<Mutation, { action: "put" }>, prior?: Me
   return write.placement ?? prior?.placement;
 }
 
-function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): WriteResult {
+function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): StoreResult<WriteResult> {
   let reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
   const prior = context.state.records.get(key);
@@ -151,6 +160,10 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
     const merged = mergeContents(context, reference, mergeBase(context, write)!, prior, content!);
     content = merged.content;
     conflicts = merged.conflicts;
+  }
+  if (content !== undefined) {
+    const parsed = context.registry[reference.kind].parser?.(content);
+    if (parsed?.success === false) return refused(malformed(reference, parsed.error));
   }
   const allocated = advanceMemoryState(context.state);
   const label = { actor: context.environment.actor, time: new Date(context.environment.now()).toISOString() };
@@ -200,7 +213,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
   context.state.events.push({ id: randomUUID(), reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance, label });
   context.state.snapshots.set(allocated.stateVersion, structuredClone(context.state.records));
   const storedConflicts = storeConflicts(context, conflicts, write.provenance, batchId);
-  return { reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts };
+  return ok({ reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts });
 }
 
 function validatePlacement(context: ReferenceContext, since: number): StoreRefusal | undefined {
@@ -231,7 +244,12 @@ function validatePlacement(context: ReferenceContext, since: number): StoreRefus
  * @returns Exact new mutation basis or an actionable refusal.
  */
 export async function writeReference(context: ReferenceContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
-  const write = detachedWrite(input);
+  const { provenance, ...mutationInput } = input;
+  const mutation = MutationSchema.safeParse(mutationInput);
+  if (!mutation.success) return refused(malformed(input.reference, mutation.error.message));
+  const caller = CallerProvenanceSchema.safeParse(provenance);
+  if (!caller.success) return refused(malformed(input.reference, caller.error.message));
+  const write = detachedWrite({ ...mutation.data, provenance: caller.data });
   return withStateQueue(context.state, async () => {
     const prepared = { ...context, state: structuredClone(context.state) };
     const mutation = prepareGenerations(prepared, [write])[0]!;
@@ -239,7 +257,9 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
     const refusal = preflight(prepared, mutation, validatedConflicts);
     if (refusal) return refused(refusal);
     if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
-    const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    const landed = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
+    if (landed.status === "refused") return landed;
+    const result = landed.result;
     assignCompletedCohorts(prepared, [mutation], context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);
@@ -259,6 +279,13 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
  * @returns Every requested write with one shared batch ID, or no applied write.
  */
 export async function batchReference(context: ReferenceContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
+  const parsed = BatchInputSchema.safeParse(input);
+  if (!parsed.success) {
+    const reference = input.writes[0]?.reference;
+    if (reference === undefined) throw parsed.error;
+    return refused(malformed(reference, parsed.error.message));
+  }
+  input = parsed.data;
   const provenance = structuredClone(input.provenance);
   const writes = input.writes.map((write) => detachedWrite({ ...write, provenance }));
   return withStateQueue(context.state, async () => {
@@ -277,7 +304,12 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
     const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
     if (conflicts.length > 0) return refused(versionConflict(conflicts));
     const batchId = randomUUID();
-    const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
+    const results: WriteResult[] = [];
+    for (const write of mutations) {
+      const landed = land(prepared, write, batchId, validatedConflicts.get(write));
+      if (landed.status === "refused") return landed;
+      results.push(landed.result);
+    }
     assignCompletedCohorts(prepared, mutations, context.state.counter);
     const placementRefusal = validatePlacement(prepared, context.state.counter);
     if (placementRefusal) return refused(placementRefusal);

@@ -16,7 +16,7 @@ export function lifecycleRecordPath(primary: StoreRecord, record: StoreRecord): 
     workUnitArtifactName(slug, kind === "work-item/draft" ? "draft" : "spec"));
   if (kind === "work-item/task-list") return posix.join(posix.dirname(meta), `tasks-${slug}.md`);
   if (kind === "work-item/notes") return posix.join(posix.dirname(meta), `notes-${slug}.md`);
-  if (kind === "work-item/companion" && typeof record.reference.key === "string") return posix.join(posix.dirname(meta), companionArtifactName(slug, record.reference.key));
+  if (kind === "work-item/companion" && typeof record.reference.key === "string") return posix.join(posix.dirname(meta), SlugSchema.safeParse(record.reference.key).success ? companionArtifactName(slug, record.reference.key) : record.reference.key);
   return null;
 }
 

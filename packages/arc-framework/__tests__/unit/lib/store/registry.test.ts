@@ -111,6 +111,66 @@ describe("role-based storage registry", () => {
     expect(FAMILY_REGISTRY["project-machinery"].ref).toBeNull();
     expect(FAMILY_REGISTRY.constitution.ref).toBeNull();
   });
+  it("assigns the stored path for every kind with a ref", () => {
+    const paths: Partial<Record<KindId, string>> = {
+      "work-item/meta": "meta-<slug>.md",
+      "work-item/task-list": "tasks-<slug>.md",
+      "work-item/record": "errand-<uid>.json",
+      "work-item/draft": "draft-<slug>.md",
+      "work-item/spec": "spec-<slug>.md",
+      "work-item/notes": "notes-<slug>.md",
+      "work-item/companion": "<key>-<slug>.md",
+      "work-item/description": "errand-<slug>.md",
+      "work-item/inbound": "inbound-<slug>.md",
+      "cohort/document": "cohort-<slug>.md",
+      "project-inbox/inbox": "ATOMIC-INBOX.md",
+      "review/candidate": "review/candidate-<uid>.json",
+      "review/integration-boundary": "review/integration-boundary-<uid>.json",
+      "review/evidence": "review/evidence-<key>-<uid>.json",
+      "review/outcome": "review/outcome-<key>-<uid>.json",
+      "review/terminus": "review/terminus-<key>-<uid>.json",
+      "review/adversarial-pass": "review/adversarial-pass-<key>-<uid>.json",
+      "project-registry/identity": "identity.json",
+      "project-registry/counter": "counters/<key>.json",
+      "lineage/transition": "lineage/<uid>.json",
+      "personal/inbox": "<person>/USER-INBOX.md",
+      "personal/working-memory": "<person>/WORKING-MEMORY.md",
+      "personal/document": "<person>/<key>",
+      "personal/errand-queue": "<person>/errand-queue-<person>.md",
+      "personal/session-context": "<person>/<key>/SESSION-NOTES.md",
+      "claims/groom": "groom-<key>-<person>.json",
+      "claims/housekeep": "housekeep-<key>-<person>.json",
+      "work-item/conflict-record": "conflicts/<key>.json",
+      "cohort/conflict-record": "conflicts/<key>.json",
+      "project-inbox/conflict-record": "conflicts/<key>.json",
+      "review/conflict-record": "review/conflicts/<key>.json",
+      "project-registry/conflict-record": "conflicts/<key>.json",
+      "lineage/conflict-record": "lineage/conflicts/<key>.json",
+      "personal/conflict-record": "<person>/conflicts/<key>.json",
+      "claims/conflict-record": "conflicts/<key>.json",
+      "project-inbox/routing-receipt": "receipts/<key>.json",
+      "personal/routing-receipt": "<person>/receipts/<key>.json"
+};
+    expect(Object.fromEntries(kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref !== null)
+      .map((kind) => [kind.id, kind.ref?.path]))).toEqual(paths);
+  });
+  it("leaves kinds without a family ref unhomed on refs", () => {
+    for (const kind of kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref === null)) {
+      expect(kind.ref).toBeUndefined();
+    }
+  });
+  it("uses only placeholders supplied by the kind's owner and key", () => {
+    for (const kind of kinds.filter((kind) => FAMILY_REGISTRY[kind.family].ref !== null)) {
+      const path = kind.ref?.path;
+      expect(path, kind.id).toBeTypeOf("string");
+      const supplied = [
+        ...(kind.owner === "work-item" || kind.owner === "cohort" ? ["slug", "uid"] : []),
+        ...(kind.owner === "person" ? ["person"] : []),
+        ...(kind.key === null ? [] : ["key"]),
+      ];
+      for (const match of path?.matchAll(/<([^>]+)>/gu) ?? []) expect(supplied, kind.id).toContain(match[1]);
+    }
+  });
   it("changes profile assignment only for the two ghost families", () => {
     expect(Object.values(FAMILY_REGISTRY).filter((family) => family.profiles.standard !== family.profiles.ghost).map((family) => family.id).sort()).toEqual(["constitution", "project-machinery"]);
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/.internal/**" });
@@ -119,9 +179,9 @@ describe("role-based storage registry", () => {
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-checks/**" });
     expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
   });
-  it("keeps presentation filenames out of the production store core", () => {
+  it("keeps presentation filenames in the declared storage homes", () => {
     const root = resolve(import.meta.dirname, "../../../../src/lib/store");
-    const sources = sourceFiles(root);
+    const sources = sourceFiles(root).filter((source) => source !== join(root, "registry.ts"));
     for (const source of sources) expect(readFileSync(source, "utf8")).not.toMatch(/(?:USER-INBOX|WORKING-MEMORY|SESSION-NOTES|ATOMIC-INBOX|ROADMAP|STATUS\.USER)\.(?:md|json)/u);
   });
   it("records every interim family substrate explicitly", () => {

@@ -150,12 +150,12 @@ it("refuses a cohort preparation whose version changed and succeeds after re-pre
 it("publishes before reporting and closes a shared cohort after another client's sibling archive arrives", async () => {
   const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
   expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" } });
   const completed = lifecycleSuccess(await right.store.read({ reference: left.group.reference }));
   expect(completed.placement).toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
-  lifecycleSuccess(await left.store.sync());
+  lifecycleSuccess(await left.store.push());
   expect(lifecycleSuccess(await left.store.read({ reference: left.group.reference }))).toEqual(completed);
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("03a_cohort-group") });
 });
@@ -174,7 +174,7 @@ it("retains a persisted archive through a failed publish and its completed-subje
 it.each(["write", "publication"])("retries standalone closeout after interrupted %s without another primary archive", async (stage) => {
   const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
   let interrupted = false;
   const store: Store = new Proxy(right.store, { get(target, key) {
@@ -216,7 +216,7 @@ async function nestedCloseoutFixture() {
   const beta = await left.seedMeta("beta", { cohort: "parent/leaf" });
   await left.seedMeta("gamma", { cohort: "parent/sibling" });
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
   return { left, right, remote, parent, beta };
 }
@@ -224,9 +224,9 @@ async function nestedCloseoutFixture() {
 it.each(["none", "write", "publication"])("settles parent eligibility learned during closeout sync, interruption=%s", async (stage) => {
   const h = await nestedCloseoutFixture(); let syncs = 0, interrupted = false;
   const store: Store = new Proxy(h.right.store, { get(target, key) {
-    if (key === "sync") return async () => {
+    if (key === "push") return async () => {
       if (++syncs === 2) expect(await archive(h.left.store, "gamma")).toMatchObject({ status: "archived" });
-      return target.sync();
+      return target.push();
     };
     if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
       const parentCloseout = input.writes.some((write) => write.reference.kind === "cohort/document"
@@ -250,7 +250,7 @@ it.each(["none", "write", "publication"])("settles parent eligibility learned du
     nestedParentSwept: expect.stringContaining("05b_cohort-parent") });
   expect(lifecycleSuccess(await h.right.store.read({ reference: member.reference }))).toEqual(member);
   expect(lifecycleSuccess(await h.right.store.history({ reference: member.reference }))).toEqual(history);
-  lifecycleSuccess(await h.left.store.sync());
+  lifecycleSuccess(await h.left.store.push());
   expect(lifecycleSuccess(await h.left.store.read({ reference: h.parent.reference })).placement)
     .toMatchObject({ kind: "completed", sequence: "05", closeout: "b" });
 });

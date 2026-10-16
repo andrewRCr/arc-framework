@@ -1,6 +1,6 @@
 /** Cause real reference backend failures, then apply the remedy to their underlying state. */
 
-import { LookupInputSchema, RecordReferenceSchema } from "../../../src/lib/store/index.js";
+import { LookupInputSchema, RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/index.js";
 import { canonicalReference, recordKey } from "./model.js";
 import { success, seed, update } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
@@ -29,6 +29,12 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
     state.repairs.set(caseId, async () => { fixture.identity(record.reference.owner.name); });
     return { run: () => fixture.store.read({ reference: record.reference }) };
   }
+  if (caseId === "state-unresolvable") {
+    const record = await seed(fixture, fixture.reference("work-item/meta"));
+    let asOf = StateVersionSchema.parse("missing-reference-state");
+    state.repairs.set(caseId, async () => { asOf = success(await fixture.store.version()); });
+    return { run: () => fixture.store.read({ reference: record.reference, asOf }) };
+  }
   if (caseId === "unsupported:held-here") {
     await seed(fixture, fixture.reference("work-item/meta"));
     let heldHere = true;
@@ -40,7 +46,7 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
     await seed(fixture, fixture.reference("work-item/meta"));
     fixture.remoteState(caseId === "unreachable" ? "down" : caseId === "retries-exhausted" ? "contended" : "refusing", "Change the memory remote's write policy.");
     state.repairs.set(caseId, async () => { fixture.remoteState("available"); });
-    return { run: () => fixture.store.sync() };
+    return { run: () => fixture.store.push() };
   }
   if (caseId === "ambiguous-match") return produceAmbiguity(fixture, backend, state);
   const record = await seed(fixture, fixture.reference("work-item/meta"));

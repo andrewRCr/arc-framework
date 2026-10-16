@@ -1,7 +1,7 @@
 /** Publish the interim personal notes and transient identity refs independently. */
 import { ArcError } from "../../kernel/errors.js";
 import { isAbsolute, join } from "node:path";
-import { SyncResultSchema, type SyncResult } from "../sync.js";
+import { PushResultSchema, type PushResult } from "../sync.js";
 import type { InRepoContext } from "./context.js";
 import { notesIO } from "./sync-io.js";
 import { notesPublish, transientPublish } from "./sync-outcomes.js";
@@ -10,14 +10,14 @@ import { notesPublish, transientPublish } from "./sync-outcomes.js";
  * @param context - Explicit backend dependencies.
  * @returns States and one outcome for each independent publish.
  */
-export async function syncInRepo(context: InRepoContext): Promise<SyncResult> {
+export async function pushInRepo(context: InRepoContext): Promise<PushResult> {
   const [identity, remote] = await Promise.all([context.ports.identity(), context.ports.remote()]);
-  const states: SyncResult["states"] = remote === null ? [{ status: "no-remote" }] : [];
+  const states: PushResult["states"] = remote === null ? [{ status: "no-remote" }] : [];
   if (identity === null) {
     states.push({ status: "no-identity", families: ["personal", "work-item", "claims"], remedy: { text: "Set arc.identity, then sync again." } });
-    return { states, publishes: [] };
+    return { states, pulls: [], publishes: [] };
   }
-  if (remote === null) return { states, publishes: [] };
+  if (remote === null) return { states, pulls: [], publishes: [] };
   const [{ runUserSave }, { UserSaveError, UserSaveVerificationError }, { reconcileNotesPush }, { reconcileErrandPush }] = await Promise.all([
     import("../../../commands/user/save-load.js"), import("../../../commands/user/types.js"),
     import("../../../commands/user/push-fetch.js"), import("../../errand/merge.js"),
@@ -35,6 +35,6 @@ export async function syncInRepo(context: InRepoContext): Promise<SyncResult> {
   const personal = notesPublish(notes, elapsed(context, started));
   const transientStarted = context.ports.clock().getTime();
   const transient = transientPublish(await reconcileErrandPush({ exec: io.exec, execInput: io.execInput, identity }), elapsed(context, transientStarted));
-  return SyncResultSchema.parse({ states, publishes: [personal, transient] });
+  return PushResultSchema.parse({ states, pulls: [], publishes: [personal, transient] });
 }
 function elapsed(context: InRepoContext, started: number): number { return Math.max(0, context.ports.clock().getTime() - started); }

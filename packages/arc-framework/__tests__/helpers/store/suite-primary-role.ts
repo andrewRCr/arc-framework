@@ -98,12 +98,12 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
     if (remote === undefined) throw new Error("Fixture must provide the configured remote");
     const original = await seed(fixture, fixture.reference("work-item/record"), undefined, { kind: "active" },
       { branches: [{ repository: "repo", ref: "chore/original", linkedAs: "created" as const, excluded: [] }] });
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const promoted = await promote(fixture, original);
     success(await remote.write({ ...update(fixture, original, fixture.content(original.reference, "changed-again")),
       provenance: { ...testProvenance, verb: "remote-edit" } }));
     const current = success(await remote.read({ reference: original.reference }));
-    const result = success(await fixture.store.sync());
+    const result = success(await fixture.store.push());
     expect(result.publishes[0]?.status).toBe("reconciled");
     const preserved = success(await fixture.reopen().read({ reference: promoted.reference }));
     expect(preserved).toMatchObject({ reference: current.reference, content: current.content, version: current.version,
@@ -117,7 +117,7 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
       current: { value: conflictValue(current) }, incoming: { value: conflictValue(promoted) } });
     const restoredPromotion = await promote(fixture, preserved);
     expect(restoredPromotion.conflicts).toEqual([conflictReference]);
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     expect(success(await remote.read({ reference: original.reference }))).toEqual(restoredPromotion);
     expect(success(await fixture.reopen().read({ reference: original.reference }))).toEqual(restoredPromotion);
     expect(await primaryCount(fixture, restoredPromotion.reference)).toBe(1);

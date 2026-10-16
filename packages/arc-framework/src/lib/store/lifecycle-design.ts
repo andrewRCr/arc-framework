@@ -4,6 +4,7 @@ import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { readDesignPurpose } from "./kinds/design/index.js";
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
+import { workUnitMetaPath } from "./lifecycle-write.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 
 /** Read the preferred design's content without treating report paths as authority.
@@ -18,13 +19,14 @@ export async function readLifecycleDesign(store: Store, meta: StoreRecord): Prom
   const listing = await store.list({ family: "work-item", owner: meta.reference.owner });
   if (listing.status === "refused") return { content: null, warnings: [listing.refusal.condition] };
   if (listing.result.status !== "complete") return { content: null, warnings: listing.result.status === "unreadable" ? [listing.result.condition] : [] };
+  const root = posix.dirname(workUnitMetaPath(meta));
   let fallback: string | null = null;
   for (const name of fields.data.design) {
     const record = listing.result.records.find((candidate) => {
       const kind = candidate.reference.kind;
       if (kind !== "work-item/spec" && kind !== "work-item/draft" && kind !== "work-item/companion") return false;
       const path = lifecycleRecordPath(meta, candidate);
-      return path !== null && posix.basename(path) === name;
+      return path !== null && posix.relative(root, path) === name;
     });
     if (record === undefined) continue;
     fallback ??= record.content;
