@@ -512,14 +512,14 @@ read that gets none stops at that incomplete observation before calling it.
 - _Outcome:_ The exact lists include fourteen added production and six added test importers. Both independent boundary
   assertions remain intact; the full source scan retains every existing importer.
 
-### `[ ]` **2.10 Locus from the marker and the store** — validate exit criterion at segment scope
+### `[x]` **2.10 Locus from the marker and the store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run the exit criterion's scenario over the reference backend and a scripted repository — the cold start, the
-      roster's detached row, derivation, the refused second marker, both release arms, and each bound port — and request
-      `arc check segment`.
+- _Outcome:_ On the freshly merged base, cold start writes its Store primary and anchored marker without moving HEAD;
+  detached Planning rows derive from Store evidence; duplicate holders refuse; release clears anchored markers or
+  removes spawned checkouts; and lifecycle operations consume the bound ports. A23's complete consumer inventory also
+  passes on the full scenario rerun.
 
 ## **Phase 3:** What is in flight, and the Errand record through the store
 

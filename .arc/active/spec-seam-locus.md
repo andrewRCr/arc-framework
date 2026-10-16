@@ -2607,13 +2607,13 @@ this design open.
 ## Amendments
 
 - **A1** — 2026-10-16 — design: the locus ports bind at the executor context, not in their default record. _Supersedes:_
-  § 2.4 ¶1; § 16, the transition write path's ports item. _Trigger:_ door. _Work:_ 2.5. _Revalidated:_ pending → 2.10.
+  § 2.4 ¶1; § 16, the transition write path's ports item. _Trigger:_ door. _Work:_ 2.5. _Revalidated:_ 2.10.
 - **A2** — 2026-10-16 — design: locus's link readers and writers bind the project-ID port over their store; the cutover
   binds none. _Supersedes:_ § 16, the cutover item. _Trigger:_ door. _Work:_ 2.1. _Revalidated:_ pending → 8.1.
 - **A3** — 2026-10-16 — design: a named in-place start reaches the cold start from store start's create-new arm.
-  _Supersedes:_ § 2.5, its entry item. _Trigger:_ door. _Work:_ 2.6. _Revalidated:_ pending → 2.10.
+  _Supersedes:_ § 2.5, its entry item. _Trigger:_ door. _Work:_ 2.6. _Revalidated:_ 2.10.
 - **A4** — 2026-10-16 — spec-depth: lifecycle's in-place arms refuse a checkout another marker occupies, naming its
-  exit. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 2.10.
+  exit. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ 2.10.
 - **A5** — 2026-10-16 — task: promotion's receipt carries an inbox origin's digest as the record holds it, `null`
   included. _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 - **A6** — 2026-10-16 — task: promotion reads the Errand it promotes only at placement `active`. _Supersedes:_ none.
@@ -2631,7 +2631,7 @@ this design open.
 - **A12** — 2026-10-16 — spec-depth: a refused store prepare reports in the session reconcile slot with its remedy.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
 - **A13** — 2026-10-16 — spec-depth: a renamed work unit's scratch folder follows only into an absent or empty one.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ pending → 2.10.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ 2.10.
 - **A14** — 2026-10-16 — design: a review-due pause's choices are actions, each typed but the handover. _Supersedes:_
   § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 - **A15** — 2026-10-16 — spec-depth: a paused work item's marking is one exported function the status surfaces call too.
@@ -2652,6 +2652,6 @@ this design open.
 - **A22** — 2026-10-16 — task: acquire the subject Candidate through its resolved Store owner. _Supersedes:_ none.
   _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.6.
 - **A23** — 2026-10-16 — task: include the Store consumers in the exact locus import inventory. _Supersedes:_ none.
-  _Trigger:_ 2.10 segment. _Work:_ 2.R2. _Revalidated:_ pending → 2.10.
+  _Trigger:_ 2.10 segment. _Work:_ 2.R2. _Revalidated:_ 2.10.
 
 ---
