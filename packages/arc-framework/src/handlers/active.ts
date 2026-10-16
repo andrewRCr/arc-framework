@@ -9,6 +9,9 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import type { StoreInFlightEntry } from "../lib/git/in-flight-store.js";
+import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { readdir, readFile } from "node:fs/promises";
 
 import * as p from "../lib/terminal.js";
@@ -65,11 +68,11 @@ export const activeCommandInputPolicyDeclarations = [
 ] satisfies readonly CommandInputDeclaration[];
 
 /** Render one oracle entry with its lifecycle and local/remote location. */
-export function formatActiveInFlightLine(entry: InFlightEntry): string {
+export function formatActiveInFlightLine(entry: InFlightEntry | StoreInFlightEntry): string {
   const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
   return entry.kind === "work-unit"
-    ? `${entry.branch}  (${entry.state})  ${where}`
-    : `${entry.branch}  (errand)  ${where}`;
+    ? `${entry.branch ?? entry.name}  (${entry.state}${entry.scheduling === "paused" ? ", paused" : ""})  ${where}`
+    : `${entry.branch ?? entry.slug}  (errand)  ${where}`;
 }
 
 export async function handleActiveStatus(
@@ -154,7 +157,8 @@ export async function handleActiveInFlight(
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
-  const parkedSlugs = listParkedSlugs(
+  const store = openDefaultStore(cwd, exec);
+  const parkedSlugs = store.capabilities.stateOffBranch ? new Set<string>() : listParkedSlugs(
     await buildLifecycleIndex({
       cwd,
       fs: {
@@ -164,7 +168,10 @@ export async function handleActiveInFlight(
     }),
   );
 
+  const locusPorts = store.capabilities.stateOffBranch ? createLocusPorts({ cwd, exec, store }) : undefined;
   const result = await runActiveInFlightExpansion({
+    store,
+    ...(locusPorts === undefined ? {} : { findHoldingCheckout: (name: string) => locusPorts.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }) }),
     exec,
     execInput: createGitExecInput(interaction?.subprocess),
     cwd,

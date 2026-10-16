@@ -116,7 +116,11 @@ async function addWorkUnits(context: InFlightProjection): Promise<void> {
 async function addWorkUnit(context: InFlightProjection, item: import("../store/lifecycle-index.js").LifecycleEntry): Promise<void> {
   const name = item.reference.owner.name, fields = item.fields;
   const row = context.options.roster?.find((candidate) => candidate.subject?.kind === "work-unit" && candidate.subject.key === name);
-  const path = context.options.findHoldingCheckout === undefined ? row?.checkout.path : await context.options.findHoldingCheckout(name);
+  let path = row?.checkout.path;
+  if (context.options.findHoldingCheckout !== undefined) {
+    try { path = await context.options.findHoldingCheckout(name) ?? undefined; }
+    catch (error) { context.warn(error instanceof Error ? error.message : String(error)); }
+  }
   context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item.links), path), dependsOn: fields.dependsOn,
     ...optionalField("owner", fields.owner), ...optionalField("cohort", fields.cohort), ...optionalField("class", fields.workClass),
     ...optionalField("priority", fields.priority), ...(fields.pause === null ? {} : { scheduling: "paused" }),
