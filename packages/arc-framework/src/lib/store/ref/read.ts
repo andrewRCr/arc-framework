@@ -1,15 +1,16 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
-import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeRecord, decodeReference, lineageOwner, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
-import { parseRefMetadata, metadataFailure } from "./metadata.js";
+import { parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
+import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 
 /** Read one live record, resolving a slug-only owner through one captured family scan. */
@@ -35,7 +36,7 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const objects = await readBatchObjects(context, [metadataQuery, recordQuery, conflictsQuery]);
   const object = objects.get(recordQuery);
   if (object?.type !== "blob") return missing(reference);
-  const metadata = parseRefMetadata(objects.get(metadataQuery));
+  const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: home.ref, ...metadataFailure(home.ref) } };
   const family = context.registry[reference.kind].family;
@@ -43,7 +44,10 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
     : refOwner(home.ref, family, metadata);
   reference = RecordReferenceSchema.parse({ ...reference, owner });
   const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
-  return { status: "ok", result: decodeRecord(context, reference, object, metadata, conflicts) };
+  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
+  return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
+    code: "record-malformed", class: "recoverable", reference, rule: record.condition,
+    condition: record.condition, remedy: record.remedy } };
 }
 
 /** List a registered family from one tip capture, tree check, recursive diff, and blob batch. */
@@ -55,7 +59,10 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   if (tips.size === 0) return { status: "ok", result: { status: "absent" } };
   const trees = await readRefTrees(context, tips);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid)))]);
-  const groups = [...trees].map(([ref, entries]) => decodeCapturedRef(context, input, ref, entries, objects));
+  const groups = [...tips.keys()].map((ref) => {
+    const entries = trees.get(ref);
+    return entries ? decodeCapturedRef(context, input, ref, entries, objects) : unreadableRef(ref);
+  });
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
   if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
@@ -72,26 +79,50 @@ function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: st
   const diagnostics: ListingDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
-  const metadataEntry = entries.find((entry) => entry.path === home.metadataPath);
-  const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null);
-  if (!metadata) return { records, unreadable: true,
-    diagnostics: [{ kind: "unreadable", key: ref, ...metadataFailure(ref) }] };
+  if (entries.every((entry) => entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath))) return { records, diagnostics };
+  const metadata = capturedMetadata(home, entries, objects);
+  if (!("formats" in metadata)) return metadata;
   const owner = refOwner(ref, input.family, metadata);
   for (const entry of entries) {
     if (entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath)) continue;
-    const object = objects.get(entry.oid);
-    const decoded = decodeReference(context, owner, input.family, entry.path, metadata, object);
-    if (!decoded) {
-      diagnostics.push({ kind: "malformed", key: entry.path, condition: "The stored path does not name an admitted record",
-        remedy: { text: "Repair the stored path to a valid record key, then list again." } });
-      continue;
-    }
-    if (!("owner" in decoded)) { diagnostics.push(decoded); continue; }
-    const reference = decoded;
-    if (object?.type !== "blob" || context.registry[reference.kind].family !== input.family) continue;
-    records.push(decodeRecord(context, reference, object, metadata));
+    const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata);
+    if (!record) continue;
+    if ("reference" in record) records.push(record); else diagnostics.push(record);
   }
   return { records: selectRecords(attachOpenConflicts(records), input), diagnostics };
+}
+
+function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
+  object: BatchObject | null | undefined, metadata: RefMetadata): StoreRecord | ListingDiagnostic | null {
+  const reference = decodeReference(context, owner, family, entry.path, metadata, object);
+  if (!reference) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path does not name an admitted record" });
+  if (!("owner" in reference)) return reference;
+  if (context.registry[reference.kind].family !== family) return null;
+  if (object?.type !== "blob") return recordDiagnostic(entry.path, {
+    kind: "unreadable", condition: "The stored blob is not available locally",
+  });
+  return decodeRecord(context, reference, object, metadata, entry.path);
+}
+
+function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry[],
+  objects: ReadonlyMap<string, BatchObject | null>): RefMetadata | DecodedRecords {
+  const entry = entries.find((candidate) => candidate.path === home.metadataPath);
+  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, home.ref);
+  if (metadata) return metadata;
+  const foreign = !entry && entries.find((candidate) => /^metadata-[0-9a-f-]+\.json$/u.test(candidate.path)
+    && parseRefMetadata(objects.get(candidate.oid)) !== null);
+  if (foreign) return { records: [], diagnostics: entries.filter((candidate) => candidate !== foreign
+    && !candidate.path.startsWith(home.manifestPath)).map((candidate) => recordDiagnostic(candidate.path, {
+      kind: "key-mismatch", condition: "The metadata filename names a UID other than its ref's owner",
+    })) };
+  return { records: [], unreadable: true,
+    diagnostics: [{ kind: "unreadable", key: home.ref, ...metadataFailure(home.ref) }] };
+}
+
+function unreadableRef(ref: string): DecodedRecords {
+  return { records: [], unreadable: true, diagnostics: [{ kind: "unreadable", key: ref,
+    condition: `The tip or root tree of ${ref} is not available locally`,
+    remedy: { text: `Restore the missing objects for ${ref} in the store repository, then retry.` } }] };
 }
 
 function selectRecords(records: readonly StoreRecord[], input: ListInput): StoreRecord[] {

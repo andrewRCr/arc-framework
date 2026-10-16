@@ -11,6 +11,7 @@ import type { BatchObject } from "./batch-read.js";
 import { conflictTarget } from "./conflicts-read.js";
 import { pathOwnerMismatch, storedKeyProblem } from "./path-admission.js";
 import type { RefMetadata } from "./metadata.js";
+import { readRefContent, recordDiagnostic, parsedOwnerProblem } from "./content-read.js";
 import { refRecordVersion } from "./record-version.js";
 
 /** Resolve the top-level family that owns a ref, including shared subtrees. */
@@ -99,19 +100,22 @@ function keyAtPath(kind: KindDefinition, owner: OwnerIdentity, path: string): un
 
 /** Turn a captured blob and owner metadata into the contract's logical record. */
 export function decodeRecord(context: RefBackendContext, reference: RecordReference, object: BatchObject, metadata: RefMetadata,
-  conflicts: RecordReference[] = []): StoreRecord {
-  const content = new TextDecoder().decode(object.bytes);
+  path: string, conflicts: RecordReference[] = []): StoreRecord | ListingDiagnostic {
   const kind = context.registry[reference.kind];
   const primary = reference.kind === metadata.primary?.role || reference.kind === "cohort/document";
   const formatVersion = metadata.formats[canonicalize({ kind: reference.kind, ...(reference.key === undefined ? {} : { key: reference.key }) })] ?? 1;
-  const parsed = kind.parser?.(content);
-  if (parsed && !parsed.success) throw new Error(parsed.error);
+  if (formatVersion > kind.formatVersion) return recordDiagnostic(path, { kind: "unknown-format-version",
+    condition: "Stored format version is newer than this build supports." });
+  const decoded = readRefContent(kind, object.bytes);
+  if ("condition" in decoded) return recordDiagnostic(path, decoded);
+  const mismatch = parsedOwnerProblem(reference, decoded.fields);
+  if (mismatch) return recordDiagnostic(path, mismatch);
   const placement = metadata.primary?.placement ?? metadata.placement;
-  return StoreRecordSchema.parse({ reference, content, formatVersion, conflicts,
+  const record = StoreRecordSchema.safeParse({ reference, ...decoded, formatVersion, conflicts,
     version: refRecordVersion(reference, object.oid, metadata, formatVersion),
-    ...(parsed?.success ? { fields: parsed.data } : {}),
     ...(placement ? { placement } : {}), ...(primary && metadata.primary?.links ? { links: metadata.primary.links } : {}),
   });
+  return record.success ? record.data : recordDiagnostic(path, { kind: "malformed", condition: record.error.message });
 }
 
 function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"); }

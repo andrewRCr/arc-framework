@@ -255,15 +255,11 @@ default layout.
   Named and path-keyed companions keep their distinct encodings; completed work units, Errands, and cohorts take
   their quarter folders, while history retains the live layout. Expanded instances remain unique across refs.
 
-### `[ ]` **3.3 The read path — § 3.1, § 3.2, § 3.3, § 3.4, § 3.7, § 11.6, § 13.1**
+### `[x]` **3.3 The read path — § 3.1, § 3.2, § 3.3, § 3.4, § 3.7, § 11.6, § 13.1**
 
 - _Goal:_ `read` and `list` decode records, with their metadata, versions, and open conflicts, in a fixed number of
   one-shot Git processes; every tree entry maps back to one record, its ref's metadata file, its manifest, or a
   diagnostic, and a fault in one entry or ref is a diagnostic beside every other record rather than a failed listing.
-
-- _Note:_ 3.3.a builds the thinnest decode, metadata parse, and version its first `read` and `list` need — a record at
-  its table path, its owner's slug, and its version — and 3.3.b to 3.3.e complete each, every case running through
-  `read` and `list`.
 
     - `[x]` **3.3.R Exact diagnostics for invalid path keys — § 11.6 (A3)**
         - _Goal:_ Preserve managed-path admission while a backslash-bearing entry lists as `malformed` under its exact
@@ -292,25 +288,10 @@ default layout.
         - A pure version helper digests the blob and each record's own metadata. Primary placement changes leave
           companion versions unchanged; equal bytes and metadata retain one version across distinct tips and read times.
 
-    - `[ ]` **3.3.e Diagnostics and the newer-format refusal**
-        - D4's per-entry diagnostics keyed by the entry's path, as § 3.1 lists them; a listing holding any is `complete`
-          with `missed: true`, and a family with no refs is `absent`
-        - The projected-record size cap, 1 MiB, is a constant in `lib/store/` the serialization rules reuse (5.1)
-        - A `read` of a record above the registry's format version refuses `record-malformed`, `recoverable`, its rule
-          naming the format and its remedy the merge base or a rebuild, as the reference backend refuses it
-          (`readReference`, `__tests__/helpers/store/read.ts`)
-        - Build `test-first` (one behavior at a time):
-            - an unreadable blob, a malformed blob, an entry under `review/` that maps to no kind, a format version
-              above the registry's, and an entry naming two owners each list as their diagnostic beside the others'
-              records, in a `complete` listing with `missed: true`
-            - a ref whose tip or root tree the clone lacks, loose or packed in the files format, lists as one
-              `unreadable` diagnostic keyed by the ref
-            - a missing or unparseable metadata file over records lists as one `unreadable` diagnostic keyed by its ref
-              or folder, and a tree holding no record needs none
-            - a projected record over the cap lists `oversized`, and a never-projected one over it lists as any other
-            - a family with no refs is `absent`, and one is `unreadable` only where none of its refs reads
-            - a read of a record at a newer format refuses with that remedy, and a backend built with a registry
-              declaring that format reads it, so a registry passed in replaces the production one
+    - `[x]` **3.3.e Diagnostics and the newer-format refusal**
+        - Listings isolate exact-path content, format, size, owner, and object diagnostics; unreadable refs retain their
+          own diagnostics beside readable and empty refs. Missing metadata repairs forward. Never-projected JSON reads
+          canonically, projected records share a byte cap, and newer formats read after a supporting registry rebuild.
 
 ### `[ ]` **3.4 The state version — § 4.1, § 4.2, § 4.3**
 

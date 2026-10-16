@@ -21,12 +21,14 @@ export const RefMetadataSchema = z.strictObject({
 export type RefMetadata = z.infer<typeof RefMetadataSchema>;
 
 /** Establish usable metadata without assigning the caller's failure outcome. */
-export function parseRefMetadata(object: BatchObject | null | undefined): RefMetadata | null {
+export function parseRefMetadata(object: BatchObject | null | undefined, namespace?: string): RefMetadata | null {
   if (object?.type !== "blob") return null;
   try {
     const canonical = canonicalize(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
     const parsed = RefMetadataSchema.safeParse(JSON.parse(canonical));
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    if (namespace && /^refs\/arc\/(?:work|cohort)\//u.test(namespace) && !parsed.data.slug) return null;
+    return parsed.data;
   } catch { return null; }
 }
 
