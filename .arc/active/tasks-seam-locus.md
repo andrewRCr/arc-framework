@@ -1616,6 +1616,12 @@ carry `max-lines` floor entries.
           as the Errand record holds it, `null` included, as every projection of an origin does (spec § 7.6), where
           today it parses an inbox origin's as a digest (`CanonicalDigestSchema`), which throws after the role write,
           the branch cut, and the switch, and again in every rerun's recovery.
+        - Their Errand read (`readIdentity`) takes an Errand record only at placement `active`, as every reader of open
+          Errands does (spec § 8), so a closed Errand's record, kept at `completed` with its state still `open` (3.3.b),
+          reads as no Errand and `promoteOrdinaryErrand` refuses it before any write; today the slug lookup can return
+          that record, and the role write keeps its placement (`recordWritePlacement`). The lookup both reads share
+          (`readPrimary`), and recovery's read of the promoted work unit through it (`recoverPromoted`), stay as they
+          are.
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend the runtime fills the four slots with the transition-write-path change's steps,
@@ -1627,6 +1633,8 @@ carry `max-lines` floor entries.
               identity record holds
             - over the reference backend an Errand whose inbox origin carries the qualified ID and a `null` digest
               promotes, its receipt carrying both as the record holds them, and a rerun reports `idempotent`
+            - over the reference backend promoting an Errand whose record is at `completed` refuses, writing no meta,
+              cutting no branch, and leaving `HEAD` where it was
 
     - `[ ]` **3.9.b The settlement**
 
