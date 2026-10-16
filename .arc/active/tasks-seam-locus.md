@@ -2291,7 +2291,9 @@ its `arc schema` test with it.
         - A per-identity listing of paused work units through the store fills `pausedWork` (Task 1.3), each item marked
           as above; a review-due item carries a precomposed review prompt naming `arc resume <slug>`,
           `arc handover <slug> --to <identity>`, `arc pause <slug> --open` where the pause is not open already, and
-          `arc abandon <slug>`, every argument filled but the handover's identity.
+          `arc abandon <slug> --yes`, every argument filled but the handover's identity, and carries each as an action:
+          typed, but the handover's, which is text, the resume once where it is the item's own action, and the abandon
+          with `--yes`, since the verb refuses without it (`handleStoreAbandon`, `handlers/abandon-store.ts`).
         - The listing selects by the work item's `Owner`, never the pause's `pausedBy`, which a handover leaves in place
           (`runHandover`, `lib/work-unit/verbs/pause-handover.ts`); it resolves a `waitsOn` slug through `lookup` to
           mark the item, since a rename leaves another work unit's pause naming the former slug; and it measures a
@@ -2310,6 +2312,8 @@ its `arc schema` test with it.
             - a work unit handed over lists for its new owner, not the identity that paused it
             - a pause waiting on a work unit since renamed resolves it by its former slug
             - an open pause's review prompt names no `arc pause <slug> --open`
+            - a review-due item carries its resume, its open where the pause is not open, and `arc abandon <slug> --yes`
+              as typed actions, and its handover as text
 
     - `[ ]` **5.4.b Entering a paused checkout**
 

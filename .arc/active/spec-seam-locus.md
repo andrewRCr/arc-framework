@@ -1127,7 +1127,8 @@ flip's rewrite (§ 1.5).
 | `recovery`'s `missingFolders`: a registration whose folder is missing, unlocked: `missing` (§ 12.1)                                        | `git worktree remove <path>`, once `<path>` is confirmed still missing                                                                          | text  |
 | `recovery`'s `missingFolders`: a registration whose folder is missing, locked: `locked` (§ 12.1)                                           | `git worktree unlock <path>`, then `git worktree remove <path>`, once `<path>` is confirmed still missing                                       | text  |
 | `recovery`: any other outcome — main-fallback, surface, unproven, an external candidate, or a prompted switch to a branch with no checkout | its precomposed text, as today                                                                                                                  | text  |
-| `pausedWork`: a review-due item (§ 4.4)                                                                                                    | its review prompt: `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open` unless open, and `arc abandon <slug>`  | text  |
+| `pausedWork`: a review-due item (§ 4.4, A14)                                                                                               | `arc resume <slug>`, `arc pause <slug> --open` unless open, and `arc abandon <slug> --yes`                                                      | typed |
+| `pausedWork`: a review-due item's handover (§ 4.4, A14)                                                                                    | `arc handover <slug> --to <identity>`, the identity its owner's to name                                                                         | text  |
 | `pausedWork`: each item (§ 4.4)                                                                                                            | `arc resume <slug>`, or a materialize as `materializableWorkUnits` carries it                                                                   | typed |
 | `inboundBackPressure` past a threshold (§ 4.6)                                                                                             | `arc inbox <slug>`, then the owner's re-triage                                                                                                  | text  |
 | `derivedLocusState`: commits not yet closed, every one made fresh (§ 11)                                                                   | `arc task close`, in the work unit's checkout                                                                                                   | typed |
@@ -1154,8 +1155,10 @@ From the flip a pause is a record on the work item that changes neither its `Sta
   `pause.review_after_days`, a project setting beside `inbox.remind_after_days` (default 14). A review-due item carries
   a review prompt, its text precomposed, asking its owner to resume it (`arc resume <slug>`), hand it over
   (`arc handover <slug> --to <identity>`), open it to takers where it is not open already (`arc pause <slug> --open`),
-  or abandon it (`arc abandon <slug>`), each a command it names in full but the identity a handover takes; the slot
-  always passes the slug.
+  or abandon it (`arc abandon <slug> --yes`), and its actions carry each choice, the item's own action (below) among
+  them where that is the resume: each typed but the handover, which is text, since the identity it takes is the owner's
+  to name, and the abandon carrying `--yes`, since the verb refuses without it and the person's approval of the offer is
+  its confirmation (A14); the slot always passes the slug.
 - **Each item's action** is `arc resume <slug>`; or `arc materialize <slug>` when no checkout on this machine holds the
   work unit; or, when a checkout with no marker, its folder present, still has the work branch out — released, or
   claimed in place before the flip (§ 2.7) — `arc materialize <slug> --here` with that checkout to run in, since a spawn
@@ -2539,6 +2542,9 @@ close.
 20. **A renamed work unit's scratch folder never lands on another (A13).** From the flip a renamed work unit's scratch
     folder follows its current slug only where the folder there is absent or empty; where it holds anything, neither
     moves, and both are reported with their paths as text.
+21. **A review-due pause's choices run as given (A14).** From the flip a review-due `pausedWork` item carries
+    `arc resume <slug>`, `arc pause <slug> --open` where the pause is not open, and `arc abandon <slug> --yes` as typed
+    actions, and `arc handover <slug> --to <identity>` as text.
 
 ## Open Questions
 
@@ -2573,5 +2579,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
 - **A13** — 2026-10-16 — spec-depth: a renamed work unit's scratch folder follows only into an absent or empty one.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ pending → 2.10.
+- **A14** — 2026-10-16 — design: a review-due pause's choices are actions, each typed but the handover. _Supersedes:_
+  § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 
 ---

@@ -20,6 +20,7 @@
 - [A7: where promotion's steps get their checkout](#a7-where-promotions-steps-get-their-checkout)
 - [A10: where `arc status <slug>`'s locus reads land](#a10-where-arc-status-slugs-locus-reads-land)
 - [A11: removing an adopted branch's missing folder](#a11-removing-an-adopted-branchs-missing-folder)
+- [A14: a review-due pause's choices as actions](#a14-a-review-due-pauses-choices-as-actions)
 
 ## Consumer-map re-verification
 
@@ -527,5 +528,29 @@ Such a registration joins the ones that take `git worktree remove <path>` as tex
 ARC-spawned checkout of the adopted branch from one its owner made, so removing it is the owner's call, as for an
 in-flight work unit's. Before the flip the sweep reads no link, so nothing changes there. Teardown's own `git switch`
 text for a missing path is that change's code, captured for an Errand rather than changed here.
+
+## A14: a review-due pause's choices as actions
+
+A14 gives a review-due `pausedWork` item its choices as actions where `spec-seam-locus.md` § 4.3 and § 4.4 gave it a
+prompt alone, as text. § 4.4 read
+
+> A review-due item carries a review prompt, its text precomposed, asking its owner to resume it (`arc resume <slug>`),
+> hand it over (`arc handover <slug> --to <identity>`), open it to takers where it is not open already
+> (`arc pause <slug> --open`), or abandon it (`arc abandon <slug>`), each a command it names in full but the identity a
+> handover takes; the slot always passes the slug.
+
+and § 4.3's row for the item, its form text, gave as its action
+
+> its review prompt: `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open` unless open,
+> and `arc abandon <slug>`
+
+The transition-write-path change, whose pause and verbs the slot reports, expects the prompt's choices — resume, hand
+over, open to takers, abandon — as runnable commands, its text precomposed by the CLI (`spec-seam-lifecycle.md` § 19).
+Three run as given once the slot fills the slug: `arc resume <slug>` clears the pause (`runResumePaused`,
+`lib/work-unit/verbs/pause-handover.ts`), `arc pause <slug> --open` updates it in place, keeping its other fields, and
+`arc abandon <slug> --yes` abandons, where without `--yes` it refuses (`handleStoreAbandon`,
+`handlers/abandon-store.ts`). No slot marks any of them to run unasked, so each is an offer the workflow runs only on
+the person's approval (§ 4.3), and that approval is the abandon's confirmation. The handover takes the identity it hands
+to, which only the owner can name, so it stays text, as a typed action is one runnable as given.
 
 ---
