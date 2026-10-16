@@ -2615,19 +2615,19 @@ this design open.
 - **A4** — 2026-10-16 — spec-depth: lifecycle's in-place arms refuse a checkout another marker occupies, naming its
   exit. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ 2.10.
 - **A5** — 2026-10-16 — task: promotion's receipt carries an inbox origin's digest as the record holds it, `null`
-  included. _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
+  included. _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ 3.10.
 - **A6** — 2026-10-16 — task: promotion reads the Errand it promotes only at placement `active`. _Supersedes:_ none.
-  _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
+  _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ 3.10.
 - **A7** — 2026-10-16 — spec-depth: promotion's steps take their checkout from the runtime once they hold the Errand.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ 3.10.
 - **A8** — 2026-10-16 — task: the Errand handlers open the store over their checkout and pass it to their runtimes.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.3. _Revalidated:_ pending → 3.10.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.3. _Revalidated:_ 3.10.
 - **A9** — 2026-10-16 — task: the in-flight set lists work units through lifecycle's view, which carries their links.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ 3.10.
 - **A10** — 2026-10-16 — design: `arc status <slug>`'s locus reads join lifecycle's store arm. _Supersedes:_ § 3.1 and
-  § 1.2, the status read path. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
+  § 1.2, the status read path. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ 3.10.
 - **A11** — 2026-10-16 — design: an adopted branch's missing-folder registration takes the removal by path.
-  _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ pending → 3.10.
+  _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ 3.10.
 - **A12** — 2026-10-16 — spec-depth: a refused store prepare reports in the session reconcile slot with its remedy.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
 - **A13** — 2026-10-16 — spec-depth: a renamed work unit's scratch folder follows only into an absent or empty one.
@@ -2637,7 +2637,7 @@ this design open.
 - **A15** — 2026-10-16 — spec-depth: a paused work item's marking is one exported function the status surfaces call too.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 - **A16** — 2026-10-16 — design: primary records expose former slugs as read-only aliases. _Supersedes:_ § 3.5,
-  alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.10.
+  alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ 3.10.
 - **A17** — 2026-10-16 — spec-depth: dormant destructive paths use handler success and CLI refusal proof until flip.
   _Supersedes:_ none. _Trigger:_ 2.9 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.6.
 - **A18** — 2026-10-16 — task: include the rename remedy's typed action and doubled force in its E2E assertion.
@@ -2645,7 +2645,7 @@ this design open.
 - **A19** — 2026-10-16 — task: include the dormant handlers in the complete CLI-loading test inventory.
   _Supersedes:_ none. _Trigger:_ 1.13 must-stop. _Work:_ 1.R2. _Revalidated:_ 1.13.
 - **A20** — 2026-10-16 — design: authoritative claim absence is an empty terminal and merge inventory.
-  _Supersedes:_ § 3.2 ¶2; Criterion 5. _Trigger:_ 3.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.10.
+  _Supersedes:_ § 3.2 ¶2; Criterion 5. _Trigger:_ 3.2 must-stop. _Work:_ 3.R2. _Revalidated:_ 3.10.
 - **A21** — 2026-10-16 — design: personal prose stays advisory while managed reference edits batch atomically.
   _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.11.
 

@@ -722,13 +722,15 @@ inject a reference-backend store.
         - Promotion settles the exact marker generation, replacing primary transient occupancy atomically and preserving
           spawned occupancy; Store promotion performs no title-based inbox settlement.
 
-### `[ ]` **3.10 What is in flight** — validate exit criterion at segment scope
+### `[x]` **3.10 What is in flight** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run the exit criterion's scenario over the reference backend and the in-repo implementation, and request
-      `arc check segment`.
+- _Outcome:_ The reference-backend scenarios list active work units and open Errands, including paused and branchless
+  Planning work; versioned runtimes retain completed records and promotion identity. State overlap reports the foreign
+  work item while entry lists report none; former names resolve through lookup. Independent terminal and merge
+  acquisitions admit authoritative claim absence and retain failed-read repairs. The in-repo scenarios retain their
+  existing behavior on the freshly merged base.
 
 ## **Phase 4:** The entry grammar
 
