@@ -29,10 +29,16 @@ import { posix } from "node:path";
 
 import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath, workUnitArtifactName } from "../../store/lifecycle-write.js";
+import type { StoreRefusal } from "../../store/refusal.js";
+import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import { BEGIN_CURRENT_WORKFLOW_SENTINEL } from "../../active/current-workflow-consistency.js";
+import { writeMetaCurrentWorkflow, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
+import { writeMetaDesign } from "../../store/kinds/meta/writers.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The executor capability the design repoint needs — nothing more. */
-export type RepointDesignContext = Pick<ExecuteTransitionContext, "writeDesignField">;
+export type RepointDesignContext = Pick<ExecuteTransitionContext, "writeDesignField" | "store">;
 
 /** The planning moment driving the repoint. */
 export type RepointDesignEvent = "draft-created" | "spec-finalized";
@@ -40,7 +46,7 @@ export type RepointDesignEvent = "draft-created" | "spec-finalized";
 /** The outcome of a {@link runRepointDesign} run. */
 export type RepointDesignResult =
   | { status: "ok"; metaPath: string; design: string }
-  | { status: "rejected"; reason: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal };
 
 /**
  * Repoint the named WU's `Design` for the given planning `event`, resolving the
@@ -54,7 +60,7 @@ export type RepointDesignResult =
  */
 export async function runRepointDesign(
   ctx: RepointDesignContext,
-  params: { name: string; event: RepointDesignEvent; currentDesign: string[] },
+  params: { name: string; event: RepointDesignEvent; currentDesign?: string[] },
 ): Promise<RepointDesignResult> {
   const name = params.name.trim();
   if (name === "") {
@@ -69,20 +75,11 @@ export async function runRepointDesign(
     };
   }
 
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) return repointThroughStore(ctx, name, params.event);
   const placement = { kind: "active", scope: { kind: "project" } } as const;
-  const draftRef = posix.basename(resolveArcPath({
-    kind: "work-unit-artifact",
-    placement,
-    slug: name,
-    artifact: "draft",
-  }));
-  const specRef = posix.basename(resolveArcPath({
-    kind: "work-unit-artifact",
-    placement,
-    slug: name,
-    artifact: "spec",
-  }));
-  const current = params.currentDesign;
+  const draftRef = posix.basename(resolveArcPath({ kind: "work-unit-artifact", placement, slug: name, artifact: "draft" }));
+  const specRef = posix.basename(resolveArcPath({ kind: "work-unit-artifact", placement, slug: name, artifact: "spec" }));
+  const current = params.currentDesign ?? [];
 
   // Repoint swaps the WU's own draft↔spec member for the event's target, preserving
   // order and any layered siblings, then dedups so the field stays authoritative —
@@ -102,4 +99,28 @@ export async function runRepointDesign(
   });
   await ctx.writeDesignField(metaPath, design);
   return { status: "ok", metaPath, design };
+}
+
+async function repointThroughStore(ctx: RepointDesignContext, name: string, event: RepointDesignEvent): Promise<RepointDesignResult> {
+  if (ctx.store === undefined) throw new Error("A prepared store repoint lost its store binding");
+  const read = await readWorkUnit(ctx.store, name);
+  if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
+  const record = read.result;
+  const current = ParsedMetaRecordSchema.parse(record.fields).design;
+  const draft = workUnitArtifactName(record.reference.owner.name, "draft"), spec = workUnitArtifactName(record.reference.owner.name, "spec");
+  const next = repointedDesign(current, draft, spec, event);
+  let content = writeMetaDesign(record.content, next);
+  if (event === "spec-finalized" && ParsedMetaRecordSchema.parse(record.fields).state === "Planning") {
+    content = writeMetaNextAction(writeMetaCurrentWorkflow(content, "generate-tasks"), BEGIN_CURRENT_WORKFLOW_SENTINEL);
+  }
+  const written = await batchLifecycleWrites(ctx.store, [recordPut(record, { content })],
+    { verb: "repoint-design", lifecycleAction: event });
+  return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
+    : { status: "ok", metaPath: workUnitMetaPath(record), design: next.length === 0 ? "[none]" : next.join(", ") };
+}
+
+function repointedDesign(current: readonly string[], draft: string, spec: string, event: RepointDesignEvent): string[] {
+  const target = event === "draft-created" ? draft : spec, superseded = event === "draft-created" ? spec : draft;
+  const swapped = current.map((entry) => entry === superseded ? target : entry);
+  return [...new Set(swapped.includes(target) ? swapped : [...swapped, target])];
 }

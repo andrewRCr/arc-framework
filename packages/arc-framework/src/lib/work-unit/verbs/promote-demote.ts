@@ -28,6 +28,9 @@
 
 import { join, posix } from "node:path";
 
+import { readWorkUnit, usesOffBranchState, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import type { StoreRefusal } from "../../store/refusal.js";
 import { parseMetaRecord } from "../../active/meta-reader.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath, type WorkUnitPlacement } from "../../layout/index.js";
@@ -62,7 +65,7 @@ export interface BacklogMoveParams {
 
 /** The outcome of a `promote` / `demote` attempt — a rejection, or the relocated meta path. */
 export type BacklogMoveResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal }
   | { status: "moved"; outcome: TransitionOutcome; metaPath: string };
 
 function projectBacklogDestination(
@@ -138,6 +141,7 @@ async function pruneEmptySource(
  * @returns A rejection (not a provisional stub, or unresolved Class) or the relocated meta path.
  */
 export async function runPromote(ctx: BacklogMoveContext, params: BacklogMoveParams): Promise<BacklogMoveResult> {
+  if (usesOffBranchState(ctx.executor.store)) return moveBacklogThroughStore(ctx, params, "promote");
   const { name } = params;
   const { executor, fs } = ctx;
 
@@ -190,6 +194,7 @@ export async function runPromote(ctx: BacklogMoveContext, params: BacklogMovePar
  * @returns A rejection (not a planned stub) or the relocated meta path.
  */
 export async function runDemote(ctx: BacklogMoveContext, params: BacklogMoveParams): Promise<BacklogMoveResult> {
+  if (usesOffBranchState(ctx.executor.store)) return moveBacklogThroughStore(ctx, params, "demote");
   const { name } = params;
   const { executor, fs } = ctx;
 
@@ -209,4 +214,32 @@ export async function runDemote(ctx: BacklogMoveContext, params: BacklogMovePara
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
   await pruneEmptySource(executor.cwd, fs, fromDir, "planned");
   return { status: "moved", outcome, metaPath };
+}
+
+async function moveBacklogThroughStore(ctx: BacklogMoveContext, params: BacklogMoveParams,
+  verb: "promote" | "demote"): Promise<BacklogMoveResult> {
+  const store = ctx.executor.store;
+  if (store === undefined) throw new Error("An off-branch backlog move has no store");
+  const read = await readWorkUnit(store, params.name);
+  if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
+  const record = read.result, fields = ParsedMetaRecordSchema.parse(record.fields);
+  const from = verb === "promote" ? "provisional" : "planned";
+  const to = verb === "promote" ? "planned" : "provisional";
+  if (record.placement?.kind !== "backlog" || record.placement.commitment !== from) {
+    return { status: "rejected", reason: `\`${params.name}\` is not a ${from} stub — \`${verb}\` needs one to ${verb === "promote" ? "raise" : "lower"}.` };
+  }
+  const recordedClass = fields.workClass ?? "TBD";
+  if (verb === "promote" && recordedClass !== "TBD" && params.class !== undefined && params.class !== recordedClass) {
+    return { status: "rejected", reason: `--class ${params.class} conflicts with recorded Class ${recordedClass}.` };
+  }
+  const cls = recordedClass === "TBD" ? params.class : recordedClass;
+  const metaPath = workUnitMetaPath(record, { kind: "backlog", commitment: to });
+  const outcome = await executeTransition(ctx.executor, { verb, slug: record.reference.owner.name, inputs: {
+    class: cls ?? "TBD",
+    ...(verb === "promote" && recordedClass === "TBD" && cls !== undefined ? { persistClass: cls } : {}),
+    storeTransition: { primary: record, placement: { kind: "backlog", commitment: to },
+      provenance: { verb, lifecycleAction: `${from}-to-${to}` } },
+  } });
+  return outcome.status !== "ok" ? { status: "rejected", reason: outcome.message, refusal: outcome.status === "rejected" ? outcome.refusal : undefined }
+    : { status: "moved", outcome, metaPath };
 }

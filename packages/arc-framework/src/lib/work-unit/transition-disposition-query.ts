@@ -1,6 +1,7 @@
 /** Dependent-specific projection of lean terminal transition history. */
 
 import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
+import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
 
 /** Closed incoming-edge action derived from one transition record. */
 export type TransitionReconcileDisposition =
@@ -32,6 +33,7 @@ export interface TransitionDispositionQueryPort {
 export function queryTransitionDisposition(
   enumeration: TransitionRecordEnumerationResult,
   input: TransitionDispositionQuery,
+  matchesDependent: (dependent: WorkItemRef) => boolean = (dependent) => dependent.name === input.dependentSlug,
 ): TransitionDispositionQueryResult {
   if (enumeration.status !== "valid") return { status: "namespace-corrupt" };
   const group = enumeration.groups.find(({ origin }) => origin === input.origin);
@@ -48,7 +50,9 @@ export function queryTransitionDisposition(
   if (record.kind === "abandon") {
     return { status: "unique", disposition: { kind: "abandoned" } };
   }
-  const edge = record.incoming.find(({ dependent }) => dependent.name === input.dependentSlug);
+  const edges = record.incoming.filter(({ dependent }) => matchesDependent(dependent));
+  if (edges.length > 1) return { status: "ambiguous" };
+  const edge = edges[0];
   return edge === undefined
     ? { status: "unmapped-dependent" }
     : { status: "unique", disposition: edge.disposition.kind === "drop" ? edge.disposition : {

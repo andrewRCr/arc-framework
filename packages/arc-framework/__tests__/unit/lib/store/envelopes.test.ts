@@ -90,13 +90,13 @@ describe("mutation envelopes", () => {
   });
   it("keeps empty task captures and rejects duplicate commits", () => {
     expect(LinksSchema.safeParse({ landingCommit: { repository: "repo", sha }, taskCaptures: { "1.1": [] } }).success).toBe(true);
-    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ repository: "repo", sha, patchId: sha }, { repository: "repo", sha }] } }).success).toBe(false);
+    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ repository: "repo", sha, copyKey: `v1:${"a".repeat(64)}:${"b".repeat(64)}` }, { repository: "repo", sha }] } }).success).toBe(false);
     expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ repository: "repo", sha }, { repository: "other-repo", sha }] } }).success).toBe(true);
     expect(LinksSchema.safeParse({ landingCommit: { sha } }).success).toBe(false);
     expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ sha }] } }).success).toBe(false);
   });
   it("retains unique repository-qualified branches and rejects duplicate pairs", () => {
-    const branch = {repository:"owner/repo",ref:"chore/original"};
+    const branch = {repository:"owner/repo",ref:"chore/original", linkedAs: "created", excluded: []};
     const branches = [branch,{...branch,ref:"feat/promoted"}];
     expect(LinksSchema.parse({branches})).toEqual({branches});
     expect(LinksSchema.parse({branches:[]})).toEqual({branches:[]});
@@ -236,4 +236,26 @@ describe("refusals and outcomes", () => {
     expect(StoreCapabilitiesSchema.safeParse({ stateOffBranch: true }).success).toBe(true);
     expect(StoreCapabilitiesSchema.safeParse({ stateOffBranch: true, merges: true }).success).toBe(false);
   });
+});
+
+
+describe("branch link and copy identity", () => {
+  const copyKey = `v1:${"a".repeat(64)}:${"b".repeat(64)}`;
+  const branch = { repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] };
+  it.each(["linkedAs", "excluded"])("requires %s on a branch link", (key) => {
+    const value = Object.fromEntries(Object.entries(branch).filter(([name]) => name !== key));
+    expect(LinksSchema.safeParse({ branches: [value] }).success).toBe(false);
+  });
+  it("refuses duplicate repository-qualified exclusions", () => {
+    const capture = { repository: "repo", sha };
+    expect(LinksSchema.safeParse({ branches: [{ ...branch, excluded: [capture, capture] }] }).success).toBe(false);
+  });
+  it("accepts a versioned copy key and refuses the retired patchId", () => {
+    expect(LinksSchema.safeParse({ landingCommit: { repository: "repo", sha, copyKey } }).success).toBe(true);
+    expect(LinksSchema.safeParse({ landingCommit: { repository: "repo", sha, patchId: sha } }).success).toBe(false);
+  });
+  it.each(["bad", `v1:${"a".repeat(40)}:${"b".repeat(64)}`, `v2:${"a".repeat(64)}:${"b".repeat(64)}`])(
+    "refuses malformed copy key %s", (invalid) => {
+      expect(LinksSchema.safeParse({ landingCommit: { repository: "repo", sha, copyKey: invalid } }).success).toBe(false);
+    });
 });

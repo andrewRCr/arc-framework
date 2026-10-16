@@ -224,7 +224,7 @@ function buildCtx(
       worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
-        ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
+        ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch ?? null }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     atomicGraduate: async (graduation) => {

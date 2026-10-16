@@ -67,6 +67,37 @@ describe("auditLinks", () => {
     expect(auditLinks([".arc/a/source.md"], io)).toEqual({ pass: true, diagnostics: [] });
   });
 
+  it("refuses missing indexed sources with repair guidance and keeps auditing other files", () => {
+    const missing = ".arc/a/missing file.md";
+    const present = ".arc/a/source.md";
+    const io = fixtureIo({ [present]: "See [it](gone.md).\n" });
+    const missingIo: LinkAuditIo = {
+      ...io,
+      readFile(path) {
+        if (path === missing) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        return io.readFile(path);
+      },
+    };
+
+    expect(auditLinks([missing, present], missingIo)).toEqual({
+      pass: false,
+      diagnostics: [
+        `${missing}: indexed Markdown file is missing from the working tree; stage its deletion or restore the file`,
+        `${present}:1:5: broken link -> gone.md`,
+      ],
+    });
+  });
+
+  it("preserves permission failures instead of presenting them as missing files", () => {
+    const error = Object.assign(new Error("permission denied"), { code: "EACCES" });
+    const io: LinkAuditIo = {
+      readFile() { throw error; },
+      kind() { return "file"; },
+    };
+
+    expect(() => auditLinks([".arc/a/source.md"], io)).toThrow(error);
+  });
+
   it("reports a link to a missing file at its position", () => {
     const io = fixtureIo({ ".arc/a/source.md": "# Source\n\nSee [it](missing.md).\n" });
     expect(auditLinks([".arc/a/source.md"], io).diagnostics).toEqual([

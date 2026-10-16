@@ -27,7 +27,7 @@ export const CurrentWuReconcileSessionResultSchema = z.strictObject({
       conflicts: z.array(ReferenceTransitionConflictSchema).readonly().optional(),
     }),
     advisories: z.array(ReferenceAdvisorySchema).readonly(),
-    reason: conflictReason.optional(),
+    reason: z.union([conflictReason, z.literal("paused")]).optional(),
     recommendedAction: z.enum(["skip", "surface"]),
     recommendedCommand: z.array(z.string()).readonly().nullable(),
     recommendedPromptText: z.string(),

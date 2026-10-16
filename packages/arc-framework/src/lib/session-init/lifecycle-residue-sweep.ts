@@ -43,7 +43,7 @@ export interface RenameMoveRemedy {
 export interface RenameMoveResidue {
   oldSlug: string;
   newSlug: string;
-  branch: string;
+  branch: string | null;
   head: string;
   from: string;
   to: string;
@@ -113,14 +113,14 @@ export function projectRenameMoveRemedy(
     marker.marker.createdFor?.kind !== "work-unit"
     || marker.marker.createdFor.name !== pending.newSlug
     || marker.marker.wuName !== pending.newSlug
-    || worktree.detached
+    || worktree.detached !== (pending.branch === null)
     || worktree.branch !== pending.branch
     || worktree.head !== pending.head
     || worktree.path !== pending.from
   ) {
     return null;
   }
-  const branchRegistrations = topology.filter((entry) => entry.branch === pending.branch);
+  const branchRegistrations = topology.filter((entry) => pending.branch === null ? entry.path === pending.from : entry.branch === pending.branch);
   if (
     branchRegistrations.length !== 1
     || topology.some((entry) => entry.path === pending.to)

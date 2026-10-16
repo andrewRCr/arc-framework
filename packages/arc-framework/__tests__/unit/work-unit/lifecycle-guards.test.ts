@@ -10,14 +10,12 @@ import { describe, it, expect } from "vitest";
 import {
   buildFootgunGuards,
   hasNameCollision,
-  makeWorktreeCleanGuard,
   makeWorktreeOccupancyGuard,
   nameCollisionGuard,
 } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { GuardContext, TransitionInputs } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { ReaderResult } from "../../../src/lib/active/meta-reader.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { MetaFileCandidate } from "../../../src/commands/active/types.js";
 
 /** A meta body with a given State, for index construction. */
@@ -190,53 +188,10 @@ describe("makeWorktreeOccupancyGuard", () => {
   });
 });
 
-describe("makeWorktreeCleanGuard", () => {
-  /** A git exec whose `status --porcelain` returns `porcelain` (empty ⇒ clean). */
-  function execWithStatus(porcelain: string): GitExec {
-    return async () => ({ stdout: porcelain, stderr: "" });
-  }
-
-  const teardownInputs: TransitionInputs = {
-    worktreeOp: { mutation: "teardown", worktreePath: "/wt-foo", currentLocus: "/repo" },
-  };
-
-  it("passes when the teardown target's worktree is clean", async () => {
-    const guard = makeWorktreeCleanGuard({ exec: execWithStatus("") });
-    expect(await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs))).toEqual({ ok: true });
-  });
-
-  it("rejects when the teardown target's worktree is dirty", async () => {
-    const guard = makeWorktreeCleanGuard({ exec: execWithStatus(" M src/file.ts\n") });
-    const result = await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs));
-    expect(result).toMatchObject({ ok: false });
-    if (result.ok) return;
-    expect(result.message).toMatch(/dirty worktree.*\/wt-foo/i);
-  });
-
-  it("scopes the clean check to the teardown op's worktreePath", async () => {
-    let scopedCwd: string | undefined;
-    const guard = makeWorktreeCleanGuard({
-      exec: async (_cmd, _args, opts) => {
-        scopedCwd = opts?.cwd;
-        return { stdout: "", stderr: "" };
-      },
-    });
-    await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs));
-    expect(scopedCwd).toBe("/wt-foo");
-  });
-
-  it("passes (no worktree to gate) when the edge declares no teardown op", async () => {
-    const guard = makeWorktreeCleanGuard({ exec: execWithStatus(" M dirty\n") });
-    expect(await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", {}))).toEqual({ ok: true });
-  });
-});
-
 describe("buildFootgunGuards", () => {
   it("assembles every foot-gun / IO validator under its guard id", () => {
-    const exec: GitExec = async () => ({ stdout: "", stderr: "" });
-    const guards = buildFootgunGuards({ cwd: "/repo", readActiveMetaCandidates: fakeReader([]), exec });
+    const guards = buildFootgunGuards({ cwd: "/repo", readActiveMetaCandidates: fakeReader([]) });
     expect(guards["name-collision"]).toBe(nameCollisionGuard);
     expect(typeof guards["worktree-occupancy"]).toBe("function");
-    expect(typeof guards["worktree-clean"]).toBe("function");
   });
 });

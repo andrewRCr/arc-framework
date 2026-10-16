@@ -1,6 +1,14 @@
 /** Ambient context, executor binding, and reporting shared by lifecycle command adapters. */
 
 import { readFile, readdir } from "node:fs/promises";
+import type { Remedy } from "../lib/store/refusal.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
+import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
 import * as p from "../lib/terminal.js";
 import { z } from "zod";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -47,6 +55,12 @@ export function materializeActiveMetaPath(cwd: string, slugValue: string): strin
 
 /** The ambient context every verb handler resolves once. */
 export interface VerbBase {
+  /** Locus claim ports passed to the production binder. */
+  locusPorts?: LocusPorts;
+  /** Optional store injection preserved through executor binding. */
+  store?: Store;
+  /** Ephemeral provenance of this exact default instance; replacing it preserves injection. */
+  defaultStoreBinding?: { store: Store; reopen: (cwd: string, exec: GitExec) => Store };
   identity: string;
   cwd: string;
   io: ReturnType<typeof createUserIOContext>;
@@ -76,7 +90,7 @@ export async function resolveVerbBase(context?: InteractionContext, json = false
     }
     try {
       const identity = await resolveUserIdentity(io.exec);
-      return { identity, cwd, io };
+      return bindDefaultVerbStore({ identity, cwd, io });
     } catch {
       refuseWithRemedy(
         "No identity configured.",
@@ -99,7 +113,14 @@ export async function resolveVerbBase(context?: InteractionContext, json = false
   }
   const cwd = requireArcProjectRoot();
   if (!cwd) return null;
-  return { identity, cwd, io };
+  return bindDefaultVerbStore({ identity, cwd, io });
+}
+function openDefaultStore(cwd: string, exec: GitExec): Store {
+  return createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+}
+function bindDefaultVerbStore(base: Pick<VerbBase, "identity" | "cwd" | "io">): VerbBase {
+  const store = openDefaultStore(base.cwd, base.io.exec);
+  return { ...base, store, defaultStoreBinding: { store, reopen: openDefaultStore } };
 }
 
 /**
@@ -109,8 +130,13 @@ export async function resolveVerbBase(context?: InteractionContext, json = false
  */
 export async function buildExecutor(base: VerbBase) {
   const { settings } = await readConfigSettings(base.cwd);
+  const defaultBinding = base.defaultStoreBinding;
+  const reopenStore = defaultBinding?.store === base.store ? defaultBinding?.reopen : undefined;
   const executor = buildExecutorContext({
     cwd: base.cwd,
+    ...(base.locusPorts === undefined ? {} : { locusPorts: base.locusPorts }),
+    ...(base.store === undefined ? {} : { store: base.store }),
+    ...(reopenStore === undefined ? {} : { reopenStore }),
     io: base.io,
     identity: base.identity,
     teamMode: settings["team.mode"] === "true",
@@ -129,7 +155,17 @@ export async function buildExecutor(base: VerbBase) {
  */
 export function reportOutcome(label: string, lines: string[], outcome: TransitionOutcome): void {
   p.note(lines.join("\n"), label);
-  if (outcome.status === "ok") for (const advisory of outcome.advisories) p.log.info(advisory);
+  if (outcome.status === "ok") {
+    for (const advisory of outcome.advisories) p.log.info(advisory);
+    if (outcome.continuation !== undefined) {
+      const pending = outcome.continuation;
+      const command = pending.argv.map((value) => /^[A-Za-z0-9_./:@+-]+$/u.test(value) ? value : quoteShellArgument(value)).join(" ");
+      p.log.warn(`Records saved; physical step \`${pending.step}\` remains: ${pending.reason}\n${command}`);
+      p.outro("Physical continuation required.");
+      process.exitCode = 1;
+      return;
+    }
+  }
   p.outro("Done.");
 }
 
@@ -138,8 +174,11 @@ export function reportOutcome(label: string, lines: string[], outcome: Transitio
  * @param reason - Refusal diagnostic.
  * @returns Nothing.
  */
-export function refuse(reason: string): void {
-  p.log.error(reason);
+export function refuse(reason: string, refusal?: StoreRefusal, remedy?: Remedy): void {
+  const recovery = refusal?.remedy ?? remedy;
+  const details = `${refusal === undefined ? "" : `${refusal.code}: `}${reason}${recovery === undefined ? "" : `\n${recovery.text}`}`;
+  const command = recovery?.argv?.map((value) => /^[A-Za-z0-9_./:@+-]+$/u.test(value) ? value : quoteShellArgument(value)).join(" ");
+  p.log.error(command === undefined ? details : `${details}\n${command}`);
   process.exitCode = 1;
 }
 
@@ -157,14 +196,16 @@ export const LifecycleCommandRefusalSchema = z.strictObject({
  * @param json - Whether to emit the canonical refusal as JSON.
  * @returns Nothing.
  */
-export function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
+export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false): void {
+  const recovery = "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"]);
   if (json) {
-    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy });
+    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery });
     process.stdout.write(`${JSON.stringify(refusal)}\n`);
     process.exitCode = 1;
     return;
   }
-  refuse(`${reason}\n${remedy.text}`);
+  if ("invariant" in remedy) refuse(`${reason}\n${remedy.text}`);
+  else refuse(reason, undefined, remedy);
 }
 
 /**

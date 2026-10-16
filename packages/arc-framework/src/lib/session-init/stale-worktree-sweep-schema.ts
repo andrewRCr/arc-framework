@@ -70,7 +70,7 @@ const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
   }),
 ]);
 const RenameMoveResidueSchema = z.strictObject({
-  oldSlug: z.string(), newSlug: z.string(), branch: z.string(), head: z.string(), from: z.string(), to: z.string(),
+  oldSlug: z.string(), newSlug: z.string(), branch: z.string().nullable(), head: z.string(), from: z.string(), to: z.string(),
   remedy: z.strictObject({
     argv: z.tuple([z.literal("git"), z.literal("worktree"), z.literal("move"), z.string(), z.string()]).readonly(),
     text: z.string(),

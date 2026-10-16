@@ -93,6 +93,7 @@ export async function readRemoteBranchOid(
 export type RenameRemoteBranchResult =
   | { status: "unpublished" }
   | { status: "renamed"; oldOid: string }
+  | { status: "retained"; oldBranch: string; newBranch: string; oldOid: string }
   | { status: "stale"; expectedOid: string; actualOid: string | null };
 
 /** Parameters captured across preflight and the remote rename leg. */
@@ -100,6 +101,8 @@ export interface RenameRemoteBranchParams extends RenameLocalBranchParams {
   remote: string;
   /** Old remote head captured before the local branch rename, or null when unpublished. */
   oldRemoteOid: string | null;
+  /** Adopted old refs remain the person's after the new name is pushed. */
+  keepOld?: boolean;
 }
 
 /**
@@ -117,6 +120,8 @@ export async function reconcileRenameRemoteBranch(
   if (params.oldRemoteOid === null) return { status: "unpublished" };
 
   await ctx.exec("git", ["push", "-u", params.remote, params.newBranch]);
+  if (params.keepOld === true) return { status: "retained", oldBranch: params.oldBranch, newBranch: params.newBranch, oldOid: params.oldRemoteOid };
+  await requirePublishedPreservation(ctx.exec, params);
   const outcome = await deleteRemoteBranch(
     ctx.exec,
     params.remote,
@@ -130,6 +135,18 @@ export async function reconcileRenameRemoteBranch(
     expectedOid: params.oldRemoteOid,
     actualOid: await readRemoteBranchOid(ctx.exec, params.remote, params.oldBranch),
   };
+}
+
+async function requirePublishedPreservation(exec: GitExec, params: RenameRemoteBranchParams): Promise<void> {
+  const published = await readRemoteBranchOid(exec, params.remote, params.newBranch);
+  let preserved = published !== null && published === params.oldRemoteOid;
+  if (!preserved && published !== null) {
+    preserved = await exec("git", ["--no-replace-objects", "merge-base", "--is-ancestor", params.oldRemoteOid ?? "", published],
+      { objectAccess: "local-only" }).then(() => true, () => false);
+  }
+  if (!preserved) throw new Error(`Cannot remove ${params.oldBranch}: its observed head ${params.oldRemoteOid} is not proven preserved by published ${params.newBranch}. `
+    + `Run git fetch ${params.remote} +refs/heads/${params.oldBranch}:refs/remotes/${params.remote}/${params.oldBranch}, `
+    + `merge refs/remotes/${params.remote}/${params.oldBranch} into ${params.newBranch}, then retry the rename.`);
 }
 
 /** Parameters for the branch that carries a backlog-stub rename. */

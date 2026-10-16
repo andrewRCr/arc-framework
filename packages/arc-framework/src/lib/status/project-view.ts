@@ -28,7 +28,7 @@ import {
 } from "../git/in-flight-derivation.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
-import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../work-unit/work-unit-slug.js";
 import {
   buildLifecycleIndexFromRecords,
   collectLifecycleMetaFiles,

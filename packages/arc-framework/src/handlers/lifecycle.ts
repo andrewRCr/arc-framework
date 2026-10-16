@@ -18,7 +18,13 @@
  *
  * @module
  */
+import { handleStoreAbandon } from "./abandon-store.js";
 
+
+import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
+export { handlePause, handleHandover } from "./lifecycle-collaboration.js";
+import { linkedWorkBranch } from "../lib/work-unit/linked-work-branch.js";
+import { taskCommandInputRegistrations } from "./task.js";
 import { basename, join, posix, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 import * as p from "../lib/terminal.js";
@@ -29,7 +35,7 @@ import {
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
 import { prompt } from "../lib/command-input/prompter.js";
-import { parseMetaRecord, readActiveMetaCandidates } from "../lib/active/meta-reader.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
@@ -77,6 +83,7 @@ import {
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
 import { runRenameCommand } from "../commands/rename.js";
+import { reportRenameResult } from "./lifecycle-rename-report.js";
 import { runUserClose } from "../commands/user/close.js";
 import {
   createInRepoParkPlanningLandingContext,
@@ -95,6 +102,15 @@ import {
   runTeardown,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
+import { handleStoreMaterialize } from "./materialize-store.js";
+import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
+import type { Store } from "../lib/store/contract.js";
+import { readLifecycleView } from "../lib/store/lifecycle-view.js";
+import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
+import { runSetClass } from "../lib/work-unit/verbs/set-class.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
@@ -127,21 +143,10 @@ import {
 } from "./lifecycle-shared.js";
 import { permitDeliveryReopen, publishCandidateWithReviewBoundary } from "./lifecycle-delivery-review.js";
 
-/** `meta-<slug>.md` → `<slug>`, or `null` when the filename is not a meta file. */
-function slugFromMetaFilename(filename: string): string | null {
-  return /^meta-(.+)\.md$/u.exec(filename)?.[1] ?? null;
-}
-
-/**
- * The current worktree's WU slug for the context-defaulting fallback — the single
- * active meta's slug, or `null` when zero or more than one resolved (no unambiguous
- * default to act on).
- */
-async function resolveCurrentWuSlug(cwd: string): Promise<string | null> {
-  const { candidates } = await readActiveMetaCandidates(cwd);
-  const [only] = candidates;
-  if (candidates.length !== 1 || only === undefined) return null;
-  return slugFromMetaFilename(only.filename);
+/** Resolve this checkout's identity through the invocation's operational store. */
+async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | null> {
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  return current.status === "resolved" ? current.candidate.reference.owner.name : null;
 }
 
 /**
@@ -161,14 +166,20 @@ export async function resolveVerbTargetOrReport(
   slugArg: string | undefined,
   cwd: string,
   json = false,
+  store?: Store,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
-  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd) : null;
+  const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
 
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
-  if (target.kind === "resolved") return target.slug;
+  if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
-  const index = await buildLifecycleIndex({ cwd, fs: lifecycleFs });
+  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(store) : undefined;
+  if (view?.status === "refused") {
+    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json);
+    return null;
+  }
+  const index = view?.status === "ok" ? view.result.index : await buildLifecycleIndex({ cwd, fs: lifecycleFs });
   const reason = formatVerbCandidates(verb, findVerbCandidates(index, verb));
   if (json) {
     refuseWithRemedy(
@@ -184,6 +195,16 @@ export async function resolveVerbTargetOrReport(
     p.log.error(reason);
     process.exitCode = 1;
   }
+  return null;
+}
+
+/** Canonicalize former slugs while preserving unresolved create-new targets. */
+async function canonicalVerbTarget(slug: string, store: Store | undefined, json: boolean): Promise<string | null> {
+  if (!usesOffBranchState(store) || store === undefined) return slug;
+  const read = await readWorkUnit(store, slug);
+  if (read.status === "ok") return read.result.reference.owner.name;
+  if (read.refusal.code === "not-found") return slug;
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json);
   return null;
 }
 
@@ -326,7 +347,7 @@ export const AbandonCommandInputSchema = OptionalLifecycleTargetSchema.extend({}
 export const ActivateCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   type: z.string().regex(/^[a-z][a-z0-9-]*$/u),
-  task: z.string().trim().min(1),
+  task: z.string().trim().min(1).optional(),
   action: z.string().trim().min(1),
 }).strict();
 export const PublishCommandInputSchema = z.object({
@@ -368,6 +389,7 @@ export const TeardownCommandInputSchema = z.object({
     });
   }
 });
+export const SetClassCommandInputSchema = z.strictObject({ workClass: WorkClassSchema, slug: SlugSchema.optional() });
 export const SetStageCommandInputSchema = z.object({
   stage: z.enum(["draft-design", "create-spec", "generate-tasks"]),
   advance: z.boolean().optional(),
@@ -395,6 +417,8 @@ export const RenameCommandInputSchema = z.object({
 
 /** Registry contributions owned by lifecycle backlog commands. */
 export const lifecycleCommandInputRegistrations = [
+  ...taskCommandInputRegistrations,
+  ...collaborationCommandInputRegistrations,
   {
     commandPath: "stub",
     schema: StubCommandInputSchema,
@@ -472,6 +496,11 @@ export const lifecycleCommandInputRegistrations = [
       "option.husk": "husk",
       "option.force": "force",
     },
+  },
+  {
+    commandPath: "set-class",
+    schema: SetClassCommandInputSchema,
+    schemaFields: { "operand.class": "workClass", "operand.slug": "slug" },
   },
   {
     commandPath: "set-stage",
@@ -638,13 +667,16 @@ export async function handleRename(
   const { slug: renameSource, newSlug: renameTarget } = input;
   const base = await resolveVerbBase(context);
   if (base === null) return;
-  if (base.io.execInput === undefined) {
+  const { executor, settings } = await buildExecutor(base);
+  if (!usesOffBranchState(executor.store) && base.io.execInput === undefined) {
     refuse("remote rename expansion requires stdin-capable Git I/O");
     return;
   }
-  const io = { ...base.io, execInput: base.io.execInput };
-  const { settings } = await readConfigSettings(base.cwd);
+  const io = base.io;
   const result = await runRenameCommand({
+    store: executor.store,
+    projectId: executor.projectId,
+    locusPorts: executor.locusPorts,
     cwd: base.cwd,
     identity: base.identity,
     baseBranch: settings["branch.base"],
@@ -656,55 +688,7 @@ export async function handleRename(
       return Promise.resolve();
     },
   }, { sourceSlug: renameSource, targetSlug: renameTarget });
-  if (result.status !== "renamed") {
-    refuse(result.reason);
-    return;
-  }
-  for (const advisory of result.advisories) p.log.warn(advisory);
-  const lines = [
-    `Work unit: ${renameSource} → ${renameTarget}`,
-    `Shape:     ${result.shape}`,
-  ];
-  if (result.pendingIntegration) {
-    lines.push("Visibility: pending integration of the rename branch");
-  }
-  if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
-  if (result.shape === "in-place") {
-    lines.push("Checkout:  unmanaged; no ownership marker was minted");
-    lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
-  }
-  if (result.worktree !== undefined) {
-    if ("mutation" in result.worktree) {
-      if (result.worktree.mutation !== "move") {
-        lines.push("Worktree:  unchanged; rename returned an unexpected worktree result");
-      } else {
-        const notice = result.worktree.followUpNotice;
-        if (notice !== undefined) {
-          lines.push(`Follow-up:  ${notice}`);
-        } else {
-          lines.push(
-            `Worktree:  ${result.worktree.to}`
-            + (result.worktree.locusHopped ? " (process relocated)" : ""),
-          );
-        }
-      }
-    } else if (result.worktree.status === "already-moved") {
-      lines.push(`Worktree:  unchanged; registered path already carries the new slug: ${result.worktree.worktreePath}`);
-    } else if (result.worktree.status === "unmatched") {
-      lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
-    } else if (result.worktree.status === "deferred-self-move") {
-      lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
-      if (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent") {
-        lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
-      } else {
-        lines.push(`Checkout:  ${result.checkout?.kind ?? "unavailable"}; no move action projected`);
-      }
-    } else {
-      lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
-    }
-  }
-  p.note(lines.join("\n"), "Renamed");
-  p.outro("Done.");
+  reportRenameResult(renameSource, renameTarget, result);
 }
 
 // ---------------------------------------------------------------------------
@@ -723,14 +707,14 @@ async function handleBacklogMove(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport(verb, slug, base.cwd);
+  const target = await resolveVerbTargetOrReport(verb, slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor } = await buildExecutor(base);
   const fs = { readdir: (path: string) => readdir(path), rmdir: (path: string) => rmdir(path) };
   const result = await run({ executor, fs }, { name: target });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   reportOutcome(label, [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
@@ -750,15 +734,12 @@ export async function handlePromote(
   p.intro("arc promote");
   const base = await resolveVerbBase(context);
   if (base === null) return;
-  const target = await resolveVerbTargetOrReport("promote", slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("promote", slug, base.cwd, false, base.store);
   if (target === null) return;
-  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
-  const entry = index.get(target);
-  if (entry === undefined || entry.location !== "provisional") {
-    refuse(`\`${target}\` is not a provisional stub — \`promote\` needs one to raise.`);
-    return;
-  }
-  const recorded = parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD";
+  const { executor } = await buildExecutor(base);
+  const observation = await recordedPromoteClass(base, executor, target);
+  if (observation.status === "rejected") { refuse(observation.reason, observation.refusal); return; }
+  const recorded = observation.workClass;
   let acquiredClass = opts.class;
   if (recorded === "TBD") {
     const answer = await prompt(promoteClassPromptSite, context, {
@@ -780,14 +761,26 @@ export async function handlePromote(
     refuse(`--class ${acquiredClass} conflicts with recorded Class ${recorded}.`);
     return;
   }
-  const { executor } = await buildExecutor(base);
   const fs = { readdir: (path: string) => readdir(path), rmdir: (path: string) => rmdir(path) };
   const result = await runPromote({ executor, fs }, { name: target, class: acquiredClass });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   reportOutcome("Promoted", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+async function recordedPromoteClass(base: VerbBase, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], target: string)
+  : Promise<{ status: "ok"; workClass: string } | { status: "rejected"; reason: string; refusal?: StoreRefusal }> {
+  if (executor.store !== undefined && usesOffBranchState(executor.store)) {
+    const read = await readWorkUnit(executor.store, target);
+    return read.status === "refused" ? { status: "rejected", reason: read.refusal.condition, refusal: read.refusal }
+      : { status: "ok", workClass: ParsedMetaRecordSchema.parse(read.result.fields).workClass ?? "TBD" };
+  }
+  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
+  const entry = index.get(target);
+  if (entry === undefined) return { status: "rejected", reason: `\`${target}\` is not a provisional stub — \`promote\` needs one to raise.` };
+  return { status: "ok", workClass: parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD" };
 }
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
@@ -829,27 +822,29 @@ export async function handleActivate(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("activate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("activate", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { type, task, action } = input;
 
-  const { executor } = await buildExecutor(base);
+  const { executor, settings } = await buildExecutor(base);
   const result = await runActivate(executor, {
     name: target,
     toBranch: `${type}/${target}`,
+    baseBranch: settings["branch.base"],
     nextTask: task,
     nextAction: action,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   if (result.status === "reconcile-failed") {
     refuse(result.reason);
     return;
   }
-  reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${type}/${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${result.branch ?? `${type}/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []),
+    ...(result.report ?? []), ...(result.remoteDelete === undefined ? [] : [result.remoteDelete.text])], result.outcome);
 }
 
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
@@ -864,18 +859,18 @@ export async function handleDeactivate(slug: string | undefined, context?: Inter
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("deactivate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("deactivate", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
-  const { executor } = await buildExecutor(base);
-  const result = await runDeactivate(executor, { name: target });
+  const { executor, settings } = await buildExecutor(base);
+  const result = await runDeactivate(executor, { name: target, ...(usesOffBranchState(executor.store) ? { baseBranch: settings["branch.base"] } : {}) });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   reportOutcome(
     "Deactivated",
-    [`Work unit: ${target}`, `Branch:    plan/${target}`, `Meta:      ${result.metaPath}`],
+    [`Work unit: ${target}`, `Branch:    ${result.branch ?? `plan/${target}`}`, ...(!usesOffBranchState(executor.store) ? [`Meta:      ${result.metaPath}`] : []), ...(result.report ?? [])],
     result.outcome,
   );
 }
@@ -978,12 +973,16 @@ export async function handlePark(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc park");
-  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
-  if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  if (usesOffBranchState(base.store)) {
+    refuse("arc park is unsupported with store-backed state; use arc pause <slug> --reason <text>, or release its checkout through locus.");
+    return;
+  }
+  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
+  if (input === null) return;
 
-  const target = await resolveVerbTargetOrReport("park", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("park", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   if (input.land !== undefined) {
@@ -1054,6 +1053,7 @@ export async function handlePark(
       executor,
       fs: parkResumeFsSeam(base),
       planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
+      removal: { exec: base.io.exec },
     },
     {
       name: target,
@@ -1108,8 +1108,14 @@ export async function handleResume(
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  const bound = await buildExecutor(base);
+  if (usesOffBranchState(bound.executor.store)) {
+    await handleStoreResume(base, bound.executor, bound.settings["branch.base"], input.slug, { here: input.here });
+    return;
+  }
 
-  const target = await resolveVerbTargetOrReport("resume", input.slug, base.cwd);
+
+  const target = await resolveVerbTargetOrReport("resume", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
@@ -1256,6 +1262,10 @@ export async function handleMaterialize(
   if (base === null) return;
 
   const { executor, settings } = await buildExecutor(base);
+  if (usesOffBranchState(executor.store)) {
+    await handleStoreMaterialize({ name: input.slug, here: input.here }, { ...base, executor }, settings);
+    return;
+  }
   const candidate = await resolveMaterializeCandidate(base, settings, input.slug);
   if (candidate === null) return;
 
@@ -1280,6 +1290,7 @@ export async function handleMaterialize(
       name: candidate.name,
       branch: candidate.branch,
       inPlace: true,
+      ...(usesOffBranchState(executor.store) ? { spawningIdentity: base.identity } : {}),
     });
     if (result.status === "rejected") {
       spinner.stop("Materialize failed.");
@@ -1376,15 +1387,28 @@ export async function handlePublish(
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd, input.json === true);
+  const { executor } = await buildExecutor(base);
+  const bound = { ...base, store: executor.store };
+  const target = await resolvePublicationTarget(bound, "publish", input.slug, input.json === true);
   if (target === null) return;
 
-  await publishCandidateWithReviewBoundary(base, target, input);
+  await publishCandidateWithReviewBoundary(bound, target, input);
 }
 
 // ---------------------------------------------------------------------------
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
+
+/** Resolve publication through the selected work-unit identity before reading its evidence. */
+export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<string | null> {
+  if (!usesOffBranchState(base.store)) return resolveVerbTargetOrReport(verb, slug, base.cwd, json);
+  if (slug !== undefined) return canonicalVerbTarget(slug, base.store, json);
+  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: base.store });
+  if (current.status === "resolved") return current.candidate.reference.owner.name;
+  refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
+    spineRemedy("Publication requires one selected work unit", "Inspect the current work unit", ["arc", "status", "--json"]), json);
+  return null;
+}
 
 /** Options for `arc reopen`. */
 export interface ReopenOptions {
@@ -1400,10 +1424,14 @@ export interface ReopenOptions {
  * than risk reopening a WU whose merge state can't be confirmed. Only a
  * positively-unmerged PR (`false`) clears the guard.
  */
-async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
+async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"]): Promise<boolean | undefined> {
   let branch: string | null;
   try {
-    branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
+    if (base.store !== undefined && usesOffBranchState(base.store)) {
+      const read = await readWorkUnit(base.store, slug);
+      if (read.status === "refused") return undefined;
+      branch = await linkedWorkBranch({ exec: base.io.exec, cwd: base.cwd, projectId: executor.projectId }, read.result);
+    } else branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
   } catch {
     return undefined;
   }
@@ -1446,13 +1474,17 @@ export async function handleReopen(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
-  if (target === null) return;
-
   const { executor, settings } = await buildExecutor(base);
-  if (!await permitDeliveryReopen(base, target, settings)) return;
+  const bound = { ...base, store: executor.store };
+  const target = await resolvePublicationTarget(bound, "reopen", input.slug);
+  if (target === null) return;
+  if (executor.store !== undefined && usesOffBranchState(executor.store)) {
+    const pause = await checkAdvancingPause(executor.store, target);
+    if (pause.status === "rejected") { refuse(pause.reason, pause.refusal, pause.remedy); return; }
+  }
+  if (!await permitDeliveryReopen(bound, target, settings)) return;
 
-  const prMerged = await resolvePrMerged(base, target);
+  const prMerged = await resolvePrMerged(bound, target, executor);
   const result = await runReopen(executor, {
     name: target,
     prMerged,
@@ -1460,7 +1492,7 @@ export async function handleReopen(
     nextTask: input.task,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   reportOutcome("Reopened", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
@@ -1498,13 +1530,18 @@ export async function handleAbandon(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("abandon", slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("abandon", slug, base.cwd, false, base.store);
   if (target === null) return;
 
   // Resolve the source state to compose a truthful impact plan — the cascade legs
   // vary by cell (a backlog stub removes only artifacts; a started WU also tears
   // down its branch and worktree; a parked WU deletes its branch but has none).
   const { executor, settings } = await buildExecutor(base);
+  if (usesOffBranchState(executor.store)) {
+    await handleStoreAbandon(base, executor, target, context.confirmation === "accept", settings["branch.base"]);
+    return;
+  }
+
   const composed = await resolveTransformComposition(base, settings);
   const index = composed.index;
   const state = resolveSlugState(index, target);
@@ -1550,6 +1587,7 @@ export async function handleAbandon(
       retirement,
       transitionWriter: terminalTransitionWriter(base),
       composed,
+      removal: { exec: base.io.exec },
     },
     { name: target, confirmed: true },
   );
@@ -1602,7 +1640,7 @@ export async function handleArchive(
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("archive", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("archive", input.slug, base.cwd, false, base.store);
   if (target === null) return;
 
   const { executor } = await buildExecutor(base);
@@ -1611,7 +1649,8 @@ export async function handleArchive(
     { name: target, prUrl: input.prUrl, completed: input.completed },
   );
   if (result.status === "rejected") {
-    refuse(result.reason);
+    if (result.remedy !== undefined) refuseWithRemedy(result.reason, result.remedy);
+    else refuse(result.reason, result.refusal);
     return;
   }
   for (const warning of result.warnings) p.log.warn(warning);
@@ -1619,6 +1658,9 @@ export async function handleArchive(
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   if (result.nestedParentSwept !== null) {
     lines.push(`Cohort:    ${result.nestedParentSwept} (nested parent — last member shipped)`);
+  }
+  if (result.continuation !== undefined) {
+    p.log.warn(`Workspace close failed (${result.continuation.reason}); run \`arc user close ${target}\`.`);
   }
   reportOutcome("Archived", lines, result.outcome);
 }
@@ -1743,7 +1785,7 @@ export async function handleTeardown(
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
-  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity });
+  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity, cwd: base.cwd });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
@@ -1782,8 +1824,11 @@ export async function handleTeardown(
     return;
   }
 
+  const operational = usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
   const result = await runTeardown(
     {
+      store: operational?.executor.store, execInput: base.io.execInput,
+      projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
       cwd: base.cwd,
       exec,
       indexFs: lifecycleFs,
@@ -1805,11 +1850,11 @@ export async function handleTeardown(
     if (result.huskRefusal !== undefined) {
       refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
     } else {
-      refuse(result.reason);
+      refuse(result.reason, undefined, result.remedy);
     }
     return;
   }
-  if (result.mode === "abandoned") {
+  if (result.mode === "abandoned" && !usesOffBranchState(base.store)) {
     await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: wuName ?? "" });
   }
 
@@ -1839,6 +1884,21 @@ export async function handleTeardown(
  * and (via `runSetStage`) on a non-planning stage. Verb spelling is provisional,
  * pending idiomatic-alignment.
  */
+export async function handleSetClass(workClass: string, slug?: string, context?: InteractionContext): Promise<void> {
+  p.intro("arc set-class");
+  const input = parseLifecycleCommand(SetClassCommandInputSchema, { workClass, slug: slug?.trim() || undefined }, ["set-class"]);
+  if (input === null) return;
+  const base = await resolveVerbBase(context);
+  if (base === null) return;
+  const { executor } = await buildExecutor(base);
+  if (executor.store === undefined) { refuse("The lifecycle executor has no operational store binding."); return; }
+  const result = await runSetClass({ cwd: base.cwd, store: executor.store }, { name: input.slug, workClass: input.workClass });
+  if (result.status === "rejected") { refuse(result.reason, result.refusal); return; }
+  p.note(`Work unit: ${result.name}\nClass: ${result.workClass}`, "Class set");
+  p.outro("Done.");
+}
+
+/** Set the current work unit's planning stage and optional begin pointer. */
 export async function handleSetStage(
   stage: string | undefined,
   opts?: { advance?: boolean },
@@ -1856,16 +1916,19 @@ export async function handleSetStage(
 
   const stageArg = input.stage;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
+  const { executor } = await buildExecutor(base);
+  const current = executor.store !== undefined && usesOffBranchState(executor.store)
+    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
+  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
+    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
   if (slug === null) {
     refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
     return;
   }
 
-  const { executor } = await buildExecutor(base);
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   const lines = [
@@ -1908,13 +1971,16 @@ export async function handleFinalizeStage(
 
   const firePointArg = input.firePoint;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
+  const { executor } = await buildExecutor(base);
+  const current = executor.store !== undefined && usesOffBranchState(executor.store)
+    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
+  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
+    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
   if (slug === null) {
     refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
     return;
   }
 
-  const { executor } = await buildExecutor(base);
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
   // archive / reconcile seams); the production binder always provides it, so a miss
   // is an internal wiring error, not an operator-facing condition.
@@ -1924,11 +1990,11 @@ export async function handleFinalizeStage(
     return;
   }
   const result = await runFinalizeStage(
-    { writeClassField, writeSoftFields },
+    { writeClassField, writeSoftFields, store: executor.store },
     { name: slug, firePoint: firePointArg, workClass: input.class },
   );
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   const lines = [`Work unit:   ${slug}`, `Fire-point:  ${result.firePoint}`];
@@ -1971,23 +2037,26 @@ export async function handleRepointDesign(
 
   const eventArg = input.event;
 
-  const slug = await resolveCurrentWuSlug(base.cwd);
+  const { executor } = await buildExecutor(base);
+  const current = executor.store !== undefined && usesOffBranchState(executor.store)
+    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
+  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
+    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
   if (slug === null) {
     refuse("`arc repoint-design` needs exactly one active work unit to target — none resolved in this worktree.");
     return;
   }
 
-  const metaPath = materializeActiveMetaPath(base.cwd, slug);
-  const currentDesign = parseMetaRecord(await readFile(metaPath, "utf8")).design;
+  const currentDesign = usesOffBranchState(executor.store) ? undefined
+    : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;
 
-  const { executor } = await buildExecutor(base);
   const result = await runRepointDesign(executor, {
     name: slug,
     event: eventArg satisfies RepointDesignEvent,
     currentDesign,
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuse(result.reason, result.refusal);
     return;
   }
   p.note(

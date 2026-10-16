@@ -73,6 +73,8 @@ export type WorktreeRosterResult = z.infer<typeof WorktreeRosterResultSchema>;
 export const RegisteredWorktreeSchema = z.strictObject({
   path: z.string(), head: z.string(), branch: z.string().nullable(),
   detached: z.boolean(), primary: z.boolean(), folderPresent: z.boolean(),
+  /** Absent when unlocked; null for a bare lock, or its reason. */
+  locked: z.string().nullable().optional(),
 });
 /** Registered topology inferred from its runtime wire contract. */
 export type RegisteredWorktree = z.infer<typeof RegisteredWorktreeSchema>;
@@ -257,6 +259,7 @@ export async function scanRegisteredWorktrees(
       detached: worktree.detached,
       primary: index === 0,
       folderPresent: await registeredFolderPresent(worktree.path, lstatPath),
+      ...(worktree.locked === undefined ? {} : { locked: worktree.locked }),
     }))),
   };
 }

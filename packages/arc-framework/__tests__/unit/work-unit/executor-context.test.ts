@@ -349,7 +349,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
     expect(io.exec).toHaveBeenCalledWith("git", ["mv", "a", "b"], { cwd: "/repo" });
   });
 
-  it("honors an explicit per-call cwd over the default — the worktree-clean guard targets the right tree", async () => {
+  it("honors an explicit per-call cwd over the default for worktree operations", async () => {
     const io = fakeIo();
     const ctx = buildExecutorContext({
       cwd: "/repo",
@@ -359,9 +359,7 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
       internalTemplateDir: "/tpl",
     });
 
-    // The `worktree-clean` guard checks `git status` in the *target worktree*; the
-    // default-to-repo pin must not clobber that, or the guard checks the base repo
-    // (a dirty base then wrongly refuses a clean worktree's teardown).
+    // A worktree operation must retain its explicitly selected checkout.
     await ctx.exec!("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--porcelain"], { cwd: "/wt-foo" });

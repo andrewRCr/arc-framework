@@ -68,3 +68,11 @@ describe("teardown selection", () => {
     });
   });
 });
+
+describe("folderless branch selection", () => {
+  it("authorizes exactly the registration whose missing folder held the retiring branch", () => {
+    expect(decide({ marker: { kind: "absent" }, folderPresent: false, expectedBranch: "feat/demo" })).toMatchObject({ kind: "clear", markerGeneration: null });
+    expect(decide({ marker: { kind: "absent" }, folderPresent: false, expectedBranch: "feat/other" })).toMatchObject({ kind: "manual", reason: "markerless" });
+    expect(decide({ marker: { kind: "absent" }, folderPresent: true, expectedBranch: "feat/demo" })).toMatchObject({ kind: "manual", reason: "markerless" });
+  });
+});

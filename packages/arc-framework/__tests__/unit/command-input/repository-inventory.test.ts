@@ -55,6 +55,22 @@ describe("repository command-input inventory", () => {
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ identity: "pause:option.no-waits-on", schemaField: "waitsOn" }),
+      expect.objectContaining({ identity: "pause:option.no-resume-notes", schemaField: "resumeNotes" }),
+      expect.objectContaining({ identity: "pause:option.no-open", schemaField: "open" }),
+      expect.objectContaining({ identity: "handover:option.to", schemaField: "to" }),
+      expect.objectContaining({
+        identity: "task close:operand.ids",
+        schemaField: "ids",
+      }),
+      expect.objectContaining({
+        identity: "task close:option.commit",
+        schemaField: "commit",
+      }),
+      expect.objectContaining({
+        identity: "task defer:operand.id",
+        schemaField: "id",
+      }),
       expect.objectContaining({
         identity: "init:option.name",
         schemaField: "projectName",
@@ -334,12 +350,15 @@ describe("repository command-input inventory", () => {
       "delivery top-remedy",
       "demote",
       "finalize",
+      "handover",
       "integrate checkpoint",
       "integrate merge",
       "materialize",
       "park",
+      "pause",
       "promote",
       "publish",
+      "release commit",
       "rename",
       "reopen",
       "repoint-design",
@@ -351,10 +370,13 @@ describe("repository command-input inventory", () => {
       "review pre-publication",
       "review status",
       "review terminus accept",
+      "set-class",
       "set-stage",
       "start",
       "status",
       "stub",
+      "task close",
+      "task defer",
       "teardown",
       "user reconcile-references",
       "wu reconcile",
@@ -419,9 +441,14 @@ describe("repository command-input inventory", () => {
       "reopen",
       "archive",
       "teardown",
+      "set-class",
       "set-stage",
       "finalize",
       "repoint-design",
+      "pause",
+      "handover",
+      "task close",
+      "task defer",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

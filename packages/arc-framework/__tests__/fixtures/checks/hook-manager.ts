@@ -73,13 +73,16 @@ export async function createHookManagerRepository(
  * @param message - Message that Git passes to the installed validation hook
  * @param environment - Process overrides scoped to the fixture commit
  * @param commitArguments - Native commit mode arguments
- * @returns Git's exit code and captured hook diagnostics
+ * @param options - Fixture process deadline; defaults to 30 seconds
+ * @returns Git's completed exit code and captured hook diagnostics
+ * @throws The native process error when Git times out, is signaled, or cannot start
  */
-export async function commitThroughManager(root: string, message = VALID_MESSAGE, environment: NodeJS.ProcessEnv = {}, commitArguments: string[] = []): Promise<{ exitCode: number; output: string }> {
+export async function commitThroughManager(root: string, message = VALID_MESSAGE, environment: NodeJS.ProcessEnv = {}, commitArguments: string[] = [], options: { timeoutMs?: number } = {}): Promise<{ exitCode: number; output: string }> {
   const result = await execa("git", ["commit", "-m", message, ...commitArguments], {
-    cwd: root, reject: false, timeout: 30_000, env: { ...environmentForGitCwd(root), FORCE_COLOR: undefined, NO_COLOR: "1", LEFTHOOK: undefined, HUSKY: "1", PRE_COMMIT_HOME: join(root, ".git/test-pre-commit-cache"), ...environment },
+    cwd: root, reject: false, timeout: options.timeoutMs ?? 30_000, env: { ...environmentForGitCwd(root), FORCE_COLOR: undefined, NO_COLOR: "1", LEFTHOOK: undefined, HUSKY: "1", PRE_COMMIT_HOME: join(root, ".git/test-pre-commit-cache"), ...environment },
   });
-  return { exitCode: result.exitCode ?? 2, output: result.stdout + result.stderr };
+  if (result.timedOut || result.exitCode === undefined) throw result;
+  return { exitCode: result.exitCode, output: result.stdout + result.stderr };
 }
 
 /**

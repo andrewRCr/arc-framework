@@ -334,6 +334,7 @@ import {
   FrontlineRunCommandError,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
+import { FrontlineAdmissionError } from "../scripts/review-gate/core/frontline-admission-error.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
 import {
   LocalPrepareRequestSchema,
@@ -3013,6 +3014,15 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
   }
 }
 
+function reviewCommandDiagnostics(error: unknown, message: string) {
+  if (error instanceof LocalTargetDerivationError) {
+    return [{ code: "repository-precondition" as const, message, precondition: repositoryPrecondition(error.reason) }];
+  }
+  return error instanceof FrontlineAdmissionError
+    ? [{ code: `frontline-admission-${error.reason}`, message }]
+    : [];
+}
+
 function reviewCommandError(
   mode: ReviewFamilyMode,
   error: unknown,
@@ -3032,13 +3042,7 @@ function reviewCommandError(
         : stableCode !== null && DURABLE_CORRUPTION_CODES.has(stableCode)
           ? "corrupt-state"
           : "unexpected-failure";
-  const diagnostics = error instanceof LocalTargetDerivationError
-    ? [{
-        code: "repository-precondition" as const,
-        message,
-        precondition: repositoryPrecondition(error.reason),
-      }]
-    : [];
+  const diagnostics = reviewCommandDiagnostics(error, message);
   return errorSchema.parse({
     schemaVersion: 1,
     mode,
