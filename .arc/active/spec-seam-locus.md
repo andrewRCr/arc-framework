@@ -1978,20 +1978,22 @@ checkout, and one removal check that decides on its own whether a checkout can b
 - **Branch-gone's candidate action** (`determineCandidateAction`, `lib/session-init/branch-gone-cascade.ts`) maps the
   check's outcomes: `removable` stays removable; `dirty`, `persist-would-refuse`, and `locked` with its folder present
   (`folderPresent`, § 16) make the checkout a switch target, a live checkout the check keeps; and `unobservable` reads
-  `external`. The candidate's proposed actions stay `switch`, `removable`, and `external`
-  (`CascadeCandidateSchema`). A registration whose folder is missing — `missing`, or `locked` with no folder — is
-  never a candidate: the candidate builder (`buildWorktreeCandidate`, `lib/session-init/branch-gone-recovery.ts`) leaves
-  it out and `recovery` reports it in a field beside its outcome, `missingFolders: [{ worktreePath, branch, actions }]`
-  (§ 4.3). A roster entry with no meta, which today short-circuits to `switch` with no read, takes the folder outcome
-  alone, so a main or administrative checkout whose folder is present stays `switch`. The branches the roster represents
-  (`runBranchGoneRecovery`) are built from the roster's entries, folderless registrations included, rather than from the
-  candidates, so a folderless registration's branch stays out of the recent-branch tier, since Git refuses to switch to
-  a branch a registration holds. Its remedy is `git worktree remove <path>` for `missing`, whose registration carries
-  no lock until the projection's own lock lands (§ 16), with `git worktree unlock <path>` first for `locked`, the lock
-  being its owner's, each as text naming its precondition, that the folder is still missing (§ 12.2). Its folder gone,
-  only the registration is left to remove, so the remedy removes that one registration by its path, where
-  `git worktree prune` would drop every stale registration in the repository, and leaves its work unit and branch to
-  their own flows.
+  `external`. The candidate's proposed actions stay `switch`, `removable`, and `external` (`CascadeCandidateSchema`). A
+  registration whose folder the roster reads missing (`folderPresent`) is never a candidate: the candidate builder
+  (`buildWorktreeCandidate`, `lib/session-init/branch-gone-recovery.ts`) leaves it out and `recovery` reports it in a
+  field beside its outcome, `missingFolders: [{ worktreePath, branch, actions }]` (§ 4.3), where the check agrees —
+  `missing`, or `locked` with no folder — any other outcome waiting for the next session start's reading. An entry the
+  roster reads present whose check reads its folder missing reads `external`, since the roster's `lstat` and the check's
+  `stat` disagree on a dangling symlink and on a non-directory at the path. A roster entry with no meta, which today
+  short-circuits to `switch` with no read, takes the folder outcome alone, so a main or administrative checkout whose
+  folder is present stays `switch`. The branches the roster represents (`runBranchGoneRecovery`) are built from the
+  roster's entries, folderless registrations included, rather than from the candidates, so a folderless registration's
+  branch stays out of the recent-branch tier, since Git refuses to switch to a branch a registration holds. Its remedy
+  is `git worktree remove <path>` for `missing`, whose registration carries no lock until the projection's own lock
+  lands (§ 16), with `git worktree unlock <path>` first for `locked`, the lock being its owner's, each as text naming
+  its precondition, that the folder is still missing (§ 12.2). Its folder gone, only the registration is left to remove,
+  so the remedy removes that one registration by its path, where `git worktree prune` would drop every stale
+  registration in the repository, and leaves its work unit and branch to their own flows.
 - **`lib/locus/primary-safety.ts`** decides only whether the primary may host a transient claim, removes no checkout,
   and stays as today.
 
@@ -2284,10 +2286,11 @@ holds until then is stated with it.
   lands, which the frame reads under `archive.cadence: with-integration` to tell an archived work unit awaiting merge
   from a retired one, beside its own landing test for a merge the landing never sees (§ 2.1, § 3.7); the review gate's
   arm from the flip for its reads of the Errand index projection (§ 3.2); the integration checkpoint's for its reads of
-  the composed lifecycle index (§ 3.2); and `arc status <slug>`'s operational-boundary read
-  (`resolveSlugOperationalBoundary`, `handlers/status/lifecycle.ts`), which from the flip reads the boundary through the
-  store wherever the work unit is checked out, so this change gives it no read path, the store arm reporting
-  `integrationBoundary: null` until it does (§ 3.1, A10). The flip waits on it.
+  the composed lifecycle index (§ 3.2); and `arc status <slug>`'s operational-boundary read, which
+  `resolveSlugOperationalBoundary` (`handlers/status/lifecycle.ts`) serves today and which from the flip reads the
+  boundary through the store in the store arm (`handleStoreLifecycleStatus`) wherever the work unit is checked out, so
+  this change gives it no read path, the arm reporting `integrationBoundary: null` until that change reads it (§ 3.1,
+  A10). The flip waits on it.
 - **The projection:** the removal check's projection part, the persist step, and the release slot, each passing until
   filled (§ 5, § 12.1); the empty scratch folder for the checkout's work unit (§ 2.8); its locations and file names
   registered as layout addresses, the inbound list's and the Errand description's among them, which the target

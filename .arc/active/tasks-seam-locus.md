@@ -172,14 +172,18 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           `dirty` and `persist-would-refuse` to today's `uncommitted` block and reporting each other refusal. The
           branched read's `missing`, which only a row the roster reads present reaches, such as one whose path is a
           dangling symlink or whose folder went between the two reads, reports `external`, as branch-gone recovery reads
-          it (1.5.c), so the branched decision admits no `missing`.
+          it (1.5.c), so the branched decision admits no `missing`. On the residue sweep's read, whose candidates'
+          markers the sweep read before it, the check's `missing` — a folder gone since — reports nothing, as a row with
+          no marker reports nothing today, and the registration takes Task 1.7.b's report at the next session start's
+          reading.
         - The sweep's husk read runs the check first and reports `unobservable` and `locked` itself, then passes the
           husk decision (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`) the `clean` flag it takes today, `dirty`
           and `persist-would-refuse` reading as not clean, so its other callers, teardown's detached-husk reads
           (`lib/work-unit/verbs/teardown.ts`, and from the flip `selectStoreRetirementHusk`,
-          `lib/work-unit/store-retirement-husk.ts`), keep their calls unchanged. `missing` never reaches it, since a
-          husk's stamp is in the marker inside its folder, so a registration whose folder is gone takes Task 1.7.b's
-          report.
+          `lib/work-unit/store-retirement-husk.ts`), keep their calls unchanged. `missing` reaches it only where the
+          folder went after its marker was read, since a husk's stamp is in the marker inside its folder; there the husk
+          reports nothing, as the residue sweep's read does, and the registration takes Task 1.7.b's report at the next
+          session start's reading.
         - The sweep's registered schema (`lib/session-init/stale-worktree-sweep-schema.ts`, Task 1.1.b) admits both
           reads' new outcomes beside its producer: the branched and husk decisions' `blocked` reasons gain
           `unobservable` and `locked`.
@@ -189,6 +193,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
             - a checkout Git lists as locked reports `locked` on both reads and grants no removal
             - a dirty checkout blocks as today
             - a branched row whose check reads `missing` reports `external`
+            - a husk or residue row whose check reads `missing` reports nothing
 
     - `[ ]` **1.5.c Branch-gone recovery and its cascade**
 
@@ -1643,9 +1648,11 @@ inject a reference-backend store.
           its registration, clearing a missing folder's registration only for a branch it created (`reportAdopted`,
           `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`).
         - Given no project ID — the port absent, or its read failing — it reports no branched registration whose folder
-          is missing, each waiting for the next session start's reading rather than taking the removal by path, and
-          names the port's failure in its `warnings` (spec § 2.1); a detached one, which reads no link, reports as
-          Task 1.7.b gives it.
+          is missing, and where a registration's `lookup` or placement read refuses with any code but `not-found` it
+          reports that one nothing; each waits for the next session start's reading rather than taking the removal by
+          path, the `warnings` naming the port's failure or the refusal (spec § 2.1). A `not-found` lookup is a branch
+          no work unit links, which takes the removal by path (spec § 12.2); a detached one, which reads no link,
+          reports as Task 1.7.b gives it.
         - It leaves out a branched row whose work unit an abandonment's lineage record retires, which the residue sweep
           reports (3.7.c), so each checkout reports in one sweep, as today.
 
@@ -1659,6 +1666,8 @@ inject a reference-backend store.
               holds
             - with no project ID a branched folderless registration reports nothing and the warnings name the port's
               failure, while a detached one still reports its removal by path
+            - a refused lookup other than `not-found` leaves its registration unreported, the warnings naming the
+              refusal
             - a branched checkout whose work unit was abandoned is not reported here
 
     - `[ ]` **3.7.c The residue sweep's abandonment from the flip**
