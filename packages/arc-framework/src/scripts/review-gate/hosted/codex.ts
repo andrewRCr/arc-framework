@@ -2,6 +2,7 @@
 
 import { captureReviewFindingSourceLabel } from "../core/finding-records.js";
 import type { HostedObservation, HostedReviewObserver } from "./await.js";
+import { parseCodexReviewBody } from "./codex-body.js";
 import {
   HostedGitHubReadError,
   normalizeHostedGitHubReadFailure,
@@ -181,8 +182,20 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
       if (candidateComments.length !== findings.length) {
         return { kind: "terminal-failure", reason: "malformed-provider-finding" };
       }
-      if (findings.length > 0 && review !== undefined) {
-        return { kind: "findings", reviewUrl: review.url, findings };
+      const bodyFindings: Extract<HostedObservation, { kind: "findings" }>["findings"] = [];
+      for (const candidate of [...providerReviews].sort((left, right) =>
+        left.submittedAt.localeCompare(right.submittedAt) || left.id.localeCompare(right.id))) {
+        const parsed = parseCodexReviewBody(candidate, target);
+        if (parsed.kind === "malformed") {
+          return { kind: "terminal-failure", reason: "malformed-provider-finding" };
+        }
+        bodyFindings.push(...parsed.findings.map((item, index) => ({
+          ...item, sourceOrdinal: findings.length + bodyFindings.length + index + 1,
+        })));
+      }
+      const allFindings = [...findings, ...bodyFindings];
+      if (allFindings.length > 0 && review !== undefined) {
+        return { kind: "findings", reviewUrl: review.url, findings: allFindings };
       }
       if (clean !== undefined) return { kind: "clean", reviewUrl: clean.url };
       return { kind: "pending" };
