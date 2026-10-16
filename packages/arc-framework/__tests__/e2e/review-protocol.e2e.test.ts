@@ -523,6 +523,51 @@ describe("built review protocol", () => {
       .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
   });
 
+  it("replays an active frontline admission without waiting for its provider to finish", async () => {
+    const root = await fixture();
+    const target = { kind: "change-set", baseRef: "main",
+      headSha: await git(root, ["rev-parse", "HEAD"]),
+      diffBaseSha: await git(root, ["merge-base", "main", "HEAD"]),
+    };
+    const bin = join(root, ".git", "provider-bin");
+    const started = join(root, ".git", "provider-started");
+    const release = join(root, ".git", "provider-release");
+    const executable = join(bin, "coderabbit");
+    await mkdir(bin);
+    await writeFile(executable, ["#!/bin/sh",
+      'if [ "${1:-}" = "--version" ]; then printf "coderabbit 0.6.5\\n"; exit 0; fi',
+      'printf "started\\n" > "$STARTED_FILE"',
+      'while [ ! -f "$RELEASE_FILE" ]; do sleep 0.1; done',
+      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
+        + "\"reviewedFiles\":[\"reviewed.txt\"]}'", ""].join("\n"));
+    await chmod(executable, 0o755);
+    const request = {
+      schemaVersion: 1, target,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    };
+    const ready = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    const running = runArcWithStdin(["review", "frontline", "run", "-"], root,
+      JSON.stringify({ schemaVersion: 1, target, resolution: ready, timeoutMs: 30_000 }), {
+        env: { PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`, STARTED_FILE: started, RELEASE_FILE: release },
+      });
+    try {
+      await expect.poll(async () => access(started).then(() => true, () => false), { timeout: 10_000 }).toBe(true);
+      await expect(invoke(root, ["review", "frontline", "resolve", "-"], {
+        ...request, invocation: { mode: "skip" },
+      })).resolves.toMatchObject({ state: "ready", payload: ready.payload });
+    } finally {
+      await writeFile(release, "release\n");
+      await running;
+    }
+    expect(envelope(await running)).toMatchObject({ state: "clean", nextAction: "none" });
+  }, 60_000);
+
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
     const headSha = await git(root, ["rev-parse", "HEAD"]);

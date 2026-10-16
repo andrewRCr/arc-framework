@@ -364,9 +364,8 @@ async function readFrontlineOwnerForResolution(
   }
   const pendingOwner = current.state;
   if (pendingOwner === null) throw new Error("frontline pending admission has no lane owner");
-  const withdrawn = await dependencies.withLaneOperationLock(pendingAdmission.operationId, () =>
-    withdrawUnrunFrontlineAdmission(dependencies.operationStore, pendingOwner, current.version,
-      pendingAdmission, dependencies.now()));
+  const withdrawn = await withdrawUnrunFrontlineAdmission(dependencies.operationStore, pendingOwner, current.version,
+    pendingAdmission, dependencies.now(), (operationId, action) => dependencies.withLaneOperationLock(operationId, action));
   return withdrawn === null ? { ...current, replay } : { ...withdrawn, replay: null };
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { AdvisoryLockTimeoutError } from "../../../../../src/lib/advisory-lock.js";
 
 import { createReviewTarget } from
   "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -171,6 +172,40 @@ async function recordCompletedPass(
 }
 
 describe("frontline workflow command", () => {
+  it.each([
+    ["already-started", "skip"], ["already-started", "move"],
+    ["starts-during-lock-wait", "skip"], ["starts-during-lock-wait", "move"],
+  ] as const)("replays a %s admission on %s despite a contended provider lock", async (timing, intent) => {
+    const store = operationStore();
+    const deps = { ...dependencies(store), resolveLineage: async () => headBoundLineage };
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const first = await resolveFrontlineCommand(request, deps);
+    const admission = first.payload.admission;
+    if (admission === undefined) throw new Error("expected admission");
+    const start = () => persistFrontlineRunPending(store, { admission, expectedVersion: 0, updatedAt: deps.now() });
+    if (timing === "already-started") await start();
+    const ownerBefore = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    });
+    const resolved = await resolveFrontlineCommand({ ...request,
+      ...(intent === "skip" ? { invocation: { mode: "skip" } } : { target: movedTarget }),
+    }, {
+      ...deps,
+      withLaneOperationLock: async (id, action) => {
+        if (id !== admission.operationId) return action();
+        if (timing === "starts-during-lock-wait") await start();
+        throw new AdvisoryLockTimeoutError("/fixture/provider.lock", 10_000);
+      },
+    });
+    expect(resolved).toMatchObject({ state: "ready", payload: { admission } });
+    expect(await store.readOperation(admission.operationId)).toMatchObject({ version: 1,
+      state: { kind: "frontline-run", outcome: "pending" } });
+    expect(await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    })).toEqual(ownerBefore);
+  });
+
   it.each(["candidate", "errand"] as const)("withdraws a never-started %s admission on explicit skip", async (kind) => {
     const store = operationStore();
     const ownerLineage = kind === "candidate" ? lineage : headBoundLineage;
@@ -191,6 +226,34 @@ describe("frontline workflow command", () => {
       expect(next.state).toBe("ready");
       expect(next.payload.admission?.operationId).not.toBe(first.payload.admission?.operationId);
     }
+  });
+
+  it.each(["unstarted", "release", "other"] as const)("retains the %s lock failure without discarding an admission", async (kind) => {
+    const store = operationStore();
+    const deps = { ...dependencies(store), resolveLineage: async () => headBoundLineage };
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const first = await resolveFrontlineCommand(request, deps);
+    const admission = first.payload.admission;
+    if (admission === undefined) throw new Error("expected admission");
+    const failure = kind === "other" ? new Error("lock storage unavailable")
+      : new AdvisoryLockTimeoutError("/fixture/provider.lock", 10_000, kind === "release" ? "release" : "acquire");
+    const ownerBefore = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    });
+    await expect(resolveFrontlineCommand({ ...request, invocation: { mode: "skip" } }, {
+      ...deps,
+      withLaneOperationLock: async (id, action) => {
+        if (id !== admission.operationId) return action();
+        if (kind !== "unstarted") {
+          await persistFrontlineRunPending(store, { admission, expectedVersion: 0, updatedAt: deps.now() });
+        }
+        throw failure;
+      },
+    })).rejects.toBe(failure);
+    expect(await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    })).toEqual(ownerBefore);
   });
 
   it("supersedes a never-started admission when the exact Errand target moves", async () => {
