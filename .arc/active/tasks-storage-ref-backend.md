@@ -412,33 +412,14 @@ lands exactly as specified.
 
 _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both layouts.
 
-### `[ ]` **5.1 Serialization rules — § 5.6, § 14.4**
+### `[x]` **5.1 Serialization rules — § 5.6, § 14.4**
 
 - _Goal:_ One pure function refuses content that would wedge a push, leak a secret, or break canonical JSON, the same at
   every write and in the import's build, naming the first broken rule.
 
-- _Note:_ A rename's new slug of 2,041 bytes, and the names a 2,040-byte slug or key forms through an Errand's close, a
-  cohort's close, and a companion's rename, are cases of 6.1, 6.5, and 6.6, which build those operations.
-
-    - `checkSerializationRules(reference, content)` in `lib/store/`, exported from its index, reading only its arguments
-      and the kind registry's mechanisms, and expanding stored paths through 3.2's expansion and the size cap through
-      3.3.e's constant; rules in the table's order; the ref backend calls it on each put at step 1 and again at step 5 on
-      bytes the backend changed
-    - Unit tier for the function, and integration tier for `write` and `batch` here; the import's build calls it in 14.1
-    - Build `test-first` (one behavior at a time):
-        - `store.text-only`: a NUL in the first 8,000 bytes refuses, and one past it does not
-        - `store.size-cap`: a projected record over 1,048,576 UTF-8 bytes refuses, and a Candidate record over it writes
-          and lists
-        - `store.env-file`: `.env`, `x.env`, and `.env.local` refuse, and `.env.example` stores
-        - `store.private-key`: a PEM private-key block and the four key file names refuse, and a header with no
-          matching end line stores
-        - `store.git-path`: `scratch/.git/`, `.GIT/`, `.git./`, `GIT~1/`, `.git` with an HFS+ ignorable code point,
-          `.gitmodules`, `GITMOD~1`, `.gitattributes`, `.GitAttributes`, and `GITATT~1` at any depth, as a file or a
-          folder, refuse, while `notes.git` and `.github/` store
-        - `store.git-path`: a component of a personal document's path over 4,096 bytes, and an `id` key and a slug of
-          2,041 bytes refuse, while a 4,096-byte component and 2,040-byte slugs and keys store
-        - `store.json`: non-JSON content and JSON holding a lone surrogate refuse for a never-projected kind
-        - each refuses at `write` and at `batch` with `record-malformed` naming the rule
+- _Outcome:_ Exported pure `checkSerializationRules` with ordered byte, secret, Git-path, and canonical JSON
+  admission. The ref writer checks puts before resolution and changed bytes before storage; public write/batch tests
+  retain atomic refusal, repaired retries, and large never-projected records.
 
 ### `[ ]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
 

@@ -11,6 +11,7 @@ import { withRefLocks } from "./write-locks.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { readRefTips } from "./batch-read.js";
 import type { ResolvedBatch } from "./write-resolution.js";
+import { checkSerializationRules } from "../serialization.js";
 
 /** Describe invalid mutation content without changing any state. */
 export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -37,6 +38,11 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
     const mutation = input.writes[0];
     if (!mutation) throw parsed.error;
     return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
+  }
+  for (const mutation of parsed.data.writes) {
+    if (mutation.action !== "put") continue;
+    const refusal = checkSerializationRules(mutation.reference, mutation.content);
+    if (refusal) return { status: "refused", refusal };
   }
   try {
     return await executeRefBatch(context, parsed.data, randomUUID());

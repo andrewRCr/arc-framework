@@ -12,6 +12,7 @@ import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { RecordReference } from "../identity.js";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
+import { checkSerializationRules } from "../serialization.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -34,7 +35,9 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   for (const write of resolved.writes) {
     const group = groups.get(write.home.ref);
     if (!group) throw new Error("A resolved mutation has no captured ref group");
-    results.push(await applyMutation(context, group, write));
+    const applied = await applyMutation(context, group, write);
+    if (applied.status === "refused") return applied;
+    results.push(applied.result);
   }
   const changes: RefChange[] = [];
   const identity = await context.identity();
@@ -67,18 +70,22 @@ function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, Ref
   });
 }
 
-async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<WriteResult> {
+async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<StoreResult<WriteResult>> {
   const { mutation, home } = write;
   const { kind, key } = mutation.reference;
   const formatKey = canonicalize({ kind, ...(key === undefined ? {} : { key }) });
   if (mutation.action === "remove") {
     group.entries.delete(home.path);
     group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([key]) => key !== formatKey));
-    return { reference: mutation.reference, conflicts: [] };
+    return { status: "ok", result: { reference: mutation.reference, conflicts: [] } };
   }
   const formatVersion = context.registry[mutation.reference.kind].formatVersion;
   const content = context.registry[mutation.reference.kind].projection === "never"
     ? canonicalize(JSON.parse(mutation.content)) : mutation.content;
+  if (content !== mutation.content) {
+    const refusal = checkSerializationRules(mutation.reference, content);
+    if (refusal) return { status: "refused", refusal };
+  }
   const oid = await writeRefBlob(context, content);
   group.entries.set(home.path, { path: home.path, mode: "100644", oid });
   group.metadata.formats[formatKey] = formatVersion;
@@ -86,7 +93,7 @@ async function applyMutation(context: RefBackendContext, group: RefGroup, write:
     const links = mutation.links ?? group.metadata.primary?.links;
     group.metadata.primary = { role: kind, placement: mutation.placement, ...(links === undefined ? {} : { links }) };
   }
-  return { reference: mutation.reference, conflicts: [], version: refRecordVersion(mutation.reference, oid, group.metadata, formatVersion) };
+  return { status: "ok", result: { reference: mutation.reference, conflicts: [], version: refRecordVersion(mutation.reference, oid, group.metadata, formatVersion) } };
 }
 
 async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<Map<string, RefGroup>>> {
