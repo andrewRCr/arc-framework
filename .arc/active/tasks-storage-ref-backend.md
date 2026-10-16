@@ -283,17 +283,10 @@ default layout.
           paths; lineage owners come from the registry's UID map and typed conflict targets. Owner-form mismatches and
           invalid, reserved, derived, or machine-local keys remain exact-path diagnostics beside valid records.
 
-    - `[ ]` **3.3.c The metadata file**
-        - `RefMetadata` as § 3.3 gives it, `lineage` among it, parsed strictly and read through `canonicalize`: a file
-          at another `formatVersion` or with an unknown field does not parse, which § 3.3's missing-or-unparseable rule
-          covers
-        - Each `formats` key is the canonical JSON of the record's kind and key, so an object key, an adversarial pass's,
-          reads back whole and a rename leaves it; a record absent from `formats` is at the initial format version
-        - Build `test-first` (one behavior at a time):
-            - a record missing from `formats` reads the initial version, and one listed there reads its own
-            - a ref whose primary was removed, its placement, role, and links kept in `primary`, reads its other records
-              with that placement
-            - a lineage record lists under the owner slug the registry's metadata names for its UID
+    - `[x]` **3.3.c The metadata file**
+        - Strict canonical metadata parsing refuses unsupported versions and unknown fields with a forward repair route.
+          Composite format keys survive renames; unlisted records use the initial version. Retained primary facts place
+          surviving records, and registry metadata names each lineage origin by UID.
 
     - `[ ]` **3.3.d Record versions**
         - `canonicalDigest` over the content's blob id and the record's own metadata: for a primary, its role, slug,

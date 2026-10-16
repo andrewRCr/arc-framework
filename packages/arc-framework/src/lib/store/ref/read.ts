@@ -7,7 +7,8 @@ import { expandStoredPath } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { decodeRecord, decodeReference, lineageOwner, matchesFamilyRef, parseRefMetadata, refOwner, rootFamily } from "./codec.js";
+import { decodeRecord, decodeReference, lineageOwner, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
+import { parseRefMetadata, metadataFailure } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 
@@ -35,6 +36,8 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const object = objects.get(recordQuery);
   if (object?.type !== "blob") return missing(reference);
   const metadata = parseRefMetadata(objects.get(metadataQuery));
+  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: home.ref, ...metadataFailure(home.ref) } };
   const family = context.registry[reference.kind].family;
   const owner = family === "lineage" ? lineageOwner(metadata, reference.owner.type === "work-item" ? reference.owner.uid : undefined)
     : refOwner(home.ref, family, metadata);
@@ -55,10 +58,13 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   const groups = [...trees].map(([ref, entries]) => decodeCapturedRef(context, input, ref, entries, objects));
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
+  if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
+    condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
+    remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
   return { status: "ok", result: { status: "complete", records, diagnostics, missed: diagnostics.length > 0 } };
 }
 
-interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[] }
+interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true }
 
 function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
   entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): DecodedRecords {
@@ -68,6 +74,8 @@ function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: st
   const home = expandStoredPath(prototype, { registry: context.registry });
   const metadataEntry = entries.find((entry) => entry.path === home.metadataPath);
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null);
+  if (!metadata) return { records, unreadable: true,
+    diagnostics: [{ kind: "unreadable", key: ref, ...metadataFailure(ref) }] };
   const owner = refOwner(ref, input.family, metadata);
   for (const entry of entries) {
     if (entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath)) continue;

@@ -1,11 +1,8 @@
 /** Decode captured state tree entries using registered record homes. */
 
-import { z } from "zod";
 import { FAMILY_REGISTRY, type KindDefinition } from "../registry.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
-import { WritePlacementSchema } from "../placement.js";
-import { LinksSchema } from "../links.js";
 import { canonicalDigest, canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { FamilyId } from "../catalog.js";
@@ -13,17 +10,7 @@ import type { RefBackendContext } from "./context.js";
 import type { BatchObject } from "./batch-read.js";
 import { conflictTarget } from "./conflicts-read.js";
 import { pathOwnerMismatch, storedKeyProblem } from "./path-admission.js";
-
-/** Metadata accompanying decoded state records. */
-export const RefMetadataSchema = z.object({
-  formatVersion: z.literal(1), slug: z.string().optional(), formerSlugs: z.array(z.string()).optional(),
-  primary: z.object({ role: z.enum(["work-item/meta", "work-item/record"]), placement: WritePlacementSchema,
-    links: LinksSchema.optional() }).optional(),
-  placement: WritePlacementSchema.optional(), lineage: z.record(z.string(), z.string()).optional(),
-  endBatch: z.string().optional(), batch: z.string().optional(), formats: z.record(z.string(), z.number().int().positive()),
-});
-/** Decoded ref metadata. */
-export type RefMetadata = z.infer<typeof RefMetadataSchema>;
+import type { RefMetadata } from "./metadata.js";
 
 /** Resolve the top-level family that owns a ref, including shared subtrees. */
 export function rootFamily(family: FamilyId): FamilyId {
@@ -37,12 +24,6 @@ export function matchesFamilyRef(ref: string, family: FamilyId): boolean {
   if (!placement || !("pattern" in placement)) return false;
   const expression = escapeRegex(placement.pattern).replace("<uid>", "[0-9a-f-]{36}").replace("<id>", "[a-z0-9]+(?:-[a-z0-9]+)*");
   return new RegExp(`^${expression}$`, "u").test(ref);
-}
-
-/** Read canonical metadata through the schema used by record decoding. */
-export function parseRefMetadata(object: BatchObject | null | undefined): RefMetadata {
-  if (object?.type !== "blob") throw new Error("Missing ref metadata");
-  return RefMetadataSchema.parse(JSON.parse(canonicalize(JSON.parse(new TextDecoder().decode(object.bytes)))));
 }
 
 /** Construct the ref's logical owner once its metadata supplies its current slug. */
