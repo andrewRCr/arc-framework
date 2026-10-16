@@ -287,15 +287,14 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Outcome:_ The complete inventory includes all five new handler modules, so both lazy-loading assertions and the
   import-time registration scan cover them. Completion evidence is rewrapped without changing its meaning.
 
-### `[ ]` **1.13 Before the flip** — validate exit criterion at segment scope
+### `[x]` **1.13 Before the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run `arc status --session-init --json`, `arc locus --json`, `arc active roster --json`, and
-      `arc active in-flight --json` in the exit criterion's scenarios against the merged base's output, confirm each
-      difference traces to a § 1.4 item, and request `arc check segment`.
-    - Confirm `eslint-suppressions.json` gained no entry.
+- _Outcome:_ Against fresh base `c45c3e908`, session-init and the three locus queries on the envelope fixtures differ
+  only by § 1.4's slot actions and empty slots, folder presence, and missing-folder lists. The original scenarios and
+  surrounding locus and personal-surface suites close with Task 1.R's corrected assertion; no suppression entry or count
+  increased. `notes-seam-locus.md` records the comparison evidence and Task 1.R2's complete handler inventory.
 
 ## **Phase 2:** Locus from the marker and the store
 
