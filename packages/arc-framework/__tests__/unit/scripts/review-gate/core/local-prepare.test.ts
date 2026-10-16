@@ -203,6 +203,7 @@ describe("local prepare incremental reviewer instructions", () => {
     expect(instructions).toMatch(/do not re-review them/u);
     expect(instructions).not.toContain(`${basisHeadSha}..`);
     expect(instructions).toContain("No earlier material finding requires re-examination.");
+    expect(instructions).not.toMatch(/elsewhere in the complete change set/u);
   });
 
   it("keeps every carried material finding in scope at its original locus", async () => {
@@ -214,5 +215,15 @@ describe("local prepare incremental reviewer instructions", () => {
     expect(instructions).toContain("local-complete / finding-1 at src/a.ts:10");
     expect(instructions).toContain("local-predecessor / finding-2 at src/b.ts:20");
     expect(instructions).toMatch(/original loci, including loci outside the changed lines/u);
+  });
+
+  it("asks the pass to look for each carried finding's defect elsewhere in the complete change set", async () => {
+    const { instructions } = await preparedInstructions([
+      { producerId: "local-complete", findingId: "finding-1", locus: "src/a.ts:10" },
+    ]);
+
+    expect(instructions).toMatch(
+      /whether the defect each describes recurs elsewhere in the complete change set, beyond this pass's range/u,
+    );
   });
 });
