@@ -103,6 +103,84 @@ it.each(["untracked", "commit", "unobservable"] as const)("preserves %s work und
   expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "graduated" });
 }, TIMEOUT_MS);
 
+it("preserves a detached commit made before graduation observes its fresh checkout and retries after owner repair", async () => {
+  const h = await fixture();
+  const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" },
+    { kind: "backlog", commitment: "planned" });
+  const batch = h.store.batch.bind(h.store);
+  let inject = true, tip: string | undefined;
+  const exec: GitExec = async (command, args, options) => {
+    const result = await h.exec(command, args, options);
+    if (inject && command === "git" && args[0] === "worktree" && args[1] === "add") {
+      await writeFile(join(h.path, "owner-work"), "preserve this committed work\n");
+      await h.exec("git", ["add", "owner-work"], { cwd: h.path });
+      await h.exec("git", ["commit", "-m", "owner work"], { cwd: h.path });
+      tip = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout;
+    }
+    return result;
+  };
+  h.store.batch = async () => ({ status: "refused", refusal: { code: "version-conflict", class: "recoverable",
+    condition: "Moved concurrently", records: [meta.reference], remedy: { text: "Retry start" } } });
+  expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "rejected",
+    recovery: { kind: "rollback", repair: expect.stringMatching(/owner.*preserve/isu), retryAfterRepair: [["arc", "start", "demo"]] } });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(tip);
+  expect(await readFile(join(h.path, "owner-work"), "utf8")).toBe("preserve this committed work\n");
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.path);
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(meta);
+  await h.exec("git", ["branch", "recovered-owner", tip!.trim()]);
+  inject = false; h.store.batch = batch; await h.repair();
+  expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "graduated" });
+  expect((await h.exec("git", ["rev-parse", "recovered-owner"])).stdout).toBe(tip);
+}, TIMEOUT_MS);
+
+it.each(["created", "existing"] as const)("preserves a %s branch advanced before the first spawned checkout observation", async (branchMode) => {
+  const h = await fixture();
+  if (branchMode === "existing") {
+    await h.exec("git", ["switch", "-c", "feat/demo"]);
+    await h.exec("git", ["commit", "--allow-empty", "-m", "existing branch work"]);
+    await h.exec("git", ["switch", "main"]);
+    await h.exec("git", ["tag", "feat/demo", "main"]);
+  }
+  let inject = true, tip: string | undefined;
+  const exec: GitExec = async (command, args, options) => {
+    const result = await h.exec(command, args, options);
+    if (inject && command === "git" && args[0] === "worktree" && args[1] === "add") {
+      await writeFile(join(h.path, "owner-work"), "preserve this committed work\n");
+      await h.exec("git", ["add", "owner-work"], { cwd: h.path });
+      await h.exec("git", ["commit", "-m", "owner work"], { cwd: h.path });
+      tip = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout;
+    }
+    return result;
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo" });
+  const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, createBranch: branchMode === "created",
+    base: "main", locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+  const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
+  await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" }))
+    .rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(tip);
+  expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
+  expect(await readFile(join(h.path, "owner-work"), "utf8")).toBe("preserve this committed work\n");
+  inject = false; await h.repair();
+  expect(await reconcileWorkUnitWorktree(ctx, { ...op, createBranch: false })).toMatchObject({ mutation: "spawn", branch: "feat/demo" });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(tip);
+}, TIMEOUT_MS);
+
+it("pins a fresh detached checkout to its selected base before the base branch advances", async () => {
+  const h = await fixture();
+  await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
+  const selected = (await h.exec("git", ["rev-parse", "HEAD"])).stdout;
+  const exec: GitExec = async (command, args, options) => {
+    if (command === "git" && args[0] === "worktree" && args[1] === "add") {
+      await h.exec("git", ["commit", "--allow-empty", "-m", "base advanced"]);
+    }
+    return h.exec(command, args, options);
+  };
+  expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "graduated" });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(selected);
+  expect((await h.exec("git", ["rev-parse", "main"])).stdout).not.toBe(selected);
+}, TIMEOUT_MS);
+
 it("preserves new work under an unchanged create-new claim and creates after owner repair", async () => {
   const h = await fixture(); await h.configure();
   const batch = h.store.batch.bind(h.store);

@@ -39,7 +39,7 @@
  */
 
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
-import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, readSpawnedCheckoutCoordinate, removeDisposableSpawn,
+import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
   type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -465,8 +465,15 @@ export async function reconcileWorkUnitWorktree(
     // a relative template against the repo root once, here, so every downstream consumer
     // gets an absolute path; an already-absolute template needs no root and passes through.
     if (!op.detached && op.branch === undefined) throw new Error("branched worktree placement requires a branch");
+    let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
+    if (offBranch) {
+      const ref = op.detached || op.createBranch !== false ? op.base : `refs/heads/${op.branch}`;
+      const head = (await ctx.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { objectAccess: "local-only" })).stdout.trim();
+      if (head === "") throw new Error("Cannot resolve the initial spawned checkout commit; retry after repairing its source ref.");
+      spawnCoordinate = { head, branch: op.detached ? null : `refs/heads/${op.branch}` };
+    }
     const placement = { locationTemplate: op.locationTemplate, primaryWorktreePath: op.primaryWorktreePath,
-      repo: op.repo, placementName: op.wuName, base: op.base };
+      repo: op.repo, placementName: op.wuName, base: spawnCoordinate?.head ?? op.base };
     const creation = await createLinkedWorktree({
       exec: ctx.exec, pathExists: (path) => ctx.fs.pathExists(path),
       ...(offBranch ? { clearMissingRegistration: async (request: { targetPath: string; branch?: string }) => {
@@ -483,10 +490,9 @@ export async function reconcileWorkUnitWorktree(
     if (creation.kind === "error") throw creation.error;
     const { worktreePath } = creation.receipt;
     let markerGeneration: Buffer | undefined;
-    let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
     try {
-      if (offBranch) spawnCoordinate = await readSpawnedCheckoutCoordinate(ctx.exec, worktreePath);
       if (offBranch) markerGeneration = await claimSpawnedWorktree(worktreePath, op);
+      if (spawnCoordinate !== undefined) await requireSpawnedCheckoutCoordinate(ctx.exec, worktreePath, spawnCoordinate);
       const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath, markerGeneration });
       return {
         mutation: "spawn",

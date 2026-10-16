@@ -5,7 +5,7 @@ import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createWorktreeMarkerGeneration, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
   resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
 
-/** Code position observed immediately after Git creates the checkout, before provisioning. */
+/** Authorized initial commit and symbolic branch selected before Git creates the checkout. */
 export interface SpawnedCheckoutCoordinate { head: string; branch: string | null }
 
 /** Observe the exact commit and symbolic branch; an unreadable checkout grants no cleanup authority. */
@@ -52,12 +52,12 @@ export async function removeDisposableSpawn(options: {
     throw new Error(`Spawn rollback at ${path} lacks its initial claim or code position; preserve it for owner inspection.`);
   }
   await requireSpawnedWorktreeClaim(path, markerGeneration);
-  await requireUnchangedCoordinate(exec, path, coordinate);
+  await requireSpawnedCheckoutCoordinate(exec, path, coordinate);
   const removed = await removeWorktreeMarkerGeneration(path, markerGeneration);
   if (removed.kind !== "removed") throw new Error(`Spawn rollback at ${path} lost its marker generation; preserve it for owner inspection.`);
   try {
     // Reobserve immediately before Git's own dirty-file check. External Git writers can still race this boundary.
-    await requireUnchangedCoordinate(exec, path, coordinate);
+    await requireSpawnedCheckoutCoordinate(exec, path, coordinate);
     await exec("git", ["worktree", "remove", path]);
   } catch (error) {
     await restoreSpawnClaim(path, markerGeneration);
@@ -73,8 +73,8 @@ export async function removeDisposableSpawn(options: {
   }
 }
 
-async function requireUnchangedCoordinate(exec: GitExec, path: string, expected?: SpawnedCheckoutCoordinate): Promise<void> {
-  if (expected === undefined) throw new Error(`Spawn rollback at ${path} has no initial code position; preserve it for owner inspection.`);
+/** Refuse changed checkout state rather than adopting its first observation as disposal authority. */
+export async function requireSpawnedCheckoutCoordinate(exec: GitExec, path: string, expected: SpawnedCheckoutCoordinate): Promise<void> {
   const actual = await readSpawnedCheckoutCoordinate(exec, path);
   if (actual.head !== expected.head || actual.branch !== expected.branch) {
     throw new Error(`Spawn rollback at ${path} observed changed HEAD or branch; preserve the checkout and its commits for owner inspection.`);
