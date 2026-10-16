@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "review-sibling-sweep",
+  "claimId": "37cb8afd1d09a190ac32c2aa4d124fa0",
+  "createdAt": "2026-10-16T05:01:42.902Z",
+  "updatedAt": "2026-10-16T05:01:42.902Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Have review triage and incremental review passes search the whole target for other instances of each confirmed defect, so an approved fix covers the defect class rather than one call site",
+  "branch": "chore/review-sibling-sweep",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
