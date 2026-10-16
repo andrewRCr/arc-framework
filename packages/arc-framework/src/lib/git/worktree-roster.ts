@@ -79,6 +79,8 @@ export interface RegisteredWorktree {
   detached: boolean;
   /** Whether this is Git's primary worktree (the first porcelain stanza). */
   primary: boolean;
+  /** Absent when unlocked; null for a bare lock, or its reason. */
+  locked?: string | null;
 }
 
 /** Result of reading registered worktree topology. */
@@ -253,6 +255,7 @@ export async function scanRegisteredWorktrees(exec: GitExec): Promise<Registered
       branch: worktree.branch,
       detached: worktree.detached,
       primary: index === 0,
+      ...(worktree.locked === undefined ? {} : { locked: worktree.locked }),
     })),
   };
 }

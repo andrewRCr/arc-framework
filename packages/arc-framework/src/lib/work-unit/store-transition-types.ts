@@ -1,0 +1,44 @@
+/** Caller-provided record bases and recoverable Git steps around lifecycle batches. */
+import type { Mutation } from "../store/write.js";
+import type { StoreRecord } from "../store/read.js";
+import type { WritePlacement } from "../store/placement.js";
+import type { CallerProvenance, Links } from "../store/links.js";
+
+/** One idempotent operation with its undo and executable continuation. */
+export interface LifecycleGitStep {
+  name: string;
+  run: () => Promise<void>;
+  rollback?: () => Promise<void>;
+  retryCommand: readonly string[];
+}
+
+/** A persisted transition whose physical Git continuation remains unfinished. */
+export interface LifecycleGitContinuation {
+  kind: "git-step";
+  step: string;
+  reason: string;
+  argv: readonly string[];
+}
+
+/** Failed preparatory inverses require inspection and owner repair before the original verb retries. */
+export interface LifecycleRollbackRecovery {
+  kind: "rollback";
+  failures: readonly { step: string; reason: string }[];
+  inspect: readonly (readonly string[])[];
+  repair: string;
+  retryAfterRepair: readonly (readonly string[])[];
+}
+
+/** Writes the verb prepares in addition to the executor-owned state and workflow fields. */
+export interface StoreTransitionInputs {
+  primary?: StoreRecord;
+  create?: Extract<Mutation, { action: "put" }>;
+  content?: string;
+  placement?: WritePlacement;
+  links?: Links;
+  additionalWrites?: Mutation[];
+  /** Acquired inputs whose exact versions must still hold immediately before the batch. */
+  preparedRecords?: readonly StoreRecord[];
+  provenance?: CallerProvenance;
+  gitSteps?: LifecycleGitStep[];
+}

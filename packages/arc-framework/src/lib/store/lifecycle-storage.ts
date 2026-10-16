@@ -26,7 +26,8 @@ export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot:
     return { version, fs: snapshotFs(input, version, entries) };
   } };
 }
-function requireCompleteInventory(store: Store, listing: LifecycleIndexOutcome): void {
+/** Refuse a write-driving inventory unless every lifecycle record was observed. */
+export function requireCompleteInventory(store: Store, listing: LifecycleIndexOutcome): void {
   if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${listing.remedy.text}`, "store.lifecycle-unreadable");
   if (listing.status !== "complete" || (!listing.missed && listing.diagnostics.length === 0)) return;
   const diagnostics = listing.diagnostics.filter((item) => store.capabilities.stateOffBranch
@@ -55,13 +56,14 @@ function placementOf(entry: LifecycleEntry): WorkUnitPlacement {
   if (!("sequence" in value)) throw new ArcError("A completed work-unit record has no archive sequence", "store.lifecycle-placement");
   return { kind: "completed", quarter: value.quarter, sequence: value.sequence };
 }
-function artifactPath(entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string {
+/** Project a diagnostic path for a lifecycle record without reading through that path. */
+export function lifecycleArtifactPath(entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string {
   return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: entry.reference.owner.name, placement: placementOf(entry) });
 }
 const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: "work-item/spec", tasks: "work-item/task-list", notes: "work-item/notes" } as const;
 function snapshotFs(input: { store: Store; checkoutRoot: string }, version: StateVersion, entries: readonly LifecycleEntry[]): ProjectViewFs {
   const bySlug = new Map(entries.map((entry) => [entry.reference.owner.name, entry]));
-  const directories = projectedDirectories(entries.map((entry) => artifactPath(entry, "meta")));
+  const directories = projectedDirectories(entries.map((entry) => lifecycleArtifactPath(entry, "meta")));
   return {
     readdir: (path) => {
       const directory = directories.get(repositoryPath(input.checkoutRoot, path));
@@ -72,7 +74,7 @@ function snapshotFs(input: { store: Store; checkoutRoot: string }, version: Stat
       const projected = repositoryPath(input.checkoutRoot, path);
       const identified = identifyWorkUnitArtifactPath(projected);
       const entry = identified === null ? undefined : bySlug.get(identified.slug);
-      if (identified === null || entry === undefined || artifactPath(entry, identified.artifact) !== projected) throw missing(path);
+      if (identified === null || entry === undefined || lifecycleArtifactPath(entry, identified.artifact) !== projected) throw missing(path);
       const reference = RecordReferenceSchema.parse({ kind: artifactKinds[identified.artifact], owner: entry.reference.owner });
       const read = await input.store.read({ reference, asOf: version });
       if (read.status === "refused" && read.refusal.code === "not-found") throw missing(path);

@@ -115,7 +115,7 @@ describe("metadata cohort references", () => {
   it("refuses a closed cohort", async () => {
     const input = metaRuleInput(cohort("parent"));
     input.after = ruleView([StoreRecordSchema.parse({ ...cohortDocument("parent"),
-      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } })]);
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
   });
   it("refuses an unreadable named document", async () => {
@@ -149,4 +149,9 @@ describe("metadata cohort references", () => {
   it("admits integrity fields without readable prior values", async () => {
     expect(await checkMetaCohort(metaRuleInput(cohort("missing"), "# Broken\n"))).toEqual([]);
   });
+});
+
+it("refuses a new unresolved pause waits-on slug", async () => {
+  const next = content.replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `missing`\n\n---\n");
+  expect(await checkMetaDependsOn(metaRuleInput(next))).toMatchObject([{ rule: "meta.depends-on" }]);
 });

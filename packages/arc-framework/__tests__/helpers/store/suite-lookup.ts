@@ -54,43 +54,45 @@ export function registerLookupAssertions(context: SuiteContext): void {
     const slug = SlugSchema.parse(claimKind === "errand" ? record.reference.owner.name : String(record.reference.key));
     expect(success(await fixture.store.lookup({ kind: "claim", claim: { kind: claimKind, slug, claimId: "1".repeat(32) } })).reference).toEqual(record.reference);
   });
-  assertion(context, "work-item", "commit-exact-SHA-before-patch-ID-and-all-task-captures", async (fixture) => {
+  assertion(context, "work-item", "commit-exact-SHA-before-copy-key-and-all-task-captures", async (fixture) => {
     const repository = "repo";
-    const sha = "a".repeat(40), reapplied = "b".repeat(40), patchId = "c".repeat(40), landing = "d".repeat(40);
+    const sha = "a".repeat(40), reapplied = "b".repeat(40), copyKey = `v1:${"c".repeat(64)}:${"f".repeat(64)}`, landing = "d".repeat(40);
     const record = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, {
-      branches: [{ repository, ref: "feat/example" }], landingCommit: { repository, sha: landing },
-      taskCaptures: { "1.1": [{ repository, sha, patchId }], "1.2": [{ repository, sha, patchId }], "1.3": [{ repository, sha: reapplied, patchId }] },
+      branches: [{ repository, ref: "feat/example", linkedAs: "created", excluded: [] }], landingCommit: { repository, sha: landing },
+      taskCaptures: { "1.1": [{ repository, sha, copyKey }], "1.2": [{ repository, sha, copyKey }], "1.3": [{ repository, sha: reapplied, copyKey }] },
     });
-    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha, patchId }))).toEqual({ reference: record.reference, taskIds: ["1.1", "1.2"] });
-    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: reapplied, patchId }))).toEqual({ reference: record.reference, taskIds: ["1.3"] });
-    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: "e".repeat(40), patchId }))).toEqual({ reference: record.reference, taskIds: ["1.1", "1.2", "1.3"] });
+    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha, copyKey }))).toEqual({ reference: record.reference, taskIds: ["1.1", "1.2"] });
+    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: reapplied, copyKey }))).toEqual({ reference: record.reference, taskIds: ["1.3"] });
+    expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: "e".repeat(40), copyKey }))).toEqual({ reference: record.reference, taskIds: ["1.1", "1.2", "1.3"] });
     expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: landing }))).toEqual({ reference: record.reference, taskIds: [] });
+    expect(await fixture.store.lookup({ kind: "commit", repository, sha: "e".repeat(40),
+      copyKey: `v1:${"0".repeat(64)}:${"1".repeat(64)}` })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await fixture.store.lookup({ kind: "ref", repository, ref: "feat/example" })).reference).toEqual(record.reference);
     expect(await fixture.store.lookup({ kind: "commit", repository: "wrong-repo", sha })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
   assertion(context, "work-item", "commit-captures-independent-repository-and-optional-link-removal", async (fixture) => {
     const repository = "repo", other = "other-repo";
-    const sha = "a".repeat(40), patchId = "b".repeat(40), landing = "c".repeat(40), missing = "d".repeat(40);
+    const sha = "a".repeat(40), copyKey = `v1:${"b".repeat(64)}:${"f".repeat(64)}`, landing = "c".repeat(40), missing = "d".repeat(40);
     const links = LinksSchema.parse({ landingCommit: { repository, sha: landing }, taskCaptures: {
-      "1.1": [{ repository, sha, patchId }], "1.2": [{ repository, sha: missing, patchId }],
-      "2.1": [{ repository: other, sha, patchId }],
+      "1.1": [{ repository, sha, copyKey }], "1.2": [{ repository, sha: missing, copyKey }],
+      "2.1": [{ repository: other, sha, copyKey }],
     } });
     let record = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, links);
     const check = async () => {
-      expect(success(await fixture.store.lookup({ kind: "commit", repository, sha, patchId })))
+      expect(success(await fixture.store.lookup({ kind: "commit", repository, sha, copyKey })))
         .toEqual({ reference: record.reference, taskIds: ["1.1"] });
-      expect(success(await fixture.store.lookup({ kind: "commit", repository: other, sha, patchId })))
+      expect(success(await fixture.store.lookup({ kind: "commit", repository: other, sha, copyKey })))
         .toEqual({ reference: record.reference, taskIds: ["2.1"] });
-      expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: "e".repeat(40), patchId })))
+      expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: "e".repeat(40), copyKey })))
         .toEqual({ reference: record.reference, taskIds: ["1.1", "1.2"] });
       expect(success(await fixture.store.lookup({ kind: "commit", repository, sha: landing })))
         .toEqual({ reference: record.reference, taskIds: [] });
-      expect(await fixture.store.lookup({ kind: "commit", repository: "wrong-repo", sha, patchId }))
+      expect(await fixture.store.lookup({ kind: "commit", repository: "wrong-repo", sha, copyKey }))
         .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     };
     await check();
     success(await fixture.store.write({ ...update(fixture, record), links: { ...links,
-      branches: [{ repository: "unrelated-repo", ref: "feat/optional" }], changeRequest: { repository: "unrelated-repo", number: 1 } } }));
+      branches: [{ repository: "unrelated-repo", ref: "feat/optional", linkedAs: "created" as const, excluded: [] }], changeRequest: { repository: "unrelated-repo", number: 1 } } }));
     record = success(await fixture.store.read({ reference: record.reference }));
     await check();
     success(await fixture.store.write({ ...update(fixture, record), links }));

@@ -24,10 +24,8 @@ import type {
 } from "../../../../src/lib/work-unit/transition-record-enumeration.js";
 import type { TransitionDispositionQueryResult } from "../../../../src/lib/work-unit/transition-disposition-query.js";
 import {
-  dischargeDepEdges,
   planDependencyReconcile,
   runCurrentWuReconcile,
-  type DischargeDepEdgesContext,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 
 /** Valid metadata for the surviving dependency verdict and planning cases. */
@@ -80,93 +78,53 @@ function renameEnumeration(
   };
 }
 
-/**
- * Build a discharge context over an index of one dependent plus dependencies in
- * the named states, with an in-memory meta read/write keyed on path.
- */
-function buildCtx(dependsOn: string[]): { ctx: DischargeDepEdgesContext; writes: string[] } {
-  const metas = [
-    { path: DEPENDENT_PATH, content: meta("Active", dependsOn) },
-    { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
-    { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
-    { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
-    { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
-    { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
-  ];
-  const files = new Map(metas.map((m) => [m.path, m.content]));
-  const writes: string[] = [];
-
-  const ctx: DischargeDepEdgesContext = {
-    index: buildLifecycleIndexFromMetas(metas),
-    readMeta: (path) => {
-      const content = files.get(path);
-      return content === undefined ? Promise.reject(new Error(`ENOENT: ${path}`)) : Promise.resolve(content);
-    },
-    writeMeta: (path, content) => {
-      files.set(path, content);
-      writes.push(content);
-      return Promise.resolve();
-    },
-  };
-
-  return { ctx, writes };
+/** Build the production planner input for the readiness verdict. */
+function readinessPlan(edges: string[]) {
+  return planDependencyReconcile({
+    index: buildLifecycleIndexFromMetas([
+      { path: DEPENDENT_PATH, content: meta("Active", edges) },
+      { path: ".arc/completed/2026-q2/01_shipped-dep/meta-shipped-dep.md", content: meta("Shipped") },
+      { path: ".arc/active/meta-integrating-dep.md", content: meta("Integrating") },
+      { path: ".arc/active/meta-active-dep.md", content: meta("Active") },
+      { path: ".arc/backlog/planned/planned-dep/meta-planned-dep.md", content: meta("Planning") },
+      { path: ".arc/backlog/planned/parked-dep/meta-parked-dep.md", content: meta("Active") },
+    ]),
+    dependentSlug: "dependent",
+    edges,
+    queryDisposition: async () => ({ status: "absent" }),
+  });
 }
 
-describe("dischargeDepEdges — the readiness verdict (shipped ∨ integrating)", () => {
-  it("discharges a shipped (landed) dependency off the gate", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["shipped-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    // The gate is rewritten to the live set only.
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+describe("dependency reconcile readiness verdict", () => {
+  it.each(["shipped-dep", "integrating-dep"])("discharges a satisfied %s and keeps live edges", async (dependency) => {
+    const result = await readinessPlan([dependency, "active-dep"]);
+    expect(result.status).toBe("ready");
+    expect(result.dependency.discharged).toEqual([dependency]);
+    expect(result.dependency.after).toEqual(["active-dep"]);
+    expect(result.dependency.live).toEqual(["active-dep"]);
   });
 
-  it("discharges an integrating dependency too (the team-review-latency case)", async () => {
-    const { ctx, writes } = buildCtx(["integrating-dep", "active-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep"]);
-    expect(result.live).toEqual(["active-dep"]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("active-dep");
+  it("clears the gate when every edge is satisfied", async () => {
+    const result = await readinessPlan(["shipped-dep", "integrating-dep"]);
+    expect(result.dependency.discharged).toEqual(["integrating-dep", "shipped-dep"]);
+    expect(result.dependency.after).toEqual([]);
+    expect(result.dependency.live).toEqual([]);
   });
 
-  it("clears the gate to [none] when every edge is satisfied", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "integrating-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual(["integrating-dep", "shipped-dep"]);
-    expect(result.live).toEqual([]);
-    expect(parseMetaProjectionRecord(writes[0]!)["Depends On"]).toBe("[none]");
-  });
-});
-
-describe("dischargeDepEdges — live edges stay", () => {
-  it("leaves an only-planning/active dependency on the gate, writing nothing", async () => {
-    const { ctx, writes } = buildCtx(["active-dep", "parked-dep", "planned-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result.discharged).toEqual([]);
-    expect(result.live).toEqual(["active-dep", "parked-dep", "planned-dep"]);
-    // Nothing satisfied → no meta rewrite.
-    expect(writes).toEqual([]);
+  it("keeps planning and active dependencies live", async () => {
+    const edges = ["active-dep", "parked-dep", "planned-dep"];
+    const result = await readinessPlan(edges);
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(edges);
+    expect(result.dependency.live).toEqual(edges);
   });
 
-  it("returns a non-overlapping conservative projection when any edge conflicts", async () => {
-    const { ctx, writes } = buildCtx(["shipped-dep", "missing-dep"]);
-
-    const result = await dischargeDepEdges(ctx, { slug: "dependent", metaPath: DEPENDENT_PATH });
-
-    expect(result).toEqual({
-      discharged: [],
-      live: ["missing-dep", "shipped-dep"],
-    });
-    expect(writes).toEqual([]);
+  it("keeps every edge live and discharges none when any edge conflicts", async () => {
+    const result = await readinessPlan(["shipped-dep", "missing-dep"]);
+    expect(result.status).toBe("conflict");
+    expect(result.dependency.discharged).toEqual([]);
+    expect(result.dependency.after).toEqual(["missing-dep", "shipped-dep"]);
+    expect(result.dependency.live).toEqual(["missing-dep", "shipped-dep"]);
   });
 });
 

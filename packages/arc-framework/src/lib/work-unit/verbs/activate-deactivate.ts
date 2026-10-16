@@ -27,6 +27,10 @@
  * @module
  */
 
+import type { RawGitExec } from "../../git/exec.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { runStoreActivate, runStoreDeactivate } from "./activate-deactivate-store.js";
 import { join } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
@@ -43,28 +47,36 @@ import type {
   CurrentWuReconcileResult,
 } from "../side-effects/discharge-dep-edges.js";
 
+/** Git copy-key boundary supplied alongside the transition executor. */
+export type DeactivateContext = ExecuteTransitionContext & { execRaw?: RawGitExec };
+/** Activation also carries one prepared dependent-owned reconcile. */
+export type ActivateContext = DeactivateContext & CurrentWuReconcileHost;
+
 /** The judgment + orientation inputs an `activate` supplies. */
 export interface ActivateParams {
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
   name: string;
   /** The working branch to rotate `plan/<name>` onto — caller judgment (`<type>/<name>`), never fabricated. */
   toBranch: string;
+  /** Configured base, which activation must never rename. */
+  baseBranch: string;
   /** The first task to orient on — the `Next Task` `input` the activate edge requires. */
-  nextTask: string;
+  nextTask?: string;
   /** The next-action pointer — the `Next Action` `input` the activate edge requires. */
   nextAction: string;
 }
 
 /** The inputs a `deactivate` supplies. */
 export interface DeactivateParams {
+  baseBranch?: string;
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
   name: string;
 }
 
 /** The outcome of an `activate` attempt — a rejection, or the activated meta path. */
 export type ActivateResult =
-  | { status: "rejected"; reason: string }
-  | { status: "activated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
+  | { status: "activated"; outcome: TransitionOutcome; metaPath: string; reconcile: CurrentWuReconcileResult; branch?: string; report?: string[]; remoteDelete?: { text: string; argv?: string[] } }
   | {
       status: "reconcile-failed";
       reason: string;
@@ -74,8 +86,8 @@ export type ActivateResult =
 
 /** The outcome of a `deactivate` attempt — a rejection, or the de-activated meta path. */
 export type DeactivateResult =
-  | { status: "rejected"; reason: string }
-  | { status: "deactivated"; outcome: TransitionOutcome; metaPath: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy }
+  | { status: "deactivated"; outcome: TransitionOutcome; metaPath: string; branch?: string; report?: string[] };
 
 /**
  * Run `activate`: rotate the `plan/<name>` branch onto the caller-supplied working
@@ -89,10 +101,12 @@ export type DeactivateResult =
  * @returns A rejection (wrong source, or executor failure) or the activated meta path.
  */
 export async function runActivate(
-  ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
+  ctx: ActivateContext,
   params: ActivateParams,
 ): Promise<ActivateResult> {
+  if (usesOffBranchState(ctx.store)) return runStoreActivate(ctx, params);
   const { name, toBranch, nextTask, nextAction } = params;
+  if (nextTask === undefined) return { status: "rejected", reason: "Activation requires --task; supply the first task before activating." };
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
@@ -117,6 +131,10 @@ export async function runActivate(
   const branch = record.branch;
   if (branch === null || branch.trim() === "") {
     return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to activate.` };
+  }
+  if (branch === params.baseBranch) {
+    return { status: "rejected", reason: `Cannot activate \`${name}\` while its Branch names base \`${branch}\`. `
+      + `Run \`git switch -c ${toBranch}\`, set the meta's \`Branch\` to \`${toBranch}\`, then run \`arc activate\`.` };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
@@ -159,9 +177,10 @@ export async function runActivate(
  * @returns A rejection (not active, or executor failure) or the de-activated meta path.
  */
 export async function runDeactivate(
-  ctx: ExecuteTransitionContext,
+  ctx: DeactivateContext,
   params: DeactivateParams,
 ): Promise<DeactivateResult> {
+  if (usesOffBranchState(ctx.store)) return runStoreDeactivate(ctx, params);
   const { name } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {

@@ -18,6 +18,11 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import type { LocusPorts } from "../work-unit/locus-ports.js";
+import { usesOffBranchState, batchLifecycleWrites } from "../store/lifecycle-write.js";
+import { OwnerIdentitySchema, recordReferences } from "../store/identity.js";
+import { renderMetaFile as renderStoreMeta } from "../store/kinds/meta/writers.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../active/meta-reader.js";
@@ -54,6 +59,9 @@ const DEFAULT_NEXT_ACTION = BEGIN_CURRENT_WORKFLOW_SENTINEL;
 
 /** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  locusPorts?: LocusPorts;
   writeEditorDocuments?: EditorDocumentsWriter;
   /** I/O context carrying the git executor and filesystem ops (also handed to the SESSION-NOTES seed). */
   io: UserIOContext;
@@ -71,7 +79,7 @@ export interface ScaffoldWorktreeParams {
   /** Target worktree root — already created (by spawn, a tool, or a manual `git worktree add`). */
   worktreePath: string;
   /** Branch the worktree is on — the meta `Branch` value. */
-  branch: string;
+  branch: string | null;
   /** Work-unit name — drives the meta filename, H1, and user subdir. */
   wuName: string;
   /** Identity owning the WU — meta `Owner`, the marker, and the user subdir. */
@@ -88,8 +96,6 @@ export interface ScaffoldWorktreeParams {
   lastCompleted?: string;
   /** Parsed external reference (issue / URL) → meta `Origin`. Cold-start spec-input. */
   origin?: string;
-  /** Parsed ARC-owned artifact (spec / plan-doc) → meta `Design`. Cold-start spec-input. */
-  design?: string;
   /** Whether ARC created the worktree (gates the ownership marker); defaults to `true`. */
   createdByArc?: boolean;
   /** Optional richer SESSION-NOTES seed for ceremony-created worktrees. */
@@ -111,9 +117,8 @@ export interface ScaffoldWorktreeParams {
  *
  * The marker is gated by `createdByArc` (default `true`): a spawn writes it, a
  * cold-start into an externally-created worktree passes `false` and no marker
- * lands (cleanup stays advisory). `origin` / `design`, when supplied, populate
- * the meta's `Origin` / `Design` fields from parsed spec input; absent fields
- * render at their declared defaults.
+ * lands (cleanup stays advisory). `origin`, when supplied, populates the meta's
+ * `Origin` from an issue reference. Other fields render at their defaults.
  *
  * @param ctx - I/O context and template directory.
  * @param params - Target worktree root, branch, and scaffold inputs.
@@ -123,6 +128,21 @@ export async function scaffoldIntoWorktree(
   params: ScaffoldWorktreeParams,
 ): Promise<void> {
   const slug = SlugSchema.parse(params.wuName);
+  if (usesOffBranchState(ctx.store) && ctx.store !== undefined) {
+    const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+    const content = renderStoreMeta(slug, {
+      state: MetaRecordSchema.shape.state.parse(params.initialState ?? "Planning"), owner: params.spawningIdentity,
+      currentWorkflow: (params.initialState ?? "Planning") === "Planning" ? PLANNING_ENTRY_STAGE : null,
+      nextAction: params.nextAction ?? DEFAULT_NEXT_ACTION,
+      ...(params.origin === undefined ? {} : { origin: params.origin }),
+      ...(params.lastCompleted === undefined ? {} : { lastCompleted: params.lastCompleted }),
+    });
+    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } }], { verb: "start", lifecycleAction: "create" });
+    if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
+    await writeWorktreeOwnershipMarker(params.worktreePath, { createdByArc: params.createdByArc ?? true,
+      createdFor: { kind: "work-unit", name: params.wuName }, spawningIdentity: params.spawningIdentity, now: params.now });
+    return;
+  }
   const activeDir = materializeArcPath(
     params.worktreePath,
     resolveArcPath({ kind: "placement-root", tier: "active" }),
@@ -148,7 +168,6 @@ export async function scaffoldIntoWorktree(
   };
   if (params.lastCompleted !== undefined) overrides.lastCompleted = params.lastCompleted;
   if (params.origin !== undefined) overrides.origin = params.origin;
-  if (params.design !== undefined) overrides.design = [params.design];
 
   await ctx.io.writeFile(
     metaPath,

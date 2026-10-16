@@ -20,6 +20,12 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { readWorkUnit, usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { recordReferences } from "../lib/store/identity.js";
+import { getCurrentBranch } from "../lib/git/exec.js";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -73,7 +79,7 @@ export const planCommandInputPolicyDeclarations = [{
   })],
 }] satisfies readonly CommandInputDeclaration[];
 
-export async function handlePlanCheck(opts: PlanCheckOptions, interaction?: InteractionContext): Promise<void> {
+export async function handlePlanCheck(opts: PlanCheckOptions, interaction?: InteractionContext, store?: Store): Promise<void> {
   const parsed = PlanCheckInputSchema.safeParse(opts);
   if (!parsed.success) {
     process.stderr.write(`${z.prettifyError(parsed.error)}\n`);
@@ -90,6 +96,13 @@ export async function handlePlanCheck(opts: PlanCheckOptions, interaction?: Inte
   // Unknown / unset `branch.protection` degrades to `partial` — the fail-safe floor.
   const protection: ProtectionMode = settings["branch.protection"] === "full" ? "full" : "partial";
 
+  store ??= createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  if (usesOffBranchState(store)) {
+    const route = { route: "proceed", currentBranch: await getCurrentBranch(exec), protection };
+    if (opts.json) process.stdout.write(`${JSON.stringify(route)}\n`);
+    else { p.intro("arc plan check"); p.note("Planning is available in this checkout — proceed with the draft.", "Planning entry"); p.outro("Done."); }
+    return;
+  }
   const writeContext = await resolveWriteContext({ exec, baseBranch });
   const { onPlanningBranch, activeWorkUnit } = await resolveActiveWorkUnitFacts(
     cwd,
@@ -147,11 +160,12 @@ async function resolveActiveWorkUnitFacts(
  * falls back to a backlog stub's draft (a `--plan` grooming target nested under
  * `backlog/planned` or `backlog/provisional`), via the backlog-stub resolver.
  */
-export async function resolveDraftPresent(cwd: string, name: string | undefined): Promise<boolean> {
+export async function resolveDraftPresent(cwd: string, name: string | undefined, store?: Store): Promise<boolean> {
   const slug = name?.trim();
   if (!slug) return false;
   const validatedSlug = SlugSchema.safeParse(slug);
   if (!validatedSlug.success) return false;
+  if (usesOffBranchState(store) && store !== undefined) return storedDraftPresent(store, validatedSlug.data);
   const activeDraftPath = materializeArcPath(cwd, resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
@@ -207,4 +221,17 @@ function redirectReasonLine(route: Extract<PlanningEntryRoute, { route: "redirec
     case "no-base":
       return "No base branch resolved (`branch.base` unset) — cannot determine a safe drafting context.";
   }
+}
+
+/** Resolve draft presence through the selected primary identity. */
+async function storedDraftPresent(store: Store, slug: string): Promise<boolean> {
+    const meta = await readWorkUnit(store, slug);
+  if (meta.status === "refused") {
+    if (meta.refusal.code === "not-found") return false;
+    throw new Error(`${meta.refusal.condition} ${meta.refusal.remedy.text}`);
+  }
+  const draft = await store.read({ reference: recordReferences["work-item/draft"](meta.result.reference.owner) });
+  if (draft.status === "ok") return true;
+  if (draft.refusal.code === "not-found") return false;
+  throw new Error(`${draft.refusal.condition} ${draft.refusal.remedy.text}`);
 }

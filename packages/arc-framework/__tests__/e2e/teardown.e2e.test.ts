@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
@@ -143,6 +143,44 @@ describe("arc teardown (CLI surface)", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout + result.stderr).toMatch(/already reaped/i);
+  });
+
+  it("removes one missing shipped checkout registration while preserving other stale registrations", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const other = join(worktreeParent, "other");
+    await git(tmpDir, ["worktree", "add", "--detach", other, "main"]);
+    await rm(worktree, { recursive: true, force: true });
+    await rm(other, { recursive: true, force: true });
+    const result = await runArc(["teardown", "demo"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const registrations = await git(tmpDir, ["worktree", "list", "--porcelain"]);
+    expect(registrations).not.toContain(`worktree ${worktree}\n`);
+    expect(registrations).toContain(`worktree ${other}\n`);
+  });
+
+  it("refuses a missing checkout held by an operator lock with the unlock remedy", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    await git(tmpDir, ["worktree", "lock", "--reason", "operator", worktree]);
+    await rm(worktree, { recursive: true, force: true });
+    const result = await runArc(["teardown", "demo"], tmpDir);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain(`git worktree unlock ${worktree}`);
+    expect(await git(tmpDir, ["worktree", "list", "--porcelain"])).toContain(`worktree ${worktree}\n`);
+  });
+
+  it("names dirty paths before removing a shipped checkout", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    await writeFile(join(worktree, "dirty-file"), "keep me\n");
+    const result = await runArc(["teardown", "demo"], tmpDir);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("dirty-file");
+    expect(await git(worktree, ["status", "--porcelain"])).toContain("dirty-file");
   });
 
   it("reports marked self-teardown as a live husk", async () => {

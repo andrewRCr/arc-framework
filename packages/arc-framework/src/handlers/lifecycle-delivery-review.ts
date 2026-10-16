@@ -5,6 +5,12 @@ import { z } from "zod";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import { formatValue, parseMetaRecord, setMetaBulletFields, setMetaCandidate } from "../lib/active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
+import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import type { Store } from "../lib/store/contract.js";
+import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
+import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
+import { recordReferences } from "../lib/store/identity.js";
+import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
@@ -599,6 +605,19 @@ export async function handleAttest(
   if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
+async function permitUnpausedPublication(store: Store | undefined, target: string, json: boolean): Promise<boolean> {
+  if (store === undefined || !usesOffBranchState(store)) return true;
+  const pause = await checkAdvancingPause(store, target);
+  if (pause.status === "clear") return true;
+  const remedy = pause.remedy ?? pause.refusal?.remedy;
+  const rejected = { status: "rejected", reason: pause.reason,
+    remedy: spineRemedy(pause.reason, remedy?.text ?? "Repair the work unit before publishing", remedy?.argv ?? ["arc", "status", target, "--json"]),
+    ...(pause.refusal === undefined ? {} : { refusal: pause.refusal }) };
+  if (json) { process.stdout.write(`${JSON.stringify(rejected)}\n`); process.exitCode = 1; }
+  else refuse(pause.reason, pause.refusal, remedy);
+  return false;
+}
+
 /**
  * Publish a lifecycle transition with its exact Candidate and review boundary.
  * @param base - Resolved checkout, identity, and I/O.
@@ -614,6 +633,7 @@ export async function publishCandidateWithReviewBoundary(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
+  if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target);
@@ -718,7 +738,9 @@ export async function publishCandidateWithReviewBoundary(
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   }));
   if (result.status === "rejected") {
-    refuseWithRemedy(result.reason, result.remedy, input.json === true);
+    if (!usesOffBranchState(executor.store)) refuseWithRemedy(result.reason, result.remedy, input.json === true);
+    else if (input.json === true) { process.stdout.write(`${JSON.stringify(result)}\n`); process.exitCode = 1; }
+    else refuse(result.reason, result.refusal, result.remedy);
     return;
   }
   if (result.status === "unchanged") {
@@ -784,11 +806,21 @@ export async function permitDeliveryReopen(
   target: string,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
 ): Promise<boolean> {
-  const metaPath = projectActiveMetaPath(target);
   let taskListPath: string | null;
   try {
-    const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
-    taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+    if (base.store !== undefined && usesOffBranchState(base.store)) {
+      const primary = await readWorkUnit(base.store, target);
+      if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return false; }
+      const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
+      const task = await base.store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
+      if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return false; }
+      const projected = lifecycleRecordPath(primary.result, task.result);
+      taskListPath = projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null;
+    } else {
+      const metaPath = projectActiveMetaPath(target);
+      const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
+      taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+    }
   } catch {
     refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
       + "the active metadata is unavailable.");

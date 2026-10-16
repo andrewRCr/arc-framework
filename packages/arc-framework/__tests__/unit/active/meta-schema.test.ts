@@ -38,7 +38,7 @@ function validRecord(): Record<string, unknown> {
 
 const handoffDefaults = {
   stateAtHandoff: null, commitAtHandoff: null, sessionType: null,
-  sessionContext: null, completionNotes: [], releaseNotesEntry: [],
+  sessionContext: null, pause: null, completionNotes: [], releaseNotesEntry: [],
 };
 
 describe("meta handoff schema fields", () => {
@@ -48,7 +48,7 @@ describe("meta handoff schema fields", () => {
 
   it.each([MetaRecordSchema, ParsedMetaRecordSchema])("accepts handoff anchors and empty section bodies", (schema) => {
     const record = { ...validRecord(), stateAtHandoff: "state-version", commitAtHandoff: "abc123",
-      sessionType: "planning", sessionContext: "", completionNotes: ["", "Done"], releaseNotesEntry: [""] };
+      sessionType: "planning", sessionContext: "", pause: null, completionNotes: ["", "Done"], releaseNotesEntry: [""] };
     expect(schema.parse(record)).toEqual(record);
   });
 

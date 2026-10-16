@@ -10,7 +10,7 @@ import { parseLineageRecord, type LineageRecord } from "../kinds/lineage/index.j
 import { parseCommitMessage } from "../../commit-check/parser.js";
 import { expandTaskReference, isTaskNonReferenceContext, parseTaskReference, type ParsedTaskReference } from "../../commit-check/task-reference.js";
 import { scanTaskListStructure } from "../../task-list/scanner.js";
-import { branchToWorkUnitSlug } from "../../work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../../work-unit/work-unit-slug.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import { refuse } from "./refusals.js";
 

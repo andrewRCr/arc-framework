@@ -110,7 +110,7 @@ function buildCtx(opts: {
       return { moved: [`meta-${slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "delete" ? `branch:delete:${op.branch}` : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       calls.push(op.mutation === "teardown" ? `worktree:teardown:${op.currentLocus}` : `worktree:${op.mutation}`);
@@ -259,7 +259,7 @@ describe("runArchive — the dated sweep", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cohort-doc archival sweep — gated on the resolver's `isArchivalTriggered`
+// Cohort-doc archival sweep — gated on the resolver's `isArchivalTriggeredWithDescendants`
 // ---------------------------------------------------------------------------
 
 /** A lifecycle-index entry, mirroring the membership-test fixture shape. */
@@ -462,5 +462,50 @@ describe("sweepNestedParentDoc — the {NN}b nested-parent archival sweep", () =
     const { fn } = relocateSpy([]); // nothing matched in the parent dir
 
     expect(await sweepNestedParentDoc(fn, index, { cohort: "parent/sub", ...at })).toBeNull();
+  });
+});
+
+
+describe("runArchive — workspace preservation", () => {
+  it("retains the workspace when executor final staging fails", async () => {
+    const { ctx } = buildCtx({});
+    let workspacePresent = true;
+    ctx.executor.sideEffects!["user-workspace"] = () => { workspacePresent = false; };
+    ctx.executor.stageMeta = async () => { throw new Error("index unavailable"); };
+    expect((await runArchive(ctx, BASE)).status).toBe("rejected");
+    expect(workspacePresent).toBe(true);
+  });
+
+  it("retains the workspace when the archive facts cannot be persisted", async () => {
+    const { ctx } = buildCtx({});
+    let workspacePresent = true;
+    ctx.executor.sideEffects!["user-workspace"] = () => { workspacePresent = false; };
+    ctx.executor.writeFinalizeFields = async () => { throw new Error("disk unavailable"); };
+    expect((await runArchive(ctx, BASE)).status).toBe("rejected");
+    expect(workspacePresent).toBe(true);
+  });
+
+  it("reports an exact close continuation after a cleanup failure", async () => {
+    const { ctx } = buildCtx({});
+    ctx.executor.sideEffects!["user-workspace"] = () => { throw new Error("workspace busy"); };
+    const result = await runArchive(ctx, BASE);
+    expect(result.status).toBe("archived");
+    if (result.status !== "archived") return;
+    expect(result.continuation).toEqual({
+      kind: "user-close", argv: ["arc", "user", "close", "foo"], reason: "Error: workspace busy",
+    });
+  });
+
+  it("closes only after the archive facts and staging succeed", async () => {
+    const { ctx } = buildCtx({});
+    let factsPersisted = false;
+    let workspacePresent = true;
+    ctx.executor.writeFinalizeFields = async () => { factsPersisted = true; };
+    ctx.executor.sideEffects!["user-workspace"] = () => {
+      if (!factsPersisted) throw new Error("close preceded archive facts");
+      workspacePresent = false;
+    };
+    expect((await runArchive(ctx, BASE)).status).toBe("archived");
+    expect(workspacePresent).toBe(false);
   });
 });

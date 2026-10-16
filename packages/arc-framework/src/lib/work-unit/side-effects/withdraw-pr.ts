@@ -19,6 +19,8 @@
  * @module
  */
 
+import type { SideEffectContext, SideEffectHandler } from "../lifecycle-executor.js";
+import type { LifecycleGitStep } from "../store-transition-types.js";
 import type { GitExec } from "../../git/exec.js";
 
 /** How `reopen` withdraws the open PR — close it, or convert it back to a draft. */
@@ -58,4 +60,20 @@ export async function withdrawPr(ctx: WithdrawPrContext, op: WithdrawPrOp): Prom
     return;
   }
   await ctx.exec("gh", ["pr", "close", op.branch]);
+}
+
+/** A withdrawal callback that captures its physical operation before state persistence. */
+export type RecoverablePrWithdrawalHandler = SideEffectHandler & {
+  prepareWithdrawal: (context: SideEffectContext) => Promise<LifecycleGitStep>;
+};
+
+/** Capture the selected PR and mode for post-write execution and an independent retry.
+ * @param ctx - Request-owned command executor.
+ * @param op - Exact head branch and mode selected before the record write.
+ * @returns The existing lifecycle Git step, with its physical gh continuation.
+ */
+export function preparePrWithdrawal(ctx: WithdrawPrContext, op: WithdrawPrOp): LifecycleGitStep {
+  const captured = { ...op };
+  const args = captured.mode === "draft" ? ["pr", "ready", captured.branch, "--undo"] : ["pr", "close", captured.branch];
+  return { name: "withdraw-pr", run: () => withdrawPr(ctx, captured), retryCommand: ["gh", ...args] };
 }

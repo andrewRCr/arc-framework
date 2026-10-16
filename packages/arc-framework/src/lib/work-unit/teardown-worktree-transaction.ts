@@ -42,6 +42,8 @@ export interface TeardownWorktreeTransactionDriver {
 export function createNodeTeardownWorktreeTransactionDriver(options: {
   readonly exec: GitExec;
   readonly identity: string;
+  /** Valid command checkout from which the repository lock is acquired. */
+  readonly cwd?: string;
   readonly lockOptions?: AdvisoryLockOptions;
   readonly readSelection?: TeardownSelectionReader;
 }): TeardownWorktreeTransactionDriver {
@@ -52,7 +54,7 @@ export function createNodeTeardownWorktreeTransactionDriver(options: {
       await requireExpectedSelection(readSelection, request.expectedSelection, "before mutex acquisition");
       await withWorktreeOperationLock({
         exec: options.exec,
-        cwd: request.expectedSelection.checkout.path,
+        cwd: options.cwd ?? process.cwd(),
         ...(options.lockOptions === undefined ? {} : { lockOptions: options.lockOptions }),
         operation: async () => {
           await requireExpectedSelection(readSelection, request.expectedSelection, "under the operation mutex");
@@ -66,7 +68,7 @@ export function createNodeTeardownWorktreeTransactionDriver(options: {
       await requireExpectedSelection(readSelection, request.expectedSelection, "before mutex acquisition");
       await withWorktreeOperationLock({
         exec: options.exec,
-        cwd: request.expectedSelection.checkout.path,
+        cwd: options.cwd ?? process.cwd(),
         ...(options.lockOptions === undefined ? {} : { lockOptions: options.lockOptions }),
         operation: async () => {
           const checkoutPath = request.expectedSelection.checkout.path;
@@ -144,6 +146,7 @@ async function requireExpectedSelection(
   const current = await readSelection({
     checkoutPath: expected.checkout.path,
     subject: expected.subject,
+    ...(expected.markerGeneration === null && expected.checkout.branch !== null ? { expectedBranch: expected.checkout.branch } : {}),
   });
   if (current.kind !== "clear") {
     throw new Error(`${DIAGNOSTIC}: ${current.message}`);

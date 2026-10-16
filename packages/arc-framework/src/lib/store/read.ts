@@ -4,7 +4,7 @@ import { z } from "zod";
 import { FAMILY_IDS, type FamilyId } from "./catalog.js";
 import { FormatVersionSchema, KindIdSchema, OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "./identity.js";
 import { LinksSchema } from "./links.js";
-import { ErrandReadPlacementSchema, LocationSchema, ReadPlacementSchema, WorkUnitReadPlacementSchema } from "./placement.js";
+import { CohortReadPlacementSchema, ErrandReadPlacementSchema, LocationSchema, ReadPlacementSchema, WorkUnitReadPlacementSchema } from "./placement.js";
 import { RemedySchema } from "./refusal.js";
 
 /** Storage family runtime authority. */
@@ -30,6 +30,10 @@ export const StoreRecordSchema = z.strictObject({
   }
   if (value.reference.kind === "work-item/record" && !ErrandReadPlacementSchema.safeParse(value.placement).success) {
     context.addIssue({ code: "custom", message: "Invalid Errand read placement" });
+  }
+  if (value.reference.kind === "cohort/document" && value.placement !== undefined
+    && !CohortReadPlacementSchema.safeParse(value.placement).success) {
+    context.addIssue({ code: "custom", message: "Invalid completed-cohort read placement" });
   }
   const primary = value.reference.kind === "work-item/meta" || value.reference.kind === "work-item/record";
   if (!primary && value.links !== undefined) context.addIssue({ code: "custom", message: "Only primary records carry links" });

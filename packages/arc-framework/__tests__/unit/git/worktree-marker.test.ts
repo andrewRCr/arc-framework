@@ -34,6 +34,7 @@ import {
   type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { RecordReferenceSchema, RecordVersionSchema } from "../../../src/lib/store/identity.js";
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 
 describe("worktree-marker", () => {
@@ -424,6 +425,16 @@ describe("decodeWorktreeHuskStamp", () => {
     });
   });
 
+  it.each(["abandon", "decompose"] as const)("decodes exact lineage %s evidence and rejects the opposite end's authority", (transition) => {
+    const evidence = { kind: "lineage" as const, transition,
+      reference: RecordReferenceSchema.parse({ kind: "lineage/transition", owner: { type: "work-item", name: "demo" } }),
+      version: RecordVersionSchema.parse("lineage-v1"), resultDigest: canonicalDigest({ transition }) };
+    const authorization = transition === "abandon" ? "discard-confirmed" : "merged-preserved";
+    expect(decodeWorktreeHuskStamp({ ...base, remoteRef: null, authorization, evidence })).toMatchObject({ kind: "current", evidence });
+    expect(decodeWorktreeHuskStamp({ ...base, remoteRef: null, authorization: transition === "abandon" ? "merged-preserved" : "discard-confirmed", evidence })).toMatchObject({ kind: "manual-only" });
+    expect(decodeWorktreeHuskStamp({ ...base, remoteRef: null, authorization, evidence: { ...evidence, version: "" } })).toMatchObject({ kind: "manual-only" });
+    expect(decodeWorktreeHuskStamp({ ...base, remoteRef: null, authorization, evidence: { ...evidence, reference: { ...evidence.reference, kind: "work-item/meta" } } })).toMatchObject({ kind: "manual-only" });
+  });
   it("enforces the authorization/evidence matrix", () => {
     const digest = `sha256:${"3".repeat(64)}` as const;
     const common = { ...base, remoteRef: null };

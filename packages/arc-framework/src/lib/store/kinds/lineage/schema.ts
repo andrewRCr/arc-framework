@@ -1,5 +1,6 @@
 /** Closed reference and terminal lineage record schemas. */
 import { z } from "zod";
+import { BranchLinkSchema } from "../../links.js";
 import { SlugSchema } from "../../../kernel/schema/slug.js";
 
 /** A work item's name at the transition, with its generation when available. */
@@ -26,7 +27,9 @@ export const LineageRecordSchema = z.strictObject({
   successors: OrderedReferencesSchema,
   incoming: z.array(IncomingSchema),
   outgoing: z.array(OutgoingSchema).optional(),
+  retiredBranches: z.array(BranchLinkSchema).refine((links) => new Set(links.map((link) => JSON.stringify([link.repository, link.ref]))).size === links.length, "must contain unique repository-qualified branches").optional(),
 }).superRefine((record, context) => {
+  if (record.kind === "rename" && record.retiredBranches !== undefined) context.addIssue({ code: "custom", path: ["retiredBranches"], message: "only terminal abandonment and decomposition may retain branches" });
   const requiredCount = record.kind === "rename" ? 1 : record.kind === "abandon" ? 0 : null;
   if (requiredCount === null ? record.successors.length === 0 : record.successors.length !== requiredCount) {
     context.addIssue({ code: "custom", path: ["successors"], message: "invalid successor cardinality" });
