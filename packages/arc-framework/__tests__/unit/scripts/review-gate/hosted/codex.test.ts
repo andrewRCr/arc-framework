@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 import {
   CodexHostedAdapter,
@@ -53,6 +54,25 @@ function codexReview(): HostedGitHubReview {
     headSha: HEAD,
     body: "",
     submittedAt: "2026-07-23T12:05:00.000Z",
+  };
+}
+
+function bodyReview(priority = "2", location = `https://github.com/owner/repo/blob/${HEAD}/src/a.ts#L7`): HostedGitHubReview {
+  return {
+    ...codexReview(),
+    body: `<!-- codex-code-review-finding:v1 -->
+
+
+### 💡 Codex Review
+
+${location}
+**<sub><sub>![P${priority} Badge](https://img.shields.io/badge/P${priority}-yellow?style=flat)</sub></sub>  Preserve target facts**
+
+Reclassify the changed target before offering an executable continuation.
+
+<details> <summary>ℹ️ About Codex in GitHub</summary>
+Provider help, not finding content.
+</details>`,
   };
 }
 
@@ -203,6 +223,172 @@ describe("Codex hosted adapter", () => {
       kind: "findings",
       findings: [{ severity: arcSeverity }],
     });
+  });
+
+  it.each([
+    ["0", "critical"], ["1", "major"], ["2", "minor"], ["3", "minor"],
+  ])("reads a native review-body P%s finding as %s without inventing a thread", async (priority, expected) => {
+    const review = bodyReview(priority);
+    const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+
+    const observed = await adapter.observeHandle(target);
+    expect(observed).toMatchObject({
+      kind: "findings",
+      reviewUrl: review.url,
+      findings: [{
+        origin: "review-body", reviewId: review.id, settlement: "not-applicable",
+        severity: expected, locus: "src/a.ts:7", url: review.url, sourceOrdinal: 1,
+        sourceLabel: "Preserve target facts",
+        body: expect.stringContaining("Reclassify the changed target"),
+        fingerprint: expect.any(String), findingId: expect.any(String),
+      }],
+    });
+    if (observed.kind !== "findings") throw new Error("finding expected");
+    expect(observed.findings[0]).not.toHaveProperty("threadId");
+    expect(observed.findings[0]).not.toHaveProperty("commentId");
+    expect(observed.findings[0]).toHaveProperty("body", expect.not.stringContaining("Provider help"));
+    expect(await adapter.observeHandle(target)).toEqual(observed);
+  });
+
+  it("reads a code-wrapped location and retains a line range", async () => {
+    const review = bodyReview("2", `\`https://github.com/owner/repo/blob/${HEAD}/src/a.ts#L7-L9\``);
+    const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings", findings: [{ locus: "src/a.ts:7-9" }],
+    });
+  });
+
+  it("retains all review-body findings alongside inline findings in capture order", async () => {
+    const first = { ...bodyReview(), id: "PRR_0", submittedAt: "2026-07-23T12:04:00.000Z" };
+    const second = bodyReview("1");
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([second, first]),
+      readThreads: () => Promise.resolve([findingThread()]),
+    }));
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings", findings: [
+        { origin: "review-thread", sourceOrdinal: 1 },
+        { origin: "review-body", reviewId: "PRR_0", severity: "minor", sourceOrdinal: 2 },
+        { origin: "review-body", reviewId: "PRR_1", severity: "major", sourceOrdinal: 3 },
+      ],
+    });
+  });
+
+  it("retains an earlier inline finding when a later review carries a body finding", async () => {
+    const older = codexReview();
+    const newer = { ...bodyReview(), id: "PRR_2", submittedAt: "2026-07-23T12:06:00.000Z" };
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([older, newer]),
+      readThreads: () => Promise.resolve([findingThread()]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings", findings: [
+        { origin: "review-thread", findingId: "PRRT_1", severity: "major", sourceOrdinal: 1 },
+        { origin: "review-body", reviewId: "PRR_2", severity: "minor", sourceOrdinal: 2 },
+      ],
+    });
+  });
+
+  it("filters inline findings by eligible review identity across the request window", async () => {
+    const reviews = [
+      codexReview(),
+      { ...codexReview(), id: "PRR_OTHER_ACTOR", actorIdentity: "1234" },
+      { ...codexReview(), id: "PRR_OTHER_HEAD", headSha: "b".repeat(40) },
+      { ...codexReview(), id: "PRR_EARLIER_REQUEST", submittedAt: "2026-07-23T11:59:00.000Z" },
+    ];
+    const threads = reviews.map((review, index) => {
+      const thread = findingThread();
+      return {
+        ...thread, id: `PRRT_${index}`,
+        comments: thread.comments.map((comment) => ({ ...comment, reviewId: review.id })),
+      };
+    });
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve(reviews), readThreads: () => Promise.resolve(threads),
+    }));
+    const handle = createHostedHandleFixture({
+      provider: "codex-pr", target,
+      artifact: {
+        kind: "issue-comment", id: "IC_1",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    });
+
+    await expect(adapter.observe(handle)).resolves.toMatchObject({
+      kind: "findings", findings: [{ findingId: "PRRT_0", sourceOrdinal: 1 }],
+    });
+  });
+
+  it.each(["src/a b.ts", "src/naïve.ts", "src/a%b.ts", "src/a#b.ts"])(
+    "records the Git filename from an escaped blob path: %s", async (path) => {
+      const encoded = path.split("/").map(encodeURIComponent).join("/");
+      const review = bodyReview("2", `https://github.com/owner/repo/blob/${HEAD}/${encoded}#L7`);
+      const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+
+      await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+        kind: "findings", findings: [{ locus: `${path}:7` }],
+      });
+    },
+  );
+
+  it.each(["src/a%.ts", "src/a%GG.ts", "src/a%FF.ts"])(
+    "reports malformed blob-path encoding: %s", async (path) => {
+      const review = bodyReview("2", `https://github.com/owner/repo/blob/${HEAD}/${path}#L7`);
+      const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+
+      await expect(adapter.observeHandle(target)).resolves.toEqual({
+        kind: "terminal-failure", reason: "malformed-provider-finding",
+      });
+    },
+  );
+
+  it.each([
+    ["wrong repository", bodyReview("2", `https://github.com/other/repo/blob/${HEAD}/src/a.ts#L7`).body],
+    ["wrong head", bodyReview("2", `https://github.com/owner/repo/blob/${"b".repeat(40)}/src/a.ts#L7`).body],
+    ["missing location", bodyReview("2", "").body],
+    ["missing priority", bodyReview("9").body],
+    ["empty finding", bodyReview().body.replace("Reclassify the changed target before offering an executable continuation.", "")],
+    ["duplicate marker", bodyReview().body + "\n<!-- codex-code-review-finding:v1 -->"],
+  ])("reports a malformed marked body: %s", async (_name, body) => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([{ ...codexReview(), body }]),
+      readIssueComments: () => Promise.resolve([cleanComment(
+        `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${HEAD}\``,
+      )]),
+    }));
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure", reason: "malformed-provider-finding",
+    });
+  });
+
+  it.each([
+    ["another actor", { actorIdentity: "1234" }],
+    ["another target", { headSha: "b".repeat(40) }],
+    ["an earlier request", { submittedAt: "2026-07-23T11:59:00.000Z" }],
+  ])("ignores a review-body finding from %s", async (_name, overrides) => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([{ ...bodyReview(), ...overrides }]),
+    }));
+    const handle = createHostedHandleFixture({
+      provider: "codex-pr", target,
+      artifact: {
+        kind: "issue-comment", id: "IC_1",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    });
+    await expect(adapter.observe(handle)).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("does not promote an unmarked review body to a finding or clean result", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([{
+        ...bodyReview(), body: bodyReview().body.replace("<!-- codex-code-review-finding:v1 -->", ""),
+      }]),
+    }));
+    await expect(adapter.observeHandle(target)).resolves.toEqual({ kind: "pending" });
   });
 
   it("recognizes layout-varied clean output with one exact reviewed-head marker", async () => {
