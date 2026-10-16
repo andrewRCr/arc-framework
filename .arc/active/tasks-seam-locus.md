@@ -502,7 +502,8 @@ an incomplete observation, never matching no link or every link (spec § 2.1), w
 both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers given none pass no repository, which
 `selectWorkBranchLink` reads as every link. A work item's branch comes from its links through that change's selection
 (`selectWorkBranchLink`, `lib/store/lifecycle-branch.ts`), or against a checkout its resolver
-(`resolveLinkedCheckoutBranch`, `lib/git/default-capture-set.ts`).
+(`resolveLinkedCheckoutBranch`, `lib/git/default-capture-set.ts`), which requires the project ID as its repository, so a
+read that gets none stops at that incomplete observation before calling it.
 
 ### `[ ]` **2.1 Derive each checkout's role from its marker and the store — § 2.1**
 
@@ -1423,7 +1424,9 @@ inject a reference-backend store.
     - `[ ]` **3.3.d Close, abandon, and leave**
 
         - `lib/errand/close-runtime.ts`, `lib/errand/abandon-runtime.ts`, and `lib/errand/leave-runtime.ts` take 3.3.b's
-          step from the flip, each keeping its transaction call as its in-repo arm.
+          step from the flip, each keeping its transaction call as its in-repo arm. The abandon runtime keeps the
+          zero-delta reap's exports (`reapZeroDeltaBranch`, `WorkItemZeroDeltaBranch`), which store teardown's work-item
+          arm imports (`lib/work-unit/verbs/teardown-store.ts`).
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend each runtime's success path and refusals hold, and a close and an abandon leave
@@ -2951,10 +2954,14 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
           Task 2.2) and only for commits no stored SHA matches, against the work item's captures and the resolved link's
           exclusions, as the close takes them (`prepareTaskClose`, `lib/work-unit/verbs/task-close.ts`), never every
           link's (its Task 2.1).
-        - `detached` and `unlinked` carry that condition, naming the work branch to switch to, as text; `no-link` names
-          `arc deactivate <slug>`, then `arc activate`, as text. Where no base ref resolves, the context carries that
-          condition with `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`, typed, the listing composing
-          its argv, or with no `origin` `git branch <base> <commit>` as text.
+        - `detached`, `unlinked`, `ambiguous`, and `no-link` each carry the close's own condition and repair as text,
+          composed by the close's refusal (`unlinkedTaskRefusal`, `lib/work-unit/verbs/task-close.ts`), which this
+          change exports for it, so the two never differ: the switch to the work branch, naming every project link; the
+          repair of duplicate links; or `arc deactivate <slug>`, then `arc activate`. Where no base ref resolves, the
+          context carries that condition with `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`, typed,
+          the listing composing its argv from the configured base (`branch.base`) where `origin` exists, since the
+          computation's refusal carries its remedy as a string, or with no `origin` `git branch <base> <commit>` as
+          text.
         - With no project ID from the port the context carries that condition, naming the port's failure as text, in
           place of the set (spec § 2.1).
         - A Planning work unit, and one with no open task, carry no set. `derivedLocusState`'s registered schema (Task
@@ -2966,8 +2973,8 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
             - a base merge adds nothing, and a rebased copy of a captured or excluded commit stays out by copy key
             - on a work unit linking two branches, the set takes the checked-out link's exclusions alone, as the close
               does
-            - a detached checkout, an unlinked branch, and a work unit linking no branch each report their condition
-              with its repair in place of the set
+            - a detached checkout, an unlinked branch, a branch two of the project's links name, and a work unit linking
+              no branch each report the close's condition and repair in place of the set
             - no project ID reports the port's failure in place of the set
             - no base ref reports the condition with its repair, in each form
             - the set is computed for the entering checkout alone
@@ -2985,7 +2992,8 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
 
         - Build `test-first` (one behavior at a time), integration tier, over the reference backend:
             - every commit made fresh yields the typed bare close in the work unit's checkout
-            - an amended commit yields the text naming both repairs, with the checkout
+            - an amended commit, made by a raw `git commit --amend` since the release wrapper refuses an amend from the
+              flip, yields the text naming both repairs, with the checkout
             - a paused work unit yields `arc resume <slug>`
 
     - `[ ]` **7.4.c Recovery beside a matching cursor**

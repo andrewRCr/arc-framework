@@ -267,6 +267,9 @@ builds on:
 - `lib/errand/promote-store.ts`, which that change creates with promotion's steps, and where this change has their
   receipt report the origin as the record holds it, their Errand read take placement `active` only, and their checkout
   come from the runtime after that read (§ 7.6, § 8, § 8.3, A5–A7);
+- `lib/errand/abandon-runtime.ts`, where that change exports the zero-delta reap its store teardown's work-item arm
+  calls (`reapZeroDeltaBranch`, `WorkItemZeroDeltaBranch`; `lib/work-unit/verbs/teardown-store.ts`), and where this
+  change reroutes the Errand's abandon and returns its entries, keeping both exports (§ 7.5, § 8);
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
 - `lib/store/lifecycle-index.ts`, the store's lifecycle view, which that change also edits, and where this change has
@@ -277,6 +280,8 @@ builds on:
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
 - `lib/work-unit/locus-ports.ts`, which that change creates with the port record and its today-behavior default, and
   where this change has the port's refusal carry the check's message whole (§ 2.4);
+- `lib/work-unit/verbs/task-close.ts`, where this change exports the close's refusal of a checkout with no linked branch
+  out (`unlinkedTaskRefusal`) for the listing to report (§ 11);
 - `lib/work-unit/executor-context.ts`, where that change has the executor context carry the ports it is given, and this
   change binds them (§ 2.4, A1);
 - `handlers/start-store.ts`, which that change creates, and where this change has create-new take the executor's ports
@@ -1119,7 +1124,7 @@ flip's rewrite (§ 1.5).
 | `inboundBackPressure` past a threshold (§ 4.6)                                                                                             | `arc inbox <slug>`, then the owner's re-triage                                                                                                  | text  |
 | `derivedLocusState`: commits not yet closed, every one made fresh (§ 11)                                                                   | `arc task close`, in the work unit's checkout                                                                                                   | typed |
 | `derivedLocusState`: commits not yet closed, one of them not made fresh (§ 11)                                                             | the bare close where the open task's work is among them; otherwise a closed task's re-close, `arc task close <id>`; in the work unit's checkout | text  |
-| `derivedLocusState`: an Active work unit with no linked branch out (§ 11)                                                                  | the work branch to switch to                                                                                                                    | text  |
+| `derivedLocusState`: an Active work unit with no linked branch out (§ 11)                                                                  | the work branch to switch to, or the duplicate links to repair                                                                                  | text  |
 | `derivedLocusState`: an Active work unit linking no branch (§ 11)                                                                          | `arc deactivate <slug>`, then `arc activate`, which links a work branch                                                                         | text  |
 | `derivedLocusState`: no base ref, with `origin` (§ 11)                                                                                     | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`                                                                                | typed |
 | `derivedLocusState`: no base ref, no `origin` (§ 11)                                                                                       | `git branch <base> <commit>`, a base commit chosen                                                                                              | text  |
@@ -1896,10 +1901,12 @@ changes neither makes, matches it.
   names no commit to `-C` or `-c` — reads as fresh, as the close's own named residuals have it, so the typed bare close
   captures it to the cursor's task and closes that task, a named residual.
 - **No linked branch out.** The close reads which of the work item's branch links the checkout has out through one
-  resolver (§ 16) — `linked`, `detached`, `unlinked`, or `no-link` — and refuses on the last three, naming the work
-  branch to switch to, or, where the work item links no branch, `arc activate` for a Planning work unit and
-  `arc deactivate <slug>`, then `arc activate`, for an Active one. The listing reads the same resolver and
-  reports that refusal, with its repair, rather than listing.
+  resolver (§ 16), given the project ID as the links' repository — `linked`, `detached`, `unlinked`, `ambiguous` where
+  two of the project's links name the branch out, or `no-link` — and refuses on the last four, naming the work branch to
+  switch to, the duplicate links to repair where they are ambiguous, or, where the work item links no branch in the
+  project, `arc activate` for a Planning work unit and `arc deactivate <slug>`, then `arc activate`, for an Active one.
+  The listing reads the same resolver and reports that refusal, with its repair, rather than listing, composing it
+  through the close's own (`unlinkedTaskRefusal`, `lib/work-unit/verbs/task-close.ts`).
 - **No base ref.** Where neither base nor base's remote-tracking ref resolves, the set would take the branch's whole
   history, so the listing reports the condition in place of the set, with the repair the close names where
   its own fetch brings in no base ref: base fetched by its explicit refspec,
@@ -2171,8 +2178,9 @@ holds until then is stated with it.
       and where no base ref resolves, naming their repairs, and where its refresh empties a set that was not empty
       before it, naming the commits the refresh found on base (§ 11);
     - the default-set computation callable without its refresh, and one resolver of which branch link a checkout has
-      out — `linked` with the link, `detached`, `unlinked` with the branch out, or `no-link` — which the close and this
-      change's listing both read (§ 11);
+      out, given the project ID as its repository — `linked` with the link, `detached`, `unlinked` with the branch out,
+      `ambiguous` with the branch two of the project's links name, or `no-link` — which the close and this change's
+      listing both read (§ 11);
     - the one function computing a commit's copy key (`lib/git/copy-key.ts`), which the listing calls, since keys
       computed any other way never match, a key computed only for a commit no stored SHA matches and from local objects
       alone (`GIT_NO_LAZY_FETCH`), so the computation never fetches (§ 11);
