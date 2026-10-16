@@ -504,6 +504,14 @@ read that gets none stops at that incomplete observation before calling it.
 - _Outcome:_ The shared occupancy guard refuses transient, husk, ended, backlog, and no-record claims before in-place
   Git work; marker creation races retain the checkout-specific inspect-and-rerun repair.
 
+### `[x]` **2.R2 Complete the locus consumer inventory — § 1.2 (A23)**
+
+- _Goal:_ The exact incoming-module inventory includes the Store evidence, session, overlap, and cleanup consumers
+  required by the reroute, while retaining the dynamic-import and legacy-authority boundary checks.
+
+- _Outcome:_ The exact lists include fourteen added production and six added test importers. Both independent boundary
+  assertions remain intact; the full source scan retains every existing importer.
+
 ### `[ ]` **2.10 Locus from the marker and the store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.

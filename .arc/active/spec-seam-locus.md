@@ -2651,5 +2651,7 @@ this design open.
 
 - **A22** — 2026-10-16 — task: acquire the subject Candidate through its resolved Store owner. _Supersedes:_ none.
   _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.6.
+- **A23** — 2026-10-16 — task: include the Store consumers in the exact locus import inventory. _Supersedes:_ none.
+  _Trigger:_ 2.10 segment. _Work:_ 2.R2. _Revalidated:_ pending → 2.10.
 
 ---

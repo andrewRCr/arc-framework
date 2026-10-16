@@ -721,4 +721,14 @@ The approved correction keeps prose advisory, including the meta's session conte
 existing managed inbox rewrites. Every supporting record is still version-revalidated before application; an unchanged
 record needs no put merely to carry that guard. Task 5.R records this correction to Task 5.1.c's meta-write premise.
 
+## A23: the complete locus consumer inventory
+
+`referencesUnder` in `locus-dormant-foundation-contract.test.ts` scans static and dynamic imports of seven derived
+modules, including type-only references. Its exact incoming lists predate the Store adapters. `readStoreIdentityEvidence`
+uses the existing checkout evidence type; the new session, overlap, unclosed-set, roster, marker, and cleanup adapters
+use the derived frame, row, and lifecycle types. The reference scan reports fourteen added production importers and six
+added test importers, with none removed. Each is within § 1.2's reroute; no dynamic activation or forbidden authority
+import was found. The specification holds, and the correction updates only the complete test inventory. The original
+failed segment result remains in `/tmp/arc-segment-2-10-scenarios.log`.
+
 ---
