@@ -193,18 +193,15 @@ recorded holding the two load-bearing host properties.
           non-interactive stable diagnostics. Real remotes cover all-or-none races, absence and delete leases, unchanged
           tips, capability refusal, hook repair, and network cancellation; an aborted call reports a timeout cause.
 
-### `[ ]` **2.5 The two load-bearing host properties — § 14.8**
+### `[x]` **2.5 The two load-bearing host properties — § 14.8**
 
 - _Goal:_ Before the sync design is built on them, GitHub and GitLab are shown to narrow a protocol v2 ref advertisement
   to a command-line refspec's prefixes and to keep the `atomic` capability over HTTP, or the specification learns that
   they do not.
 
-    - A hand-run script under `__tests__/benchmarks/`, the host kit's first piece (18.4.a), in raw Git alone against a
-      scratch repository on each host: a protocol v2 fetch with one `refs/arc/` refspec, traced with `GIT_TRACE_PACKET`,
-      shows the advertisement held to that prefix, and a push over HTTP shows `atomic` among the receiver's capabilities
-    - Results, with each host's date and the Git version run, recorded in `notes-storage-ref-backend.md` beside the host
-      kit's; a host failing either check returns to the specification as a design defect before Phase 9 begins
-    - Never in a tier, a CI job, or the shipped package; touches no test file
+- _Outcome:_ The manual raw-Git kit proves prefix-filtered protocol v2 advertisements and atomic HTTPS pushes on
+  GitHub and GitLab, with client version, dates, scratch repositories, and packet evidence recorded in
+  `notes-storage-ref-backend.md`. It remains outside test tiers, CI, and the shipped package.
 
 ## **Phase 3:** Encoding and the read path
 

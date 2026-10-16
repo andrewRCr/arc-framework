@@ -9,6 +9,7 @@
 - [The move model check](#the-move-model-check)
 - [CI cost history](#ci-cost-history)
 - [A designation per scope](#a-designation-per-scope)
+- [Host properties](#host-properties)
 
 ## Prior art
 
@@ -250,5 +251,29 @@ Superseded source-accounting sentence:
 store UID. Gate sources use Git-common-relative paths; a trailing slash distinguishes folder coverage from a file
 identity, so the import can enforce completeness without reading review record shapes. Candidate source identities
 retain both tracked path and commit. Task 15.10 closes the amendment through its import scenario after Task 15.R.
+
+## Host properties
+
+The raw-Git manual kit, `packages/arc-framework/__tests__/benchmarks/ref-host-properties.ts`, ran over HTTPS on
+2026-10-16 with Git 2.55.0. Each private scratch repository held two state refs, `refs/arc/host-probe/a` and
+`refs/arc/host-probe/b`, and an unrelated `refs/heads/main`. With protocol v2 forced, one fetch refspec,
+`+refs/arc/*:refs/arc/probe-tracking/*`, sent only `ref-prefix refs/arc/`; each server advertised exactly those two
+state refs and omitted `main`. Each receiver advertised `atomic`, and its three-ref atomic push succeeded.
+
+- **GitHub:** 18:34:39 UTC; `https://github.com/andrewRCr/arc-ref-host-probe-20261016`.
+- **GitLab:** 18:34:42 UTC; `https://gitlab.com/andrewRCr/arc-ref-host-probe-20261016`.
+
+The packet evidence on both hosts includes `fetch< version 2`, `fetch> ref-prefix refs/arc/`, and exactly two
+`fetch< <oid> refs/arc/host-probe/...` advertisement rows. GitHub's receive capability row contains
+`report-status-v2 delete-refs side-band-64k ofs-delta atomic`; GitLab's contains
+`report-status-v2 delete-refs side-band-64k quiet atomic ofs-delta`. The full packet traces and machine-readable
+results are retained under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-2.5/{github,gitlab}/`.
+
+Run one host with `node --import tsx packages/arc-framework/__tests__/benchmarks/ref-host-properties.ts <host>
+<scratch-https-url> <evidence-directory>`. Authentication uses the existing `gh` or `glab` credential helper per
+invocation, with no credential in the URL or repository configuration and no HTTP-header tracing. The kit leaves
+remote probe refs for inspection, removes its local temporary repositories, and stays outside test tiers and CI.
+A repeat observes the old tips and leases every update; its seed commit descends from the previous `main` tip so
+GitLab's default branch protection accepts the retry. A scratch repository with any other ref requires a fresh one.
 
 ---
