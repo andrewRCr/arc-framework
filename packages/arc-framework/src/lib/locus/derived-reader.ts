@@ -337,7 +337,8 @@ function projectIdentityDiscovery(
   snapshot: TransientIdentitySnapshot,
   rows: readonly DerivedCheckoutRow[],
 ): DerivedIdentityDiscovery {
-  if (snapshot.kind !== "complete") return snapshot;
+  if (snapshot.kind === "absent") return { kind: "absent" };
+  if (snapshot.kind === "error") return { kind: "error", stage: snapshot.stage, message: snapshot.message };
   const consumed = new Set(rows.flatMap((row) => row.identity === null ? [] : [row.identity.key]));
   return {
     kind: "complete",

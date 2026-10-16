@@ -544,6 +544,18 @@ describe("dormant derived roster reader", () => {
     });
   });
 
+  it("reports a failed discovery read by its stage and message alone", async () => {
+    const result = await readDerivedLocusRoster(baseOptions({
+      identities: { kind: "error", stage: "tip", message: "identity ref unavailable", error: new Error("git failed") },
+    }));
+
+    expect(result.identityDiscovery).toStrictEqual({
+      kind: "error",
+      stage: "tip",
+      message: "identity ref unavailable",
+    });
+  });
+
   it("does not project unrelated WU metas into a marker-selected transient", async () => {
     const path = "/repo/repair";
     const unrelated = meta(path, "other");
