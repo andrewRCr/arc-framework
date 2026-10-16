@@ -972,7 +972,12 @@ frame's subject from the flip.
   (§ 16), where today's index drops such a meta (`buildLifecycleIndex`); the slot catches either and reports each
   diagnostic's condition as its condition, with that diagnostic's remedy as its action, or, for an unreadable listing or
   an incomplete one whose `cause` holds no diagnostic, the thrown message as its condition (§ 4.3), rather than failing
-  as a probe.
+  as a probe. From the flip the prepare also returns the store's refusal where a read it makes refuses — the lifecycle
+  view, the artifact group's acquisition, a group listed incompletely among it, the lineage listing or its terminal
+  aliases' read, an alias lookup, or the read of the paired references' owners — and the slot reports that refusal's
+  condition as its condition, with its remedy as its action (§ 4.3), as for the throw (A12). The probe plans for the
+  primary record the prepare acquired, its slug and meta path that record's, since the prepare's reads serve only the
+  records it acquired.
 - **The user-reference reconcile** rewrites personal records rather than a work unit's artifact group, and from the flip
   takes the prepared-write shape over them: it revalidates each prepared record by its version and applies every
   rewrite in one `batch` with expected versions. The session notes it rewrites are from the flip the meta's session
@@ -1051,6 +1056,7 @@ flip's rewrite (§ 1.5).
 | `currentWuReconcile`: tracked repairs pending                                                                                              | `arc wu reconcile <slug> --apply --json`, in the work unit's checkout                                                                           | typed |
 | `currentWuReconcile`: advisory or conflicted                                                                                               | `arc wu reconcile <slug> --json`, to inspect, as today                                                                                          | typed |
 | `currentWuReconcile`: the prepare threw over an incomplete or unreadable lifecycle listing (§ 4.1)                                         | each diagnostic's own remedy, naming each record and its condition, or the remedy the thrown message carries                                    | text  |
+| `currentWuReconcile`: the prepare refused (§ 4.1, A12)                                                                                     | the refusal's remedy, naming its condition                                                                                                      | text  |
 | `userReferenceReconcile`: rewrites pending                                                                                                 | `arc user reconcile-references --apply --json`, as today                                                                                        | typed |
 | `userReferenceReconcile`: advisory references                                                                                              | `arc user reconcile-references --json`, to inspect, as today                                                                                    | typed |
 | `userReferenceReconcile`: rename evidence unavailable or in conflict                                                                       | its precomposed text                                                                                                                            | text  |
@@ -2197,7 +2203,7 @@ holds until then is stated with it.
       its executor and command bindings, the prepare never reading the pause and the apply refusing on one, and the
       prepare throwing over a lifecycle listing with a malformed or missed record (`store.lifecycle-incomplete`, its
       diagnostics its `cause`) or one it cannot read (`store.lifecycle-unreadable`), through `requireCompleteInventory`,
-      `lib/store/lifecycle-storage.ts` (§ 4.1);
+      `lib/store/lifecycle-storage.ts`, and returning the store's refusal where a read it makes refuses (§ 4.1, A12);
     - lifecycle's own callers reading the store's slug-keyed lifecycle view from the flip — start's dispatch, rename's
       subject and collision checks, and resume's and abandon's target and state (`handleResume`, `handleAbandon`,
       `handlers/lifecycle.ts`), taking the branch from the link, with `resolveTransformComposition` their in-repo arm —
@@ -2485,6 +2491,9 @@ close.
     stale-worktree sweep gives a registration whose folder is missing and whose ended work unit adopted its branch
     `git worktree remove <path>` as text, with `git worktree unlock <path>` first where it is locked, never
     `arc teardown`.
+19. **A refused reconcile prepare reports in its slot (A12).** From the flip, where the store-backed prepare returns a
+    refusal, `currentWuReconcile` reports its condition with its remedy as the slot's action, and the probe does not
+    fail.
 
 ## Open Questions
 
@@ -2515,5 +2524,7 @@ this design open.
   § 1.2, the status read path. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
 - **A11** — 2026-10-16 — design: an adopted branch's missing-folder registration takes the removal by path.
   _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ pending → 3.10.
+- **A12** — 2026-10-16 — spec-depth: a refused store prepare reports in the session reconcile slot with its remedy.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
 
 ---

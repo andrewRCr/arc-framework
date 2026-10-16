@@ -2054,22 +2054,35 @@ its `arc schema` test with it.
 
         - From the flip the session probe (`runCurrentWuReconcileSessionProbe`,
           `lib/session-init/current-wu-reconcile.ts`) binds the transition-write-path change's store-backed prepare
-          context (`createStoreReconcilePrepareContext`, built in Task 4.3.b - `tasks-seam-lifecycle.md`) in place of
-          the lifecycle index, transition queries, and artifact reads `handleSessionInitStatus` binds inline; until then
-          the inline bindings stay, since over the in-repo implementation they read the transition records that carry
-          today's renames. It only prepares, the apply staying `arc wu reconcile <slug> --apply`.
+          context (`createStoreReconcilePrepareContext`, `lib/work-unit/store-reconcile-context.ts`, built in
+          Task 4.3.b - `tasks-seam-lifecycle.md`) in place of the lifecycle index, transition queries, and artifact
+          reads `handleSessionInitStatus` binds inline; until then the inline bindings stay, since over the in-repo
+          implementation they read the transition records that carry today's renames. It only prepares, the apply
+          staying `arc wu reconcile <slug> --apply`.
+        - Given the context, the probe plans for the primary record it acquired, its slug that record's name and its
+          meta path `workUnitMetaPath(primary)` (`lib/store/lifecycle-write.ts`), as lifecycle's own ceremony does
+          (`buildStoreCurrentWuReconcile`, `lib/work-unit/store-current-wu-reconcile.ts`), since the context's
+          `readFile` serves only the paths it acquired.
         - Where the prepare throws over a lifecycle listing with a malformed or missed record
           (`store.lifecycle-incomplete`) or one it cannot read (`store.lifecycle-unreadable`) — each an `ArcError` from
           `requireCompleteInventory` (`lib/store/lifecycle-storage.ts`), the first carrying its diagnostics as its
           `cause` — the slot catches it and reports each diagnostic's condition as its condition, with that diagnostic's
           remedy as its action, as text, or, for an unreadable listing or an incomplete one whose `cause` holds no
           diagnostic, the thrown message as its condition (§ 4.3), rather than failing as a probe.
+        - Where the context returns the store's refusal — the lifecycle view's, the artifact group's acquisition's, a
+          group listed incompletely among them (`acquireLifecycleRecords`, `lib/work-unit/prepared-lifecycle-write.ts`),
+          the lineage listing's or its terminal aliases' (`readTerminalReferenceAliases`,
+          `lib/work-unit/terminal-reference-aliases.ts`), an alias lookup's, or the paired references' owners'
+          (`readPairedReferenceOwners`, `lib/work-unit/paired-reference-owners.ts`) — the slot reports its condition as
+          its condition, with its remedy as its action, as text, as it reports the throw.
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend the probe's plan matches the reconcile command's for the same work unit, a
               former slug resolving through the shared context
             - over the reference backend an incomplete lifecycle listing reports as the slot's condition with its remedy
             - over the reference backend an unreadable lifecycle listing reports its message as the slot's condition
+            - over the reference backend an artifact group listed incompletely reports the acquisition's condition as
+              the slot's condition, with its remedy as its action
             - over a stand-in store whose lifecycle listing reports records missed with no diagnostic, the slot reports
               the thrown message as its condition
             - over the in-repo implementation the probe's plan is today's
