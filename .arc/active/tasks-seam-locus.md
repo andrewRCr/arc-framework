@@ -140,10 +140,15 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
       `authorizePreservation` — takes the projection's slots as an optional `projectionRemovalSlots`
       (`ProjectionRemovalSlots`, `lib/git/worktree-removal.ts`) on its options (`RunStaleWorktreeSweepOptions`,
       `RunLandedRetirementSweepOptions`, which the stale-worktree sweep fills from its own,
-      `RunBranchGoneRecoveryOptions`, and the leave runtime's), as the transition-write-path change's teardown and
-      reconcile contexts take it, and passes the check only its `check`, since none removes. The projection binds it
-      where the sweep's and recovery's options are composed (`handleSessionInitStatus`, `handlers/status.ts`) and the
-      leave runtime's (`handlers/errand.ts`); given none, the passing defaults apply.
+      `RunBranchGoneRecoveryOptions`, and the leave runtime's, `LeaveOrdinaryErrandRuntimeOptions`), as the
+      transition-write-path change's teardown and reconcile contexts take it, and passes the check only its `check`,
+      since none removes. The projection binds it where the sweep's and recovery's options are composed
+      (`handleSessionInitStatus`, `handlers/status.ts`) and the leave runtime's (`handlers/errand.ts`); given none, the
+      passing defaults apply.
+
+    - The check reads the checkout's registration itself, one `git worktree list --porcelain -z` per call
+      (`readRegistration`, `lib/git/worktree-removal.ts`), so each decision's scripted-Git test double answers that call
+      beside its status read.
 
     - Build `test-first` (one behavior at a time):
         - a `check` injected through each decision's `projectionRemovalSlots` is the one its removal check calls
@@ -172,6 +177,9 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           `lib/work-unit/store-retirement-husk.ts`), keep their calls unchanged. `missing` never reaches it, since a
           husk's stamp is in the marker inside its folder, so a registration whose folder is gone takes Task 1.7.b's
           report.
+        - The sweep's registered schema (`lib/session-init/stale-worktree-sweep-schema.ts`, Task 1.1.b) admits both
+          reads' new outcomes beside its producer: the branched and husk decisions' `blocked` reasons gain
+          `unobservable` and `locked`.
 
         - Build `test-first` (one behavior at a time):
             - a failed status read reports `unobservable` and grants no removal
@@ -187,11 +195,14 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           `external`.
         - A roster entry with no meta, which short-circuits to `switch` with no read today, takes the folder outcome
           alone, so a main or administrative checkout whose folder is present stays `switch`.
-        - A registration whose folder is missing — `missing`, or `locked` with no folder — is never a candidate: the
+        - A registration whose folder the roster's row reads missing (`folderPresent`) is never a candidate: the
           candidate builder leaves it out, and `recovery` reports it in a field beside its outcome on
-          `SessionInitRecoveryValueSchema`, `missingFolders: [{ worktreePath, branch, actions }]`. Its action is
-          `git worktree remove <path>` for `missing`, with `git worktree unlock <path>` first for `locked`, each as text
-          naming its precondition, that the folder is still missing.
+          `SessionInitRecoveryValueSchema`, `missingFolders: [{ worktreePath, branch, actions }]`, where the check
+          agrees — `missing`, or `locked` with no folder — any other outcome waiting for the next session start's
+          reading, as 1.7.b's sweep does. An entry the roster reads present whose check reads `missing` reads
+          `external`, since the check's `stat` and the roster's `lstat` disagree on a dangling symlink, as they do on
+          `ENOTDIR`. Its action is `git worktree remove <path>` for `missing`, with `git worktree unlock <path>` first
+          for `locked`, each as text naming its precondition, that the folder is still missing.
         - The branches the roster represents (`runBranchGoneRecovery`'s `represented` set) are built from the roster's
           entries, folderless registrations included, rather than from the candidates, so a folderless registration's
           branch stays out of the recent-branch tier.
@@ -201,6 +212,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
             - a main checkout with no meta stays `switch`
             - a missing folder is never a candidate, its branch stays out of the recent-branch tier, and recovery
               reports it in `missingFolders` with the removal by path as text
+            - an entry the roster reads present whose check reads `missing` reads `external`
             - a missing folder under a lock names the unlock, then the removal, as text
 
     - `[ ]` **1.5.d `arc errand leave`'s authorization**
@@ -223,9 +235,11 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
     - On a spawned checkout the exit's own status read (`inspect`) gives way to the function's check, so its refusal
       carries the check's outcome rather than `preservation-unproven` alone; `settleTerminalOccupancy` keeps
       `git status --porcelain` where it inspects the primary.
-    - The function's `removed` and `pruned` map to the exit's `applied`, and `refused` and `failed` to its refusal and
-      `error`; where Git no longer lists the checkout, the exit reports `idempotent` without calling the function, as
-      `removeSpawned`'s `absent` does today.
+    - The function's `removed` and `pruned` map to the exit's `applied`, `refused` to its refusal, a `failed` carrying a
+      `remedy` — the persist step's refusal — to its refusal with that remedy's text as its message, and any other
+      `failed` to `error`; `pruned` arises only by a race, since the exit's preconditions read the folder first, and
+      keeps its mapping; where Git no longer lists the checkout, the exit reports `idempotent` without calling the
+      function, as `removeSpawned`'s `absent` does today.
     - `SettleTerminalOccupancyOptions` takes an optional `projectionRemovalSlots`, carried from each exit's runtime
       options, which `handlers/errand.ts` composes, and passes it to the function as `slots`, so the projection binds it
       there; given none, the passing defaults apply.
@@ -234,6 +248,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - a clean spawned Errand checkout is removed through the function on close, abandon, leave, and partial
           settlement
         - a refused check stops the exit before any removal, carrying the check's outcome
+        - a persist step's refusal stops the exit as a refusal carrying its remedy
         - the primary is inspected and never removed
         - slots injected through an exit's options reach the function
         - a rerun after the checkout's registration is gone reports `idempotent`
@@ -251,6 +266,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           prompted with it rather than with no command, its name the work unit its checkout's marker names (`wuName`),
           which the candidate's removable decision already reads (`determineCandidateAction`,
           `lib/session-init/branch-gone-cascade.ts`), so `CascadeCandidateSchema`'s `removable` arm gains the name.
+        - The sweep's registered schema (Task 1.1.b) admits the branched report's `actions` beside its producer.
         - Session-init's text that prints them is unchanged; the flip's rewrite dispatches the actions.
 
         - Build `test-first` (one behavior at a time):
@@ -262,11 +278,12 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
         - In the primary's session only, as it selects branched candidates today (`findStaleWorktreeCandidates`), the
           sweep selects every registration whose folder reads missing on the derived roster's rows it is handed
           (`derivedRoster`, Task 1.4), apart from its marked rows, and reports one only where the removal check agrees:
-          `missing` where it is unlocked, `locked` with no folder where it is locked. Any other outcome waits for the
-          next session start's reading.
+          `missing` where it is unlocked or holds the projection's lock, `locked` with no folder where any other lock
+          holds it. Any other outcome waits for the next session start's reading.
         - It reports each in `missingFolders: [{ worktreePath, branch, outcome, actions }]`, beside `worktrees`, never
           as a `StaleWorktreeReport`, so a shipped work unit's registration whose folder is missing stops reporting as
-          an `external` `branched` report.
+          an `external` `branched` report. The sweep's registered schema (Task 1.1.b) gains the field beside its
+          producer.
         - A branched one whose work unit has ended — shipped by its branch, as today — takes `arc teardown <name>`,
           typed; where it is locked, `git worktree unlock <path>`, then `arc teardown <name>`, as text. Every other one
           — detached, a hand-deleted husk's among them, or branched with its work unit in flight or no work unit linking
@@ -292,7 +309,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
       move's tuple, and the deferred move's `actions` carries the same argv, typed (§ 4.3).
 
     - Build `test-first` (one behavior at a time):
-        - a validated deferred move yields the doubled-force argv and its text
+        - a validated deferred move, branched and detached, yields the doubled-force argv and its text
         - the deferred move's action carries that argv, typed, and parses under the slot's schema
 
 ### `[ ]` **1.9 Record the state version and the layout-resolved paths in the compaction seed — § 4.9**

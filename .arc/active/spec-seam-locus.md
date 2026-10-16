@@ -1966,10 +1966,11 @@ Each carries an `arc teardown <name>` argv, as the residue sweep's report alread
 selects every registration whose folder reads missing on the derived roster's rows (`folderPresent`, § 2.1), apart from
 the rows it selects by their work unit (§ 2.1), in the primary's session only, as it selects branched candidates today
 (`findStaleWorktreeCandidates`), since with no marker a registration names no owner to filter by. It reports one only
-where the removal check agrees — `missing` where it is unlocked, `locked` with no folder where it is locked; any other
-outcome means the folder came back or could not be observed, and the registration waits for the next session start's
-reading. It reports each in its own field, `missingFolders: [{ worktreePath, branch, outcome, actions }]`, beside
-`worktrees`, never as a `StaleWorktreeReport`, whose kinds session-init's text dispatches on:
+where the removal check agrees — `missing` where it is unlocked or holds the projection's lock, which no registration
+carries until that lock lands (§ 16), and `locked` with no folder where any other lock holds it; any other outcome means
+the folder came back or could not be observed, and the registration waits for the next session start's reading. It
+reports each in its own field, `missingFolders: [{ worktreePath, branch, outcome, actions }]`, beside `worktrees`, never
+as a `StaleWorktreeReport`, whose kinds session-init's text dispatches on:
 
 - **A branched one whose work unit has ended** — shipped by its branch, as today, and from the flip by its branch's link
   (`lookup` by ref), the link recording that the work unit created the branch (`linkedAs`), and the work unit's
@@ -1981,10 +1982,10 @@ reading. It reports each in its own field, `missingFolders: [{ worktreePath, bra
   its marker went with its folder, a hand-deleted husk's among them; a branched one whose work unit is in flight,
   whoever owns it, or whose branch no work unit links; and from the flip a branched one whose ended work unit adopted
   its branch, which teardown keeps with its registration, clearing a missing folder's registration only for a branch it
-  created (`reportAdopted`, `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`, A11). A work unit's spawn
-  clears such a registration itself (§ 2.7, § 16), so for a work unit the report is hygiene, never a step a materialize
-  waits on; an Errand's spawns clear nothing (§ 16), so an Errand whose registration holds its branch respawns only once
-  the removal has run.
+  created (`reportAdopted`, `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`, A11). From the flip a work
+  unit's spawn clears such a registration itself (§ 2.7, § 16), so for a work unit the report is then hygiene, never a
+  step a materialize waits on; before the flip, and for an Errand, whose spawns clear nothing (§ 16), a spawn meeting
+  the registration at its path or its branch waits until the removal has run.
 
 A removal ARC does not run is text naming its precondition, that the folder is still missing: the folder was read at
 session start, and `git worktree remove` run later deletes a checkout whose folder is present again by then, gitignored
@@ -2188,9 +2189,12 @@ holds until then is stated with it.
       blocks one: graduation's spawn and the linked spawn, through `createLinkedWorktree`'s optional clearing step
       (`clearMissingRegistration`), which `reconcileWorkUnitWorktree` supplies, and that function's in-place leg before
       it checks the branch out, by branch, for `arc materialize --here`; a registration locked by anything but the
-      projection refuses `locked`, naming `git worktree unlock <path>` as text. The transient claims' spawns through
-      `createLinkedWorktree` (`lib/locus/allocator.ts`, `lib/locus/provisioning-runtime.ts`) supply no clearing step and
-      keep today's behavior (§ 2.7, § 12.2);
+      projection refuses through the removal check's `locked`, which reaches the spawn's caller as the check's rendered
+      message (`describeRemovalRefusal`, `lib/git/worktree-removal.ts`), naming `git worktree unlock <path>` for the
+      lock's owner: from `createLinkedWorktree` in a `stale-registration-refused` error (`lib/git/linked-worktree.ts`),
+      and from the in-place leg as a thrown error. The transient claims' spawns through `createLinkedWorktree`
+      (`lib/locus/allocator.ts`, `lib/locus/provisioning-runtime.ts`) supply no clearing step and keep today's behavior
+      (§ 2.7, § 12.2);
     - teardown releasing an anchored marker and keeping its checkout, and rename moving only a spawned checkout (§ 2.3);
     - the store's retirement read from the flip (`readStoreRetirementEvidence`,
       `lib/work-unit/store-retirement-evidence.ts`), which returns an abandonment's lineage record as `lineage` evidence
