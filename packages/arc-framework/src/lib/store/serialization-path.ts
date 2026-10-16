@@ -2,6 +2,7 @@
 import { RecordReferenceSchema, type RecordReference } from "./identity.js";
 import { KIND_REGISTRY } from "./registry.js";
 import { expandStoredPath } from "./stored-path.js";
+import { isSlugSafe } from "../kernel/schema/slug.js";
 
 const specialNames = [".git", ".gitmodules", ".gitattributes"];
 const hfsIgnored = /[\u200c-\u200f\u202a-\u202e\u206a-\u206f\ufeff]/gu;
@@ -23,8 +24,10 @@ function gitSpecialSegment(segment: string): boolean {
 /** Check names before resolving identity; a fixed UID expands syntax without allocating a generation. */
 export function hasUnsafeStoredPath(reference: RecordReference): boolean {
   const key = typeof reference.key === "object" ? reference.key.activity : reference.key;
+  const verbatim = reference.kind === "personal/document"
+    || reference.kind === "work-item/companion" && typeof key === "string" && !isSlugSafe(key);
   if (Buffer.byteLength(reference.owner.name) > 2_040
-    || (reference.kind !== "personal/document" && key !== undefined && Buffer.byteLength(key) > 2_040)) return true;
+    || (!verbatim && key !== undefined && Buffer.byteLength(key) > 2_040)) return true;
   if (!KIND_REGISTRY[reference.kind].ref) return false;
   const owner = reference.owner;
   const resolved = owner.type !== "person" && owner.uid === undefined

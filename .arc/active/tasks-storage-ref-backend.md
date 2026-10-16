@@ -423,16 +423,14 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   admission. The ref writer checks puts before resolution and changed bytes before storage; public write/batch tests
   retain atomic refusal, repaired retries, and large never-projected records.
 
-### `[ ]` **5.R Companion path length admission — § 3.2, § 5.6 (A5)**
+### `[x]` **5.R Companion path length admission — § 3.2, § 5.6 (A5)**
 
 - _Goal:_ Verbatim companion path keys use per-segment bounds, while companion names combined with owner slugs retain
   the 2,040-byte bound (A5).
 
-    - Build `test-first` (one behavior at a time):
-        - the exported guard admits a verbatim companion path over 2,040 total UTF-8 bytes and a 4,096-byte segment,
-          refuses a 4,097-byte segment, and retains the 2,040/2,041-byte boundary for combined companion names
-        - public `write` and `batch` store and list admitted verbatim paths, refuse both over-limit forms without
-          changing refs, and admit a repaired retry
+- _Outcome:_ `hasUnsafeStoredPath` applies the existing slug classifier to companion keys. Verbatim paths use
+  per-segment byte limits; combined names retain their key limit, with public persistence, listing, atomic refusal,
+  and repaired retries covered.
 
 ### `[ ]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
 

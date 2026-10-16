@@ -91,4 +91,13 @@ describe("record serialization admission", () => {
     const unsafe = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "work" }, kind: "review/evidence", key: "x".repeat(2_041) });
     expect(checkSerializationRules(unsafe, "text")).toMatchObject({ rule: "store.git-path" });
   });
+  it("bounds verbatim companion segments independently of combined companion names", () => {
+    const companion = (key: string) => RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/companion", key });
+    for (const key of [`scratch/${"a".repeat(2_030)}.md`, `scratch/${"é".repeat(2_048)}`, "a".repeat(2_040)]) {
+      expect(checkSerializationRules(companion(key), "text")).toBeUndefined();
+    }
+    for (const key of [`scratch/${"é".repeat(2_048)}x`, "a".repeat(2_041)]) {
+      expect(checkSerializationRules(companion(key), "text")).toMatchObject({ rule: "store.git-path" });
+    }
+  });
 });
