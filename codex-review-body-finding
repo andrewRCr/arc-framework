@@ -3,14 +3,20 @@
   "slug": "codex-review-body-finding",
   "claimId": "3e5af8c08eb75da56b20c47ebc1b50e0",
   "createdAt": "2026-10-16T00:50:21.460Z",
-  "updatedAt": "2026-10-16T00:50:21.460Z",
+  "updatedAt": "2026-10-16T01:37:32.941Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Recognize authenticated exact-head Codex findings posted in a review body, preserving source evidence and existing non-thread settlement semantics instead of waiting forever.",
   "branch": "chore/codex-review-body-finding",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/codex-review-body-finding",
+    "headSha": "4d43eee38a21f8f397d499e3af3975ac037731a1"
+  }
 }
