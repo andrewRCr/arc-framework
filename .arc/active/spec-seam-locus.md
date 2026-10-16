@@ -1159,6 +1159,13 @@ From the flip a pause is a record on the work item that changes neither its `Sta
   them where that is the resume: each typed but the handover, which is text, since the identity it takes is the owner's
   to name, and the abandon carrying `--yes`, since the verb refuses without it and the person's approval of the offer is
   its confirmation (A14); the slot always passes the slug.
+- **The marking is one function (A15).** An item's marks, and a review-due item's prompt with its choices as actions,
+  come from one exported function over a single paused work item, given the store, through which it resolves the item's
+  `waitsOn` by `lookup`, a former slug included, and `pause.review_after_days`, measuring review age from the pause's
+  `since`. It reads no identity and no checkout, so it marks any person's paused work alike: the slot maps it over the
+  person's listing, and the status surfaces' Paused tier, which shows every paused work unit with its review flag
+  visible to everyone, calls it for each of its rows, so the marking lives once. Each item's own action (below) stays
+  the slot's.
 - **Each item's action** is `arc resume <slug>`; or `arc materialize <slug>` when no checkout on this machine holds the
   work unit; or, when a checkout with no marker, its folder present, still has the work branch out — released, or
   claimed in place before the flip (§ 2.7) — `arc materialize <slug> --here` with that checkout to run in, since a spawn
@@ -2545,6 +2552,9 @@ close.
 21. **A review-due pause's choices run as given (A14).** From the flip a review-due `pausedWork` item carries
     `arc resume <slug>`, `arc pause <slug> --open` where the pause is not open, and `arc abandon <slug> --yes` as typed
     actions, and `arc handover <slug> --to <identity>` as text.
+22. **A paused work item's marking is one function (A15).** From the flip one exported function, given a single paused
+    work item, the store, and `pause.review_after_days`, returns its marks and, for a review-due item, its review prompt
+    and choices, whoever owns the item, and `pausedWork` maps it over the person's listing.
 
 ## Open Questions
 
@@ -2581,5 +2591,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ pending → 2.10.
 - **A14** — 2026-10-16 — design: a review-due pause's choices are actions, each typed but the handover. _Supersedes:_
   § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
+- **A15** — 2026-10-16 — spec-depth: a paused work item's marking is one exported function the status surfaces call too.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 
 ---

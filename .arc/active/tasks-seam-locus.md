@@ -2300,6 +2300,11 @@ its `arc schema` test with it.
           pause's review age from its `since`, which a pause updated in place keeps. Each item carries the pause's
           `open`, which the slot's schema (`PausedWorkResultSchema`, `lib/session-init/paused-work.ts`, Task 1.3) gains
           beside its producer.
+        - The marking — the resumable and review-due marks, and a review-due item's prompt with its choices as actions —
+          is one exported function over a single paused work item (`markPausedWorkItem`,
+          `lib/session-init/paused-work.ts`), given the store, for the `waitsOn` lookup, and the
+          `pause.review_after_days` setting, reading no identity and no checkout. The slot maps it over its listing, and
+          the status change's Paused tier calls it for each paused row (spec § 4.4).
         - Each item's action is `arc resume <slug>`; or `arc materialize <slug>` where no checkout here holds the work
           unit; or `arc materialize <slug> --here` with the checkout to run in, where a markerless checkout, its folder
           present, still has its branch out (Task 2.7).
@@ -2314,6 +2319,8 @@ its `arc schema` test with it.
             - an open pause's review prompt names no `arc pause <slug> --open`
             - a review-due item carries its resume, its open where the pause is not open, and `arc abandon <slug> --yes`
               as typed actions, and its handover as text
+            - the marking function, given a paused work item another identity owns, marks it as the slot marks the
+              person's own
 
     - `[ ]` **5.4.b Entering a paused checkout**
 
