@@ -298,6 +298,9 @@ export const ARC_CONFIG_FIELDS = [
   booleanField("sync.auto_pull", "false"),
   enumField("archive.cadence", ["with-integration", "manual"], "with-integration"),
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
+  positiveSafeIntegerField("inbound.retriage_after_entries", "10", 1),
+  positiveSafeIntegerField("inbound.retriage_after_days", "30", 1),
+  positiveSafeIntegerField("pause.review_after_days", "14", 1),
   positiveSafeIntegerField("integration.stale_after_days", "2", 1),
 ] as const satisfies readonly ArcConfigFieldDescriptor[];
 

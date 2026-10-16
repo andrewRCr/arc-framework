@@ -231,20 +231,15 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   help summaries, and no-input policies. Each capability arm currently refuses with its serving path; bare locus
   inspection keeps its existing handler and behavior.
 
-### `[ ]` **1.11 Declare the three settings — § 4.4, § 4.6, § 14**
+### `[x]` **1.11 Declare the three settings — § 4.4, § 4.6, § 14**
 
 - _Goal:_ `inbound.retriage_after_entries` (default 10), `inbound.retriage_after_days` (default 30), and
   `pause.review_after_days` (default 14), each a positive integer, are declared beside `inbox.remind_after_days` and
   show in `arc config`, with no effect before the flip.
 
-    - Declare them in `lib/config/schema.ts` and `commands/config/validate.ts`; the shipped configuration template
-      documents them only in the flip's rewrite.
-    - They stay out of session-init's configuration listing (`SESSION_INIT_KEYS`, `commands/config/status.ts`), whose
-      envelope § 1.4 leaves unchanged; the test fixtures that build a full `ConfigSettings` gain them.
-
-    - Build `test-first` (one behavior at a time):
-        - each setting resolves to its default and shows in `arc config`
-        - a non-positive or non-integer value refuses validation
+- _Outcome:_ The catalog and validator admit the three positive-integer settings at their declared defaults. Full
+  configuration views expose them; session-init's narrowed keys remain unchanged. The packaged template remains
+  unadvertised for these dormant settings, with the inventory test recording that exact boundary.
 
 ### `[ ]` **1.12 Admit the anchored marker and the origin binding's new form, dormant — § 2.3, § 7.6**
 

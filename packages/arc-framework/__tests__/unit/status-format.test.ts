@@ -91,6 +91,9 @@ function okConfig(): Probe<ConfigStatusResult> {
         "archive.cadence": "with-integration",
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
+        "inbound.retriage_after_entries": "10",
+        "inbound.retriage_after_days": "30",
+        "pause.review_after_days": "14",
         "integration.stale_after_days": "2",
         "changeset.advisory_threshold_lines": "0",
         "changeset.advisory_threshold_files": "0",
@@ -301,7 +304,7 @@ describe("buildStatusSummary — full mode", () => {
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("35 agent-consumable settings");
+    expect(summary).toContain("38 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

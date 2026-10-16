@@ -615,4 +615,13 @@ changes `unit/command-input/registry.test.ts`, `unit/lib/cli-help-coverage.test.
 `helpers/cli-transport.ts`. Paths are under `packages/arc-framework/__tests__/`. No session-envelope golden changes
 are required. Both in-repo and reference stores refuse each dormant arm before reading any request or stdin bytes.
 
+## Task 1.11: dormant settings
+
+Spec § 1.4, item 6 adds `unit/config/inbound-pause-settings.test.ts` and changes the config inventory, schema, and
+status-reader tests. Full-settings fixtures change in `unit/config-format.test.ts`, `unit/status-format.test.ts`,
+`unit/status/run.test.ts`, `unit/handlers/release/commit.test.ts`, `unit/handlers/release/push.test.ts`,
+`unit/release/interlock-validation.test.ts`, and `integration/release-push-upstream-init.test.ts`, all under
+`packages/arc-framework/__tests__/`. The inventory admits only these three runtime-only catalog keys; the packaged
+configuration template and session-init's key set keep their current contents. No envelope golden changes are required.
+
 ---
