@@ -226,4 +226,29 @@ by construction, and that batch spans two directories that cannot commit atomica
 by scope, so the designation lands additively. The follow-on likely belongs beside `config-storage-architecture`, which
 owns user-scope configuration; its tripwire is a person asking to keep personal state off a shared remote.
 
+## A2 — Review mapping identity and source accounting
+
+Folded the capture “Give the review mapping's port each Errand's claim ID, and fix its listing's source encodings”
+into § 10.8, § 14.7, Success Criterion 14, and Task 15.R. This is the import port's own contract; the mapping's
+implementation stays outside this work unit. The design amendment is determinate and local: retain the existing
+claim identity and make the source units explicit before the port is built.
+
+Superseded input row:
+
+```ts
+workItems: { slug: string; kind: "work-unit" | "errand"; uid: string; live: boolean }[];
+```
+
+Superseded source-accounting sentence:
+
+> A source the listing does not account for exactly once — each gate file by its path, and each Candidate version
+> and boundary by its tracked path, a version's with its commit — is listed in `notices` and refuses the import.
+
+`TransientIdentityRecordSchema` retains `claimId`, and `mintClaimId` generates it from random bytes
+(`lib/errand/identity-record.ts`); the review gate uses it as `lineage.vehicleIdentity`
+(`scripts/review-gate/status-errand.ts`). It is therefore an input to the old-to-new identity join, not the new
+store UID. Gate sources use Git-common-relative paths; a trailing slash distinguishes folder coverage from a file
+identity, so the import can enforce completeness without reading review record shapes. Candidate source identities
+retain both tracked path and commit. Task 15.10 closes the amendment through its import scenario after Task 15.R.
+
 ---

@@ -2615,6 +2615,7 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
 - _Goal:_ Whatever mapping fills the port, the import hands it every review source of live work and lands only what it
   returns, so once the review family's mapping lands no review fact of live work is lost or carried in today's shape.
 
+    - _Amended in:_ 15.R (A2)
     - An optional `reviewMapping` among `runStoreMigrate`'s ports, its `ReviewMappingInput` and `ReviewMappingResult`
       types in the transform module (§ 10.8); the `arc store migrate` handler passes none until the review family's
       mapping lands, and that mapping conforms by shape, importing nothing of the transform's
@@ -2640,6 +2641,23 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
         - an archived work unit whose branch exists unlanded in base is listed in `notices` and refuses the import,
           which lands once the branch merges, and one whose change landed by a multi-commit squash refuses likewise and
           lands once its branch is removed, while one whose branch is gone or merged imports as completed
+
+### `[ ]` **15.R Review import claim IDs and source units — § 10.8 (A2)**
+
+- _Goal:_ Amendment A2's port preserves each Errand's original claim ID and accounts for canonical file and folder
+  source units exactly once, so review lineages join the correct imported work item and no source disappears in a
+  name or grouping mismatch.
+
+    - Extend 15.9's work-item table with required `claimId` on Errand rows, copied unchanged from the source record;
+      work-unit rows retain their existing shape, and the imported store UID remains separately minted
+    - Gate paths and listing sources follow § 10.8's four encodings; a left-behind materialization folder covers its
+      supplied descendants once, without teaching the transform the review gate's record shapes
+    - Build `test-first` (one behavior at a time):
+        - a test mapping receives the original Errand claim IDs and joins reused slugs by claim ID to the correct UID
+        - gate files, materialization folders, Candidate versions, and boundaries compare under their exact encodings;
+          two Candidate versions at one tracked path remain separate sources
+        - a folder lists once without separate child-file entries; an omitted or repeated source, folder/file overlap,
+          or nested-folder overlap refuses with `notices`, then the import lands after the listing is repaired
 
 ### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
@@ -3253,3 +3271,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` Review import rows preserve each Errand's original claim ID, and canonical file/folder source units account
+  for every supplied source exactly once, with reused-slug joins and omission, repetition, and overlap repaired as
+  § 14.7 requires (A2)
