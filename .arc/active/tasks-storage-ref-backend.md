@@ -237,18 +237,10 @@ default layout.
           its containing file. Main and linked-worktree answers match Git; malformed markers and unreadable common
           directories refuse without hiding the failure and succeed after repair.
 
-    - `[ ]` **3.1.d The machine ID and the actor**
-        - `lib/store/machine-id.ts` reads `arc/user/<identity>/.internal/.machine-id` in the common Git directory (3.1.c)
-          or creates it through `exclusiveCreateFile` (`lib/fs.ts`), a lost create adopting the winner's ID
-        - Notes sync's `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) keeps its legacy adoption of a
-          checkout-local or `.sync-state.json` ID, which retires with notes, and calls the store's reader with the
-          candidate it adopts, so its importers keep their import and both name one ID for one identity
-        - The actor resolves lazily at the first write that needs it; a clone with no identity has none
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, beside `save-load.test.ts`'s machine-ID cases
-            - two worktrees of one clone read one machine ID, and a fresh clone mints its own
-            - a lost create adopts the winner's ID
-            - notes sync's call and the store's name the same ID for one identity
+    - `[x]` **3.1.d The machine ID and the actor**
+        - `lib/store/machine-id.ts` owns shared ID reads, exclusive creation, and complete-winner readback. Notes sync
+          delegates to it with lazy legacy candidates, retaining its API and adoption order. Worktrees share one ID,
+          fresh clones mint distinct IDs, and the actor port remains unresolved during construction.
 
     - `[ ]` **3.1.e The planting helper**
         - A helper in `__tests__/helpers/store/` that writes blobs, trees (gitlinks, metadata files, and quarter folders
