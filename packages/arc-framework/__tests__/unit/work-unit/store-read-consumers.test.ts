@@ -18,6 +18,7 @@ import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { resolveCohortValidationContext, validateFiles } from "../../../src/scripts/validate-cohort-consistency.js";
 import { resolveBacklogStub } from "../../../src/lib/work-unit/backlog-stub.js";
+import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { runGraduate } from "../../../src/commands/start.js";
@@ -155,7 +156,7 @@ it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses u
     throw Error(`Unexpected Git operation: ${args.join(" ")}`);
   };
   const ctx = buildExecutorContext({ cwd: "/absent", io: { ...createUserIOContext(), exec }, store: h.store,
-    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates", locusPorts: createDefaultLocusPorts() });
   let physical = 0;
   ctx.reconcileWorkUnitWorktree = async () => { physical++; return { mutation: "spawn", branch: null, worktreePath: "/spawn" }; };
   const params = { name: "healthy", spawningIdentity: "test-user", baseBranch: "main", locationTemplate: "/spawn", repo: "repo" };

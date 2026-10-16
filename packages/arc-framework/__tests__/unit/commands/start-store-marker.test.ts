@@ -63,7 +63,7 @@ async function existingMarker(cwd: string): Promise<Buffer> {
 
 describe("public store start marker boundary", () => {
   it.each(["graduation", "create-new"] as const)("refuses %s before a physical spawn or marker write", async (command) => {
-    const ports = { ...admittedPorts(), checkMarkerExclusivity: async () => ({ kind: "refused" as const, checkoutPath: "/holding", reason: "Duplicate claim." }) };
+    const ports = { ...admittedPorts(), checkMarkerExclusivity: async () => ({ kind: "refused" as const, checkoutPath: "/holding", reason: "Duplicate claim. Checkout /holding already holds it; work there or free it with arc locus release." }) };
     const h = await fixture(ports);
     const result = command === "graduation" ? await h.graduate(false) : await runCreateNew({ io: h.io, store: h.store, locusPorts: ports, internalTemplateDir: getInternalTemplatePath() }, { worktreePath: h.root, identity: "starter", name: "new-work" });
     expect(result).toMatchObject(command === "graduation" ? { status: "rejected", reason: expect.stringContaining("/holding") } : { ok: false, reason: expect.stringContaining("/holding") });
@@ -118,7 +118,7 @@ describe("public store start marker boundary", () => {
   });
 
   it.each([false, true])("default unadmitted writer changes no marker through refused rollback, existing=%s", async (existing) => {
-    const h = await fixture(), bytes = existing ? await existingMarker(h.root) : undefined;
+    const h = await fixture(createDefaultLocusPorts()), bytes = existing ? await existingMarker(h.root) : undefined;
     let beforeRollback: Buffer | undefined;
     h.rejectBatch(async () => {
       try { beforeRollback = await readFile(h.markerPath); }

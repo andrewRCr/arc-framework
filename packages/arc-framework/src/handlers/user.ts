@@ -41,6 +41,10 @@ import {
 import { prompt } from "../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { type ArcErrorCode } from "../lib/kernel/errors.js";
@@ -102,7 +106,7 @@ export async function handleUserReconcileReferences(
   const [{ settings }, surfaces, currentWuName] = await Promise.all([
     readConfigSettings(cwd),
     resolveUserSurfaceResolver({ cwd, identity, exec }),
-    resolveCurrentWuName(cwd, io.exec),
+    resolveReconcileCurrentWorkUnit(cwd, exec),
   ]);
   const authority = await materializeUserReferenceAuthority({
     exec,
@@ -1260,4 +1264,13 @@ function emitStatusError(
     return;
   }
   output.log.error(formatSource ? formatError(formatSource) : message);
+}
+
+async function resolveReconcileCurrentWorkUnit(cwd: string, exec: GitExec): Promise<string | undefined> {
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "resolved") return current.candidate.reference.owner.name;
+  if (current.status === "ambiguous" || current.warnings.length > 0 || store.capabilities.stateOffBranch) return undefined;
+  try { const read = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]); return branchToWorkUnitSlug(read.stdout.trim()) ?? undefined; }
+  catch { return undefined; }
 }

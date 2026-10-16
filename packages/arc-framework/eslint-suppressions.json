@@ -1497,14 +1497,6 @@
       "count": 1
     }
   },
-  "src/lib/release/wu-resolution.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
-    "arc/surface-names": {
-      "count": 1
-    }
-  },
   "src/lib/renewable-lease.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1

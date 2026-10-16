@@ -980,7 +980,7 @@ describe("store-arm marker boundary", () => {
     const { ctx, events } = buildCtx();
     ctx.store = createLifecycleHarness().store;
     ctx.locusPorts = { ...createDefaultLocusPorts(), checkMarkerExclusivity: async () => ({ kind: "refused", checkoutPath: "/holding", reason: "Claim conflict." }) };
-    await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "feat/demo", base: "main", locationTemplate: "/spawn/{name}", repo: "repo", wuName: "demo", spawningIdentity: "andrew" })).rejects.toThrow(/holding.*arc locus release/u);
+    await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "feat/demo", base: "main", locationTemplate: "/spawn/{name}", repo: "repo", wuName: "demo", spawningIdentity: "andrew" })).rejects.toThrow("Claim conflict.");
     expect(events).toEqual([]);
   });
   it("writes the in-place claim through the anchored writer and keeps default unadmission non-writing", async () => {

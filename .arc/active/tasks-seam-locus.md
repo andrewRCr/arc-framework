@@ -371,180 +371,44 @@ read that gets none stops at that incomplete observation before calling it.
         - Roster consumers use work-unit identity; branch-specific consumers skip detached rows while class composition
           counts and labels them.
 
-### `[ ]` **2.3 Resolve the current work unit through the contract's resolver — § 2.2**
+### `[x]` **2.3 Resolve the current work unit through the contract's resolver — § 2.2**
 
 - _Goal:_ `resolveActiveWu`'s body, the cold start's occupancy check, `resolveOriginatingMetaPath`, and the
   user-reference reconcile's current-work-unit read all take `resolveCurrentWorkUnit`'s result, so no locus reader lists
   `.arc/active/` itself, while a checkout whose meta has left `.arc/active/` keeps its session notes scanned until the
   flip.
 
-    - `resolveActiveWu` and `resolveOriginatingMetaPath` (`lib/release/wu-resolution.ts`) resolve through
-      `resolveCurrentWorkUnit` (`lib/store/current-work-unit.ts`), and `coldStartOccupancyRefusal`'s call of
-      `readActiveMetaCandidates` (`commands/start.ts`) takes the resolver's candidates.
-    - A resolved work unit's `path`, which `resolveOriginatingMetaPath` and the delivery entry
-      (`handlers/delivery-entry.ts`) read, comes from Task 1.9's work-item path for the resolved reference's slug at the
-      active placement, and its `name` from the reference. Its `branch`, which the delivery entry's repository read, the
-      review gate's pre-publication composition, and delivery execution read (`lib/delivery/repository-entry.ts`,
-      `scripts/review-gate/policy/pre-publication-composition.ts`, `handlers/delivery-execution.ts`), comes from the
-      resolved record's `Branch` over the in-repo implementation, as today's candidate carries it, and from the flip
-      from the work item's branch link, absent where it links none, since the meta carries no `Branch` from the flip
-      (Task 4.2.c - `tasks-seam-lifecycle.md`).
-    - `wu-resolution.ts` then imports no raw helper, parses no `meta-` file name, and calls no layout resolver, so its
-      `arc/store-raw-state` and `arc/surface-names` floor entries go: a whole-project `lint:ts` run names them unused,
-      and `--prune-suppressions` removes them.
-    - `handleUserReconcileReferences` (`handlers/user.ts`) moves from `resolveCurrentWuName` onto the resolver, leaving
-      `lib/user-sync/current-wu.ts` with only the notes-sync commands as callers; until the flip, where the resolver
-      finds no work unit, it falls back to the slug of the checkout's branch, as `resolveCurrentWuName` does today.
-    - `readActiveMetaCandidates` (`lib/active/meta-reader.ts`) stays for its other callers; for the default root it
-      already delegates to the resolver (`readHeldCandidates`), so the move changes the result's shape, not the read.
+- _Outcome:_ Current-work-unit and originating-meta resolution use the storage resolver, retaining link-derived branches
+  and legacy branch-name fallback for notes reconciliation. The obsolete raw-state and surface-name floors are removed.
 
-    - Build `test-first` (one behavior at a time):
-        - each caller resolves the same work unit as today over the in-repo implementation
-        - each resolves the marker's work unit over the reference backend, where the held-here listing refuses
-        - over the reference backend the resolved work unit's `branch` is its branch link's, and absent with none
-        - two candidates stay ambiguous for each caller
-        - over the in-repo implementation the reconcile in a checkout on `<prefix>/<slug>` whose meta has left
-          `.arc/active/` resolves `<slug>`
-        - over the reference backend with no project-ID port injected, the resolved work unit's `branch` is its link's,
-          the project ID read from the project's identity record
-
-### `[ ]` **2.4 Build the exclusivity check and the holding-checkout lookup — § 2.4**
+### `[x]` **2.4 Build the exclusivity check and the holding-checkout lookup — § 2.4**
 
 - _Goal:_ The roster exposes two reads per machine: the exclusivity check, which refuses when another registered
   checkout's marker names the work unit about to be held, or when the roster cannot show that none does, naming the
   repair; and the lookup of the checkout whose marker names a given work unit.
 
-    - A module under `lib/locus/` builds both over the derived roster, read once per invocation. The check admits the
-      checkout's own marker naming the same work unit, so a rerun of a verb that already wrote it passes.
-    - Its refusals name their repairs (§ 13):
-        - another checkout's marker naming the work unit: that checkout, and work there or free it there with
-          `arc locus release` — for one's own Planning or Active work unit after `arc pause <slug> --reason <text>`, and
-          for one's own Integrating one its integration, then teardown, instead;
-        - a registered checkout's marker that cannot be read: that checkout and what the read reported
-          (`readWorktreeMarkerGeneration`, `lib/git/worktree-marker.ts`) — a `malformed` marker's message and path, or
-          the error the read threw for any failure but a missing file — with the repair: inspect it, then repair or
-          remove its marker, or remove the checkout;
-        - a roster that is not complete, its scan failed or its listing incomplete: the run again once Git lists the
-          worktrees.
-    - The lookup fails closed as the check does: a failed scan or an incomplete roster, a marker on any registered
-      checkout that cannot be read, and two checkouts whose markers name the work unit each reject it, naming the
-      condition and its repair as the check does and two holders naming both, never returning no checkout, since the
-      port returns a checkout or none; a husk-stamped marker names no holder, as `findWorkUnitHoldingCheckout`'s scan
-      skips it. Both read through the checkout, Git executor, and store their caller gives them, opening none of their
-      own; 2.5.b binds them.
+- _Outcome:_ The context-bound marker inventory supplies exclusivity and holder lookup, with explicit repair paths for
+  unreadable markers, incomplete registration, duplicate holders, and Integrating work.
 
-    - Build `test-first` (one behavior at a time):
-        - no other marker naming the work unit admits
-        - another checkout's marker naming it refuses, naming that checkout and the repair its owner and state take
-        - the checkout's own marker naming it admits
-        - an unreadable marker on another checkout refuses, naming its checkout and the read's diagnostic
-        - a failed scan and an incomplete roster each refuse, naming the rerun
-        - the lookup returns the holding checkout, and nothing when no marker names the work unit
-        - the lookup rejects on a failed scan, an incomplete roster, an unreadable marker, and two holders, each with
-          its repair, and passes over a husk-stamped marker
-
-### `[ ]` **2.5 Bind lifecycle's locus ports — § 2.4, § 2.6, § 16**
+### `[x]` **2.5 Bind lifecycle's locus ports — § 2.4, § 2.6, § 16**
 
 - _Goal:_ The spawn, graduation in place, and `arc materialize` in both its arms, spawned and `--here`, run this
   change's exclusivity check; rename, `arc materialize`'s candidates, abandon, start, teardown, pause, and handover find
   the holding checkout through this change's lookup; and the in-place arms write the anchored marker through this
   change's writer — each through the transition-write-path change's ports, bound at their one production point.
 
-- _Note:_ The ports are the transition-write-path change's, built in its Task 5.4 - `tasks-seam-lifecycle.md`:
-  `LocusPorts` (`lib/work-unit/locus-ports.ts`) with `checkMarkerExclusivity`, `findHoldingCheckout`, and
-  `writeAnchoredMarker`, defaulting through `createDefaultLocusPorts()`. The check takes a name and an optional checkout
-  path and returns `clear`, or `refused` with the holding checkout's path and a `reason`; the lookup takes a name and
-  the caller's own scan (`resolveLegacy`) and returns the holder's path or `null`; and the writer takes the checkout,
-  the marker, and an optional `expected` generation, and returns `created` or `replaced` with the bytes written,
-  `exists`, `generation-mismatch`, or `unadmitted`, which only the default returns. Graduation in place runs the check
-  twice, in store start's graduation (`runStoreGraduate`, `commands/start-store.ts`) and again in the in-place leg
-  (`reconcileWorkUnitWorktree`), each reading the roster; the binding keeps both.
+    - `[x]` **2.5.a The anchored-marker writer**
 
-    - `[ ]` **2.5.a The anchored-marker writer**
+        - The bound writer registers the ignore rule and creates or replaces exact anchored-marker generations; rollback
+          removes only the generation written.
 
-        - `writeAnchoredMarker(cwd, marker, { expected? })` writes a work-unit marker carrying `spawnedByArc: false`
-          through the marker generation operations (`lib/git/worktree-marker.ts`), since the serializer is the module's
-          own: without `expected` it creates exclusively (`createWorktreeMarkerGeneration`), and with it replaces the
-          generation holding those bytes (`replaceWorktreeMarkerGeneration`).
-        - It returns `created` or `replaced`, each with the bytes written, so a rollback removes exactly that generation
-          (`removeWorktreeMarkerGeneration`); `exists` when a marker is present and none was expected; or
-          `generation-mismatch` when the present marker is not the expected one.
-        - It never returns `unadmitted`, which the in-place leg reads as a write that left no marker
-          (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), so a writable claim
-          always ends in a marker or a refusal.
-        - It registers the marker's ignore rule first, as every marker creator does (`ensureWorktreeMarkerIgnored`),
-          through the `exec` its record is built over (2.5.b), since the port's signature carries none.
+    - `[x]` **2.5.b The binding**
 
-        - Build `test-first` (one behavior at a time):
-            - a create leaves an anchored marker that `readWorktreeMarker` parses, its ignore rule in place, on the
-              primary and on a linked checkout
-            - a present marker with nothing expected returns `exists` and writes nothing
-            - a replace at the expected bytes returns `replaced` with the new bytes, and at other bytes
-              `generation-mismatch`
-            - removing the returned bytes removes that generation and no other
+        - Production executors bind and retain the locus ports across rebinding. Registered CLI scenarios exercise
+          graduation, materialization, rename, teardown, handover, and start refusals, including repaired marker and
+          roster evidence.
 
-    - `[ ]` **2.5.b The binding**
-
-        - 2.4's module gains `createLocusPorts({ cwd, exec, store })`, returning 2.4's check and lookup and 2.5.a's
-          writer as one `LocusPorts` record over that context. `buildExecutorContext`
-          (`lib/work-unit/executor-context.ts`) binds it when given no record and its store reads state off the branch
-          (`usesOffBranchState`), carries it on the context and into `reconcileWorkUnitWorktree`'s, and passes the same
-          record through its `withCwd` rebind, so every production context reaches it: `resolveVerbBase` and
-          `buildExecutor` (`handlers/lifecycle-shared.ts`), `handleStart`'s executor (`handlers/start.ts`), which
-          carries graduation in place, and `RenameCommandContext`, built from the executor's (`handlers/lifecycle.ts`).
-          Over the in-repo implementation the context carries none, and `createDefaultLocusPorts()` keeps its
-          today-behavior defaults for a caller given no record.
-        - Store start's create-new passes `runCreateNew` (`commands/start.ts`) the executor's record
-          (`ctx.executor.locusPorts`, `handlers/start-store.ts`) in place of the store start context's own field
-          (`StoreStartContext.locusPorts`), which goes, since the handler's overrides already reach the executor; and
-          `handleStart` hands the cold-start slot the executor's store and record (2.6.b).
-        - The lookup's two callers, `findWorkUnitHoldingCheckout` (`lib/work-unit/verbs/unshared-work.ts`), which
-          rename, `arc materialize`'s candidates, abandon, start's refusal, and pause and handover through
-          `readUnsharedWork` call, and teardown's (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), already
-          take the executor's record and stay as they are: the bound lookup reads 2.4's and leaves their own marker scan
-          (`resolveLegacy`) unread, and given no record they keep that scan.
-        - Start's refusal of a started Planning work unit (`startedPlanningReason`, `handlers/start-store.ts`) calls the
-          lookup unguarded, so a rejection would surface as an unexpected error; it catches the rejection and refuses
-          with its condition and repair, as the lookup words them (spec § 2.4).
-        - The binding reconciles the port's refusal with 2.4's, as the Note above provides: `MarkerExclusivityResult`'s
-          refused arm carries the check's message whole in its `reason`, its repair included, with `checkoutPath`
-          optional, since an incomplete roster names no checkout, and `requireMarkerExclusivity`
-          (`lib/work-unit/locus-ports.ts`) throws that message as given, where today it appends that the checkout
-          already holds the work unit and to release it there; the ports test that asserts the appended repair
-          (`__tests__/unit/work-unit/locus-ports.test.ts`) changes with it.
-        - Lifecycle's callers give the check the work unit alone (`{ name }`), so through them a marker naming it in the
-          checkout about to hold it refuses too, naming that checkout and its repair; the checkout's own marker admits
-          only for the cold start and promotion, which pass their checkout.
-        - Lifecycle calls the ports only in its arms from the flip, and the context binds them only from it, so the
-          binding changes nothing before it.
-
-        - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-            - a spawn for a work unit another checkout's marker names refuses, naming the holder
-            - through the port, a spawn refused by each of 2.4's refusals reports that refusal's repair as the check
-              words it — an Integrating holder's integration, then teardown; an unreadable marker's inspection; an
-              incomplete roster's rerun
-            - graduation in place through `handlers/start.ts`'s production handler, with no context injected, leaves an
-              anchored marker
-            - `arc materialize --here` leaves an anchored marker
-            - with no ports injected, rename and teardown find an anchored holder through the lookup
-            - with no ports injected, a handover whose holder's marker cannot be read refuses as unobservable rather
-              than admitting the change, naming that checkout, the read's diagnostic, and 2.4's repair — inspect it,
-              then repair or remove its marker, or remove the checkout — and succeeds once the marker is repaired
-            - with no ports injected, a handover over a roster that is not complete refuses as unobservable, naming the
-              run again once Git lists the worktrees, and succeeds once the roster is complete
-            - with no ports injected, teardown of one's own ended work unit whose marker two checkouts carry refuses,
-              naming both and the marker's path, and proceeds once the stray marker is removed
-            - graduation in place over a crashed graduation's marker in its own checkout refuses, naming
-              `arc locus release <slug>`, and completes once the checkout is released
-            - `arc materialize`'s candidates leave out a work unit a checkout here holds
-            - an executor context over the in-repo implementation carries no ports, and over the reference backend the
-              bound record, its `withCwd` rebind the same one
-            - store start's create-new through `handlers/start.ts`'s production handler, with no ports injected, refuses
-              a name a spawn's residue marker in another checkout carries, naming that checkout
-            - with no ports injected, `arc start <slug> --new` on a started Planning work unit whose holder's marker
-              cannot be read refuses, naming that checkout and 2.4's repair
-
-### `[ ]` **2.6 Reroute the cold start onto the marker and the store — § 2.5, § 2.6**
+### `[x]` **2.6 Reroute the cold start onto the marker and the store — § 2.5, § 2.6**
 
 - _Goal:_ From the flip `arc start --here`'s cold start, entered through the transition-write-path change's cold-start
   slot, refuses a name given with `--new` that the store holds as start's dispatch does, admits only a crashed cold
@@ -553,114 +417,25 @@ read that gets none stops at that incomplete observation before calling it.
   `SESSION-NOTES` seed, and `HEAD` unmoved — removing the marker on any failure, and reports the work unit and its
   checkout; until the flip it runs as today.
 
-- _Note:_ `commands/start.ts` and `handlers/start.ts` serialize with the transition-write-path change, whose seed
-  handling and start dispatch land there first; this task leaves `--from` and the dispatch as that change left them.
+    - `[x]` **2.6.a The entry, and occupancy from the marker and the store**
 
-    - `[ ]` **2.6.a The entry, and occupancy from the marker and the store**
+        - Store start dispatch admits cold creation only after name and class checks; occupancy classifies the marker
+          and preserves crashed-start recovery and each role's explicit exit.
 
-        - From the flip `arc start --here` with `--new` or with no name reaches the cold start only through the
-          transition-write-path change's store-backed start (`handleStoreStart`, `handlers/start-store.ts`), which hands
-          a nameless start to its cold-start slot (`admitColdStart`) ahead of its dispatch, and refuses in-place
-          creation while the slot is empty. This task moves a named start's hand-off into its create-new arm (`create`),
-          where that refusal sits, and fills the slot at its production point with a closure over `coldStart` that binds
-          its `ArmContext`, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides.
-        - A named start so reaches the slot after store start's name resolution (`resolveStartName`), which takes a
-          former slug to its work unit and refuses an Errand's slug; its dispatch over the store's lifecycle view
-          (`readLifecycleView`, `requireCompleteInventory`) with `create: true` (`resolveStartDispatch`), which refuses
-          unless it selects `create-new`; and `create`'s refusal of `--class` — as the in-repo arm refuses each before
-          its cold start — so a name the store holds refuses before anything is written, and the cold start runs no
-          dispatch of its own. A nameless start derives its name from the branch and dispatches nothing, as today, so a
-          derived name the store holds meets the record write's refusal, which the scaffold throws as its condition and
-          remedy text alone (`scaffoldIntoWorktree`, `lib/git/worktree-scaffold.ts`), so after the rollback removes the
-          marker, the cold start reads the name through `lookup` and, where a work unit holds it, refuses naming the
-          held work unit, `arc start <name> --new --here` for a new one under another name, and for the held one the
-          step its state takes, which `arc status <slug>` shows. Where `lookup` finds none, it refuses with the
-          scaffold's message as given.
-        - `coldStartOccupancyRefusal` reads the current work unit through 2.3's resolver, and the marker itself
-          (`readWorktreeMarkerGeneration`), since the resolver's claim read (`readClaimedCurrentWorkUnit`,
-          `lib/store/current-work-unit-marker.ts`) reads a transient role and a husk stamp as no work unit and never
-          reads `spawnedByArc`.
-        - From the flip it admits one present marker: an anchored marker naming a work unit the store holds no record
-          of, on a complete read of the store and `lookup`, which only a crashed cold start leaves. It reads as no
-          occupancy and is replaced at the bytes read; an incomplete read refuses rather than replacing it.
-        - It refuses every other present marker, naming its exit through one function under `lib/locus/`, which 2.R's
-          occupancy guard calls too:
-            - a transient marker: its role's exits, as handoff's locus plan names them (`deriveHandoffLocusPlan`,
-              `lib/handoff/locus-plan.ts`);
-            - a marker naming a work unit in flight: work there, or free it there as 2.4's refusal names;
-            - a husk-stamped marker: its teardown;
-            - a marker naming an ended work unit: `arc teardown <slug>`, or `arc locus release <slug>` where another
-              identity owns it;
-            - a marker naming a backlog work unit: `arc locus release <slug>`;
-            - a spawned marker naming a work unit with no record, a spawn's residue: `arc locus release <slug>`, typed,
-              which removes that checkout.
+    - `[x]` **2.6.b The sequence from the flip**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - through the production handler with nothing injected, `arc start --here --new <slug>` cold-starts, and
-              `arc start --here --new` with a name the store holds refuses with the dispatch's reason, writing nothing
-            - a named `--here --new` on a former slug refuses naming its work unit, and on an Errand's slug as resolving
-              to an Errand, each writing nothing
-            - `--class` with a named `--here --new` refuses, writing nothing
-            - a nameless start whose derived name the store holds refuses naming the held work unit and its two repairs,
-              leaves no marker, and `arc start <name> --new --here` under another name then completes
-            - a nameless start whose record write refuses for another reason reports the write's message and leaves no
-              marker
-            - an anchored no-record marker is replaced and the cold start completes
-            - an incomplete store read refuses rather than replacing the marker
-            - each other marker refuses, naming its exit, the spawned residue's typed
-            - over the in-repo implementation a live work unit's occupancy refuses as today
+        - Cold creation writes editor documents and the anchored marker before its single store scaffold write; failures
+          remove that marker generation and leave code HEAD unchanged.
 
-    - `[ ]` **2.6.b The sequence from the flip**
+    - `[x]` **2.6.c The prompt and report**
 
-        - After the dispatch, the occupancy check, and 2.4's exclusivity check: the marker's ignore rule
-          (`ensureWorktreeMarkerIgnored`); then the editor documents (`writeEditorDocumentsOrThrow`), which are
-          checkout-local and read nothing from the meta; then the anchored marker through 2.5.a's writer, creating it,
-          or replacing a crashed cold start's at the bytes 2.6.a read; and last the call of `scaffoldIntoWorktree`,
-          whose arm from the flip writes the meta through the store, the one record write. The in-repo arm keeps today's
-          order, the scaffold before the editor documents.
-        - A failure at any step leaves no record and removes the generation the writer returned, where it wrote one.
-          `rollbackColdStart`'s branch deletion and `git clean` of the meta serve only the in-repo arm, retiring on the
-          capability with the protected-base cut of `plan/<name>`.
-        - `coldStart` (`handlers/start.ts`) takes the store and the port record of `handleStart`'s executor, which fills
-          the slot, and passes both to `runColdStart` (`commands/start.ts`), whose arm from the flip runs the check and
-          writes the marker through that record, so ports a test injects through the handler's overrides reach it as
-          they reach lifecycle's verbs. It passes them in `runColdStart`'s `SpawnWorktreeContext`, since the scaffold
-          takes its arm from the flip only when given the store (`scaffoldIntoWorktree`,
-          `lib/git/worktree-scaffold.ts`).
+        - Detached cold creation accepts an explicit slug and reports its work unit and checkout; an underivable name
+          refuses before any write.
 
-        - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-            - the cold start writes one store record and, in its checkout, only the marker and the editor documents,
-              each with its entry in the clone's exclude file, and cuts no branch
-            - `HEAD` is unmoved on a protected base
-            - a scaffold failure leaves no record and no marker
-            - a failure before the marker's write leaves no marker
-            - another checkout's marker naming the work unit refuses the cold start before any write, naming 2.4's
-              remedy, through the production handler with no ports injected
+    - `[x]` **2.6.d The frame's actions for a marker naming no record**
 
-    - `[ ]` **2.6.c The prompt and report**
-
-        - `coldStart` (`handlers/start.ts`) from the flip neither refuses a detached `HEAD` nor offers to cut
-          `plan/<name>`, since the cold start moves no `HEAD` and cuts no branch, and it names the work unit and the
-          checkout where it prints the meta's path and a `Branch:` line today.
-        - A cold start given no name on a detached `HEAD`, from which no name derives (`deriveColdStartWuName`), refuses
-          before any write, naming `arc start <slug> --new --here`, as an underivable name refuses today
-          (`runColdStart`).
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend a cold start on a detached `HEAD` proceeds, its report naming the work unit and
-              the checkout
-            - over the reference backend a nameless cold start on a detached `HEAD` refuses before any write, naming the
-              form with a slug, and that form proceeds
-            - over the in-repo implementation the prompt and report are today's
-
-    - `[ ]` **2.6.d The frame's actions for a marker naming no record**
-
-        - `derivedLocusState` gives the entering checkout's anchored no-record marker the text naming
-          `arc start <slug> --new --here` there, to finish the cold start, or `arc locus release <slug>`, to clear the
-          marker; and its spawned one `arc locus release <slug>`, typed, which removes the checkout (§ 4.3).
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - each no-record marker in the entering checkout yields its row's action and form
+        - No-record marker rows carry the anchored restart-or-release guidance or the spawned checkout's typed release
+          action.
 
 ### `[x]` **2.7 Find checkouts claimed in place before the flip — § 2.7**
 
@@ -763,59 +538,15 @@ read that gets none stops at that incomplete observation before calling it.
   revalidating the marker's generation first, moving the process out of a checkout it releases from inside, and refusing
   as § 5 states with § 13's remedies; and the stale-worktree sweep reports the checkouts it releases.
 
-    - `[ ]` **2.9.a The target and who may release**
+    - `[x]` **2.9.a The target and who may release**
 
-        - A slug resolves through 2.4's lookup and refuses when no checkout here holds it, naming `arc locus`, which
-          lists this machine's checkouts and the work units their markers name, and refuses with the lookup's message
-          where it rejects; no slug takes the current checkout.
-        - It refuses a checkout holding a transient role, naming that role's exits as handoff's locus plan names them,
-          through `deriveHandoffLocusPlan` (`lib/handoff/locus-plan.ts`), whose transient arm is the module's own.
-        - It releases a paused work unit's checkout for its owner, a backlog work unit's checkout for its owner, a
-          checkout whose work unit another identity owns, and, for anyone, a checkout whose marker names a work unit
-          with no record.
-        - It refuses a work unit this identity owns that is in flight and not paused, naming
-          `arc pause <slug> --reason <text>` for a Planning or Active one and its integration, then teardown, for an
-          Integrating one; and one that has ended, naming `arc teardown <slug>`.
+        - Release resolves the marked holder and checks ownership, pause, lifecycle, and transient-role authority,
+          retaining each refusal's concrete repair.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - each refusal names its remedy, a transient role's exits included
-            - an owned, unpaused Planning work unit refuses, and once paused the release succeeds
-            - another identity's work unit, and a no-record marker, release for anyone
-            - an owned backlog work unit's checkout releases
-            - a slug no checkout here holds refuses, naming `arc locus`, and a release naming a slug it lists succeeds
-            - a slug whose lookup rejects on an unreadable marker refuses with the lookup's message, and releases once
-              the marker is repaired
+    - `[x]` **2.9.b The two arms**
 
-    - `[ ]` **2.9.b The two arms**
-
-        - A spawned checkout takes lifecycle's removal function (`removeWorktreeCheckout`), given the primary's path,
-          which runs the removal check itself.
-        - Before the function runs, a spawned checkout whose detached `HEAD` holds commits not on base refuses, naming
-          them and `git switch -c <name>`, which keeps them on a branch the removal leaves, as the transition-write-path
-          change's activation and `arc base sync` refuse such a `HEAD` (spec § 5); the removal check reads no commits,
-          and `git worktree remove` would leave them unreachable.
-        - An anchored checkout takes lifecycle's release (`releaseWorktreeCheckout`, Task 1.9.b -
-          `tasks-seam-lifecycle.md`), bound rather than rebuilt: the removal check's projection part alone, so a dirty
-          checkout does not refuse, then the projection's `release` slot, refusing if it refuses. The release leaves the
-          marker to its caller, so this verb then clears it at the generation it revalidated
-          (`removeWorktreeMarkerGeneration`).
-        - Either arm revalidates the marker's generation first and, run from inside the checkout it releases, moves the
-          process out first, as teardown's locus hop does (`runTeardown`, `lib/work-unit/verbs/teardown.ts`).
-        - The verb's handler takes an optional `projectionRemovalSlots` on its context and passes it as `slots` to both
-          arms, so the projection binds it at the handler; given none, the passing defaults apply.
-
-        - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-            - a clean spawned checkout is removed, and a dirty one refuses through the function's check and is removed
-              once clean
-            - a spawned checkout whose detached `HEAD` holds commits not on base refuses, naming them and
-              `git switch -c <name>`, and once they are on a branch the release removes the checkout and the branch keeps
-              them
-            - a dirty anchored checkout is released keeping its changes, its marker cleared and its folder kept
-            - a refusing `release` slot refuses before the marker is touched, and once the slot passes the release
-              clears the marker
-            - a changed marker generation refuses, and a rerun against the current generation releases
-            - a release run from inside its checkout moves the process out first
-            - slots injected through the handler's context reach the removal function and the release
+        - Spawned release uses shared checked removal and protects detached commits; anchored release preserves dirty
+          files, revalidates generations, and invokes the bound projection release before clearing its marker.
 
     - `[ ]` **2.9.c The sweep's release rows**
 
@@ -829,37 +560,14 @@ read that gets none stops at that incomplete observation before calling it.
             - another checkout's no-record marker reports with its typed release
             - over the in-repo implementation the sweep filters as today
 
-### `[ ]` **2.R Refuse an occupied checkout in lifecycle's in-place arms — § 2.6**
+### `[x]` **2.R Refuse an occupied checkout in lifecycle's in-place arms — § 2.6**
 
 - _Goal:_ From the flip graduation in place and `arc materialize --here` refuse a checkout whose marker names anything
   but the work unit they claim, before any Git step and naming that marker's exit, and report a marker that appears
   before the anchored marker's write naming the checkout (A4); until the flip the guard reads as today.
 
-    - The occupancy guard's store arm (`readStoreOccupancy`, `lib/work-unit/lifecycle-guards.ts`) reads the checkout's
-      marker (`readWorktreeMarkerGeneration`) as well as the current work unit, since its claim read
-      (`readClaimedCurrentWorkUnit`, `lib/store/current-work-unit-marker.ts`) takes a transient, husk-stamped, ended,
-      backlog, or no-record marker as no work unit. From the flip it refuses each such marker through 2.6.a's exit
-      function, and a crashed cold start's anchored no-record marker with the frame's two exits (2.6.d); a marker naming
-      the work unit itself passes to the exclusivity check, whose refusal names `arc locus release <slug>` (2.5.b).
-    - The guard runs in graduation's guard phase (`executeTransition`) and in `arc materialize`'s claim before its
-      reconcile (`claimMaterialization`, `lib/work-unit/verbs/materialize-store.ts`), so a refusal leaves `HEAD` as
-      found and writes nothing.
-    - The in-place leg (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) reports
-      the bound writer's `exists` naming the checkout and its marker, with the repair to inspect it and rerun, where
-      today it throws `anchored marker write refused: exists`; it arises only when a marker appears between the guard's
-      read and the write.
-
-    - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-        - graduation in place and `arc materialize --here` in a checkout holding a transient marker each refuse naming
-          its role's exits, `HEAD` unmoved and nothing written
-        - a husk-stamped marker refuses naming its teardown, an ended work unit's naming its teardown or release, and a
-          backlog work unit's naming `arc locus release <slug>`
-        - a crashed cold start's anchored no-record marker refuses naming `arc start <slug> --new --here` and
-          `arc locus release <slug>`
-        - a marker naming the work unit itself refuses at the exclusivity check, naming `arc locus release <slug>`
-        - an `exists` from the anchored-marker writer reports the checkout and its marker with the inspect-and-rerun
-          repair
-        - over the in-repo implementation the guard reads as today
+- _Outcome:_ The shared occupancy guard refuses transient, husk, ended, backlog, and no-record claims before in-place
+  Git work; marker creation races retain the checkout-specific inspect-and-rerun repair.
 
 ### `[ ]` **2.10 Locus from the marker and the store** — validate exit criterion at segment scope
 

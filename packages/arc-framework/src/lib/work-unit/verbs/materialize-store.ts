@@ -53,7 +53,7 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const entry = candidates.find((item) => item.reference.owner.name === name);
     if (entry === undefined) {
       const holder = held.get(name) ?? null;
-      return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : `${params.name} is already held in checkout ${holder}; work there or release its claim.` };
+      return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : `${params.name} is already held in checkout ${holder}; work there, or run arc locus release ${name} there before materializing elsewhere.` };
     }
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
