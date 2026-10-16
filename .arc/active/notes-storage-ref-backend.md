@@ -10,6 +10,7 @@
 - [CI cost history](#ci-cost-history)
 - [A designation per scope](#a-designation-per-scope)
 - [Host properties](#host-properties)
+- [A3 — Backslashes in stored paths](#a3--backslashes-in-stored-paths)
 
 ## Prior art
 
@@ -275,5 +276,15 @@ invocation, with no credential in the URL or repository configuration and no HTT
 remote probe refs for inspection, removes its local temporary repositories, and stays outside test tiers and CI.
 A repeat observes the old tips and leases every update; its seed commit descends from the previous `main` tip so
 GitLab's default branch protection accepts the retry. A scratch repository with any other ref requires a fresh one.
+
+## A3 — Backslashes in stored paths
+
+The superseded § 11.6 claim said: “`-z` since without it Git quotes a path holding a non-ASCII byte, `"`, or `\`,
+which a personal document's `path` may”. `validateManagedPath` explicitly rejects backslashes, and `RecordReferenceSchema`
+uses it for personal document and companion path keys. The real-Git read test exposed that conflict in both ref formats.
+
+The correction preserves admission: valid Unicode and quote paths return records; a stored backslash path returns a
+`malformed` diagnostic under its exact name, without hiding valid records. Raw NUL-framed enumeration still retains
+every path. No canonical path rule, write admission, or projection boundary changes.
 
 ---

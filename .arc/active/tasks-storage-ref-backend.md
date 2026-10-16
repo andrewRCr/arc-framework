@@ -265,6 +265,13 @@ default layout.
   its table path, its owner's slug, and its version — and 3.3.b to 3.3.e complete each, every case running through
   `read` and `list`.
 
+    - `[ ]` **3.3.R Exact diagnostics for invalid path keys — § 11.6 (A3)**
+        - _Goal:_ Preserve managed-path admission while a backslash-bearing entry lists as `malformed` under its exact
+          original path beside valid Unicode and quote-bearing records (A3).
+        - Build `test-first` (one behavior at a time): integration through `createRefStore` over planted refs in both
+          ref formats; valid Unicode and quote paths return records, and a backslash path returns an exact-path
+          `malformed` diagnostic in a complete listing with `missed: true`, preserving the valid records.
+
     - `[ ]` **3.3.a The processes and the tip read**
         - The tip read: one `for-each-ref` of `refs/arc/` as a single pattern with `--exclude=refs/arc/history/`, which
           also reads `refs/arc/tmp/version` for the state version (3.4.b); then one `cat-file --batch-check` of each tip's
@@ -291,6 +298,7 @@ default layout.
               returns every record
             - two records sharing one blob both list
             - a path holding a non-ASCII byte, `"`, or `\` lists under its exact name
+                - _Amended in:_ 3.3.R (A3)
             - a read under a `GIT_SSH_COMMAND` holding `~` reads
             - with no identity configured, a read of a person-owned record refuses `not-found` naming `arc.identity`, and
               a listing of `personal` or `claims` is `absent`, with no identity ref named, as the contract has it
@@ -3132,3 +3140,6 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Review import rows preserve each Errand's original claim ID, and canonical file/folder source units account
   for every supplied source exactly once, with reused-slug joins and omission, repetition, and overlap repaired as
   § 14.7 requires (A2)
+
+- `[ ]` Valid Unicode and quote-bearing managed path keys list as records; a backslash-bearing entry lists as
+  `malformed` under its exact original path beside every valid record (§ 11.6) (A3)

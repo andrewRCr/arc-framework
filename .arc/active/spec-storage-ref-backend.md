@@ -2937,21 +2937,23 @@ fails locally a `tracking-update-failed` notice, told apart by ancestry (§ 6.3)
 
 Every read batches per operation, each process one-shot, its whole input written before it runs: one `for-each-ref` for
 tips; where the operation needs a tree's entries — a listing, a lookup, or a read reaching a quarter's folder, whose
-name carries a sequence — one `cat-file --batch-check` resolving each tip's root tree and one
-`git diff-tree --stdin -r -z` over those trees (§ 3.3), `-z` since without it Git quotes a path holding a non-ASCII
-byte, `"`, or `\`, which a personal document's `path` may; and one `cat-file --batch` of the blobs, by id or as
-`<tip>:<path>`. `version` costs one process (§ 4.2), a live `read` two — three where its ref holds open conflict
-records, whose IDs alone name them, so the family root's `conflicts` tree, read in the first batch, gives the blobs a
-second reads to fill the record's `conflicts` (§ 3.7) — and a `list`, a `lookup`, or a read reaching a quarter four —
-`version` and a live `list` two more where they write a new manifest — as today's batch reads do (`lib/io-context.ts`,
-`lib/git/object-availability.ts`); a reference without a UID adds the scan's four once per process (§ 8). Each binding
-in `lib/git/process-executor.ts` caps a call's captured output at 64 MiB (`MAX_GIT_OUTPUT_BYTES`), so a
-`cat-file --batch` that fails `output-limit` (`GitProcessError`, `lib/git/process-error.ts`) runs again as two calls
-over halves of its blobs, until each fits; the split costs nothing where a read fits, and a single blob past the
-ceiling, which no record nears, fails the read with that error. A process start costs about 30 ms on Windows against 1.3
-ms on Linux. Every read passes `objectAccess: "local-only"` (`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`),
-which runs Git with `--no-lazy-fetch`, so a read never reaches the network: an object the clone lacks fails the read
-rather than fetching it, and in a partial clone every state object came with the fetch that brought its ref (§ 6.2).
+name carries a sequence — one `cat-file --batch-check` resolving each tip's root tree and one `git diff-tree --stdin -r
+-z` over those trees (§ 3.3), retaining exact paths with non-ASCII bytes, quotes, or backslashes. Valid Unicode and
+quote-bearing path keys decode as records; `validateManagedPath` (`lib/kernel/canonical/managed-path.ts`) rejects
+backslashes (§ 2.5), so a stored entry holding one lists as `malformed` under its exact original path, beside the valid
+records (A3). One `cat-file --batch` reads the blobs, by id or as `<tip>:<path>`. `version` costs one process (§ 4.2), a
+live `read` two — three where its ref holds open conflict records, whose IDs alone name them, so the family root's
+`conflicts` tree, read in the first batch, gives the blobs a second reads to fill the record's `conflicts` (§ 3.7) — and
+a `list`, a `lookup`, or a read reaching a quarter four — `version` and a live `list` two more where they write a new
+manifest — as today's batch reads do (`lib/io-context.ts`, `lib/git/object-availability.ts`); a reference without a UID
+adds the scan's four once per process (§ 8). Each binding in `lib/git/process-executor.ts` caps a call's captured output
+at 64 MiB (`MAX_GIT_OUTPUT_BYTES`), so a `cat-file --batch` that fails `output-limit` (`GitProcessError`,
+`lib/git/process-error.ts`) runs again as two calls over halves of its blobs, until each fits; the split costs nothing
+where a read fits, and a single blob past the ceiling, which no record nears, fails the read with that error. A process
+start costs about 30 ms on Windows against 1.3 ms on Linux. Every read passes `objectAccess: "local-only"`
+(`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`), which runs Git with `--no-lazy-fetch`, so a read never reaches
+the network: an object the clone lacks fails the read rather than fetching it, and in a partial clone every state object
+came with the fetch that brought its ref (§ 6.2).
 
 #### 11.7 The Windows budget
 
@@ -3898,6 +3900,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     source encodings of § 10.8 account for every supplied source exactly once, materializations by folder, with
     reused-slug joins and omitted, repeated, and overlapping coverage tested through repair (§ 14.7) (A2).
 
+15. **Exact path diagnostics preserve managed-key admission.** Unicode and quote-bearing managed path keys list
+    as records; an entry whose path holds a backslash lists as `malformed`, keyed by that exact original path, beside
+    every valid record (§ 11.6) (A3).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -3933,5 +3939,8 @@ open:
 
 - **A2** — 2026-10-16 — design: review import preserves claim IDs and canonical source units.
   _Supersedes:_ § 10.8 table and source accounting. _Trigger:_ door. _Work:_ 15.R. _Revalidated:_ pending → 15.10.
+
+- **A3** — 2026-10-16 — design: backslash entries retain exact diagnostic paths and remain invalid record keys.
+  _Supersedes:_ § 11.6 pathname claim. _Trigger:_ 3.3.a must-stop. _Work:_ 3.3.R. _Revalidated:_ pending → 4.5.
 
 ---
