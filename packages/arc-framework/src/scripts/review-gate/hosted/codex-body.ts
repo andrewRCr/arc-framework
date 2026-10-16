@@ -21,7 +21,8 @@ function locus(location: string, target: HostedTarget): string | null {
   const prefix = `/${target.repository}/blob/${target.headSha}/`;
   if (url.origin !== "https://github.com" || !url.pathname.startsWith(prefix)
     || url.search !== "") return null;
-  const path = url.pathname.slice(prefix.length);
+  let path: string;
+  try { path = decodeURIComponent(url.pathname.slice(prefix.length)); } catch { return null; }
   const line = /^#L([1-9]\d*)(?:-L([1-9]\d*))?$/u.exec(url.hash);
   const start = Number(line?.[1]);
   const end = line?.[2] === undefined ? start : Number(line[2]);

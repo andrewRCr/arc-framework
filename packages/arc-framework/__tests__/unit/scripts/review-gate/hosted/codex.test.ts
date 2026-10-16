@@ -274,6 +274,76 @@ describe("Codex hosted adapter", () => {
     });
   });
 
+  it("retains an earlier inline finding when a later review carries a body finding", async () => {
+    const older = codexReview();
+    const newer = { ...bodyReview(), id: "PRR_2", submittedAt: "2026-07-23T12:06:00.000Z" };
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([older, newer]),
+      readThreads: () => Promise.resolve([findingThread()]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings", findings: [
+        { origin: "review-thread", findingId: "PRRT_1", severity: "major", sourceOrdinal: 1 },
+        { origin: "review-body", reviewId: "PRR_2", severity: "minor", sourceOrdinal: 2 },
+      ],
+    });
+  });
+
+  it("filters inline findings by eligible review identity across the request window", async () => {
+    const reviews = [
+      codexReview(),
+      { ...codexReview(), id: "PRR_OTHER_ACTOR", actorIdentity: "1234" },
+      { ...codexReview(), id: "PRR_OTHER_HEAD", headSha: "b".repeat(40) },
+      { ...codexReview(), id: "PRR_EARLIER_REQUEST", submittedAt: "2026-07-23T11:59:00.000Z" },
+    ];
+    const threads = reviews.map((review, index) => {
+      const thread = findingThread();
+      return {
+        ...thread, id: `PRRT_${index}`,
+        comments: thread.comments.map((comment) => ({ ...comment, reviewId: review.id })),
+      };
+    });
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve(reviews), readThreads: () => Promise.resolve(threads),
+    }));
+    const handle = createHostedHandleFixture({
+      provider: "codex-pr", target,
+      artifact: {
+        kind: "issue-comment", id: "IC_1",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    });
+
+    await expect(adapter.observe(handle)).resolves.toMatchObject({
+      kind: "findings", findings: [{ findingId: "PRRT_0", sourceOrdinal: 1 }],
+    });
+  });
+
+  it.each(["src/a b.ts", "src/naïve.ts", "src/a%b.ts", "src/a#b.ts"])(
+    "records the Git filename from an escaped blob path: %s", async (path) => {
+      const encoded = path.split("/").map(encodeURIComponent).join("/");
+      const review = bodyReview("2", `https://github.com/owner/repo/blob/${HEAD}/${encoded}#L7`);
+      const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+
+      await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+        kind: "findings", findings: [{ locus: `${path}:7` }],
+      });
+    },
+  );
+
+  it.each(["src/a%.ts", "src/a%GG.ts", "src/a%FF.ts"])(
+    "reports malformed blob-path encoding: %s", async (path) => {
+      const review = bodyReview("2", `https://github.com/owner/repo/blob/${HEAD}/${path}#L7`);
+      const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
+
+      await expect(adapter.observeHandle(target)).resolves.toEqual({
+        kind: "terminal-failure", reason: "malformed-provider-finding",
+      });
+    },
+  );
+
   it.each([
     ["wrong repository", bodyReview("2", `https://github.com/other/repo/blob/${HEAD}/src/a.ts#L7`).body],
     ["wrong head", bodyReview("2", `https://github.com/owner/repo/blob/${"b".repeat(40)}/src/a.ts#L7`).body],

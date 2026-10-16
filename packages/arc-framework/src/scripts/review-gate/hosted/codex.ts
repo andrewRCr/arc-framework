@@ -168,12 +168,13 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
         && review.headSha === target.headSha
         && review.submittedAt >= requestedAt);
       const review = newestReview(providerReviews);
+      const reviewIds = new Set(providerReviews.map(({ id }) => id));
       const candidateComments = review === undefined ? [] : threads.flatMap((thread) =>
         thread.comments
           .filter((comment) =>
             comment.actorIdentity === BOT_USER_ID
             && comment.headSha === target.headSha
-            && comment.reviewId === review.id)
+            && reviewIds.has(comment.reviewId))
           .map((comment) => ({ threadId: thread.id, comment })));
       const findings = candidateComments.flatMap(({ threadId, comment }, index) => {
         const parsed = finding(threadId, comment, index + 1);
