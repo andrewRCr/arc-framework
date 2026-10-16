@@ -446,51 +446,21 @@ read that gets none stops at that incomplete observation before calling it.
 - _Outcome:_ Markerless, present checkouts match owned active work through repository-qualified branch links; missing
   folders, base-only work, and foreign ownership yield no match.
 
-### `[ ]` **2.8 Resolve the session notes through one resolver, and reconcile scratch — § 2.8**
+### `[x]` **2.8 Resolve the session notes through one resolver, and reconcile scratch — § 2.8**
 
 - _Goal:_ From the flip every reader of the session-notes path reads one resolver, which gives the meta's projected
   path; the load set takes its meta and task-list paths from the layout resolver; `arc user open` refuses naming the
   session context; and the user-reference reconcile plans and applies the person's scratch folders through `lookup`.
 
-    - `[ ]` **2.8.a One session-notes resolver**
+    - `[x]` **2.8.a One session-notes resolver**
 
-        - From the flip six readers read `resolveWorkUnitSessionNotesPath` (`lib/handoff/session-notes-path.ts`), keyed
-          by the work unit, whose arm from the flip gives the meta's projected path through Task 1.9's work-item path:
-          handoff's restate probe (`resolveSessionNotesPath`, called by `restateCandidates`,
-          `handlers/status/session.ts`), which today finds no path where several work-unit folders hold a
-          `SESSION-NOTES.md`; handoff's surfaces (`resolveHandoffSurfaces`), whose path the status run reads
-          (`commands/status/run.ts`); `arc view` (`handlers/view.ts`, through `lib/view-artifact.ts`); the load set's
-          own entry (`lib/load-set/projection.ts`); and the user-reference reconcile's probe in the session-init binding
-          (`handlers/status.ts`) and its command (`handleUserReconcileReferences`). Until the flip each keeps its own
-          resolution.
-        - The load set from the flip carries no separate session-notes entry, the meta being already a full entry.
-        - The session-notes address (`resolveArcPath`'s `session-notes` document) and
-          `materializeWorkUnitSessionNotesPath` stay the workspace's, so `runUserClose` (`commands/user/close.ts`),
-          which from the flip only `arc user close` calls, keeps removing that folder and never reaches the meta's;
-          start's stamp of the seed's `Commit at Handoff` (`stampStartSessionNotesCommit`, `handlers/start.ts`) is never
-          reached from the flip, since store start runs no ceremony.
+        - Session-note consumers share the Store-aware meta projection; load sets omit a separate notes entry when state
+          is off branch, while legacy workspaces retain their paths.
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend each reader resolves the meta's projected path, the restate probe among them
-              with several work-unit folders present
-            - over the reference backend the load set carries no session-notes entry
-            - over the in-repo implementation each reader resolves as today
-            - `arc user close` removes the workspace's folder and leaves the meta
+    - `[x]` **2.8.b The load set's meta and task-list paths**
 
-    - `[ ]` **2.8.b The load set's meta and task-list paths**
-
-        - The load-set projection (`resolveLoadSetManifest`) resolves the meta's path through Task 1.9's work-item path
-          from the work unit's slug and placement, which its four callers supply in place of the path they build today
-          (`lib/locus/subject-meta.ts`, `commands/status/run.ts`, `lib/recover/locus-context.ts`,
-          `lib/compaction-seed/emitter.ts`).
-        - From the flip the task list's path is the work item's task-list record's, through the same function; until
-          then the meta's `Task List` pointer gives it, as `projectCheckoutSubjectMeta` reads it today. The callers pass
-          the store's capability with the slug and placement.
-
-        - Build `test-first` (one behavior at a time):
-            - the meta entry comes from the layout resolver for an active and a completed work unit
-            - over the reference backend the task-list entry is the task-list record's projected path
-            - over the in-repo implementation a `Task List` pointer naming another file is honored
+        - Load-set meta and task-list entries follow logical identity and placement. Legacy task-list pointers remain
+          authoritative before the flip.
 
     - `[x]` **2.8.c `arc user open` from the flip**
 
@@ -503,7 +473,7 @@ read that gets none stops at that incomplete observation before calling it.
           or empty destinations and leaves occupied, ended, and unresolved folders for their person to
           reconcile.
 
-### `[ ]` **2.9 Add `arc locus release` — § 5**
+### `[x]` **2.9 Add `arc locus release` — § 5**
 
 - _Goal:_ From the flip `arc locus release [<slug>]` releases the checkout whose marker names the work unit, or the
   current checkout — a spawned one through the removal function, an anchored one through lifecycle's release —
@@ -520,17 +490,10 @@ read that gets none stops at that incomplete observation before calling it.
         - Spawned release uses shared checked removal and protects detached commits; anchored release preserves dirty
           files, revalidates generations, and invokes the bound projection release before clearing its marker.
 
-    - `[ ]` **2.9.c The sweep's release rows**
+    - `[x]` **2.9.c The sweep's release rows**
 
-        - From the flip the stale-worktree sweep reports a checkout whose work unit another identity owns, past the two
-          filters that keep it out today — the roster's owner filter (`filterRosterByIdentity`) and the sweep's skip of
-          a marker another identity spawned (`runStaleWorktreeSweep`) — and another checkout whose marker names a work
-          unit with no record, each with `arc locus release <slug>`, typed (§ 4.3).
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - in team mode another identity's checkout reports with its typed release
-            - another checkout's no-record marker reports with its typed release
-            - over the in-repo implementation the sweep filters as today
+        - The sweep preserves foreign-owner and absent-record release rows with typed commands, excluding the entering
+          checkout from automatic offers.
 
 ### `[x]` **2.R Refuse an occupied checkout in lifecycle's in-place arms — § 2.6**
 
@@ -577,7 +540,7 @@ checkout as lifecycle's verbs open theirs (`openDefaultStore`, through `resolveV
 `PromoteOrdinaryErrandRuntimeOptions` already takes one, so each runtime branches on that store's capability; tests
 inject a reference-backend store.
 
-### `[ ]` **3.1 Derive the in-flight set from placement — § 3.1, § 3.6**
+### `[x]` **3.1 Derive the in-flight set from placement — § 3.1, § 3.6**
 
 - _Goal:_ From the flip in-flight derivation lists work units and open Errands through the store at placement active,
   and the identity's claims that name a branch, and reads each work item's lifecycle facts there — a remote branch
@@ -590,25 +553,10 @@ inject a reference-backend store.
         - Placement-backed derivation retains branchless and paused work, qualified links, claims, and independent
           inventory diagnostics.
 
-    - `[ ]` **3.1.b The set's callers**
+    - `[x]` **3.1.b The set's callers**
 
-        - Session-init's oracle (`getOracle`, `handlers/status.ts`), whose snapshot analysis (`analyzeInFlightSnapshot`)
-          serves `errandState` and `materializableWorkUnits`, reads 3.1.a's set from the flip whether or not a remote is
-          configured or reachable, where today it reports no entries when the session needs no remote or cannot reach
-          it.
-        - `arc active in-flight` (`runActiveInFlight`; `handleActiveInFlight`, `handlers/active.ts`) and the in-flight
-          expansion (`runActiveInFlightExpansion`, `expandActiveInFlight`, `commands/active/in-flight.ts`) read it from
-          the flip and keep today's result shape until then. Lifecycle's callers of the expansion (`commands/rename.ts`,
-          `handlers/start.ts`, `handlers/lifecycle.ts`) call it only in their in-repo arms, so none meets a branchless
-          entry.
-        - Both callers' Errand indexes (`readTransientInFlightIndexes`, `readFetchedTransientInFlightIndexes`,
-          `lib/errand/record.ts`) serve only their in-repo arms, as does the orphan-branch sweep's, whose exclusion of
-          Errand branches reads the store from the flip (Task 5.2.b).
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend the oracle lists the set with no remote configured
-            - over the reference backend `arc active in-flight --json` lists a branchless entry and a paused one
-            - over the in-repo implementation each caller's result is today's
+        - Public callers and the cached session oracle consume placement-backed entries without a code-remote gate,
+          retaining legacy acquisition in the in-repo arm.
 
     - `[x]` **3.1.c `arc status <slug>`'s locus reads**
 
@@ -627,19 +575,13 @@ inject a reference-backend store.
 - _Outcome:_ Errands and claims retain independent pinned acquisition outcomes. Terminal and merge admission resolve the
   exact Errand claim and preserve diagnostics without borrowing another inventory's completeness.
 
-### `[ ]` **3.R2 Admit authoritative claim absence at Errand terminal and merge gates — § 3.2 (A20)**
+### `[x]` **3.R2 Admit authoritative claim absence at Errand terminal and merge gates — § 3.2 (A20)**
 
 - _Goal:_ An authoritative absent claims acquisition admits as an empty inventory beside a complete Errands acquisition
   and the exact subject lookup; failed claims reads and complete claims with diagnostics still refuse (A20).
 
-    - Bind the independent acquisitions into the derived frame and make both admission gates use the effective rule.
-      Keep each acquisition's absent, error, and complete state visible; never borrow Errands' completeness for claims.
-    - Build `test-first` (one behavior at a time), over the reference backend and real-Git handler integration:
-        - an ordinary Errand with no grooming or housekeeping claims closes and abandons through CLI-generated inputs
-        - authoritative absent claims permit merge identity selection for the exact current Errand
-        - a failed claims read or a claims diagnostic refuses terminal and merge admission, and repair then admits
-        - another person's malformed Errand does not block the subject, while an unresolvable subject beside an Errands
-          diagnostic refuses with its remedy
+- _Outcome:_ Terminal and merge admission treat authoritative claim absence as empty while retaining exact Errand lookup
+  and refusing failed or diagnostic claims evidence.
 
 ### `[x]` **3.3 Reroute the Errand runtimes through the store — § 8**
 
@@ -904,70 +846,22 @@ beside `handlers/status.ts`, which nears the file-length limit and whose `handle
 `max-lines-per-function` floor entry. Every slot's arm from the flip extends the schema Task 1.1 or 1.3 registered, and
 its `arc schema` test with it.
 
-### `[ ]` **5.1 Bind session-init's probes once, through the contract — § 4.1**
+### `[x]` **5.1 Bind session-init's probes once, through the contract — § 4.1**
 
 - _Goal:_ `handleSessionInitStatus` keeps composing every slot, with each probe reading through the contract, its slot
   paths and load-set entries from the layout resolver, a work unit's through Task 1.9's function, and its outcome the
   plain `{ ok, … }` object with today's failure isolation; from the flip `currentWuReconcile`'s reads are bound once and
   the user-reference reconcile applies as one prepared write.
 
-    - `[ ]` **5.1.a The binding**
+    - `[x]` **5.1.a The binding**
 
-        - `handleSessionInitStatus` (`handlers/status.ts`) binds the in-flight oracle (Task 3.1.b), the transient
-          acquisitions (Task 3.2), the roster and the sweeps, `errandSweep` and `inboxState`, the nudge-marker reads
-          behind `errandState` and `workUnitState` (`resolveNudgeState`, `handlers/status/session-evidence.ts`), and the
-          compaction seed's write, each through the store. The nudge markers stay machine-local files under the
-          identity's `.internal/`, read at a path built from the personal root's address (Task 2.1.a).
-        - From the flip the two reconcile slots take their work unit from the frame's subject, where today they parse it
-          from the meta's file name (`metaWorkUnitNameFromActive`, `commands/status/run.ts`).
-        - Failure isolation stays as `runSessionInitStatus` composes it today, including the slots it builds from
-          another slot's result: `errandState` from `worktree` and `active`, the residue sweep from the roster,
-          `loadSet` from `derivedLocusState`, and from the flip the two reconcile slots from `derivedLocusState`'s
-          frame, each absent where the frame fails or names no work unit, as each is today with no single active meta.
+        - The invocation shares one Store, project identity, and derived frame across probes. Reconcile slots use that
+          frame’s subject and preserve independent failure outcomes.
 
-        - Build `test-first` (one behavior at a time):
-            - the envelope on each compatibility fixture is unchanged over the in-repo implementation
-            - a failed store read fails only the slot that needed it
-            - over the reference backend every slot composes from the store, and the reconcile slots key on the frame's
-              subject
-            - over the reference backend a failed frame leaves both reconcile slots absent
+    - `[x]` **5.1.b `currentWuReconcile` bound once**
 
-    - `[ ]` **5.1.b `currentWuReconcile` bound once**
-
-        - From the flip the session probe (`runCurrentWuReconcileSessionProbe`,
-          `lib/session-init/current-wu-reconcile.ts`) binds the transition-write-path change's store-backed prepare
-          context (`createStoreReconcilePrepareContext`, `lib/work-unit/store-reconcile-context.ts`, built in
-          Task 4.3.b - `tasks-seam-lifecycle.md`) in place of the lifecycle index, transition queries, and artifact
-          reads `handleSessionInitStatus` binds inline; until then the inline bindings stay, since over the in-repo
-          implementation they read the transition records that carry today's renames. It only prepares, the apply
-          staying `arc wu reconcile <slug> --apply`.
-        - Given the context, the probe plans for the primary record it acquired, its slug that record's name and its
-          meta path `workUnitMetaPath(primary)` (`lib/store/lifecycle-write.ts`), as lifecycle's own ceremony does
-          (`buildStoreCurrentWuReconcile`, `lib/work-unit/store-current-wu-reconcile.ts`), since the context's
-          `readFile` serves only the paths it acquired.
-        - Where the prepare throws over a lifecycle listing with a malformed or missed record
-          (`store.lifecycle-incomplete`) or one it cannot read (`store.lifecycle-unreadable`) — each an `ArcError` from
-          `requireCompleteInventory` (`lib/store/lifecycle-storage.ts`), the first carrying its diagnostics as its
-          `cause` — the slot catches it and reports each diagnostic's condition as its condition, with that diagnostic's
-          remedy as its action, as text, or, for an unreadable listing or an incomplete one whose `cause` holds no
-          diagnostic, the thrown message as its condition (§ 4.3), rather than failing as a probe.
-        - Where the context returns the store's refusal — the lifecycle view's, the artifact group's acquisition's, a
-          group listed incompletely among them (`acquireLifecycleRecords`, `lib/work-unit/prepared-lifecycle-write.ts`),
-          the lineage listing's or its terminal aliases' (`readTerminalReferenceAliases`,
-          `lib/work-unit/terminal-reference-aliases.ts`), an alias lookup's, or the paired references' owners'
-          (`readPairedReferenceOwners`, `lib/work-unit/paired-reference-owners.ts`) — the slot reports its condition as
-          its condition, with its remedy as its action, as text, as it reports the throw.
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend the probe's plan matches the reconcile command's for the same work unit, a
-              former slug resolving through the shared context
-            - over the reference backend an incomplete lifecycle listing reports as the slot's condition with its remedy
-            - over the reference backend an unreadable lifecycle listing reports its message as the slot's condition
-            - over the reference backend an artifact group listed incompletely reports the acquisition's condition as
-              the slot's condition, with its remedy as its action
-            - over a stand-in store whose lifecycle listing reports records missed with no diagnostic, the slot reports
-              the thrown message as its condition
-            - over the in-repo implementation the probe's plan is today's
+        - Current-work-unit preparation uses lifecycle’s Store context and reports refused or incomplete evidence with
+          its repair, without reading pause during preparation.
 
     - `[x]` **5.1.c The user-reference reconcile as one prepared write**
 
@@ -995,192 +889,81 @@ its `arc schema` test with it.
 
         - Retired-workspace discovery returns skip before acquisition when state lives off the branch.
 
-### `[ ]` **5.3 Reroute the work-unit, Errand, and inbox slots — § 4.2, § 4.3**
+### `[x]` **5.3 Reroute the work-unit, Errand, and inbox slots — § 4.2, § 4.3**
 
 - _Goal:_ `workUnitState`, `errandState`, and `inboxState` with its reminder and staleness reads read through the
   contract, with their actions; and from the flip a slot whose action would advance a paused work unit's work takes
   `arc resume <slug>` in its place, its text naming the command to run once resumed.
 
-    - `[ ]` **5.3.a The work-unit and Errand slots**
+    - `[x]` **5.3.a The work-unit and Errand slots**
 
-        - `workUnitState` (`lib/session-init/work-unit-state.ts`) takes its `Integrating` rows from the roster (Task
-          2.2.b) and its branch tips as today.
-        - `errandState` (`lib/session-init/errand-state.ts`) reads the oracle's set (Task 3.1.b) and the acquisitions
-          (Task 3.2), and classifies its entries' branches as today. Its materializable Errands report `originEntry` as
-          the record holds it (`lib/session-init/materializable-errands.ts`).
-        - From the flip the records it builds its resume detection and its materializable Errands from (`slugByBranch`,
-          `findMaterializableErrands`) are this identity's own Errands at placement `active`, in any mode, so it never
-          offers or detects a closed Errand or another person's, which the open and `arc errand materialize` refuse
-          (Tasks 3.3.c, 3.3.e).
+        - Work-unit and Errand slots use the captured roster and Store acquisitions; resume and materialization consider
+          only this identity’s active Errands.
 
-        - Build `test-first` (one behavior at a time):
-            - each slot's report over the reference backend matches the in-repo implementation's on the same state
-            - over the reference backend a closed Errand whose remote branch survives, and another identity's Errand,
-              are neither offered to materialize nor detected for resume
+    - `[x]` **5.3.b The inbox slots**
 
-    - `[ ]` **5.3.b The inbox slots**
+        - Inbox counts and reminder inputs use parsed personal records, with queued entries counted separately from
+          routable captures.
 
-        - `inboxState`, the reminder nudge, and the staleness sweep's inbox input (`lib/session-init/inbox-state.ts`,
-          `inbox-reminders.ts`; `extractReminderEntries`, `handlers/status.ts`) read the person's inbox through the
-          store and its kind (Task 4.4), where `readUserInbox` (`handlers/status/session-context.ts`) reads the file
-          today; this task owns that reader's reroute.
-        - From the flip `inboxState` leaves the Errand queue's members out of its routable count and counts them apart,
-          where it reads the execute-bound marks today, since the marks give way to the queue (§ 7.6).
+    - `[x]` **5.3.c A paused work unit's actions**
 
-        - Build `test-first` (one behavior at a time):
-            - the routable count and the nudge read `_Hold:_` and `_Remind:_` through the kind over both implementations
-            - over the reference backend a queued entry is counted apart from the routable ones
+        - A paused context substitutes the resume action and names the later apply, preserving the existing
+          recommendation fields.
 
-    - `[ ]` **5.3.c A paused work unit's actions**
-
-        - From the flip, on a paused work unit, read from the frame's work-unit context (Task 2.1.d),
-          `currentWuReconcile` offers `arc resume <slug>` in place of `arc wu reconcile <slug> --apply --json`, its text
-          naming the apply to run once resumed. The swap is in `actions` alone: `recommendedCommand` and the slot's
-          other command fields keep today's values until the deletion pass. The probe's prepare never reads the pause,
-          so it never meets the apply's refusal. The commits not yet closed take the same swap in Task 7.4.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a paused work unit's pending reconcile yields `arc resume <slug>`, its text naming the apply
-            - a paused work unit's slot keeps today's `recommendedCommand` beside its swapped action
-
-### `[ ]` **5.4 Report paused work, and enter a paused checkout — § 4.4**
+### `[x]` **5.4 Report paused work, and enter a paused checkout — § 4.4**
 
 - _Goal:_ From the flip `pausedWork` lists the person's paused work units, each with its reason and what it waits on,
   marked resumable once the work unit it waits on ships and review-due at once if that work unit ends otherwise, or once
   a pause waiting on no work unit passes `pause.review_after_days`; each item carries its resume or materialize action;
   and entering a paused checkout renders the pause before any work starts.
 
-    - `[ ]` **5.4.a The slot**
+    - `[x]` **5.4.a The slot**
 
-        - A per-identity listing of paused work units through the store fills `pausedWork` (Task 1.3), each item marked
-          as above; a review-due item carries a precomposed review prompt naming `arc resume <slug>`,
-          `arc handover <slug> --to <identity>`, `arc pause <slug> --open` where the pause is not open already, and
-          `arc abandon <slug> --yes`, every argument filled but the handover's identity, and carries each as an action:
-          typed, but the handover's, which is text, the resume once where it is the item's own action, and the abandon
-          with `--yes`, since the verb refuses without it (`handleStoreAbandon`, `handlers/abandon-store.ts`).
-        - The listing selects by the work item's `Owner`, never the pause's `pausedBy`, which a handover leaves in place
-          (`runHandover`, `lib/work-unit/verbs/pause-handover.ts`); it resolves a `waitsOn` slug through `lookup` to
-          mark the item, since a rename leaves another work unit's pause naming the former slug; and it measures a
-          pause's review age from its `since`, which a pause updated in place keeps. Each item carries the pause's
-          `open`, which the slot's schema (`PausedWorkResultSchema`, `lib/session-init/paused-work.ts`, Task 1.3) gains
-          beside its producer.
-        - The marking — the resumable and review-due marks, and a review-due item's prompt with its choices as actions —
-          is one exported function over a single paused work item (`markPausedWorkItem`,
-          `lib/session-init/paused-work.ts`), given the store, for the `waitsOn` lookup, and the
-          `pause.review_after_days` setting, reading no identity and no checkout. The slot maps it over its listing, and
-          the status change's Paused tier calls it for each paused row (spec § 4.4).
-        - Each item's action is `arc resume <slug>`; or `arc materialize <slug>` where no checkout here holds the work
-          unit; or `arc materialize <slug> --here` with the checkout to run in, where a markerless checkout, its folder
-          present, still has its branch out (Task 2.7).
+        - One exported marking function resolves renamed wait targets, ownership, review age, and checkout location,
+          supplying the slot’s typed choices and text handover.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a pause waiting on a shipped work unit is marked resumable
-            - one waiting on an abandoned or cut work unit is review-due at once
-            - a pause waiting on nothing, or on a note, older than the setting, is review-due with its prompt
-            - each item's action follows where its checkout is
-            - a work unit handed over lists for its new owner, not the identity that paused it
-            - a pause waiting on a work unit since renamed resolves it by its former slug
-            - an open pause's review prompt names no `arc pause <slug> --open`
-            - a review-due item carries its resume, its open where the pause is not open, and `arc abandon <slug> --yes`
-              as typed actions, and its handover as text
-            - the marking function, given a paused work item another identity owns, marks it as the slot marks the
-              person's own
+    - `[x]` **5.4.b Entering a paused checkout**
 
-    - `[ ]` **5.4.b Entering a paused checkout**
+        - Entering guidance retains the pause, reason, and resume notes before task orientation.
 
-        - The frame's work-unit context carries the pause record (Task 2.1.d), and its guidance
-          (`deriveDerivedLocusSessionGuidance`, `lib/locus/session-guidance.ts`) renders the pause, its reason, and its
-          resume notes, so orientation is not bare-clean and no entry shortcut fires past it;
-          `LocusSessionGuidanceSchema` admits the pause.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - the guidance renders a paused checkout's pause, reason, and resume notes, and parses under its schema
-
-### `[ ]` **5.5 Widen the materialize offer — § 4.5, § 2.7**
+### `[x]` **5.5 Widen the materialize offer — § 4.5, § 2.7**
 
 - _Goal:_ From the flip the offer lists the in-flight work units this identity owns that no checkout here holds —
   remote-only or released, with no remote needed, paused ones left to `pausedWork` — and offers
   `arc materialize <slug> --here`, with its checkout, for a work unit whose branch a markerless checkout has out, its
   folder present.
 
-    - `findMaterializableWorkUnits` (`lib/session-init/materializable-work-units.ts`) reads the oracle's set
-      (Task 3.1.b), which no remote gates, less the work units a checkout here holds (Task 2.4's lookup) and less paused
-      ones, reporting the condition for a work unit whose lookup rejects rather than offering it; today it admits only
-      remote-only work units that are not parked. It keeps its own loop over that set rather than calling the verb's
-      listing (`listStoreMaterializable`, `lib/work-unit/verbs/materialize-store.ts`), which aborts whole on any one
-      work unit's rejected lookup.
-    - Task 2.7's pairs give the `--here` offers; a registration whose folder is missing holds no checkout, so its work
-      unit takes the ordinary offer, whose spawn clears it.
-    - Its entry's `branch` (`MaterializableWorkUnitSchema`), a required non-empty string today, is optional from the
-      flip, so a branchless work unit's offer names it alone, as `arc materialize` takes a work unit with no branch link
-      (spec § 16).
+- _Outcome:_ Materialization offers include released and branchless work without remote evidence, omit held or paused
+  work, and preserve per-item lookup failures and in-place destinations.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a released work unit is offered with no remote configured, and a held or paused one is not
-        - a work unit whose branch a markerless checkout has out is offered the `--here` form with that checkout
-        - a work unit whose checkout's folder was deleted takes the ordinary offer
-        - a branchless work unit is offered with no branch, and the entry parses under the slot's schema
-        - one work unit's rejected lookup reports its condition while the others are offered, and where no lookup
-          rejects the offer's set is `arc materialize`'s listing less paused work units
-
-### `[ ]` **5.6 Report inbound back-pressure — § 4.6**
+### `[x]` **5.6 Report inbound back-pressure — § 4.6**
 
 - _Goal:_ One per-work-unit computation, built with the inbound kind, reports the pending inbound count and the oldest
   entry's age from its `_Created:_` against `inbound.retriage_after_entries` and `inbound.retriage_after_days` (Task
   1.11), and from the flip `inboundBackPressure` carries the current work unit's figures, past either threshold
   recommending its owner's re-triage, naming `arc inbox <slug>` in its text.
 
-    - The computation reads the inbound list through its kind (Task 4.2.b); the same computation feeds
-      `arc inbox <slug>`'s figures (Task 6.1), which the drain reads.
+- _Outcome:_ The inbound computation serves both listing and the slot, reporting count and oldest age against the
+  configured bounds and naming retriage where exceeded.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - more pending entries than the count threshold trips it
-        - an oldest entry older than the day threshold trips it
-        - below both the slot reports its figures with no action
-
-### `[ ]` **5.7 Retire session-init's notes policies at the flip, and pull at session start — § 4.7, § 4.8**
+### `[x]` **5.7 Retire session-init's notes policies at the flip, and pull at session start — § 4.7, § 4.8**
 
 - _Goal:_ From the flip `user.notes_push`, `session.init_pull.notes`, and `session.init_load.notes` have no effect on
   session-init and its notes recommendations go with them, while `session.remote_sync`, the worktree and base
   recommendations, and each slot's failure isolation stay; and under `session.remote_sync` session start calls the
   store's `pull` in the `user` probe, carrying a `designation-needed` state in the `user` slot with its remedy argv.
 
-    - `[ ]` **5.7.a The notes policies**
+    - `[x]` **5.7.a The notes policies**
 
-        - The policy branches and their prompts in `lib/session-init/recommended-action.ts` — `inferUser`,
-          `composeNotesPromptText`, `composeCombinedPrompt`, and the retired-subdirectory load dispatch
-          (`inferRetiredSubdirs`) — take no effect from the flip; until then they run as today. `arc sync`'s read of
-          `user.notes_push` (`handlers/sync.ts`, `lib/release/schema.ts`) is the cutover's rewire.
+        - Notes policies and their combined prompts are dormant for off-branch state while worktree and base
+          recommendations retain their settings.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - each notes setting changes nothing in the envelope, and no notes or combined prompt appears
-            - the worktree and base recommendations still follow their settings
+    - `[x]` **5.7.b The pull and its designation**
 
-    - `[ ]` **5.7.b The pull and its designation**
+        - The user slot carries Store pull outcomes and typed designation remedies; join binds and pulls the selected
+          identity before setup without making a noninteractive choice.
 
-        - From the flip the `user` probe (`handlers/status.ts`) calls `pull` through Task 3.3.a's port, and the `user`
-          slot's value is the pull's states (`PullResult`), a `designation-needed` state carrying its remote, choices,
-          and remedy, with no notes fields, where today's producer (`runUserSessionInitStatus`,
-          `commands/user/sync-status.ts`) is notes-sync machinery this change leaves alone. The slot shows
-          `designation-needed` as an orientation line with the remedy's argv, typed.
-        - `createDefaultStorePorts` (`lib/store/default-ports.ts`) takes an optional `identity`, which its `identity`
-          port returns in place of the configured one (`resolveIdentity`), so a store opened for an identity being set
-          up reads, and its pull fetches, that identity's records whether or not `arc.identity` is set or names another.
-        - From the flip `arc join` (`handlers/join.ts`) pulls through Task 3.3.a's port, which it does not today, with
-          its store bound to the identity being set up.
-        - It asks among the pull's `designation-needed` choices on a terminal and runs the answer,
-          `arc store remote <remote> <choice>`, the recommended choice being the remedy's argv; without a terminal it
-          reports the state the same way, never guessing.
-
-        - Build `test-first` (one behavior at a time):
-            - a bound pull reporting `designation-needed` yields the `user` slot's line and typed remedy, parsing under
-              its schema
-            - `arc join` pulls the identity being set up through the port, and without a terminal reports the state
-              rather than choosing
-            - the default port pulls nothing, and the slot reports no state
-            - a store opened with an `identity` resolves that identity's personal records, not the configured one's
-
-### `[ ]` **5.8 Reroute handoff's and recovery's probes, and restate across clones — § 4.1, § 4.9, § 9.2**
+### `[x]` **5.8 Reroute handoff's and recovery's probes, and restate across clones — § 4.1, § 4.9, § 9.2**
 
 - _Goal:_ Handoff's and recovery's probes read through the contract, and from the flip restating and the recovery audit
   read state as of a state version, or through `changes` from one, beside the retained code-head baseline — pulling a
@@ -1188,86 +971,33 @@ its `arc schema` test with it.
   rebuilding a seed whose state version no longer resolves, and taking the baseline-unknown path where no
   `State at Handoff` exists.
 
-    - `[ ]` **5.8.a Handoff's and recovery's probes**
+    - `[x]` **5.8.a Handoff's and recovery's probes**
 
-        - `createHandoffProbes` and the `resolveHandoffSurfaces` option `handlers/status/session.ts` passes to
-          `runSessionHandoffStatus` (`commands/status/run.ts`) read through the store; the inbox read is Task 5.3.b's.
-        - From the flip recovery's task-list reads (`resolveRecoveryTaskListEvidence`, `handlers/recover.ts`) go through
-          the store — the seed's as of its state version, where it runs `git show <seedHead>:<taskListPath>` today, and
-          the fresh one at the current version, where it reads the checkout's file — with
-          `lib/recover/committed-progress.ts` and `lib/recover/integration-correction.ts`.
+        - Handoff and recovery consume Store records; recovery reads the seed’s task list at its state anchor and
+          current evidence at the fresh version.
 
-        - Build `test-first` (one behavior at a time):
-            - each probe's result is unchanged over the in-repo implementation
-            - over the reference backend recovery reads the seed's task list as of its state version and the fresh one
-              at current
+    - `[x]` **5.8.b State continuity**
 
-    - `[ ]` **5.8.b State continuity**
+        - Restating uses meta anchors and scoped changes, retries named missing-history refs once, and rebuilds
+          unresolved seed state while retaining code-head and locus checks.
 
-        - From the flip restating (`lib/handoff/restate-candidates.ts`) takes its anchors from the meta
-          (`stateAtHandoff`, `commitAtHandoff`, `lib/store/kinds/meta/`), where today it reads a baseline from
-          `SESSION-NOTES` (`BASELINE_HASH_REGEX`). Commits since handoff stay a Git walk from the code anchor; the tasks
-          closed since come from the task-list record's `changes` since the state anchor, and changes to the work unit's
-          notes from its notes record's `changes`.
-        - Another person's anchor reads from the meta's `Owner` in the history entry that wrote it
-          (`HistoryEntrySchema`, `lib/store/contract.ts`) — the oldest of the newest run of entries that all hold the
-          current `State at Handoff` — set against the identity restating; restating then passes `changes` only the work
-          item's project-scope records.
-        - On a refusal naming history refs the clone lacks, which Task 3.3.a's port reads from it, the verb pulls them
-          by name through the port and retries once, with no stop; until the port is bound it names none, so the retry
-          pulls nothing, in either landing order (spec § 16). The tests script the port, and produce the refusal through
-          a scripted store wrapper, since the reference helper throws on an unknown state version (`recordsAt`,
-          `changesReference`, `__tests__/helpers/store/read.ts`).
-        - A seed whose state version no longer resolves, or that records `stateVersion: null`, is rebuilt from current
-          state. The first handoff after the flip finds no `State at Handoff` and takes the baseline-unknown path; a
-          `Commit at Handoff` a later history rewrite left unreachable takes it for code commits, while the state anchor
-          still serves state.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - the anchors come from the meta, the tasks closed from the task list's `changes`, and the notes changes
-              from the notes record's
-            - a missing history ref is pulled by name and the read retried once, and a failed pull surfaces the refusal
-              with its remedy
-            - restating from another person's anchor restricts `changes` to project scope
-            - a seed whose state version no longer resolves, or is `null`, is rebuilt from current state
-            - a missing `State at Handoff`, or an unreachable `Commit at Handoff`, takes the baseline-unknown path
-
-### `[ ]` **5.9 Move this change's callers off the user-surfaces resolver — § 10.3**
+### `[x]` **5.9 Move this change's callers off the user-surfaces resolver — § 10.3**
 
 - _Goal:_ This change's callers of the user-surfaces resolver read the person's records through the store, with nothing
   observable changing over the in-repo implementation, which keeps the resolver and its migration as its own arm.
 
-    - The callers: `commands/user/add.ts`, `commands/user/inbox-mutation.ts`, `handlers/derived-locus-state-probe.ts`,
-      `handlers/errand.ts`, `handlers/recover.ts`, `handlers/status/session-context.ts`,
-      `handlers/status/session-evidence.ts`, and `handlers/user.ts` outside its notes-sync commands, off
-      `resolveUserSurfaceResolver` and `createUserSurfaceResolver` (`lib/user-surfaces.ts`).
-    - `arc user add` opens its store bound to the identity it adds (Task 5.7.b), so the in-repo implementation's
-      personal records (`personalIdentity`, `lib/store/in-repo/personal-paths.ts`) resolve that identity's root, as
-      `resolveUserSurfaceResolver` does today, rather than refusing an identity other than the configured one.
-    - `lib/store/in-repo/personal-paths.ts` keeps importing the resolver, and teardown keeps merging a linked worktree's
-      copy up through `lib/user-surface-migration.ts` until the flip.
+- _Outcome:_ Personal callers use selected Store records and layout-derived addresses across both backends; the notes-
+  sync and migration machinery retain their existing boundaries.
 
-    - Build `test-first` (one behavior at a time):
-        - each caller's tests pass unchanged over the in-repo implementation, `arc user add` of an identity other than
-          the configured one among them
-        - each caller reads the person's records over the reference backend
-
-### `[ ]` **5.10 Keep a missing or ambiguous completed subject fail-closed — § 3.7**
+### `[x]` **5.10 Keep a missing or ambiguous completed subject fail-closed — § 3.7**
 
 - _Goal:_ Over the store, the reader, session-init, and recovery derive each completed work unit's frame as Task 2.1.c
   gives it, and keep an arbitrary missing or ambiguous completed subject fail-closed — the frame `subject-unresolved`
   (`lib/locus/subject-meta.ts`), granting no cleanup authority, session-init reporting it, and the recovery audit
   stopping — whether or not the archived-but-not-torn-down interval remains.
 
-    - Build `test-first` (one behavior at a time), under each archive cadence, across the reader, session-init, and
-      recovery, over the reference backend:
-        - a restart after archive and before merge derives the frame its cadence allows
-        - a merge before teardown, by ARC's landing, and a merge made outside ARC by merge commit, each derive the
-          retired frame
-        - a multi-commit squash merged outside ARC stays in the integration frame under `with-integration`
-        - a work unit retired by a cut or an abandonment derives the retired frame
-        - a partial teardown grants no cleanup authority past what its record and checkout show
-        - a missing completed subject, and an ambiguous one, each fail closed as the Goal states
+- _Outcome:_ Reader, registered session CLI, and recovery agree across both archive cadences, preserving completed-
+  subject diagnostics and withholding cleanup authority from missing or ambiguous evidence.
 
 ### `[x]` **5.R Keep personal prose advisory in the prepared reconcile — § 4.1 (A21)**
 
@@ -1338,26 +1068,17 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
 
         - Admission enforces destination lifecycle, owner, held-ID, and conflict rules with actionable refusals.
 
-### `[ ]` **6.3 List survivors with their homes, and carry them — § 7.4, § 4.3**
+### `[x]` **6.3 List survivors with their homes, and carry them — § 7.4, § 4.3**
 
 - _Goal:_ From the flip an inbox row whose latest receipt moved it out of that inbox lists as a survivor carrying the
   home that receipt names, derived and never stored, unless that home now takes nothing; `inboxState` reports the
   person's survivors; and the drain carries a survivor home through `arc route`'s move form, never leaving both the
   survivor and its carry.
 
-    - `[ ]` **6.3.a The listing and the slot**
+    - `[x]` **6.3.a The listing and the slot**
 
-        - `arc inbox`'s inbox rows read survivors through 6.2.c's helper; an entry an abandon or a route returned reads
-          by its return's receipt, so it lists as unstarted work; a survivor whose home is an ended Errand, a work unit
-          Integrating or completed, or one retired lists as ordinary work.
-        - `inboxState` reports the person's survivors in an optional field its registered schema admits, present from
-          the flip, naming `arc inbox personal` as text, since carrying one takes the drain's decisions.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - an edit racing a route lists as a survivor with its derived home
-            - a survivor whose home now takes nothing lists as ordinary work
-            - a returned entry lists as unstarted work
-            - `inboxState` reports the survivors with its text, and over the in-repo implementation carries no field
+        - Listings derive survivors from receipts, and the inbox slot carries their complete typed homes through the
+          shared session binding.
 
     - `[x]` **6.3.b The carry**
 
@@ -1535,79 +1256,26 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
         - Init, join, and add bind the requested identity before checking records. Confirmation precedes configuration
           and personal writes; join pulls first, and noninteractive runs report the identity in use and proceed.
 
-### `[ ]` **7.4 List the commits not yet closed — § 11, § 4.3**
+### `[x]` **7.4 List the commits not yet closed — § 11, § 4.3**
 
 - _Goal:_ From the flip, while an Active work unit has open tasks, the derived frame's entering work-unit context
   carries the set the close's default capture takes, computed once by the same code, and session start and recovery list
   it beside the task cursor with the close as its action in the work unit's checkout — or, where the close would refuse,
   that condition with its repair in place of the set; until the flip nothing is listed.
 
-    - `[ ]` **7.4.a The set in the entering work-unit context**
+    - `[x]` **7.4.a The set in the entering work-unit context**
 
-        - `readDerivedLocusFrame` (`lib/locus/derived-reader.ts`) computes the set once, for the entering checkout's
-          `active` work-unit context after selection, never for every roster row (`readDerivedLocusRoster`), so another
-          checkout's failure never turns its row unresolved.
-        - It reads the work item's links from its store record and resolves which branch link the checkout has out
-          through the transition-write-path change's one resolver (built in Task 2.3.c - `tasks-seam-lifecycle.md`):
-          `linked` computes the set by that change's default-set computation (`computeDefaultCaptureSet`, its Task 2.3)
-          with `refresh: false`, over the base refs the clone has, its copy keys from `lib/git/copy-key.ts` (its
-          Task 2.2) and only for commits no stored SHA matches, against the work item's captures and the resolved link's
-          exclusions, as the close takes them (`prepareTaskClose`, `lib/work-unit/verbs/task-close.ts`), never every
-          link's (its Task 2.1).
-        - `detached`, `unlinked`, `ambiguous`, and `no-link` each carry the close's own condition and repair as text,
-          composed by the close's refusal (`unlinkedTaskRefusal`, `lib/work-unit/verbs/task-close.ts`), which this
-          change exports for it, so the two never differ: the switch to the work branch, naming every project link; the
-          repair of duplicate links; or `arc deactivate <slug>`, then `arc activate`. Where no base ref resolves, the
-          context carries that condition with `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`, typed,
-          the listing composing its argv from the configured base (`branch.base`) where `origin` exists, since the
-          computation's refusal carries its remedy as a string, or with no `origin` `git branch <base> <commit>` as
-          text.
-        - With no project ID from the port the context carries that condition, naming the port's failure as text, in
-          place of the set (spec § 2.1).
-        - A Planning work unit, and one with no open task, carry no set. `derivedLocusState`'s registered schema (Task
-          1.1.b) admits the set and each condition.
+        - Only the entering Active work-unit context receives the shared default capture set; unavailable branch or task
+          evidence remains an observation rather than a lost role.
 
-        - Build `test-first` (one behavior at a time), integration tier, over the reference backend:
-            - the set equals the close's default set over the same base refs on an adopted, a re-activated, and a
-              promoted work unit's branch
-            - a base merge adds nothing, and a rebased copy of a captured or excluded commit stays out by copy key
-            - on a work unit linking two branches, the set takes the checked-out link's exclusions alone, as the close
-              does
-            - a detached checkout, an unlinked branch, a branch two of the project's links name, and a work unit linking
-              no branch each report the close's condition and repair in place of the set
-            - no project ID reports the port's failure in place of the set
-            - no base ref reports the condition with its repair, in each form
-            - the set is computed for the entering checkout alone
-            - over the in-repo implementation nothing is listed
-            - with no project-ID port injected, the set is computed, the project ID read from the project's identity
-              record
+    - `[x]` **7.4.b The action**
 
-    - `[ ]` **7.4.b The action**
+        - Fresh commits carry the typed bare-close action; rewritten commits retain the two repair choices as text, with
+          paused work directed through resume.
 
-        - The action runs in the work unit's checkout: `arc task close`, typed, only where every listed commit's
-          committer and author times were read from its header and are equal, and it carries a copy key; otherwise text
-          naming the bare close where the open task's work is among them and `arc task close <id>` where it is not.
-        - On a paused work unit the action is `arc resume <slug>`, its text naming `arc task close` to follow, as Task
-          5.3.c gives `currentWuReconcile`.
+    - `[x]` **7.4.c Recovery beside a matching cursor**
 
-        - Build `test-first` (one behavior at a time), integration tier, over the reference backend:
-            - every commit made fresh yields the typed bare close in the work unit's checkout
-            - a commit whose header times went unread, or with no copy key, yields the text, never the typed close
-            - an amended commit, made by a raw `git commit --amend` since the release wrapper refuses an amend from the
-              flip, yields the text naming both repairs, with the checkout
-            - a paused work unit yields `arc resume <slug>`
-
-    - `[ ]` **7.4.c Recovery beside a matching cursor**
-
-        - A compaction between a commit and its close leaves the cursor's task open with its commit landed, which the
-          recovery audit (`lib/recover/audit.ts`) already reads as ready, the advanced `HEAD` explained drift
-          (`auditTaskCursor`); the audit adds the set from the same work-unit context beside the matching cursor, with
-          the same action, and the verdict's schema (`RecoveryAuditVerdictSchema`, `lib/recover/audit.ts`) admits it
-          beside its `taskCursor`.
-
-        - Build `test-first` (one behavior at a time), integration tier, over the reference backend:
-            - a compaction between a commit and its close lists the commit beside the matching cursor with the close
-            - a mismatched cursor still stops as today
+        - Recovery carries the same unclosed set beside its matched cursor without relaxing mismatch stops.
 
 ### `[ ]` **7.5 Hold the ratchet floors to the arms kept until the deletion pass — § 1.5**
 

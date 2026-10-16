@@ -42,7 +42,7 @@ async function probeMaterializableCandidates(
   exec: GitExec,
   execInput: GitExecInput,
   cwd: string,
-): Promise<{ pendingBranchCount: number; candidates: Array<{ name: string; branch: string }> }> {
+): Promise<{ pendingBranchCount: number; candidates: Array<{ name: string; branch?: string }> }> {
   const snapshot = await readRemoteHeadSnapshot({ exec, scope: { kind: "all-heads" } });
   if (snapshot.kind !== "available") throw new Error("Expected an available remote-head snapshot.");
   const [objectAvailability, history, localRefs, worktrees] = await Promise.all([

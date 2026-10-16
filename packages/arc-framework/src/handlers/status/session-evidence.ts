@@ -10,13 +10,12 @@ import { type ResolvedSettingsResult } from "../../lib/config/resolved-settings.
 import { type DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { createUserIOContext } from "../../lib/io-context.js";
-import { SlugSchema } from "../../lib/kernel/index.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import { resolveReleaseRouting } from "../../lib/release/routing.js";
 import type { CleanupBaseEvidence } from "../../lib/session-init/cleanup-remote-evidence.js";
 import { locusWorkUnitAtPath } from "../../lib/session-init/locus-classification.js";
 import { shouldNudge, type NudgeMarkerState } from "../../lib/session-init/nudge-rate-limit.js";
-import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../../lib/user-surfaces.js";
+import { resolveSessionPersonalPaths, type SessionPersonalPaths } from "./personal-paths.js";
 import { GhDeliveryHostPort } from "../../scripts/delivery/hosts/github.js";
 import { type HostedProcessRunner } from "../../scripts/review-gate/hosted/gh-process.js";
 import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
@@ -174,7 +173,7 @@ export async function resolveNudgeState(
   io: ReturnType<typeof createUserIOContext>,
   identity: string | null,
   markerRelative: string,
-  resolveSurfaces?: (identity: string) => Promise<UserSurfaceResolver>,
+  resolveSurfaces?: (identity: string) => Promise<Pick<SessionPersonalPaths, "identityGlobalPath" | "identityGlobalDisplayPath">>,
 ): Promise<NudgeMarkerState> {
   const today = new Date().toISOString().slice(0, 10);
   if (identity === null) {
@@ -182,7 +181,7 @@ export async function resolveNudgeState(
   }
   const surfaces = resolveSurfaces !== undefined
     ? await resolveSurfaces(identity)
-    : await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec });
+    : await resolveSessionPersonalPaths({ cwd, identity, exec: io.exec });
   const markerPath = surfaces.identityGlobalDisplayPath(markerRelative);
   const absoluteMarkerPath = surfaces.identityGlobalPath(markerRelative);
   const lastNudge = await io.readFile(absoluteMarkerPath).then(

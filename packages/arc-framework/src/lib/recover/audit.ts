@@ -9,6 +9,7 @@
  */
 import { posix } from "node:path";
 import { z } from "zod";
+import { UnclosedTaskCommitsSchema } from "../locus/unclosed-task-commits-schema.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 
 import type { Probe } from "../../commands/status/types.js";
@@ -194,6 +195,7 @@ export const RecoveryAuditVerdictSchema = z.strictObject({
   locusHint: RecoveryAuditLocusHintSchema.nullable(),
   dirtyFiles: RecoveryAuditDirtyFilesSchema,
   taskCursor: RecoveryAuditTaskCursorSchema.nullable(),
+  unclosedTaskCommits: UnclosedTaskCommitsSchema.optional(),
 }).superRefine((value, context) => {
   const ready = value.status === "ready";
   if (value.ready !== ready) {
@@ -286,6 +288,8 @@ export async function auditRecoveryState(
   const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons, integrationCorrection);
+  const unclosedTaskCommits = taskCursor?.match === true && options.recover.derivedLocusState.ok
+    ? options.recover.derivedLocusState.value.active?.context.unclosedTaskCommits : undefined;
 
   return {
     status: stopReasons.length === 0 ? "ready" : "stop",
@@ -297,6 +301,7 @@ export async function auditRecoveryState(
     locusHint,
     dirtyFiles,
     taskCursor,
+    ...(unclosedTaskCommits === undefined ? {} : { unclosedTaskCommits }),
   };
 }
 

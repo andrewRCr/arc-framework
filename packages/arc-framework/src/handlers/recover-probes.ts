@@ -14,6 +14,7 @@ import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import type { Store } from "../lib/store/contract.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
@@ -21,6 +22,7 @@ export interface RecoverStatusProbeOptions {
   exec: GitExec;
   execInput: GitExecInput;
   readFile: (path: string) => Promise<string>;
+  store?: Store;
 }
 
 /** Build the recover-mode probe bundle, sharing settings resolution across probes. */
@@ -37,6 +39,7 @@ export function createRecoverStatusProbes(
         identity,
         baseBranch: resolved.settings["branch.base"],
         exec,
+        ...(options.store === undefined ? {} : { store: options.store }),
       });
     },
     worktree: async () => {

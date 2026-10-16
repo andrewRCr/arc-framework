@@ -93,6 +93,7 @@ export type SubjectMetaProjection =
       metaPath: string;
       owner: string | null;
       pause?: ParsedMetaPause | null;
+      unclosedTaskCommits?: import("./unclosed-task-commits.js").UnclosedTaskCommits;
       branch: string | null;
       sessionType: SessionType | null;
       workflow: string | null;
@@ -245,9 +246,18 @@ export async function projectCheckoutSubjectMeta(options: {
       };
     }
   }
+  const storedTasks = options.workUnit !== undefined && options.store !== undefined
+    ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort)
+    : null;
+  const taskListPath = storedTasks === null ? resolveTaskListPath(expectedPath, record.taskList) : storedTasks.path;
+  const taskCursor = storedTasks !== null ? storedTasks.cursor : taskListPath === null ? null
+    : await resolveTaskListCursorFromFile({
+      cwd: options.cwd, taskListPath, readFile: (path) => options.io.readFile(path),
+      realpath: (path) => options.io.realpath(path), lstat: (path) => options.io.lstat(path),
+    });
   const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
-    : inferSessionType(record.state, record.taskList, record.branch);
+    : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
@@ -288,20 +298,6 @@ export async function projectCheckoutSubjectMeta(options: {
       });
     }
   }
-  const taskListPath = options.workUnit === undefined || record.taskList === null
-    ? resolveTaskListPath(expectedPath, record.taskList)
-    : workItemArtifactPath(options.subjectKey, "tasks", WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), record.cohort);
-  const taskCursor = taskListPath === null
-    ? null
-    : options.workUnit !== undefined && options.store !== undefined
-      ? await readStoreTaskCursor(options.store, options.workUnit.record, taskListPath)
-      : await resolveTaskListCursorFromFile({
-        cwd: options.cwd,
-        taskListPath,
-        readFile: (path) => options.io.readFile(path),
-        realpath: (path) => options.io.realpath(path),
-        lstat: (path) => options.io.lstat(path),
-      });
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
   if (inferredSessionType === "integration"
     && taskListPath !== null
@@ -370,6 +366,10 @@ export async function projectCheckoutSubjectMeta(options: {
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity: options.identity,
+      ...(options.workUnit === undefined ? {} : {
+        workUnit: { slug: options.subjectKey, placement: WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), cohort: record.cohort },
+        stateOffBranch: options.store?.capabilities.stateOffBranch === true,
+      }),
       workingMemoryPath: options.identityGlobalUserDir === undefined || options.identityGlobalUserDir === null
         ? options.identityGlobalUserDir
         : join(options.identityGlobalUserDir, "WORKING-MEMORY.md"),
@@ -464,11 +464,12 @@ async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<
 }
 
 async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
-  taskListPath: string): Promise<TaskListCursorFileResult> {
+  slug: string, cohort: string | null): Promise<{ path: string | null; cursor: TaskListCursorFileResult | null }> {
   const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (read.status === "refused") {
-    if (read.refusal.code === "not-found") return { status: "missing", path: taskListPath };
+    if (read.refusal.code === "not-found") return { path: null, cursor: null };
     throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   }
-  return resolveTaskListCursor(read.result.content);
+  const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
+  return { path, cursor: resolveTaskListCursor(read.result.content) };
 }

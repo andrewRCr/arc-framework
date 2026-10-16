@@ -21,7 +21,7 @@ import {
   type DerivedLocusFrame,
 } from "../lib/locus/derived-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
-import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { withEnteringUnclosedTaskCommits } from "../lib/locus/entering-unclosed-task-commits.js";
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
 import { inspectRepositoryDeliveryEntry } from "../lib/delivery/repository-entry.js";
 import type { DeliveryCorrectionProjection } from "../lib/locus/subject-meta.js";
@@ -89,14 +89,8 @@ export async function runDerivedLocusStateProbe(
   const evidence = await acquireDerivedLocusEvidence({ identity, io });
   if (evidence.kind === "error") throw new Error(`${evidence.code}: ${evidence.message}`);
   const primary = evidence.topology.worktrees.find((worktree) => worktree.primary);
-  const identityGlobalUserDir = createUserSurfaceResolver({
-    cwd: options.cwd,
-    identity,
-    ...(primary === undefined
-      ? {}
-      : { identityGlobalRoot: join(primary.path, resolveArcPath({ kind: "user-root", identity })) }),
-  }).identityGlobalRoot;
-  return readDerivedLocusFrame({
+  const identityGlobalUserDir = join(primary?.path ?? options.cwd, resolveArcPath({ kind: "user-root", identity }));
+  const frame = await readDerivedLocusFrame({
     identity,
     store,
     identityGlobalUserDir,
@@ -140,4 +134,5 @@ export async function runDerivedLocusStateProbe(
         }),
     },
   });
+  return withEnteringUnclosedTaskCommits(frame, { ...options, store, projectId, execRaw: createRawGitExec(options.cwd) });
 }

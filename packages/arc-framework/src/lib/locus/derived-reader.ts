@@ -82,7 +82,7 @@ export type DerivedPrimaryAvailability =
     }
   | { readonly kind: "unsafe"; readonly checkoutPath: string | null; readonly reasons: readonly string[] };
 
-/** Schema-derived frame with a named declaration boundary for composite envelope serialization. */
+/** Build-order migration frame selected beside the retiring record-backed state. */
 export interface DerivedLocusFrame extends z.infer<typeof DerivedLocusFrameSchema> {
   readonly roster: z.infer<typeof DerivedLocusFrameSchema>["roster"];
 }

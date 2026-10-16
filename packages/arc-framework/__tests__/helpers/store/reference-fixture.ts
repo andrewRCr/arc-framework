@@ -38,6 +38,7 @@ export const referenceDeclarations: FixtureDeclarations = {
     8: "Memory state versions cover every record in the namespace.",
   } }])),
   refusalExclusions: {
+    "state-unresolvable": "Memory retains every saved snapshot and throws for an unknown state version; named history-ref recovery is tested through a scripted Store wrapper.",
     "checkout-not-writable": "A memory namespace has no checkout write authority.",
     "unsupported:cross-substrate-batch": "Every memory batch uses one atomic substrate.",
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",

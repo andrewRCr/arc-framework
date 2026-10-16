@@ -60,7 +60,7 @@ describe("dormant session slots", () => {
 });
 
 it.each([
-  ["paused-work", { items: [{ slug: "paused", reason: "Wait for prerequisite",
+  ["paused-work", { items: [{ slug: "paused", open: false, reason: "Wait for prerequisite",
     waitsOn: { kind: "work-unit", slug: "prerequisite" }, marks: ["resumable"],
     actions: [{ text: "arc resume paused", argv: ["arc", "resume", "paused"] }],
   }] }],

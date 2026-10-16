@@ -9,6 +9,7 @@
  * @module
  */
 
+import type { StoreIdentityAcquisition } from "../errand/store-discovery.js";
 import type { z } from "zod";
 import { MaterializableErrandSchema } from "./errand-state-schema.js";
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
@@ -60,4 +61,13 @@ export function findMaterializableErrands(
     }];
   });
   return { candidates: candidates.sort((left, right) => left.slug.localeCompare(right.slug)) };
+}
+
+/** Select active ordinary Errands by their record owner before resume or materialization. */
+export function ownedActiveErrandRecords(acquisition: StoreIdentityAcquisition, identity: string | null): TransientIdentityRecord[] {
+  if (acquisition.kind !== "complete" || identity === null) return [];
+  const active = new Set(acquisition.records.filter(record => record.reference.kind === "work-item/record" && record.placement?.kind === "active")
+    .map(record => record.reference.owner.name));
+  return [...acquisition.decoded.values()].filter(record => record.kind === "errand" && record.purpose === "errand"
+    && record.owner === identity && active.has(record.slug));
 }

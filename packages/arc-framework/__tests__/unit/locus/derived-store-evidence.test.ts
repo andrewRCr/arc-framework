@@ -285,6 +285,26 @@ it.each([false, true])("offers the correct repair for a no-record marker, spawne
     : { text: expect.stringContaining(`arc start ${h.reference.owner.name} --new --here`) })]);
 });
 
+it("loads the meta once and never a workspace session-notes seed", async () => {
+  const h = await fixture();
+  const context = (await frame(h.io)).active?.context;
+  expect(context?.loadSet.entries.filter(entry => entry.path.includes("meta-"))).toEqual([
+    { path: `.arc/active/meta-${h.reference.owner.name}.md`, readMode: { kind: "full" } },
+  ]);
+  expect(context?.loadSet.entries.some(entry => entry.path.includes("SESSION-NOTES"))).toBe(false);
+});
+
+it.each([null, "unrelated-tasks.md"])("uses the task-list record despite the meta pointer %s", async taskList => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Active", currentWorkflow: "process-task-loop", taskList });
+  const primary = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
+    expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
+  const context = (await frame(h.io)).active?.context;
+  expect(context?.taskListPath).toBe(`.arc/active/tasks-${h.reference.owner.name}.md`);
+  expect(context?.loadSet.entries).toContainEqual({ path: `.arc/active/tasks-${h.reference.owner.name}.md`, readMode: { kind: "partial-strategic" } });
+});
+
 it("keeps project Errand discovery separate from absent identity claims", async () => {
   const h = await fixture();
   const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "repair" }));

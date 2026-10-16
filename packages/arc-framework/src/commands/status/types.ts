@@ -167,6 +167,10 @@ export type SessionUserValue = z.infer<typeof SessionUserValueSchema>;
  */
 export type SessionInitUserValue = z.infer<typeof SessionInitUserValueSchema>;
 
+/** Raw selected-backend user evidence before legacy recommendation enrichment. */
+export type SessionInitUserProbeValue = UserSessionInitStatusResult
+  | import("../../lib/session-init/store-user-pull.js").StoreSessionInitUserValue | null;
+
 /**
  * Retired-subdir slot in the session-init envelope. Extends the raw detection
  * result with the config-gated reconcile recommendation (`session.init_load.notes`):
@@ -549,7 +553,7 @@ export interface SessionHandoffResult {
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<SessionHandoffWorktreeValue>;
-  user: Probe<SessionUserValue>;
+  user: Probe<SessionUserValue | import("../../lib/session-init/store-user-pull.js").StoreSessionInitUserValue | null>;
   syncInterlock: Probe<HandoffSyncInterlock>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
@@ -608,7 +612,7 @@ export interface SessionInitProbes {
   pausedWork?: (identity: string) => Promise<PausedWorkResult>;
   /** Independently probe the current work unit's inbound figures. */
   inboundBackPressure?: (workUnitId: string) => Promise<InboundBackPressureResult>;
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  user: (identity: string) => Promise<SessionInitUserProbeValue>;
   dirty: () => Promise<DirtyStateResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
   /** Resolve the entering-checkout frame for the exact identity. */
@@ -807,7 +811,7 @@ export interface SessionRecoverProbes {
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes {
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  user: (identity: string) => Promise<SessionInitUserProbeValue>;
   worktree: () => Promise<WorktreeSnapshotAnalysisResult>;
   worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
@@ -830,6 +834,8 @@ export interface RunStatusOptions {
 }
 
 export interface RunSessionInitStatusOptions {
+  /** Selected operational backend controls notes-policy retirement. */
+  stateOffBranch?: boolean;
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;

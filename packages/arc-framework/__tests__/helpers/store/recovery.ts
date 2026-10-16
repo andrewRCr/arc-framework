@@ -21,6 +21,8 @@ function transient(id: "unreachable" | "refused" | "retries-exhausted" | "versio
 
 /** Compile-time complete table; a new refusal code requires an explicit executable fixture case. */
 export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> = {
+  "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state whose named subject history refs are missing.",
+    repair: "Pull only those history refs, then retry the same saved-state read once." }],
   "not-found": [
     { id: "not-found:name", class: "recoverable", produce: "Lookup a name with no primary record.", repair: "Create its valid primary record, then repeat lookup." },
     { id: "not-found:identity", class: "recoverable", produce: "Read a personal record with arc.identity unset.", repair: "Set arc.identity to the record owner, then read it again." },

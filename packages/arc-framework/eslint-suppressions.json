@@ -602,11 +602,6 @@
       "count": 1
     }
   },
-  "src/handlers/status/session-context.ts": {
-    "arc/surface-names": {
-      "count": 1
-    }
-  },
   "src/handlers/status/views.ts": {
     "arc/store-raw-state": {
       "count": 1

@@ -556,7 +556,9 @@ function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
   };
 }
 
-const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async ({ slug }) => ({
+const cleanCurrentWuReconcile = async (
+  { slug }: Parameters<SessionInitProbes["currentWuReconcile"]>[0],
+): Promise<Exclude<Awaited<ReturnType<SessionInitProbes["currentWuReconcile"]>>, { status: "unavailable" }>> => ({
   status: "clean",
   slug,
   dependency: {
@@ -1356,7 +1358,7 @@ describe("runSessionInitStatus — orchestration", () => {
       probes,
     });
     expect(result.mode).toBe("session-init");
-    if (result.user.ok) expect(result.user.value.state).toBe("clean");
+    if (result.user.ok) expect(notesUser(result.user).state).toBe("clean");
     if (result.active.ok) expect(result.active.value.resolution).toBe("none");
     if (result.config.ok) {
       expect(Object.keys(result.config.value.settings).sort()).toEqual([
@@ -1556,8 +1558,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(true);
-      expect(result.user.value.notesDriftSurface).toBeUndefined();
+      expect(notesUser(result.user).loadNeeded).toBe(true);
+      expect(notesUser(result.user).notesDriftSurface).toBeUndefined();
     }
   });
 
@@ -1579,8 +1581,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({
+      expect(notesUser(result.user).loadNeeded).toBe(false);
+      expect(notesUser(result.user).notesDriftSurface).toEqual({
         direction: "mixed",
         register: "caution",
       });
@@ -1605,8 +1607,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({
+      expect(notesUser(result.user).loadNeeded).toBe(false);
+      expect(notesUser(result.user).notesDriftSurface).toEqual({
         direction: "mixed",
         register: "expected",
       });
@@ -1631,8 +1633,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({
+      expect(notesUser(result.user).loadNeeded).toBe(false);
+      expect(notesUser(result.user).notesDriftSurface).toEqual({
         direction: "missing",
         register: "caution",
       });
@@ -1647,7 +1649,7 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.notesDriftSurface).toBeUndefined();
+      expect(notesUser(result.user).notesDriftSurface).toBeUndefined();
     }
   });
 });
@@ -2056,7 +2058,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+      expect(notesUser(result.user).qualifier).toBe("clean-at-current-head");
     }
   });
 
@@ -2072,7 +2074,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect("qualifier" in result.user.value).toBe(false);
+      expect("qualifier" in notesUser(result.user)).toBe(false);
     }
   });
 
@@ -2089,9 +2091,9 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("remote-ahead");
+      expect(notesUser(result.user).state).toBe("remote-ahead");
       // qualifier reserved for the clean-at-current-head pattern only
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("diverged");
@@ -2112,9 +2114,9 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("clean");
+      expect(notesUser(result.user).state).toBe("clean");
       // No qualifier — worktree never resolved a remote-ahead verdict
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) {
@@ -2137,8 +2139,8 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("disabled");
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).state).toBe("disabled");
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
@@ -2324,7 +2326,7 @@ describe("runSessionInitStatus — recommended actions", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.recommendedAction).toBe("skip");
+      expect(notesUser(result.user).recommendedAction).toBe("skip");
     }
     expect(result.recommendedCombinedPrompt).toBeNull();
   });
@@ -2403,8 +2405,8 @@ describe("runSessionInitStatus — recommended actions", () => {
       probes,
     });
     if (result.user.ok) {
-      expect(result.user.value.recommendedAction).toBe("surface");
-      expect(result.user.value.recommendedPromptText).toBe("");
+      expect(notesUser(result.user).recommendedAction).toBe("surface");
+      expect(notesUser(result.user).recommendedPromptText).toBe("");
     }
     expect(result.recommendedCombinedPrompt).toBeNull();
   });
@@ -2427,7 +2429,7 @@ describe("runSessionInitStatus — recommended actions", () => {
       probes,
     });
     if (result.user.ok) {
-      expect(result.user.value.recommendedAction).toBe("pull");
+      expect(notesUser(result.user).recommendedAction).toBe("pull");
     }
   });
 
@@ -3471,8 +3473,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(true);
-      expect(result.user.value.notesDriftSurface).toBeUndefined();
+      expect(notesUser(result.user).loadNeeded).toBe(true);
+      expect(notesUser(result.user).notesDriftSurface).toBeUndefined();
     }
   });
 
@@ -3506,8 +3508,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBe(true);
-      expect(result.user.value.notesDriftSurface).toBeUndefined();
+      expect(notesUser(result.user).loadNeeded).toBe(true);
+      expect(notesUser(result.user).notesDriftSurface).toBeUndefined();
     }
   });
 
@@ -3545,8 +3547,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
       });
       expect(result.user.ok).toBe(true);
       if (result.user.ok) {
-        expect(result.user.value.loadNeeded).toBe(false);
-        expect(result.user.value.notesDriftSurface).toEqual({ direction, register });
+        expect(notesUser(result.user).loadNeeded).toBe(false);
+        expect(notesUser(result.user).notesDriftSurface).toEqual({ direction, register });
       }
     },
   );
@@ -3563,8 +3565,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.loadNeeded).toBeUndefined();
-      expect(result.user.value.notesDriftSurface).toBeUndefined();
+      expect(notesUser(result.user).loadNeeded).toBeUndefined();
+      expect(notesUser(result.user).notesDriftSurface).toBeUndefined();
     }
   });
 
@@ -3796,7 +3798,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
     });
     expect(result.user.ok).toBe(true);
-    if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
+    if (result.user.ok) expect(notesUser(result.user).state).toBe("remote-ahead");
   });
 
   it("carries stale local-note freshness through the handoff user slot", async () => {
@@ -3820,12 +3822,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.localNoteFreshness).toMatchObject({
+      expect(notesUser(result.user).localNoteFreshness).toMatchObject({
         state: "ancestor",
         commit: STALE_NOTE_COMMIT,
         ancestorDistance: 2,
       });
-      expect(result.user.value.detailLines).toContain(
+      expect(notesUser(result.user).detailLines).toContain(
         "Next step: run `arc user save` or `arc sync` before relying on handoff.",
       );
     }
@@ -4095,3 +4097,9 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.branch).toBeNull();
   });
 });
+
+function notesUser<T>(probe: { ok: true; value: T } | { ok: false }): Extract<T, { state: string }> {
+  if (!probe.ok || typeof probe.value !== "object" || probe.value === null || !("state" in probe.value)
+    || typeof probe.value.state !== "string") throw new Error("Expected the legacy notes user slot.");
+  return probe.value as Extract<T, { state: string }>;
+}

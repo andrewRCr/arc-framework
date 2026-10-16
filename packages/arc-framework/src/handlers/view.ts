@@ -51,6 +51,11 @@ import {
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveStartedViewTarget } from "../lib/view/started-artifacts.js";
 import type { WorkUnitArtifactReaders } from "../lib/status/work-unit-purpose.js";
+import type { Store } from "../lib/store/contract.js";
+import type { RecordReference } from "../lib/store/identity.js";
+import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { workItemArtifactPath } from "../lib/store/lifecycle-storage.js";
+import { openDefaultStore } from "./lifecycle-shared.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { launchViewEditor } from "./view-editor.js";
 
@@ -231,7 +236,7 @@ export async function handleView(
     nonInteractive: context.subprocess.presenters === "forbidden",
   }, {
     resolveArtifact: (input) => resolveViewArtifact(input, dependencies),
-    readFile: io.readFile,
+    readFile: dependencies.readFile,
     launchEditor: (path) => launchViewEditor(path, cwd, { exec }),
     resolveRenderer: () => resolveViewRenderer({
       cwd,
@@ -251,14 +256,26 @@ export async function handleView(
   process.exitCode = result.exitCode;
 }
 
-function createViewDependencies(
+/** Bind exact session-context paths and content to one selected operational store. */
+export function createViewDependencies(
   cwd: string,
   readUtf8: (path: string) => Promise<string>,
   exec: GitExec,
   identity: string | null,
-): ViewArtifactDependencies {
+  selectedStore?: Store,
+): ViewArtifactDependencies & { readFile: (path: string) => Promise<string> } {
+  const store = selectedStore ?? openDefaultStore(cwd, exec);
+  const sessionContexts = new Map<string, RecordReference>();
   return {
+    stateOffBranch: store.capabilities.stateOffBranch,
     resolveAmbientTarget: async ({ identity }) => {
+      if (store.capabilities.stateOffBranch) {
+        const current = await resolveCurrentWorkUnit({ cwd, store });
+        if (current.status !== "resolved" || current.candidate.record === undefined) return { status: "unavailable" };
+        const name = current.candidate.reference.owner.name;
+        return { status: "resolved", slug: name, location: "active", placement: { kind: "active", scope: { kind: "project" } },
+          metaPath: workItemArtifactPath(name, "meta", { kind: "active" }, current.candidate.record.cohort), taskListPath: null };
+      }
       const result = await runActiveSessionInitStatusInternal({
         cwd,
         identity,
@@ -288,12 +305,26 @@ function createViewDependencies(
       activeMetaPath,
       fs: { readFile: metaContent === undefined ? readUtf8 : () => Promise.resolve(metaContent), pathExists },
     }),
-    resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
-      resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
+    resolveSessionNotes: async ({ identity: resolvedIdentity, workUnitName }) => {
+      const result = await resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access, store });
+      if (store.capabilities.stateOffBranch && result.status === "resolved") {
+        const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(workUnitName) });
+        if (lookup.status === "refused") throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+        sessionContexts.set(result.path, lookup.result.reference);
+      }
+      return result;
+    },
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
       resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec }),
     pathExists,
-    readFile: readUtf8,
+    readFile: async path => {
+      const reference = sessionContexts.get(path);
+      if (reference === undefined) return readUtf8(path);
+      const read = await store.read({ reference });
+      if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+      if (read.result.conflicts.length > 0) throw new Error("The work unit's session context has unresolved conflicts. Repair its meta record, then retry.");
+      return read.result.content;
+    },
     readAtRef: (ref, path) => readGitBlobEntry(cwd, ref, path, { objectAccess: "local-only" }),
   };
 }

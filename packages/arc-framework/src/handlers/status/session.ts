@@ -1,6 +1,7 @@
 /** Handoff, recovery, and ordinary composite status mode composition. */
 
 import * as p from "../../lib/terminal.js";
+import { createStoreSessionProbes } from "./store-session.js";
 import { access } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { runConfigStatus } from "../../commands/config.js";
@@ -16,13 +17,14 @@ import { runPushabilityStatus } from "../../lib/git/pushability.js";
 import { runPassiveWorktreeInspection } from "../../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../../lib/handoff/restate-candidates.js";
-import { resolveSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
+import { resolveWorkUnitSessionNotesPath, resolveSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { runInboxState } from "../../lib/session-init/inbox-state.js";
 import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
 import { createRecoverStatusProbes } from "../recover-probes.js";
 import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
+import { openDefaultStore } from "../lifecycle-shared.js";
 import { releaseRoutingFromSettings } from "./session-evidence.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
@@ -32,21 +34,40 @@ function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput 
   return execInput;
 }
 
-function createHandoffProbes(
+/** Bind handoff readers to one selected store and one derived frame per identity. */
+export function createHandoffProbes(
   context: SessionStatusContext,
   resolvedSettingsP: Promise<ResolvedSettingsResult>,
-): SessionHandoffProbes {
+): SessionHandoffProbes & { stateOffBranch: boolean; sessionNotesPath: (name?: string) => Promise<string | null> } {
   const { cwd, exec, io, identity, readUserInbox } = context;
+  const store = context.store ?? openDefaultStore(cwd, exec);
+  const frames = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
+  const readFrame = (id: string) => {
+    let frame = frames.get(id);
+    if (frame === undefined) {
+      frame = resolvedSettingsP.then(resolved => runDerivedLocusStateProbe({
+        cwd, identity: id, baseBranch: resolved.settings["branch.base"], exec, store,
+      }));
+      frames.set(id, frame);
+    }
+    return frame;
+  };
+  const operational = store.capabilities.stateOffBranch ? createStoreSessionProbes({ store, sync: context.storeSync,
+    cwd, exec, identity, readFrame: () => identity === null ? Promise.resolve(null) : readFrame(identity),
+    readSettings: async () => (await resolvedSettingsP).settings, readUserInbox }) : null;
+  const sessionNotesPath = async (name?: string): Promise<string | null> => {
+    if (identity === null) return null;
+    if (!store.capabilities.stateOffBranch && name === undefined) return resolveSessionNotesPath(cwd, identity, io);
+    const workUnit = name ?? (await readFrame(identity)).active?.subject.key;
+    if (workUnit === undefined) return null;
+    const result = await resolveWorkUnitSessionNotesPath(cwd, identity, workUnit, { store, access });
+    if (result.status === "error") throw new Error(result.message);
+    return result.status === "resolved" ? result.path : null;
+  };
   return {
-    derivedLocusState: async (id) => {
-      const resolved = await resolvedSettingsP;
-      return runDerivedLocusStateProbe({
-        cwd,
-        identity: id,
-        baseBranch: resolved.settings["branch.base"],
-        exec,
-      });
-    },
+    stateOffBranch: store.capabilities.stateOffBranch,
+    sessionNotesPath,
+    derivedLocusState: readFrame,
     dirty: () => runDirtyStateStatus({ exec }),
     worktreeIdentity: () => resolveWorktreeIdentity(exec),
     worktree: async () => {
@@ -65,6 +86,7 @@ function createHandoffProbes(
     user: async (id) => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+      if (store.capabilities.stateOffBranch) return null;
       return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
     },
     syncInterlock: async () => {
@@ -83,9 +105,17 @@ function createHandoffProbes(
       target: "worktree",
     }),
     restateCandidates: async () => {
+      if (store.capabilities.stateOffBranch) {
+        if (identity === null) throw new Error("Restating requires an identity.");
+        const active = (await readFrame(identity)).active;
+        if (active === null) return { commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: [], baselineSignal: "baseline-unknown" as const };
+        const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(active.subject.key) });
+        if (resolved.status === "refused") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
+        return deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: resolved.result.reference, identity, sync: context.storeSync });
+      }
       let sessionNotes: string | null = null;
       if (identity !== null) {
-        const path = await resolveSessionNotesPath(cwd, identity, io);
+        const path = await sessionNotesPath();
         if (path !== null) {
           sessionNotes = await io.readFile(path).catch(() => null);
         }
@@ -93,7 +123,7 @@ function createHandoffProbes(
       return deriveRestateCandidates({ exec, sessionNotes });
     },
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-    inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+    inboxState: async (id) => operational === null ? runInboxState({ content: await readUserInbox(id) }) : operational.inboxState(id),
   };
 }
 
@@ -133,10 +163,15 @@ export async function handleSessionHandoffStatus(context: SessionStatusContext, 
       probes,
       resolveHandoffSurfaces: async () => {
         const surfaces = await userSurfacesFor(identity);
+        const selected = probes.stateOffBranch
+          ? await probes.sessionNotesPath() : null;
         return {
           workingMemoryPath: surfaces.workingMemoryPath,
-          sessionNotesPath: (workUnitName: string) =>
-            surfaces.sessionNotesPath(SlugSchema.parse(workUnitName)),
+          sessionNotesPath: (workUnitName: string) => {
+            if (selected !== null) return selected;
+            if (probes.stateOffBranch) throw new Error("The active work unit has no resolved session context.");
+            return surfaces.sessionNotesPath(SlugSchema.parse(workUnitName));
+          },
         };
       },
     });
@@ -168,7 +203,7 @@ export async function handleRecoverStatus(context: SessionStatusContext, opts: S
       dirty: () => runDirtyStateStatus({ exec }),
       exec,
       execInput: requireGitExecInput(io.execInput),
-      readFile: io.readFile,
+      readFile: io.readFile, store: context.store,
     }),
     workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
   });

@@ -8,7 +8,12 @@
  * @module
  */
 
-import type { z } from "zod";
+import { z } from "zod";
+import { ArcError } from "../kernel/errors.js";
+import type { Store } from "../store/contract.js";
+import { ListingDiagnosticSchema } from "../store/read.js";
+import { workUnitMetaPath } from "../store/lifecycle-write.js";
+import { createStoreReconcilePrepareContext } from "../work-unit/store-reconcile-context.js";
 import { CurrentWuReconcileSessionResultSchema } from "./current-wu-reconcile-schema.js";
 import {
   prepareCurrentWuReconcile,
@@ -29,10 +34,28 @@ export type CurrentWuReconcileSessionResult = z.infer<typeof CurrentWuReconcileS
  * @returns Closed reconcile facts and precomposed session-entry guidance
  */
 export async function runCurrentWuReconcileSessionProbe(
-  ctx: CurrentWuReconcilePrepareContext,
+  ctx: CurrentWuReconcilePrepareContext | { store: Store },
   op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
-  const result = await prepareCurrentWuReconcile(ctx, op);
+  if (!("store" in ctx)) return projectCurrentWuResult(await prepareCurrentWuReconcile(ctx, op), op);
+  let acquired;
+  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug); }
+  catch (error) {
+    if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
+    const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);
+    if (diagnostics.success && diagnostics.data.length > 0) return unavailable(op.slug,
+      diagnostics.data.map(item => item.condition).join("\n"),
+      diagnostics.data.map(item => ({ text: `${item.key}: ${item.condition} ${item.remedy.text}` })));
+    return unavailable(op.slug, error.message, [{ text: error.message }]);
+  }
+  if (acquired.status === "refused") return unavailable(op.slug, acquired.refusal.condition, [{ text: acquired.refusal.remedy.text }]);
+  const primary = acquired.result.primary;
+  const selected = { ...op, slug: primary.reference.owner.name, metaPath: workUnitMetaPath(primary) };
+  return projectCurrentWuResult(await prepareCurrentWuReconcile(acquired.result.context, selected), selected);
+}
+
+function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrentWuReconcile>>,
+  op: CurrentWuReconcileSessionOp): CurrentWuReconcileSessionResult {
   const inspect = {
     text: `arc wu reconcile ${op.slug} --json`,
     argv: ["arc", "wu", "reconcile", op.slug, "--json"],
@@ -87,4 +110,8 @@ export async function runCurrentWuReconcileSessionProbe(
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,
   };
+}
+
+function unavailable(slug: string, condition: string, actions: { text: string }[]): CurrentWuReconcileSessionResult {
+  return { status: "unavailable", slug, condition, actions, recommendedAction: "surface", recommendedCommand: null, recommendedPromptText: condition };
 }

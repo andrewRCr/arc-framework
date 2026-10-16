@@ -5,7 +5,6 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 
 import { runRecoverStatus } from "../commands/status.js";
@@ -27,7 +26,7 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createUserIOContext } from "../lib/io-context.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { resolveRecoveryWorkingMemoryPath } from "../lib/recover/working-memory-path.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import {
   auditRecoveryState,
@@ -35,7 +34,12 @@ import {
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
 import { resolveCommittedProgress } from "../lib/recover/committed-progress.js";
-import type { RecoveryTaskListEvidence } from "../lib/recover/integration-correction.js";
+import { resolveRecoveryStateBasis } from "../lib/recover/state-basis.js";
+import { resolveRecoveryTaskListEvidence } from "../lib/recover/task-list-evidence.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
+import type { StoreSyncPort } from "../lib/store/operational-sync.js";
 import {
   assertRecoverAuditReport,
   type RecoverAuditReport,
@@ -82,7 +86,7 @@ export const recoverCommandInputPolicyDeclarations = [{
 }] satisfies readonly CommandInputDeclaration[];
 
 /** Handle `arc recover audit`. */
-export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext): Promise<void> {
+export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext, selected: { store?: Store; sync?: StoreSyncPort } = {}): Promise<void> {
   const io = createUserIOContext(interaction?.subprocess);
   const gitExec = io.exec;
   const invocationCwd = requireArcProjectRoot();
@@ -158,12 +162,13 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
   }
   const cwd = checkoutResolution.checkoutPath;
   const recoveryGitExec = bindGitExec(gitExec, cwd);
+  const store = selected.store ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: recoveryGitExec, identity: parsedIdentity }));
   const recoveryGitExecInput = bindGitExecInput(requireGitExecInput(io.execInput), cwd);
-  const workingMemoryPath = (await resolveUserSurfaceResolver({
+  const workingMemoryPath = await resolveRecoveryWorkingMemoryPath({
     cwd,
     identity: parsedIdentity,
     exec: recoveryGitExec,
-  })).workingMemoryPath;
+  });
 
   let gitStatusOutputP: Promise<string> | undefined;
   const getGitStatusOutput = (): Promise<string> => {
@@ -179,6 +184,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     exec: recoveryGitExec,
     execInput: recoveryGitExecInput,
     readFile: io.readFile,
+    store,
   });
   const recover = await runRecoverStatus({
     identity,
@@ -209,8 +215,17 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     readGitValue(recoveryGitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
   ]);
 
+  let stateBasis;
+  try {
+    stateBasis = await resolveRecoveryStateBasis({ seed: parsedSeed.seed, recover, store,
+      ...(selected.sync === undefined ? {} : { sync: selected.sync }) });
+  } catch (error) {
+    writeReport({ mode: "recover-audit", seedPath, seed: seedSummary(parsedSeed.seed), recover,
+      verdict: stopVerdict({ kind: "integration-correction-unresolved", message: errorMessage(error) }) }, Boolean(opts.json));
+    return;
+  }
   const verdict = await auditRecoveryState({
-    seed: parsedSeed.seed,
+    seed: stateBasis.seed,
     recover,
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
     freshBranch,
@@ -227,6 +242,9 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
       exec: recoveryGitExec,
       seedHead: parsedSeed.seed.head,
       taskListPath,
+      store,
+      stateVersion: stateBasis.seed.stateVersion,
+      ...(selected.sync === undefined ? {} : { sync: selected.sync }),
     }),
   });
   writeReport({
@@ -235,47 +253,8 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     seed: seedSummary(parsedSeed.seed),
     recover,
     verdict,
+    ...(store.capabilities.stateOffBranch ? { stateBasis: { rebuilt: stateBasis.rebuilt, stateVersion: stateBasis.seed.stateVersion } } : {}),
   }, Boolean(opts.json));
-}
-
-async function resolveRecoveryTaskListEvidence(input: {
-  cwd: string;
-  exec: GitExec;
-  seedHead: string;
-  taskListPath: string;
-}): Promise<RecoveryTaskListEvidence> {
-  let fresh: string;
-  try {
-    fresh = await readFile(recoveryTaskListPath(input.cwd, input.taskListPath), "utf8");
-  } catch (error) {
-    return {
-      status: "unavailable",
-      message: `fresh task-list progression evidence is unavailable: ${errorMessage(error)}`,
-    };
-  }
-
-  let seed: string | null = null;
-  try {
-    // The current in-repo storage adapter resolves the seed-time snapshot from
-    // Git. The audit core consumes only the injected snapshot pair.
-    seed = (await input.exec("git", ["show", `${input.seedHead}:${input.taskListPath}`])).stdout;
-  } catch {
-    // A seed-tree miss remains explicit null evidence. Public-to-task progression
-    // requires it; task closure can still be proven from the stored seed cursor.
-  }
-  return { status: "ok", seed, fresh };
-}
-
-function recoveryTaskListPath(cwd: string, taskListPath: string): string {
-  const absolutePath = resolve(cwd, taskListPath);
-  const relativePath = relative(cwd, absolutePath);
-  if (relativePath.length === 0
-    || relativePath === ".."
-    || relativePath.startsWith(`..${sep}`)
-    || isAbsolute(relativePath)) {
-    throw new Error(`Task list path must be repository-relative: ${taskListPath}`);
-  }
-  return absolutePath;
 }
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {

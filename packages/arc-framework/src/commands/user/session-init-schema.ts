@@ -1,5 +1,6 @@
 /** Full standalone and enriched user session status wire contracts. */
 import { z } from "zod";
+import { StoreSessionInitUserValueSchema } from "../../lib/session-init/store-user-pull.js";
 
 const freshness = z.strictObject({
   state: z.enum(["missing", "current-head", "ancestor", "outside-head-ancestry"]),
@@ -27,6 +28,9 @@ export const SessionUserValueSchema = UserSessionInitStatusResultSchema.extend({
     register: z.enum(["expected", "caution"]) }).optional(),
 });
 /** Session-init enrichment with the independently composed recommendation. */
-export const SessionInitUserValueSchema = SessionUserValueSchema.extend({
+export const NotesSessionInitUserValueSchema = SessionUserValueSchema.extend({
   recommendedAction: z.enum(["pull", "prompt", "surface", "skip"]), recommendedPromptText: z.string(),
 });
+
+/** User slot admits the legacy notes producer and the off-branch store pull producer. */
+export const SessionInitUserValueSchema = z.union([NotesSessionInitUserValueSchema, StoreSessionInitUserValueSchema]).nullable();

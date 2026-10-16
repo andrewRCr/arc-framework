@@ -20,6 +20,9 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { acquireStoreErrands, type StoreIdentityAcquisition } from "../errand/store-discovery.js";
+import type { StoreInFlightEntry } from "../git/in-flight-store.js";
 import type { z } from "zod";
 import { ErrandStateResultSchema } from "./errand-state-schema.js";
 import type { GitExec } from "../git/exec.js";
@@ -35,7 +38,7 @@ import {
   type InFlightErrandSweepResult,
 } from "./in-flight-errand-sweep.js";
 import {
-  findMaterializableErrands,
+  findMaterializableErrands, ownedActiveErrandRecords,
 } from "./materializable-errands.js";
 import {
   projectCleanupRemoteEvidence,
@@ -51,6 +54,9 @@ export type ErrandNudgeState = NudgeMarkerState;
 /** Composite errand state exposed by the session-init envelope. */
 export type ErrandStateResult = z.infer<typeof ErrandStateResultSchema>;
 export interface RunErrandStateOptions {
+  store?: Store;
+  identity?: string | null;
+  errandAcquisition?: StoreIdentityAcquisition;
   exec: GitExec;
   currentBranch: string | null;
   hasBackingMeta: boolean;
@@ -61,7 +67,7 @@ export interface RunErrandStateOptions {
    * discovery is off or the oracle was unavailable (unreachable remote): both
    * leave in-flight/materialize empty.
    */
-  entries: readonly InFlightEntry[] | null;
+  entries: readonly (InFlightEntry | StoreInFlightEntry)[] | null;
   /** Oracle-derived residue; remains visible when entry discovery is unavailable. */
   residue?: readonly InFlightResidue[];
   /** Soft diagnostics already emitted by the in-flight oracle. */
@@ -96,7 +102,8 @@ export interface RunErrandStateOptions {
  * @param options - Git adapter, current-branch context, oracle entries, config, and nudge state.
  * @returns Composite errand state for the session-init envelope.
  */
-export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
+export async function runErrandState(input: RunErrandStateOptions): Promise<ErrandStateResult> {
+  const options = await bindStoreErrandRecords(input);
   let projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const oracleWarnings = [...(options.oracleWarnings ?? [])];
   const residue = (options.residue ?? []).map((item) => ({ ...item,
@@ -134,7 +141,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     locallyPresentBranches: options.locallyPresentBranches ?? new Set(),
   });
   const errands = options.entries.filter(
-    (entry): entry is InFlightErrand => entry.kind === "errand",
+    (entry): entry is InFlightErrand => entry.kind === "errand" && typeof entry.branch === "string",
   );
   if (errands.length === 0) {
     return {
@@ -314,4 +321,15 @@ async function readErrandTimestamps(exec: GitExec): Promise<ErrandTimestamps> {
     }
   }
   return { local, remote, warnings: [] };
+}
+
+async function bindStoreErrandRecords(options: RunErrandStateOptions): Promise<RunErrandStateOptions> {
+  if (options.store?.capabilities.stateOffBranch !== true) return options;
+  const acquired = options.errandAcquisition ?? await acquireStoreErrands(options.store);
+  const warnings = acquired.kind === "error" ? [acquired.message]
+    : acquired.kind === "complete" ? acquired.diagnostics.map(item => `${item.condition} ${item.remedy.text}`) : [];
+  if (acquired.kind === "complete" && acquired.missed && warnings.length === 0) warnings.push("Errand inventory is incomplete; repair the missing record observations before materializing an Errand.");
+  return { ...options, records: ownedActiveErrandRecords(acquired, options.identity ?? null),
+    recordsComplete: acquired.kind === "absent" || (acquired.kind === "complete" && !acquired.missed && acquired.diagnostics.length === 0),
+    oracleWarnings: [...(options.oracleWarnings ?? []), ...warnings] };
 }

@@ -1,5 +1,6 @@
 /** Complete runtime contracts for checkout-derived session frames. */
 
+import { UnclosedTaskCommitsSchema } from "./unclosed-task-commits-schema.js";
 import { StoreIdentityDiscoverySchema } from "./store-identities.js";
 import { ParsedMetaPauseSchema } from "../active/meta-schema.js";
 import { SessionActionsSchema } from "../session-init/actions.js";
@@ -25,6 +26,7 @@ const diagnostics = z.array(DerivedCheckoutDiagnosticSchema).readonly();
 const context = z.strictObject({
   kind: z.literal("resolved"), metaPath: LoadSetPathSchema,
   pause: ParsedMetaPauseSchema.nullable().optional(),
+  unclosedTaskCommits: UnclosedTaskCommitsSchema.optional(),
   owner: z.string().nullable(), branch: z.string().nullable(),
   sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
   workflow: z.string().nullable(), stage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),

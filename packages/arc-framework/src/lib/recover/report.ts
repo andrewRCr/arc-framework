@@ -31,6 +31,7 @@ const RecoverAuditReportObjectSchema = z.strictObject({
   seed: RecoverAuditSeedSummarySchema.nullable(),
   recover: SessionRecoverProbeResultSchema.nullable(),
   verdict: RecoveryAuditVerdictSchema,
+  stateBasis: z.strictObject({ rebuilt: z.boolean(), stateVersion: StateVersionSchema.nullable() }).optional(),
 });
 
 /** Complete recovery-audit report with early-stop/live-state coherence. */

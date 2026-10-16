@@ -1,25 +1,13 @@
-/**
- * Materializable-WU detection — filtering the oracle's in-flight entries to the
- * operator's remote-only work units, the discovery surface session-init offers
- * to materialize onto this machine.
- *
- * A WU in flight only on the remote (branch + committed meta on `origin`, no
- * local branch or worktree) is a materialize candidate: session-init's Materialize arm
- * picks the chosen one up via `git worktree add` → `arc user pull` → orient. A
- * WU already checked out here is a resume, not a materialize (git refuses
- * double-checkout anyway — free safety); another identity's WU is not the
- * operator's to pick up. The candidate list *is* the correctness mechanism —
- * selecting a real in-flight WU makes a phantom / typo'd name impossible.
- *
- * Pure core over the oracle's output ({@link InFlightEntry}): no git coupling.
- * Identity filtering mirrors the oracle's `keepForIdentity` — `null` identity
- * keeps everything; otherwise the current identity's and every unattributed WU
- * survive while another identity's drop — so the gate holds regardless of how
- * the upstream oracle was configured.
- *
- * @module
+/** Session materialize offers over oracle membership and machine-local checkout claims.
+ * Before the flip the offer uses remote-only branch discovery. With off-branch
+ * state it offers owned, released work independently of remote presence, leaving
+ * paused work to its own slot and isolating each rejected holder lookup.
  */
 
+import { readWorkUnit } from "../store/lifecycle-write.js";
+import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import type { Store } from "../store/contract.js";
+import type { StoreInFlightWorkUnit, StoreInFlightEntry } from "../git/in-flight-store.js";
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
 
@@ -29,7 +17,7 @@ import { RemoteFailureReasonSchema, SlugSchema } from "../kernel/index.js";
 /** Runtime authority for one remotely materializable work unit. */
 export const MaterializableWorkUnitSchema = z.strictObject({
   name: SlugSchema,
-  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
+  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty").optional(),
   actions: SessionActionsSchema.optional(),
 });
 
@@ -43,6 +31,13 @@ export interface FindMaterializableWorkUnitsOptions {
   identity: string | null;
   /** Advertised branches whose objects are still awaiting explicit discovery. */
   pendingBranchCount?: number;
+}
+
+/** Store membership is independent of remote presence; each holder lookup can fail separately. */
+export interface FindStoreMaterializableWorkUnitsOptions extends Omit<FindMaterializableWorkUnitsOptions, "entries"> {
+  entries: readonly StoreInFlightEntry[]; store: Store;
+  findHoldingCheckout: (slug: string) => Promise<string | null>;
+  markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
 }
 
 /** Runtime authority for the materializable-work-unit advisory result. */
@@ -96,7 +91,6 @@ export const MaterializableWorkUnitDiscoveryResultSchema = z.discriminatedUnion(
   }),
   z.strictObject({
     ...DiscoveryCommonFields,
-    candidates: z.array(MaterializableWorkUnitSchema).max(0),
     remoteEvidence: z.literal("not-applicable"),
     pendingBranchCount: z.literal(0),
     refreshRemedy: z.null(),
@@ -128,9 +122,18 @@ export function composeMaterializableDiscoveryRefreshRemedy(): z.infer<
  * @param options - The oracle entries and the operator identity to filter to.
  * @returns The operator's remote-only materializable work units.
  */
+export function findMaterializableWorkUnits(options: FindStoreMaterializableWorkUnitsOptions): Promise<MaterializableWorkUnitsResult>;
+export function findMaterializableWorkUnits(options: FindMaterializableWorkUnitsOptions): MaterializableWorkUnitsResult;
+/** Select the legacy remote-only set or the store's released, unpaused work. */
 export function findMaterializableWorkUnits(
-  options: FindMaterializableWorkUnitsOptions,
-): MaterializableWorkUnitsResult {
+  options: FindMaterializableWorkUnitsOptions | FindStoreMaterializableWorkUnitsOptions,
+): MaterializableWorkUnitsResult | Promise<MaterializableWorkUnitsResult> {
+  if ("store" in options) return options.store.capabilities.stateOffBranch
+    ? findStoreMaterializableWorkUnits(options) : Promise.resolve(findLegacyMaterializableWorkUnits(options));
+  return findLegacyMaterializableWorkUnits(options);
+}
+
+function findLegacyMaterializableWorkUnits(options: FindMaterializableWorkUnitsOptions | FindStoreMaterializableWorkUnitsOptions): MaterializableWorkUnitsResult {
   const { entries, identity } = options;
   const candidates: MaterializableWorkUnit[] = [];
   for (const entry of entries) {
@@ -150,4 +153,36 @@ export function findMaterializableWorkUnits(
     ...((options.pendingBranchCount ?? 0) > 0
       ? { actions: [composeMaterializableDiscoveryRefreshRemedy()] } : {}),
   };
+}
+
+async function findStoreMaterializableWorkUnits(options: FindStoreMaterializableWorkUnitsOptions): Promise<MaterializableWorkUnitsResult> {
+  const candidates: MaterializableWorkUnit[] = [];
+  const warnings: string[] = [];
+  for (const entry of options.entries) {
+    if (entry.kind !== "work-unit" || !ownedUnpausedEntry(entry, options.identity)) continue;
+    try {
+      const candidate = await storeMaterializableCandidate(options, entry);
+      if (candidate !== null) candidates.push(candidate);
+    } catch (error) { warnings.push(`${entry.name}: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  candidates.sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
+  return { candidates, ...(warnings.length === 0 ? {} : { warnings }) };
+}
+function ownedUnpausedEntry(entry: StoreInFlightWorkUnit, identity: string | null): boolean {
+  return identity !== null && entry.owner === identity && entry.state !== "Shipped" && entry.scheduling !== "paused";
+}
+async function storeMaterializableCandidate(options: FindStoreMaterializableWorkUnitsOptions, entry: StoreInFlightWorkUnit): Promise<MaterializableWorkUnit | null> {
+  const read = await readWorkUnit(options.store, entry.name);
+  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  const record = read.result;
+  if (record.conflicts.length > 0) throw new Error("Resolve the work unit's conflicting records before materializing it.");
+  const fields = ParsedMetaRecordSchema.parse(record.fields);
+  if (fields.pause !== null || fields.owner !== options.identity || record.placement?.kind !== "active" || !["Planning", "Active", "Integrating"].includes(fields.state ?? "")) return null;
+  const name = SlugSchema.parse(record.reference.owner.name);
+  if (await options.findHoldingCheckout(name) !== null) return null;
+  const unmarked = options.markerlessCheckouts?.find(pair => pair.workUnit === name);
+  const argv = ["arc", "materialize", name, ...(unmarked === undefined ? [] : ["--here"])];
+  const text = unmarked === undefined ? argv.join(" ") : `Run ${argv.join(" ")} from ${unmarked.checkoutPath}.`;
+  return { name, ...(entry.branch === undefined ? {} : { branch: entry.branch }),
+    actions: [{ text, argv, ...(unmarked === undefined ? {} : { checkout: unmarked.checkoutPath }) }] };
 }

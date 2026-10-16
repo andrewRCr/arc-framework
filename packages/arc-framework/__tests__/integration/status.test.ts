@@ -1071,8 +1071,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("clean");
-      expect("qualifier" in result.user.value).toBe(false);
+      expect(notesUser(result.user).state).toBe("clean");
+      expect("qualifier" in notesUser(result.user)).toBe(false);
     }
   });
 
@@ -1104,7 +1104,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+      expect(notesUser(result.user).qualifier).toBe("clean-at-current-head");
     }
   });
 
@@ -1126,7 +1126,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
     if (result.user.ok) {
       // User channel resolves independently — qualifier reserved for
       // remote-ahead worktree only.
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 
@@ -1147,8 +1147,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
     }
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
-      expect(result.user.value.state).toBe("disabled");
-      expect(result.user.value.qualifier).toBeUndefined();
+      expect(notesUser(result.user).state).toBe("disabled");
+      expect(notesUser(result.user).qualifier).toBeUndefined();
     }
   });
 });
@@ -1806,3 +1806,9 @@ describe("runSessionInitStatus — reminder-sweep envelope path", () => {
     expect("errandSweep" in result).toBe(false);
   });
 });
+
+function notesUser<T>(probe: { ok: true; value: T } | { ok: false }): Extract<T, { state: string }> {
+  if (!probe.ok || typeof probe.value !== "object" || probe.value === null || !("state" in probe.value)
+    || typeof probe.value.state !== "string") throw new Error("Expected the legacy notes user slot.");
+  return probe.value as Extract<T, { state: string }>;
+}

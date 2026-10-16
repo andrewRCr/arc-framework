@@ -166,6 +166,8 @@ function recommendBranchGoneRecovery(
 
 /** Inputs to {@link inferSessionInitRecommendations}. */
 export interface RecommendationInput {
+  /** Retire notes recommendations when operational state lives off branch. */
+  stateOffBranch?: boolean;
   worktree: SessionWorktreeStatus;
   /** Resolved user session-init result, or null when identity missing or probe failed. */
   user: UserSessionInitStatusResult | null;
@@ -536,8 +538,9 @@ export function inferRetiredSubdirs(
   retiredSubdirs: RetiredSubdirDetectionResult | null,
   policy: NotesLoadPolicy,
   dirty: DirtyStateResult,
+  stateOffBranch = false,
 ): ChannelRecommendation {
-  if (retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
+  if (stateOffBranch || retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
   const count = retiredSubdirs.candidates.length;
@@ -673,7 +676,9 @@ export function inferSessionInitRecommendations(
     input.dirty,
     input.supersession,
   );
-  const userRec = inferUser(input.user, input.notesPullPolicy, input.dirty);
+  const userRec = input.stateOffBranch
+    ? { recommendedAction: "skip" as const, recommendedPromptText: "" }
+    : inferUser(input.user, input.notesPullPolicy, input.dirty);
 
   const combinedPrompt =
     worktreeRec.recommendedAction === "prompt" &&

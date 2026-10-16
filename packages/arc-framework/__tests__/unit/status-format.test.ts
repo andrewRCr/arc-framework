@@ -564,3 +564,18 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("(unavailable) constitution dir missing");
   });
 });
+
+it("renders a store designation and omits an empty user slot", () => {
+  const value = { status: "designation-needed" as const, remote: "origin", choices: ["state", "code"],
+    summary: "Remote origin needs a store designation. arc store remote origin state",
+    remedy: { text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] },
+    actions: [{ text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] }] };
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }))).toContain(value.summary);
+  expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value: null } }))).not.toContain("User:");
+});
+
+it("renders the entering checkout's pause before work starts", () => {
+  const result = makeSessionInitResult({ locusGuidance: { kind: "ready", identities: [], cleanup: [], diagnostics: [],
+    pause: "Paused: awaiting review. Resume with arc resume current." } });
+  expect(buildSessionInitStatusSummary(result)).toContain("Paused: awaiting review. Resume with arc resume current.");
+});

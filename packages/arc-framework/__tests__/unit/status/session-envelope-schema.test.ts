@@ -135,6 +135,26 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
   expect(() => assertSessionInitProbeResult(value)).toThrow(`session-init-envelope: ${expectedPath}:`);
 }
 
+describe("Store user slot diagnostics", () => {
+  it.each([
+    ["text", 42, "user.value.remedy.text:"],
+    ["argv", [42], "user.value.remedy.argv.0:"],
+  ] as const)("retains the actual nested pull remedy %s defect", (field, replacement, path) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: { status: "designation-needed", remote: "origin", choices: ["shared"], summary: "Choose a role.",
+      remedy: { text: "Designate the remote.", argv: ["arc", "remote", "designate"], [field]: replacement } } };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+    expect(() => assertSessionInitProbeResult(value)).toThrow(path);
+  });
+
+  it.each([null, { status: "pulled", summary: "Store state pulled." }])("continues to admit the new Store value %j", (user) => {
+    const value = fixture("orient");
+    value.user = { ok: true, value: user };
+    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    expect(() => assertSessionInitProbeResult(value)).not.toThrow();
+  });
+});
+
 function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, unknown> {
   return {
     schemaVersion: 1,

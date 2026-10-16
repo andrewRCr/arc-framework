@@ -11,6 +11,9 @@
  * bound to execution (`_Disposition:_ \`execute-bound\``). Both are triaged,
  * not pending, and must not re-trigger the housekeep offer.
  *
+ * With queued entry IDs, the kind parser supplies the fields and queue membership
+ * replaces execute-bound marks for both counts.
+ *
  * The caller (the session-init probe) owns identity-gating and the file read;
  * this module carries no file or identity coupling of its own.
  *
@@ -18,12 +21,18 @@
  */
 
 import { z } from "zod";
+import { RoutingListSchema } from "../store/kinds/routing-receipt.js";
 import { SessionActionsSchema } from "./actions.js";
 
 import { hasExecuteBoundDisposition } from "../user-sync/inbox-writer.js";
+import { parseEntryList } from "../store/kinds/entry-list.js";
 import { parsePersonalInboxEntries } from "../store/kinds/personal-inbox.js";
 import type { EntryParse } from "../user-sync/schema.js";
 import { managedFlagIsTrue } from "./managed-field.js";
+
+const InboxSurvivorSchema = z.strictObject({ id: z.string().regex(/^[0-9a-f]{8}$/u), title: z.string(), home: RoutingListSchema });
+/** A surviving inbox edit and the home to inspect before carrying it. */
+export type InboxSurvivor = z.infer<typeof InboxSurvivorSchema>;
 
 /** Runtime authority for the inbox-state advisory result. */
 export const InboxStateResultSchema = z
@@ -31,6 +40,7 @@ export const InboxStateResultSchema = z
     routableCount: z.number().int().nonnegative(),
     executeBoundCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
+    survivors: z.array(InboxSurvivorSchema).optional(),
     actions: SessionActionsSchema.optional(),
   })
   .strict()
@@ -45,6 +55,10 @@ export type InboxStateResult = z.infer<typeof InboxStateResultSchema>;
 export interface RunInboxStateOptions {
   /** The `USER-INBOX` file's full text. */
   content: string;
+  /** Presence selects queue membership in place of execute-bound marks. */
+  queuedEntryIds?: ReadonlySet<string>;
+  /** Presence keeps derived survivor evidence visible, including an empty inventory. */
+  survivors?: readonly InboxSurvivor[];
 }
 
 /** Whether one inferred parse outcome is a routable, non-held inbox entry. */
@@ -61,6 +75,7 @@ function isRoutableEntry(parse: EntryParse): boolean {
  * @returns The routable-entry count and the housekeep-needed flag.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
+  if (options.queuedEntryIds !== undefined) return queuedInboxState(options.content, options.queuedEntryIds, options.survivors);
   const entries = parsePersonalInboxEntries(options.content);
   const routableCount = entries.filter(isRoutableEntry).length;
   const executeBoundCount = entries.filter(
@@ -69,4 +84,16 @@ export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
   return { routableCount, executeBoundCount, housekeepNeeded: routableCount > 0,
     ...(routableCount > 0 ? { actions: [{ text: "arc-session --housekeep" }] } : {}),
   };
+}
+
+function queuedInboxState(content: string, queuedIds: ReadonlySet<string>, survivors?: readonly InboxSurvivor[]): InboxStateResult {
+  const parsed = parseEntryList(content, "personal/inbox");
+  if (!parsed.success) throw new Error(parsed.error);
+  const queued = (entry: (typeof parsed.data.entries)[number]): boolean => entry.fields.Id !== undefined && queuedIds.has(entry.fields.Id);
+  const routableCount = parsed.data.entries.filter(entry => entry.fields.Hold !== "true" && !queued(entry)).length;
+  const executeBoundCount = parsed.data.entries.filter(queued).length;
+  const actions = [...(routableCount > 0 ? [{ text: "arc-session --housekeep" }] : []),
+    ...((survivors?.length ?? 0) > 0 ? [{ text: "arc inbox personal" }] : [])];
+  return { routableCount, executeBoundCount, housekeepNeeded: routableCount > 0,
+    ...(survivors === undefined ? {} : { survivors: [...survivors] }), ...(actions.length > 0 ? { actions } : {}) };
 }

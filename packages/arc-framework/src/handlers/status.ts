@@ -1,6 +1,10 @@
 /** Status CLI validation and dispatch to lifecycle, view, and session handlers. */
 
 import * as p from "../lib/terminal.js";
+import { withPausedCurrentWuActions } from "../lib/session-init/paused-current-wu-actions.js";
+import { openDefaultStore } from "./lifecycle-shared.js";
+import { createStoreSessionProbes } from "./status/store-session.js";
+import { createProjectIdentityReader } from "../lib/store/project-identity.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -111,7 +115,7 @@ import {
 
 import { StatusCommandInputSchema, type StatusCliOptions } from "./status/input.js";
 import { handleLifecycleStatus } from "./status/lifecycle.js";
-import { createSessionStatusContext } from "./status/session-context.js";
+import { createSessionStatusContext, readWorkingMemoryFromStore } from "./status/session-context.js";
 import { handleCompositeStatus, handleRecoverStatus, handleSessionHandoffStatus } from "./status/session.js";
 import { handleProjectStatus, handleUserStatus } from "./status/views.js";
 
@@ -211,6 +215,9 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     readUserInbox,
   } = context;
   const json = Boolean(opts.json);
+  const store = context.store ?? openDefaultStore(cwd, exec);
+  const stateOffBranch = store.capabilities.stateOffBranch;
+  const projectId = store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined;
   // A missing stdin-capable executor degrades object availability inside the remote
   // context rather than aborting here: throwing before any probe runs would deny the
   // caller the whole composite envelope over one unrelated capability.
@@ -239,7 +246,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          exec,
+          exec, store, projectId,
         });
       })();
       derivedLocusStatePromises.set(id, pending);
@@ -255,6 +262,12 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     }
   };
   const getOptionalDerivedRoster = async () => (await getOptionalDerivedFrame())?.roster ?? null;
+  const operational = stateOffBranch ? createStoreSessionProbes({
+    store, sync: context.storeSync, cwd, exec, identity, projectId,
+    readFrame: getOptionalDerivedFrame,
+    readSettings: async () => (await resolvedSettingsP).settings,
+    readUserInbox,
+  }) : null;
   const compactionSeedGitSnapshotP = opts.writeCompactionSeed
     ? readCompactionSeedGitSnapshot(cwd, exec)
     : null;
@@ -376,6 +389,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     },
     remoteContext: getRemoteContext,
     user: async (id) => {
+      if (operational !== null) return operational.user();
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
       return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
@@ -513,9 +527,9 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       },
     }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-    currentWuReconcile: async ({ slug, metaPath }) =>
-      runCurrentWuReconcileSessionProbe(
-        {
+    currentWuReconcile: async ({ slug, metaPath }) => {
+      const result = await runCurrentWuReconcileSessionProbe(
+        stateOffBranch ? { store } : {
           index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
           queryDisposition: (input) =>
             queryGitTransitionDisposition(transitionExec, "HEAD", input),
@@ -525,7 +539,10 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
           readFile: (path) => io.readFile(resolve(cwd, path)),
         },
         { slug, metaPath, checkoutPath: cwd },
-      ),
+      );
+      return stateOffBranch
+        ? withPausedCurrentWuActions(result, store, (await getOptionalDerivedFrame())?.active?.context ?? null) : result;
+    },
     deliveryPosition: async (context, { workUnitId }) => {
       const result = await readDeliveryPositionView(workUnitId, {
         plans: {
@@ -585,6 +602,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       return result.value;
     },
     userReferenceReconcile: async (context, { slug }) => {
+      if (operational !== null) return operational.userReferenceReconcile(slug);
       if (identity === null) throw new Error("User-reference probe requires an identity.");
       const resolved = await resolvedSettingsP;
       const surfaces = await userSurfacesFor(identity);
@@ -624,7 +642,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         },
         workingMemory: {
           path: surfaces.workingMemoryDisplayPath,
-          content: await io.readFile(surfaces.workingMemoryPath).catch(() => ""),
+          content: await readWorkingMemoryFromStore(store, identity).catch(() => ""),
         },
         sessionNotes: {
           path: sessionNotesPath,
@@ -637,6 +655,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       const teamMode = resolved.settings["team.mode"] === "true";
       const roster = await runWorktreeRoster({
         exec,
+        store, cwd,
         fs: {
           readdir: (path) => readdir(path),
           readFile: (path) => readFile(path, "utf8"),
@@ -649,6 +668,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       const teamMode = resolved.settings["team.mode"] === "true";
       return runIdentityScopedWorktreeRoster({
         exec,
+        store, cwd,
         fs: {
           readdir: (path) => readdir(path),
           readFile: (path) => readFile(path, "utf8"),
@@ -696,20 +716,20 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         identity,
         teamMode: resolved.settings["team.mode"] === "true",
         protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
-        excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
+        excludeWorktreePath: stateOffBranch ? cwd : worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
         readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
-        derivedRoster,
+        derivedRoster, store, projectId,
       });
     },
     orphanBranchSweep: async (context, worktreeIdentity) => {
-      const [resolved, derivedRoster] = await Promise.all([
+      const [resolved, frame] = await Promise.all([
         resolvedSettingsP,
-        getOptionalDerivedRoster(),
+        getOptionalDerivedFrame(),
       ]);
       // Identity-carrying transient branches are excluded because their own
       // lifecycle surfaces own cleanup. An incomplete identity basis declines
       // the sweep rather than offering deletes that could orphan a claim.
-      const transient = identity === null
+      const transient = stateOffBranch || identity === null
         ? null
         : projectTransientInFlightRead(await getTransientIndexes());
       return runOrphanBranchSweep({
@@ -721,10 +741,12 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
             ? null
             : new Set(transient.indexes.slugByBranch.keys()),
         exec,
-        derivedRoster,
+        derivedRoster: frame?.roster ?? null, store, projectId, identity: identity ?? undefined,
+        claims: frame?.identityDiscovery.kind === "store" ? frame.identityDiscovery.claims : undefined,
       });
     },
     retiredSubdirs: async (context, id) => {
+      if (stateOffBranch) return { candidates: [] };
       const resolved = await resolvedSettingsP;
       return runRetiredSubdirDetection({
         cwd,
@@ -745,6 +767,16 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     errandState: async (context, input) => {
       const resolved = await resolvedSettingsP;
       const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+      const baseEvidence = sessionCleanupBaseEvidence(context);
+      const storeRemoteTips = new Map(baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+        ? Object.entries(baseEvidence.snapshot.tips) : []);
+      if (operational !== null) return operational.errandState({ exec,
+        currentBranch: input.currentBranch, hasBackingMeta: input.hasBackingMeta, includeDiscovery: input.includeDiscovery,
+        remoteTips: storeRemoteTips,
+        baseEvidence: sessionCleanupBaseEvidence(context), baseBranch: resolved.settings["branch.base"], staleThresholdDays: thresholdDays,
+        nudge: input.includeNudge ? await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor)
+          : { shouldNudge: false, markerPath: null, today: new Date().toISOString().slice(0, 10) },
+      });
       const transientRead = await (input.includeDiscovery
         ? getDiscoveryTransientIndexes()
         : getTransientIndexes());
@@ -752,7 +784,6 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       const transientIndexes = transientState.indexes;
       let entries: InFlightEntry[] | null = null;
       let residue: InFlightResidue[] = [];
-      const baseEvidence = sessionCleanupBaseEvidence(context);
       const remoteTips = new Map(
         baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
           ? Object.entries(baseEvidence.snapshot.tips)
@@ -788,6 +819,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       });
     },
     materializableWorkUnits: async (context) => {
+      if (operational !== null) return operational.materializableWorkUnits();
       const {
         entries,
         warnings,
@@ -855,15 +887,15 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         prSource: input.includeSharpening ? createGhWorkUnitPrSource(exec) : undefined,
       });
     },
-    inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
-    pausedWork: () => Promise.resolve(runPausedWork()),
-    inboundBackPressure: () => Promise.resolve(runInboundBackPressure()),
-    partialPushMarker: (id) => runPartialPushMarkerSurface({
+    inboxState: async (id) => operational !== null ? operational.inboxState(id) : runInboxState({ content: await readUserInbox(id) }),
+    pausedWork: () => operational !== null ? operational.pausedWork() : Promise.resolve(runPausedWork()),
+    inboundBackPressure: () => operational !== null ? operational.inboundBackPressure() : Promise.resolve(runInboundBackPressure()),
+    partialPushMarker: (id) => stateOffBranch ? Promise.resolve({ markers: [] }) : runPartialPushMarkerSurface({
       exec,
       identity: id,
       now: new Date().toISOString(),
     }),
-    compactionAdvisory: async (id) => runNotesCompactionSessionAdvisory({
+    compactionAdvisory: stateOffBranch ? undefined : async (id) => runNotesCompactionSessionAdvisory({
       exec,
       identity: id,
       nudge: await resolveNudgeState(
@@ -878,7 +910,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
   const workingMemoryPath = identity === null
     ? null
     : (await userSurfacesFor(identity)).workingMemoryPath;
-  const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath });
+  const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath, stateOffBranch });
   if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
     try {
       const gitSnapshot = await compactionSeedGitSnapshotP;
@@ -886,7 +918,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         cwd,
         exec,
         envelope: result,
-        gitSnapshot,
+        gitSnapshot, store,
       }));
       surfaceCompactionSeedWrite(result.compactionSeedWrite);
     } catch (err) {

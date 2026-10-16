@@ -39,11 +39,12 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
         state: retired ? "retired" : completed ? "integration" : "active" } };
   } catch (error) { return { kind: "unreadable", reason: error instanceof Error ? error.message : String(error),
     ...(error instanceof MissingWorkUnitRecord ? { missingRecord: true } : {}),
-    ...(error instanceof SubjectBranchUnavailable ? { code: "subject-unresolved" as const } : {}) }; }
+    ...((error instanceof SubjectBranchUnavailable || error instanceof SubjectClaimUnavailable) ? { code: "subject-unresolved" as const } : {}) }; }
 }
 async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRecord> {
   const result = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(slug) } });
-  if (result.status === "refused" && result.refusal.code === "not-found") throw new MissingWorkUnitRecord(result.refusal.condition);
+  if (result.status === "refused" && result.refusal.code === "not-found") throw new MissingWorkUnitRecord(`${result.refusal.condition} ${result.refusal.remedy.text}`);
+  if (result.status === "refused" && result.refusal.code === "ambiguous-match") throw new SubjectClaimUnavailable(`${result.refusal.condition} ${result.refusal.remedy.text}`);
   const lookup = unwrap(result);
   if (lookup.reference.kind !== "work-item/meta") throw new Error("The marker claim resolved to a non-work-unit record.");
   const record = unwrap(await store.read({ reference: lookup.reference }));
@@ -89,4 +90,6 @@ function unwrap<T>(result: StoreResult<T>): T {
 
 class SubjectBranchUnavailable extends Error {}
 
-class MissingWorkUnitRecord extends Error {}
+class SubjectClaimUnavailable extends Error {}
+
+class MissingWorkUnitRecord extends SubjectClaimUnavailable {}

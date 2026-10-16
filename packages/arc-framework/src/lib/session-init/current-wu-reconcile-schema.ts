@@ -8,7 +8,7 @@ const evidence = z.strictObject({ subject: z.string() });
 const conflictReason = z.enum(["self-dependency", "missing-evidence", "missing-target", "ambiguous-evidence",
   "unmapped-dependent", "namespace-corrupt", "rename-cycle", "reference-history-conflict", "invalid-meta", "stale-content"]);
 /** Complete reconcile facts and dispatch coherence. */
-export const CurrentWuReconcileSessionResultSchema = z.strictObject({
+const PreparedSessionResultSchema = z.strictObject({
     status: z.enum(["clean", "pending", "conflict"]),
     actions: SessionActionsSchema.optional(),
     slug: NON_EMPTY_TEXT,
@@ -45,3 +45,9 @@ export const CurrentWuReconcileSessionResultSchema = z.strictObject({
     }
   });
 
+
+/** Acquisition failures carry their condition and repair without inventing a reconcile plan. */
+export const CurrentWuReconcileSessionResultSchema = z.union([PreparedSessionResultSchema, z.strictObject({
+  status: z.literal("unavailable"), slug: NON_EMPTY_TEXT, condition: NON_EMPTY_TEXT,
+  actions: SessionActionsSchema, recommendedAction: z.literal("surface"), recommendedCommand: z.null(), recommendedPromptText: NON_EMPTY_TEXT,
+})]);

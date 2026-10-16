@@ -527,3 +527,12 @@ describe("work-unit session actions", () => {
     expect(result.inFlight.workUnits[0]).not.toHaveProperty("actions");
   });
 });
+
+it("classifies store roster identity without a checkout meta projection", async () => {
+  const options = { exec: buildExec({ refs: `refs/heads/person-branch\t${daysAgo(1)}` }), identity: "andrew", baseBranch: "main",
+    staleThresholdDays: 3, nudge: NUDGE, now: NOW };
+  const legacy = await runWorkUnitState({ ...options, roster: [rosterEntry({ branch: "person-branch" })] });
+  const stored = await runWorkUnitState({ ...options, roster: [rosterEntry({ branch: "person-branch", workUnit: "widget", metaFilePath: undefined })] });
+  expect(stored).toEqual(legacy);
+  expect(stored.inFlight.workUnits).toMatchObject([{ name: "widget", branch: "person-branch", state: "awaiting-review" }]);
+});
