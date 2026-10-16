@@ -278,25 +278,10 @@ default layout.
           identity families absent; local-only byte calls skip SSH rewriting. Kind filters retain open conflict links.
         - _Amended in:_ 3.3.R (A3)
 
-    - `[ ]` **3.3.b The decode**
-        - The backend's codec in `lib/store/ref/` maps a ref and tree entry back to a reference, taking the owner's slug
-          from the ref's metadata file (3.3.c), by this precedence: a paired spec's half, `spec-<ref slug>-prd.md` or
-          `spec-<ref slug>-rfc.md`; then a name `<key>-<ref slug>.md` whose key `SlugSchema` admits, a kind's fixed form
-          or a companion's name key, which may hold a hyphen; then a kind's fixed form whose slug, UID, or person is not
-          its ref's or its metadata file's, `key-mismatch`; then an entry mapping to no `RefHome`, the metadata file and
-          manifest aside, `malformed` — among a work item's records one under `review/`, since any other entry there, at
-          the root or in a folder, is a companion keyed by its path (§ 2.5); then an entry whose decoded key § 3.2
-          refuses, `malformed`
-        - Build `test-first` (one behavior at a time):
-            - a record planted at every kind's table path lists and reads as that kind and key
-            - a paired spec's half at `spec-<slug>-prd.md`, and a companion keyed `notes-extra` at `notes-extra-<slug>.md`,
-              each read as its own record
-            - an entry naming another owner lists `key-mismatch`, and an entry under `review/` that maps to no kind
-              `malformed`, beside the other records
-            - entries at `diagram.svg` and `sub/notes.md` on a work item's ref read as companions keyed by those paths,
-              and a cohort ref's entry at `diagram.svg` lists `malformed`
-            - on a work item's ref, entries at `conflicts/notes.md` and at a root `review` list `malformed`, while one
-              at `README-<slug>.md` reads as a companion keyed by that path and one under `lineage/` as a companion too
+    - `[x]` **3.3.b The decode**
+        - Every registered home round-trips by kind, key, and owner. Specific roles and named companions precede generic
+          paths; lineage owners come from the registry's UID map and typed conflict targets. Owner-form mismatches and
+          invalid, reserved, derived, or machine-local keys remain exact-path diagnostics beside valid records.
 
     - `[ ]` **3.3.c The metadata file**
         - `RefMetadata` as § 3.3 gives it, `lineage` among it, parsed strictly and read through `canonicalize`: a file

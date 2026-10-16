@@ -35,7 +35,8 @@ function namesTarget(bytes: Uint8Array, target: RecordReference): boolean {
   return record !== null && sameReference(record, target);
 }
 
-function conflictTarget(bytes: Uint8Array): RecordReference | null {
+/** Decode the target of a typed conflict independently of its containing path. */
+export function conflictTarget(bytes: Uint8Array): RecordReference | null {
   let content: unknown;
   try { content = JSON.parse(new TextDecoder().decode(bytes)); } catch { return null; }
   const parsed = ConflictRecordSchema.safeParse(content);

@@ -3,17 +3,18 @@
 import { z } from "zod";
 import { FAMILY_REGISTRY, type KindDefinition } from "../registry.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
-import { StoreRecordSchema, type StoreRecord } from "../read.js";
+import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
 import { WritePlacementSchema } from "../placement.js";
 import { LinksSchema } from "../links.js";
 import { canonicalDigest, canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { expandStoredPath } from "../stored-path.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { FamilyId } from "../catalog.js";
 import type { RefBackendContext } from "./context.js";
 import type { BatchObject } from "./batch-read.js";
+import { conflictTarget } from "./conflicts-read.js";
+import { pathOwnerMismatch, storedKeyProblem } from "./path-admission.js";
 
-/** Metadata accompanying the first live-record decode. */
+/** Metadata accompanying decoded state records. */
 export const RefMetadataSchema = z.object({
   formatVersion: z.literal(1), slug: z.string().optional(), formerSlugs: z.array(z.string()).optional(),
   primary: z.object({ role: z.enum(["work-item/meta", "work-item/record"]), placement: WritePlacementSchema,
@@ -52,17 +53,47 @@ export function refOwner(ref: string, family: FamilyId, metadata: RefMetadata): 
   return OwnerIdentitySchema.parse({ type: root, name: metadata.slug, uid: ref.split("/").at(-1) });
 }
 
+/** Read an origin's canonical name from the registry's UID-keyed lineage map. */
+export function lineageOwner(metadata: RefMetadata, uid: string | undefined): OwnerIdentity {
+  return OwnerIdentitySchema.parse({ type: "work-item", uid, name: uid ? metadata.lineage?.[uid] : undefined });
+}
+
 /** Match an entry's fixed form before considering a work item's generic companion. */
-export function decodeReference(context: RefBackendContext, owner: OwnerIdentity, family: FamilyId, path: string): RecordReference | null {
-  for (const kind of Object.values(context.registry)) {
-    if (!kind.ref || kind.id === "work-item/companion" || rootFamily(kind.family) !== rootFamily(family)) continue;
-    const key = keyAtPath(kind, owner, path);
-    if (key === null) continue;
-    const parsed = RecordReferenceSchema.safeParse({ owner, kind: kind.id, ...(kind.key === null ? {} : { key }) });
-    if (parsed.success && expandStoredPath(parsed.data, { registry: context.registry }).path === path) return parsed.data;
+export function decodeReference(context: RefBackendContext, owner: OwnerIdentity, family: FamilyId, path: string,
+  metadata: RefMetadata, object?: BatchObject | null): RecordReference | ListingDiagnostic | null {
+  const kinds = Object.values(context.registry).filter((kind) => kind.ref && rootFamily(kind.family) === rootFamily(family));
+  for (const kind of kinds) {
+    if (kind.id === "work-item/companion" || kind.id === "personal/document") continue;
+    const candidateOwner = kind.family === "lineage" ? lineageEntryOwner(kind, path, metadata, object) : owner;
+    if (!candidateOwner) continue;
+    const decoded = decodeKindReference(context, kind, candidateOwner, path);
+    if (decoded) return decoded;
   }
-  if (rootFamily(family) !== "work-item" || path.startsWith("review/")) return null;
-  return decodeCompanion(owner, path);
+  const companion = rootFamily(family) === "work-item" ? decodeCompanion(owner, path) : null;
+  if (companion && typeof companion.key === "string" && isSlugSafe(companion.key)) return admitted(context, companion, path);
+  const mismatch = pathOwnerMismatch(kinds, owner, path);
+  if (mismatch) return mismatch;
+  if (companion) return admitted(context, companion, path);
+  const document = kinds.find((kind) => kind.id === "personal/document");
+  return document ? decodeKindReference(context, document, owner, path) : null;
+}
+
+function decodeKindReference(context: RefBackendContext, kind: KindDefinition, owner: OwnerIdentity, path: string): RecordReference | null {
+  const key = keyAtPath(kind, owner, path);
+  if (key === null) return null;
+  const parsed = RecordReferenceSchema.safeParse({ owner, kind: kind.id, ...(kind.key === null ? {} : { key }) });
+  return parsed.success ? admitted(context, parsed.data, path) : null;
+}
+
+function admitted(context: RefBackendContext, reference: RecordReference, path: string): RecordReference | null {
+  return storedKeyProblem(context, reference, path) ? null : reference;
+}
+
+function lineageEntryOwner(kind: KindDefinition, path: string, metadata: RefMetadata,
+  object?: BatchObject | null): OwnerIdentity | null {
+  const target = kind.id === "lineage/conflict-record" && object ? conflictTarget(object.bytes)?.owner : null;
+  const uid = target?.type === "work-item" ? target.uid : /^lineage\/([0-9a-f-]{36})\.json$/u.exec(path)?.[1];
+  return uid && metadata.lineage?.[uid] ? lineageOwner(metadata, uid) : null;
 }
 
 function decodeCompanion(owner: OwnerIdentity, path: string): RecordReference | null {

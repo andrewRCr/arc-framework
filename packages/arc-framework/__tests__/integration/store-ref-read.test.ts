@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createRefStore } from "../../src/lib/store/create.js";
-import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { ConflictRecordSchema } from "../../src/lib/store/conflict.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
-import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
-import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
-import { createRefTestRepository, plantRef } from "../helpers/store/ref-plant.js";
-import type { RefStorePorts } from "../../src/lib/store/ports.js";
+import { plantRef } from "../helpers/store/ref-plant.js";
+
+import { createRefReadFixture as fixture } from "../helpers/store/ref-read.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
@@ -15,30 +13,6 @@ const ref = `refs/arc/work/${uid}`;
 const reference = RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key: "extra" });
 const metadata = canonicalize({ formatVersion: 1, slug: "alpha", formats: {},
   primary: { role: "work-item/meta", placement: { kind: "active" } } });
-const cleanups: (() => Promise<void>)[] = [];
-afterEach(async () => {
-  const results = await Promise.allSettled(cleanups.splice(0).map((cleanup) => cleanup()));
-  const failure = results.find((result) => result.status === "rejected");
-  if (failure?.status === "rejected") throw failure.reason;
-});
-
-async function fixture(format: "files" | "reftable" = "files", maxBuffer?: number) {
-  const repo = await createRefTestRepository(format);
-  cleanups.push(repo.cleanup);
-  let processes = 0;
-  const raw = createExecaRawGitExec(repo.root, maxBuffer);
-  const count = () => { processes += 1; };
-  const defaults = createDefaultStorePorts({ checkoutRoot: repo.root });
-  const ports: RefStorePorts = {
-    ...defaults, identity: async () => SlugSchema.parse("andrew"),
-    exec: async (...args) => { count(); return defaults.exec(...args); },
-    execInput: async (...args) => { count(); return defaults.execInput(...args); },
-    rawExec: async (...args) => { count(); return raw(...args); },
-    actor: async () => "unused", random: () => 0.5,
-    sleep: { wait: async () => {}, bound: async () => {} }, lock: async () => async () => {},
-  };
-  return { ...repo, ports, store: createRefStore(ports), processes: () => processes };
-}
 
 describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (format) => {
   it("reads and lists a planted record under its metadata owner in two and four processes", async () => {
