@@ -764,7 +764,10 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
             - `arc materialize --here` leaves an anchored marker
             - with no ports injected, rename and teardown find an anchored holder through the lookup
             - with no ports injected, a handover whose holder's marker cannot be read refuses as unobservable rather
-              than admitting the change, and succeeds once the marker is repaired
+              than admitting the change, naming that checkout, the read's diagnostic, and 2.4's repair — inspect it,
+              then repair or remove its marker, or remove the checkout — and succeeds once the marker is repaired
+            - with no ports injected, a handover over a roster that is not complete refuses as unobservable, naming the
+              run again once Git lists the worktrees, and succeeds once the roster is complete
             - with no ports injected, teardown of one's own ended work unit whose marker two checkouts carry refuses,
               naming both and the marker's path, and proceeds once the stray marker is removed
             - graduation in place over a crashed graduation's marker in its own checkout refuses, naming
