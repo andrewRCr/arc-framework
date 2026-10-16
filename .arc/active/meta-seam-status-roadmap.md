@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/seam-status-roadmap` | `Light`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
-- **Depends On:** `seam-record-kinds`
+- **Depends On:** [none]
 
 - **Origin:** [internal] — the `storage-seam` cut (2026-10-09)
 - **Design:** `draft-seam-status-roadmap.md`
