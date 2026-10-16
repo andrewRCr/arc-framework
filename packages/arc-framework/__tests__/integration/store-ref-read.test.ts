@@ -19,14 +19,16 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     const f = await fixture(format);
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata },
       { path: "extra-alpha.md", content: "# A planted companion\n" }]);
+    await f.store.version();
+    const before = f.processes();
     const read = await f.store.read({ reference });
     expect(read).toMatchObject({ status: "ok", result: { reference, content: "# A planted companion\n",
       placement: { kind: "active" }, formatVersion: 1, conflicts: [], version: expect.stringMatching(/^sha256:/u) } });
-    expect(f.processes()).toBe(2);
+    expect(f.processes() - before).toBe(2);
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", records: [read.status === "ok" ? read.result : null],
       diagnostics: [], missed: false } });
-    expect(f.processes()).toBe(6);
+    expect(f.processes() - before).toBe(6);
   });
   it("splits overflowing blob batches and still lists every record", async () => {
     const f = await fixture(format, 4096);
@@ -73,9 +75,11 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
   it("resolves a slug-only owner once and returns its UID", async () => {
     const f = await fixture(format);
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata }, { path: "extra-alpha.md", content: "found" }]);
+    await f.store.version();
+    const before = f.processes();
     const unresolved = RecordReferenceSchema.parse({ ...reference, owner: { type: "work-item", name: "alpha" } });
     expect(await f.store.read({ reference: unresolved })).toMatchObject({ status: "ok", result: { reference, content: "found" } });
-    expect(f.processes()).toBe(6);
+    expect(f.processes() - before).toBe(6);
   });
   it("refuses person-owned reads without an identity and names arc.identity", async () => {
     const f = await fixture(format);
@@ -92,11 +96,11 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     expect(await f.store.read({ reference: personal })).toMatchObject({ status: "ok", result: { content: "personal" } });
     expect(f.processes()).toBe(2);
   });
-  it.each(["personal", "claims"] as const)("leaves %s absent without naming any ref when identity is absent", async (family) => {
+  it.each(["personal", "claims"] as const)("leaves %s absent with a state token when identity is absent", async (family) => {
     const f = await fixture(format);
     const store = createRefStore({ ...f.ports, identity: async () => null });
-    expect(await store.list({ family })).toEqual({ status: "ok", result: { status: "absent" } });
-    expect(f.processes()).toBe(0);
+    expect(await store.list({ family })).toMatchObject({ status: "ok", result: { status: "absent", asOf: expect.any(String) } });
+    expect(f.processes()).toBe(3);
   });
   it("reads local state under a shell-shaped SSH command without rewriting it", async () => {
     const f = await fixture(format);
@@ -120,16 +124,18 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
       baseVersion: null, currentLines: 1, incomingLines: 1 }));
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata },
       { path: "extra-alpha.md", content: "ours" }, { path: "conflicts/deadbeef.json", content: conflict }]);
+    await f.store.version();
+    const before = f.processes();
     expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "ours", conflicts: [conflictReference] } });
-    expect(f.processes()).toBe(3);
+    expect(f.processes() - before).toBe(3);
     const listing = await f.store.list({ family: "work-item" });
     expect(listing).toMatchObject({ status: "ok", result: { status: "complete", records: expect.arrayContaining([
       expect.objectContaining({ reference, conflicts: [conflictReference] }),
       expect.objectContaining({ reference: conflictReference, conflicts: [] }),
     ]), diagnostics: [], missed: false } });
-    expect(f.processes()).toBe(7);
+    expect(f.processes() - before).toBe(7);
     expect(await f.store.list({ family: "work-item", kind: "work-item/companion" })).toMatchObject({ status: "ok",
       result: { status: "complete", records: [expect.objectContaining({ reference, conflicts: [conflictReference] })] } });
-    expect(f.processes()).toBe(11);
+    expect(f.processes() - before).toBe(11);
   });
 });

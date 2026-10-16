@@ -10,6 +10,7 @@ import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type Ref
 import { decodeRecord, decodeReference, lineageOwner, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
 import { parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
+import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 
@@ -52,11 +53,12 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
 
 /** List a registered family from one tip capture, tree check, recursive diff, and blob batch. */
 export async function listRefRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
-  if (FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null) {
-    return { status: "ok", result: { status: "absent" } };
-  }
-  const tips = new Map([...(await readRefTips(context))].filter(([ref]) => matchesFamilyRef(ref, input.family)));
-  if (tips.size === 0) return { status: "ok", result: { status: "absent" } };
+  const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
+  const captured = await readRefTips(context);
+  const asOf = await saveCapturedManifest(context, captured);
+  if (identityMissing) return { status: "ok", result: { status: "absent", asOf } };
+  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)));
+  if (tips.size === 0) return { status: "ok", result: { status: "absent", asOf } };
   const trees = await readRefTrees(context, tips);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid)))]);
   const groups = [...tips.keys()].map((ref) => {
@@ -68,7 +70,7 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
     remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
-  return { status: "ok", result: { status: "complete", records, diagnostics, missed: diagnostics.length > 0 } };
+  return { status: "ok", result: { status: "complete", records, diagnostics, missed: diagnostics.length > 0, asOf } };
 }
 
 interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true }

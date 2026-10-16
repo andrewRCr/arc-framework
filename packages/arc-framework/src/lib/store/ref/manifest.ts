@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { FAMILY_IDS } from "../catalog.js";
 import { StateVersionSchema, type StateVersion } from "../identity.js";
@@ -71,8 +72,28 @@ function hashTree(node: ManifestNode, format: ObjectFormat, trees: ManifestTree[
   return oid;
 }
 
-/** Compute the current manifest from one local ref-tip snapshot. */
+/** Persist a captured manifest and retain it with an expected-value local token ref. */
+export async function saveCapturedManifest(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StateVersion> {
+  const manifest = buildRefManifest(tips, await readObjectFormat(context));
+  const tokenRef = "refs/arc/tmp/version";
+  if (tips.get(tokenRef) === manifest.version) return manifest.version;
+  const input = manifest.trees.map((tree) => tree.entries.map((entry) =>
+    `${entry.mode} ${entry.mode === "40000" ? "tree" : "commit"} ${entry.oid}\t${entry.name}\0`).join("") + "\0").join("");
+  const { stdout } = await context.rawExec(["mktree", "--batch", "-z"], {
+    cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(input),
+  });
+  const written = new TextDecoder().decode(stdout).trim().split(/\r?\n/u);
+  if (written.length !== manifest.trees.length || written.some((oid, index) => oid !== manifest.trees[index]?.oid)) {
+    throw new Error("Git wrote a manifest tree different from its computed object ID");
+  }
+  // A competing checkout may retain a newer token; this captured manifest remains a valid result.
+  await updateRefTransaction(context, [{ ref: tokenRef, next: manifest.version, expected: tips.get(tokenRef) ?? null }], {
+    cwd: context.checkoutRoot,
+  });
+  return manifest.version;
+}
+
+/** Compute and retain the current manifest from one local ref-tip snapshot. */
 export async function refStateVersion(context: RefBackendContext): Promise<StateVersion> {
-  const tips = await readRefTips(context);
-  return buildRefManifest(tips, await readObjectFormat(context)).version;
+  return saveCapturedManifest(context, await readRefTips(context));
 }

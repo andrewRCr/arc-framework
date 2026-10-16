@@ -293,7 +293,7 @@ default layout.
           own diagnostics beside readable and empty refs. Missing metadata repairs forward. Never-projected JSON reads
           canonically, projected records share a byte cap, and newer formats read after a supporting registry rebuild.
 
-### `[ ]` **3.4 The state version — § 4.1, § 4.2, § 4.3**
+### `[x]` **3.4 The state version — § 4.1, § 4.2, § 4.3**
 
 - _Goal:_ A state version names one saved state of the whole store, costs one Git process when nothing changed, and is
   never torn in the separate layout's reftable format.
@@ -303,21 +303,10 @@ default layout.
           the common config selects the hash without Git. Legacy, history, temporary, and forwarding refs stay outside
           the manifest, and empty SHA-256 stores use Git's empty tree.
 
-    - `[ ]` **3.4.b `version` and a live listing's token**
-        - `version` runs 3.3.a's tip read alone, its `refs/arc/tmp/version` included; an equal id writes nothing; a new
-          one writes its trees and moves that ref through the transaction helper (2.3) with the lock waits (2.3.b),
-          expecting the value it read; a move another worktree won returns the token anyway, since the ref only keeps the
-          newest token from collection and § 4.4 refuses a collected manifest
-        - The store is found through 3.1.c's reader; a live listing returns the same token from its own tip read
-        - Build `test-first` (one behavior at a time):
-            - a no-change `version` spawns one Git process, and a changed one three
-            - `version` reads no identity and resolves no actor
-            - a live listing's token equals what `version()` then returns, and a listing that writes a new manifest
-              spawns six
-            - a `version` whose move of `refs/arc/tmp/version` loses to another worktree's returns its token
-            - on reftable, a bounded run of `version` listings beside a writer moving refs in two namespaces in one
-              transaction never sees part of it, while the same run listing with two patterns in the files format
-              tears, showing the test can detect one
+    - `[x]` **3.4.b `version` and a live listing's token**
+        - Captured manifests persist through one batch tree write and an expected-value token update; equal state reuses
+          the token. Listings return their own snapshot's token. A competing checkout keeps its newer retained token,
+          and bounded atomic cross-namespace writers leave reftable snapshots coherent while the files control tears.
 
 ## **Phase 4:** The write spine and the conformance fixture
 
