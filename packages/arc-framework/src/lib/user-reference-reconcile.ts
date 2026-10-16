@@ -7,10 +7,19 @@
  *
  * @module
  */
-import { readEntryField, targetNamedByLine } from "./store/kinds/entry-fields.js";
-
 import type { z } from "zod";
 import { UserReferenceReconcileSessionResultSchema } from "./user-reference-reconcile-schema.js";
+import { applyScratchReconcile, planScratchReconcile, type ScratchReconcileInput, type ScratchReconcilePlan } from "./user-reference-scratch.js";
+import { readEntryField, targetNamedByLine } from "./store/kinds/entry-fields.js";
+
+import type { Store } from "./store/contract.js";
+import type { StoreRecord } from "./store/read.js";
+import { sameReference } from "./store/identity.js";
+import type { StoreRefusal } from "./store/refusal.js";
+import { recordPut } from "./store/lifecycle-write.js";
+import { applyPreparedLifecycleWrite, revalidateLifecycleRecords } from "./work-unit/prepared-lifecycle-write.js";
+import type { Remedy } from "./store/refusal.js";
+import { readStoreUserReferenceTransitions } from "./store/user-reference-authority.js";
 import {
   enumerateTransitionReferenceTransitions,
   resolveReferenceTransition,
@@ -56,10 +65,12 @@ export interface UserReferenceAdvisory {
   subject: string;
   kind: "prose" | "terminal" | "conflict";
   disposition: "review-rename" | "remove-or-retarget" | "inspect-history";
+  successors?: readonly string[];
 }
 
 /** Complete read-only or apply-ready user-reference plan. */
 export interface UserReferenceReconcilePlan {
+  scratch?: ScratchReconcilePlan;
   status: "clean" | "pending" | "advisory";
   edits: readonly UserReferenceEdit[];
   advisories: readonly UserReferenceAdvisory[];
@@ -67,6 +78,7 @@ export interface UserReferenceReconcilePlan {
 
 /** Pure planner inputs over the three permitted current user surfaces. */
 export interface PlanUserReferenceReconcileInput {
+  scratch?: ScratchReconcilePlan;
   stateOffBranch?: boolean;
   transitions: readonly ReachableReferenceTransition[];
   userInbox: UserReferenceSurface;
@@ -75,19 +87,31 @@ export interface PlanUserReferenceReconcileInput {
 }
 
 /** Lock-bound I/O seams for the dedicated user-reference operation. */
-export interface UserReferenceReconcileContext {
+interface UserReferenceReconcileBaseContext {
+  scratch?: ScratchReconcileInput;
   transitions: readonly ReachableReferenceTransition[];
   apply: boolean;
   readSurfaces: () => Promise<Omit<PlanUserReferenceReconcileInput, "transitions">>;
   acquireLock: () => Promise<unknown>;
   releaseLock: (handle: unknown) => Promise<void>;
-  atomicWrite: (path: string, content: string) => Promise<void>;
 }
+/** Actual record snapshots behind a prepared personal repair and its supporting authority. */
+export interface UserReferenceStoreBasis {
+  store: Store;
+  records: readonly StoreRecord[];
+  byPath: ReadonlyMap<string, StoreRecord>;
+}
+/** Store preparation keeps snapshots fixed; legacy writes keep their under-lock re-plan. */
+export type UserReferenceReconcileContext = UserReferenceReconcileBaseContext & (
+  | { preparedStore: UserReferenceStoreBasis; atomicWrite?: (path: string, content: string) => Promise<void> }
+  | { preparedStore?: undefined; atomicWrite: (path: string, content: string) => Promise<void> }
+);
 
 /** Closed dedicated operation result. */
 export type UserReferenceReconcileResult =
   | { status: "clean" | "pending" | "advisory"; plan: UserReferenceReconcilePlan }
-  | { status: "applied"; plan: UserReferenceReconcilePlan; writtenPaths: readonly string[] };
+  | { status: "applied"; plan: UserReferenceReconcilePlan; writtenPaths: readonly string[] }
+  | { status: "refused"; plan: UserReferenceReconcilePlan; refusal: StoreRefusal };
 
 /** Authority adapters for protection-aware base discovery. */
 export interface UserReferenceAuthorityContext {
@@ -99,6 +123,7 @@ export interface UserReferenceAuthorityContext {
 
 /** Supplied base evidence for protection-aware user-reference authority analysis. */
 export interface AnalyzeUserReferenceAuthorityOptions {
+  store?: Store;
   protection: "full" | "partial";
   baseBranch: string;
   snapshot: RemoteHeadSnapshotResult;
@@ -108,6 +133,7 @@ export interface AnalyzeUserReferenceAuthorityOptions {
 
 /** Explicit acquisition inputs for user-reference authority. */
 export interface MaterializeUserReferenceAuthorityOptions {
+  store?: Store;
   exec: GitExec;
   protection: "full" | "partial";
   baseBranch: string;
@@ -117,6 +143,7 @@ export interface MaterializeUserReferenceAuthorityOptions {
 
 /** User-reference authority qualified by the evidence that established it. */
 export type UserReferenceEvidenceAuthorityResult =
+  | { status: "unavailable"; ref: string; reason: "state-unavailable"; condition: string; remedy: Remedy; remoteEvidence: "not-applicable" }
   | {
       status: "ready";
       ref: string;
@@ -167,7 +194,9 @@ export type UserReferenceAuthorityResult =
   | { status: "conflict"; ref: string; reason: "ambiguous-history" | "namespace-corrupt" };
 
 /** Read-only session projection with CLI-owned dispatch. */
-export type UserReferenceReconcileSessionResult = z.infer<typeof UserReferenceReconcileSessionResultSchema>;
+export interface UserReferenceReconcileSessionResult extends z.infer<typeof UserReferenceReconcileSessionResultSchema> {
+  readonly authority: z.infer<typeof UserReferenceReconcileSessionResultSchema>["authority"];
+}
 
 const MANAGED_TARGET = /^- _WU_Target:_ `([a-z0-9]+(?:-[a-z0-9]+)*)( \((?:planned|provisional)\))?`$/u;
 const SLUG_CHAR = /[a-z0-9-]/u;
@@ -215,7 +244,9 @@ export function planUserReferenceReconcile(
         replacements: uniqueReplacements(replacements),
       }];
   return {
-    status: edits.length > 0 ? "pending" : advisories.length > 0 ? "advisory" : "clean",
+    status: edits.length > 0 || (input.scratch?.moves.length ?? 0) > 0 ? "pending"
+      : advisories.length > 0 || (input.scratch?.advisories.length ?? 0) > 0 ? "advisory" : "clean",
+    ...(input.scratch === undefined ? {} : { scratch: input.scratch }),
     edits,
     advisories: advisories.sort(compareAdvisories),
   };
@@ -230,24 +261,21 @@ export function planUserReferenceReconcile(
 export async function runUserReferenceReconcile(
   ctx: UserReferenceReconcileContext,
 ): Promise<UserReferenceReconcileResult> {
-  const inspected = planUserReferenceReconcile({
-    transitions: ctx.transitions,
-    ...await ctx.readSurfaces(),
-  });
-  if (!ctx.apply || inspected.edits.length === 0) return { status: inspected.status, plan: inspected };
+  if (ctx.preparedStore !== undefined) return runPreparedUserReferenceReconcile(ctx, ctx.preparedStore);
+  const readPlan = () => readUserReferencePlan(ctx);
+  const inspected = await readPlan();
+  if (!ctx.apply || !hasUserReferenceRepairs(inspected)) return { status: inspected.status, plan: inspected };
 
   const handle = await ctx.acquireLock();
   try {
-    const current = planUserReferenceReconcile({
-      transitions: ctx.transitions,
-      ...await ctx.readSurfaces(),
-    });
-    if (current.edits.length === 0) return { status: current.status, plan: current };
+    const current = await readPlan();
+    if (!hasUserReferenceRepairs(current)) return { status: current.status, plan: current };
     for (const edit of current.edits) await ctx.atomicWrite(edit.path, edit.content);
+    const scratch = ctx.scratch === undefined ? undefined : await applyScratchReconcile(ctx.scratch);
     return {
       status: "applied",
       plan: current,
-      writtenPaths: current.edits.map(({ path }) => path),
+      writtenPaths: [...current.edits.map(({ path }) => path), ...(scratch?.moves.map(move => move.to) ?? [])],
     };
   } finally {
     await ctx.releaseLock(handle);
@@ -263,6 +291,7 @@ export async function runUserReferenceReconcile(
 export async function analyzeUserReferenceAuthority(
   options: AnalyzeUserReferenceAuthorityOptions,
 ): Promise<UserReferenceEvidenceAuthorityResult> {
+  if (options.store?.capabilities.stateOffBranch) return readStoreReferenceAuthority(options.store);
   if (options.protection === "partial") {
     const ref = options.baseBranch;
     const projected = enumerateTransitionReferenceTransitions(await options.enumerateAt(ref));
@@ -317,6 +346,7 @@ export async function analyzeUserReferenceAuthority(
 export async function materializeUserReferenceAuthority(
   options: MaterializeUserReferenceAuthorityOptions,
 ): Promise<UserReferenceEvidenceAuthorityResult> {
+  if (options.store?.capabilities.stateOffBranch) return readStoreReferenceAuthority(options.store);
   if (options.protection === "partial") {
     return analyzeUserReferenceAuthority({
       protection: "partial",
@@ -419,7 +449,7 @@ export function projectUserReferenceSessionResult(
   };
   // No remote evidence was required, so there is nothing to reconcile and nothing to
   // report. Surfacing here would ask the operator to fix a configuration they chose.
-  if (authority.status === "unavailable" && authority.remoteEvidence === "not-applicable") {
+  if (authority.status === "unavailable" && authority.remoteEvidence === "not-applicable" && authority.reason === "remote-not-required") {
     return {
       status: authority.status,
       authority,
@@ -430,15 +460,16 @@ export function projectUserReferenceSessionResult(
     };
   }
   if (authority.status !== "ready") {
+    const failure = authority.status === "unavailable" && authority.remoteEvidence === "not-applicable"
+      ? `${authority.condition} ${authority.remedy.text}` : `User-reference reconcile cannot establish ${authority.ref} authority (${authority.status}).`;
     return {
       status: authority.status,
-      actions: [{ text: `User-reference reconcile cannot establish ${authority.ref} authority (${authority.status}).` }],
+      actions: [{ text: failure }],
       authority,
       plan: null,
       recommendedAction: "surface",
       recommendedCommand: null,
-      recommendedPromptText:
-        `User-reference reconcile cannot establish ${authority.ref} authority (${authority.status}).`,
+      recommendedPromptText: failure,
     };
   }
   const plan = planUserReferenceReconcile({ transitions: authority.transitions, ...surfaces });
@@ -452,28 +483,35 @@ export function projectUserReferenceSessionResult(
       recommendedPromptText: "",
     };
   }
-  if (plan.edits.length > 0) {
+  if (hasUserReferenceRepairs(plan)) {
     return {
       status: "pending",
       actions: [inspect, { text: "arc user reconcile-references --apply --json",
-        argv: ["arc", "user", "reconcile-references", "--apply", "--json"] }],
+        argv: ["arc", "user", "reconcile-references", "--apply", "--json"] },
+        ...(plan.scratch?.advisories.map(advisory => ({ text: advisory.text })) ?? [])],
       authority,
       plan,
       recommendedAction: "apply",
       recommendedCommand: ["arc", "user", "reconcile-references", "--apply", "--json"],
       recommendedPromptText:
-        "Managed USER-INBOX references can be reconciled from authoritative rename evidence.",
+        "User references and personal scratch folders can be reconciled from authoritative work-unit evidence.",
     };
   }
   return {
     status: "advisory",
-    actions: [inspect],
+    actions: [inspect, ...(plan.scratch?.advisories.map(advisory => ({ text: advisory.text })) ?? [])],
     authority,
     plan,
     recommendedAction: "surface",
     recommendedCommand: ["arc", "user", "reconcile-references", "--json"],
-    recommendedPromptText: `User-reference reconcile found ${plan.advisories.length} advisory reference(s).`,
+    recommendedPromptText: `User-reference reconcile found ${plan.advisories.length + (plan.scratch?.advisories.length ?? 0)} advisory finding(s).`,
   };
+}
+
+async function readStoreReferenceAuthority(store: Store): Promise<UserReferenceEvidenceAuthorityResult> {
+  const read = await readStoreUserReferenceTransitions(store);
+  return read.status === "ok" ? { status: "ready", ref: "store", transitions: read.result, remoteEvidence: "not-applicable" }
+    : { status: "unavailable", ref: "store", reason: "state-unavailable", condition: read.refusal.condition, remedy: read.refusal.remedy, remoteEvidence: "not-applicable" };
 }
 
 function managedAdvisory(
@@ -490,6 +528,7 @@ function managedAdvisory(
     subject,
     kind: resolution.kind === "conflict" ? "conflict" : "terminal",
     disposition: resolution.kind === "conflict" ? "inspect-history" : "remove-or-retarget",
+    ...(resolution.kind === "decompose" && resolution.successors !== undefined ? { successors: resolution.successors } : {}),
   };
 }
 
@@ -512,6 +551,7 @@ function scanProse(
         context: surface.content.slice(start, end === -1 ? undefined : end).trim(),
         subject,
         kind: resolution.kind === "conflict" ? "conflict" : resolution.kind === "rename" ? "prose" : "terminal",
+        ...(resolution.kind === "decompose" && resolution.successors !== undefined ? { successors: resolution.successors } : {}),
         disposition: resolution.kind === "conflict"
           ? "inspect-history"
           : resolution.kind === "rename"
@@ -553,4 +593,37 @@ function compareAdvisories(left: UserReferenceAdvisory, right: UserReferenceAdvi
 
 function byteSort(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+/** Whether a plan contains lock-bound mechanical repairs. */
+export function hasUserReferenceRepairs(plan: UserReferenceReconcilePlan): boolean {
+  return plan.edits.length > 0 || (plan.scratch?.moves.length ?? 0) > 0;
+}
+
+async function readUserReferencePlan(ctx: UserReferenceReconcileBaseContext): Promise<UserReferenceReconcilePlan> {
+  return planUserReferenceReconcile({ transitions: ctx.transitions, ...await ctx.readSurfaces(),
+    ...(ctx.scratch === undefined ? {} : { scratch: await planScratchReconcile(ctx.scratch) }) });
+}
+async function runPreparedUserReferenceReconcile(ctx: UserReferenceReconcileBaseContext,
+  basis: UserReferenceStoreBasis): Promise<UserReferenceReconcileResult> {
+  const plan = await readUserReferencePlan(ctx);
+  if (!ctx.apply) return { status: plan.status, plan };
+  const writes = plan.edits.map(edit => {
+    const record = basis.byPath.get(edit.path);
+    if (record?.reference.kind !== "personal/inbox") throw new Error(`Prepared user-reference edit lacks an acquired personal inbox: ${edit.path}`);
+    return recordPut(record, { content: edit.content });
+  });
+  const handle = await ctx.acquireLock();
+  try {
+    const valid = await revalidateLifecycleRecords(basis.store, basis.records);
+    if (valid.status === "refused") return { status: "refused", plan, refusal: valid.refusal };
+    if (writes.length > 0) {
+      const records = basis.records.filter(record => writes.some(write => sameReference(write.reference, record.reference)));
+      const applied = await applyPreparedLifecycleWrite(basis.store, { records, writes }, { verb: "user-reconcile-references", lifecycleAction: "reconcile" });
+      if (applied.status === "refused") return { status: "refused", plan, refusal: applied.refusal };
+    }
+    const scratch = ctx.scratch === undefined ? undefined : await applyScratchReconcile(ctx.scratch);
+    const writtenPaths = [...plan.edits.map(edit => edit.path), ...(scratch?.moves.map(move => move.to) ?? [])];
+    return writtenPaths.length === 0 ? { status: plan.status, plan } : { status: "applied", plan, writtenPaths };
+  } finally { await ctx.releaseLock(handle); }
 }

@@ -4,9 +4,16 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
 import { handleStoreInboxRemove } from "./user-inbox-remove-store.js";
-import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
+import { runLegacyStoreUserReferenceReconcile } from "./user-reference-legacy-store.js";
+import { resolvePersonalPaths } from "../lib/personal-paths.js";
+import { runStoreUserReferenceReconcileCommand } from "./user-reference-store.js";
+import type { StoreRefusal } from "../lib/store/refusal.js";
 
+
+import { createStore, createDefaultStorePorts } from "../lib/store/index.js";
+import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
 import { access, readFile } from "node:fs/promises";
 
 import * as p from "../lib/terminal.js";
@@ -45,15 +52,13 @@ import { prompt } from "../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
-import { createStore } from "../lib/store/create.js";
-import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { type ArcErrorCode } from "../lib/kernel/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createGitExec, createRawGitExec, createUserIOContext } from "../lib/io-context.js";
-import { atomicWriteFile } from "../lib/fs.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -62,23 +67,16 @@ import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { userAddIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { confirmPersonalIdentity } from "./identity-setup.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
   enumerateGitTransitionRecords,
 } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
+  hasUserReferenceRepairs,
   materializeUserReferenceAuthority,
   planUserReferenceReconcile,
-  runUserReferenceReconcile,
-  type PlanUserReferenceReconcileInput,
   type UserReferenceEvidenceAuthorityResult,
 } from "../lib/user-reference-reconcile.js";
 import type { GitExec } from "../lib/git/exec.js";
-import {
-  acquireAdvisoryLock,
-  releaseAdvisoryLock,
-} from "../lib/advisory-lock.js";
-import { getNotesLockPath } from "../lib/user-sync/notes-lock.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {
@@ -101,19 +99,29 @@ export interface UserReconcileReferencesOptions {
 export async function handleUserReconcileReferences(
   opts: UserReconcileReferencesOptions,
   context?: InteractionContext,
+  selectedStore?: Store,
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const identity = SlugSchema.parse(await resolveUserIdentity(createGitExec()));
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
+  const store = selectedStore ?? openDefaultStore(cwd, exec);
+  if (store.capabilities.stateOffBranch) {
+    const workUnit = await resolveReconcileCurrentWorkUnit(cwd, exec, store);
+    const result = await runStoreUserReferenceReconcileCommand({ cwd, identity, exec, store, workUnit, apply: opts.apply === true });
+    emitUserReferenceResult(opts, result);
+    if (result.status === "refused" || result.authority.status !== "ready") process.exitCode = 1;
+    return;
+  }
   const transitionExec = createRawGitExec(cwd);
   const [{ settings }, surfaces, currentWuName] = await Promise.all([
     readConfigSettings(cwd),
-    resolveUserSurfaceResolver({ cwd, identity, exec }),
-    resolveReconcileCurrentWorkUnit(cwd, exec),
+    resolvePersonalPaths({ cwd, identity, exec }),
+    resolveReconcileCurrentWorkUnit(cwd, exec, store),
   ]);
   const authority = await materializeUserReferenceAuthority({
+    store,
     exec,
     protection: settings["branch.protection"] === "full" ? "full" : "partial",
     baseBranch: settings["branch.base"],
@@ -124,48 +132,12 @@ export async function handleUserReconcileReferences(
     process.exitCode = 1;
     return;
   }
-  const readSurfaces = async (): Promise<Omit<PlanUserReferenceReconcileInput, "transitions">> => ({
-    userInbox: {
-      path: surfaces.identityGlobalDisplayPath("USER-INBOX.md"),
-      content: await readOptional(io, surfaces.identityGlobalPath("USER-INBOX.md")),
-    },
-    workingMemory: {
-      path: surfaces.workingMemoryDisplayPath,
-      content: await readOptional(io, surfaces.workingMemoryPath),
-    },
-    ...(currentWuName === undefined
-      ? {}
-      : {
-          sessionNotes: {
-            path: surfaces.sessionNotesPath(SlugSchema.parse(currentWuName)),
-            content: await readOptional(io, surfaces.sessionNotesPath(SlugSchema.parse(currentWuName))),
-          },
-        }),
+  const result = await runLegacyStoreUserReferenceReconcile({ cwd, identity, exec, store, paths: surfaces,
+    workUnit: currentWuName, transitions: authority.transitions, apply: opts.apply === true });
+  emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan,
+    ...(result.status === "refused" ? { refusal: result.refusal } : {}),
   });
-  const lockPath = await getNotesLockPath(exec, cwd, identity);
-  const result = await runUserReferenceReconcile({
-    transitions: authority.transitions,
-    apply: opts.apply === true,
-    readSurfaces,
-    acquireLock: () => acquireAdvisoryLock(lockPath),
-    releaseLock: (handle) =>
-      releaseAdvisoryLock(handle as Awaited<ReturnType<typeof acquireAdvisoryLock>>),
-    atomicWrite: (path, content) => {
-      const inboxDisplay = surfaces.identityGlobalDisplayPath("USER-INBOX.md");
-      if (path !== inboxDisplay) throw new Error(`Refusing undeclared user-reference path: ${path}`);
-      return atomicWriteFile(surfaces.identityGlobalPath("USER-INBOX.md"), content);
-    },
-  });
-  emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan });
-}
-
-async function readOptional(io: UserIOContext, path: string): Promise<string> {
-  try {
-    return await io.readFile(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return "";
-  }
+  if (result.status === "refused") process.exitCode = 1;
 }
 
 function emitUserReferenceResult(
@@ -174,12 +146,13 @@ function emitUserReferenceResult(
     status: string;
     authority: UserReferenceEvidenceAuthorityResult;
     plan: ReturnType<typeof planUserReferenceReconcile> | null;
+    refusal?: StoreRefusal;
   },
 ): void {
   const envelope = {
     schemaVersion: 1,
     ...result,
-    recommendedCommand: result.status === "pending" && result.plan?.edits.length
+    recommendedCommand: result.status === "pending" && result.plan !== null && hasUserReferenceRepairs(result.plan)
       ? ["arc", "user", "reconcile-references", "--apply", "--json"]
       : null,
   };
@@ -188,12 +161,17 @@ function emitUserReferenceResult(
     return;
   }
   if (result.authority.status !== "ready") {
-    p.log.warn(`User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
+    p.log.warn(result.authority.status === "unavailable" && result.authority.remoteEvidence === "not-applicable" && result.authority.reason === "state-unavailable"
+      ? `${result.authority.condition} ${result.authority.remedy.text}` : `User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
+    return;
+  }
+  if (result.refusal !== undefined) {
+    p.log.error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
     return;
   }
   p.log.info(
     `${result.status}: ${result.plan?.edits.length ?? 0} managed edit(s), `
-    + `${result.plan?.advisories.length ?? 0} advisory finding(s).`,
+    + `${(result.plan?.advisories.length ?? 0) + (result.plan?.scratch?.advisories.length ?? 0)} advisory finding(s).`,
   );
 }
 
@@ -256,6 +234,7 @@ export async function handleUserAdd(
 export async function handleUserOpen(
   wuName: string,
   context: InteractionContext,
+  selectedStore?: Store,
 ): Promise<void> {
   p.intro("arc user open");
   const output = createSyncOutput(false);
@@ -277,6 +256,13 @@ export async function handleUserOpen(
   const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+
+  const store = selectedStore ?? openDefaultStore(cwd, io.exec);
+  if (store.capabilities.stateOffBranch) {
+    p.log.error("unsupported: use the work unit's meta session context, which arc handoff write writes.");
+    process.exitCode = 1;
+    return;
+  }
 
   const reconciled = await reconcileRetiredSubdirsStandalone({ cwd, io, identity });
   for (const subdir of reconciled) {
@@ -1287,8 +1273,7 @@ function emitStatusError(
   output.log.error(formatSource ? formatError(formatSource) : message);
 }
 
-async function resolveReconcileCurrentWorkUnit(cwd: string, exec: GitExec): Promise<string | undefined> {
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+async function resolveReconcileCurrentWorkUnit(cwd: string, exec: GitExec, store: Store): Promise<string | undefined> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
   if (current.status === "resolved") return current.candidate.reference.owner.name;
   if (current.status === "ambiguous" || current.warnings.length > 0 || store.capabilities.stateOffBranch) return undefined;

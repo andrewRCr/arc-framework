@@ -492,44 +492,16 @@ read that gets none stops at that incomplete observation before calling it.
             - over the reference backend the task-list entry is the task-list record's projected path
             - over the in-repo implementation a `Task List` pointer naming another file is honored
 
-    - `[ ]` **2.8.c `arc user open` from the flip**
+    - `[x]` **2.8.c `arc user open` from the flip**
 
-        - `arc user open` (`handlers/user.ts`) refuses `unsupported` from the flip, naming the meta's session context,
-          which `arc handoff write` writes; until then it runs as today.
+        - User open refuses off-branch workspace creation with the meta session-context and handoff-write remedy;
+          the registered CLI preserves both Store state and the absent legacy workspace.
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend it refuses with that remedy, and over the in-repo implementation it opens as
-              today
+    - `[x]` **2.8.d The scratch reconcile**
 
-    - `[ ]` **2.8.d The scratch reconcile**
-
-        - From the flip the user-reference reconcile (`lib/user-reference-reconcile.ts`) plans the person's folders
-          under `.arc/user/<identity>/scratch/work-unit/<slug>/` in the checkout the session enters — 2.1.a's address
-          materialized there, not under the primary, since the projection creates each checkout's folder under that
-          checkout's own identity root — resolving each through `lookup`; its slot reports the plan, and
-          `arc user reconcile-references --apply` applies it, since session start writes nothing:
-            - a folder whose work unit was renamed follows its current slug, applied unasked as the reconcile's
-              reference rewrites are, taking the place of an empty folder there, as the projection creates; where the
-              current slug's folder holds anything, neither folder moves, the two are never merged, and the plan reports
-              both paths as text for the person to combine;
-            - a folder whose work unit has ended is reported with its path, as text for its person to remove once
-              nothing in it is wanted (§ 4.3), and never removed, `--apply` included;
-            - a name resolving to no work unit is left and reported;
-            - a promoted work item's folder reconciles as a fresh start's does.
-        - An absent scratch root plans nothing. The plan's fields join `userReferenceReconcile`'s registered schema
-          (Task 1.1.b).
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a renamed work unit's folder is planned and, on `--apply`, moved to its current slug
-            - an empty folder at the current slug, as the projection creates, is replaced by the renamed one on
-              `--apply`
-            - a folder at the current slug holding anything leaves both folders in place, `--apply` included, and the
-              plan reports both paths as text
-            - an ended work unit's folder is reported with its path as text, and `--apply` leaves it
-            - a name resolving to no work unit is left and reported
-            - a promoted work item's folder reconciles as a fresh start's
-            - an absent scratch root plans nothing
-            - a linked checkout's session plans that checkout's folders, not the primary's
+        - Scratch plans resolve aliases and promoted identities in the entering checkout. Apply moves only into absent
+          or empty destinations and leaves occupied, ended, and unresolved folders for their person to
+          reconcile.
 
 ### `[ ]` **2.9 Add `arc locus release` — § 5**
 
@@ -764,46 +736,23 @@ inject a reference-backend store.
         - The residue sweep selects abandonment through lineage and retains exact remote and physical-removal evidence.
           Refused authority is reported as a per-checkout repair.
 
-### `[ ]` **3.R Expose former names in primary record projections — § 3.5 (A16)**
+### `[x]` **3.R Expose former names in primary record projections — § 3.5 (A16)**
 
 - _Goal:_ A16's read-only aliases are available to the prose scan through primary reads and listings, with absent
   off-branch alias evidence reported as unavailable authority rather than an empty collection.
 
-    - Extend `StoreRecordSchema` with optional slug-array `aliases`, limited to primary work-item records. Preserve
-      the in-repo implementation's current projections and writes.
-    - Project the reference backend's private `formerSlugs` in `publicRecord`, including explicit empty arrays and
-      the aliases of a selected saved state, copying the collection so readers cannot mutate backend state.
-    - Wire the user-reference prose scan to the collection and retain lookup as the resolver of each discovered name.
-    - Build `test-first`: rename and list/read aliases, read an earlier saved state, preserve storage after editing a
-      returned collection, rewrite a managed reference, advise on a former name in prose, and refuse missing evidence.
+- _Outcome:_ Primary reads and listings expose detached alias collections, including saved states. Missing alias evidence
+  remains unavailable authority rather than an empty collection.
 
-### `[ ]` **3.8 Resolve former slugs through `lookup` in the user-reference reconcile — § 3.5**
+### `[x]` **3.8 Resolve former slugs through `lookup` in the user-reference reconcile — § 3.5**
 
 - _Goal:_ From the flip the user-reference reconcile resolves a former slug from the live primary record through
   `lookup`, takes its prose scan's former slugs from the work items' aliases and lineage, lists lineage only for a cut
   or an abandonment, and gives a cut's advisory its successors, keeping its unavailable authority and per-entry conflict
   advisories; until the flip it reads today's transition records and the dispositions projected from them.
 
-- _Note:_ The current-work-unit reconcile reaches former slugs through the transition-write-path change's store-backed
-  prepare context (`createStoreReconcilePrepareContext`, built in Task 4.3.b - `tasks-seam-lifecycle.md`), which
-  resolves them through `lookup` and lists lineage only; the session probe binds it in Task 5.1 and writes no binding of
-  its own.
-
-    - `lib/user-reference-reconcile.ts`'s arm from the flip takes the rename evidence it is handed as a
-      `TransitionRecordEnumerationResult` today from `lookup` and lineage instead, through `resolveReferenceTransition`
-      (`lib/work-unit/reference-reconcile.ts`) as today.
-    - Its prose scan, which takes its subjects from today's transition list, takes its former slugs from the work items'
-      aliases, listed through the store, plus lineage for cuts and abandonments, since a rename from the flip writes no
-      lineage and `lookup` resolves one slug at a time.
-    - The reconcile's `decompose` outcome (`lib/work-unit/reference-reconcile.ts`) gains an optional `successors`, read
-      from the cut's lineage record and present from the flip only, and `userReferenceReconcile`'s registered schema
-      admits it.
-
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a reference to a renamed work unit's former slug, in a link and in prose, rewrites to its current slug
-        - a cut's advisory carries its successors from the lineage record
-        - an unreadable lineage or `lookup` reports unavailable authority
-        - over the in-repo implementation the outcome carries no `successors`
+- _Outcome:_ Former names resolve through Store lookup and terminal lineage, with successor advisories for cuts; the
+  prose scan uses complete alias evidence and leaves advisory prose unchanged.
 
 ### `[x]` **3.9 Select promotion's steps, and settle its marker — § 8.3, § 2.6**
 
@@ -1020,26 +969,11 @@ its `arc schema` test with it.
               the thrown message as its condition
             - over the in-repo implementation the probe's plan is today's
 
-    - `[ ]` **5.1.c The user-reference reconcile as one prepared write**
+    - `[x]` **5.1.c The user-reference reconcile as one prepared write**
 
         - _Amended in:_ 5.R (A21)
-
-        - From the flip `lib/user-reference-reconcile.ts` and its command (`handleUserReconcileReferences`,
-          `handlers/user.ts`) revalidate each prepared personal record by its version and apply every rewrite in one
-          `batch` with expected versions, through the prepared-write protocol's revalidation and application
-          (`revalidateLifecycleRecords`, `applyPreparedLifecycleWrite`, `lib/work-unit/prepared-lifecycle-write.ts`)
-          over the records it read and the rewrites it plans, rather than a protocol of its own. The session notes it
-          rewrites are then the meta's session context (Task 2.8.a), so the same batch writes the meta through the meta
-          kind's writer at its expected version beside the personal records.
-        - Until the flip it re-plans under the notes lock, as `runUserReferenceReconcile` does today.
-        - Its session probe in `handleSessionInitStatus` reads the person's inbox, `WORKING-MEMORY`, and session notes
-          through the store from the flip, and takes its display paths from the layout resolver, where it names
-          `USER-INBOX.md` through the user-surfaces resolver today.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - every rewrite, the meta's session context among them, lands in one batch
-            - a record changed after preparation refuses the batch, and nothing lands
-            - over the in-repo implementation a change under the lock re-plans as today
+        - Reference preparation acquires the managed inbox and supporting records once; apply revalidates that basis
+          through the shared lifecycle protocol and batches only the managed rewrites.
 
 ### `[x]` **5.2 Reroute the locus classification, the orphan sweep, and retired subdirectories — § 4.2, § 12.4**
 
@@ -1335,18 +1269,13 @@ its `arc schema` test with it.
         - a partial teardown grants no cleanup authority past what its record and checkout show
         - a missing completed subject, and an ambiguous one, each fail closed as the Goal states
 
-### `[ ]` **5.R Keep personal prose advisory in the prepared reconcile — § 4.1 (A21)**
+### `[x]` **5.R Keep personal prose advisory in the prepared reconcile — § 4.1 (A21)**
 
 - _Goal:_ Managed inbox reference rewrites land in one prepared batch after revalidating every supporting record;
   working-memory and meta session-context prose yield advisories and remain unchanged (A21).
 
-    - Use `revalidateLifecycleRecords` and `applyPreparedLifecycleWrite` for the acquired personal and context records,
-      preparing writes only for managed inbox fields the existing planner rewrites. Never write an unchanged record
-      merely to revalidate its version.
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - managed inbox rewrites land together while memory and meta session context remain byte-for-byte unchanged
-        - a supporting record changed after preparation refuses before any rewrite lands
-        - prose naming former work units yields advisories without an automatic rewrite
+- _Outcome:_ Managed inbox fields update atomically after revalidation while memory and meta session-context bytes remain
+  unchanged; their prose references appear only as advisories.
 
 ### `[ ]` **5.11 Session-init and recovery over the store** — validate exit criterion at segment scope
 

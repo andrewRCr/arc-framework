@@ -5,7 +5,7 @@ import { z } from "zod";
 export const ReachableReferenceTransitionSchema = z.strictObject({
   subject: z.string(), outcome: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("rename"), targetSlug: z.string() }),
-    z.strictObject({ kind: z.literal("decompose") }),
+    z.strictObject({ kind: z.literal("decompose"), successors: z.array(z.string()).readonly().optional() }),
     z.strictObject({ kind: z.literal("removed") }),
   ]),
 });

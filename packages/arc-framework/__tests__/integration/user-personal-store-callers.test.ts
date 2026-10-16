@@ -48,3 +48,52 @@ it("refuses persistent version contention without dropping the capture", async (
     .rejects.toMatchObject({ code: "user.inbox-refused", cause: { code: "version-conflict" } });
   expect(lifecycleSuccess(await h.store.read({ reference: inbox })).content).toBe(content);
 }, 10_000);
+it("legacy reconcile reads and writes the selected Store instead of different caller filesystem bytes", async () => {
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { writeTransitionRecord } = await import("../../src/lib/work-unit/transition-record-store.js");
+  const { LineageRecordSchema } = await import("../../src/lib/store/kinds/lineage/index.js");
+  const { handleUserReconcileReferences } = await import("../../src/handlers/user.js");
+  const h = await personalFixture();
+  await mkdir(join(h.root, ".arc/system"), { recursive: true });
+  await writeFile(join(h.root, ".arc/system/arc-config.yml"), "branch.base: main\nbranch.protection: partial\n");
+  await writeTransitionRecord(h.root, LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "former" }, kind: "rename", successors: [{ name: "current" }], incoming: [] }));
+  await h.exec("git", ["add", ".arc/system"]); await h.exec("git", ["commit", "-m", "Record rename authority"]);
+  await h.plant("USER-INBOX.md", "# Caller filesystem inbox\n");
+  await h.plant("WORKING-MEMORY.md", "# Caller filesystem memory\n");
+  await h.exec("git", ["checkout", "-b", "feat/dependent"]);
+  await h.plant("dependent/SESSION-NOTES.md", "# Caller filesystem session context\n");
+  let selectedInbox = "# Inbox\n\n## Work Unit\n\n### **Keep target**\n\n- _WU_Target:_ `former`\n";
+  const memoryBytes = "# Memory\n\nThe former workflow remains useful prose.\n";
+  const sessionBytes = "# Session context\n\nThe former note stays advisory.\n";
+  const read = h.ports.fs.readFile, write = h.ports.fs.writeFile;
+  h.ports.fs.readFile = path => path === h.path("USER-INBOX.md") ? Promise.resolve(selectedInbox)
+    : path === h.path("WORKING-MEMORY.md") ? Promise.resolve(memoryBytes)
+    : path === h.path("dependent/SESSION-NOTES.md") ? Promise.resolve(sessionBytes) : read(path);
+  h.ports.fs.writeFile = (path, value) => { if (path === h.path("USER-INBOX.md")) { selectedInbox = value; return Promise.resolve(); } return write(path, value); };
+  const storeWrite = h.store.write.bind(h.store);
+  let competing = true;
+  vi.spyOn(h.store, "write").mockImplementation(async input => {
+    if (input.action !== "put") throw new Error("Expected a managed inbox put");
+    if (competing) {
+      competing = false;
+      lifecycleSuccess(await storeWrite({ ...input,
+        content: selectedInbox + "\n### **Concurrent target**\n\n- _WU_Target:_ `former`\n" }));
+    }
+    return storeWrite(input);
+  });
+  const originalCwd = process.cwd(), originalExit = process.exitCode;
+  let output = "";
+  const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try {
+    process.chdir(h.root); process.exitCode = undefined;
+    await handleUserReconcileReferences({ apply: true, json: true }, undefined, h.store);
+    expect(selectedInbox).toContain("_WU_Target:_ `current`");
+    expect(selectedInbox).toContain("### **Concurrent target**\n\n- _WU_Target:_ `current`");
+    expect(JSON.parse(output)).toMatchObject({ status: "applied", plan: { advisories: expect.arrayContaining([expect.objectContaining({ subject: "former", path: ".arc/user/andrew/WORKING-MEMORY.md" }),
+      expect.objectContaining({ subject: "former", path: join(h.root, ".arc/user/andrew/dependent/SESSION-NOTES.md") })]) } });
+    expect(lifecycleSuccess(await h.store.read({ reference: memory })).content).toBe(memoryBytes);
+    expect(lifecycleSuccess(await h.store.read({ reference: personalReference("personal/session-context", "dependent") })).content).toBe(sessionBytes);
+    expect(process.exitCode).toBeUndefined();
+  } finally { out.mockRestore(); process.chdir(originalCwd); process.exitCode = originalExit; }
+}, 30_000);

@@ -639,7 +639,7 @@
       "count": 1
     },
     "arc/surface-names": {
-      "count": 8
+      "count": 4
     },
     "jsdoc/require-jsdoc": {
       "count": 7
@@ -1782,9 +1782,6 @@
     }
   },
   "src/lib/user-reference-reconcile.ts": {
-    "arc/surface-names": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }
