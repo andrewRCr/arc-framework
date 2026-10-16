@@ -15,7 +15,7 @@ import {
   rollbackOrdinaryErrandResumeTransform,
   type OrdinaryErrandRecord,
 } from "./identity-transitions.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
 import {
   openOrdinaryErrandWithDisposition,
@@ -27,14 +27,14 @@ import {
   evaluateChangeRequestReentry,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandOperationResult } from "./operation-result.js";
 
 export interface OpenOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly cwd: string;
   readonly slug: string;
   readonly intent?: string;
-  readonly inbox: InspectedInboxEntry | null;
+  readonly inbox: ErrandInboxOrigin | null;
   readonly protection: "full" | "partial";
   readonly base: string;
   /** Whether a new Errand branch must first synchronize the configured local base. */
@@ -141,7 +141,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           const rolledBack = await transformStoreErrand({ ...options, store: options.store, companionWrites: companions }, record, (basis) => {
             const actual = basis.get(record.slug);
             if (actual === undefined) return { kind: "idempotent", value: null };
-            if (JSON.stringify(actual) !== JSON.stringify(record)) return { kind: "refused", reason: "Errand generation changed before rollback." };
+            if (serializeTransientIdentityRecord(actual) !== serializeTransientIdentityRecord(record)) return { kind: "refused", reason: "Errand generation changed before rollback." };
             return { kind: "applied", records: new Map(), value: null };
           }, true);
           return rolledBack.kind === "applied" || rolledBack.kind === "idempotent" ? { kind: "rolled-back" } : { kind: "generation-mismatch" };

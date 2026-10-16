@@ -1832,7 +1832,7 @@
   },
   "src/lib/user-sync/inbox-writer.ts": {
     "arc/surface-names": {
-      "count": 19
+      "count": 8
     },
     "sonarjs/cognitive-complexity": {
       "count": 1

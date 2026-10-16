@@ -2,13 +2,13 @@
 import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandOperationResult } from "./operation-result.js";
 import { linkOrdinaryErrand } from "./link.js";
 
 export interface LinkOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly slug: string;
-  readonly inbox: InspectedInboxEntry;
+  readonly inbox: ErrandInboxOrigin;
   readonly updatedAt: string;
   readonly identity: string;
   readonly exec: GitExec;

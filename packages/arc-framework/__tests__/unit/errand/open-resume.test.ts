@@ -317,6 +317,7 @@ describe.each([["paused", paused], ["awaiting-merge", awaiting]] as const)("%s r
 function newOpenFixture() {
   let record: OrdinaryErrandRecord | null = null;
   let provisioned = false;
+  let authority: unknown;
   const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
     kind: "free-primary", subject: null,
     checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
@@ -336,6 +337,7 @@ function newOpenFixture() {
       rollbackClaim: async () => { record = null; return { kind: "rolled-back" }; },
       provision: async (input) => {
         provisioned = true;
+        authority = input.authority;
         return { kind: "provisioned", receipt: {
           disposition: "applied", allocation: "primary", checkoutPath: "/repo",
           branch: { name: input.branch, created: input.branch !== null, head: HEAD,
@@ -347,9 +349,10 @@ function newOpenFixture() {
     },
   };
   return {
-    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection">> = {}) =>
+    run: (overrides: Partial<Pick<OpenOrdinaryErrandOptions, "slug" | "intent" | "protection" | "inbox">> = {}) =>
       openOrdinaryErrand({ ...options, ...overrides }),
     read: () => ({ record, provisioned }),
+    authority: () => authority,
   };
 }
 
@@ -393,4 +396,16 @@ describe("reserved Errand namespace protection modes", () => {
       allocation: { kind: "primary", checkoutPath: "/repo" } });
     expect(fixture.read()).toEqual({ record: null, provisioned: true });
   });
+});
+
+// The version arm must reach provisioning rather than becoming an unbound origin.
+it("binds partial store origins to their exact entry version", async () => {
+ const fixture = newOpenFixture();
+ await fixture.run({protection:"partial",inbox:{title:"project:12345678",sourceDigest:null,executeBound:false,version:"v1:1234567890abcdef"}});
+ expect(fixture.authority()).toEqual({kind:"partial-errand",key:"fix-output",originEntry:"project:12345678",originEntryVersion:"v1:1234567890abcdef"});
+});
+it("resumes a qualified-ID origin using the persisted null digest re-fed by materialization",async()=>{
+ const record=parseOrdinaryErrandRecord({...paused(),origin:"inbox",originEntry:"project:12345678",originEntrySourceDigest:null});
+ const {restoreErrandInboxOrigin}=await import("../../../src/lib/errand/inbox-origin.js");
+ expect(await resumeFixture(record).run({inbox:restoreErrandInboxOrigin(record.originEntry,record.origin==="inbox"?record.originEntrySourceDigest:null)})).toMatchObject({outcome:"applied",identity:{originEntry:"project:12345678",originEntrySourceDigest:null}});
 });

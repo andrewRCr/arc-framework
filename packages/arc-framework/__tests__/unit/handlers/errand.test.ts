@@ -10,6 +10,12 @@ import {
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
 describe("arc errand next result", () => {
+  it("preserves the queue provider's repair without substituting a legacy inbox instruction", () => {
+    const result = buildErrandNextResult({ kind: "refused", reason: "Queue record is conflicted", remedy: "Resolve the queue record, then retry." });
+    expect(result).toMatchObject({ state: "refused", remedy: "Resolve the queue record, then retry." });
+    expect(result.recommendedPromptText).toContain("Resolve the queue record, then retry.");
+  });
+
   it("projects available, empty, and refused queue reads without opening work", () => {
     const available = buildErrandNextResult({
       kind: "resolved",

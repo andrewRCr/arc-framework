@@ -1,5 +1,9 @@
 /** Identity-global inbox mutation through a selected Store and its write lock. */
 
+import { contentDigest } from "../../lib/canonical/content-digest.js";
+import { resolveEntryList } from "../../lib/inbox/lists.js";
+import { removeInboxEntry } from "../../lib/inbox/removal.js";
+import type { InboxContext } from "../../lib/inbox/types.js";
 import { createPersonalCommandStore, type PersonalCommandStoreOverrides } from "../../lib/store/personal-command-store.js";
 import type { Store } from "../../lib/store/contract.js";
 import { mutateStoreInbox } from "./inbox-store.js";
@@ -80,9 +84,20 @@ export async function runUserInboxMutation(
 
 /** Remove the unique current title while retaining exact under-lock digest qualification. */
 export async function removeCurrentInboxEntry(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store"> & { title: string },
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store"> & { title: string; entry?: { id: string; expectedVersion: string; list?: "personal" | "project" }; inboxContext?: InboxContext },
   dependencies: UserInboxMutationDependencies = {},
-): Promise<{ removed: boolean; postImage: UserInboxPostImage }> {
+): Promise<{ removed: boolean; postImage: UserInboxPostImage; disposition?: "removed" | "retained" | "absent"; foundVersion?: string }> {
+  if (options.inboxContext?.store.capabilities.stateOffBranch) {
+    if (options.entry === undefined) throw new Error("Use --id <id> --expected-version <version>; read arc inbox personal for the entry ID and version.");
+    const result = await removeInboxEntry({ list: options.entry.list ?? "personal", ...options.entry }, options.inboxContext);
+    if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
+    const after = await resolveEntryList(options.entry.list ?? "personal", options.inboxContext);
+    if (after.status === "refused") throw new Error(`${after.refusal.condition} ${after.refusal.remedy.text}`);
+    const saved = after.result.saved;
+    const postImage: UserInboxPostImage = saved === null ? { state: "missing", content: null, digest: null }
+      : { state: "present", content: saved.content, digest: contentDigest(Buffer.from(saved.content, "utf8")) };
+    return { removed: result.result.disposition === "removed", postImage, ...result.result };
+  }
   const transaction = await withLockedUserInbox(options, ({ content }) => {
     if (content === null) return { result: { removed: false } };
     let sourceDigest: InboxEntryMutation["sourceDigest"];

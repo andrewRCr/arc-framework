@@ -14,10 +14,16 @@
  */
 
 import { runStoreErrandOverlap } from "../lib/errand/store-overlap.js";
+import { resolveQueueExecutionOffer, QueueOfferProblemSchema, type QueueExecutionOffer } from "../lib/inbox/offer.js";
+import { prepareHandlerErrandAdoption, completePartialQueueDrop, prepareHandlerErrandReturn, settleStorePartialCapture, reportPriorErrand } from "./errand-entry-storage.js";
+import { prepareErrandReturn } from "../lib/inbox/errand-return.js";
+import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/inbox-origin.js";
+
+
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 import * as p from "../lib/terminal.js";
 import { z } from "zod";
@@ -66,6 +72,7 @@ import { settlePartialErrandAtRuntime } from "../lib/errand/partial-settle-runti
 import { abandonOrdinaryErrandAtRuntime } from "../lib/errand/abandon-runtime.js";
 import {
   completeErrandTerminalResult,
+  ErrandTerminalResultSchema,
   createErrandTerminalResult,
   createTerminalOperationOutcome,
   ErrandTerminalGenerationSchema,
@@ -97,7 +104,7 @@ import {
 } from "../lib/errand/result-common.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import { resolveArcRoot } from "../lib/paths.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema, type CanonicalDigest } from "../lib/kernel/index.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   InboxMutationConflictError,
@@ -109,7 +116,7 @@ import {
   type ExecutionOfferResolution,
   type ExecutionStartupOfferResolution,
 } from "../lib/user-sync/execution-offer.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { resolveArcPath } from "../lib/layout/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -142,6 +149,8 @@ const ErrandNextOfferSchema = z.strictObject({
 /** Typed queue-head result consumed by `arc-session --errand --next`. */
 export const ErrandNextResultSchema = z.discriminatedUnion("state", [
   z.strictObject({
+    leftOut: z.array(QueueOfferProblemSchema).optional(),
+    skipped: z.array(QueueOfferProblemSchema).optional(),
     schemaVersion: z.literal(1),
     mode: z.literal("errand-next"),
     state: z.literal("available"),
@@ -150,6 +159,8 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
+    leftOut: z.array(QueueOfferProblemSchema).optional(),
+    skipped: z.array(QueueOfferProblemSchema).optional(),
     schemaVersion: z.literal(1),
     mode: z.literal("errand-next"),
     state: z.literal("empty"),
@@ -158,6 +169,8 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
+    leftOut: z.array(QueueOfferProblemSchema).optional(),
+    skipped: z.array(QueueOfferProblemSchema).optional(),
     schemaVersion: z.literal(1),
     mode: z.literal("errand-next"),
     state: z.literal("refused"),
@@ -174,9 +187,10 @@ export type ErrandNextResult = z.infer<typeof ErrandNextResultSchema>;
 /** Project one queue read into the closed startup-selection contract. */
 export function buildErrandNextResult(
   resolution: ExecutionStartupOfferResolution,
-  refusalRemedy = "Repair the reported `USER-INBOX` condition.",
+  refusalRemedy?: string,
 ): ErrandNextResult {
   if (resolution.kind === "refused") {
+    const remedy = refusalRemedy ?? resolution.remedy ?? "Repair the reported `USER-INBOX` condition.";
     return ErrandNextResultSchema.parse({
       schemaVersion: 1,
       mode: "errand-next",
@@ -184,16 +198,17 @@ export function buildErrandNextResult(
       nextAction: "stop",
       nextOffer: null,
       reason: resolution.reason,
-      remedy: refusalRemedy,
+      remedy,
       retryCommand: "arc errand next --json",
       recommendedPromptText: "The execute-bound Errand queue could not be read safely: "
-        + `${resolution.reason} ${refusalRemedy} Retry with \`arc errand next --json\`.`,
+        + `${resolution.reason} ${remedy} Retry with \`arc errand next --json\`.`,
     });
   }
   if (resolution.nextOffer === null) {
     return ErrandNextResultSchema.parse({
       schemaVersion: 1,
       mode: "errand-next",
+      ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
       state: "empty",
       nextAction: "none",
       nextOffer: null,
@@ -203,6 +218,7 @@ export function buildErrandNextResult(
   return ErrandNextResultSchema.parse({
     schemaVersion: 1,
     mode: "errand-next",
+    ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
     state: "available",
     nextAction: "open-errand",
     nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
@@ -361,7 +377,7 @@ function formatTerminalResult(
 
 function partialCaptureSettlement(
   authority: ErrandTerminalAuthority | null,
-  disposition: "removed" | "retained",
+  disposition: "removed" | "retained" | "absent",
 ): NonNullable<TerminalProjection["evidence"]>["settlement"] {
   const origin = authority?.kind === "authorized" ? authority.row?.origin ?? null : null;
   return {
@@ -678,30 +694,14 @@ async function runErrandOpenHandler(
     return;
   }
 
-  let inbox: ReturnType<typeof inspectInboxEntry> | null = null;
-  if (
-    input.fromInbox !== undefined
-    || input.inboxTitleFile !== undefined
-    || input.inboxEntryFile !== undefined
-  ) {
-    try {
-      const adoption = await resolveLiveInboxAdoption({
-        cwd,
-        io,
-        identity,
-        literal: input.fromInbox,
-        file: input.inboxTitleFile ?? input.inboxEntryFile,
-      });
-      inbox = adoption;
-    } catch (err) {
-      emitErrandOpenFailure(
-        "locus.errand-open.inbox",
-        err instanceof Error ? err.message : String(err),
-        opts.json === true,
-      );
-      return;
-    }
-  }
+  const store = openDefaultStore(cwd, io.exec);
+  const inboxContext = { store, identity, now: () => new Date() };
+  let adoption: import("./errand-entry-storage.js").HandlerErrandAdoption;
+  try {
+    adoption = await prepareHandlerErrandAdoption({ slug, literal: input.fromInbox, file: input.inboxTitleFile ?? input.inboxEntryFile, intent: opts.intent, partial: protection === "partial" }, inboxContext,
+      () => resolveLiveInboxAdoption({ cwd, io, identity, literal: input.fromInbox, file: input.inboxTitleFile ?? input.inboxEntryFile }));
+  } catch (error) { emitErrandOpenFailure("locus.errand-open.inbox", error instanceof Error ? error.message : String(error), opts.json === true); return; }
+  const { origin: inbox, writes: entryWrites } = adoption;
 
   const primaryPath = await resolvePrimaryWorktreePath(io.exec);
   if (primaryPath === null) {
@@ -713,17 +713,19 @@ async function runErrandOpenHandler(
     }), opts.json === true);
     return;
   }
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
-    exec: io.exec,
-  }))
-    .identityGlobalRoot;
+  const identityGlobalUserDir = join(primaryPath, resolveArcPath({ kind: "user-root", identity: SlugSchema.parse(identity) }));
   const createdAt = new Date().toISOString();
   let result: ErrandOperationResult;
   try {
     result = await openOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+      store,
+      companionWrites: entryWrites,
+      provenanceVerb: "errand-open",
+      rollbackCompanionWrites: async () => {
+        const returned = await prepareErrandReturn(slug, inboxContext);
+        if (returned.status === "refused") throw new Error(`${returned.refusal.condition} ${returned.refusal.remedy.text}`);
+        return returned.result.writes;
+      },
       cwd,
       slug,
       intent: opts.intent,
@@ -751,7 +753,8 @@ async function runErrandOpenHandler(
       recommendedPromptText: "Inspect the retained identity or session locus evidence before retrying.",
     });
   }
-  emitErrandOpenResult(result, opts.json === true);
+  result = await completePartialQueueDrop(result, protection === "partial", entryWrites, inboxContext);
+  emitErrandOpenResult(reportPriorErrand(result, adoption.closed), opts.json === true);
 }
 
 export function formatErrandOpenResult(
@@ -883,15 +886,18 @@ export async function handleErrandLink(
     return;
   }
 
-  let inbox: ReturnType<typeof inspectInboxEntry>;
+  const store = openDefaultStore(cwd, io.exec);
+  const inboxContext = { store, identity, now: () => new Date() };
+  let entryWrites: import("../lib/store/write.js").Mutation[];
+  let inbox: ErrandInboxOrigin;
+  let closedHome: string | undefined;
   try {
-    inbox = await resolveLiveInboxAdoption({
-      cwd,
-      io,
-      identity,
-      literal: input.fromInbox,
-      file: input.inboxTitleFile ?? input.inboxEntryFile,
-    });
+    const adoption = await prepareHandlerErrandAdoption({ slug, literal: input.fromInbox, file: input.inboxTitleFile ?? input.inboxEntryFile }, inboxContext,
+      () => resolveLiveInboxAdoption({ cwd, io, identity, literal: input.fromInbox, file: input.inboxTitleFile ?? input.inboxEntryFile }));
+    if (adoption.origin === null) throw new Error("An inbox origin is required.");
+    inbox = adoption.origin;
+    entryWrites = adoption.writes;
+    closedHome = adoption.closed;
   } catch (err) {
     emitErrandLinkFailure(
       "locus.errand-link.inbox",
@@ -904,7 +910,9 @@ export async function handleErrandLink(
   let result: ErrandOperationResult;
   try {
     result = await linkOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+      store,
+      companionWrites: entryWrites,
+      provenanceVerb: "errand-link",
       slug,
       inbox,
       updatedAt: new Date().toISOString(),
@@ -920,7 +928,7 @@ export async function handleErrandLink(
       recommendedPromptText: "Re-read the inbox and identity evidence before retrying.",
     });
   }
-  emitErrandLinkResult(result, opts.json === true);
+  emitErrandLinkResult(reportPriorErrand(result, closedHome), opts.json === true);
 }
 
 export function formatErrandLinkResult(
@@ -1072,20 +1080,12 @@ export async function handleErrandMaterialize(
       }
         const primaryPath = await resolvePrimaryWorktreePath(io.exec);
         if (primaryPath === null) throw new Error("Primary checkout is unavailable");
-        const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-          cwd,
-          identity: SlugSchema.parse(identity),
-          exec: io.exec,
-        })).identityGlobalRoot;
+        const identityGlobalUserDir = join(primaryPath, resolveArcPath({ kind: "user-root", identity: SlugSchema.parse(identity) }));
         const execution = await openOrdinaryErrandAtRuntimeWithDisposition({
       store: openDefaultStore(cwd, io.exec),
           cwd,
           slug: parsed.data.slug,
-          inbox: record.originEntry === null ? null : {
-            title: record.originEntry,
-            sourceDigest: record.originEntrySourceDigest as CanonicalDigest,
-            executeBound: false,
-          },
+          inbox: restoreErrandInboxOrigin(record.originEntry, record.origin === "inbox" ? record.originEntrySourceDigest : null),
           protection: "full",
           syncBase: false,
           isolation: "require-isolation",
@@ -1389,6 +1389,10 @@ async function runErrandCloseHandler(
     return;
   }
 
+  const store = openDefaultStore(cwd, io.exec);
+  const inboxContext = { store, identity, now: () => new Date() };
+  let captureDisposition: "removed" | "retained" | "absent" = "absent";
+  const queueReport: { value: QueueExecutionOffer | null } = { value: null };
   let result: TerminalOperationOutcome;
   let observedAuthority: ErrandTerminalAuthority | null = null;
   try {
@@ -1402,6 +1406,14 @@ async function runErrandCloseHandler(
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
+          if (store.capabilities.stateOffBranch) {
+            const origin = observedAuthority?.kind === "authorized" ? observedAuthority.row?.origin : null;
+            const settled = await settleStorePartialCapture({ ...binding, ...(origin !== null && origin !== undefined && "sourceDigest" in origin ? { originEntrySourceDigest: origin.sourceDigest } : {}) }, inboxContext);
+            captureDisposition = settled.disposition;
+            queueReport.value = settled.offer;
+            return settled.outcome;
+          }
+
           if (binding.originEntry === null) {
             const offer = await resolveCurrentExecutionNextOffer({
               cwd,
@@ -1428,7 +1440,7 @@ async function runErrandCloseHandler(
       });
     } else {
       result = await closeOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+      store,
         slug,
         base,
         protection: "full",
@@ -1439,6 +1451,13 @@ async function runErrandCloseHandler(
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         removeInbox: async (record, parentCheckoutPath, settlementCheckoutPath) => {
+          if (store.capabilities.stateOffBranch) {
+            const offer = await resolveQueueExecutionOffer(inboxContext, parentCheckoutPath);
+            if (offer.status === "refused") return { kind: "refused", reason: offer.refusal.condition };
+            queueReport.value = offer.result;
+            return { kind: "absent", nextOffer: offer.result.nextOffer };
+          }
+
           const inboxCwd = settlementCheckoutPath ?? parentCheckoutPath ?? cwd;
           if (record.originEntry === null) {
             const offer = await resolveCurrentExecutionNextOffer({
@@ -1485,17 +1504,18 @@ async function runErrandCloseHandler(
   const projection = prepareTerminalProjection({
     authority: observedAuthority,
     settlement: protection === "partial"
-      ? partialCaptureSettlement(observedAuthority, "removed")
+      ? partialCaptureSettlement(observedAuthority, store.capabilities.stateOffBranch ? captureDisposition : "removed")
       : {
           kind: "capture",
-          disposition: terminalIdentity?.originEntry === null ? "absent" : "removed",
+          disposition: store.capabilities.stateOffBranch || terminalIdentity?.originEntry === null ? "absent" : "removed",
           originEntry: terminalIdentity?.originEntry ?? null,
           originEntrySourceDigest: terminalIdentity?.origin === "inbox"
             ? terminalIdentity.originEntrySourceDigest
             : null,
         },
   });
-  emitErrandCloseResult(completeErrandTerminalResult({ result, ...projection }), opts.json === true);
+  const completed = completeErrandTerminalResult({ result, ...projection });
+  emitErrandCloseResult(queueReport.value === null ? completed : ErrandTerminalResultSchema.parse({ ...completed, leftOut: queueReport.value.leftOut, skipped: queueReport.value.skipped }), opts.json === true);
 }
 
 async function resolveCurrentExecutionNextOffer(options: {
@@ -1505,6 +1525,11 @@ async function resolveCurrentExecutionNextOffer(options: {
   completedTitle: string | null;
   parentCheckoutPath: string | null;
 }): Promise<ExecutionOfferResolution> {
+  const store = openDefaultStore(options.cwd, options.io.exec);
+  if (store.capabilities.stateOffBranch) {
+    const offer = await resolveQueueExecutionOffer({ store, identity: options.identity, now: () => new Date() }, options.parentCheckoutPath);
+    return offer.status === "refused" ? { kind: "refused", reason: offer.refusal.condition, remedy: offer.refusal.remedy.text } : { kind: "resolved", ...offer.result };
+  }
   const { postImage } = await withLockedUserInbox(
     { cwd: options.cwd, io: options.io, identity: options.identity },
     () => ({ result: null }),
@@ -1523,6 +1548,11 @@ async function resolveCurrentExecutionStartupOffer(options: {
   identity: string;
   parentCheckoutPath: string | null;
 }): Promise<ExecutionStartupOfferResolution> {
+  const store = openDefaultStore(options.cwd, options.io.exec);
+  if (store.capabilities.stateOffBranch) {
+    const offer = await resolveQueueExecutionOffer({ store, identity: options.identity, now: () => new Date() }, options.parentCheckoutPath);
+    return offer.status === "refused" ? { kind: "refused", reason: offer.refusal.condition, remedy: offer.refusal.remedy.text } : { kind: "resolved", ...offer.result };
+  }
   const { postImage } = await withLockedUserInbox(
     { cwd: options.cwd, io: options.io, identity: options.identity },
     () => ({ result: null }),
@@ -1650,9 +1680,12 @@ async function runErrandAbandonHandler(
     );
     return;
   }
+  const store = openDefaultStore(cwd, io.exec);
+  let returnPlan: import("../lib/inbox/errand-return.js").ErrandReturn | null = null;
   let result: TerminalOperationOutcome;
   let observedAuthority: ErrandTerminalAuthority | null = null;
   try {
+    returnPlan = await prepareHandlerErrandReturn(input.slug, protection, { store, identity, now: () => new Date() });
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
         slug: input.slug,
@@ -1663,6 +1696,7 @@ async function runErrandAbandonHandler(
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
+          if (store.capabilities.stateOffBranch) return { kind: "idempotent", nextOffer: null };
           if (binding.originEntry === null) {
             return { kind: "idempotent", nextOffer: null };
           }
@@ -1677,7 +1711,9 @@ async function runErrandAbandonHandler(
       });
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+      store,
+        companionWrites: returnPlan?.writes,
+        provenanceVerb: "errand-abandon",
         slug: input.slug,
         protection: "full",
         base,
@@ -1688,6 +1724,7 @@ async function runErrandAbandonHandler(
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         clearExecuteBound: async (record, settlementCheckoutPath) => {
+          if (store.capabilities.stateOffBranch) return { kind: "idempotent" };
           if (record.originEntry === null) return { kind: "idempotent" };
           const cleared = await unmarkCurrentInboxEntry({
             cwd: settlementCheckoutPath,
@@ -1707,6 +1744,7 @@ async function runErrandAbandonHandler(
       recommendedPromptText: "Inspect the retained Errand identity, residue, refs, and inbox binding before retrying.",
     });
   }
+  if (returnPlan !== null && returnPlan.held.length > 0) result = { ...result, recommendedPromptText: `${result.recommendedPromptText} Entries retained by ${returnPlan.held.map(held => `${held.errand} (${held.id})`).join(", ")}.` };
   const terminalIdentity = ordinaryOutcomeIdentity(result);
   const projection = prepareTerminalProjection({
     authority: observedAuthority,
@@ -1714,7 +1752,7 @@ async function runErrandAbandonHandler(
       ? partialCaptureSettlement(observedAuthority, "retained")
       : {
           kind: "capture",
-          disposition: terminalIdentity?.originEntry === null ? "absent" : "retained",
+          disposition: returnPlan?.disposition ?? (terminalIdentity?.originEntry === null ? "absent" : "retained"),
           originEntry: terminalIdentity?.originEntry ?? null,
           originEntrySourceDigest: terminalIdentity?.origin === "inbox"
             ? terminalIdentity.originEntrySourceDigest

@@ -12,6 +12,7 @@
  * @module
  */
 
+import { PERSONAL_INBOX_LABEL } from "../store/kinds/personal-inbox.js";
 import { matchInboxEntryTitle } from "../store/kinds/entry-fields.js";
 import { contentDigest } from "../canonical/content-digest.js";
 import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
@@ -107,7 +108,7 @@ function locateInboxEntriesResilient(
     const next = headings[offset + 1];
     while (end < lines.length && end !== next?.index && !isSectionBoundary(lines[end] ?? "")) end++;
     if (title === null) {
-      diagnostics.push(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
+      diagnostics.push(`Malformed ${PERSONAL_INBOX_LABEL} entry heading: ${heading.line.trim()}`);
       continue;
     }
     entries.push({ start: heading.index, end, title, section: heading.section });
@@ -200,7 +201,7 @@ function executeBoundMark(
     || body[1] !== DISPOSITION_LINE
   ) {
     throw new Error(
-      `Malformed USER-INBOX disposition fields for '${entry.title}': `
+      `Malformed ${PERSONAL_INBOX_LABEL} disposition fields for '${entry.title}': `
       + `${dispositionDefect(body, dispositionIndices, dispatchIndices)}.`,
     );
   }
@@ -260,8 +261,8 @@ export function inboxEntrySourceDigest(content: string, title: string): Canonica
   const matches = locateInboxEntries(lines).filter((entry) => entry.title === title.trim());
   if (matches.length !== 1) {
     throw new Error(matches.length === 0
-      ? `Missing USER-INBOX entry '${title.trim()}'.`
-      : `Duplicate USER-INBOX entry title '${title.trim()}'.`);
+      ? `Missing ${PERSONAL_INBOX_LABEL} entry '${title.trim()}'.`
+      : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title.trim()}'.`);
   }
   return unboundDigest(lines, matches[0] as LocatedInboxEntry);
 }
@@ -273,8 +274,8 @@ export function inspectInboxEntry(content: string, title: string): InspectedInbo
   const matches = locateInboxEntries(lines).filter((entry) => entry.title === normalizedTitle);
   if (matches.length !== 1) {
     throw new Error(matches.length === 0
-      ? `Missing USER-INBOX entry '${normalizedTitle}'.`
-      : `Duplicate USER-INBOX entry title '${normalizedTitle}'.`);
+      ? `Missing ${PERSONAL_INBOX_LABEL} entry '${normalizedTitle}'.`
+      : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${normalizedTitle}'.`);
   }
   const entry = matches[0] as LocatedInboxEntry;
   return {
@@ -347,8 +348,8 @@ export function markInboxEntriesExecuteBoundInOrder(
     const matches = entries.filter((entry) => entry.title === title);
     if (matches.length !== 1) {
       throw new Error(matches.length === 0
-        ? `Missing USER-INBOX entry '${title}'.`
-        : `Duplicate USER-INBOX entry title '${title}'.`);
+        ? `Missing ${PERSONAL_INBOX_LABEL} entry '${title}'.`
+        : `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title}'.`);
     }
     const entry = matches[0] as LocatedInboxEntry;
     if (entry.section !== "Errand") {
@@ -418,12 +419,12 @@ export function mutateInboxEntries(
         outcomes.push({ title, state: "already-applied" });
         continue;
       }
-      throw new Error(`Missing USER-INBOX entry '${title}'.`);
+      throw new Error(`Missing ${PERSONAL_INBOX_LABEL} entry '${title}'.`);
     }
     if (matches.length !== 1) {
       throw new InboxMutationConflictError(
         "duplicate-entry-title",
-        `Duplicate USER-INBOX entry title '${title}'.`,
+        `Duplicate ${PERSONAL_INBOX_LABEL} entry title '${title}'.`,
       );
     }
     const entry = matches[0] as LocatedInboxEntry;
@@ -585,7 +586,7 @@ function removeInboxEntryGeneration(
   if (expectedSourceDigest !== undefined) {
     const matches = locateInboxEntries(lines).filter((entry) => entry.title === target);
     if (matches.length === 0) return { content, removed: false };
-    if (matches.length !== 1) throw new Error(`Duplicate USER-INBOX entry title '${target}'.`);
+    if (matches.length !== 1) throw new Error(`Duplicate ${PERSONAL_INBOX_LABEL} entry title '${target}'.`);
     const entry = matches[0] as LocatedInboxEntry;
     if (unboundDigest(lines, entry) !== expectedSourceDigest) {
       throw new Error(`USER-INBOX source digest changed for '${target}'.`);

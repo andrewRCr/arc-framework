@@ -4,6 +4,9 @@
  * @module
  */
 
+import { handleStoreInboxRemove } from "./user-inbox-remove-store.js";
+import { inboxOutput, type InboxHandlerPorts } from "./inbox-runtime.js";
+
 import { access, readFile } from "node:fs/promises";
 
 import * as p from "../lib/terminal.js";
@@ -404,7 +407,9 @@ export async function handleUserInboxRemove(
   literal: string | undefined,
   opts: UserInboxRemoveOptions,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<void> {
+  if (await handleStoreInboxRemove(literal, opts, context, ports)) return;
   p.intro("arc user inbox-remove");
 
   const parsed = UserInboxRemoveInputSchema.safeParse({ literal, ...opts });
@@ -495,6 +500,7 @@ export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state
     schemaVersion: z.literal(1),
     mode: z.literal("user-inbox-mark-execute-bound"),
     state: z.literal("refused"),
+    code: z.literal("unsupported").optional(),
     nextAction: z.literal("stop"),
     diagnostics: z.array(z.string()).min(1),
     payload: z.null(),
@@ -507,7 +513,15 @@ type UserInboxMarkExecuteBoundResult = z.infer<typeof UserInboxMarkExecuteBoundR
 export async function handleUserInboxMarkExecuteBound(
   input: string,
   context?: InteractionContext,
+  ports: InboxHandlerPorts = {},
 ): Promise<void> {
+  const store = ports.store ?? createStore(createDefaultStorePorts({ checkoutRoot: ports.cwd ?? process.cwd(), exec: createGitExec(context?.subprocess) }));
+  if (store.capabilities.stateOffBranch) {
+    const result = { schemaVersion: 1, mode: "user-inbox-mark-execute-bound", state: "refused", nextAction: "stop", code: "unsupported", diagnostics: ["This title-keyed queue write is unsupported; use arc errand queue set."], payload: null };
+    const output = inboxOutput(ports);
+    output.exit(1); output.stdout(`${JSON.stringify(UserInboxMarkExecuteBoundResultSchema.parse(result))}\n`);
+    return;
+  }
   const operand = UserInboxMarkExecuteBoundCommandInputSchema.safeParse({ input });
   if (!operand.success) {
     emitUserInboxMarkExecuteBound({
@@ -903,6 +917,8 @@ export const userCommandInputRegistrations = [
     schema: UserInboxRemoveInputSchema,
     schemaFields: {
       "operand.slug": "literal",
+      "option.id": "id",
+      "option.expected-version": "expectedVersion",
       "option.inbox-title-file": "inboxTitleFile",
       "option.inbox-entry-file": "inboxEntryFile",
     },

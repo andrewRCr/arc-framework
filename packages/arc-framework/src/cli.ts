@@ -1355,6 +1355,8 @@ userCmd
 
 userCmd
   .command("inbox-remove [slug]")
+  .option("--id <id>", "Entry ID from arc inbox personal")
+  .option("--expected-version <version>", "Exact entry version observed when listing")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")

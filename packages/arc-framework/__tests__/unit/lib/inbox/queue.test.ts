@@ -1,0 +1,51 @@
+/** Queue setters preserve unchanged entry ranks and merge independent member moves. */
+import { describe, expect, it } from "vitest";
+import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
+import { success } from "../../../helpers/store/suite-tools.js";
+import { listErrandQueue, setErrandQueue } from "../../../../src/lib/inbox/queue.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
+
+const request = (...ids: string[]) => ({ schemaVersion: 1, members: ids.map((id) => ({ id, inbox: "personal" })) });
+describe("identity Errand queue", () => {
+  it("sets, shows rank order, and moves only the member outside the earliest longest subsequence", async () => {
+    const h = createInboxHarness(); await h.inbox("personal", [entry("11111111", "One"), entry("22222222", "Two"), entry("33333333", "Three")].join("\n\n"));
+    const initial = await setErrandQueue(request("11111111", "22222222", "33333333"), h.context);
+    expect(initial).toMatchObject({ state: "set", members: [{ id: "11111111" }, { id: "22222222" }, { id: "33333333" }] });
+    if (initial.state === "refused") return;
+    const changed = await setErrandQueue(request("22222222", "11111111", "33333333"), h.context);
+    if (changed.state === "refused") throw new Error(changed.reason);
+    expect(changed.members.map(({ id }) => id)).toEqual(["22222222", "11111111", "33333333"]);
+    expect(changed.members.find(({ id }) => id === "11111111")?.rank).toBe(initial.members[0]?.rank);
+    expect(changed.members.find(({ id }) => id === "33333333")?.rank).toBe(initial.members[2]?.rank);
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "listed", members: changed.members });
+  });
+  it("refuses both inboxes' entries of one ID; choosing one then succeeds", async () => {
+    const h = createInboxHarness(); await h.inbox("personal"); await h.inbox("project");
+    const members = [{ inbox: "personal", id: "12345678" }, { inbox: "project", id: "12345678" }];
+    expect(await setErrandQueue({ schemaVersion: 1, members }, h.context)).toMatchObject({ state: "refused", reason: expect.stringContaining("personal:12345678"), remedy: { text: expect.stringContaining("project:12345678") } });
+    expect(await setErrandQueue({ schemaVersion: 1, members: members.slice(0, 1) }, h.context)).toMatchObject({ state: "set", members: [{ inbox: "personal", id: "12345678" }] });
+  });
+  it("keeps ranks in the stored bytes of untouched queue entries", async () => {
+    const h = createInboxHarness(); await h.inbox("personal", [entry("11111111"), entry("22222222")].join("\n\n"));
+    await setErrandQueue(request("11111111"), h.context);
+    const ref = recordReferences["personal/errand-queue"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" }));
+    const before = success(await h.context.store.read({ reference: ref }));
+    await setErrandQueue(request("11111111", "22222222"), h.context);
+    const after = success(await h.context.store.read({ reference: ref }));
+    expect(after.content).toContain(before.content.trim());
+  });
+});
+
+it("merges independent whole-queue moves and conflicts only when both writers change one member", async () => {
+  const h = createInboxHarness();
+  await h.inbox("personal", ["11111111", "22222222", "33333333", "44444444"].map((id) => entry(id, id)).join("\n\n"));
+  await setErrandQueue(request("11111111", "22222222", "33333333", "44444444"), h.context);
+  await Promise.all([setErrandQueue(request("22222222", "11111111", "33333333", "44444444"), h.context), setErrandQueue(request("11111111", "22222222", "44444444", "33333333"), h.context)]);
+  const shown = await listErrandQueue(h.context);
+  if (shown.state === "refused") throw new Error(shown.reason);
+  expect(shown.members.map(({ id }) => id)).toEqual(["22222222", "11111111", "44444444", "33333333"]);
+  const ref = recordReferences["personal/errand-queue"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" }));
+  expect(success(await h.context.store.read({ reference: ref })).conflicts).toEqual([]);
+  await Promise.all([setErrandQueue(request("44444444", "22222222", "11111111", "33333333"), h.context), setErrandQueue(request("22222222", "44444444", "11111111", "33333333"), h.context)]);
+  expect(success(await h.context.store.read({ reference: ref })).conflicts).toHaveLength(1);
+});

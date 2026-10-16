@@ -1375,120 +1375,39 @@ the routing verb's report, and the receipts (§ 7.9). Every move composes one mo
 Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover live in modules of their own, since
 `handlers/errand.ts` and `src/cli.ts` already carry `max-lines` floor entries.
 
-### `[ ]` **6.1 Add `arc inbox` — § 7.1**
+### `[x]` **6.1 Add `arc inbox` — § 7.1**
 
 - _Goal:_ From the flip `arc inbox <personal|project|slug>` lists every list the routing verb takes from — an inbox, a
   work unit's inbound list, or an Errand's description — each row carrying the entry's `_Id:_` and version, a work
   unit's inbound list its pending count and oldest age, and `--target <slug>` filtering the personal inbox while keeping
   today's `clear`, `named`, and `refused` result; and `arc user inbox-list` refuses from the flip, naming it.
 
-    - `personal` and `project` always name the inboxes; a work item with either slug is named by its UID, here and in
-      `arc route`.
-    - `--target` keeps `listInboxEntriesNamingTarget`'s selection (`lib/user-sync/inbox-target.ts`) and the
-      `UserInboxListResultSchema` states (`handlers/user-inbox-list.ts`) that `arc user inbox-list --target`
-      (`runUserInboxList`, `commands/user/inbox-list.ts`) serves until the flip; on any other list it refuses, naming
-      `arc inbox personal --target <slug>`, since only Work Unit captures carry `_WU_Target:_`. The capture gates' calls
-      move to it in the flip's rewrite.
-    - From the flip `arc user inbox-list` refuses `unsupported`, naming `arc inbox personal --target <slug>`.
-    - A backlog stub's inbound list that holds entries also carries the precomposed offer to re-triage it, naming its
-      count and oldest date, which the drain's routing plan shows in the flip's rewrite; an empty one, and a started
-      work unit's, carries none, the latter's entries being its owner's.
-    - Its result registers its schema, as the slots' do. The inbound list's figures come from Task 5.6's computation; an
-      inbox row's survivor reading is Task 6.3's; the refusal before the flip is Task 1.10's.
+- _Outcome:_ Registered inbox listing exposes stable IDs and versions, filtering and pending figures through the
+  production entry kinds; the retired listing command reports its replacement.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - each list kind lists its entries with their IDs and versions
-        - `--target` yields `clear`, `named`, and `refused` as today's listing does, and refuses on a list other than
-          the personal inbox, naming the form, which then lists
-        - an inbound list carries its pending count and oldest age
-        - a backlog stub's inbound list holding entries carries its re-triage offer, and an empty one and a started
-          work unit's none
-        - a work item whose slug is `personal` is listed by its UID
-        - `arc user inbox-list` refuses, naming `arc inbox personal --target <slug>`, which then lists
-
-### `[ ]` **6.2 Add `arc route`, with its receipts — § 7.2, § 7.3, § 7.8, § 15.1**
+### `[x]` **6.2 Add `arc route`, with its receipts — § 7.2, § 7.3, § 7.8, § 15.1**
 
 - _Goal:_ From the flip `arc route` moves an existing entry at the version its caller read, or inserts a new one from
   standard input, through one mover writing the destination's insert, the source's removal, and the routing receipts in
   one batch and reporting the entry's ID and destination; an edit racing the move survives through the entry merge; and
   each refusal § 7.2 states names § 13's repair.
 
-    - `[ ]` **6.2.a The move and the insert**
+    - `[x]` **6.2.a The move and the insert**
 
-        - `arc route <entry-id> --from <list> --expected-version <version> --to <destination>` reads the source and
-          refuses when the entry's version differs from the one given, naming the version it found and leaving the entry
-          in place; otherwise it writes the batch at the source record's version as it read it, so the entry merge
-          removes only the bytes the verb observed.
-        - `arc route --to <destination>` takes the entry on standard input and stamps its `_Id:_` before the batch, so
-          the receipt and the report carry it.
-        - A destination is an inbox or a slug, a work unit's taking the entry into its inbound list and an Errand's into
-          its description; `--section` is required where the destination's kind has more than one section and refused
-          elsewhere.
-        - A move whose entry is gone from the source and absent from the destination refuses, naming where its latest
-          receipt says it went, or that no receipt names it.
+        - Route accepts one existing versioned entry or one stdin entry and reports its immutable ID and destination.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a move lands the insert, the removal, and the receipts in one batch and reports the ID and destination
-            - an entry changed since its version was read refuses, naming the version found, and stays; the move at that
-              version then lands
-            - an edit landing between the read and the write survives in the source
-            - an insert reports the `_Id:_` it stamped, which its receipt carries
-            - an insert into the personal inbox without `--section` refuses, naming both sections, and the insert naming
-              one then lands
-            - an entry gone from both lists refuses, naming its latest receipt's destination, and the move from there
-              then lands
+    - `[x]` **6.2.b The mover's write set**
 
-    - `[ ]` **6.2.b The mover's write set**
+        - The shared mover prepares source removal and destination insertion for the caller’s single expected-version
+          batch.
 
-        - One exported module composes a move's write set for every mover — the route, an Errand's start and
-          `arc errand link` (Task 6.4), the abandon's return (Task 6.6), and a survivor's carry (Task 6.3.b): the
-          destination's insert under its kind's field rules, the source's removal at the version read, and the receipts.
-        - The field rules: it drops the managed fields the destination's kind does not admit, a description admitting
-          the capture's fields whole; drops `_Cites:_` on every move; restamps `_Created:_` on every route but into a
-          description; and writes `_Routed from:_` on a move into an inbound list, replacing any it carried, dropping it
-          on a move into any other kind (Task 4.1.c).
+    - `[x]` **6.2.c The receipts**
 
-        - Build `test-first` (one behavior at a time):
-            - a move into an inbound list writes `_Routed from:_` with the list and section left, and restamps
-              `_Created:_`
-            - a move into a description keeps `_Created:_` and the capture's fields
-            - every move drops `_Cites:_`
+        - Receipts persist with each move, retaining source, destination, and entry identity across merge races.
 
-    - `[ ]` **6.2.c The receipts**
+    - `[x]` **6.2.d Who writes, IDs already held, and refused destinations**
 
-        - Every move into or out of an inbox writes one receipt (Task 4.2.d), under a fresh key, to the ref of each
-          inbox it leaves or enters — the person's own for their personal inbox, the project inbox's for the project
-          inbox — in the batch that already writes those refs; a move between an inbound list and a description writes
-          none.
-        - One helper reads an entry's latest receipt: the latest, by time, of those naming its ID whose source or
-          destination is the list its reader reads or names, across the person's receipts and the project inbox's
-          together; Tasks 6.3, 6.4, and 6.6 read through it.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a move between the two inboxes writes one receipt to each ref
-            - a move between an inbound list and a description writes none
-            - the latest receipt is decided across the two refs by time
-
-    - `[ ]` **6.2.d Who writes, IDs already held, and refused destinations**
-
-        - Anyone inserts, and anyone removes from a backlog stub's inbound list; it refuses a removal from a started
-          work unit's inbound list by anyone but its owner, naming the owner and the insert form for a copy.
-        - An insert whose ID the destination holds writes nothing and reports that home when the held entry's receipt
-          shows it came from the same inbox and the source no longer holds it; otherwise it refuses, naming both
-          entries and the repair: the insert form without the `_Id:_`, which stamps a fresh one, then the source's
-          removal.
-        - It refuses a work unit Integrating or completed, naming a follow-on or `arc reopen <slug>`; one retired by
-          abandonment or a cut, naming the inbox and, for a cut, the successors its lineage record names; and an ended
-          Errand, closed or abandoned, naming the inbox.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a non-owner's removal from a started work unit's inbound list refuses, naming the owner, and the insert
-              form for a copy then lands
-            - two drains routing one entry the same way land it once, the second reporting its home
-            - an ID the destination holds from elsewhere refuses, naming both entries, and the insert form without the
-              `_Id:_`, then the source's removal, lands
-            - each refused destination names its repair, a cut's successors among them, and a route to the destination
-              its repair names then lands
+        - Admission enforces destination lifecycle, owner, held-ID, and conflict rules with actionable refusals.
 
 ### `[ ]` **6.3 List survivors with their homes, and carry them — § 7.4, § 4.3**
 
@@ -1511,22 +1430,12 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
             - a returned entry lists as unstarted work
             - `inboxState` reports the survivors with its text, and over the in-repo implementation carries no field
 
-    - `[ ]` **6.3.b The carry**
+    - `[x]` **6.3.b The carry**
 
-        - Given a survivor's ID, version, and listed home, where the destination already holds the ID from the same
-          inbox while the source still holds it, the verb carries the content rather than moving the entry: where the
-          router may edit the held entry — an inbox, a backlog stub's inbound list, or the router's own work unit's — it
-          replaces its title and prose, keeping its managed fields and `_Routed from:_` line, at the destination's
-          version as read; otherwise it inserts the content as a new entry whose `_Cites:_` carries the original's ID.
-        - The same batch removes the survivor at its version and writes a receipt.
+        - Survivor carry uses the latest receipt’s live home and the same mover, leaving no second carry beside its
+          source.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a carry into the router's own list replaces the held entry's title and prose
-            - an edit to the held entry meanwhile meets the replacement as a conflict record, never overwritten
-            - a carry into another person's started work unit inserts a citing entry
-            - a crash leaves the survivor or its carry, never both, and a carried survivor no longer lists
-
-### `[ ]` **6.4 Start an Errand by moving its entry — § 7.6**
+### `[x]` **6.4 Start an Errand by moving its entry — § 7.6**
 
 - _Goal:_ From the flip a full-protection Errand started from an inbox entry is a routing whose destination is the new
   Errand — one batch creating the work item, making the entry its description, removing the entry at the version read,
@@ -1535,82 +1444,31 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
   capture into an Errand opened from text the same way; until the flip an Errand starts only from its person's own inbox
   and the entry stays there until close.
 
-    - `[ ]` **6.4.a The start's batch and its refusals**
+    - `[x]` **6.4.a The start's batch and its refusals**
 
-        - The start (`lib/errand/open-runtime.ts`) reads the entry where it reads it today (`resolveLiveInboxAdoption`,
-          `handlers/errand.ts`), pulling first through Task 3.3.a's port, and composes 6.2.b's write set into Task
-          3.3.b's batch with the record's create and the queue's drop.
-        - It refuses an entry that is gone, naming where its latest receipt says it went, and one an open Errand holds —
-          an entry of that inbox and ID whose latest receipt moved it into the description of an Errand still open —
-          naming that Errand to resume in its own checkout; an entry whose Errand already closed is reported rather than
-          refused. One helper reads whether an open Errand holds an entry, for this start and Task 6.6's abandon.
-        - An Errand opened from text mints its description's entry in the open's batch: its intent as the title, with a
-          fresh `_Id:_` and `_Created:_`.
-        - A partial-protection start writes no description and drops the entry from the person's queue, as a full start
-          does.
+        - Full opens compose primary creation, description adoption, inbox removal, queue removal, and receipt writes;
+          rollback uses the same entry-return mechanism.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a start from the project inbox lands the work item, its description, the removal, the queue drop, and the
-              receipt in one batch
-            - a gone entry and one an open Errand holds each refuse with their remedy
-            - an entry whose Errand closed is reported and started
-            - an open from text mints its description entry in the open's batch
+    - `[x]` **6.4.b The origin a start writes**
 
-    - `[ ]` **6.4.b The origin a start writes**
+        - Store origins carry qualified immutable entry IDs; text starts mint a description entry without changing the
+          legacy origin arm.
 
-        - From the flip the open composes the origin from the entry it starts from (`openOrdinaryErrand`,
-          `lib/errand/open.ts`), and the link from the entry it links (`linkOrdinaryErrand`, `lib/errand/link.ts`):
-          `originEntry` is the entry's qualified ID, `<personal|project>:<id>`, and `originEntrySourceDigest` `null`,
-          which Task 1.12.c admitted. A partial Errand's binding (`partialOrigin`, from the provisioning authority's
-          partial-Errand arm) holds the qualified ID with `originEntryVersion`, the version observed at open.
-        - Every projection of an origin reports it as the record or binding holds it, so none changes; the link's
-          conflict and idempotency checks (`desiredRecord`), the open's resume check (`validateResumeContinuity`), and
-          materialize's re-feed compare and pass the pair as the record holds it.
+    - `[x]` **6.4.c The link**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a full start records the qualified ID with a `null` digest, and the open's result reports it as the
-              operand a link takes
-            - a partial start's binding carries the qualified ID and its version
-            - a resume of a start from the flip compares the pair as recorded and admits
+        - Linking an inbox capture to a text-origin Errand composes the same versioned move and preserves post-images.
 
-    - `[ ]` **6.4.c The link**
-
-        - `arc errand link --from-inbox` (`lib/errand/link-runtime.ts`) moves a capture into an Errand opened from text
-          through the same write set, beside the entry minted at open.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a link moves a capture beside the minted entry, with its receipt
-
-### `[ ]` **6.5 Keep each person's Errand queue — § 7.6, § 6.3**
+### `[x]` **6.5 Keep each person's Errand queue — § 7.6, § 6.3**
 
 - _Goal:_ From the flip each person's Errand queue is an ordered list of references to entries in either inbox, by ID
   and inbox, at identity scope and never projected — set whole by `arc errand queue set`, shown by `arc errand queue` —
   and the next offer takes the queue's first member a start would accept, writing nothing and reporting each member it
   leaves out or skips; `arc user inbox-mark-execute-bound` refuses from the flip, naming `arc errand queue set`.
 
-    - `arc errand queue set <file | ->` takes a versioned JSON request listing the whole queue's members in order, each
-      an inbox and an entry ID; its schema registers through `production-schema-registry.ts`, so `arc schema` serves it.
-      It keeps in place the longest subsequence of current members already in the set's order — among several, the one
-      whose members come earliest in the current queue — and places each other member with `placeRankedStub`
-      (`lib/store/concurrency/rank.ts`), one at a time over the changing list, which re-keys tied successors in the same
-      write. It refuses a set naming both entries of an ID both inboxes hold, naming both.
-    - The startup offer (`resolveExecutionStartupOffer`, through `handleErrandNext`, `handlers/errand.ts`) and the offer
-      after a close (`resolveExecutionNextOffer`, `lib/user-sync/execution-offer.ts`) read the queue from the flip and
-      write nothing: each leaves out a member a start would refuse and skips one in conflict, reporting each in fields
-      of its own with `arc errand queue set` as its repair. The queue changes only by `arc errand queue set`, a start,
-      and the drain's execute-now append; abandoning an Errand does not put its entry back.
-    - Until the flip the queue stays today's marks (`listExecuteBoundInboxEntries`, `lib/user-sync/inbox-writer.ts`),
-      set by `arc user inbox-mark-execute-bound` (`handlers/user.ts`), and both new verbs refuse as Task 1.10 builds.
+- _Outcome:_ Queue commands store ordered qualified references and offer the first admissible entry with skip reasons.
+  Execute-bound marking reports the replacement command.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a set writes rank keys only for the members it adds or moves, and two sets clash only on a member both wrote
-        - a set naming both entries of one ID refuses, naming both, and the set naming one of them then lands
-        - each offer takes the first member a start would accept, reporting a left-out and a skipped member, and the
-          queue is unchanged
-        - `arc errand queue` shows the queue in rank order
-        - `arc user inbox-mark-execute-bound` refuses, naming `arc errand queue set`
-
-### `[ ]` **6.6 Return an abandoned Errand's entries — § 7.5, § 15.1**
+### `[x]` **6.6 Return an abandoned Errand's entries — § 7.5, § 15.1**
 
 - _Goal:_ From the flip an Errand's abandon returns each entry of its description to the list its latest receipt says it
   left when that is the project inbox or the abandoner's own personal inbox, and every other entry to the abandoner's
@@ -1618,56 +1476,17 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
   and returns nothing for an entry another open Errand holds; an open that fails after its start's batch landed rolls
   back through the same return.
 
-    - `lib/errand/abandon-runtime.ts` composes 6.2.b's write set per entry, in place of today's clearing of the mark
-      (`clearExecuteBound`, `abandon-locus.ts`): returned to the list it left, an entry takes the section its receipt
-      records and keeps its `_Created:_`; set in a list it never held, it lands in `Errand`, `_Created:_` restamped and
-      `_Cites:_` dropped; an entry minted when the Errand opened returns to its person's inbox.
-    - One batch retires the Errand, empties its description, and writes the returned entries and their receipts. An
-      abandon whose entry another open Errand holds, read through 6.4.a's helper, leaves the description with the
-      abandoned Errand and names the Errand that keeps the entry. Its settlement's `disposition` reports `retained`, or
-      `absent` where it returns nothing.
-    - A partial-protection abandon keeps the entry in the inbox, its queue membership untouched.
-    - An open that fails after its start's batch landed (Task 6.4.a) rolls back through this return: from the flip the
-      open's rollback (`rollbackClaim`, `lib/errand/open-runtime.ts`), which Task 3.3.c reroutes, retires the record in
-      the batch that returns the entry to the list it left, with its section, its `_Created:_`, and a receipt.
+- _Outcome:_ Abandon and failed-open rollback return description entries to receipt-selected inboxes in the terminal
+  batch; a completed generation’s repaired retry creates a fresh description.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - an entry from the project inbox returns there with its section and date
-        - an entry from a work unit's inbound list lands in the abandoner's `Errand` section, restamped
-        - an entry another open Errand holds is not returned, that Errand is named, and the disposition is `absent`
-        - a replayed abandon returns nothing twice
-        - each returned entry reads as unstarted work
-        - a provisioning failure after a start's batch returns the entry to its list and retires the record in one batch
-
-### `[ ]` **6.7 Remove entries by ID and version — § 7.7**
+### `[x]` **6.7 Remove entries by ID and version — § 7.7**
 
 - _Goal:_ From the flip the drain's removal and the partial close remove an inbox entry by its `_Id:_` and version,
   removing only that version and reporting an entry edited since, idempotently; a full-protection close and promotion
   remove nothing; and the operands that name an entry take the ID form, refusing a title from any of today's sources.
 
-    - From the flip `removeCurrentInboxEntry` (`commands/user/inbox-mutation.ts`), reached by the partial close and by
-      `handleUserInboxRemove` (`handlers/user.ts`), which the drain calls, removes by ID at the entry's version, read
-      with the inbox's kind. A full-protection close (`handlers/errand.ts`) removes nothing and reports `absent`, since
-      the start moved the entry; promotion's skip is Task 3.9.b's.
-    - From the flip `arc errand open --from-inbox` and `arc errand link --from-inbox` take `<personal|project>:<id>`,
-      and `arc user inbox-remove` takes `--id <id> --expected-version <version>`; `resolveInboxEntryOperand`
-      (`lib/inbox-entry-operand.ts`) refuses the `--from-inbox` title, `--inbox-title-file`, `--inbox-entry-file`, and
-      `inbox-remove`'s title positional, naming the ID form and `arc inbox <list>`. `UserInboxRemoveInputSchema`
-      (`handlers/user-inbox-remove-input.ts`) and the command-input registrations of the three verbs gain the new forms.
-    - Under partial protection the origin entry stays in the inbox until the close removes that exact ID at its observed
-      version, its settlement reporting `removed`, `retained` for an entry edited since, and from the flip `absent` for
-      one already gone. A partial Errand opened before the flip binds its origin by title and digest, so its close from
-      the flip resolves that binding once, by the digest it carries, to the entry's ID and version, and removes by them;
-      no match reports as today's digest mismatch does.
-
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a removal at the listed version removes the entry, and one edited since stays and is reported
-        - a removal of an entry already gone reports and succeeds
-        - each title operand refuses, naming the ID form
-        - a partial-protection close removes its origin entry by ID at the observed version, and reports `absent` on a
-          rerun
-        - a full-protection close removes nothing and reports `absent`
-        - a partial Errand bound by digest before the flip closes by the ID its digest resolves to
+- _Outcome:_ ID/version removal is idempotent and preserves edited entries; partial close uses it while full close and
+  promotion leave adopted captures in their Store homes.
 
 ### `[ ]` **6.8 Listing and routing** — validate exit criterion at segment scope
 

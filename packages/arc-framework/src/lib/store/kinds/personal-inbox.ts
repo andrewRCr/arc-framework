@@ -5,6 +5,9 @@ import { SlugSchema } from "../../kernel/schema/slug.js";
 import { matchInboxEntryTitle } from "./entry-fields.js";
 import type { EntryParse } from "../../user-sync/schema.js";
 
+/** Canonical personal inbox label for parser and carried-origin diagnostics. */
+export const PERSONAL_INBOX_LABEL = basename(resolveArcPath({ kind: "inbox", scope: { kind: "identity", identity: SlugSchema.parse("display") } }), ".md");
+
 /** Drop comment examples before compatibility parsing.
  * @param content - Markdown with opaque guidance comments.
  * @returns Visible Markdown.
@@ -15,7 +18,7 @@ export function stripHtmlComments(content: string): string { return content.repl
  * @returns Per-entry success or a diagnostic in section order.
  */
 export function parsePersonalInboxEntries(content: string): EntryParse[] {
-  const label = basename(resolveArcPath({ kind: "inbox", scope: { kind: "identity", identity: SlugSchema.parse("display") } }), ".md");
+  const label = PERSONAL_INBOX_LABEL;
   const visible = stripHtmlComments(content).split("\n");
   const outcomes: EntryParse[] = [];
   for (const section of ["Errand", "Work Unit"] as const) {
