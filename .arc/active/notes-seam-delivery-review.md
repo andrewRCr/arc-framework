@@ -6,10 +6,12 @@
 - [Corrections across rows](#corrections-across-rows)
 - [Rows](#rows)
 - [Files no row covers](#files-no-row-covers)
+- [Register keys](#register-keys)
 - [Mechanisms that exist because records ride the branch](#mechanisms-that-exist-because-records-ride-the-branch)
 - [Where review state lives today](#where-review-state-lives-today)
 - [Decision-record census](#decision-record-census)
 - [Withdrawal, reopen, and retirement](#withdrawal-reopen-and-retirement)
+- [Neighbors](#neighbors)
 - [Prior art](#prior-art)
 
 ## How the rows were checked
@@ -76,7 +78,7 @@ touches no row here.
   `compareGitNormalizedDeliveryTrees` (`lib/delivery/git-eligibility.ts`) from `handlers/delivery-execution.ts` and
   `rg/policy/pre-publication-composition.ts`, and through `lib/delivery/chain-containment.ts` from
   `lib/delivery/chain-adoption.ts`. In the group no member could carry the copy, so the export adds nothing to it, and
-  where a delivery's design reaches review is `delivery-observe-attest`'s question (draft, § Delivery at the flip). The
+  where a delivery's design reaches review is `delivery-observe-attest`'s question (spec, § 12.5). The
   rows read the same: this member's `rg/policy/pre-publication-composition.ts` and
   `rg/status-composition.ts` (§ Rows), `storage-cutover`'s `lib/evidence-applicability/path-treatment.ts`,
   `lib/git/base-overlap.ts`, and `lib/base-drift/current-adapters.ts`, and `delivery-observe-attest`'s
@@ -211,6 +213,29 @@ Each is a seam row the member adds; `Shared with` follows the file's callers.
     map, and `runtime/candidate-response-head-continuation.ts`, `policy/local-review-coverage-selection.ts`, and
     `runtime/respond-command.ts` above.
 
+## Register keys
+
+Keys are `notes-storage-contract.md` § Register keys, matched by mechanism (`cohort-storage-seam.md` § Citing the
+register). The rows this work unit inherits carry these, each closing when the spec's fate for it is built:
+
+- **01**, its Candidate half — Candidate records, with withdrawal and retirement (spec, § 3.1, § 8, § 10).
+- **02** — the Git-history supersession read, whose `recordRevision` becomes a store version (spec, § 8.4).
+- **13** — the record stores' hand-built paths, which the layout's addresses replace (spec, § 3.1).
+- **34** — a singleton's own record writes, which close at the flip with no continuation built before it (spec,
+  § 10.5).
+- **45** — writers completing through a code commit (spec, § 14.3).
+- **48** — readiness and integration reads of lifecycle state: the checkpoint's binding, the shipped-delivery boundary
+  replay, and the merge lock's readiness read (spec, § 3.2, § 12.7, § 14.3).
+- **62** — the review gate's listing protocols over Errands and claims, which keep refusing to authorize review from
+  incomplete evidence (spec, § 12.4).
+- **The machine-local row** ("Machine-local state under `.git/arc/`"), keyless, which the eight review-gate store rows
+  carry in place of the miscited key 17 (§ Corrections across rows; spec, § 4.7, § 13).
+
+Keys on this work unit's rows that close elsewhere: 27 with `storage-cutover`, which removes delivery's
+lifecycle-contribution path group and keeps the review copy's arm (spec, § 12.5); 57 with `storage-cutover`'s deletion
+pass over the in-repo arms (spec, § 14.3); 35, stacked-delivery convergence, with `delivery-correction-convergence`; and
+80, the terminus's reach and invalidation, with `review-source-authority` (spec, § 5.6).
+
 ## Mechanisms that exist because records ride the branch
 
 Each retires at the flip. Before it, today's in-repo arm keeps it, gated as one unit on `stateOffBranch`. Twelve of
@@ -333,7 +358,8 @@ directory, four only as request input, and two nowhere.
   frontline closure, which is keyed by Candidate rather than head. A no-change re-publish carries all of it. A re-root
   after code changes inherits pass counts through the supersession chain but overwrites the boundary, dropping the
   terminus and reservation, whose only durable home it was. The hosted-reservation carry checks the Candidate ID and
-  repository but not the subject (inferred risk).
+  repository but not the subject, by design: the Candidate record's currentness is the authority, and the
+  reservation's use checks that the current Candidate head is the hosted target's (spec, § 9.4).
 - **The original capture concerned a singleton,** not a one-member delivery: a withdrawn singleton could leave its
   Candidate and boundary mutually recognizable, so a later no-change reattestation revived it. A bound one-member
   delivery cannot be reopened (`entry-inspection.ts`).
@@ -346,9 +372,36 @@ directory, four only as request input, and two nowhere.
   leave Candidates alone, and its spec's non-goals exclude Candidate and review records. Its store-backed
   `arc status <slug>` returns `integrationBoundary: null`, dropping the interrupted-publication recovery hint.
 
+## Neighbors
+
+The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
+meets this one:
+
+- **"The lifecycle change"** — `seam-lifecycle`, merged: the pause record, the store-backed reopen (`runStoreReopen`)
+  and publication this change edits, the project-ID port, and the task close verb with its copy-key match.
+  Implementation builds on its landing.
+- **"The planned locus change"** — `seam-locus`: the store-derived locus behind the flip-time arms of spec § 12.4, and
+  the reader of the landing-commit link. It also edits `lib/locus/subject-meta.ts`, `commands/active/status.ts`, and
+  `handlers/status/lifecycle.ts`, so the two serialize there (spec, § 14.4).
+- **"A planned change to the standard lane's pass policy"** — `review-coverage-cadence`, its D4: a fix check takes a
+  logical pass but adds nothing to the standard lane's pass count, and the supersession chain carries both numbers
+  (spec, § 4.3, § 5.5). It is expected to land first, and the two edit several of the same review-gate files.
+- **"The ref backend" and "the import"** — `storage-ref-backend`: the import, its trial, and its refusals, which call
+  this change's mapping (spec, § 11); the history refs and the `state-unresolvable` refusal (spec, § 10.4); and the
+  layout row for the review kinds.
+- **"The cutover"** — `storage-cutover`: the flip, its workflow rewrite (spec, § 12.6), the quiesce of reviews in
+  flight, and the deletion pass (spec, § 14.3).
+- **The terminus's reach and invalidation** (spec, § 5.6) — `review-source-authority`. Whether an Errand takes a
+  terminus, and a computed carry policy in place of the attended applicability choice (spec, § 5.8), are
+  `review-orchestration-right-sizing`'s.
+- **"Delivery's own redesign"** (spec, § 12.2, § 12.5) — `delivery-observe-attest`: how a stacked delivery's members and
+  its lifecycle-contribution path group treat the review copy, and delivery's attribution moving onto captures.
+- **"The Candidate-state projection"** (spec, Non-Goals) — `candidate-reroot-recovery-frame`; the boundary's withdrawal
+  and a work item's end feed it.
+
 ## Prior art
 
-Gathered 2026-10-15 by a bounded research pass that verified nothing itself; the facts the draft relies on match
+Gathered 2026-10-15 by a bounded research pass that verified nothing itself; the facts the design relies on match
 independent knowledge and are re-checked at source-grounding.
 
 - **Review records bind to an exact revision, and carry is mechanical.** A [GitHub review][github-reviews] carries
