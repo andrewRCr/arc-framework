@@ -811,7 +811,8 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
         - From the flip it admits one present marker: an anchored marker naming a work unit the store holds no record
           of, on a complete read of the store and `lookup`, which only a crashed cold start leaves. It reads as no
           occupancy and is replaced at the bytes read; an incomplete read refuses rather than replacing it.
-        - It refuses every other present marker, naming its exit:
+        - It refuses every other present marker, naming its exit through one function under `lib/locus/`, which 2.R's
+          occupancy guard calls too:
             - a transient marker: its role's exits, as handoff's locus plan names them (`deriveHandoffLocusPlan`,
               `lib/handoff/locus-plan.ts`);
             - a marker naming a work unit in flight: work there, or free it there as 2.4's refusal names;
@@ -1055,6 +1056,38 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
             - in team mode another identity's checkout reports with its typed release
             - another checkout's no-record marker reports with its typed release
             - over the in-repo implementation the sweep filters as today
+
+### `[ ]` **2.R Refuse an occupied checkout in lifecycle's in-place arms — § 2.6**
+
+- _Goal:_ From the flip graduation in place and `arc materialize --here` refuse a checkout whose marker names anything
+  but the work unit they claim, before any Git step and naming that marker's exit, and report a marker that appears
+  before the anchored marker's write naming the checkout (A4); until the flip the guard reads as today.
+
+    - The occupancy guard's store arm (`readStoreOccupancy`, `lib/work-unit/lifecycle-guards.ts`) reads the checkout's
+      marker (`readWorktreeMarkerGeneration`) as well as the current work unit, since its claim read
+      (`readClaimedCurrentWorkUnit`, `lib/store/current-work-unit-marker.ts`) takes a transient, husk-stamped, ended,
+      backlog, or no-record marker as no work unit. From the flip it refuses each such marker through 2.6.a's exit
+      function, and a crashed cold start's anchored no-record marker with the frame's two exits (2.6.d); a marker naming
+      the work unit itself passes to the exclusivity check, whose refusal names `arc locus release <slug>` (2.5.b).
+    - The guard runs in graduation's guard phase (`executeTransition`) and in `arc materialize`'s claim before its
+      reconcile (`claimMaterialization`, `lib/work-unit/verbs/materialize-store.ts`), so a refusal leaves `HEAD` as
+      found and writes nothing.
+    - The in-place leg (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) reports
+      the bound writer's `exists` naming the checkout and its marker, with the repair to inspect it and rerun, where
+      today it throws `anchored marker write refused: exists`; it arises only when a marker appears between the guard's
+      read and the write.
+
+    - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
+        - graduation in place and `arc materialize --here` in a checkout holding a transient marker each refuse naming
+          its role's exits, `HEAD` unmoved and nothing written
+        - a husk-stamped marker refuses naming its teardown, an ended work unit's naming its teardown or release, and a
+          backlog work unit's naming `arc locus release <slug>`
+        - a crashed cold start's anchored no-record marker refuses naming `arc start <slug> --new --here` and
+          `arc locus release <slug>`
+        - a marker naming the work unit itself refuses at the exclusivity check, naming `arc locus release <slug>`
+        - an `exists` from the anchored-marker writer reports the checkout and its marker with the inspect-and-rerun
+          repair
+        - over the in-repo implementation the guard reads as today
 
 ### `[ ]` **2.10 Locus from the marker and the store** — validate exit criterion at segment scope
 

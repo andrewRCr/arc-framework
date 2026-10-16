@@ -167,11 +167,13 @@ Paths are under `packages/arc-framework/src/`.
   locus ports' binding where the executor context is built (`buildExecutorContext`,
   `lib/work-unit/executor-context.ts`), with store start's create-new taking the executor's ports
   (`handlers/start-store.ts`) and the port's refusal carrying the check's message whole (`requireMarkerExclusivity`,
-  `lib/work-unit/locus-ports.ts`) (§ 2.4, A1), `lib/git/worktree-cleanup.ts` (the cleanup decision),
-  `commands/active/roster.ts`, `lib/release/wu-resolution.ts` (`resolveActiveWu`'s body and
-  `resolveOriginatingMetaPath`), `lib/session-init/locus-classification.ts`, the derived frame and roster
-  (`lib/locus/derived-reader.ts`, whose work-unit context gains the pause record and the commits not yet closed, and
-  `lib/locus/derived-roster.ts`), the frame's guidance (`deriveDerivedLocusSessionGuidance`,
+  `lib/work-unit/locus-ports.ts`) (§ 2.4, A1), the in-place arms' refusal of an occupied checkout (`readStoreOccupancy`,
+  `lib/work-unit/lifecycle-guards.ts`) and their report of a marker raced in before the anchored marker's write
+  (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) (§ 2.6, A4),
+  `lib/git/worktree-cleanup.ts` (the cleanup decision), `commands/active/roster.ts`, `lib/release/wu-resolution.ts`
+  (`resolveActiveWu`'s body and `resolveOriginatingMetaPath`), `lib/session-init/locus-classification.ts`, the derived
+  frame and roster (`lib/locus/derived-reader.ts`, whose work-unit context gains the pause record and the commits not
+  yet closed, and `lib/locus/derived-roster.ts`), the frame's guidance (`deriveDerivedLocusSessionGuidance`,
   `lib/locus/session-guidance.ts`), and the layout resolver's address for an identity's personal root
   (`lib/layout/schema.ts`, `lib/layout/projection.ts`).
 - **In-flight derivation and overlap:** `lib/git/in-flight-derivation.ts`, `commands/active/in-flight.ts`,
@@ -262,6 +264,11 @@ builds on:
   change binds them (§ 2.4, A1);
 - `handlers/start-store.ts`, which that change creates, and where this change has create-new take the executor's ports
   and hand a named in-place start to the cold-start slot (§ 2.4, § 2.5, A1, A3);
+- `lib/work-unit/lifecycle-guards.ts`, where that change gives the occupancy guard its store arm, and where this change
+  has it refuse a checkout another marker occupies (§ 2.6, A4);
+- `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`, where that change's in-place leg writes the anchored marker
+  through the port, and where this change has it report the writer's `exists` naming the checkout and its marker (§ 2.6,
+  A4);
 - `lib/git/worktree-marker.ts`, where that change adds a lineage arm to the marker's evidence decoding
   (`decodeKnownEvidence`) and this change widens the marker check (`isWorktreeMarker`, § 2.3, § 7.6);
 - `lib/git/worktree-roster.ts`, which that change also edits, and where this change has the registered-worktree scan
@@ -618,6 +625,18 @@ returns `created` or `replaced`, each with the bytes written, so a rollback remo
 (`removeWorktreeMarkerGeneration`); `exists` when a marker is present and no generation was expected; or
 `generation-mismatch` when the present marker is not the expected one. The cold start creates, or replaces a crashed
 cold start's residue at the bytes it read (§ 2.5); promotion replaces the transient marker at the bytes it read.
+
+**An occupied checkout refuses before any Git step (A4).** From the flip graduation in place and
+`arc materialize --here` refuse a checkout whose marker names anything but the work unit they claim, before any Git
+step, so `HEAD` stays as found. Their occupancy guard's store arm (`readStoreOccupancy`,
+`lib/work-unit/lifecycle-guards.ts`), which graduation's transition runs in its guard phase and `arc materialize` before
+its reconcile (`claimMaterialization`, `lib/work-unit/verbs/materialize-store.ts`), reads the marker as well as the
+current work unit, since the claim read it resolves that through (`readClaimedCurrentWorkUnit`) takes a transient,
+husk-stamped, ended, backlog, or no-record marker as no work unit. It refuses each such marker naming the exit the cold
+start's occupancy check names for it (§ 2.5), and a crashed cold start's anchored no-record marker with the frame's two
+exits (§ 4.3); a marker naming the work unit itself passes to the exclusivity check, which refuses it naming
+`arc locus release` (§ 2.4). The anchored-marker writer's `exists` then arises only when a marker appears between that
+read and the write, and is reported naming the checkout and its marker (§ 13).
 
 **Anchoring under each protection mode.** An anchored primary is no launchpad. Under full protection, where promotion
 runs (`promoteOrdinaryErrand` refuses `full-protection-required`, `lib/errand/promote.ts`), an Errand promoted on the
@@ -2002,6 +2021,8 @@ actions; the verbs' refusals are these:
 | A nameless `arc start --here` from the flip whose derived name the store holds (§ 2.5)                                                     | `arc start <name> --new --here` under another name, or for the held work unit the step its state takes, which `arc status <slug>` shows                                                                                                                  | text   |
 | The cold start from the flip in a checkout whose spawned marker names a work unit with no record (§ 2.5)                                   | `arc locus release <slug>`, which removes that checkout                                                                                                                                                                                                  | typed  |
 | The cold start from the flip in a checkout holding any other marker but a crashed cold start's (§ 2.5)                                     | the marker's exit: its role's exits; work there or free it as for a marker write; its teardown; for an ended work unit `arc teardown <slug>`, or `arc locus release <slug>` where another identity owns it; for a backlog one `arc locus release <slug>` | text   |
+| Graduation in place or `arc materialize --here` from the flip in a checkout whose marker names anything but its work unit (§ 2.6)          | the marker's exit, as for the cold start; for a crashed cold start's anchored marker, `arc start <slug> --new --here` or `arc locus release <slug>`                                                                                                      | text   |
+| The anchored marker's write finding a marker that appeared after the occupancy read (§ 2.6)                                                | the checkout and its marker: inspect it, then rerun                                                                                                                                                                                                      | text   |
 | A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the port's failure, which names the read of the project's identity record and that read's own remedy                                                                                                                                                     | text   |
 | An Errand's terminal or merge from the flip whose record's lookup or read refuses, `not-found` aside, or misses beside diagnostics (§ 3.2) | that record and what its lookup or read reported with that report's remedy, or, where the lookup finds none beside listing diagnostics, those diagnostics with their remedies                                                                            | text   |
 | `arc locus release` on a work unit this identity owns, in flight and not paused, or ended (§ 5)                                            | `arc pause <slug> --reason <text>` for a Planning or Active one; its integration, then teardown, for an Integrating one; `arc teardown <slug>` for an ended one                                                                                          | text   |
@@ -2417,6 +2438,9 @@ close.
 14. **A named in-place start refuses as a spawning one does (A3).** From the flip, `arc start <name> --here --new`
     refuses before any write every name `arc start <name> --new` refuses — a held work unit's, a former slug, or an
     Errand's — and refuses `--class`, as the in-repo arm does.
+15. **Lifecycle's in-place arms refuse an occupied checkout (A4).** From the flip, graduation in place and
+    `arc materialize --here` in a checkout whose marker names anything but their work unit refuse before any Git step,
+    `HEAD` unmoved and nothing written, naming that marker's exit.
 
 ## Open Questions
 
@@ -2431,5 +2455,7 @@ this design open.
   binds none. _Supersedes:_ § 16, the cutover item. _Trigger:_ door. _Work:_ 2.1. _Revalidated:_ pending → 8.1.
 - **A3** — 2026-10-16 — design: a named in-place start reaches the cold start from store start's create-new arm.
   _Supersedes:_ § 2.5, its entry item. _Trigger:_ door. _Work:_ 2.6. _Revalidated:_ pending → 2.10.
+- **A4** — 2026-10-16 — spec-depth: lifecycle's in-place arms refuse a checkout another marker occupies, naming its
+  exit. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 2.10.
 
 ---
