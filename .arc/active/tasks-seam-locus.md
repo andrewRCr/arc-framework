@@ -1149,12 +1149,14 @@ Errand write step's batch (Task 3.3.b). The new verbs' handlers and the mover li
 - _Outcome:_ ID/version removal is idempotent and preserves edited entries; partial close uses it while full close and
   promotion leave adopted captures in their Store homes.
 
-### `[ ]` **6.8 Listing and routing** — validate exit criterion at segment scope
+### `[x]` **6.8 Listing and routing** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run the exit criterion's scenario over the reference backend and request `arc check segment`.
+- _Outcome:_ The freshly merged scenario moves a personal capture into inbound with both receipts, preserves a racing
+  edit as a survivor with its derived home, and carries it without duplication. A project-inbox Errand start adopts its
+  description and removes its queue member; abandon returns it to the receipt-selected inbox. The inbox slot reports
+  those survivors through the shared Store binding.
 
 ## **Phase 7:** Session continuity — handoff, identity setup, and commits not yet closed
 
