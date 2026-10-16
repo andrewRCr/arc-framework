@@ -2443,6 +2443,14 @@ refusal also passes its continuation once repaired. Tests of rerouted code keep 
 fixture's stand-in entry shapes for the inbound list, the description, and the queue give way to their declarations
 (§ 6.6), so the tests meet the production grammar.
 
+**Dormant destructive-verb verification (A17).** While `createStore` selects the in-repo implementation and reports
+`stateOffBranch: false`, successful off-branch destructive paths are verified through CLI-generated handler inputs
+against the reference store and real Git repositories. Real-CLI E2E tests in temporary repositories exercise the
+before-flip refusals. A successful handler scenario is reported as handler integration, never successful built-CLI
+proof. At the backend flip, successful destructive paths require real-CLI E2E scenarios before release; this verification
+split does not weaken success, refusal, or repaired-continuation coverage over the reference backend. No production
+backend selector or test-only capability bypass is added to reach a dormant arm.
+
 **Migration and rollout.** Nothing observable changes before the flip but § 1.4's items. At the flip the import carries
 branch links, entry IDs, open Errands' descriptions, held entries into inbound lists, and each person's queue (§ 16);
 the cutover's rewrite moves the workflows onto the slots' actions and the new verbs; and the deletion pass removes
@@ -2574,6 +2582,10 @@ close.
     through lookup, and its former name in prose yields a rename advisory. Missing alias evidence or an incomplete
     listing reports unavailable authority without rewriting.
 
+24. **Dormant destructive paths carry explicit evidence (A17).** Before the flip, their success and repaired
+    continuation pass through CLI-generated handler inputs with real Git, and the built CLI refuses in temporary
+    repositories. Successful real-CLI destructive scenarios remain a required flip release check.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2613,5 +2625,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 - **A16** — 2026-10-16 — design: primary records expose former slugs as read-only aliases. _Supersedes:_ § 3.5,
   alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.10.
+- **A17** — 2026-10-16 — spec-depth: dormant destructive paths use handler success and CLI refusal proof until flip.
+  _Supersedes:_ none. _Trigger:_ 2.9 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.6.
 
 ---

@@ -2890,6 +2890,18 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
       rerouted file beside the § 1.5 arm that holds it; an entry no arm holds is rerouted here, in this task, since the
       task that owns its file has closed.
 
+### `[ ]` **7.R Verify dormant destructive paths and retain their flip checks — Testing (A17)**
+
+- _Goal:_ A17's success and continuation scenarios run through CLI-generated handler inputs in real Git repositories,
+  before-flip refusals run through the built CLI, and successful real-CLI destructive paths remain required at the flip.
+
+    - Inventory the destructive paths added or rerouted here and their success, refusal, and repaired-continuation
+      evidence. Complete missing handler integration or real-CLI refusal scenarios before recording the inventory.
+    - Record the successful real-CLI scenarios required at the flip as outstanding release checks, with their concrete
+      outcomes, and never count handler integration as successful built-CLI evidence.
+    - Keep the reference backend's behavior coverage and all independently required gates; introduce no production
+      backend selector or test-only capability bypass.
+
 ### `[ ]` **7.6 Session continuity** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
@@ -3012,3 +3024,7 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
 - `[ ]` Off-branch primary records expose former-name aliases at the selected state, including explicit empty arrays;
   managed references rewrite through lookup and prose yields a rename advisory; missing aliases or incomplete
   listings report unavailable authority without rewriting (A16).
+
+- `[ ]` Dormant destructive paths pass success and repaired continuation through CLI-generated handler inputs with
+  real Git, and before-flip refusal through the built CLI in temporary repositories; successful real-CLI destructive
+  scenarios remain a required release check at the flip (A17).

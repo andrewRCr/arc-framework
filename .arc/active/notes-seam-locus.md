@@ -652,4 +652,15 @@ projection; selected snapshots preserve historical alias evidence. The in-repo r
 The amendment's grounding and task audit cover the schema, private reference model, projection, lookup, and reconcile
 consumer. No alias mutation operation, content field, or new identity mechanism is introduced.
 
+## A17: destructive verification before the backend flip
+
+`createStore` selects `createInRepoBackend` and advertises `stateOffBranch: false`; the reference backend is test-only.
+The new off-branch destructive arms cannot succeed through the production executable yet. The approved verification
+split retains successful handler integration with CLI-generated inputs and real Git now, and actual built-CLI refusal
+scenarios now, with successful real-CLI destructive scenarios required at the flip. No handler result claims to be a
+successful CLI run. The task's evidence inventory records those future release checks explicitly.
+
+The grounding footprint is `createStore`, `ReferenceBackend.capabilities`, the dormant handlers, and the real-CLI
+refusal suite. Existing reference-backend success and continuation criteria remain intact; no completed verifier changes.
+
 ---
