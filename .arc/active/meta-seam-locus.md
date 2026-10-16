@@ -15,9 +15,9 @@
 - **Current Workflow:** `process-task-loop`
 - **Last Completed:** Task 1.4 — Read each registration's folder once per scan
 - **Next Task:** Task 1.5 — Take the removal check's outcomes (line ~133 in `tasks-seam-locus.md`)
-- **Blockers:** Task 1.5 waits for `seam-lifecycle` to land its removal check, function, and release.
+- **Blockers:** [none]
 
-- **Next Action:** Wait for `seam-lifecycle` to ship; then merge `main`, reconcile the shared files, and begin Task 1.5.a.
+- **Next Action:** Begin Task 1.5.a — the cleanup decision; the plan is verified against the landed `seam-lifecycle`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
