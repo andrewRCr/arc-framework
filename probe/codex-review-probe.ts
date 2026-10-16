@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 /** Report whether a candidate path lies inside the root directory. */
 export function isInsideRoot(root: string, candidate: string): boolean {
-  return candidate.startsWith(root);
+  return candidate.length > root.length && candidate.startsWith(root);
 }
 
 /** Remove every entry in a directory except the names listed in keep. */
