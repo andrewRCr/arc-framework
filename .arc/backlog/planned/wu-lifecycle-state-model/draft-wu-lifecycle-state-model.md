@@ -48,17 +48,6 @@
 - _Captured during:_ `plan-amendment` Phase 4 close, assessing a routed-in scope-expansion proposal against that
   work unit's design, 2026-09-12.
 
-### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);
-  captured during `decomposition-doctrine` re-grounding.
-- _Concern:_ unqualified `Depends On` means blocks-start, leaving implement-time and integrate-time ordering in
-  unchecked prose that readily goes stale. The inverse also fails: recording a true later-boundary dependency as
-  today's edge falsely blocks planning.
-- _Fold-in:_ evaluate lifecycle-qualified degrees such as required-to-plan, required-to-implement, and
-  required-to-integrate against this WU's state axes. Preserve today's unqualified blocks-start reading as the
-  default, enforce each degree at its owning ceremony, and keep later-boundary session orientation advisory.
-
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
@@ -536,3 +525,19 @@
   program's records first; this draft predates them.
 
 - _Captured during:_ read-only exploration session on cross-harness agent messaging, 2026-10-14.
+
+### `[ ]` **Keep spec approval, implementation start, and landing as named lifecycle boundaries**
+
+- _Routed from:_ the `work-item-relations` mint Errand (2026-10-15).
+
+- _Shapes:_ the core reform ("Unbundle planning-completion from activation") and the quick-scan lifecycle-stage signal
+  entry.
+
+- _Observation:_ `work-item-relations` binds its dependency gates to three boundaries a work unit crosses today: spec
+  approval (`design`), the start of implementation and of a named task (`start`, `task`), and landing (`land`). Each
+  gate is enforced at the ceremony that owns its boundary, and "blocked" is derived as an unmet edge at the work
+  unit's current boundary (`draft-work-item-relations.md` § Decisions, D1 and D3).
+
+- _Approach:_ whatever axes and states the reform settles, keep each boundary named and observable — a typed
+  transition or a projected stage value, never inferred from where a file sits — so gate enforcement and the blocked
+  derivation keep a target. A reform that merges or renames a boundary updates the gate vocabulary with it.

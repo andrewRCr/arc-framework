@@ -21,20 +21,6 @@
 import type { LifecycleIndex, LifecycleIndexEntry } from "./lifecycle-index.js";
 
 /**
- * The index entries whose `**Cohort:**` field resolves to `cohort` — the
- * single-cohort membership filter both single-cohort projections build on.
- * Keys on the field value, so a member is matched regardless of the directory
- * it is filed under.
- */
-function cohortMembers(index: LifecycleIndex, cohort: string): LifecycleIndexEntry[] {
-  const members: LifecycleIndexEntry[] = [];
-  for (const entry of index.values()) {
-    if (entry.cohort === cohort) members.push(entry);
-  }
-  return members;
-}
-
-/**
  * Group the index by `**Cohort:**` field value — cohort path → member slugs.
  * Standalone work units (a `null` cohort) contribute no key. The map is built
  * fresh per call; it is the position-independent membership projection the
@@ -52,39 +38,6 @@ export function buildCohortMembership(index: LifecycleIndex): Map<string, Set<st
     byCohort.set(cohort, members);
   }
   return byCohort;
-}
-
-/**
- * Resolve the set of member slugs for one cohort path — the work units whose
- * `**Cohort:**` field resolves to `cohort`, across every lifecycle state. Returns
- * a fresh (possibly empty) set; an unknown cohort yields the empty set.
- *
- * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
- * @param cohort - The cohort path to resolve membership for.
- * @returns The member slugs, or an empty set when the cohort has no members.
- */
-export function resolveCohortMembers(index: LifecycleIndex, cohort: string): Set<string> {
-  return new Set(cohortMembers(index, cohort).map((entry) => entry.slug));
-}
-
-/**
- * Whether a cohort's archival trigger has fired — its **last member has
- * shipped**, i.e. the cohort has at least one member and **no** member remains
- * outside `completed/`. Location-dominant, like the rest of the resolution path:
- * a member physically under `completed/` counts as shipped even if its meta
- * `**State:**` still trails. An empty membership set is `false` — no last member
- * to trip.
- *
- * Detection only: the `archive` fire-point that sweeps the cohort doc to
- * `completed/` on this signal lives in `lifecycle-transition-core`.
- *
- * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
- * @param cohort - The cohort path to test.
- * @returns Whether every member of a non-empty cohort has shipped.
- */
-export function isArchivalTriggered(index: LifecycleIndex, cohort: string): boolean {
-  const members = cohortMembers(index, cohort);
-  return members.length > 0 && members.every((entry) => entry.location === "completed");
 }
 
 /**
@@ -109,9 +62,8 @@ function cohortMembersWithDescendants(index: LifecycleIndex, cohort: string): Li
  * Whether a (possibly nested-parent) cohort's archival trigger has fired,
  * counting descendants transitively: a nested parent is complete only when
  * **every** direct member *and* every subcohort member has shipped. The
- * location-dominant, non-empty-set semantics match {@link isArchivalTriggered};
- * for a leaf cohort with no subcohorts the two are identical (the descendant set
- * collapses to the direct members). A pure container with only subcohorts (no
+ * location-dominant, non-empty-set semantics count a leaf cohort
+ * by its direct members when it has no subcohorts. A pure container with only subcohorts (no
  * direct members) still trips once its subcohorts ship.
  *
  * This is the trigger the nested-parent archival cascade reads — both the leaf

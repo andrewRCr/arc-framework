@@ -27,18 +27,25 @@ async function priorTarget(input: WriteCheckInput): Promise<RuleObservation<Owne
   return { status: "known", value: record.value.reference.owner };
 }
 
-async function survivingEdge(input: WriteCheckInput, record: StoreRecord): Promise<RuleObservation<boolean>> {
-  if (record.placement?.kind === "completed") return { status: "known", value: false };
+async function survivingEdge(input: WriteCheckInput, record: StoreRecord): Promise<RuleObservation<readonly string[]>> {
+  if (record.placement?.kind === "completed") return { status: "known", value: [] };
   const prior = ParsedMetaRecordSchema.safeParse(record.fields);
   if (!prior.success) return { status: "unavailable", condition: `Cannot read the prior dependency edges of \`${record.reference.owner.name}\`.` };
-  if (!prior.data.dependsOn.includes(input.reference.owner.name)) return { status: "known", value: false };
+  if (namedEdges(prior.data, input.reference.owner.name).length === 0) return { status: "known", value: [] };
   const after = await observeRecord(input.after, record.reference);
-  if (after.status === "absent") return { status: "known", value: false };
+  if (after.status === "absent") return { status: "known", value: [] };
   if (after.status === "unavailable") return after;
-  if (after.value.reference.kind !== "work-item/meta" || after.value.placement?.kind === "completed") return { status: "known", value: false };
+  if (after.value.reference.kind !== "work-item/meta" || after.value.placement?.kind === "completed") return { status: "known", value: [] };
   const next = ParsedMetaRecordSchema.safeParse(after.value.fields);
-  return next.success ? { status: "known", value: next.data.dependsOn.includes(input.reference.owner.name) }
+  return next.success ? { status: "known", value: namedEdges(next.data, input.reference.owner.name) }
     : { status: "unavailable", condition: `Cannot read the resulting dependency edges of \`${record.reference.owner.name}\`.` };
+}
+
+function namedEdges(meta: import("../../../active/meta-schema.js").ParsedMetaRecord, slug: string): readonly string[] {
+  const edges: string[] = [];
+  if (meta.dependsOn.includes(slug)) edges.push("depends-on");
+  if (meta.pause?.waitsOn?.kind === "work-unit" && meta.pause.waitsOn.slug === slug) edges.push("waits-on");
+  return edges;
 }
 
 /** Check surviving edges before a slug is reused.
@@ -55,12 +62,20 @@ export async function checkSlugEdges(input: WriteCheckInput): Promise<readonly B
   const listed = await observeRecords(input.before, { family: "work-item", kind: "work-item/meta" });
   if (listed.status !== "known") return [brokenRule(rule, listed.status === "unavailable" ? listed.condition : "Dependency enumeration is unavailable.", remedy)];
   const blocked: string[] = [];
+  const waits: string[] = [];
   for (const record of listed.value) {
     const survives = await survivingEdge(input, record);
     if (survives.status !== "known") return [brokenRule(rule, survives.status === "unavailable" ? survives.condition : "Dependency evidence is unavailable.", remedy)];
-    if (survives.value) blocked.push(record.reference.owner.name);
+    if (survives.value.includes("depends-on")) blocked.push(record.reference.owner.name);
+    if (survives.value.includes("waits-on")) waits.push(record.reference.owner.name);
   }
   blocked.sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
-  return blocked.length === 0 ? [] : [brokenRule(rule,
-    `Depends On edges in ${blocked.map((name) => `\`${name}\``).join(", ")} still name \`${input.reference.owner.name}\` for another generation.`, remedy)];
+  waits.sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  if (blocked.length === 0 && waits.length === 0) return [];
+  const conditions = [];
+  if (blocked.length > 0) conditions.push(`Depends On edges in ${blocked.map((name) => `\`${name}\``).join(", ")}`);
+  if (waits.length > 0) conditions.push(`Pause waits-on edges in ${waits.map((name) => `\`${name}\``).join(", ")}`);
+  const repairs = waits.map((name) => `Use arc pause ${name} --waits-on <other>, --waits-on-note <text>, or --no-waits-on to settle its pause edge.`);
+  if (blocked.length > 0) repairs.push(remedy);
+  return [brokenRule(rule, `${conditions.join(" and ")} still name \`${input.reference.owner.name}\` for another generation.`, repairs.join(" "))];
 }

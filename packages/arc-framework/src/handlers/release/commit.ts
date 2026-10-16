@@ -3,10 +3,10 @@
  *
  * Composes the destructive-flag detector, active-WU resolver, and
  * `authorizeRelease` interlock check into a short-circuit cascade
- * (12 → 10 → 13 → 11): cheapest checks fire first to minimize I/O on
- * common refusal paths. An amend adds one ref read to code 12: it proceeds
- * only while no remote-tracking ref contains `HEAD`, so it never rewrites a
- * pushed commit. Each refusal exits with the matched refusal
+ * (12 → 10 → 13 → 11 → 16 → optional 17): cheapest checks fire first to minimize I/O on
+ * common refusal paths. Off-branch amendments refuse before Git. On the in-repo
+ * arm an amend adds one ref read to code 12 and proceeds only while no
+ * remote-tracking ref contains `HEAD`. Each refusal exits with the matched refusal
  * code, prints a `formatRefusal()` message, and writes a
  * `decision: "refused"` audit entry. The wrapped `git commit`
  * subprocess never fires on a refusal path.
@@ -45,6 +45,7 @@ import {
 } from "../../lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
 import type { AuthorizationDecision, PushedHeadReading } from "../../lib/release/types.js";
+import type { Remedy } from "../../lib/store/refusal.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -74,8 +75,8 @@ export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
 
 /**
  * Resolves the just-committed HEAD hash post-success. Real impl runs
- * `git rev-parse HEAD`; tests inject a stub. Called only when `spawnGit`
- * resolves with `exitCode: 0`.
+ * `git rev-parse HEAD`; tests inject a stub. Task-closing invocations also
+ * observe it before spawning Git to distinguish a commit from a preview.
  */
 export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
 
@@ -152,7 +153,20 @@ export type AppendAudit = (opts: {
   entry: AuditEntry;
 }) => Promise<{ ok: true } | { ok: false; error: Error }>;
 
+/** Optional task close ports supplied only when the wrapper receives --close. */
+export interface ReleaseTaskClose {
+  /** Leading wrapper options for a retry, retaining prechecked task IDs when available. */
+  readonly retryArgs?: readonly string[];
+  precheck(): Promise<{ status: "ready" } | { status: "refused"; check: string; reason: string; remedy: Remedy }>;
+  close(): Promise<{ status: "closed" } | { status: "refused"; reason: string; remedy: Remedy }>;
+  continuation: Remedy;
+}
+
 export interface ReleaseCommitDeps {
+  /** Capability selected by the invocation; off-branch amendments await additive remapping. */
+  stateOffBranch?: boolean;
+  /** Optional precommit check and postcommit capture, after message authorization. */
+  taskClose?: ReleaseTaskClose;
   cwd: string;
   identity: string;
   argv: readonly string[];
@@ -164,8 +178,8 @@ export interface ReleaseCommitDeps {
    */
   spawnGit: SpawnGit;
   /**
-   * HEAD resolver invoked post-success to capture the committed hash for
-   * the audit entry. Called only on `spawnGit` exit code 0.
+   * HEAD resolver invoked post-success for the audit and before Git when
+   * task closure requires evidence that this invocation created a commit.
    */
   resolveHead: ResolveHead;
   /** Classifies and validates deterministic message input after authorization. */
@@ -188,6 +202,8 @@ export interface ReleaseCommitDeps {
 
 export interface ReleaseCommitResult {
   exitCode: number;
+  committed?: string;
+  continuation?: Remedy;
 }
 
 /**
@@ -210,6 +226,14 @@ export async function runReleaseCommit(
       { kind: "refuse", code: 12, identifier: "destructive-flag", flag },
       { wu: null, deps, writeStderr, appendAudit },
     );
+  }
+
+  if (deps.stateOffBranch === true && detectCommitAmend(deps.argv)) {
+    const continuation = { text: "Off-branch wrapper amendments require additive capture remapping and recovery. Commit these changes as a new commit without --amend, retaining --close when selected." };
+    const refused = await refuse({ kind: "refuse", code: 12, identifier: "destructive-flag", flag: "--amend" },
+      { wu: null, deps, writeStderr, appendAudit });
+    writeStderr(`${continuation.text}\n`);
+    return { ...refused, continuation };
   }
 
   // Step 1, amend only (one ref read): an amend of a pushed `HEAD` refuses as a destructive flag.
@@ -255,6 +279,11 @@ export async function runReleaseCommit(
     }, preflight.correctedMessageBytes);
   }
 
+  if (deps.taskClose !== undefined) {
+    const check = await deps.taskClose.precheck();
+    if (check.status === "refused") return refuseClosePrecheck(check.check, check.reason, check.remedy, { deps, wu: wuAudit, writeStderr, appendAudit });
+  }
+
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
   let spawnArgs = deps.argv;
   let spawnStdin: Uint8Array | undefined;
@@ -287,6 +316,7 @@ export async function runReleaseCommit(
     spawnStdin = preflight.transport.rawBytes;
   }
 
+  const beforeCloseHead = deps.taskClose === undefined ? undefined : await safeResolveHead(deps, writeStderr);
   let spawned: SpawnGitResult;
   try {
     spawned = await deps.spawnGit({
@@ -307,7 +337,7 @@ export async function runReleaseCommit(
   if (spawned.exitCode !== 0 && preflight.kind === "passed") {
     try {
       const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
-      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, deps.argv)}\n`);
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path, deps.argv, deps.taskClose?.retryArgs)}\n`);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
@@ -351,7 +381,42 @@ export async function runReleaseCommit(
   });
   surfaceAuditFailure(auditResult, writeStderr);
 
+  if (spawned.exitCode === 0 && deps.taskClose !== undefined) {
+    return closeCommittedTasks(deps.taskClose, beforeCloseHead, outcome.kind === "commit" ? outcome.hash : "unknown", writeStderr);
+  }
   return { exitCode: spawned.exitCode };
+}
+
+async function closeCommittedTasks(taskClose: ReleaseTaskClose, before: string | undefined, after: string,
+  writeStderr: (message: string) => void): Promise<ReleaseCommitResult> {
+  const knownHead = (value: string | undefined): boolean => value !== undefined && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
+  if (!knownHead(before) || !knownHead(after)) {
+    writeStderr(`Git returned success, but commit creation could not be verified; no tasks were closed.\n${taskClose.continuation.text}\n`);
+    return { exitCode: 1, continuation: taskClose.continuation };
+  }
+  if (before === after) {
+    writeStderr("Git did not advance HEAD; no tasks were closed.\n");
+    return { exitCode: 0 };
+  }
+  let failure: string | undefined;
+  try {
+    const closed = await taskClose.close();
+    if (closed.status === "refused") failure = closed.reason;
+  } catch (error) { failure = error instanceof Error ? error.message : String(error); }
+  if (failure !== undefined) {
+    writeStderr(`Commit ${after} landed, but task close failed: ${failure}\n${taskClose.continuation.text}\n`);
+    return { exitCode: 1, committed: after, continuation: taskClose.continuation };
+  }
+  return { exitCode: 0 };
+}
+
+async function refuseClosePrecheck(check: string, reason: string, remedy: Remedy, ctx: RefuseContext): Promise<ReleaseCommitResult> {
+  ctx.writeStderr(`${formatRefusal({ kind: "refuse", code: 17, identifier: "close-precheck-failed", check, reason, remedy: remedy.text })}\n`);
+  const result = await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry: buildAuditEntry({
+    deps: ctx.deps, wu: ctx.wu, decision: "refused", refusalCode: 17, outcome: { kind: "close-precheck-failed", check },
+  }) });
+  surfaceAuditFailure(result, ctx.writeStderr);
+  return { exitCode: 17 };
 }
 
 async function refusePreflight(
@@ -373,7 +438,7 @@ async function refusePreflight(
         cwd: ctx.deps.cwd,
         bytes: correctedMessageBytes,
       });
-      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, ctx.deps.argv)}`;
+      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path, ctx.deps.argv, ctx.deps.taskClose?.retryArgs)}`;
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       ctx.writeStderr(`warn: corrected commit-message retry could not be persisted: ${detail}\n`);
@@ -411,10 +476,8 @@ async function readPushedHead(deps: ReleaseCommitDeps): Promise<PushedHeadReadin
 }
 
 /**
- * Resolve HEAD post-success, surfacing executor failure to stderr without
- * propagating. A throw here would mask a successful `git commit` and skip
- * the audit-emit path; capturing the failure as `"unknown"` keeps the audit
- * shape and exit code aligned with what git actually did.
+ * Observe HEAD without masking Git's result. An unavailable observation keeps
+ * the audit writable and leaves task closure to its explicit continuation.
  */
 async function safeResolveHead(
   deps: ReleaseCommitDeps,
@@ -424,7 +487,7 @@ async function safeResolveHead(
     return await deps.resolveHead({ cwd: deps.cwd });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    writeStderr(`warn: HEAD resolution failed; audit hash recorded as "unknown" (${detail})\n`);
+    writeStderr(`warn: HEAD resolution failed (${detail})\n`);
     return "unknown";
   }
 }

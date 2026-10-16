@@ -104,9 +104,12 @@ export async function promoteOrdinaryErrand(
       return refusal("promotion-source-invalid", `No exact Errand or promoted work-unit generation exists for '${slug}'.`);
     }
     if ("result" in recovered) return recovered.result;
+    const committed = await settleCommittedFrame(options.dependencies, recovered.frame);
+    if ("result" in committed) return committed.result;
+    if (!committed.frame.metaCommitted) return success(slug, committed.frame);
     const settled = await runFrame(
       "locus.errand-promote.occupancy",
-      () => options.dependencies.settleOccupancy(recovered.frame),
+      () => options.dependencies.settleOccupancy(committed.frame),
     );
     if (settled === null) {
       return failure("locus.errand-promote.occupancy", "Promotion occupancy settlement returned no result.");

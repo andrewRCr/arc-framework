@@ -5,11 +5,16 @@
  * current-WU fallback read, mode-gated default resolution, and the non-interactive
  * candidate-list-and-exit surface.
  *
- * `@clack/prompts`, the active-meta reader, and the lifecycle index are mocked at
- * the module seam; the real dispatch core runs against the mocked index.
+ * The current-WU cases use checked store records and real marker bytes;
+ * legacy candidate rendering keeps its index double and prompt boundary.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import type { LifecycleIndex, LifecycleIndexEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
@@ -18,13 +23,9 @@ import type { Location, Phase } from "../../../src/lib/work-unit/lifecycle-state
 const mockLogError = vi.fn();
 vi.mock("@clack/prompts", () => ({ log: { error: (...args: unknown[]) => mockLogError(...args) } }));
 
-const mockReadActiveMetaCandidates = vi.fn();
-vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  readActiveMetaCandidates: (...args: unknown[]) => mockReadActiveMetaCandidates(...args),
-}));
-
 const mockBuildLifecycleIndex = vi.fn();
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/lifecycle-index.js")>(),
   buildLifecycleIndex: (...args: unknown[]) => mockBuildLifecycleIndex(...args),
 }));
 
@@ -39,19 +40,25 @@ function indexWith(...entries: LifecycleIndexEntry[]): LifecycleIndex {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   process.exitCode = undefined;
 });
 
-afterEach(() => {
+const checkoutRoots: string[] = [];
+afterEach(async () => {
   process.exitCode = undefined;
+  await Promise.all(checkoutRoots.splice(0).map((cwd) => rm(cwd, { recursive: true, force: true })));
 });
+async function checkoutClaim(name?: string): Promise<string> {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-lifecycle-binding-")); checkoutRoots.push(cwd);
+  if (name !== undefined) await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name }, spawningIdentity: "test-user", now: 0 });
+  return cwd;
+}
 
 describe("resolveVerbTargetOrReport — explicit slug", () => {
   it("resolves directly without reading the current WU or the index", async () => {
     const slug = await resolveVerbTargetOrReport("park", "widget", "/repo");
     expect(slug).toBe("widget");
-    expect(mockReadActiveMetaCandidates).not.toHaveBeenCalled();
     expect(mockBuildLifecycleIndex).not.toHaveBeenCalled();
     expect(mockLogError).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
@@ -60,19 +67,17 @@ describe("resolveVerbTargetOrReport — explicit slug", () => {
 
 describe("resolveVerbTargetOrReport — context-defaulting, no slug", () => {
   it("falls back to the single current worktree's WU", async () => {
-    mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [{ filename: "meta-current-wu.md" }] });
-    const slug = await resolveVerbTargetOrReport("park", undefined, "/repo");
+    const h = createLifecycleHarness(); await h.seedMeta("current-wu");
+    const slug = await resolveVerbTargetOrReport("park", undefined, await checkoutClaim("current-wu"), false, h.store);
     expect(slug).toBe("current-wu");
     expect(mockBuildLifecycleIndex).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
 
   it("surfaces the candidate list and exits when no unambiguous current WU resolves", async () => {
-    mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [] });
-    mockBuildLifecycleIndex.mockResolvedValue(
-      indexWith(entry("live", "Active", "active"), entry("shelved", "Active", "planned")),
-    );
-    const slug = await resolveVerbTargetOrReport("park", undefined, "/repo");
+    const h = createLifecycleHarness(); await h.seedMeta("live");
+    await h.seedMeta("shelved", { state: "Planning", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
+    const slug = await resolveVerbTargetOrReport("park", undefined, await checkoutClaim(), false, h.store);
     expect(slug).toBeNull();
     expect(process.exitCode).toBe(1);
     expect(mockLogError).toHaveBeenCalledWith("Active: `live` · usage `arc park <slug>`");
@@ -84,7 +89,6 @@ describe("resolveVerbTargetOrReport — slug-required, no slug", () => {
     mockBuildLifecycleIndex.mockResolvedValue(indexWith(entry("shelved", "Active", "planned")));
     const slug = await resolveVerbTargetOrReport("resume", undefined, "/repo");
     expect(slug).toBeNull();
-    expect(mockReadActiveMetaCandidates).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
     expect(mockLogError).toHaveBeenCalledWith("Parked: `shelved` · usage `arc resume <slug>`");
   });

@@ -1,5 +1,6 @@
 /** Marker- and topology-bound transaction for renaming a work-unit checkout. */
 
+import { IncompleteWorktreePreparationError } from "./incomplete-worktree-preparation.js";
 import { isDeepStrictEqual } from "node:util";
 import { resolve } from "node:path";
 
@@ -36,6 +37,8 @@ export interface RenameWorktreeTransactionRequest {
   readonly sourceSlug: string;
   readonly targetSlug: string;
   readonly expectedHead: string;
+  /** Optional exact marker generation retained by a composing transaction. */
+  readonly expectedMarkerGeneration?: string;
   readonly move?: RenameWorktreeMove;
   /** Explicit pending state; `null` clears a previously deferred move and `undefined` preserves it. */
   readonly renameMovePending?: WorktreeRenameMovePending | null;
@@ -132,6 +135,9 @@ async function applyUnderMutex(
       : { kind: "refused", reason: "role-conflict" };
   }
   if (current.kind === "malformed") return { kind: "refused", reason: "role-conflict" };
+  if (request.expectedMarkerGeneration !== undefined && digestBytes(current.bytes) !== request.expectedMarkerGeneration) {
+    return { kind: "refused", reason: "generation-changed" };
+  }
 
   const renamed = renamedMarker(current.marker, request);
   if (renamed === null) return { kind: "refused", reason: "role-conflict" };
@@ -265,10 +271,8 @@ async function rollbackAfterFailure(
   if (failures.length > 0) {
     const primary = cause === undefined ? failures[0] : normalizeError(cause);
     if (primary === undefined) return;
-    throw new AggregateError(
-      cause === undefined ? failures : [primary, ...failures],
-      primary.message,
-      { cause: primary },
+    throw new IncompleteWorktreePreparationError(
+      [request.sourceCheckoutPath, request.targetCheckoutPath], failures, cause,
     );
   }
 }

@@ -120,6 +120,19 @@ const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates
     candidates: [{ filename: "meta-foo.md" }],
   }),
 );
+// These orchestration tests bind current identity at the resolver boundary;
+// store-read-consumers separately exercises its real store and marker behavior.
+vi.mock("../../../src/lib/store/current-work-unit.js", () => ({
+  resolveCurrentWorkUnit: async ({ cwd }: { cwd: string }) => {
+    const { candidates } = await mockReadActiveMetaCandidates(cwd);
+    const resolved = candidates.map((candidate) => ({ reference: {
+      kind: "work-item/meta", owner: { type: "work-item", name: candidate.filename.slice(5, -3) },
+    } }));
+    if (resolved.length === 0) return { status: "none", candidates: [], warnings: [] };
+    if (resolved.length === 1) return { status: "resolved", candidate: resolved[0], candidates: resolved, warnings: [] };
+    return { status: "ambiguous", candidates: resolved, warnings: [] };
+  },
+}));
 const mockSetMetaBulletFields = vi.fn<(
   content: string,
   fields: Record<string, string>,
@@ -1293,6 +1306,7 @@ describe("handleActivate", () => {
     expect(mockRunActivate.mock.calls[0]?.[1]).toEqual({
       name: "foo",
       toBranch: "feat/foo",
+      baseBranch: "main",
       nextTask: "Task 1.1 — start",
       nextAction: "Begin the loop",
     });

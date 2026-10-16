@@ -77,7 +77,7 @@ Object.assign(familyExclusions["work-item"]?.assertions ?? {}, {
   "UID-rename-and-generations": "Tracked writes neither mint UIDs nor rename work units.",
   "former-slug-after-rename": "Tracked writes do not perform rename; real transition alias lookup is covered separately.",
   "held-here-unsupported-remedy": "Tracked listings derive held-here from live checkout state and do not emit this unsupported case.",
-  "commit-exact-SHA-before-patch-ID-and-all-task-captures": "Tracked lookup derives final Context footers rather than persisted links; real Git lookup tests cover it.",
+  "commit-exact-SHA-before-copy-key-and-all-task-captures": "Tracked lookup derives final Context footers rather than persisted links; real Git lookup tests cover it.",
   "commit-captures-independent-repository-and-optional-link-removal": "The interim backend stores no links; repository-qualified capture lookup belongs to off-branch backends.",
   "commit-unqualified-capture-non-mutating-refusal-and-repair": "The interim backend refuses every links write as unsupported, so capture validation and repair are inapplicable.",
   "batch-shared-ID-in-changes-and-history": historical,

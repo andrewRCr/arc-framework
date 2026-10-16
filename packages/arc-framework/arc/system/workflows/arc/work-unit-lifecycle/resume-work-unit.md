@@ -112,7 +112,7 @@ gh pr create --base {base-branch} --head chore/resume-{name}
 > explicit 'merge' direction before merging.
 
 ```bash
-gh pr merge {pr-number} --squash   # or per merge.strategy
+gh pr merge {pr-number} --merge   # or per merge.strategy
 ```
 
 **`--here` re-attach (after the removal lands on the base).** Once the pointer removal is committed on the tracked

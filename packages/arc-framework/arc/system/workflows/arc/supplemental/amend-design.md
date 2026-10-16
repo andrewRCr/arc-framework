@@ -166,6 +166,9 @@ work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findin
 never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
 record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
 
+Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
+of the folds, before any successor pass or the final post-settle re-read.
+
 **Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
 [`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
 lands, on every arm. Retain both common reader checks and the affected surrounding contract at this reread, without
@@ -431,3 +434,4 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md
 [source-grounding]: ../../../methods/source-grounding.md
 [pass-record]: ../../../methods/adversarial-review.md#pass-record
+[fold-verification]: ../../../methods/adversarial-review.md#fold-verification

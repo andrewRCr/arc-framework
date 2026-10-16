@@ -15,7 +15,7 @@ import type {
   V3DecomposeEvidenceValue,
 } from "./decompose-v3-refusal.js";
 import type { V3TopologyAction } from "./decompose-v3-topology.js";
-import { completedWorkUnitMetaSlug } from "./completed-index.js";
+import { completedWorkUnitMetaSlug } from "./work-unit-slug.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 
 /** Exact regular-file or absence state read from a pinned repository tree. */

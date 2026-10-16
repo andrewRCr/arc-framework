@@ -32,6 +32,10 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { runStoreArchive } from "./archive-store.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import type { SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { join, posix } from "node:path";
 
 import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
@@ -52,6 +56,8 @@ import {
   type ExecuteTransitionContext,
   type TransitionInputs,
   type TransitionOutcome,
+  type SideEffectContext,
+  type SideEffectHandler,
 } from "../lifecycle-executor.js";
 
 /** The standalone-WU sentinel; carries no cohort grouping. */
@@ -84,7 +90,7 @@ export interface ArchiveParams {
 
 /** The outcome of an `archive` attempt — a rejection, or the completed sweep. */
 export type ArchiveResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: SpineRemedy | Remedy; persisted?: true }
   | {
       status: "archived";
       outcome: TransitionOutcome;
@@ -105,6 +111,9 @@ export type ArchiveResult =
       nestedParentSwept: string | null;
       /** Non-fatal advisories (e.g. the absent-`--pr-url` backfill notice). */
       warnings: string[];
+      /** Retry for workspace cleanup after the archived records have persisted. */
+      continuation?: { kind: "user-close"; argv: ["arc", "user", "close", string]; reason: string };
+
     };
 
 /**
@@ -121,6 +130,7 @@ export type ArchiveResult =
  * @returns A rejection or the completed sweep (with the computed destination).
  */
 export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Promise<ArchiveResult> {
+  if (ctx.executor.store !== undefined && usesOffBranchState(ctx.executor.store)) return runStoreArchive({ ...ctx, executor: { ...ctx.executor, store: ctx.executor.store } }, params);
   const { name, prUrl, completed, suggestion } = params;
   const { executor, fs, clock } = ctx;
 
@@ -148,7 +158,16 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
     suggestion,
   };
 
-  const outcome = await executeTransition(executor, { verb: "archive", slug: name, inputs });
+  let closeContext: SideEffectContext | undefined;
+  const close = executor.sideEffects?.["user-workspace"];
+  const deferredExecutor = {
+    ...executor,
+    sideEffects: {
+      ...executor.sideEffects,
+      "user-workspace": (context: SideEffectContext) => { closeContext = context; return undefined; },
+    },
+  };
+  const outcome = await executeTransition(deferredExecutor, { verb: "archive", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
   const metaPath = resolveArcPath({
@@ -207,7 +226,26 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const cohortSwept = await sweepCohortDoc(executor.relocateArtifacts, postIndex, sweepArgs);
   const nestedParentSwept = await sweepNestedParentDoc(executor.relocateArtifacts, postIndex, sweepArgs);
 
-  return { status: "archived", outcome, metaPath, destination, cohortSwept, nestedParentSwept, warnings };
+  const continuation = await finishArchiveWorkspace(close, closeContext, name, warnings);
+  return { status: "archived", outcome, metaPath, destination, cohortSwept, nestedParentSwept, warnings,
+    ...(continuation === undefined ? {} : { continuation }) };
+
+}
+
+async function finishArchiveWorkspace(
+  close: SideEffectHandler | undefined,
+  context: SideEffectContext | undefined,
+  name: string,
+  warnings: string[],
+): Promise<Extract<ArchiveResult, { status: "archived" }>["continuation"]> {
+  if (close === undefined || context === undefined) return undefined;
+  try {
+    const advisory = await close(context);
+    if (typeof advisory === "string" && advisory !== "") warnings.push(advisory);
+    return undefined;
+  } catch (error) {
+    return { kind: "user-close", argv: ["arc", "user", "close", name], reason: String(error) };
+  }
 }
 
 /** The placeholder `PR URL` written when `--pr-url` is absent — a bare sentinel, backfilled later. */
@@ -232,7 +270,7 @@ function parseCohortCoordinate(field: string): [Slug] | [Slug, Slug] | null {
 /**
  * Sweep a cohort's coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
  * closeout sidecar when the cohort's **last member has shipped** — the archival
- * trigger, detected by the resolver's {@link isArchivalTriggered} over the
+ * trigger, detected by the resolver's {@link isArchivalTriggeredWithDescendants} over the
  * post-move index (never re-derived here). The sidecar shares the final member's
  * completion-order number (`{NN}a`), keeping `completed/` chronological. A
  * standalone WU, the `[none]` sentinel, or a cohort with members still in flight

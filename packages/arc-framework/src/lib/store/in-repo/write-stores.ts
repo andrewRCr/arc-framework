@@ -1,4 +1,7 @@
 /** Existing canonical record writers adapted only through the explicit filesystem ports. */
+import { digestBytes } from "../../kernel/canonical/canonical-json.js";
+import { isTerminalSnapshotRepair, LineageRepairVersionConflictError } from "../kinds/lineage/repair.js";
+
 import { dirname, join } from "node:path";
 import { withAdvisoryLock } from "../../advisory-lock.js";
 import type { WriteInput } from "../write.js";
@@ -22,6 +25,14 @@ export async function landTracked(context: InRepoContext, path: string, input: W
     withLock: <T>(lockPath: string, operation: () => Promise<T>) => heldLocks.has(lockPath) ? operation() : withCanonicalRecordLock(context, lockPath, operation) };
   if (content.kind === "candidate") { const { writeCandidateRecord } = await import("../../work-unit/candidate-record-store.js"); await writeCandidateRecord(ports.checkoutRoot, input.reference.owner.name, content.value, input.expected, fs); return; }
   if (content.kind === "boundary") { const { writeSubmissionBoundary } = await import("../../work-unit/submission-boundary-store.js"); await writeSubmissionBoundary(ports.checkoutRoot, content.value, input.expected, fs); return; }
+  if (content.kind === "transition" && input.expected !== null) {
+    if (!heldLocks.has(`${absolute}.lock`)) throw new Error(`Lineage repair has no held lock: ${absolute}`);
+    const before = await ports.fs.readFile(absolute);
+    if (digestBytes(Buffer.from(before)) !== input.expected) throw new LineageRepairVersionConflictError();
+    if (!isTerminalSnapshotRepair(input, before)) throw new Error("The proposed terminal snapshot repair is no longer admitted.");
+    await ports.fs.writeFile(absolute, content.bytes);
+    return;
+  }
   if (content.kind === "transition") {
     const { writeTransitionRecord } = await import("../../work-unit/transition-record-store.js");
     await writeTransitionRecord(ports.checkoutRoot, content.value, { lstat: (target) => ports.fs.lstat(target), mkdir: (target, options) => ports.fs.mkdir(target, options),
@@ -53,7 +64,7 @@ export async function withCanonicalRecordLock<T>(context: InRepoContext, lockPat
  */
 export async function withCanonicalRecordLocks<T>(context: InRepoContext, targets: { path: string; input: WriteInput }[],
   operation: (heldLocks: ReadonlySet<string>) => Promise<T>): Promise<T> {
-  const paths = [...new Set(targets.filter(({ input }) => ["review/candidate", "review/integration-boundary"].includes(input.reference.kind))
+  const paths = [...new Set(targets.filter(({ input }) => ["review/candidate", "review/integration-boundary", "lineage/transition"].includes(input.reference.kind))
     .map(({ path }) => `${join(context.ports.checkoutRoot, path)}.lock`))].sort();
   const held = new Set<string>();
   const enter = async (index: number): Promise<T> => {

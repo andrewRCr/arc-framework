@@ -52,6 +52,8 @@ export interface BacklogFile {
 
 /** The classified artifact set the cohort-consistency checks reason over. */
 export interface CohortConsistencyInput {
+  /** Off-branch state retires directory-match and constitutive-folder conditions. */
+  stateOffBranch?: boolean;
   /** Backlog `meta-*.md` files in scope. */
   metas: BacklogFile[];
   /** Backlog `cohort-*.md` files in scope. */
@@ -205,7 +207,7 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
     addWithPrefixes(locationCohort, groupingDirs);
 
     const fieldCohort = normalizeCohortField(meta.content);
-    if (fieldCohort !== locationCohort) {
+    if (input.stateOffBranch !== true && fieldCohort !== locationCohort) {
       diagnostics.push(
         `${meta.path}: \`**Cohort:**\` field "${fieldCohort || NONE_SENTINEL}" ` +
           `does not match its filed location "${locationCohort || NONE_SENTINEL}"`,
@@ -231,7 +233,7 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
   }
 
   // --- Condition (b): every grouping dir carries a cohort doc with a Purpose ---
-  for (const dir of [...groupingDirs].sort()) {
+  for (const dir of input.stateOffBranch === true ? [] : [...groupingDirs].sort()) {
     const doc = docsByDir.get(dir);
     if (doc === undefined) {
       // An ancestor cohort doc already on disk (unstaged) satisfies the

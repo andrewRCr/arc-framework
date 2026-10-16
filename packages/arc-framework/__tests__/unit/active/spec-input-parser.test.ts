@@ -1,8 +1,7 @@
 /**
  * Unit tests for the cold-start spec-input parser.
  *
- * The parser makes two *closed* assignments — an ARC spec artifact
- * (`draft-`/`spec-`) → Design, an issue reference → Origin — and passes
+ * The parser makes one closed assignment — an issue reference → Origin — and passes
  * everything else through (a `document` to read or a free-text `description`)
  * for the agent to assess interactively. Outcomes are no-throw discriminated;
  * only empty input fails.
@@ -20,7 +19,6 @@ import {
 
 describe("ParsedSpecInputSchema", () => {
   it.each([
-    { kind: "arc-spec", design: "not lexically validated" },
     { kind: "issue", origin: "not an issue reference" },
     { kind: "document", document: "not a path" },
     { kind: "description", description: "description" },
@@ -43,26 +41,26 @@ describe("ParsedSpecInputSchema", () => {
   });
 });
 
-describe("parseSpecInput — ARC spec artifacts → Design (closed)", () => {
-  it("classifies a spec- file as arc-spec routed to Design", () => {
+describe("parseSpecInput — draft and spec artifacts → document (no meta field)", () => {
+  it("passes a spec- file through as a document", () => {
     const r = parseSpecInput("spec-payments.md");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value).toEqual({ kind: "arc-spec", design: "spec-payments.md" });
+    expect(r.value).toEqual({ kind: "document", document: "spec-payments.md" });
   });
 
-  it("classifies a draft- file as arc-spec too", () => {
+  it("passes a draft- file through as a document", () => {
     const r = parseSpecInput("draft-onboarding.md");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value).toEqual({ kind: "arc-spec", design: "draft-onboarding.md" });
+    expect(r.value).toEqual({ kind: "document", document: "draft-onboarding.md" });
   });
 
-  it("matches the ARC spec prefix on the basename of a nested path", () => {
+  it("passes a nested draft path through as a document", () => {
     const r = parseSpecInput("./.arc/backlog/planned/foo/draft-foo.md");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value).toEqual({ kind: "arc-spec", design: "./.arc/backlog/planned/foo/draft-foo.md" });
+    expect(r.value).toEqual({ kind: "document", document: "./.arc/backlog/planned/foo/draft-foo.md" });
   });
 });
 

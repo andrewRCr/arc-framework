@@ -9,6 +9,9 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { usesOffBranchState } from "../store/lifecycle-write.js";
+import { buildStoreCurrentWuReconcile } from "./store-current-wu-reconcile.js";
 import { readdir } from "node:fs/promises";
 
 import type { UserIOContext } from "../../commands/user/types.js";
@@ -27,6 +30,8 @@ import {
 
 /** Ambient inputs the current-WU reconcile seam closes over. */
 export interface CurrentWuReconcileDeps {
+  /** Selected operational contract. */
+  store?: Store;
   /** Repository root containing `.arc/` and the path-resolution base. */
   cwd: string;
   /** I/O context carrying the filesystem ops. */
@@ -48,6 +53,7 @@ export interface CurrentWuReconcileDeps {
  * @returns The bound current-WU reconcile ceremony.
  */
 export function buildCurrentWuReconcile(deps: CurrentWuReconcileDeps): CurrentWuReconcileCeremony {
+  if (deps.store !== undefined && usesOffBranchState(deps.store)) return buildStoreCurrentWuReconcile(deps.store);
   const { cwd, io, exec, transitionExec, indexFs, at } = deps;
   return {
     prepare: async (op) =>

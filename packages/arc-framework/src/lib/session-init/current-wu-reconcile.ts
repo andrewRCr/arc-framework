@@ -25,7 +25,7 @@ export interface CurrentWuReconcileSessionResult {
   dependency: CurrentWuReconcilePlan["dependency"];
   trackedReferences: CurrentWuReconcilePlan["trackedReferences"];
   advisories: CurrentWuReconcilePlan["advisories"];
-  reason?: DependencyReconcileConflictReason;
+  reason?: DependencyReconcileConflictReason | "paused";
   recommendedAction: "skip" | "surface";
   recommendedCommand: readonly string[] | null;
   recommendedPromptText: string;

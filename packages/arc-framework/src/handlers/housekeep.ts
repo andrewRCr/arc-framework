@@ -16,6 +16,11 @@
  * @module
  */
 
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { getCurrentBranch } from "../lib/git/exec.js";
 import * as p from "../lib/terminal.js";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
@@ -42,12 +47,21 @@ export const housekeepCommandInputPolicyDeclarations = [{
 export async function handleHousekeepCheck(
   opts: HousekeepCheckOptions,
   interaction?: InteractionContext,
+  store?: Store,
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
   const { settings } = await readConfigSettings(cwd);
+  store ??= createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  if (usesOffBranchState(store)) {
+    const context = { verdict: "proceed", currentBranch: await getCurrentBranch(exec), baseBranch: settings["branch.base"],
+      primaryWorktreePath: null, pathSurface: null, branchProtection: settings["branch.protection"] === "full" ? "full" : "partial" };
+    if (opts.json) process.stdout.write(`${JSON.stringify(context)}\n`);
+    else { p.intro("arc housekeep check"); p.note("Housekeeping is available in this checkout — proceed with the drain.", "Write context"); p.outro("Done."); }
+    return;
+  }
   const context = await resolveWriteContext({ exec, baseBranch: settings["branch.base"] });
   const branchProtection = settings["branch.protection"] === "full" ? "full" : "partial";
 

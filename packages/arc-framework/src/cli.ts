@@ -361,7 +361,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
+    "Seed input — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
@@ -609,6 +609,54 @@ program
     {},
     async (context, name: string | undefined, opts: TeardownOptions) => {
       await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
+    },
+  ));
+
+program
+  .command("pause [slug]")
+  .description("Pause work in place and report unshared changes")
+  .option("--reason <text>", "Reason (required for the first pause)")
+  .option("--waits-on <slug>", "Work unit that blocks resumption")
+  .option("--waits-on-note <text>", "Prose describing what resumption awaits")
+  .option("--resume-notes <text>", "Context for resuming work")
+  .option("--open", "Open to takers")
+  .option("--no-waits-on", "Clear the wait")
+  .option("--no-resume-notes", "Clear resume notes")
+  .option("--no-open", "Close to takers")
+  .action(withInteractionContext({}, async (context, slug: string | undefined, opts: import("./handlers/lifecycle-collaboration.js").PauseCommandOptions) => {
+    await (await import("./handlers/lifecycle.js")).handlePause(slug, opts, context);
+  }));
+program
+  .command("handover [slug]")
+  .description("Hand a work unit to another owner once its work is shared")
+  .requiredOption("--to <identity>", "New owner")
+  .action(withInteractionContext({}, async (context, slug: string | undefined, opts: { to?: string }) => {
+    await (await import("./handlers/lifecycle.js")).handleHandover(slug, opts, context);
+  }));
+
+const task = program.command("task").description("Close or defer work-unit tasks");
+task
+  .command("close [ids...]")
+  .description("Close tasks and capture the increment's code commits")
+  .option("--commit <sha>", "Capture an explicit commit (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .action(withInteractionContext({}, async (context, ids: string[], opts: { commit?: string[] }) => {
+    await (await import("./handlers/task.js")).handleTaskClose(ids, opts, context);
+  }));
+task
+  .command("defer <id>")
+  .description("Defer a task and cascade its parent marker")
+  .action(withInteractionContext({}, async (context, id: string) => {
+    await (await import("./handlers/task.js")).handleTaskDefer(id, context);
+  }));
+
+program
+  .command("set-class <class> [slug]")
+  .description("Set a work unit's Class at any lifecycle placement: Light | Heavy | Novel")
+  .action(withInteractionContext(
+    {},
+    async (context, workClass: string, slug?: string) => {
+      await (await import("./handlers/lifecycle.js")).handleSetClass(workClass, slug, context);
     },
   ));
 

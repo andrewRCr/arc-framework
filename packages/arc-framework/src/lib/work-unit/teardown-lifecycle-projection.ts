@@ -6,7 +6,7 @@ import { decodeWorktreeHuskStamp, readWorktreeMarker, type WorktreeHuskStamp } f
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { localPathsEqual } from "../local-path-identity.js";
 import { validateManagedPath } from "../kernel/canonical/managed-path.js";
-import { branchToWorkUnitSlug } from "./completed-index.js";
+import { branchToWorkUnitSlug } from "./work-unit-slug.js";
 import { buildLifecycleIndex, type LifecycleIndexEntry } from "./lifecycle-index.js";
 import { isSelfTeardown } from "./mutators/reconcile-work-unit-worktree.js";
 import { gitTransitionExpectedLifecycle, type TeardownAuthorizationDecision } from "./retirement-authority.js";
@@ -91,7 +91,7 @@ export async function hasCompetingLifecycleProjection(
     if (declaredBranch !== branch) return false;
     const expectedLifecycle = proof.evidence.kind === "shipped"
       ? "completed"
-      : gitTransitionExpectedLifecycle(proof.evidence.transition);
+      : proof.evidence.kind === "lineage" ? "nonexistent" : gitTransitionExpectedLifecycle(proof.evidence.transition);
     if (
       (expectedLifecycle === "completed" && entry.location === "completed")
       || (expectedLifecycle === "planned" && entry.location === "planned")

@@ -644,7 +644,7 @@ describe("release commit body wrapping", () => {
 });
 
 describe("release commit amend", () => {
-  it("amends an unpushed HEAD, then refuses once HEAD is pushed, naming the ref", async () => {
+  it.each(["--am", "--ame", "--amen", "--amend"])("refuses %s on a pushed HEAD after an ordinary unpushed amend", async (flag) => {
     const commit = await runCli(["release", "commit", "-m", "feat(release): add the tracked change"], {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
@@ -678,7 +678,7 @@ describe("release commit amend", () => {
     await writeFile(join(repository, "tracked.txt"), "again\n");
     await git(["add", "tracked.txt"]);
 
-    const refused = await runCli(["release", "commit", "--amend", "-m", "feat(release): add the tracked change"], {
+    const refused = await runCli(["release", "commit", flag, "-m", "feat(release): add the tracked change"], {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
     });

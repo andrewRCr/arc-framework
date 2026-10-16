@@ -1,4 +1,6 @@
 /** Production command adapter for the work-unit rename verb. */
+import type { Store } from "../lib/store/contract.js";
+
 
 import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -10,7 +12,7 @@ import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
 import { getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import type { WorktreeSubject } from "../lib/git/worktree-marker.js";
+import { readWorktreeMarker, type WorktreeSubject } from "../lib/git/worktree-marker.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -72,13 +74,20 @@ import {
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
+import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { storeRenameAdapters } from "./rename-store.js";
+import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
+  /** Optional operational store injected by the lifecycle caller. */
+  store?: Store;
+  projectId?: () => Promise<string>;
+  locusPorts?: LocusPorts;
   cwd: string;
   identity: string;
   baseBranch: string;
-  io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> };
+  io: UserIOContext;
   retirement: RenameRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
@@ -89,11 +98,24 @@ export async function runRenameCommand(
   command: RenameCommandContext,
   params: { sourceSlug: string; targetSlug: string },
 ): Promise<RunRenameResult> {
+  if (command.store !== undefined && usesOffBranchState(command.store)) return runRename({
+    store: command.store, cwd: command.cwd, exec: command.io.exec, baseBranch: command.baseBranch,
+    projectId: command.projectId, locusPorts: command.locusPorts, onPreparedAdvisories: (advisories) => command.onPreparedAdvisories?.(advisories) ?? Promise.resolve(),
+    ...storeRenameAdapters(command),
+  }, params);
+  if (command.io.execInput === undefined) return { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" };
+  return runInRepoRenameCommand({ ...command, io: { ...command.io, execInput: command.io.execInput } }, params);
+}
+async function runInRepoRenameCommand(
+  command: RenameCommandContext & { io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> } },
+  params: { sourceSlug: string; targetSlug: string },
+): Promise<RunRenameResult> {
   let referencePlan: RenameReferencePlan | null = null;
   const lifecycleFs = nodeLifecycleFs();
   const referenceFs = nodeReferenceFs(command.cwd);
   const exec = command.io.exec;
   const ctx: RunRenameContext = {
+    ...(command.store === undefined ? {} : { store: command.store }),
     retirement: command.retirement,
     transitionWriter: command.transitionWriter,
     onPrepared: async (plan) => {
@@ -310,7 +332,11 @@ export async function runRenameCommand(
     },
     resolveWorktreeMove: async (plan) => {
       if (plan.newBranch === null) return { status: "in-place" };
+      const paths = await resolveWorktreePathsByBranch(exec);
+      const holdingPath = paths.get(plan.newBranch);
+      const marker = holdingPath === undefined ? null : await readWorktreeMarker(holdingPath);
       return resolveRenameWorktreeMove(exec, {
+        ...(marker?.kind === "present" ? { marker: marker.marker } : {}),
         branch: plan.newBranch,
         oldSlug: plan.sourceSlug,
         newSlug: plan.targetSlug,

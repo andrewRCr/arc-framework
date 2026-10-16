@@ -292,6 +292,24 @@
 
 - _Captured during:_ the `generate-tasks-conditional-confirm` Errand, 2026-10-13.
 
+### `[ ]` **Let a task name the work unit it waits on, in a form the cursor reads**
+
+- _Routed from:_ the `work-item-relations` mint Errand (2026-10-15).
+
+- _Shapes:_ the inbound entries "Let a task list express a sequencing override the cursor can read", "Forbid
+  non-linear blocked-open leaves in generated task lists", and "Task-list cursor marker grammar as a CLI contract".
+
+- _Observation:_ some tasks need another work unit to land when the tasks before them do not. `seam-locus`'s Tasks
+  1.1–1.4 need nothing from `seam-lifecycle` and Task 1.5 does; `storage-ref-backend`'s `seam-locus` edge holds only
+  Task 15.3.a. `work-item-relations` keeps its edges at work-unit granularity, with a `task` gate naming the provider,
+  and leaves which tasks wait to the task list (`draft-work-item-relations.md` § Decisions, D2).
+
+- _Approach:_ give a task an annotation naming the work unit it waits on, which the cursor reads: the loop stops at the
+  first waiting task, and task generation orders independent work ahead of it. The CLI checks annotations against the
+  meta's edges in both directions — each annotation's work unit has a `start` or `task` edge, and each `task` edge at
+  least one annotation. Settle the grammar with the cursor marker contract, and decide whether a wait is a third
+  shape beside the sequencing override and the linear-runnability rule or folds into one of them.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

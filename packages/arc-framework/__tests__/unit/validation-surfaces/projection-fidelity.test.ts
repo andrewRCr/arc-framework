@@ -84,7 +84,7 @@ const metaRecord = {
   stateAtHandoff: null,
   commitAtHandoff: null,
   sessionType: null,
-  sessionContext: null,
+  sessionContext: null, pause: null,
   completionNotes: [],
   releaseNotesEntry: [],
 } as const;

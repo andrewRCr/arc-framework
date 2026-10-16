@@ -25,7 +25,8 @@ import {
 import {
   normalizeFrontlineOutcome,
 } from "../policy/frontline-outcome.js";
-import { readLaneProgressOwner, recordFrontlineAttempt } from "../lane-progress.js";
+import { recordFrontlineAttempt } from "../lane-progress.js";
+import { readValidatedFrontlineAdmission } from "./frontline-admission-validation.js";
 import {
   FrontlineSemanticRecordSchema,
 } from "../policy/frontline-semantic.js";
@@ -116,23 +117,7 @@ export async function runFrontlineReviewCommand(
     throw new FrontlineRunCommandError("frontline ready resolution lacks an executable source");
   }
   const target = validateReviewTarget(request.target);
-  if (canonicalize(target) !== canonicalize(admission.target)) {
-    throw new FrontlineRunCommandError("frontline ready admission is unavailable");
-  }
-  const owner = await readLaneProgressOwner(dependencies.operationStore, {
-    lane: "frontline",
-    repositoryId: target.repositoryId,
-    headSha: target.headSha,
-    lineage: admission.lineage,
-  });
-  const admittedAttempts = owner?.attempts.filter((attempt) => (
-    attempt.attemptId === admission.operationId
-    && attempt.frontline !== undefined
-    && canonicalize(attempt.frontline.admission) === canonicalize(admission)
-  )) ?? [];
-  if (admittedAttempts.length !== 1) {
-    throw new FrontlineRunCommandError("frontline ready admission is unavailable");
-  }
+  const owner = await readValidatedFrontlineAdmission(dependencies.operationStore, admission, target);
   const source = semantic.source;
   const execute: FrontlineRunExecutionDependencies["execute"] = async () => {
     const prepared = await dependencies.prepareExecutionTarget(target);
@@ -195,7 +180,10 @@ export async function runFrontlineReviewCommand(
     withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
       operationId,
       maxWaitMs,
-      action,
+      async () => {
+        await readValidatedFrontlineAdmission(dependencies.operationStore, admission, target);
+        return action();
+      },
     ),
     execute,
     now: () => dependencies.now(),

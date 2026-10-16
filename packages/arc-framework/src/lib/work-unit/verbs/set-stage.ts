@@ -32,6 +32,10 @@ import {
 } from "../../active/current-workflow-consistency.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import { resolveArcPath } from "../../layout/index.js";
+import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import type { StoreRefusal, Remedy } from "../../store/refusal.js";
+import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
+import { writeMetaCurrentWorkflow, writeMetaNextAction } from "../../store/kinds/meta/writers.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /**
@@ -41,13 +45,13 @@ import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
  */
 export type SetStageContext = Pick<
   ExecuteTransitionContext,
-  "writeCurrentWorkflowField" | "writeSoftFields"
+  "writeCurrentWorkflowField" | "writeSoftFields" | "store"
 >;
 
 /** The outcome of a {@link runSetStage} run. */
 export type SetStageResult =
   | { status: "ok"; metaPath: string; stage: string; advanced: boolean }
-  | { status: "rejected"; reason: string };
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy };
 
 /**
  * Write the named WU's `Current Workflow` to `stage`, optionally advancing at a
@@ -86,6 +90,19 @@ export async function runSetStage(
       status: "rejected",
       reason: `\`${stage}\` is not a planning stage (expected one of ${PLANNING_WORKFLOWS.join(", ")}).`,
     };
+  }
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) {
+    const read = await readWorkUnit(ctx.store, name);
+    if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
+    const pause = await checkAdvancingPause(ctx.store, name);
+    if (pause.status === "rejected") return pause;
+    const metaPath = workUnitMetaPath(read.result);
+    let content = writeMetaCurrentWorkflow(read.result.content, stage);
+    if (advance) content = writeMetaNextAction(content, BEGIN_CURRENT_WORKFLOW_SENTINEL);
+    const written = await batchLifecycleWrites(ctx.store, [recordPut(read.result, { content })],
+      { verb: "set-stage", lifecycleAction: "set-stage" });
+    return written.status === "refused" ? { status: "rejected", reason: written.refusal.condition, refusal: written.refusal }
+      : { status: "ok", metaPath, stage, advanced: advance };
   }
   const metaPath = resolveArcPath({
     kind: "work-unit-artifact",

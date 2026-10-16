@@ -190,7 +190,7 @@ async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
   await resetEditorDocumentsProvisioning(fixture.repo);
   const started = await runArcAnchored([
-    "start", "old-name", "--here", "--new", "--from", "internal", "--yes",
+    "start", "old-name", "--here", "--new", "--yes",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
   await assertEditorDocumentsProvisioned(fixture.repo);
@@ -388,7 +388,7 @@ describe("arc rename", () => {
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     await resetEditorDocumentsProvisioning(fixture.repo);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     await assertEditorDocumentsProvisioned(oldWorktree);
@@ -403,7 +403,7 @@ describe("arc rename", () => {
     expect(renamed.stdout).toContain("spawned");
     expect(renamed.stdout).toContain("move deferred");
     expect(renamed.stdout).toContain("Follow-up:");
-    expect(renamed.stdout).toContain("`git worktree move");
+    expect(renamed.stdout).toContain("`git worktree move -f -f");
     const unwrappedOutput = unwrapPresentationOutput(renamed.stdout);
     expect(unwrappedOutput).toContain(oldWorktree);
     expect(unwrappedOutput).toContain(newWorktree);
@@ -458,7 +458,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const markerPath = join(oldWorktree, ".arc", "system", ".internal", "worktree-marker.json");
@@ -474,7 +474,7 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(1);
     expect(renamed.stdout + renamed.stderr).toContain("role-conflict");
-    expect(renamed.stdout).not.toContain("`git worktree move");
+    expect(renamed.stdout).not.toContain("`git worktree move -f -f");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };
@@ -487,7 +487,7 @@ describe("arc rename", () => {
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
     const started = await runArcNoTty([
-      "start", "old-name", "--new", "--from", "internal",
+      "start", "old-name", "--new",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
     const hook = join(fixture.remote, "hooks", "post-receive");

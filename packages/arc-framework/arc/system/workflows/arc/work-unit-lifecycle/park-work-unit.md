@@ -119,7 +119,7 @@ gh pr create --base {base-branch} --head chore/park-{name}
 > explicit 'merge' direction before merging.
 
 ```bash
-gh pr merge {pr-number} --squash   # or per merge.strategy
+gh pr merge {pr-number} --merge   # or per merge.strategy
 ```
 
 **park@Active** tore down its worktree in-verb (Step 3) and preserved the branch as the shelf — no separate

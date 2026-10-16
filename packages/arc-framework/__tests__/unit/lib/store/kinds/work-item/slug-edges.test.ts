@@ -70,3 +70,12 @@ describe("slug edge protection", () => {
     expect(await checkSlugEdges(change([meta("reused", other, [], true)], []))).toEqual([]);
   });
 });
+
+it("refuses taking another generation's slug while a pause waits on it", async () => {
+  const base = meta("dependent", dependentUid);
+  const content = base.content.replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `reused`\n\n---\n");
+  const dependent = { ...base, content, fields: parseMetaRecord(content) };
+  const result = await checkSlugEdges(change([meta("reused", other, [], true), dependent], [dependent]));
+  expect(result).toMatchObject([{ rule: "work-item.slug-edges" }]);
+  for (const remedy of ["arc pause dependent --waits-on", "--waits-on-note", "--no-waits-on"]) expect(result[0]?.remedy.text).toContain(remedy);
+});

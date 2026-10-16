@@ -77,6 +77,7 @@ describe("raw state helper ratchet", () => {
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
     ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
+    ["handlers/outside.ts", 'import { readShippedWorkUnits } from "../lib/work-unit/completed-index.js";', "lib/work-unit/completed-index.ts"],
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
     ["handlers/outside.ts", 'void import("../lib/errand/identity-transaction.js");', "lib/errand/identity-transaction.ts"],
@@ -91,6 +92,8 @@ describe("raw state helper ratchet", () => {
 
   it.each([
     ["handlers/outside.ts", 'import type { MetaRecord } from "../lib/active/meta-reader.js";'],
+    ["handlers/outside.ts", 'import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";'],
+    ["handlers/outside.ts", 'import type { CompletedIndexFs } from "../lib/work-unit/completed-index.js";'],
     ["handlers/outside.ts", 'import { type MetaRecord } from "../lib/active/meta-reader.js";'],
     ["handlers/outside.ts", 'export { type MetaRecord } from "../lib/active/meta-reader.js";'],
     ["handlers/outside.ts", 'type Reader = import("../lib/active/meta-reader.js").MetaRecord;'],

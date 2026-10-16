@@ -236,7 +236,7 @@ describe("renderMetaFile — semantic record", () => {
     const markdown = renderMetaFile("foo", overrides);
     expect(parseMetaRecord(markdown)).toEqual({
       ...overrides, stateAtHandoff: null, commitAtHandoff: null, sessionType: null,
-      sessionContext: null, completionNotes: [], releaseNotesEntry: [],
+      sessionContext: null, pause: null, completionNotes: [], releaseNotesEntry: [],
     });
     expect(markdown).toBe(renderMetaProjectionFile("foo", {
       State: "Integrating",

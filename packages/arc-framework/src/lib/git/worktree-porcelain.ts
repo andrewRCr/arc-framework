@@ -10,6 +10,7 @@ export const GitWorktreePorcelainRecordSchema = z.strictObject({
   head: z.string().min(1).nullable(),
   branch: z.string().min(1).nullable(),
   detached: z.boolean(),
+  locked: z.string().nullable().optional(),
 });
 
 export type GitWorktreePorcelainRecord = z.infer<typeof GitWorktreePorcelainRecordSchema>;
@@ -22,6 +23,7 @@ export interface GitWorktreePorcelainStanza {
     head: string | null;
     branch: string | null;
     detached: boolean;
+    locked?: string | null;
   };
 }
 
@@ -52,6 +54,8 @@ export function tokenizeGitWorktreePorcelain(stdout: string): GitWorktreePorcela
     else if (line.startsWith("HEAD ")) candidate.head = line.slice("HEAD ".length);
     else if (line.startsWith("branch refs/heads/")) candidate.branch = line.slice("branch refs/heads/".length);
     else if (line === "detached") candidate.detached = true;
+    else if (line === "locked") candidate.locked = null;
+    else if (line.startsWith("locked ")) candidate.locked = decodeGitQuotedText(line.slice(7));
   }
   flush();
   return stanzas;
@@ -114,12 +118,19 @@ function parseGitWorktreePorcelainZStanza(
     } else if (field === "detached") {
       requireUniqueField(seen, "detached", index);
       candidate.detached = true;
+    } else if (field === "locked" || field.startsWith("locked ")) {
+      requireUniqueField(seen, "locked", index);
+      candidate.locked = field === "locked" ? null : field.slice(7);
     } else if (field === "bare") {
       requireUniqueField(seen, "bare", index);
       bare = true;
     }
   }
 
+  return validatePorcelainZCandidate(candidate, bare, index);
+}
+
+function validatePorcelainZCandidate(candidate: GitWorktreePorcelainStanza["candidate"], bare: boolean, index: number): GitWorktreePorcelainRecord {
   if (candidate.branch !== null && candidate.detached) {
     throw invalidPorcelain(`stanzas.${index}: branch and detached fields conflict`);
   }
@@ -150,4 +161,25 @@ function invalidPorcelain(detail: string): ArcError {
 
 function emptyCandidate(): GitWorktreePorcelainStanza["candidate"] {
   return { path: null, head: null, branch: null, detached: false };
+}
+
+/** Decode Git's C-quoted presentation strings, including octal UTF-8 bytes. */
+export function decodeGitQuotedText(value: string): string {
+  if (!value.startsWith('"') || !value.endsWith('"')) return value;
+  const bytes: number[] = [];
+  const escapes: Record<string, string> = { a: "\x07", b: "\b", t: "\t", n: "\n", v: "\v", f: "\f", r: "\r", '\\': '\\', '"': '"' };
+  const body = value.slice(1, -1);
+  for (let index = 0; index < body.length; index++) {
+    const char = body[index] ?? "";
+    if (char !== "\\") {
+      const point = body.codePointAt(index) ?? 0;
+      bytes.push(...Buffer.from(String.fromCodePoint(point)));
+      if (point > 0xffff) index++;
+      continue;
+    }
+    const octal = body.slice(index + 1).match(/^[0-7]{1,3}/u)?.[0];
+    if (octal !== undefined) { bytes.push(Number.parseInt(octal, 8)); index += octal.length; }
+    else { index++; bytes.push(...Buffer.from(escapes[body[index] ?? ""] ?? body[index] ?? "")); }
+  }
+  return Buffer.from(bytes).toString("utf8");
 }

@@ -1020,8 +1020,8 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   it.each([
-    ["abandon", "commit"], ["abandon", "clear"],
-    ["park", "commit"], ["park", "clear"],
+    ["abandon", "commit"], ["abandon", "discard"],
+    ["park", "commit"], ["park", "discard"],
   ] as const)("%s names staged paths and retries after %s repair", async (verb, repair) => {
     await scaffoldStartedWu(repo, "mono", "in-place");
     const paths = ["staged one.txt", "staged-two.txt"];
@@ -1047,13 +1047,19 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/system/.internal/transitions/mono.json"))).toBe(false);
 
     if (repair === "commit") await commitFixtureBypassingHooks(repo, "commit unrelated staged changes");
-    else await git(repo, ["restore", "--staged", "--", ...paths]);
+    else {
+      await git(repo, ["restore", "--staged", "--", ...paths]);
+      await Promise.all(paths.map((path) => rm(join(repo, path))));
+    }
     const retried = await runArc(args, repo);
     expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
     expect(await pathExists(metaPath)).toBe(false);
     expect(await pathExists(draftPath)).toBe(false);
     if (verb === "park") expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(true);
-    for (const path of paths) expect(await readFile(join(repo, path), "utf8")).toBe("unrelated change\n");
+    for (const path of paths) {
+      if (repair === "commit") expect(await readFile(join(repo, path), "utf8")).toBe("unrelated change\n");
+      else expect(await pathExists(join(repo, path))).toBe(false);
+    }
   });
 
   it("arc abandon refuses a started work unit outside its recorded source branch", async () => {

@@ -335,7 +335,7 @@ const RenameMoveResidueViewSchema = z
   .object({
     oldSlug: z.string(),
     newSlug: z.string(),
-    branch: z.string(),
+    branch: z.string().nullable(),
     head: z.string(),
     from: z.string(),
     to: z.string(),
