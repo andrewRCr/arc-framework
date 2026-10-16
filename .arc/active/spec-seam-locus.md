@@ -1046,14 +1046,17 @@ flip's rewrite (§ 1.5).
   workflow runs only on the person's approval. Typed means runnable as given.
 - **The checkout to run in.** An action whose verb works on, or writes from, the checkout it runs in carries that
   checkout: the task close, which takes no slug and computes its set from that checkout's `HEAD`; the reconcile's apply,
-  which refuses unless that checkout's branch owns the slug (`resolveOwnedTarget`, `handlers/reconcile.ts`);
-  `arc materialize <slug> --here` for a branch a checkout with no marker has out; and, from the flip, any writer of a
-  work unit's meta or task list, which writes only from the work unit's own checkout. Each slot sets the checkout from
-  its verb's own rule; an action without one runs from any checkout.
+  which refuses unless that checkout's branch owns the slug (`resolveOwnedTarget`, `handlers/reconcile.ts`), and from
+  the flip unless the checkout resolves to the work unit, through the current-work-unit resolver or its marker
+  (`handleStoreReconcile`, `storeReconcileSlug`); `arc materialize <slug> --here` for a branch a checkout with no marker
+  has out; and, from the flip, any writer of a work unit's meta or task list, which writes only from the work unit's own
+  checkout. Each slot sets the checkout from its verb's own rule; an action without one runs from any checkout.
 - **A paused work unit.** From the flip, on a paused work unit, a slot whose action advances the work takes
   `arc resume <slug>` as its action in its place, since the verb would refuse naming it (§ 16), and its text names the
-  command to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, and the commits
-  not yet closed name `arc task close`.
+  command to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, the commits not
+  yet closed name `arc task close`, and `derivedLocusState`'s Active work unit linking no branch names
+  `arc deactivate <slug>`, then `arc activate`, each of which refuses a paused work unit (`unpaused`,
+  `lib/work-unit/lifecycle-transitions.ts`).
 - **Existing commands are kept.** Where a slot carries a command today, the action is that command, under today's
   condition (`lib/session-init/current-wu-reconcile.ts`; `projectUserReferenceSessionResult`,
   `lib/user-reference-reconcile.ts`; the residue sweep's teardown and successor remedies,
@@ -1111,7 +1114,7 @@ flip's rewrite (§ 1.5).
 | `recovery`'s `missingFolders`: a registration whose folder is missing, unlocked: `missing` (§ 12.1)                                        | `git worktree remove <path>`, once `<path>` is confirmed still missing                                                                          | text  |
 | `recovery`'s `missingFolders`: a registration whose folder is missing, locked: `locked` (§ 12.1)                                           | `git worktree unlock <path>`, then `git worktree remove <path>`, once `<path>` is confirmed still missing                                       | text  |
 | `recovery`: any other outcome — main-fallback, surface, unproven, an external candidate, or a prompted switch to a branch with no checkout | its precomposed text, as today                                                                                                                  | text  |
-| `pausedWork`: a review-due item (§ 4.4)                                                                                                    | its review prompt, naming `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open`, and `arc abandon <slug>`       | text  |
+| `pausedWork`: a review-due item (§ 4.4)                                                                                                    | its review prompt: `arc resume <slug>`, `arc handover <slug> --to <identity>`, `arc pause <slug> --open` unless open, and `arc abandon <slug>`  | text  |
 | `pausedWork`: each item (§ 4.4)                                                                                                            | `arc resume <slug>`, or a materialize as `materializableWorkUnits` carries it                                                                   | typed |
 | `inboundBackPressure` past a threshold (§ 4.6)                                                                                             | `arc inbox <slug>`, then the owner's re-triage                                                                                                  | text  |
 | `derivedLocusState`: commits not yet closed, every one made fresh (§ 11)                                                                   | `arc task close`, in the work unit's checkout                                                                                                   | typed |
@@ -1137,9 +1140,9 @@ From the flip a pause is a record on the work item that changes neither its `Sta
   ends otherwise, abandoned or cut, or once a pause waiting on no work unit, a note included, passes
   `pause.review_after_days`, a project setting beside `inbox.remind_after_days` (default 14). A review-due item carries
   a review prompt, its text precomposed, asking its owner to resume it (`arc resume <slug>`), hand it over
-  (`arc handover <slug> --to <identity>`), open it to takers (`arc pause <slug> --open`), or abandon it
-  (`arc abandon <slug>`), each a command it names in full but the identity a handover takes; the slot always passes the
-  slug.
+  (`arc handover <slug> --to <identity>`), open it to takers where it is not open already (`arc pause <slug> --open`),
+  or abandon it (`arc abandon <slug>`), each a command it names in full but the identity a handover takes; the slot
+  always passes the slug.
 - **Each item's action** is `arc resume <slug>`; or `arc materialize <slug>` when no checkout on this machine holds the
   work unit; or, when a checkout with no marker, its folder present, still has the work branch out — released, or
   claimed in place before the flip (§ 2.7) — `arc materialize <slug> --here` with that checkout to run in, since a spawn

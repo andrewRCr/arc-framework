@@ -2081,14 +2081,16 @@ its `arc schema` test with it.
         - From the flip the two reconcile slots take their work unit from the frame's subject, where today they parse it
           from the meta's file name (`metaWorkUnitNameFromActive`, `commands/status/run.ts`).
         - Failure isolation stays as `runSessionInitStatus` composes it today, including the slots it builds from
-          another slot's result: `errandState` from `worktree` and `active`, the residue sweep from the roster, and
-          `loadSet` from `derivedLocusState`.
+          another slot's result: `errandState` from `worktree` and `active`, the residue sweep from the roster,
+          `loadSet` from `derivedLocusState`, and from the flip the two reconcile slots from `derivedLocusState`'s
+          frame, each absent where the frame fails or names no work unit, as each is today with no single active meta.
 
         - Build `test-first` (one behavior at a time):
             - the envelope on each compatibility fixture is unchanged over the in-repo implementation
             - a failed store read fails only the slot that needed it
             - over the reference backend every slot composes from the store, and the reconcile slots key on the frame's
               subject
+            - over the reference backend a failed frame leaves both reconcile slots absent
 
     - `[ ]` **5.1.b `currentWuReconcile` bound once**
 
@@ -2131,9 +2133,11 @@ its `arc schema` test with it.
 
         - From the flip `lib/user-reference-reconcile.ts` and its command (`handleUserReconcileReferences`,
           `handlers/user.ts`) revalidate each prepared personal record by its version and apply every rewrite in one
-          `batch` with expected versions. The session notes it rewrites are then the meta's session context (Task
-          2.8.a), so the same batch writes the meta through the meta kind's writer at its expected version beside the
-          personal records.
+          `batch` with expected versions, through the prepared-write protocol's revalidation and application
+          (`revalidateLifecycleRecords`, `applyPreparedLifecycleWrite`, `lib/work-unit/prepared-lifecycle-write.ts`)
+          over the records it read and the rewrites it plans, rather than a protocol of its own. The session notes it
+          rewrites are then the meta's session context (Task 2.8.a), so the same batch writes the meta through the meta
+          kind's writer at its expected version beside the personal records.
         - Until the flip it re-plans under the notes lock, as `runUserReferenceReconcile` does today.
         - Its session probe in `handleSessionInitStatus` reads the person's inbox, `WORKING-MEMORY`, and session notes
           through the store from the flip, and takes its display paths from the layout resolver, where it names
@@ -2263,8 +2267,14 @@ its `arc schema` test with it.
 
         - A per-identity listing of paused work units through the store fills `pausedWork` (Task 1.3), each item marked
           as above; a review-due item carries a precomposed review prompt naming `arc resume <slug>`,
-          `arc handover <slug> --to <identity>`, `arc pause <slug> --open`, and `arc abandon <slug>`, every argument
-          filled but the handover's identity.
+          `arc handover <slug> --to <identity>`, `arc pause <slug> --open` where the pause is not open already, and
+          `arc abandon <slug>`, every argument filled but the handover's identity.
+        - The listing selects by the work item's `Owner`, never the pause's `pausedBy`, which a handover leaves in place
+          (`runHandover`, `lib/work-unit/verbs/pause-handover.ts`); it resolves a `waitsOn` slug through `lookup` to
+          mark the item, since a rename leaves another work unit's pause naming the former slug; and it measures a
+          pause's review age from its `since`, which a pause updated in place keeps. Each item carries the pause's
+          `open`, which the slot's schema (`PausedWorkResultSchema`, `lib/session-init/paused-work.ts`, Task 1.3) gains
+          beside its producer.
         - Each item's action is `arc resume <slug>`; or `arc materialize <slug>` where no checkout here holds the work
           unit; or `arc materialize <slug> --here` with the checkout to run in, where a markerless checkout, its folder
           present, still has its branch out (Task 2.7).
@@ -2274,6 +2284,9 @@ its `arc schema` test with it.
             - one waiting on an abandoned or cut work unit is review-due at once
             - a pause waiting on nothing, or on a note, older than the setting, is review-due with its prompt
             - each item's action follows where its checkout is
+            - a work unit handed over lists for its new owner, not the identity that paused it
+            - a pause waiting on a work unit since renamed resolves it by its former slug
+            - an open pause's review prompt names no `arc pause <slug> --open`
 
     - `[ ]` **5.4.b Entering a paused checkout**
 
