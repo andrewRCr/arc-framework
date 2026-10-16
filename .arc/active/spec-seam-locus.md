@@ -497,12 +497,12 @@ the marker's `spawnedByArc` itself (§ 2.5), and `resolveOriginatingMetaPath`. F
 move changes the result's shape, not the read; the function stays for its other callers, among them `arc active status`
 (`commands/active/status.ts`) and the review gate's local host context
 (`scripts/review-gate/hosts/local/live-context.ts`), which no change reroutes: they stay in-repo reads of
-`.arc/active/`, finding nothing where it is absent, until the cutover's projection lays it. The user-reference
-reconcile's current-work-unit read (`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves
-onto `resolveCurrentWorkUnit` too, leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the
-notes-sync commands as callers. Until the flip, where the resolver finds no work unit the reconcile falls back to the
-slug of the checkout's branch, as `resolveCurrentWuName` does today, so a checkout whose meta has left `.arc/active/`
-keeps its session notes scanned.
+`.arc/active/`, finding nothing where it is absent, until the projection lays it. The user-reference reconcile's
+current-work-unit read (`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves onto
+`resolveCurrentWorkUnit` too, leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the notes-sync
+commands as callers. Until the flip, where the resolver finds no work unit the reconcile falls back to the slug of the
+checkout's branch, as `resolveCurrentWuName` does today, so a checkout whose meta has left `.arc/active/` keeps its
+session notes scanned.
 
 #### 2.3 The anchored marker
 
@@ -1064,12 +1064,12 @@ flip's rewrite (§ 1.5).
   has out; and, from the flip, any writer of a work unit's meta or task list, which writes only from the work unit's own
   checkout. Each slot sets the checkout from its verb's own rule; an action without one runs from any checkout.
 - **A paused work unit.** From the flip, on a paused work unit, a slot whose action advances the work takes
-  `arc resume <slug>` as its action in its place, in `actions` alone, today's command fields beside it keeping their
-  values until the deletion pass (above), since the verb would refuse naming it (§ 16), and its text names the command
-  to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, the commits not yet
-  closed name `arc task close`, and `derivedLocusState`'s Active work unit linking no branch names
+  `arc resume <slug>` as its action in its place, since the verb would refuse naming it (§ 16), and its text names the
+  command to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, the commits not
+  yet closed name `arc task close`, and `derivedLocusState`'s Active work unit linking no branch names
   `arc deactivate <slug>`, then `arc activate`, each of which refuses a paused work unit (`unpaused`,
-  `lib/work-unit/lifecycle-transitions.ts`).
+  `lib/work-unit/lifecycle-transitions.ts`). The swap is in `actions` alone, today's command fields beside it keeping
+  their values until the deletion pass (above).
 - **Existing commands are kept.** Where a slot carries a command today, the action is that command, under today's
   condition (`lib/session-init/current-wu-reconcile.ts`; `projectUserReferenceSessionResult`,
   `lib/user-reference-reconcile.ts`; the residue sweep's teardown and successor remedies,
