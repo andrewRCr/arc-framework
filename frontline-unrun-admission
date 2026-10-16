@@ -3,7 +3,7 @@
   "slug": "frontline-unrun-admission",
   "claimId": "8851532d33e6819521cfb6a4de37d7ad",
   "createdAt": "2026-10-15T23:50:29.608Z",
-  "updatedAt": "2026-10-15T23:50:29.608Z",
+  "updatedAt": "2026-10-16T00:49:37.266Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Allow ordinary frontline resolve to withdraw or supersede only admissions whose run provably never started, preserve started operation evidence, and diagnose stale run targets without adding stored records.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let a frontline admission that never ran be withdrawn or superseded",
   "originEntrySourceDigest": "sha256:720e8e29d3f4b8d297b479af2a89077e2c6642bf10f1a921c3d5acf4e28fad08",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/frontline-unrun-admission",
+    "headSha": "c66131e923fe87e4949a89890a5efee1231bc33f"
+  }
 }
