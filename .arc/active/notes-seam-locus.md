@@ -17,6 +17,7 @@
 - [A1: where the locus ports bind](#a1-where-the-locus-ports-bind)
 - [A2: where locus's link readers get the project ID](#a2-where-locuss-link-readers-get-the-project-id)
 - [A3: where a named in-place start meets the cold start](#a3-where-a-named-in-place-start-meets-the-cold-start)
+- [A7: where promotion's steps get their checkout](#a7-where-promotions-steps-get-their-checkout)
 
 ## Consumer-map re-verification
 
@@ -436,5 +437,42 @@ silently. The in-repo arm (`handleStart`, `handlers/start.ts`) dispatches and re
 Handing the named start over from `create`, where store start already refuses in-place creation, reuses all three checks
 and removes the cold start's second dispatch. A nameless start has no name to resolve, so it keeps the slot ahead of the
 dispatch, and a derived name the store holds still meets the record write's conflict.
+
+## A7: where promotion's steps get their checkout
+
+A7 elaborates `spec-seam-locus.md` § 8.3 where it said nothing: how promotion's steps get their checkout from the flip.
+Today promotion's frame step (`replaceLocalFrame`, `lib/errand/promote-runtime.ts`) authorizes the Errand it read
+against the derived frame (`authorizeErrandTerminal`, `lib/errand/terminal-authority.ts`), takes the checkout that
+authority selects, refusing `checkout-missing` where it selects none, checks that checkout's branch, head, and clean
+tree (`inspectCheckout`), and on a rerun finds the promoted checkout by its branch (`recoverPromotedFrame`).
+
+The transition-write-path change's steps replace that frame step: their put and cut fill `replaceFrame`
+(`spec-seam-lifecycle.md` § 7.2), and they leave the frame to their caller ("Caller-owned checkout frame metadata stays
+outside these storage steps", `lib/errand/promote-store.ts`), taking a fixed `cwd` and `frame` when they are built.
+Nothing in this change's plan supplied them. Task 3.9.a had the runtime build the frame "as `receiptFromAuthority`
+derives it", which needs an authority over the record, whose `claimId` the steps read only inside
+`promoteOrdinaryErrand`. From the flip the only check of the Errand's generation would have been the occupancy
+settlement's marker comparison, after the role write, the cut, and the switch, and a promotion from another checkout
+would have run with no confirmation.
+
+The steps therefore take their checkout through a callback once they hold the Errand. The alternative, the runtime
+finding the Errand's checkout from the frame by slug before the read, keeps the steps' options but cannot tell a stale
+marker's generation from the live one's without the record. Only lifecycle's tests build the steps, so the option change
+reaches no production caller.
+
+A rerun finds its checkout by marker rather than by branch. A crash after the role write and before the switch leaves
+the checkout on the Errand's branch with the Errand's marker, one after the switch leaves it on the work branch with
+that marker, and one after the settlement leaves the work unit's marker. The rerun runs no authorization, as today's
+recovery runs none, since the Errand's record is now the work unit's.
+
+The clean-tree check does not carry over. Today's arm commits the meta in the checkout, and the only dirt it admits is
+that meta (`inspectCheckout`); from the flip the meta is a store record and the cut lands on the commit the checkout
+holds, so the switch carries any uncommitted changes onto the work branch.
+
+The exclusivity check stays where § 8.3 places it, before `promoteOrdinaryErrand`, at the checkout the runtime runs in.
+A fresh promotion's work unit is new, so no marker names it, and a rerun after the settlement from the promoted checkout
+admits that checkout's own marker. A promotion confirmed onto another checkout passes the check the checkout it runs in
+rather than the one that will hold the work unit, which admits only a marker in the invoking checkout naming the new
+work unit, such as a crashed cold start's of that name; that edge is accepted rather than given a second check.
 
 ---

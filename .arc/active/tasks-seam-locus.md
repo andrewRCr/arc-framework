@@ -1604,14 +1604,35 @@ carry `max-lines` floor entries.
           transition-write-path change's steps, which read the Errand and a promoted work unit through the store and
           whose `retire` returns `idempotent`, and keeps `settleInbox` and `settleOccupancy` its own (3.9.b); until then
           it fills every slot with today's.
-        - It runs 2.4's exclusivity check for the new work unit at the checkout before `promoteOrdinaryErrand`, whose
-          dependencies carry no slot for it.
+        - It runs 2.4's exclusivity check for the new work unit at the checkout it runs in (the frame's `entering` row)
+          before `promoteOrdinaryErrand`, whose dependencies carry no slot for it.
         - It builds the steps with `createStorePromotionSteps` (`lib/errand/promote-store.ts`) from its own options —
-          `store`, `exec`, `slug`, `name`, `type`, `floor`, `owner`, `priority`, `class` — and the checkout frame
-          `readFrame` gives, as `receiptFromAuthority` derives it (`checkoutPath`, `allocation`, `parentCheckoutPath`),
-          its `cwd` that frame's checkout and its `repository` the project ID from an optional port
-          `PromoteOrdinaryErrandRuntimeOptions` gains beside `store` (Phase 2's design decision); given no project ID it
-          refuses before `promoteOrdinaryErrand`, naming that condition.
+          `store`, `exec`, `slug`, `name`, `type`, `floor`, `owner`, `priority`, `class` — its `checkout` the callback
+          below and its `repository` the project ID from an optional port `PromoteOrdinaryErrandRuntimeOptions` gains
+          beside `store` (Phase 2's design decision); given no project ID it refuses before `promoteOrdinaryErrand`,
+          naming that condition.
+        - In `lib/errand/promote-store.ts` the steps' options (`StorePromotionOptions`) take a callback, `checkout`, in
+          place of `cwd` and `frame`, which the steps call with the Errand record they hold — the one they read
+          (`replaceFrame`) or the one they recover from the role write's history (`recoverPromoted`) — and with which of
+          the two it is, before any Git step or write. They run their Git at the checkout it returns and carry its
+          `checkoutPath`, `allocation`, and `parentCheckoutPath` on their receipt, and return its refusal, confirmation,
+          or error as given. Lifecycle's tests of the steps (`__tests__/unit/errand/promote-store.test.ts`,
+          `__tests__/integration/errand-promote-store.test.ts`, `__tests__/unit/work-unit/lifecycle-program.test.ts`)
+          pass one.
+        - For a promotion the runtime's callback runs today's terminal authorization over the Errand record it is given
+          against the frame `readFrame` gives (`authorizeErrandTerminal`, operation `promote`, with
+          `confirmForeignGeneration` and the retry arguments, as `replaceLocalFrame` runs it), returning its
+          confirmation as today and its refusal through `authorityRefusalReason`, `checkout-missing` where it selects no
+          checkout, and `promotion-source-invalid` where that checkout's branch is not the Errand's; the checkout it
+          returns is the one the authority selects, as `receiptFromAuthority` derives it. It runs no clean-tree check:
+          the cut and the switch land on the commit the checkout holds, so its uncommitted changes carry onto the work
+          branch, and `inspectCheckout`'s check stays the in-repo arm's, before its meta commit.
+        - For a rerun after the role write it returns the one checkout among the frame's rows whose `subject` is that
+          Errand generation or the work unit (`name`), with no authorization, as today's recovery runs none
+          (`recoverPromotedFrame`), refusing `checkout-missing` where none is, `duplicate-locus` where more than one is,
+          with today's recovery's messages, and `promotion-source-invalid` where it is on neither the Errand's branch
+          nor the work branch. Its branch alone no longer finds it, since a crash before the switch leaves it on the
+          Errand's branch.
         - The steps' receipt (`receipt`, `lib/errand/promote-store.ts`) carries the origin's `originEntrySourceDigest`
           as the Errand record holds it, `null` included, as every projection of an origin does (spec § 7.6), where
           today it parses an inbox origin's as a digest (`CanonicalDigestSchema`), which throws after the role write,
@@ -1627,14 +1648,25 @@ carry `max-lines` floor entries.
             - over the reference backend the runtime fills the four slots with the transition-write-path change's steps,
               and over the in-repo implementation with today's
             - over the reference backend an injected refusing check leaves nothing written
-            - over the reference backend the steps take the frame's checkout and the project ID, and with no project ID
-              the runtime refuses, writing nothing
+            - over the reference backend the steps take the checkout the callback returns and the project ID, and with
+              no project ID the runtime refuses, writing nothing
             - over the reference backend with no project-ID port injected, the steps take the project ID the project's
               identity record holds
             - over the reference backend an Errand whose inbox origin carries the qualified ID and a `null` digest
               promotes, its receipt carrying both as the record holds them, and a rerun reports `idempotent`
             - over the reference backend promoting an Errand whose record is at `completed` refuses, writing no meta,
               cutting no branch, and leaving `HEAD` where it was
+            - the steps call the callback before any Git step or write, and a refusal it returns leaves nothing written
+            - over the reference backend a promotion from the Errand's own checkout runs there, and one from another
+              checkout returns today's confirmation, writing nothing, and with `--confirm-foreign-generation` runs in
+              the Errand's checkout
+            - over the reference backend an incomplete identity basis and two checkouts claiming the Errand each refuse
+              as today, and an Errand with no checkout refuses `checkout-missing` once confirmed, each writing nothing
+            - over the reference backend an Errand checkout off its branch refuses, writing nothing, and one with
+              uncommitted changes promotes, its changes on the work branch
+            - over the reference backend a rerun after a crash following the role write — before the switch, after it,
+              or after the marker's settlement — completes in that checkout, and with no such checkout refuses
+              `checkout-missing`
 
     - `[ ]` **3.9.b The settlement**
 

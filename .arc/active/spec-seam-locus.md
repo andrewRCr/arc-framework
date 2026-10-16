@@ -208,11 +208,12 @@ Paths are under `packages/arc-framework/src/`.
   `terminal-result.ts`, `promotion-result.ts` with `promote.ts`, `lib/session-init/materializable-errands.ts`, and
   `handlers/errand.ts`'s settlements and materialize's re-feed, § 7.6); `change-request-lifecycle.ts`, whose merged
   evidence carries the merge commit (§ 8.1); and `promote-runtime.ts`'s selection of promotion's steps on the
-  capability, its marker settlement, and its inbox settlement step (`receiptFromAuthority`, `settlePromotedInbox`,
-  § 8.3), shared with the change rerouting promotion's write (§ 1.3); `promote-store.ts`, that change's promotion steps,
-  where this change has their receipt report the origin as the record holds it and their Errand read take placement
-  `active` only (§ 7.6, § 8, A5, A6); and `handlers/errand.ts`'s `arc errand materialize` (`handleErrandMaterialize`),
-  its Errand read (§ 8).
+  capability, the checkout it gives them, its marker settlement, and its inbox settlement step
+  (`authorizeErrandTerminal`, `receiptFromAuthority`, `settlePromotedInbox`, § 8.3, A7), shared with the change
+  rerouting promotion's write (§ 1.3); `promote-store.ts`, that change's promotion steps, where this change has their
+  receipt report the origin as the record holds it, their Errand read take placement `active` only, and their checkout
+  come from the runtime after that read (§ 7.6, § 8, § 8.3, A5–A7); and `handlers/errand.ts`'s `arc errand materialize`
+  (`handleErrandMaterialize`), its Errand read (§ 8).
 - **The personal surfaces and entry lists:** `lib/user-sync/parser.ts`, `lib/user-sync/inbox-writer.ts`,
   `lib/user-sync/inbox-target.ts`, `lib/user-sync/execution-offer.ts`, `commands/user/inbox-list.ts`,
   `handlers/user-inbox-list.ts`, `commands/user/inbox-mutation.ts`, `lib/inbox-entry-operand.ts` with its callers'
@@ -256,10 +257,10 @@ builds on:
 - `handlers/start.ts`, where that change's start dispatch precedes this change's binding of its cold-start slot and the
   cold start's prompt and report (§ 2.5);
 - `lib/errand/promote-runtime.ts`, where this change has the runtime select that change's promotion steps on the
-  capability, with its marker settlement and its inbox settlement step (§ 8.3);
+  capability, with the checkout it gives them, its marker settlement, and its inbox settlement step (§ 8.3, A7);
 - `lib/errand/promote-store.ts`, which that change creates with promotion's steps, and where this change has their
-  receipt report the origin as the record holds it and their Errand read take placement `active` only (§ 7.6, § 8, A5,
-  A6);
+  receipt report the origin as the record holds it, their Errand read take placement `active` only, and their checkout
+  come from the runtime after that read (§ 7.6, § 8, § 8.3, A5–A7);
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
@@ -1688,6 +1689,14 @@ steps on the capability, with its marker settlement (`settlePromotedOccupancy`):
 transient marker (`convertSpawnedMarker`), as today; on the primary, from the flip, it replaces the transient marker's
 generation with an anchored work-unit marker, a rerun finding its own marker settled (§ 2.6); and either way the runtime
 runs the exclusivity check before `promoteOrdinaryErrand`, so a refusal leaves nothing written (§ 2.4). From the flip
+the steps take their checkout from the runtime once they hold the Errand, before any Git step or write (A7). For a
+promotion it is the checkout today's terminal authorization selects for that record (`authorizeErrandTerminal`,
+`lib/errand/terminal-authority.ts`): the current checkout where it holds the Errand, or the Errand's other checkout
+after `--confirm-foreign-generation`, with today's refusals, `checkout-missing` where it selects none, and a refusal
+where that checkout is off the Errand's branch. For a rerun after the role write it is the one checkout whose marker
+names that Errand generation or the work unit, on either branch, with no authorization, as today's recovery runs none
+(`recoverPromotedFrame`). A checkout's uncommitted changes carry onto the work branch, since the cut and the switch land
+on the commit it holds; the clean-tree check today's arm runs before its meta commit stays with that arm. From the flip
 the runtime also skips its inbox settlement step (`settlePromotedInbox`), since the start moved the entry into the
 Errand's description (§ 7.7), and its settled result reports no origin, as today (§ 7.6). The selection lands once the
 runtime's Errand record reads go through the store (§ 8), since the steps from the flip read the Errand from it. Until
@@ -2446,6 +2455,10 @@ close.
 15. **Lifecycle's in-place arms refuse an occupied checkout (A4).** From the flip, graduation in place and
     `arc materialize --here` in a checkout whose marker names anything but their work unit refuse before any Git step,
     `HEAD` unmoved and nothing written, naming that marker's exit.
+16. **Promotion runs in the checkout that holds its Errand (A7).** From the flip promotion runs in the checkout today's
+    terminal authorization selects for the Errand it reads — the current checkout, or the Errand's other checkout after
+    confirmation — refusing as today before any write, and refusing a checkout off the Errand's branch; a rerun after
+    its write completes in the checkout whose marker names that Errand or its work unit.
 
 ## Open Questions
 
@@ -2466,5 +2479,7 @@ this design open.
   included. _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 - **A6** — 2026-10-16 — task: promotion reads the Errand it promotes only at placement `active`. _Supersedes:_ none.
   _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
+- **A7** — 2026-10-16 — spec-depth: promotion's steps take their checkout from the runtime once they hold the Errand.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 
 ---
