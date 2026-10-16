@@ -658,7 +658,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       });
     },
     recovery: async (context, roster, currentBranch) => {
-      const resolved = await resolvedSettingsP;
+      const [resolved, derivedRoster] = await Promise.all([resolvedSettingsP, getOptionalDerivedRoster()]);
       const baseBranch = resolved.settings["branch.base"];
       const baseEvidence = sessionCleanupBaseEvidence(context);
       const recent = baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
@@ -673,6 +673,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         : { branches: [], pendingBranchCount: 0 };
       return runBranchGoneRecovery({
         roster,
+        derivedRoster,
         currentBranch,
         baseBranch,
         recentBranches: recent.branches,

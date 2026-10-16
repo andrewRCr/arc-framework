@@ -28,7 +28,7 @@ export interface TerminalOccupancyInspection {
 }
 
 export interface TerminalOccupancyIO {
-  inspect(checkoutPath: string): Promise<TerminalOccupancyInspection>;
+  inspect(checkoutPath: string, options?: { inspectStatus: boolean }): Promise<TerminalOccupancyInspection>;
   removePrimary(checkoutPath: string, subject: ErrandTerminalSubject): Promise<"removed" | "absent" | "changed">;
   removeSpawned(checkoutPath: string, primaryCheckoutPath: string): Promise<"removed" | "absent" | "changed">;
 }
@@ -45,11 +45,13 @@ export function createTerminalOccupancyIO(
   options: { readonly restorePrimaryTo?: string } = {},
 ): TerminalOccupancyIO {
   return {
-    inspect: async (checkoutPath) => {
+    inspect: async (checkoutPath, inspectionOptions) => {
       const [branch, head, status, marker] = await Promise.all([
         exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath }),
         exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath }),
-        exec("git", ["status", "--porcelain"], { cwd: checkoutPath }),
+        inspectionOptions?.inspectStatus === false
+          ? Promise.resolve({ stdout: "", stderr: "" })
+          : exec("git", ["status", "--porcelain"], { cwd: checkoutPath }),
         readWorktreeMarkerGeneration(checkoutPath),
       ]);
       return {

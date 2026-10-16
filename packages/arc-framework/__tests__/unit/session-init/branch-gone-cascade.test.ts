@@ -183,7 +183,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 
@@ -194,7 +194,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: true,
       marker: { kind: "absent" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: false,
     });
 
@@ -205,7 +205,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "absent" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 
@@ -216,7 +216,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: false,
     });
 
@@ -227,7 +227,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: false,
+      removalCheck: { kind: "refused", reason: "dirty", paths: ["changed"] },
       merged: true,
     });
 
@@ -238,7 +238,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
-      clean: true,
+      removalCheck: { kind: "removable" },
       userSurfacesSafe: false,
       merged: true,
     });
@@ -250,7 +250,7 @@ describe("determineCandidateAction", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "malformed", message: "bad json", path: "/wt/.arc/system/.internal/worktree-marker.json" },
-      clean: true,
+      removalCheck: { kind: "removable" },
       merged: true,
     });
 

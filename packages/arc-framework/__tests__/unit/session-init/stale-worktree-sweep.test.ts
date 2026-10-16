@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 import {
   findStaleWorktreeCandidates,
@@ -14,6 +14,8 @@ import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migra
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
+const folderExists = vi.fn<() => Promise<boolean>>();
+beforeEach(() => { folderExists.mockReset().mockResolvedValue(true); });
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
 
@@ -25,6 +27,7 @@ function runStaleWorktreeSweep(
 ) {
   return runStaleWorktreeSweepCore({
     ...options,
+    folderExists: options.folderExists ?? folderExists,
     readBlob: options.readBlob ?? emptyBlobReader,
     derivedRoster: options.derivedRoster ?? [],
   });

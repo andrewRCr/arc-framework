@@ -554,4 +554,18 @@ Three run as given once the slot fills the slug: `arc resume <slug>` clears the 
 the person's approval (§ 4.3), and that approval is the abandon's confirmation. The handover takes the identity it hands
 to, which only the owner can name, so it stays text, as a typed action is one runnable as given.
 
+## Task 1.5: removal observations
+
+Spec § 1.4, item 4 changes `unit/git/worktree-cleanup.test.ts`, `unit/session-init/branch-gone-cascade.test.ts`,
+`unit/session-init/branch-gone-recovery.test.ts`, `unit/session-init/stale-worktree-sweep.test.ts`, and
+`unit/session-init/lifecycle-residue-sweep.test.ts`; it adds `unit/session-init/removal-observations.test.ts` and
+`unit/errand/leave-runtime-removal.test.ts`. All paths are under `packages/arc-framework/__tests__/`. No golden fixture
+changes are required by this increment.
+
+Recovery takes folder presence from the cached derived roster alongside its identity-filtered candidate roster, so it
+neither widens the public roster nor scans registrations again. Filesystem injection keeps synthetic checkout paths
+independent of module import order in the shared unit workers. Leave's spawned inspection omits a redundant status read
+once its pre-write removal check has established cleanliness; terminal settlement keeps its inspection until Task 1.6 -
+`tasks-seam-locus.md`.
+
 ---

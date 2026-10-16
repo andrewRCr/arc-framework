@@ -13,7 +13,9 @@
  */
 
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import type { SessionAction } from "./actions.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -43,6 +45,12 @@ import { projectCleanupRemoteEvidence, type CleanupBaseEvidence } from "./cleanu
 export const RECOVERY_RECENCY_DAYS = 30;
 
 export interface RunBranchGoneRecoveryOptions {
+  /** The same reader-owned checkout rows used by session entry. */
+  derivedRoster: readonly DerivedCheckoutRow[] | null;
+  /** Projection policy used by read-only removal observations. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  /** Filesystem boundary for checkout folder observations. */
+  folderExists?: (path: string) => Promise<boolean>;
   /** Pre-computed, identity-filtered roster from the session-init roster slot. */
   roster: WorktreeRosterResult;
   /** The branch-gone branch — excluded from candidates (cannot recover onto it). */
@@ -78,11 +86,18 @@ export async function runBranchGoneRecovery(
   const worktreeEntries = roster.entries.filter((entry) => entry.branch !== currentBranch);
   const primaryWorktreePath = worktreeEntries.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
-  const worktreeCandidates = await Promise.all(
+  if (options.derivedRoster === null) throw new Error("Recovery checkout observations are unavailable.");
+  const rows = new Map(options.derivedRoster.map((row) => [row.checkout.path, row]));
+  const missingFolders: { worktreePath: string; branch: string; actions: SessionAction[] }[] = [];
+  const candidates = await Promise.all(
     worktreeEntries.map((entry) =>
       buildWorktreeCandidate(entry, {
         exec,
         readMarker,
+        folderPresent: rows.get(entry.worktreePath)?.checkout.folderPresent,
+        folderExists: options.folderExists,
+        projectionRemovalSlots: options.projectionRemovalSlots,
+        missingFolders,
         userSurfaceFs,
         integrationTarget,
         primaryWorktreePath,
@@ -95,7 +110,8 @@ export async function runBranchGoneRecovery(
   // The fallback tier: recent branches that are not the gone branch, not the
   // base (that resolves through the explicit main-fallback), and not already
   // represented by a local worktree candidate.
-  const represented = new Set(worktreeCandidates.map((candidate) => candidate.branch));
+  const worktreeCandidates = candidates.filter((candidate): candidate is CascadeCandidate => candidate !== null);
+  const represented = new Set(roster.entries.map((entry) => entry.branch));
   const recentBranchCandidates: CascadeCandidate[] = recentBranches
     .filter(
       (branch) =>
@@ -103,7 +119,7 @@ export async function runBranchGoneRecovery(
     )
     .map((branch) => ({ branch, proposedAction: "switch" }));
 
-  return resolveCascade({
+  const result = resolveCascade({
     worktreeCandidates,
     recentBranchCandidates,
     pendingBranchCount: options.recentPendingBranchCount,
@@ -116,9 +132,14 @@ export async function runBranchGoneRecovery(
       ? { remoteEvidence: "exact" }
       : projectCleanupRemoteEvidence(baseBranch, options.baseEvidence),
   });
+  return missingFolders.length === 0 ? result : { ...result, missingFolders };
 }
 
 interface CandidateContext {
+  folderPresent: boolean | undefined;
+  folderExists?: (path: string) => Promise<boolean>;
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  missingFolders: { worktreePath: string; branch: string; actions: SessionAction[] }[];
   exec: GitExec;
   readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   userSurfaceFs: UserSurfaceMigrationFs;
@@ -131,16 +152,30 @@ interface CandidateContext {
 async function buildWorktreeCandidate(
   entry: WorktreeRosterEntry,
   ctx: CandidateContext,
-): Promise<CascadeCandidate> {
+): Promise<CascadeCandidate | null> {
+  if (ctx.folderPresent === undefined) {
+    return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external" };
+  }
+  if (!ctx.folderPresent) {
+    const check = await checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath,
+      disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
+    if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
+      const path = JSON.stringify(entry.worktreePath);
+      const unlock = check.kind === "refused" ? `its lock's owner may run git worktree unlock ${path}, then ` : "";
+      ctx.missingFolders.push({ worktreePath: entry.worktreePath, branch: entry.branch,
+        actions: [{ text: `After confirming the folder is still missing, ${unlock}git worktree remove ${path}.` }] });
+    }
+    return null;
+  }
   // A worktree with no resolved meta is main / admin — always a switch
   // destination, so the marker / clean / merged gathering is skipped.
   if (entry.metaFilePath === undefined) {
     return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "switch" };
   }
 
-  const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
+  const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
-    isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
+    checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath, disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists }),
     resolveCandidateMerged(ctx, entry.branch),
     linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath: ctx.primaryWorktreePath,
@@ -155,7 +190,7 @@ async function buildWorktreeCandidate(
     proposedAction: determineCandidateAction({
       isMainOrAdmin: false,
       marker,
-      clean,
+      removalCheck,
       userSurfacesSafe,
       merged: merged ?? false,
     }),

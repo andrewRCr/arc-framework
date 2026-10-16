@@ -169,9 +169,22 @@ describe("runLandedRetirementSweep", () => {
       exec,
       readBlob: async () => null,
       authorize: async () => authorizedDecision(),
-      isClean: async () => true,
+      checkRemoval: async () => ({ kind: "removable" as const }),
     };
   }
+
+  it.each(["unobservable", "locked"] as const)("reports %s without offering teardown", async (reason) => {
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => reason === "locked"
+      ? { kind: "refused", reason, path: "/wt/retired", lockReason: "owner", folderPresent: true }
+      : { kind: "refused", reason, detail: "status failed" } });
+    expect(result.retirements).toEqual([{ status: "blocked", worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" }, reason }]);
+  });
+
+  it("omits authorized residue whose folder has disappeared", async () => {
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => ({ kind: "missing" }) });
+    expect(result.retirements).toEqual([]);
+  });
 
   it("offers ordinary teardown directly from structural abandon authority", async () => {
     const result = await runLandedRetirementSweep(options());
@@ -291,7 +304,7 @@ describe("runLandedRetirementSweep", () => {
   );
 
   it("keeps dirty structurally authorized residue blocked", async () => {
-    const result = await runLandedRetirementSweep({ ...options(), isClean: async () => false });
+    const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => ({ kind: "refused" as const, reason: "dirty" as const, paths: ["changed"] }) });
 
     expect(result.retirements).toEqual([{
       status: "blocked",

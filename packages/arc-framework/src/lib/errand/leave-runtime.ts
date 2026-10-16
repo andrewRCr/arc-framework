@@ -1,5 +1,6 @@
 /** Production identity, preservation, and derived-occupancy composition for Errand leave. */
 
+import { checkWorktreeRemoval, describeRemovalRefusal, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { observeExactChangeRequest } from "./change-request-lifecycle.js";
@@ -21,6 +22,7 @@ import { ordinaryErrandTransform, provePauseHead, type OrdinaryErrandRecord } fr
 import { transactTransientIdentities } from "./identity-transaction.js";
 
 export interface LeaveOrdinaryErrandRuntimeOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly state: "paused" | "awaiting-merge";
   readonly protection: "full" | "partial";
@@ -99,7 +101,13 @@ async function authorizePreservation(
   if (authority.row === null || authority.checkoutPath === null) {
     return { kind: "refused", reason: "checkout-missing", message: "Open Errand checkout is absent." };
   }
-  const inspected = await occupancyIO.inspect(authority.checkoutPath);
+  if (!authority.row.checkout.primary) {
+    const check = await checkWorktreeRemoval({ exec: options.exec, checkoutPath: authority.checkoutPath,
+      disposition: "remove", check: options.projectionRemovalSlots?.check });
+    if (check.kind !== "removable") return { kind: "refused", reason: "preservation-unproven",
+      message: check.kind === "refused" ? describeRemovalRefusal(check) : "Errand checkout folder is missing; restore it before leaving." };
+  }
+  const inspected = await occupancyIO.inspect(authority.checkoutPath, { inspectStatus: authority.row.checkout.primary });
   if (inspected.dirty || inspected.branch !== record.branch || inspected.head !== authority.row.checkout.head) {
     return {
       kind: "refused",

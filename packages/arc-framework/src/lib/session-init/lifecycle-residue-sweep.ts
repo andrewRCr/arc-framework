@@ -6,7 +6,7 @@
 
 import type { SessionAction } from "./actions.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
-import { isWorktreeClean } from "../git/worktree-cleanup.js";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots, type RemovalCheck } from "../git/worktree-removal.js";
 import type {
   RegisteredWorktree,
 } from "../git/worktree-roster.js";
@@ -90,7 +90,10 @@ export interface RunLandedRetirementSweepOptions {
   /** Compatibility acquisition seam for callers outside session composition. */
   fetchBase?: () => Promise<boolean>;
   authorize?: (request: TeardownAuthorizationRequest) => Promise<TeardownAuthorizationDecision>;
-  isClean?: (worktreePath: string) => Promise<boolean>;
+  /** Read-only removal observation seam. */
+  checkRemoval?: (worktreePath: string) => Promise<RemovalCheck>;
+  /** Projection policy for default removal observations. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
 }
 
 /**
@@ -228,8 +231,9 @@ export async function runLandedRetirementSweep(
         : createTeardownRetirementAuthorityStrict(authorityExec, proofTarget, options.readBlob)
       ).authorize
     : options.authorize;
-  const clean = options.isClean
-    ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));
+  const checkRemoval = options.checkRemoval
+    ?? ((checkoutPath: string) => checkWorktreeRemoval({ exec: options.exec, checkoutPath,
+      disposition: "remove", check: options.projectionRemovalSlots?.check }));
   const projected = await Promise.all(candidates.map(async (
     candidate,
   ): Promise<LandedRetirementResidue | null> => {
@@ -257,12 +261,15 @@ export async function runLandedRetirementSweep(
     }
     const evidence = decision.evidence;
     if (evidence.kind !== "git-transition" || evidence.transition !== "abandon") return null;
-    if (!await clean(candidate.path)) {
+    const removalCheck = await checkRemoval(candidate.path);
+    if (removalCheck.kind === "missing") return null;
+    if (removalCheck.kind === "refused") {
       return {
         status: "blocked",
         worktreePath: candidate.path,
         subject: { slug, branch: candidate.branch },
-        reason: "uncommitted",
+        reason: removalCheck.reason === "dirty" || removalCheck.reason === "persist-would-refuse"
+          ? "uncommitted" : removalCheck.reason,
       };
     }
     const pending = { status: "pending" } as const;

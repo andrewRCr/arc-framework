@@ -7,7 +7,7 @@
  * - {@link isWorktreeClean} — whether a worktree's tree has no uncommitted
  *   changes, via `git status --porcelain` scoped to its `cwd`.
  * - {@link decideWorktreeCleanup} — the pure decision mapping marker presence,
- *   clean, identity-global user-surface safety, merged, and removal-context
+ *   removal eligibility, identity-global user-surface safety, merged, and removal-context
  *   signals to one removability state. The returned state describes the
  *   *worktree* (not the action) — each caller chooses its action per its own
  *   approval model: the branch-gone cascade's user-offer, the stale-worktree
@@ -24,6 +24,7 @@
  */
 
 import type { GitExec } from "./exec.js";
+import type { RemovalCheck } from "./worktree-removal.js";
 import type { WorktreeMarkerReadResult } from "./worktree-marker.js";
 
 /** Inputs for the worktree-clean check. */
@@ -54,7 +55,8 @@ export async function isWorktreeClean(options: IsWorktreeCleanOptions): Promise<
 /** Removability state of an ARC-managed worktree at a cleanup site. */
 export type WorktreeCleanupDecision =
   | { action: "removable" }
-  | { action: "blocked"; reason: "uncommitted" | "user-surfaces" | "unmerged" }
+  | { action: "blocked"; reason: "uncommitted" | "user-surfaces" | "unmerged" | "unobservable" | "locked" }
+  | { action: "missing" }
   | { action: "external" };
 
 /**
@@ -72,8 +74,8 @@ export type WorktreeCleanupContext = "shipped" | "abandonment";
 export interface WorktreeCleanupInputs {
   /** Result of reading the worktree-ownership marker. */
   marker: WorktreeMarkerReadResult;
-  /** Whether the working tree is clean (no uncommitted changes). */
-  clean: boolean;
+  /** Read-only checkout removal observation. */
+  removalCheck: RemovalCheck;
   /** Whether ignored identity-global user surfaces are absent or safely mergeable. */
   userSurfacesSafe?: boolean;
   /** Whether the branch is merged into the integration target. */
@@ -99,7 +101,7 @@ export interface HuskCleanupInputs {
 }
 
 /**
- * Map marker / clean / merged / context signals to a removability state.
+ * Map removal observations and marker / merged / context signals to a disposition.
  *
  * - No trustworthy marker (`absent` or `malformed`) → `external`: the worktree
  *   is externally managed; cleanup is the operator's tool's concern.
@@ -114,16 +116,23 @@ export interface HuskCleanupInputs {
  *   worktree is safe to remove. Abandonment authorizes removal of unmerged
  *   work, so the merge gate is bypassed.
  *
- * @param inputs - Marker result + clean + merged + context signals
+ * @param inputs - Removal observation, marker, merge, and context signals
  * @returns The worktree's removability state
  */
 export function decideWorktreeCleanup(inputs: WorktreeCleanupInputs): WorktreeCleanupDecision {
-  const { marker, clean, merged, context } = inputs;
+  const { removalCheck, merged, context } = inputs;
+  if (removalCheck.kind === "missing") return { action: "missing" };
+  if (removalCheck.kind === "refused" && removalCheck.reason === "locked" && !removalCheck.folderPresent) {
+    return { action: "blocked", reason: "locked" };
+  }
+  const { marker } = inputs;
   if (marker.kind !== "present") {
     return { action: "external" };
   }
-  if (!clean) {
-    return { action: "blocked", reason: "uncommitted" };
+  if (removalCheck.kind === "refused") {
+    const reason = removalCheck.reason === "dirty" || removalCheck.reason === "persist-would-refuse"
+      ? "uncommitted" : removalCheck.reason;
+    return { action: "blocked", reason };
   }
   if (inputs.userSurfacesSafe === false) {
     return { action: "blocked", reason: "user-surfaces" };

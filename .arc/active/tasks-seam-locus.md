@@ -130,112 +130,34 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   `e2e/locus-folder-presence.e2e.test.ts`; all changed tests and golden fixtures are enumerated in the completion notes
   in `notes-seam-locus.md`. Golden values change only by the registered checkouts' folder fields.
 
-### `[ ]` **1.5 Take the removal check's outcomes in the sweeps, recovery, and `arc errand leave` — § 12.1**
+### `[x]` **1.5 Take the removal check's outcomes in the sweeps, recovery, and `arc errand leave` — § 12.1**
 
 - _Goal:_ Every removal decision in this change — the cleanup decision, the stale-worktree sweep, branch-gone recovery,
   the residue sweep, and `arc errand leave`'s authorization — decides through the removal check and reports
   `unobservable`, `locked`, and `missing` where today a failed status read folds into not clean.
 
-    - Each decision that runs the check — the stale-worktree and residue sweeps, branch-gone recovery, and
-      `authorizePreservation` — takes the projection's slots as an optional `projectionRemovalSlots`
-      (`ProjectionRemovalSlots`, `lib/git/worktree-removal.ts`) on its options (`RunStaleWorktreeSweepOptions`,
-      `RunLandedRetirementSweepOptions`, which the stale-worktree sweep fills from its own,
-      `RunBranchGoneRecoveryOptions`, and the leave runtime's, `LeaveOrdinaryErrandRuntimeOptions`), as the
-      transition-write-path change's teardown and reconcile contexts take it, and passes the check only its `check`,
-      since none removes. The projection binds it where the sweep's and recovery's options are composed
-      (`handleSessionInitStatus`, `handlers/status.ts`) and the leave runtime's (`handlers/errand.ts`); given none, the
-      passing defaults apply.
+    - `[x]` **1.5.a The cleanup decision**
 
-    - The check reads the checkout's registration itself, one `git worktree list --porcelain -z` per call
-      (`readRegistration`, `lib/git/worktree-removal.ts`), so each decision's scripted-Git test double answers that call
-      beside its status read.
+        - The cleanup decision consumes `RemovalCheck`, preserving missing folders, foreign locks, and unobservable
+          status separately; absent-folder outcomes precede marker checks.
 
-    - Build `test-first` (one behavior at a time):
-        - a `check` injected through each decision's `projectionRemovalSlots` is the one its removal check calls
+    - `[x]` **1.5.b The stale-worktree sweep and the residue sweep**
 
-    - `[ ]` **1.5.a The cleanup decision**
+        - Both sweeps take projection checks, preserve refusal reasons, and omit vanished husks and residue. A branched
+          folder lost after roster observation reads external; both report schemas admit the new blocked reasons.
 
-        - `decideWorktreeCleanup` (`lib/git/worktree-cleanup.ts`) takes the check's result in place of its `clean` flag,
-          and `WorktreeCleanupDecision` gains `unobservable`, `locked`, and `missing`.
-        - It decides the folder outcomes before its marker check, since a missing folder's marker went with it, where
-          today it returns `external` for a checkout with no marker before reading anything else.
+    - `[x]` **1.5.c Branch-gone recovery and its cascade**
 
-        - Build `test-first` (one behavior at a time):
-            - a missing folder decides `missing`, and a missing folder under a foreign lock `locked`, before any marker
-              read
-            - a failed status read decides `unobservable` and grants no removal
+        - Recovery joins the cached derived rows for folder observations, excludes missing registrations from both
+          candidate tiers, and reports their guarded path remedies; foreign locks retain live switch targets.
 
-    - `[ ]` **1.5.b The stale-worktree sweep and the residue sweep**
+    - `[x]` **1.5.d `arc errand leave`'s authorization**
 
-        - `runStaleWorktreeSweep`'s two `isWorktreeClean` reads (`lib/session-init/stale-worktree-sweep.ts`) and the
-          residue sweep's default clean read (`lib/session-init/lifecycle-residue-sweep.ts`) take the check, mapping
-          `dirty` and `persist-would-refuse` to today's `uncommitted` block and reporting each other refusal. The
-          branched read's `missing`, which only a row the roster reads present reaches, such as one whose path is a
-          dangling symlink or whose folder went between the two reads, reports `external`, as branch-gone recovery reads
-          it (1.5.c), so the branched decision admits no `missing`. On the residue sweep's read, whose candidates'
-          markers the sweep read before it, the check's `missing` — a folder gone since — reports nothing, as a row with
-          no marker reports nothing today, and the registration takes Task 1.7.b's report at the next session start's
-          reading.
-        - The sweep's husk read runs the check first and reports `unobservable` and `locked` itself, then passes the
-          husk decision (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`) the `clean` flag it takes today, `dirty`
-          and `persist-would-refuse` reading as not clean, so its other callers, teardown's detached-husk reads
-          (`lib/work-unit/verbs/teardown.ts`, and from the flip `selectStoreRetirementHusk`,
-          `lib/work-unit/store-retirement-husk.ts`), keep their calls unchanged. `missing` reaches it only where the
-          folder went after its marker was read, since a husk's stamp is in the marker inside its folder; there the husk
-          reports nothing, as the residue sweep's read does, and the registration takes Task 1.7.b's report at the next
-          session start's reading.
-        - The sweep's registered schema (`lib/session-init/stale-worktree-sweep-schema.ts`, Task 1.1.b) admits both
-          reads' new outcomes beside its producer: the branched and husk decisions' `blocked` reasons gain
-          `unobservable` and `locked`.
+        - Spawned Errand preservation runs the removal check before recording state, including injected projection
+          refusals; the primary retains its Git status inspection.
 
-        - Build `test-first` (one behavior at a time):
-            - a failed status read reports `unobservable` and grants no removal
-            - a checkout Git lists as locked reports `locked` on both reads and grants no removal
-            - a dirty checkout blocks as today
-            - a branched row whose check reads `missing` reports `external`
-            - a husk or residue row whose check reads `missing` reports nothing
-
-    - `[ ]` **1.5.c Branch-gone recovery and its cascade**
-
-        - `buildWorktreeCandidate` (`lib/session-init/branch-gone-recovery.ts`) runs the check, and
-          `determineCandidateAction` (`lib/session-init/branch-gone-cascade.ts`) maps it: `removable` stays removable;
-          `dirty`, `persist-would-refuse`, and `locked` with its folder present (`folderPresent`) make a switch target;
-          `unobservable` reads `external`. `CascadeCandidateSchema`'s proposed actions stay `switch`, `removable`, and
-          `external`.
-        - A roster entry with no meta, which short-circuits to `switch` with no read today, takes the folder outcome
-          alone, so a main or administrative checkout whose folder is present stays `switch`.
-        - A registration whose folder the roster's row reads missing (`folderPresent`) is never a candidate: the
-          candidate builder leaves it out, and `recovery` reports it in a field beside its outcome on
-          `SessionInitRecoveryValueSchema`, `missingFolders: [{ worktreePath, branch, actions }]`, where the check
-          agrees — `missing`, or `locked` with no folder — any other outcome waiting for the next session start's
-          reading, as 1.7.b's sweep does. An entry the roster reads present whose check reads its folder missing —
-          `missing`, or `locked` with no folder — reads `external`, since the check's `stat` and the roster's `lstat`
-          disagree on a dangling symlink and on a non-directory at the path; where the path's parent is not a directory
-          (`ENOTDIR`) they disagree the other way, the roster reading the folder missing and the check `unobservable`,
-          which waits for the next session start's reading as above. Its action is `git worktree remove <path>` for
-          `missing`, with `git worktree unlock <path>` first for `locked`, each as text naming its precondition, that
-          the folder is still missing.
-        - The branches the roster represents (`runBranchGoneRecovery`'s `represented` set) are built from the roster's
-          entries, folderless registrations included, rather than from the candidates, so a folderless registration's
-          branch stays out of the recent-branch tier.
-
-        - Build `test-first` (one behavior at a time):
-            - a locked candidate with its folder present is a switch target, and an unobservable one `external`
-            - a main checkout with no meta stays `switch`
-            - a missing folder is never a candidate, its branch stays out of the recent-branch tier, and recovery
-              reports it in `missingFolders` with the removal by path as text
-            - an entry the roster reads present whose check reads `missing`, or `locked` with no folder, reads
-              `external`
-            - a missing folder under a lock names the unlock, then the removal, as text
-
-    - `[ ]` **1.5.d `arc errand leave`'s authorization**
-
-        - `authorizePreservation` (`lib/errand/leave-runtime.ts`) inspects a spawned Errand's checkout through the check
-          before recording its paused or awaiting-merge state, and removes it only afterward, as today; an Errand on the
-          primary keeps `git status`, as Task 1.6 keeps it for the exits.
-
-        - Build `test-first` (one behavior at a time):
-            - a dirty or unobservable spawned Errand checkout refuses the leave before any state is recorded
+- _Outcome:_ Spec § 1.4, item 4's changed and added tests are enumerated in `notes-seam-locus.md`. Missing recovery
+  registrations carry text-only remedies; observation failures never grant removal.
 
 ### `[ ]` **1.6 Remove an Errand's checkout through the removal function — § 12.1**
 

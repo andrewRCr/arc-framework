@@ -22,7 +22,6 @@ import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
-  isWorktreeClean,
   type HuskCleanupDecision,
   type WorktreeCleanupDecision,
 } from "../git/worktree-cleanup.js";
@@ -33,6 +32,7 @@ import {
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
+import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { SessionAction } from "./actions.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
@@ -40,6 +40,7 @@ import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import {
   resolvePrimaryWorktreePath,
   scanRegisteredWorktrees,
+  type RegisteredWorktree,
   type RegisteredWorktreeScanResult,
   type WorktreeRosterEntry,
   type WorktreeRosterResult,
@@ -116,7 +117,7 @@ export type StaleWorktreeReport = (
       kind: "branched";
       worktreePath: string;
       branch: string;
-      decision: WorktreeCleanupDecision | EvidenceUnavailableDecision;
+      decision: Exclude<WorktreeCleanupDecision, { action: "missing" }> | EvidenceUnavailableDecision;
     }
   | {
       kind: "husk";
@@ -126,12 +127,16 @@ export type StaleWorktreeReport = (
       stampedBranch: string;
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
-      decision: HuskCleanupDecision | EvidenceUnavailableDecision;
+      decision: HuskCleanupDecision | EvidenceUnavailableDecision | { action: "blocked"; reason: "locked" | "unobservable" };
     }) & { actions?: SessionAction[] };
 
 export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
 export interface RunStaleWorktreeSweepOptions {
+  /** Projection policy used by each read-only removal check. */
+  projectionRemovalSlots?: ProjectionRemovalSlots;
+  /** Filesystem boundary for checkout folder observations. */
+  folderExists?: (path: string) => Promise<boolean>;
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
   roster: WorktreeRosterResult;
   /** Physical-worktree identity of the calling session. */
@@ -266,9 +271,9 @@ export async function runStaleWorktreeSweep(
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(
     candidates.map(async (entry) => {
-      const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
+      const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
         readMarker(entry.worktreePath),
-        isWorktreeClean({ exec, cwd: entry.worktreePath }),
+        checkWorktreeRemoval({ exec, checkoutPath: entry.worktreePath, disposition: "remove", check: options.projectionRemovalSlots?.check, folderExists: options.folderExists }),
         exactBaseOid === null
           ? Promise.resolve(false)
           : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
@@ -278,12 +283,12 @@ export async function runStaleWorktreeSweep(
           fs: userSurfaceFs,
         }),
       ]);
-      const localDecision = decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" });
+      const localDecision = decideWorktreeCleanup({ marker, removalCheck, userSurfacesSafe, merged, context: "shipped" });
       const decision = exactBaseOid === null
         && localDecision.action === "blocked"
         && localDecision.reason === "unmerged"
         ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
-        : localDecision;
+        : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
       return {
         kind: "branched" as const,
         worktreePath: entry.worktreePath,
@@ -330,6 +335,7 @@ export async function runStaleWorktreeSweep(
     protection: options.protection ?? "partial",
     exec,
     readBlob: options.readBlob,
+    projectionRemovalSlots: options.projectionRemovalSlots,
     ...(options.baseEvidence === undefined ? {} : { baseEvidence: options.baseEvidence }),
   });
   warnings.push(...retirementSweep.warnings);
@@ -353,47 +359,8 @@ export async function runStaleWorktreeSweep(
     ) {
       continue;
     }
-    const stamp = marker.marker.husk;
-    const clean = await isWorktreeClean({ exec, cwd: entry.path });
-    let decoded = decodeWorktreeHuskStamp(stamp);
-    let decision: HuskCleanupDecision | EvidenceUnavailableDecision = decideHuskCleanup({ marker, clean, head: entry.head });
-    let evidenceValid = decoded.kind !== "current";
-    let evidenceUnavailable = false;
-    if (decoded.kind === "current") {
-      if (exactBaseOid === null) {
-        evidenceUnavailable = true;
-        warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
-      } else {
-        evidenceValid = await (options.revalidateEvidence === undefined
-          ? revalidateDecodedHuskRetirementEvidenceStrict(exec, stamp, decoded, exactBaseOid, options.readBlob)
-          : options.revalidateEvidence(stamp, decoded, exactBaseOid));
-      }
-    }
-    if (decoded.kind === "current" && evidenceUnavailable) {
-      decision = { action: "blocked", reason: "evidence-unavailable" };
-    } else if (
-      decoded.kind === "current"
-      && !evidenceValid
-    ) {
-      decoded = { kind: "manual-only", reason: "evidence-mismatch" };
-      decision = { action: "blocked", reason: "evidence-mismatch" };
-    }
-    if (exactBaseOid === null && decision.action === "removable") {
-      decision = { action: "blocked", reason: "evidence-unavailable" };
-    }
-    worktrees.push(withHuskActions({
-      kind: "husk",
-      worktreePath: entry.path,
-      branch: null,
-      subject: stamp.subject,
-      stampedBranch: stamp.branch,
-      stamp: decoded,
-      completedWorkUnit:
-        stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
-          ? stamp.subject.name
-          : null,
-      decision,
-    }, worktreeIdentity));
+    const report = await inspectHuskRemoval({ entry, marker, options, exactBaseOid, shipped, warnings });
+    if (report !== null) worktrees.push(withHuskActions(report, worktreeIdentity));
   }
 
   return {
@@ -405,6 +372,74 @@ export async function runStaleWorktreeSweep(
   };
 }
 
+
+async function inspectHuskRemoval(context: {
+  entry: RegisteredWorktree;
+  marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>;
+  options: RunStaleWorktreeSweepOptions;
+  exactBaseOid: string | null;
+  shipped: ReadonlySet<string>;
+  warnings: string[];
+}): Promise<Extract<StaleWorktreeReport, { kind: "husk" }> | null> {
+  const { entry, marker, options, exactBaseOid, shipped, warnings } = context;
+  const { exec } = options;
+  const stamp = marker.marker.husk;
+  if (stamp === undefined) return null;
+  const removalCheck = await checkWorktreeRemoval({ exec, checkoutPath: entry.path, disposition: "remove",
+    check: options.projectionRemovalSlots?.check, folderExists: options.folderExists });
+  if (removalCheck.kind === "missing") return null;
+  const clean = removalCheck.kind === "removable";
+  let decoded = decodeWorktreeHuskStamp(stamp);
+  let decision: Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] = removalCheck.kind === "refused"
+    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")
+    ? { action: "blocked", reason: removalCheck.reason }
+    : decideHuskCleanup({ marker, clean, head: entry.head });
+  const removalBlocked = removalCheck.kind === "refused"
+    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked");
+  if (decoded.kind === "current" && !removalBlocked) {
+    const evidence = await inspectCurrentHuskEvidence({ entry, stamp, decoded, options, exactBaseOid, warnings });
+    if (evidence === "unavailable") decision = { action: "blocked", reason: "evidence-unavailable" };
+    if (evidence === "invalid") {
+      decoded = { kind: "manual-only", reason: "evidence-mismatch" };
+      decision = { action: "blocked", reason: "evidence-mismatch" };
+    }
+  }
+  if (exactBaseOid === null && decision.action === "removable") {
+    decision = { action: "blocked", reason: "evidence-unavailable" };
+  }
+  return {
+    kind: "husk",
+    worktreePath: entry.path,
+    branch: null,
+    subject: stamp.subject,
+    stampedBranch: stamp.branch,
+    stamp: decoded,
+    completedWorkUnit:
+      stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
+        ? stamp.subject.name
+        : null,
+    decision,
+  };
+}
+
+async function inspectCurrentHuskEvidence(context: {
+  entry: RegisteredWorktree;
+  stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>;
+  decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>;
+  options: RunStaleWorktreeSweepOptions;
+  exactBaseOid: string | null;
+  warnings: string[];
+}): Promise<"valid" | "invalid" | "unavailable"> {
+  const { entry, stamp, decoded, options, exactBaseOid, warnings } = context;
+  if (exactBaseOid === null) {
+    warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
+    return "unavailable";
+  }
+  const valid = await (options.revalidateEvidence === undefined
+    ? revalidateDecodedHuskRetirementEvidenceStrict(options.exec, stamp, decoded, exactBaseOid, options.readBlob)
+    : options.revalidateEvidence(stamp, decoded, exactBaseOid));
+  return valid ? "valid" : "invalid";
+}
 
 function withHuskActions(
   report: Extract<StaleWorktreeReport, { kind: "husk" }>,
