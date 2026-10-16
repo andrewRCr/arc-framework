@@ -33,6 +33,7 @@ import {
 } from "../work-unit/completed-index.js";
 import type { DormantMarkerGenerationEvidence } from "./derived-lifecycle-evidence.js";
 import type { DormantCheckoutReadEvidence } from "./derived-reader.js";
+import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
 import type { OccupancyMarker } from "./occupancy-marker.js";
 import { readPrimarySafety } from "./primary-safety.js";
 import type { PrimarySafetyProjection } from "./role-derivation.js";
@@ -79,7 +80,8 @@ export function createDerivedLocusEvidenceIO(options: {
     readText: (path) => readFile(path, "utf8"),
     readMarker: readWorktreeMarkerGeneration,
     readIdentities: () => readTransientIdentitySnapshot({ exec: options.exec, identity: options.identity }),
-    readCompleted: () => readCompletedEvidenceFromRef(options.exec, options.baseBranch),
+    readCompleted: () => options.store?.capabilities.stateOffBranch ? readStoreCompletedEvidence(options.store)
+      : readCompletedEvidenceFromRef(options.exec, options.baseBranch),
     readPrimarySafety: async (primaryPath) => {
       const result = await readPrimarySafety({
         primaryPath,

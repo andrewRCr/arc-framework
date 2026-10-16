@@ -1,4 +1,6 @@
 /** Corroborated missing-registration reports and guarded cleanup offers. */
+import type { Store } from "../store/contract.js";
+import { readStoreMissingFolderActions } from "./missing-worktree-store.js";
 import { z } from "zod";
 import { checkWorktreeRemoval, type WorktreeRemovalOptions } from "../git/worktree-removal.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -28,6 +30,9 @@ export function missingRegistrationActions(
 
 /** Read-only inputs for corroborating the reader's missing-folder observations. */
 export interface MissingWorktreeFolderOptions extends Pick<WorktreeRemovalOptions, "exec" | "check" | "folderExists"> {
+  store?: Store;
+  projectId?: () => Promise<string>;
+  warnings?: string[];
   rows: readonly DerivedCheckoutRow[];
   shipped: ReadonlySet<string>;
 }
@@ -41,6 +46,10 @@ export async function readMissingWorktreeFolders(options: MissingWorktreeFolderO
       check: options.check, folderExists: options.folderExists });
     const locked = check.kind === "refused" && check.reason === "locked" && !check.folderPresent;
     if (check.kind !== "missing" && !locked) return null;
+    if (options.store?.capabilities.stateOffBranch) {
+      const actions = await readStoreMissingFolderActions({ ...options, store: options.store }, row.checkout, locked);
+      return actions === null ? null : { worktreePath, branch, outcome: locked ? "locked" : "missing", actions };
+    }
     const slug = branch === null ? null : branchToWorkUnitSlug(branch);
     return { worktreePath, branch, outcome: locked ? "locked" : "missing",
       actions: missingRegistrationActions(worktreePath, { locked, workUnitName: slug !== null && options.shipped.has(slug) ? slug : null }) };

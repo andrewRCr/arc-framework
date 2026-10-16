@@ -1,3 +1,7 @@
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { describe, expect, it } from "vitest";
 
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
@@ -87,3 +91,19 @@ function transientRow(identity: LocusIdentityV1): DerivedCheckoutRow {
     subject: { kind, key: identity.key, claimId: identity.claimId },
   } as DerivedCheckoutRow;
 }
+
+it.each(["default", "injected"] as const)("resolves an arbitrary linked work branch through the %s project identity port", async port => {
+  const h = createLifecycleHarness();
+  await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example", uid: "11111111-1111-4111-8111-111111111111" })), "{}");
+  await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
+  const roster = [workUnitRow("widget", "/wt/widget")];
+  expect(await locusOwnsBranch(roster, "arbitrary-name", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(true);
+  expect(await locusOwnsBranch(roster, "feat/widget", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(false);
+});
+
+it("the in-repo implementation retains branch-slug ownership", async () => {
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unused-lazy-store" }));
+  const roster = [workUnitRow("widget", "/wt/widget")];
+  expect(await locusOwnsBranch(roster, "feat/widget", { store })).toBe(true);
+  expect(await locusOwnsBranch(roster, "arbitrary-name", { store })).toBe(false);
+});

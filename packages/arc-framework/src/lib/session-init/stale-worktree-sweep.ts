@@ -17,6 +17,9 @@
 
 import type { z } from "zod";
 import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
+import type { Store } from "../store/contract.js";
+import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
+import { selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
@@ -120,6 +123,8 @@ export type StaleWorktreeReport = (
       branch: string;
       decision: Exclude<WorktreeCleanupDecision, { action: "missing" }> | EvidenceUnavailableDecision;
     }
+  | { kind: "detached"; worktreePath: string; branch: null; workUnit: string;
+      decision: Exclude<WorktreeCleanupDecision, { action: "missing" }> | EvidenceUnavailableDecision; }
   | {
       kind: "husk";
       worktreePath: string;
@@ -134,6 +139,8 @@ export type StaleWorktreeReport = (
 export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
 export interface RunStaleWorktreeSweepOptions {
+  store?: Store;
+  projectId?: () => Promise<string>;
   /** Projection policy used by each read-only removal check. */
   projectionRemovalSlots?: ProjectionRemovalSlots;
   /** Filesystem boundary for checkout folder observations. */
@@ -211,7 +218,7 @@ export async function runStaleWorktreeSweep(
   let analysisExec = exec;
   const baseEvidence = options.baseEvidence;
   if (baseEvidence === undefined) {
-    shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
+    shipped = options.store?.capabilities.stateOffBranch ? new Set() : await readShippedWorkUnitsFromRef(exec, integrationTarget);
   } else if (!baseEvidence.remoteSyncEnabled || baseEvidence.snapshot.kind === "unreachable") {
     shipped = new Set();
   } else {
@@ -241,22 +248,31 @@ export async function runStaleWorktreeSweep(
           });
           mergeBase = baseOid;
           exactBaseOid = baseOid;
-          shipped = await readShippedWorkUnitsFromExactRef(analysisExec, baseOid);
+          shipped = options.store?.capabilities.stateOffBranch ? new Set() : await readShippedWorkUnitsFromExactRef(analysisExec, baseOid);
         }
       }
     }
+  }
+  const storeWarnings: string[] = [];
+  if (options.store?.capabilities.stateOffBranch) {
+    const completed = await readStoreCompletedEvidence(options.store);
+    shipped = completed.status === "unavailable" ? new Set() : new Set(completed.records.keys());
+    if (completed.status !== "available") storeWarnings.push("Completed work-unit inventory is incomplete; repair the store and retry cleanup.");
   }
   // Incomplete advertised-base evidence leaves `shipped` empty, so no entry
   // qualifies and the sweep reports nothing. Enumerating the whole roster here
   // would render active, never-shipped worktrees as cleanup residue; the
   // slot-level `remoteEvidence` already carries the degradation, and the
   // envelope schema refuses a `removable` decision on anything but `exact`.
-  const selected = worktreeIdentity.kind === "primary"
+  const selected = !options.store?.capabilities.stateOffBranch && worktreeIdentity.kind === "primary"
     ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
     : { candidates: [], warnings: roster.warnings };
-  const warnings = [...selected.warnings];
+  const warnings = [...selected.warnings, ...storeWarnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
-  const retainedRoleCandidates = worktreeIdentity.kind === "primary" && scan.ok
+  const storeSelection = options.store?.capabilities.stateOffBranch && scan.ok
+    ? await selectStoreWorktreeCleanup({ ...options, store: options.store, topology: scan.worktrees, readMarker }) : null;
+  warnings.push(...(storeSelection?.warnings ?? []));
+  const retainedRoleCandidates = !options.store?.capabilities.stateOffBranch && worktreeIdentity.kind === "primary" && scan.ok
     ? scan.worktrees.flatMap((entry): WorktreeRosterEntry[] => {
         if (entry.primary || entry.branch === null) return [];
         const owned = locusWorkUnitAtPath(derivedRoster, entry.path);
@@ -267,18 +283,23 @@ export async function runStaleWorktreeSweep(
     : [];
   const missingPaths = new Set(derivedRoster.filter((row) => !row.checkout.folderPresent).map((row) => row.checkout.path));
   const missingFolders = worktreeIdentity.kind === "primary" ? await readMissingWorktreeFolders({
-    rows: derivedRoster, shipped, exec, check: options.projectionRemovalSlots?.check, folderExists: options.folderExists,
+    store: options.store, projectId: options.projectId, warnings, rows: derivedRoster, shipped, exec, check: options.projectionRemovalSlots?.check, folderExists: options.folderExists,
   }) : [];
   const candidates = [...new Map(
-    [...selected.candidates, ...retainedRoleCandidates]
-      .filter((entry): entry is WorktreeRosterEntry & { branch: string } => entry.branch !== undefined)
-      .map((entry) => [entry.worktreePath, entry]),
+    [...selected.candidates, ...retainedRoleCandidates, ...(storeSelection?.ended.flatMap(({ checkout }) => checkout.branch === null ? [] : [{ worktreePath: checkout.path, branch: checkout.branch }]) ?? [])].filter((entry): entry is WorktreeRosterEntry & { branch: string } => entry.branch !== undefined).map((entry) => [entry.worktreePath, entry]),
   ).values()].filter((entry) => !missingPaths.has(entry.worktreePath));
-  const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
+  const primaryWorktreePath = candidates.length === 0 && !storeSelection?.ended.length ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(candidates.map((entry) => inspectBranchedRemoval(entry, {
     options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase,
   })));
+
+  worktrees.push(...(storeSelection?.releases ?? []));
+  for (const { checkout, name } of storeSelection?.ended ?? []) {
+    if (checkout.branch !== null || missingPaths.has(checkout.path)) continue;
+    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase });
+    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: name });
+  }
 
   if (!scan.ok) {
     warnings.push(`Could not scan registered worktrees: ${scan.message}`);
@@ -299,6 +320,7 @@ export async function runStaleWorktreeSweep(
     }
     if (
       marker.kind === "present"
+      && !options.store?.capabilities.stateOffBranch
       && options.teamMode === true
       && options.identity !== null
       && options.identity !== undefined
@@ -311,6 +333,7 @@ export async function runStaleWorktreeSweep(
     if (projected !== null) renameMoves.push(projected);
   }
   const retirementSweep = await runLandedRetirementSweep({
+    store: options.store, projectId: options.projectId,
     topology: scan.worktrees,
     markers: branchedMarkers,
     baseBranch,

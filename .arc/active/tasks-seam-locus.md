@@ -741,7 +741,7 @@ inject a reference-backend store.
 
         - The foreign-write hook returns before acquisition when operational state lives off the branch.
 
-### `[ ]` **3.7 Read shipped work through placement and `lookup` — § 3.4, § 2.1**
+### `[x]` **3.7 Read shipped work through placement and `lookup` — § 3.4, § 2.1**
 
 - _Goal:_ From the flip the stale-worktree and orphan-branch sweeps, the derived locus evidence, and the Candidate
   mutation owner's completed set read shipped work through placement and `lookup`, none keying on an archive folder's
@@ -749,99 +749,20 @@ inject a reference-backend store.
   unit's placement, a branchless one included, and the residue sweep takes an abandonment from its lineage record;
   until the flip each keeps today's read.
 
-    - `[ ]` **3.7.a The archive-index readers**
+    - `[x]` **3.7.a The archive-index readers**
 
-        - From the flip each reads placement `completed` and `lookup` where today it reads the archive at a base ref,
-          which stays its in-repo arm with its object and shallow-history guards: the stale-worktree sweep and the
-          orphan-branch sweep, each on both its paths (`lib/session-init/stale-worktree-sweep.ts`,
-          `lib/session-init/orphan-branch-sweep.ts`) — `readShippedWorkUnitsFromExactRef` on the path session-init's
-          base evidence selects, the stale sweep's past its gates and the orphan sweep's in
-          `analyzeOrphanBranchesSnapshot`, and `readShippedWorkUnitsFromRef` on the other, the stale sweep's with no
-          base evidence and `runOrphanBranchSweep` — and the derived evidence (`readCompletedEvidenceFromRef`,
-          `lib/locus/derived-evidence.ts`), whose read the derived lifecycle evidence and the roster consume.
-        - Retired-subdirectory detection (`lib/session-init/retired-subdir-detection.ts`, which hands its shipped set to
-          `planRetiredSubdirReconcile`, `lib/user-sync/retired-subdir.ts`) keeps its archive read as its in-repo arm
-          alone, since from the flip its slot resolves `skip` before any read (Task 5.2.c).
-        - The Candidate mutation owner's completed set (`resolveCompletedCandidateWorkUnits`,
-          `handlers/candidate-mutation-owner.ts`), which takes the working tree's lifecycle index
-          (`buildLifecycleIndex`) at location `completed` today, reads placement `completed` through the store from the
-          flip.
+        - Completed placement now serves the derived evidence and cleanup readers; the Candidate owner lists the same
+          Store authority. The in-repo readers retain their exact-ref guards.
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend each reader finds a shipped work unit through placement, and a renumbered
-              archive folder changes no answer
-            - over the in-repo implementation each reads the archive at its base ref, its guards included, as today
+    - `[x]` **3.7.b The stale-worktree sweep's selection from the flip**
 
-    - `[ ]` **3.7.b The stale-worktree sweep's selection from the flip**
+        - Marker-selected cleanup retains detached work and qualified folderless registrations, preserves removal gates,
+          and gives branched abandonment exclusively to the residue sweep.
 
-        - The sweep selects a marked row by its work unit's placement, branch or none, so a branchless checkout whose
-          work unit has ended is still reported, and tests a row with no branch for landing at its checkout's `HEAD`
-          with `isLandedInBaseStrict` (`lib/git/branch-containment.ts`): a planning checkout left on base reads landed,
-          one holding commits made on its detached `HEAD` unmerged.
-        - Such a row reports as a `detached` report naming its work unit, where a `branched` report
-          (`StaleWorktreeReport`) names its branch; the sweep's registered schema (Task 1.1.b) gains the arm.
-        - Its `missingFolders` reads a branched registration's work unit as ended through placement and `lookup`, where
-          Task 1.7.b reads it as shipped by its branch: `lookup` with `LookupInputSchema`'s `ref` kind
-          (`lib/store/lookup.ts`), its repository the project ID and its ref the branch's short name, the project ID
-          from an optional port `RunStaleWorktreeSweepOptions` gains, bound as Phase 2's design decisions bind every
-          link reader's. It takes the link naming that branch from the work item's links: one recording the branch
-          `created` (`linkedAs`) gives the registration `arc teardown <name>`, and one recording it `adopted` the
-          removal by path as text, with the unlock first where it is locked, since teardown keeps an adopted branch with
-          its registration, clearing a missing folder's registration only for a branch it created (`reportAdopted`,
-          `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`).
-        - Given no project ID — the port absent, or its read failing — it reports no branched registration whose folder
-          is missing, and where a registration's `lookup` or placement read refuses with any code but `not-found` it
-          reports that one nothing; each waits for the next session start's reading rather than taking the removal by
-          path, the `warnings` naming the port's failure or the refusal (spec § 2.1). A `not-found` lookup is a branch
-          no work unit links, which takes the removal by path (spec § 12.2); a detached one, which reads no link,
-          reports as Task 1.7.b gives it.
-        - It leaves out a branched row whose work unit an abandonment's lineage record retires, which the residue sweep
-          reports (3.7.c), so each checkout reports in one sweep, as today.
+    - `[x]` **3.7.c The residue sweep's abandonment from the flip**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a branchless checkout whose work unit has ended reports as `detached`, landed where it sits on base
-            - a detached checkout holding unlanded commits reports unmerged
-            - a folderless registration whose work unit has ended takes its teardown through placement
-            - a folderless registration whose ended work unit adopted its branch takes `git worktree remove <path>` as
-              text, with `git worktree unlock <path>` first where it is locked, and no teardown
-            - with no project-ID port injected, the lookup's repository is the project ID the project's identity record
-              holds
-            - with no project ID a branched folderless registration reports nothing and the warnings name the port's
-              failure, while a detached one still reports its removal by path
-            - a refused lookup other than `not-found` leaves its registration unreported, the warnings naming the
-              refusal
-            - a branched checkout whose work unit was abandoned is not reported here
-
-    - `[ ]` **3.7.c The residue sweep's abandonment from the flip**
-
-        - From the flip the residue sweep (`runLandedRetirementSweep`, `lib/session-init/lifecycle-residue-sweep.ts`)
-          takes an abandonment's evidence from its lineage record through the transition-write-path change's store
-          retirement read (`readStoreRetirementEvidence`, `lib/work-unit/store-retirement-evidence.ts`, built in
-          Tasks 6.5.a and 6.5.R.b - `tasks-seam-lifecycle.md`), admitting its `lineage` evidence
-          (`RetirementEvidenceRef`) under the `discard` rule, since the teardown authority it builds today
-          (`createTeardownRetirementAuthority`) reads Git alone and admits no lineage; today it admits only a Git-proven
-          abandon (`git-transition`), which stays the in-repo arm.
-        - Since that read throws for every outcome alike, the sweep reads it only for a work unit with no live record
-          (`readWorkUnit` finding none) whose lineage, by `lookup` from its origin, is an abandonment; a live record, no
-          lineage, or a lineage of another kind reports no retirement, as today's `evidence-missing` and
-          `unsupported-transition` do, and a lookup or read refusing with anything but `not-found`, or the retirement
-          read throwing over the lineage it read — one whose owner does not match its origin, or with no
-          `retiredBranches` — reports its message as the checkout's repair rather than failing the sweep. The sweep's
-          registered schema (Task 1.1.b) gains that repair as text, where today a blocked residue carries only its
-          reason.
-        - Its candidates stay branched, as today; a branchless checkout whose work unit has ended is the stale-worktree
-          sweep's (3.7.b). Store abandon writes the lineage record in its terminal batch (`runStoreAbandon`,
-          `lib/work-unit/verbs/abandon-store.ts`), so the tests abandon through it, seeding a record only where it lacks
-          `retiredBranches`.
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend a work unit abandoned on another clone, its lineage record pulled, reports its
-              checkout's teardown here
-            - over the reference backend a work unit with no abandonment reports no retirement
-            - over the reference backend an in-flight work unit's checkout reports no retirement and no repair
-            - over the reference backend a lineage record with no `retiredBranches` reports the read's repair, and the
-              sweep reports its other checkouts
-            - over the in-repo implementation the sweep admits a Git-proven abandon alone, as today
+        - The residue sweep selects abandonment through lineage and retains exact remote and physical-removal evidence.
+          Refused authority is reported as a per-checkout repair.
 
 ### `[ ]` **3.R Expose former names in primary record projections — § 3.5 (A16)**
 
@@ -1120,67 +1041,25 @@ its `arc schema` test with it.
             - a record changed after preparation refuses the batch, and nothing lands
             - over the in-repo implementation a change under the lock re-plans as today
 
-### `[ ]` **5.2 Reroute the locus classification, the orphan sweep, and retired subdirectories — § 4.2, § 12.4**
+### `[x]` **5.2 Reroute the locus classification, the orphan sweep, and retired subdirectories — § 4.2, § 12.4**
 
 - _Goal:_ From the flip session-init's locus classification matches a branch to its work unit through the branch link,
   the orphan-branch sweep admits a branch the store links whatever its name and never offers an adopted one teardown,
   and `retiredSubdirs` resolves `skip`.
 
-- _Note:_ The derived frame, the roster's consumers, branch-gone recovery's candidates, and the sweep's release rows are
-  Phase 2's (Tasks 2.1, 2.2, 2.9.c), and the sweep's selection from the flip Task 3.7.b's.
+    - `[x]` **5.2.a The locus classification**
 
-    - `[ ]` **5.2.a The locus classification**
+        - Branch ownership follows the repository-qualified link, including its project identity lookup, rather than a
+          slug parsed from the branch name.
 
-        - From the flip `locusOwnsBranch` (`lib/session-init/locus-classification.ts`) matches a branch to a work-unit
-          row through that work unit's branch link, read through the store, where today it derives the slug from the
-          branch's name (`branchToWorkUnitSlug`).
+    - `[x]` **5.2.b The orphan-branch sweep from the flip**
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend a work-unit row owns its linked branch, whatever its name
-            - over the in-repo implementation it matches by the branch's slug as today
-            - over the reference backend with no project-ID port injected, a work-unit row owns its linked branch, the
-              project ID read from the project's identity record
+        - The orphan sweep uses linked work-item identities, excludes active Errands and claims, and reports adopted
+          branches as their owners’ branches without teardown.
 
-    - `[ ]` **5.2.b The orphan-branch sweep from the flip**
+    - `[x]` **5.2.c Retired subdirectories**
 
-        - Both of the sweep's paths (`runOrphanBranchSweep`, `analyzeOrphanBranchesSnapshot`,
-          `lib/session-init/orphan-branch-sweep.ts`) admit a gone-upstream branch the store links, whatever its name,
-          through `lookup` with `LookupInputSchema`'s `ref` kind (`lib/store/lookup.ts`), its repository the project ID
-          and its ref the branch's short name (Phase 2's design decisions), and take its work unit from the link, where
-          today they scan only type-prefixed branches and derive the work unit from the name; its shipped verdict reads
-          placement (Task 3.7.a).
-        - A branch linked `adopted` is never offered `arc teardown`: where its `merged` verdict holds the slot offers
-          `git branch -D <name>`, typed, and otherwise reports the branch kept, its owner's, naming
-          `git branch -D <name>` as text. Until the flip no link carries the record, so every branch reads as one ARC
-          created.
-        - A branch the identity's transient records name is left out, as today's sweep leaves out every branch in the
-          one-snapshot index (`errandBranches`, `slugByBranch`, `lib/errand/record.ts`) — its Errands' and its grooming
-          and housekeeping claims' — which serves the in-repo arm alone (`readTransientInFlightIndexes`): from the flip
-          a branch whose link resolves to an Errand's record (`work-item/record`) at placement `active`, and a branch a
-          claim names, read from Task 3.2's claims acquisition, which stays the identity's and whose records keep their
-          `branch`. A lookup that fails, or a claims acquisition that is not complete, declines the sweep, as an
-          incomplete transient read does today. A branch linked to an ended Errand is never offered `arc teardown`: it
-          takes the `merged` verdict's `git branch -D <name>`, as today's name-derived scan gives it.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a linked branch with no type prefix is scanned, its work unit from the link
-            - a branch the transition-write-path change's writer linked is admitted, its work unit from the link
-            - an adopted, merged branch yields the typed `-D`, and an adopted, unmerged one its text, never a teardown
-            - an open Errand's gone-upstream branch is left out, and a closed one's merged branch yields the typed `-D`,
-              never a teardown
-            - a live grooming claim's merged, gone-upstream branch is left out
-            - a failed lookup, or a claims acquisition that is not complete, declines the sweep
-            - with no project-ID port injected, the lookup's repository is the project ID the project's identity record
-              holds
-
-    - `[ ]` **5.2.c Retired subdirectories**
-
-        - From the flip `retiredSubdirs` resolves `skip` with no candidates before any read, since the per-work-unit
-          workspace it reconciles retires and the scratch plan takes its place (Task 2.8.d); until then
-          retired-subdirectory detection reads the archive at its base ref, as today (Task 3.7.a).
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend `retiredSubdirs` resolves `skip` with no read
+        - Retired-workspace discovery returns skip before acquisition when state lives off the branch.
 
 ### `[ ]` **5.3 Reroute the work-unit, Errand, and inbox slots — § 4.2, § 4.3**
 

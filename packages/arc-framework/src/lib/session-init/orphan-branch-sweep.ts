@@ -28,6 +28,7 @@
  * @module
  */
 
+import { readOrphanStoreCandidates, type OrphanStoreOptions, type OrphanStoreCandidate } from "./orphan-store-candidates.js";
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
 
@@ -74,13 +75,14 @@ export type OrphanBranchReport = z.infer<typeof OrphanBranchReportSchema>;
 /** Runtime authority for the orphan-branch sweep advisory. */
 export const OrphanBranchSweepResultSchema = withRemoteEvidence({
   orphans: z.array(OrphanBranchReportSchema),
+  warnings: z.array(z.string()).optional(),
 });
 
 /** Gone-upstream type-prefixed local branches and their cleanup verdicts. */
 export type OrphanBranchSweepResult = z.infer<typeof OrphanBranchSweepResultSchema>;
 
 /** Supplied prerequisites for orphan classification against advertised base evidence. */
-export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidence {
+export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidence, OrphanStoreOptions {
   exec: GitExec;
   branches: readonly string[];
   baseBranch: string;
@@ -90,6 +92,11 @@ export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidenc
 export async function analyzeOrphanBranchesSnapshot(
   options: AnalyzeOrphanBranchesSnapshotOptions,
 ): Promise<OrphanBranchSweepResult> {
+  if (options.store?.capabilities.stateOffBranch === true) {
+    const selected = await readOrphanStoreCandidates(options, options.branches);
+    if (selected.status !== "ready") return { orphans: [], warnings: [selected.reason], remoteEvidence: "not-applicable" };
+    return analyzeStoreSnapshot(options, selected.candidates);
+  }
   const evidence = projectCleanupRemoteEvidence(options.baseBranch, options);
   if (evidence.remoteEvidence !== "exact") return unavailableOrphans(options.branches, evidence);
   if (options.snapshot.kind === "unreachable") return unavailableOrphans(options.branches, evidence);
@@ -111,8 +118,9 @@ export async function analyzeOrphanBranchesSnapshot(
   });
   const shipped = await readShippedWorkUnitsFromExactRef(localOnlyExec, baseOid);
   const orphans = await Promise.all(options.branches.map(async (branch) => {
-    const slug = branchToWorkUnitSlug(branch);
-    const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
+    const name = branchToWorkUnitSlug(branch);
+    const shippedName = name !== null && shipped.has(name) ? name : null;
+    const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
     return {
       branch,
       merged: await isLandedInBaseStrict(localOnlyExec, branch, baseOid),
@@ -137,7 +145,7 @@ function unavailableOrphans(
   };
 }
 
-export interface RunOrphanBranchSweepOptions {
+export interface RunOrphanBranchSweepOptions extends OrphanStoreOptions {
   /** Physical-worktree identity of the calling session. */
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
@@ -170,6 +178,17 @@ export async function runOrphanBranchSweep(
   options: RunOrphanBranchSweepOptions,
 ): Promise<OrphanBranchSweepResult> {
   const { baseBranch, errandBranches, exec } = options;
+  if (options.store?.capabilities.stateOffBranch === true) {
+    if (options.derivedRoster === null) return { orphans: [], remoteEvidence: "not-applicable" };
+    const branches = await listGoneUpstreamBranches(exec, LOCAL_BRANCH_REF_PREFIX);
+    const selected = await readOrphanStoreCandidates(options, branches, options.derivedRoster);
+    if (selected.status !== "ready") return { orphans: [], warnings: [selected.reason], remoteEvidence: "not-applicable" };
+    if (selected.candidates.length === 0) return { orphans: [], remoteEvidence: "not-applicable" };
+    if (options.baseEvidence !== undefined) return analyzeStoreSnapshot({ ...options, ...options.baseEvidence, branches }, selected.candidates);
+    const orphans = await Promise.all(selected.candidates.map(async candidate => storeOrphanReport(candidate,
+      await isLandedInBase(exec, candidate.branch, `origin/${baseBranch}`))));
+    return { orphans, remoteEvidence: "not-applicable" };
+  }
   // Without the errand-record index an errand branch is indistinguishable from
   // a WU branch, and a `git branch -d` offer on one would orphan its record —
   // decline the whole advisory rather than risk it.
@@ -193,6 +212,8 @@ export async function runOrphanBranchSweep(
       exec,
       branches: goneBranches,
       baseBranch,
+      store: options.store,
+      projectId: options.projectId,
     });
   }
 
@@ -201,8 +222,9 @@ export async function runOrphanBranchSweep(
 
   const orphans = await Promise.all(
     goneBranches.map(async (branch) => {
-      const slug = branchToWorkUnitSlug(branch);
-      const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
+      const name = branchToWorkUnitSlug(branch);
+      const shippedName = name !== null && shipped.has(name) ? name : null;
+      const shippedSlug = shippedName === null ? null : SlugSchema.safeParse(shippedName);
       return {
         branch,
         merged: await isLandedInBase(exec, branch, integrationTarget),
@@ -225,4 +247,33 @@ function withOrphanActions(report: OrphanBranchReport): OrphanBranchReport {
       argv: ["git", "branch", "-D", report.branch] }] };
   }
   return report;
+}
+
+/** Classify selected store candidates against the exact advertised base without rereading identity state. */
+async function analyzeStoreSnapshot(options: AnalyzeOrphanBranchesSnapshotOptions,
+  candidates: readonly OrphanStoreCandidate[]): Promise<OrphanBranchSweepResult> {
+  const evidence = projectCleanupRemoteEvidence(options.baseBranch, options);
+  const branches = candidates.map(candidate => candidate.branch);
+  if (evidence.remoteEvidence !== "exact" || options.snapshot.kind === "unreachable") return unavailableOrphans(branches, evidence);
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return unavailableOrphans(branches, evidence);
+  if (options.objectAvailability.kind !== "complete") throw new Error("Advertised base commit availability could not be inspected.");
+  if (options.objectAvailability.commits[baseOid] === false) return unavailableOrphans(branches, { remoteEvidence: "pending-fetch" });
+  if (options.objectAvailability.commits[baseOid] === undefined) throw new Error("The advertised base commit has no local availability fact.");
+  if (options.history.kind === "shallow") return unavailableOrphans(branches, evidence);
+  if (options.history.kind !== "complete") throw new Error("Orphan history completeness could not be inspected.");
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, { ...execOptions, objectAccess: "local-only" });
+  const orphans = await Promise.all(candidates.map(async candidate => storeOrphanReport(candidate,
+    await isLandedInBaseStrict(localOnlyExec, candidate.branch, baseOid))));
+  return { ...evidence, orphans };
+}
+
+function storeOrphanReport(candidate: OrphanStoreCandidate, merged: boolean): OrphanBranchReport {
+  const { branch, authority: { record, link } } = candidate;
+  const shippedWorkUnit = record.reference.kind === "work-item/meta" && record.placement?.kind === "completed"
+    && link.linkedAs === "created" ? SlugSchema.parse(record.reference.owner.name) : null;
+  const report = withOrphanActions({ branch, merged, shippedWorkUnit });
+  return link.linkedAs === "adopted" && !merged ? { branch, merged, shippedWorkUnit, actions: [{
+    text: `Branch ${branch} is kept for its owner. Its owner may run git branch -D ${branch} after preserving its work.`,
+  }] } : report;
 }

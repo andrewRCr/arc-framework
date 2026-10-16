@@ -5,6 +5,8 @@
  */
 
 import { quoteShellArgument } from "../release/commit-message-retry.js";
+import type { Store } from "../store/contract.js";
+import { runStoreRetirementSweep } from "./store-retirement-sweep.js";
 import type { SessionAction } from "./actions.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots, type RemovalCheck } from "../git/worktree-removal.js";
@@ -72,6 +74,7 @@ export type LandedRetirementResidue =
       worktreePath: string;
       subject: { slug: string; branch: string };
       reason: string;
+      repair?: string;
     };
 
 export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
@@ -80,6 +83,8 @@ export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
 };
 
 export interface RunLandedRetirementSweepOptions {
+  store?: Store;
+  projectId?: () => Promise<string>;
   topology: readonly RegisteredWorktree[];
   markers: ReadonlyMap<string, WorktreeMarkerReadResult>;
   baseBranch: string;
@@ -148,6 +153,7 @@ export function projectRenameMoveRemedy(
 export async function runLandedRetirementSweep(
   options: RunLandedRetirementSweepOptions,
 ): Promise<LandedRetirementSweepResult> {
+  if (options.store?.capabilities.stateOffBranch) return runStoreRetirementSweep({ ...options, store: options.store });
   const projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const candidates = options.topology.filter((entry) => {
     if (entry.detached || entry.branch === null) return false;

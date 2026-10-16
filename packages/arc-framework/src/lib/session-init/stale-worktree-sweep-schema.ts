@@ -32,6 +32,7 @@ const StaleWorktreeReportSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("branched"), worktreePath: z.string(), branch: z.string(), decision: BranchedCleanupDecisionSchema, actions: SessionActionsSchema.optional(),
   }),
+  z.strictObject({ kind: z.literal("detached"), worktreePath: z.string(), branch: z.null(), workUnit: z.string(), decision: BranchedCleanupDecisionSchema, actions: SessionActionsSchema.optional() }),
   z.strictObject({
     kind: z.literal("husk"), worktreePath: z.string(), branch: z.null(), stampedBranch: z.string(),
     completedWorkUnit: z.string().nullable(), subject: WorktreeSubjectSchema,
@@ -67,7 +68,7 @@ const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({
     status: z.literal("blocked"), worktreePath: z.string(),
-    subject: z.strictObject({ slug: z.string(), branch: z.string() }), reason: z.string(),
+    subject: z.strictObject({ slug: z.string(), branch: z.string() }), reason: z.string(), repair: z.string().optional(),
   }),
 ]);
 const RenameMoveResidueSchema = z.strictObject({
