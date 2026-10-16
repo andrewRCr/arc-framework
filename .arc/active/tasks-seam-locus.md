@@ -196,6 +196,8 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Goal:_ The residue sweep's rename-move remedy is `git worktree move -f -f <from> <to>`, so a checkout the projection
   later locks still moves with its lock and reason intact.
 
+    - _Amended in:_ 1.R (A18)
+
 - _Outcome:_ Validated branched and detached rename residues carry doubled-force move argv in both the remedy and
   typed actions, with shell-safe displayed paths; the sweep schema admits that same tuple.
 
@@ -266,6 +268,14 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 
 - _Outcome:_ Dormant admissions span raw markers, their projected schema, provisioning, and settlement without adding
   a producer before the flip. Changed test inventory and reconstruction evidence are in `notes-seam-locus.md`.
+
+### `[x]` **1.R Align the rename-move E2E assertion with its admitted action — § 1.4 (A18)**
+
+- _Goal:_ The real session-init rename scenario checks the doubled-force remedy and typed action required by § 1.4's
+  items 1 and 3, and its changed test is recorded with those items.
+
+- _Outcome:_ The existing real-CLI rename scenario asserts the doubled force, quoted executable text, and matching
+  typed action. Its changed test joins § 1.4's items 1 and 3 in the completion inventory; Task 1.13 remains open.
 
 ### `[ ]` **1.13 Before the flip** — validate exit criterion at segment scope
 

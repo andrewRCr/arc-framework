@@ -663,4 +663,12 @@ successful CLI run. The task's evidence inventory records those future release c
 The grounding footprint is `createStore`, `ReferenceBackend.capabilities`, the dormant handlers, and the real-CLI
 refusal suite. Existing reference-backend success and continuation criteria remain intact; no completed verifier changes.
 
+## A18: the real rename-move assertion
+
+The Phase 1 scenario run left one failing whole-row assertion in `e2e/session-init.e2e.test.ts`: it expected the plain
+move and omitted the typed action. The observed result from `projectRenameMoveRemedy` has the doubled force, executable
+quoted text, and matching action that § 1.4's items 1 and 3 already require. The specification holds; Task 1.R corrects
+its test derivation and adds this file to both items' completion inventory. No production behavior or golden changes.
+The initial failure is retained in `/tmp/arc-phase1-segment-scenarios.log`; Task 1.13 stays open for its rerun.
+
 ---
