@@ -6,5 +6,5 @@ export function canPerform(
   action: string,
   grants: Readonly<Record<string, readonly string[]>>,
 ): boolean {
-  return roles.some((role) => grants[role] !== undefined);
+  return roles.some((role) => (grants[role]?.length ?? 0) > 0);
 }
