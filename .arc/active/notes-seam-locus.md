@@ -22,6 +22,7 @@
 - [A11: removing an adopted branch's missing folder](#a11-removing-an-adopted-branchs-missing-folder)
 - [A14: a review-due pause's choices as actions](#a14-a-review-due-pauses-choices-as-actions)
 - [Final ratchet inventory](#final-ratchet-inventory)
+- [Session and recovery segment comparison](#session-and-recovery-segment-comparison)
 
 ## Consumer-map re-verification
 
@@ -803,5 +804,20 @@ A22 closes the Candidate acquisition omission: `subject-meta.ts` reads `review/c
 using the resolved primary owner, including its UID. Only the capability-false arm reads the checkout Candidate. Missing
 authority, malformed bytes, and conflicts remain unresolved with a repair. Existing Candidate parsing, effective-target,
 submission-boundary, and delivery/review projectors keep their owners under § 16.
+
+## Session and recovery segment comparison
+
+The fresh base remains `5e83105f2923991480756a8a60f5ec9d1534a170`. Its package source, templates, tests, and build
+inputs are unchanged from the comparison executable at `c45c3e908`; the intervening base diff contains five
+planning/roadmap documents. Both built executables ran the same five temporary compatibility repositories through
+session-init, locus, roster, and in-flight inspection. All twenty comparisons preserve exit status. Differences are
+limited to folder presence, missing-folder lists, typed recovery actions, and dormant paused-work/inbound slots, all
+declared by § 1.4. No additional wire difference was found.
+
+Raw normalized captures and the complete path classification are `/tmp/arc-final-envelope-differential.json` and
+`/tmp/arc-final-envelope-classification.json`. The session/recovery process scenarios also cover completed subjects
+across archive cadences, saved-state baselines, named-history repair, prepared personal references, and recovery stop
+conditions. Their current result is `/tmp/arc-segment-5-11-process-scenarios.log`; the shared unit scenarios are
+`/tmp/arc-remaining-segment-units.log`.
 
 ---

@@ -2629,13 +2629,13 @@ this design open.
 - **A11** — 2026-10-16 — design: an adopted branch's missing-folder registration takes the removal by path.
   _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ 3.10.
 - **A12** — 2026-10-16 — spec-depth: a refused store prepare reports in the session reconcile slot with its remedy.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ 5.11.
 - **A13** — 2026-10-16 — spec-depth: a renamed work unit's scratch folder follows only into an absent or empty one.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ 2.10.
 - **A14** — 2026-10-16 — design: a review-due pause's choices are actions, each typed but the handover. _Supersedes:_
-  § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
+  § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ 5.11.
 - **A15** — 2026-10-16 — spec-depth: a paused work item's marking is one exported function the status surfaces call too.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ 5.11.
 - **A16** — 2026-10-16 — design: primary records expose former slugs as read-only aliases. _Supersedes:_ § 3.5,
   alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ 3.10.
 - **A17** — 2026-10-16 — spec-depth: dormant destructive paths use handler success and CLI refusal proof until flip.
@@ -2647,7 +2647,7 @@ this design open.
 - **A20** — 2026-10-16 — design: authoritative claim absence is an empty terminal and merge inventory.
   _Supersedes:_ § 3.2 ¶2; Criterion 5. _Trigger:_ 3.2 must-stop. _Work:_ 3.R2. _Revalidated:_ 3.10.
 - **A21** — 2026-10-16 — design: personal prose stays advisory while managed reference edits batch atomically.
-  _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.11.
+  _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ 5.11.
 
 - **A22** — 2026-10-16 — task: acquire the subject Candidate through its resolved Store owner. _Supersedes:_ none.
   _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.6.

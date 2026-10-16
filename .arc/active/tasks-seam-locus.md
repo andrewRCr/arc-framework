@@ -1017,13 +1017,14 @@ its `arc schema` test with it.
 - _Outcome:_ Managed inbox fields update atomically after revalidation while memory and meta session-context bytes remain
   unchanged; their prose references appear only as advisories.
 
-### `[ ]` **5.11 Session-init and recovery over the store** — validate exit criterion at segment scope
+### `[x]` **5.11 Session-init and recovery over the store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Compare the envelope on the compatibility fixtures with the merged base's, run every rebuilt slot's arm from the
-      flip over the reference backend, and request `arc check segment`.
+- _Outcome:_ The compatibility-fixture comparison differs from merged base only at the declared pre-flip items. Rebuilt
+  Store slots retain typed actions and checkout context; current-work-unit and personal reconciliation share prepared
+  record authority, with personal prose unchanged. Recovery and restating retain independent state-version and Git
+  baselines, including missing-history repair. The comparison is recorded in `notes-seam-locus.md`.
 
 ## **Phase 6:** Listing and routing
 
