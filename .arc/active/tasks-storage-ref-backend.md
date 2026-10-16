@@ -2793,7 +2793,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
         - a gate file or Candidate version the listing omits, and one it lists twice, are listed in `notices`, refusing
           the import
         - an archived work unit whose branch exists unlanded in base is listed in `notices` and refuses the import,
-          which lands once the branch merges, while one whose branch is gone or merged imports as completed
+          which lands once the branch merges, and one whose change landed by a multi-commit squash refuses likewise and
+          lands once its branch is removed, while one whose branch is gone or merged imports as completed
 
 ### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 

@@ -2627,7 +2627,9 @@ interface ReviewMappingResult {
   open, paused, or awaiting merge. An archived work unit has ended unless its branch still exists and has not landed in
   base by patch identity (`isLandedInBaseStrict`, `lib/git/branch-containment.ts`), tested against `origin/<base>` where
   it resolves and the local base otherwise: one archived before merge that way is listed in `notices` and refuses the
-  import until it merges or is abandoned (§ 10.5).
+  import until its branch merges, or is removed where its change has already landed, as by a multi-commit squash merge,
+  or is no longer wanted: `arc teardown <slug>` removes a branch its remote still holds, and otherwise the branch is
+  deleted by hand, since an archived work unit cannot be abandoned (§ 10.5) (A1).
 - **What the mapping returns lands in place of what it was given:** a live work unit's Candidate and boundary records
   and every gate file land only as the mapping's records, each on its work item's ref at its kind's stored path (§ 3.2),
   a record's contents replayed oldest first, each version in a batch of its own as a Candidate version is (§ 10.11). A
@@ -3899,6 +3901,7 @@ open:
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-16 — design: an archived work unit's unlanded-branch refusal names removing the branch as its exit.
+  _Supersedes:_ § 10.8 `workItems` ¶. _Trigger:_ review. _Work:_ 15.9. _Revalidated:_ pending → 15.9.
 
 ---
