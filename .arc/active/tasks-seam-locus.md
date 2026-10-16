@@ -535,9 +535,11 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           work unit's integration boundary (`recoverIntegratingBoundary`, `lib/locus/subject-meta.ts`) read from the
           meta's `Branch` today, is its work-branch link, chosen by the transition-write-path change's selection
           (`selectWorkBranchLink`, `workBranchName`, `lib/store/lifecycle-branch.ts`) among the links naming the project
-          ID: `linked` gives its branch to all three, `none` gives none, as a branchless planning work unit has, and
-          `ambiguous` leaves the subject unresolved (`subject-unresolved`), naming the selection's reason, as no project
-          ID from the port does, naming the port's failure (spec § 2.1).
+          ID, called with the project ID as its `repository` and no `currentBranch`, since a current branch it finds
+          unlinked reads `ambiguous` and would leave the subject unresolved before the topology corroboration compares
+          the checkout's branch with the link's: `linked` gives its branch to all three, `none` gives none, as a
+          branchless planning work unit has, and `ambiguous` leaves the subject unresolved (`subject-unresolved`),
+          naming the selection's reason, as no project ID from the port does, naming the port's failure (spec § 2.1).
         - From the flip the subject's meta read resolves the frame's cohort document itself: it takes the work unit's
           `Cohort` from its record and reads the `cohort/document` record through the store, its path from Task 1.9's
           cohort path over that record, so a completed cohort's comes from its own quarter, sequence, and closeout,
@@ -731,7 +733,11 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
 
 - _Note:_ The ports are the transition-write-path change's, built in its Task 5.4 - `tasks-seam-lifecycle.md`:
   `LocusPorts` (`lib/work-unit/locus-ports.ts`) with `checkMarkerExclusivity`, `findHoldingCheckout`, and
-  `writeAnchoredMarker`, defaulting through `createDefaultLocusPorts()`.
+  `writeAnchoredMarker`, defaulting through `createDefaultLocusPorts()`. The check takes a name and an optional checkout
+  path and returns `clear`, or `refused` with the holding checkout's path and a `reason`; the lookup takes a name and
+  the caller's own scan (`resolveLegacy`) and returns the holder's path or `null`; and the writer takes the checkout,
+  the marker, and an optional `expected` generation, and returns `created` or `replaced` with the bytes written,
+  `exists`, `generation-mismatch`, or `unadmitted`, which only the default returns.
 
     - `[ ]` **2.5.a The anchored-marker writer**
 
@@ -742,7 +748,11 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
         - It returns `created` or `replaced`, each with the bytes written, so a rollback removes exactly that generation
           (`removeWorktreeMarkerGeneration`); `exists` when a marker is present and none was expected; or
           `generation-mismatch` when the present marker is not the expected one.
-        - It registers the marker's ignore rule first, as every marker creator does (`ensureWorktreeMarkerIgnored`).
+        - It never returns `unadmitted`, which the in-place leg reads as a write that left no marker
+          (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), so a writable claim
+          always ends in a marker or a refusal.
+        - It registers the marker's ignore rule first, as every marker creator does (`ensureWorktreeMarkerIgnored`),
+          through the `exec` its record is built over (2.5.b), since the port's signature carries none.
 
         - Build `test-first` (one behavior at a time):
             - a create leaves an anchored marker that `readWorktreeMarker` parses, its ignore rule in place, on the
@@ -773,10 +783,11 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           take the executor's record and stay as they are: the bound lookup reads 2.4's and leaves their own marker scan
           (`resolveLegacy`) unread, and given no record they keep that scan.
         - The binding reconciles the port's refusal with 2.4's, as the Note above provides: `MarkerExclusivityResult`'s
-          refused arm carries the check's message whole, its repair included, with `checkoutPath` optional, since an
-          incomplete roster names no checkout, and `requireMarkerExclusivity` (`lib/work-unit/locus-ports.ts`) throws
-          that message as given, where today it appends that the checkout already holds the work unit and to release it
-          there.
+          refused arm carries the check's message whole in its `reason`, its repair included, with `checkoutPath`
+          optional, since an incomplete roster names no checkout, and `requireMarkerExclusivity`
+          (`lib/work-unit/locus-ports.ts`) throws that message as given, where today it appends that the checkout
+          already holds the work unit and to release it there; the ports test that asserts the appended repair
+          (`__tests__/unit/work-unit/locus-ports.test.ts`) changes with it.
         - Lifecycle's callers give the check the work unit alone (`{ name }`), so through them a marker naming it in the
           checkout about to hold it refuses too, naming that checkout and its repair; the checkout's own marker admits
           only for the cold start and promotion, which pass their checkout.
@@ -825,8 +836,8 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           transition-write-path change's store-backed start (`handleStoreStart`, `handlers/start-store.ts`), which hands
           a nameless start to its cold-start slot (`admitColdStart`) ahead of its dispatch, and refuses in-place
           creation while the slot is empty. This task moves a named start's hand-off into its create-new arm (`create`),
-          where that refusal sits, and fills the slot with `coldStart` at its production point, `handleStart`'s
-          (`handlers/start.ts`), which the CLI calls with no overrides.
+          where that refusal sits, and fills the slot at its production point with a closure over `coldStart` that binds
+          its `ArmContext`, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides.
         - A named start so reaches the slot after store start's name resolution (`resolveStartName`), which takes a
           former slug to its work unit and refuses an Errand's slug; its dispatch over the store's lifecycle view
           (`readLifecycleView`, `requireCompleteInventory`) with `create: true` (`resolveStartDispatch`), which refuses
@@ -882,7 +893,9 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
         - `coldStart` (`handlers/start.ts`) takes the store and the port record of `handleStart`'s executor, which fills
           the slot, and passes both to `runColdStart` (`commands/start.ts`), whose arm from the flip runs the check and
           writes the marker through that record, so ports a test injects through the handler's overrides reach it as
-          they reach lifecycle's verbs.
+          they reach lifecycle's verbs. It passes them in `runColdStart`'s `SpawnWorktreeContext`, since the scaffold
+          takes its arm from the flip only when given the store (`scaffoldIntoWorktree`,
+          `lib/git/worktree-scaffold.ts`).
 
         - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
             - the cold start writes one store record and, in its checkout, only the marker and the editor documents,
@@ -957,9 +970,10 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           resolution.
         - The load set from the flip carries no separate session-notes entry, the meta being already a full entry.
         - The session-notes address (`resolveArcPath`'s `session-notes` document) and
-          `materializeWorkUnitSessionNotesPath` stay the workspace's, so `runUserClose` (`commands/user/close.ts`) keeps
-          removing that folder and never reaches the meta's; start's stamp of the seed's `Commit at Handoff`
-          (`stampStartSessionNotesCommit`, `handlers/start.ts`) finds no seed from the flip, which it already tolerates.
+          `materializeWorkUnitSessionNotesPath` stay the workspace's, so `runUserClose` (`commands/user/close.ts`),
+          which from the flip only `arc user close` calls, keeps removing that folder and never reaches the meta's;
+          start's stamp of the seed's `Commit at Handoff` (`stampStartSessionNotesCommit`, `handlers/start.ts`) is never
+          reached from the flip, since store start runs no ceremony.
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend each reader resolves the meta's projected path, the restate probe among them

@@ -620,9 +620,12 @@ From the flip, since derivation reads only the marker and the store, every arm t
 anchored work-unit marker (`spawnedByArc: false`):
 
 - **the cold start,** this change's (§ 2.5);
-- **graduation in place** (`runGraduate` with `inPlace`, `commands/start.ts`), whose atomic graduation checks the branch
-  out with no marker today (`occupy`, `lib/work-unit/atomic-graduation.ts`), so the marker is written there, inside its
-  rollback (§ 16);
+- **graduation in place,** whose atomic graduation checks the branch out with no marker today (`runGraduate` with
+  `inPlace`, `commands/start.ts`; `occupy`, `lib/work-unit/atomic-graduation.ts`), and whose arm from the flip
+  (`runStoreGraduate`, `commands/start-store.ts`) occupies the checkout through `occupyStoreGraduation`
+  (`lib/work-unit/atomic-graduation.ts`) and `reconcileWorkUnitWorktree`'s in-place leg with `preserveHead`, so the
+  marker is written in that leg, and the occupation's rollback removes the generation it wrote
+  (`removeWorktreeMarkerGeneration`, § 16);
 - **`arc materialize --here`,** through `reconcileWorkUnitWorktree`'s in-place leg, which writes none today (§ 16);
 - **Errand promotion on the primary,** this change's: today promotion removes the primary's transient marker
   (`removePrimaryTransientOccupancy`, called by `settlePromotedOccupancy`, `lib/errand/promote-runtime.ts`), and from
@@ -699,14 +702,17 @@ from the flip a checkout claimed in place before it holds its work unit with no 
 
   Until the flip each keeps its own resolution, the restate probe's scan among them. From the flip all six read one
   resolver, `resolveWorkUnitSessionNotesPath`, keyed by the work unit, which gives the meta's projected path, since the
-  session context is the meta's (§ 9.1); the load set therefore carries no separate session-notes entry, the meta
-  being already a full entry. The re-pointing lives in that resolver's arm from the flip alone: the session-notes
-  address (`resolveArcPath`'s `session-notes` document) and `materializeWorkUnitSessionNotesPath` stay the per-work-unit
-  workspace's, so the workspace's removal (`runUserClose`, `commands/user/close.ts`, which `arc user close`, teardown of
-  an abandoned work unit, and a transition leaving active call) keeps removing that folder and never reaches the
-  meta's. The seed's writers write nothing from the flip: the scaffold's `runUserOpen` call through the scaffold's arm
-  (below), and start's stamp of the seed's `Commit at Handoff` (`stampStartSessionNotesCommit`, `handlers/start.ts`),
-  which keeps the workspace's address, by finding no seed there, which it already tolerates.
+  session context is the meta's (§ 9.1); the load set therefore carries no separate session-notes entry, the meta being
+  already a full entry. The re-pointing lives in that resolver's arm from the flip alone: the session-notes address
+  (`resolveArcPath`'s `session-notes` document) and `materializeWorkUnitSessionNotesPath` stay the per-work-unit
+  workspace's, so the workspace's removal (`runUserClose`, `commands/user/close.ts`) keeps removing that folder and
+  never reaches the meta's. `arc user close` calls it, and before the flip so do teardown of an abandoned work unit and
+  a transition leaving active; from the flip teardown gates its call on the capability (`handleTeardown`,
+  `handlers/lifecycle.ts`), store abandon reports the workspace `not-applicable`, and no transition's form from the flip
+  runs the workspace step (`lib/work-unit/lifecycle-transitions.ts`). The seed's writers write nothing from the flip:
+  the scaffold's `runUserOpen` call through the scaffold's arm (below), and start's stamp of the seed's
+  `Commit at Handoff` (`stampStartSessionNotesCommit`, `handlers/start.ts`), which keeps the workspace's address, since
+  store start runs no ceremony and never reaches it.
 - **The load set's meta and task-list paths** come from the layout resolver, where callers supply them today. From the
   flip the task list's path resolves from the work item's task-list record; until then the meta's `Task List` pointer
   gives it, as today (`lib/locus/subject-meta.ts`).
@@ -1114,7 +1120,7 @@ flip's rewrite (§ 1.5).
 | `derivedLocusState`: an Active work unit linking no branch (§ 11)                                                                          | `arc deactivate <slug>`, then `arc activate`, which links a work branch                                                                         | text  |
 | `derivedLocusState`: no base ref, with `origin` (§ 11)                                                                                     | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`                                                                                | typed |
 | `derivedLocusState`: no base ref, no `origin` (§ 11)                                                                                       | `git branch <base> <commit>`, a base commit chosen                                                                                              | text  |
-| `derivedLocusState`: no project ID, the port absent or its read failing (§ 2.1, § 11)                                                      | the port's failure, naming the project identity record's read and its remedy                                                                    | text  |
+| `derivedLocusState`: no project ID, the port absent or its read failing (§ 2.1, § 11)                                                      | the project identity resolver's reason and its remedy, which names the project's identity record (`resolveProjectIdentity`)                     | text  |
 | `derivedLocusState`: the entering checkout's anchored marker names a work unit with no record (§ 2.5)                                      | `arc start <slug> --new --here` in that checkout, to finish the cold start, or `arc locus release <slug>`, to clear the marker                  | text  |
 | `derivedLocusState`: the entering checkout's spawned marker names a work unit with no record (§ 2.5)                                       | `arc locus release <slug>`, which removes the checkout                                                                                          | typed |
 | `user`: the store needs a designation (§ 4.8)                                                                                              | the store's remedy argv                                                                                                                         | typed |
@@ -2069,7 +2075,7 @@ actions; the verbs' refusals are these:
 | The cold start from the flip in a checkout holding any other marker but a crashed cold start's (§ 2.5)                                     | the marker's exit: its role's exits; work there or free it as for a marker write; its teardown; for an ended work unit `arc teardown <slug>`, or `arc locus release <slug>` where another identity owns it; for a backlog one `arc locus release <slug>` | text   |
 | Graduation in place or `arc materialize --here` from the flip in a checkout whose marker names anything but its work unit (§ 2.6)          | the marker's exit, as for the cold start; for a crashed cold start's anchored marker, `arc start <slug> --new --here` or `arc locus release <slug>`                                                                                                      | text   |
 | The anchored marker's write finding a marker that appeared after the occupancy read (§ 2.6)                                                | the checkout and its marker: inspect it, then rerun                                                                                                                                                                                                      | text   |
-| A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the port's failure, which names the read of the project's identity record and that read's own remedy                                                                                                                                                     | text   |
+| A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the project identity resolver's reason and its remedy, which names the project's identity record (`resolveProjectIdentity`, `lib/store/project-identity.ts`)                                                                                             | text   |
 | An Errand's terminal or merge from the flip whose record's lookup or read refuses, `not-found` aside, or misses beside diagnostics (§ 3.2) | that record and what its lookup or read reported with that report's remedy, or, where the lookup finds none beside listing diagnostics, those diagnostics with their remedies                                                                            | text   |
 | `arc locus release` on a work unit this identity owns, in flight and not paused, or ended (§ 5)                                            | `arc pause <slug> --reason <text>` for a Planning or Active one; its integration, then teardown, for an Integrating one; `arc teardown <slug>` for an ended one                                                                                          | text   |
 | `arc locus release` on a checkout holding a transient role (§ 5)                                                                           | the role's exits, as handoff's locus plan names them                                                                                                                                                                                                     | text   |
