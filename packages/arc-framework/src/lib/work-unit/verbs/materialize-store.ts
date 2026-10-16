@@ -1,5 +1,6 @@
 /** Give owned in-flight operational records a checkout without changing their state or pause. */
 import { stat } from "node:fs/promises";
+import { describeWorktreePreparationFailure } from "../incomplete-worktree-preparation.js";
 import { localPathsEqual } from "../../local-path-identity.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
@@ -59,7 +60,8 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
     const operation = await placementOperation(bound, { ...params, name }, branch, identity);
     return await claimMaterialization({ ...bound, store: ctx.store }, { primary: read.result, operation, branch, inPlace: params.inPlace === true });
-  } catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
+  } catch (error) { return { status: "rejected", reason: describeWorktreePreparationFailure(error,
+    ["arc", "materialize", params.name, ...(params.inPlace ? ["--here"] : [])]) }; }
 }
 async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string): Promise<ReconcileWorkUnitWorktreeOp> {
   if (params.inPlace && branch === null) return { mutation: "spawn", inPlace: true, preserveHead: true, wuName: params.name, spawningIdentity: identity };

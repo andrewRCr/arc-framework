@@ -39,6 +39,7 @@
  */
 
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
+import { claimSpawnedWorktree, requireSpawnedWorktreeClaim } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
@@ -242,7 +243,7 @@ export type ReconcileWorkUnitWorktreeResult =
       worktreePath: string;
       branch: string | null;
       postCreateNotice?: string;
-      /** Exact anchored marker bytes for a caller-owned rollback. */
+      /** Exact marker bytes for a caller-owned anchored or spawned rollback. */
       markerGeneration?: Buffer;
     }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
@@ -335,6 +336,8 @@ export interface ProvisionSpawnedWorktreeOp {
   primaryWorktreePath?: string;
   registeredHarnessDirs?: string;
   now?: number;
+  /** A store-backed spawn's claim, established before setup and retained unchanged. */
+  markerGeneration?: Buffer;
 }
 
 /**
@@ -356,7 +359,8 @@ export async function provisionSpawnedWorktree(
   });
   await ensureWorktreeMarkerIgnored(op.worktreePath, ctx.exec, ctx.fs);
   await writeEditorDocumentsOrThrow(op.worktreePath, ctx.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
-  await writeWorktreeOwnershipMarker(op.worktreePath, {
+  if (op.markerGeneration !== undefined) await requireSpawnedWorktreeClaim(op.worktreePath, op.markerGeneration);
+  else await writeWorktreeOwnershipMarker(op.worktreePath, {
     createdByArc: true,
     createdFor: { kind: "work-unit", name: op.wuName },
     spawningIdentity: op.spawningIdentity,
@@ -471,16 +475,19 @@ export async function reconcileWorkUnitWorktree(
     }
     if (creation.kind === "error") throw creation.error;
     const { worktreePath } = creation.receipt;
+    let markerGeneration: Buffer | undefined;
     try {
-      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath });
+      if (offBranch) markerGeneration = await claimSpawnedWorktree(worktreePath, op);
+      const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath, markerGeneration });
       return {
         mutation: "spawn",
         worktreePath,
         branch: creation.receipt.branch,
+        ...(markerGeneration === undefined ? {} : { markerGeneration }),
         ...(postCreateNotice === null ? {} : { postCreateNotice }),
       };
     } catch (error) {
-      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt);
+      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt, markerGeneration);
       if (cleanupFailures.length === 0) throw error;
       throw new IncompleteWorktreePreparationError([worktreePath], cleanupFailures, error);
     }
@@ -595,8 +602,13 @@ export async function reconcileWorkUnitWorktree(
 async function rollbackFreshSpawn(
   ctx: ReconcileWorkUnitWorktreeContext,
   receipt: LinkedWorktreeCreationReceipt,
+  markerGeneration?: Buffer,
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
+  if (usesOffBranchState(ctx.store)) {
+    try { await requireSpawnedWorktreeClaim(receipt.worktreePath, markerGeneration); }
+    catch (error) { return [error]; }
+  }
   try {
     await ctx.exec("git", ["worktree", "remove", "--force", receipt.worktreePath]);
   } catch (error) {

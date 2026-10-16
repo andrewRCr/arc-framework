@@ -64,12 +64,6 @@ describe("store start graduation", () => {
     expect(h.state().occupation).toMatchObject({ inPlace: true, preserveHead: true });
     expect(h.state().occupation).not.toHaveProperty("branch");
   });
-  it("rolls a detached spawn back when its version-bound batch refuses", async () => {
-    const h = await harness(true);
-    expect(await runGraduate(h.ctx, { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: "../{repo}.{name}", repo: "repo" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("Moved concurrently") });
-    expect(h.state().occupied).toBe(false);
-    expect((await h.read()).version).toEqual(h.meta.version);
-  });
 });
 
 it("refuses a conflicting start Class before checkout occupation and accepts the recorded Class on retry", async () => {

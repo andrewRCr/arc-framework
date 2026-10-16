@@ -28,6 +28,8 @@
 
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
+import { IncompleteWorktreePreparationError, describeWorktreePreparationFailure } from "../lib/work-unit/incomplete-worktree-preparation.js";
+import { requireSpawnedWorktreeClaim } from "../lib/work-unit/spawned-worktree-claim.js";
 import type { LifecycleRollbackRecovery } from "../lib/work-unit/store-transition-types.js";
 import { runStoreGraduate } from "./start-store.js";
 import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
@@ -757,6 +759,7 @@ export async function runCreateNew(
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
   let postCreateNotice: string | undefined;
+  let markerGeneration: Buffer | undefined;
   try {
     const spawnResult = await reconcileWorkUnitWorktree(
       {
@@ -785,8 +788,10 @@ export async function runCreateNew(
     }
     worktreePath = spawnResult.worktreePath;
     postCreateNotice = spawnResult.postCreateNotice;
+    markerGeneration = spawnResult.markerGeneration;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = offBranch ? describeWorktreePreparationFailure(err, ["arc", "start", wuName, "--new"])
+      : err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
@@ -804,9 +809,7 @@ export async function runCreateNew(
       }) }),
     });
   } catch (err) {
-    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: `could not scaffold the work unit: ${message}` };
+    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration }, err);
   }
 
   return {
@@ -818,6 +821,23 @@ export async function runCreateNew(
       ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
     },
   };
+}
+
+async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {
+  offBranch: boolean; worktreePath: string; branch: string | null; wuName: string; markerGeneration?: Buffer;
+}, error: unknown): Promise<Extract<CreateNewOutcome, { ok: false }>> {
+  let failure = error;
+  if (spawn.offBranch) {
+    try {
+      await requireSpawnedWorktreeClaim(spawn.worktreePath, spawn.markerGeneration);
+      await ctx.io.exec("git", ["worktree", "remove", "--force", spawn.worktreePath]);
+    } catch (cleanupError) {
+      failure = new IncompleteWorktreePreparationError([spawn.worktreePath], [cleanupError], error);
+    }
+  } else await rollbackSpawnedWorktree(ctx.io.exec, spawn.worktreePath, spawn.branch);
+  const message = spawn.offBranch ? describeWorktreePreparationFailure(failure, ["arc", "start", spawn.wuName, "--new"])
+    : failure instanceof Error ? failure.message : String(failure);
+  return { ok: false, reason: `could not scaffold the work unit: ${message}` };
 }
 
 /**
