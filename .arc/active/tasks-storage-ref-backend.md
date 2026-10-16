@@ -381,12 +381,9 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Remote hooks remain throwing placeholders.
             - _Retired in:_ Phase 11
 
-    - `[ ]` **4.4.c The history item's owner UID**
-        - The history item's assertion of `ownerUid` (`registerHistoryAssertions`,
-          `__tests__/helpers/store/suite-versions.ts`) applies only where the owner has a UID, since a project reference
-          carries none before the store holds a project ID (§ 3.2) and a missing key fails `toMatchObject` against an
-          undefined one
-        - The in-repo and reference fixtures pass it unchanged
+    - `[x]` **4.4.c The history item's owner UID**
+        - Shared history assertions require `ownerUid` only when the record's reference has one. Project history before
+          identity creation is accepted, while the reference and in-repo fixtures retain their existing UID checks.
 
     - `[ ]` **4.4.d The named exclusions**
         - The permanent set § 14.1 names: the cross-substrate and saved-state coverage items, `checkout-not-writable`,

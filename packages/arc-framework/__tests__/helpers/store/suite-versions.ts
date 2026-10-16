@@ -168,7 +168,9 @@ export function registerHistoryAssertions(context: SuiteContext): void {
     await fixture.settle();
     const history = success(await fixture.store.history({ reference: first.reference }));
     expect(history.at(-1)?.provenance).toMatchObject({ ...testProvenance, reference: first.reference });
-    if (first.reference.owner.type !== "person") expect(history.at(-1)?.provenance).toMatchObject({ ownerUid: first.reference.owner.uid });
+    if (first.reference.owner.type !== "person" && first.reference.owner.uid !== undefined) {
+      expect(history.at(-1)?.provenance).toMatchObject({ ownerUid: first.reference.owner.uid });
+    }
     if (mutable(reference.kind)) expect(history[0]?.provenance).toMatchObject({ verb: "update", lifecycleAction: "resume", codeHead: testProvenance.codeHead });
   });
 }
