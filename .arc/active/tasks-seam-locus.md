@@ -1236,17 +1236,14 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
 
         - Recovery carries the same unclosed set beside its matched cursor without relaxing mismatch stops.
 
-### `[ ]` **7.5 Hold the ratchet floors to the arms kept until the deletion pass — § 1.5**
+### `[x]` **7.5 Hold the ratchet floors to the arms kept until the deletion pass — § 1.5**
 
 - _Goal:_ No `arc/store-raw-state`, `arc/surface-names`, or `arc/work-unit-paths` count in `eslint-suppressions.json`
   exceeds its count at the merged base, in total or per file, and every entry left in the parts of § 1.2's files this
   change reroutes sits in an arm § 1.5 names.
 
-    - After merging base, run `npm run -s lint:ts`, then prune with `--prune-suppressions` and commit the shrunk record;
-      add no suppression for a new violation.
-    - Compare the three rules' counts per file and in total with the merged base's, and list each entry left in a
-      rerouted file beside the § 1.5 arm that holds it; an entry no arm holds is rerouted here, in this task, since the
-      task that owns its file has closed.
+- _Outcome:_ Per-file and total counts do not increase against the freshly merged base. The retained-arm and shared-
+  ownership inventory, including the Candidate acquisition correction, is recorded in `notes-seam-locus.md`.
 
 ### `[ ]` **7.R Verify dormant destructive paths and retain their flip checks — Testing (A17)**
 
