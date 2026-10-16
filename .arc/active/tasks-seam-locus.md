@@ -1372,13 +1372,14 @@ before the flip.
 - _Outcome:_ Working-memory parsing rejects wrapped or colon-less headers above a trigger with the line and expected
   shape; prose and commented examples remain ordinary content.
 
-### `[ ]` **4.6 The entry grammar** — validate exit criterion at segment scope
+### `[x]` **4.6 The entry grammar** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run each kind's round trip in the reference harness and the personal-surface tests over the in-repo
-      implementation, and request `arc check segment`.
+- _Outcome:_ On merged base `5e83105f2`, all six kinds round-trip through the reference harness's production grammar.
+  Managed-field spelling, ID placement, and malformed memory-header scenarios hold; the existing personal-surface,
+  Store, and inbox CLI scenarios retain their in-repo behavior. The derived frame retains schema-owned types through
+  a named declaration boundary for composite envelope serialization.
 
 ## **Phase 5:** Session-init and recovery over the store
 

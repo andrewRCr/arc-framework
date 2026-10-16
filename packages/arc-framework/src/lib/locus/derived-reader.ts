@@ -2,6 +2,8 @@
 
 import { markerIdentitySnapshot, projectStoreIdentityDiscovery, type StoreIdentityEvidence, type StoreIdentityDiscovery } from "./store-identities.js";
 import { noRecordMarkerExit } from "./marker-occupancy.js";
+import type { z } from "zod";
+import { DerivedLocusFrameSchema } from "./derived-schema.js";
 import type { Store } from "../store/contract.js";
 import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import type {
@@ -26,8 +28,6 @@ import {
   projectDerivedCheckoutRow,
   type DerivedCheckoutRow,
 } from "./derived-roster.js";
-import type { DerivedWorkUnitSubject } from "./role-derivation.js";
-import type { SubjectMetaProjection } from "./subject-meta.js";
 import type { PrimarySafetyProjection } from "./role-derivation.js";
 import type { LocusIdentityV1 } from "./schema/identity.js";
 import {
@@ -82,17 +82,9 @@ export type DerivedPrimaryAvailability =
     }
   | { readonly kind: "unsafe"; readonly checkoutPath: string | null; readonly reasons: readonly string[] };
 
-/** Build-order migration frame selected beside the retiring record-backed state. */
-export interface DerivedLocusFrame {
-  readonly roster: readonly DerivedCheckoutRow[];
-  readonly entering: DerivedEnteringCheckout;
-  readonly primaryAvailability: DerivedPrimaryAvailability;
-  readonly identityDiscovery: DerivedIdentityDiscovery;
-  readonly active: {
-    readonly checkoutPath: string;
-    readonly subject: DerivedWorkUnitSubject;
-    readonly context: Extract<SubjectMetaProjection, { kind: "resolved" }>;
-  } | null;
+/** Schema-derived frame with a named declaration boundary for composite envelope serialization. */
+export interface DerivedLocusFrame extends z.infer<typeof DerivedLocusFrameSchema> {
+  readonly roster: z.infer<typeof DerivedLocusFrameSchema>["roster"];
 }
 
 /** Select the canonical entering checkout from one worktree-derived evidence snapshot. */
