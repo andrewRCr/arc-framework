@@ -367,20 +367,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
 - _Goal:_ The shared suite runs over the ref backend on real temporary repositories with a bare origin, each test
   copying a prepared template, its declarations stating exactly what the backend serves.
 
-    - `[ ]` **4.4.a Fixture and declarations**
-        - A fixture and declarations under `__tests__/helpers/store/` beside the in-repo and reference ones, and an
-          integration registration of `registerStoreConformanceSuite`; the store built with `createRefStore`, its factory
-          taking the registry override; `prepared-repository.ts` templates copied per test, the default template setting
-          `remote.origin.arc-state push` so its store stays in the code repository's refs (§ 9.7)
-        - Declarations per § 14.1: every family but `project-machinery` and `constitution`, which `unservedFamilies`
-          names with their reason, the reserved families served and listing absent; `mergesConcurrentWrites`,
-          `stateOffBranch`, `runsWriteChecks`, and `liveListingStateVersion` true; sync families by scope
-        - The reference fixture's test registry, built inline in `createReferenceFixture` (`reference-fixture.ts`), moves
-          to an export both fixtures build with; its `rejectingContentUnavailable` for the prose and entry-list kinds of
-          the served families only, since `validateRefusalAndContentExclusions` refuses one naming an unserved family; and
-          its test grammars for the three entry kinds whose registry declares none
-        - Project-owned references name `{ type: "project", name: "project" }`; the content generator writes canonical
-          JSON for JSON-homed kinds and § 3.2's shape for `project-registry/identity`
+    - `[x]` **4.4.a Fixture and declarations**
+        - A public ref-store registration copies isolated files-format templates with local bare origins and a push
+          designation. Both fixtures share the extracted generic test registry; ref declarations cover served families
+          and scope-specific sync, and content uses one project owner, canonical JSON, and the project-identity schema.
 
     - `[ ]` **4.4.b The hooks**
         - `reference` and `content`, the `reference` hook building a companion's key as a name, as 1.11 has the other
