@@ -1007,26 +1007,32 @@ it. From the flip, recovery authority binds typed Candidate and lifecycle record
 
 The ref backend's import reads today's substrates once into the store and runs no write check, and until this change
 supplies the review family's mapping it lists the review gate's facts and refuses. This change builds that mapping as a
-pure module under `lib/store/kinds/review/`, which the import calls: given today's records as read, it returns the new
-records with their work items and keys, and a listing that accounts for every record it was given as mapped, left behind
-with a reason, or in flight. The import's reads, its writes, its trial, and its refusals stay the ref backend's.
+pure module under `lib/store/kinds/review/`: given today's records as read, it returns the new records with their work
+items and keys, and a listing that accounts for every source it was given exactly once — each gate file by its path,
+each Candidate version by its tracked path and commit, and each boundary by its tracked path — as mapped with the
+records it became, left behind with a reason, or in flight. A file mapped in part, as the repository-wide receipt ledger
+is, lists as mapped, its reason naming the entries it left behind. The import's reads, its writes, its trial, and its
+refusals stay the ref backend's.
 
-The mapping expects one contract of the import, available from the flip: that it gives the mapping the review gate's
-whole folder under the Git common directory (`arc/review-gate/`), its quarantined and retired records among them; each
-live work unit's Candidate versions, oldest first from the record's path log, with its current boundary; and, for each
-work item today's records name, whether that item is live by § 11.1's test and the UID the import minted for it
-(§ 11.3); and that it lands what the mapping returns for those records in place of landing them as state.
+The mapping expects one contract of the import, available from the flip: that it calls the mapping through an optional
+port (`reviewMapping`, on the import's `runStoreMigrate`), whose input and result types the mapping meets by shape,
+importing nothing of the import's, with `arc store migrate`'s handler passing it in; that it gives the mapping the
+project ID, the review gate's whole folder under the Git common directory (`arc/review-gate/`), its quarantined and
+retired records among them, each live work unit's Candidate versions, oldest first from the record's path log, with its
+current boundary, and a table of every work unit and Errand it carries, each with the UID it minted (§ 11.3) and whether
+it is live (§ 11.1), a name the table lacks being no live work; and that it lands what the mapping returns in place of
+the Candidate and boundary records and gate files it gave.
 
 #### 11.1 Live work
 
-Live work is any work item a later verb may still read to decide: Errands not yet settled — open, paused, or awaiting
-merge (`lib/errand/identity-record.ts`) — and work units neither abandoned nor cut, unless both archived and merged. A
-work unit merged but not yet archived, routine under `archive.cadence: manual`, is live, and so is one archived and
-awaiting merge under `archive.cadence: with-integration`. Under the manual cadence archive follows merge, since merge
-readiness refuses a work unit already archived there (`wrong-cadence`, `rg/readiness.ts`); otherwise a work unit is
-merged when its branch has landed in base by patch identity (`isLandedInBaseStrict`), tested against `origin/<base>`
-where it resolves and the local base otherwise, as locus tests it. A multi-commit squash merged outside ARC reads
-unlanded, so its work reads live and is imported, which is safe.
+Live work is any work item a later verb may still read to decide, as the import's table marks it: Errands an identity
+ref holds — open, paused, or awaiting merge (`lib/errand/identity-record.ts`) — and work units neither archived,
+abandoned, nor cut, one merged but not yet archived among them, as is routine under `archive.cadence: manual`. An
+archived work unit has ended unless its branch still exists and has not landed in base by patch identity
+(`isLandedInBaseStrict`, `lib/git/branch-containment.ts`), tested against `origin/<base>` where it resolves and the
+local base otherwise, as for one archived before merge under `archive.cadence: with-integration`. The import refuses
+until such a work unit's branch merges, or is removed where its change has already landed or is no longer wanted, so the
+mapping never meets one.
 
 The review gate's machine-local facts are imported for live work only. A shipped change's review lives on in its pull
 request on the host and in the commits that carried its records, and nothing reads an ended item's facts to decide.
@@ -1037,8 +1043,8 @@ request on the host and in the commits that carried its records, and nothing rea
   keyed as § 4.1. A local attempt joins its receipt (`evidence/receipts-v2.json`) and its `local-review` operation
   record by `requestId` for its request, actors, policy binding, and attestation; a frontline attempt joins its
   frontline outcome (`outcomes/`) by operation ID; a hosted attempt keeps its sealed result.
-- **A `pending` attempt** — nothing: listed as in flight, and the import refuses until the cutover's quiesce has
-  finished it.
+- **A `pending` attempt** — nothing: its lane-progress file lists as in flight, and the import refuses until the
+  cutover's quiesce has finished it.
 - **`completedPasses`, `terminalProducer`, `settledFindingIds`, `attemptedSources`, tail pointers** — nothing: each
   derives from the records (§ 4.3, § 6.3).
 - **An approved-disposition record (`evidence/disposition-*.json`)** — one `review/evidence` per disposition set the
@@ -1053,7 +1059,8 @@ request on the host and in the commits that carried its records, and nothing rea
   superseded one stays derived from its successor set's evidence.
 - **The frontline skip marker (`operations/`, `frontline-phase`)** — a frontline lane-skip decision on its Candidate,
   reaching its supersession chain (§ 5.6), with no decider and its `updatedAt` as the time.
-- **The repository ID (`identity/repository-identity.json`)** — the project ID.
+- **The repository ID (`identity/repository-identity.json`)** — left behind, its value the project ID the import passes
+  in.
 - **A live work unit's Candidate record, every replayed version** — `review/candidate`, every version, transitions whole
   (§ 8). A work unit reopened before the flip keeps its `publication-pending` boundary through the import: today's
   records cannot tell a deliberate withdrawal from an interrupted publish, both admitted by
@@ -1084,13 +1091,14 @@ request on the host and in the commits that carried its records, and nothing rea
 - **The review gate's facts for work that is not live** — left behind (§ 11.1).
 - **`quarantine/` and `retired/`** — left behind: quarantined disposition records and retired snapshots of earlier
   stores, machine-local under D5, which no reader decides from.
-- **A not-live work unit's Candidate and boundary files** — not mapped: they land in today's shape on their history
-  refs, where an ended item's records are retired by derivation (§ 10.4).
-- **Sources, materializations, locks, the hosted request owner index, `local-review` records, and
-  `refs/arc/review/local*`** — not mapped: working state, read only for the joins above.
+- **A not-live work unit's Candidate and boundary files** — never given to the mapping: the import lands them as found,
+  in today's shape, on their history refs, where an ended item's records are retired by derivation (§ 10.4).
+- **Sources, materializations, locks, the hosted request owner index, and `local-review` records** — left behind:
+  working state, read only for the joins above. The pins that keep a local review's materialization reachable
+  (`refs/arc/review/local/`, `refs/arc/review/local-scope/`; `rg/hosts/local/source-sweep.ts`) are refs outside the
+  folder the mapping is given, and nothing maps them.
 
-Two decisions with the same content map to one record, since a decision is keyed by its content (§ 5.2). A live work
-unit archived and awaiting merge has its records mapped, though the import lands them on its history ref.
+Two decisions with the same content map to one record, since a decision is keyed by its content (§ 5.2).
 
 #### 11.3 Work items and keys
 
@@ -1102,10 +1110,11 @@ acknowledged `attemptId`, resolves to its attempt's admission ID, the outcome's 
 
 #### 11.4 Mapped records are valid
 
-The import runs no write check, so the mapping guarantees what the checks would: every record it returns parses under
-its kind's schema and passes its kind's write check over the set it returns. `history` returns each version's content
-unparsed (`HistoryEntrySchema`, `lib/store/contract.ts`); a live chain is mapped whole, so a chain walk meets one shape,
-and nothing walks the chain of work that is not live to decide.
+The import parses each record the mapping returns and applies the serialization rules, refusing one that fails under
+`review-mapping`, but runs no write check, so the mapping guarantees what the checks would: every record it returns
+parses under its kind's schema and passes its kind's write check over the set it returns. `history` returns each
+version's content unparsed (`HistoryEntrySchema`, `lib/store/contract.ts`); a live chain is mapped whole, so a chain
+walk meets one shape, and nothing walks the chain of work that is not live to decide.
 
 ### 12. Delivery at the flip
 
@@ -1304,8 +1313,7 @@ lock release through `readinessBoundTo` (`handlers/delivery-execution.ts`); the 
 `spec-storage-contract.md` is shipped; these amend it forward, effective when this change lands:
 
 1. **D5: `review/terminus` becomes `review/decision`,** carrying every decision about a review subject outside the
-   Candidate's own selections — extra passes, termini, lane skips, and withdrawals — not termini alone. The ref
-   backend's layout row for `review/evidence`, `outcome`, and `terminus` names `decision` in place of `terminus`.
+   Candidate's own selections — extra passes, termini, lane skips, and withdrawals — not termini alone.
 2. **D5: the review gate's operation records keep in-flight state only.** The durable facts they hold today — attempt
    results with their sealed hosted results, response performance, settlement, and pass authorizations — are outcomes,
    evidence, and decisions, which must survive a change of machine like the rest of the family. Operations, locks,
@@ -1420,7 +1428,8 @@ is reviewed in chunks on one branch, and no chunk lands on its own, so it carrie
       `FrontlineExecutableIdentity` type the outcome keeps.
 - **The store:** `lib/store/catalog.ts` and `lib/store/registry.ts` (§ 2.1), the new `lib/store/kinds/review/` modules,
   `lib/store/kinds/registrations.ts` (§ 2.5), and `lib/store/in-repo/read.ts`, whose read of a review record takes its
-  placement from the reading checkout's own tree first (§ 3.1).
+  placement from the reading checkout's own tree first (§ 3.1); and, where the ref backend's import lands first,
+  `arc store migrate`'s handler, which passes the mapping into the import's port (§ 11).
 - **The recording verb:** `cli.ts`, which registers `arc review adversarial record` under a `review adversarial` parent;
   its handler in `handlers/review.ts` (§ 7.2); and the help that every visible command carries,
   `lib/cli-help-summaries.ts` (`COMMAND_SUMMARIES`) and `lib/cli-help-content.ts` (`HELP_GROUPS.review`), which
@@ -1597,11 +1606,12 @@ it (§ 12.5).
 3. **The checkpoint binds what it attested.** Over a store whose record versions move independently, merge refuses when
    the work unit's meta record or the code head has moved since the checkpoint, and passes when only an unrelated record
    has.
-4. **The mapping accounts for everything.** Run over this repository's review records, the mapping returns every live
-   record as mapped and every other fact as left behind with its reason, with none unaccounted for; every record it
-   returns parses and passes its kind's write check; a fixture holding a `pending` attempt is listed as in flight; and
-   the supersession chain read through the mapped Candidate records equals today's reader's
-   (`readRepositoryCandidateSupersessionChain`) for every live work unit.
+4. **The mapping accounts for everything.** Run over this repository's review records, the mapping's listing accounts
+   for every source it is given exactly once — each gate file, Candidate version, and boundary — as mapped with the
+   records it became, left behind with its reason, or in flight; every record it returns parses and passes its kind's
+   write check; a fixture holding a `pending` attempt lists its file as in flight; and the supersession chain read
+   through the mapped Candidate records equals today's reader's (`readRepositoryCandidateSupersessionChain`) for every
+   live work unit.
 5. **From the flip, over the reference backend:**
     1. a work unit's delivery makes no record-only commit and emits no `commit-*` next action;
     2. a re-root after code changes keeps a recorded terminus;
