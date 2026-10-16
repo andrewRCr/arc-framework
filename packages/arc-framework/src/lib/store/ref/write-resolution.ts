@@ -1,7 +1,7 @@
 /** Resolve a mutation batch's owner generations from one captured live namespace. */
 
 import { randomUUID } from "node:crypto";
-import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { Mutation } from "../write.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
@@ -23,28 +23,16 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     condition: "No arc.identity is configured for person-owned state",
     remedy: { text: "Configure arc.identity, then retry the write." },
   } };
-  const tips = await readRefTips(context);
+  const tips = await readRefTips(context, { includeHistory: true });
   const observed = await readLiveOwners(context, tips);
   if (observed.status === "refused") return observed;
   const owners = observed.result;
   const fresh = new Map<string, OwnerIdentity>();
   const resolved: ResolvedMutation[] = [];
   for (const mutation of writes) {
-    const requested = mutation.reference.owner;
-    let owner = requested;
-    if (requested.type !== "person" && requested.type !== "project") {
-      const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
-        && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name));
-      if (candidates.length > 1) return { status: "refused", refusal: {
-        code: "ambiguous-match", class: "recoverable",
-        candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...mutation.reference, owner })),
-        condition: "More than one live owner holds this name", remedy: { text: "Name the intended owner by UID and rename one, then retry." },
-      } };
-      const key = `${requested.type}:${requested.name}`;
-      owner = candidates[0] ?? (requested.uid ? requested : fresh.get(key)
-        ?? OwnerIdentitySchema.parse({ ...requested, uid: randomUUID() }));
-      fresh.set(key, owner);
-    }
+    const found = resolveOwner(mutation.reference, owners, fresh);
+    if (found.status === "refused") return found;
+    const owner = found.result;
     const reference = RecordReferenceSchema.parse({ ...mutation.reference, owner });
     resolved.push({ mutation: { ...mutation, reference }, home: expandStoredPath(reference, { registry: context.registry }) });
   }
@@ -63,4 +51,25 @@ async function readLiveOwners(context: RefBackendContext, tips: ReadonlyMap<stri
     owners.push(refOwner(ref, matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort", metadata));
   }
   return { status: "ok", result: owners };
+}
+
+function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>): StoreResult<OwnerIdentity> {
+  const requested = reference.owner;
+  if (requested.type === "person" || requested.type === "project") return { status: "ok", result: requested };
+  const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
+    && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name));
+  if (requested.uid && candidates.length === 0) return { status: "refused", refusal: {
+    code: "not-found", class: "recoverable", reference,
+    condition: "The named owner has no live ref",
+    remedy: { text: "Resolve the owner's current lifecycle state, then restore it or create a new generation by name before retrying." },
+  } };
+  if (candidates.length > 1) return { status: "refused", refusal: {
+    code: "ambiguous-match", class: "recoverable",
+    candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
+    condition: "More than one live owner holds this name", remedy: { text: "Name the intended owner by UID and rename one, then retry." },
+  } };
+  const key = `${requested.type}:${requested.name}`;
+  const owner = candidates[0] ?? fresh.get(key) ?? OwnerIdentitySchema.parse({ ...requested, uid: randomUUID() });
+  if (candidates.length === 0) fresh.set(key, owner);
+  return { status: "ok", result: owner };
 }

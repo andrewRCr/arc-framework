@@ -7,6 +7,10 @@ import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
 import { resolveRefWrites } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
+import { withRefLocks } from "./write-locks.js";
+import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
+import { readRefTips } from "./batch-read.js";
+import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Describe invalid mutation content without changing any state. */
 export function malformedMutation(reference: RecordReference, condition: string): StoreRefusal {
@@ -34,7 +38,33 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
     if (!reference) throw parsed.error;
     return { status: "refused", refusal: malformedMutation(reference, parsed.error.message) };
   }
-  const resolved = await resolveRefWrites(context, parsed.data.writes);
-  if (resolved.status === "refused") return resolved;
-  return commitRefWrites(context, resolved.result, parsed.data.provenance, randomUUID());
+  try {
+    return await executeRefBatch(context, parsed.data, randomUUID());
+  } catch (error) {
+    if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
+    return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
+      condition: `The lock remained held for ${error.waitedMs}ms.`,
+      remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } } };
+  }
+}
+
+async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {
+  for (;;) {
+    const resolved = await resolveRefWrites(context, input.writes);
+    if (resolved.status === "refused") return resolved;
+    const result = await withRefLocks(context, resolved.result.writes.map((write) => write.home.ref), async () => {
+      const tips = await readRefTips(context, { includeHistory: true });
+      if (ownerRefsChanged(resolved.result, tips)) return null;
+      return commitRefWrites(context, { ...resolved.result, tips }, input.provenance, batchId);
+    });
+    if (result !== null) return result;
+  }
+}
+
+function ownerRefsChanged(resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
+  return resolved.writes.some(({ home }) => {
+    const refs = [home.ref];
+    if (/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)) refs.push(home.ref.replace("refs/arc/", "refs/arc/history/"));
+    return refs.some((ref) => tips.get(ref) !== resolved.tips.get(ref));
+  });
 }

@@ -10,6 +10,7 @@ import { refRecordVersion } from "./record-version.js";
 import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
+import type { RecordReference } from "../identity.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -19,6 +20,12 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const loaded = await readWriteGroups(context, resolved);
   if (loaded.status === "refused") return loaded;
   const groups = loaded.result;
+  const stale = staleMutations(resolved, groups);
+  if (stale.length > 0) return { status: "refused", refusal: {
+    code: "version-conflict", class: "recoverable", records: stale,
+    condition: "The expected record versions do not match the captured state",
+    remedy: { text: "Read every conflicting record, then retry the whole batch with its current versions." },
+  } };
   const tips = resolved.tips;
   const results: WriteResult[] = [];
   for (const write of resolved.writes) {
@@ -41,6 +48,18 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") throw new Error("State refs moved while preparing a write; retry the operation");
   return { status: "ok", result: { batchId, writes: results } };
+}
+
+function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): RecordReference[] {
+  return resolved.writes.flatMap(({ mutation, home }) => {
+    const group = groups.get(home.ref);
+    if (!group) throw new Error("A resolved mutation has no captured ref group");
+    const entry = group.entries.get(home.path);
+    const { kind, key } = mutation.reference;
+    const format = group.metadata.formats[canonicalize({ kind, ...(key === undefined ? {} : { key }) })] ?? 1;
+    const version = entry ? refRecordVersion(mutation.reference, entry.oid, group.metadata, format) : null;
+    return mutation.expected === version ? [] : [mutation.reference];
+  });
 }
 
 async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<WriteResult> {

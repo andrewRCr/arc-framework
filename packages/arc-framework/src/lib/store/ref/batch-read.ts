@@ -11,8 +11,8 @@ const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 
 /** Capture local ref tips without dereferencing their potentially missing objects. */
-export async function readRefTips(context: RefBackendContext): Promise<Map<string, string>> {
-  const { stdout } = await context.rawExec(["for-each-ref", "--exclude=refs/arc/history/",
+export async function readRefTips(context: RefBackendContext, options: { includeHistory?: boolean } = {}): Promise<Map<string, string>> {
+  const { stdout } = await context.rawExec(["for-each-ref", ...(options.includeHistory ? [] : ["--exclude=refs/arc/history/"]),
     "--format=%(objectname) %(refname)", "refs/arc/"], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   return new Map(decoder.decode(stdout).split("\n").filter(Boolean).map((line) => {
     const separator = line.indexOf(" ");

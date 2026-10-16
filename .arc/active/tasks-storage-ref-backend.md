@@ -337,18 +337,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           resolution or locks and retry on the same store after configuration. Live names and authoritative UIDs resolve
           to current owners; a new slug's records share one minted UID, exercised through minimal tree/commit creation.
 
-    - `[ ]` **4.2.b Locks, reads, and expected versions**
-        - Steps 3 and 4: the refs' locks (4.1), `AdvisoryLockTimeoutError` refusing `lock-held` naming the lock's path as
-          `lib/store/in-repo/write-conflicts.ts` maps it; then one `for-each-ref` of the tips, each owner's live and
-          history refs among them; an owner whose refs differ from what step 2 found releases every lock and restarts
-          from step 2; then each put's and removal's expected version, absence for a create
-        - Build `test-first` (one behavior at a time):
-            - a put expecting absence over an existing record, and a stale version, refuse `version-conflict`, a batch
-              naming every stale record
-            - a write whose ref's lock another process holds past an injected wait refuses `lock-held` naming
-              `arc/locks/<ref name>.lock`, and lands once it is released
-            - a write whose owner's refs changed between resolution and locking restarts and lands on the refs as they
-              stand
+    - `[x]` **4.2.b Locks, reads, and expected versions**
+        - Ordered ref locks wrap a fresh live/history capture; changed owner refs release and resolve again without
+          recreating retired owners. Expected absence and versions report every stale record before mutation. Real
+          contention retries after release; partial acquisition cleans up, and post-commit release errors stay errors.
 
     - `[ ]` **4.2.c Build and commit**
         - Steps 5, 7, and 8: new trees for records and metadata files over the found tips, each record at the path its
