@@ -52,19 +52,27 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   for (;;) {
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;
-    const result = await withRefLocks(context, resolved.result.writes.map((write) => write.home.ref), async () => {
-      const tips = await readRefTips(context, { includeHistory: true });
-      if (ownerRefsChanged(resolved.result, tips)) return null;
-      return commitRefWrites(context, { ...resolved.result, tips }, input.provenance, batchId);
-    });
+    const result = await withRefLocks(context, resolved.result.writes.map((write) => write.home.ref), () =>
+      commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null) return result;
   }
 }
 
-function ownerRefsChanged(resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
+async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,
+  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | null> {
+  for (;;) {
+    const tips = await readRefTips(context, { includeHistory: true });
+    if (ownerLocationsChanged(resolved, tips)) return null;
+    const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId);
+    if (result === "resolve") return null;
+    if (result !== "retry") return result;
+  }
+}
+
+function ownerLocationsChanged(resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
   return resolved.writes.some(({ home }) => {
     const refs = [home.ref];
     if (/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)) refs.push(home.ref.replace("refs/arc/", "refs/arc/history/"));
-    return refs.some((ref) => tips.get(ref) !== resolved.tips.get(ref));
+    return refs.some((ref) => tips.has(ref) !== resolved.tips.has(ref));
   });
 }

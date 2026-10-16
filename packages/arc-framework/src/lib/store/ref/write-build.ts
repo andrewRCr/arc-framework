@@ -16,10 +16,12 @@ interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult>> {
+  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve"> {
   const loaded = await readWriteGroups(context, resolved);
   if (loaded.status === "refused") return loaded;
   const groups = loaded.result;
+  if (resolved.writes.some(({ mutation, home }) => /^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
+    && groups.get(home.ref)?.metadata.slug !== mutation.reference.owner.name)) return "resolve";
   const stale = staleMutations(resolved, groups);
   if (stale.length > 0) return { status: "refused", refusal: {
     code: "version-conflict", class: "recoverable", records: stale,
@@ -46,7 +48,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     changes.push({ ref, next: stdout.trim(), expected: parent ?? null });
   }
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
-  if (outcome.status !== "committed") throw new Error("State refs moved while preparing a write; retry the operation");
+  if (outcome.status !== "committed") return "retry";
   return { status: "ok", result: { batchId, writes: results } };
 }
 
@@ -64,12 +66,19 @@ function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, Ref
 
 async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<WriteResult> {
   const { mutation, home } = write;
-  if (mutation.action !== "put") throw new Error("Ref record removal is not yet implemented");
-  const formatVersion = context.registry[mutation.reference.kind].formatVersion;
-  const oid = await writeRefBlob(context, mutation.content);
-  group.entries.set(home.path, { path: home.path, mode: "100644", oid });
   const { kind, key } = mutation.reference;
-  group.metadata.formats[canonicalize({ kind, ...(key === undefined ? {} : { key }) })] = formatVersion;
+  const formatKey = canonicalize({ kind, ...(key === undefined ? {} : { key }) });
+  if (mutation.action === "remove") {
+    group.entries.delete(home.path);
+    group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([key]) => key !== formatKey));
+    return { reference: mutation.reference, conflicts: [] };
+  }
+  const formatVersion = context.registry[mutation.reference.kind].formatVersion;
+  const content = context.registry[mutation.reference.kind].projection === "never"
+    ? canonicalize(JSON.parse(mutation.content)) : mutation.content;
+  const oid = await writeRefBlob(context, content);
+  group.entries.set(home.path, { path: home.path, mode: "100644", oid });
+  group.metadata.formats[formatKey] = formatVersion;
   if ((kind === "work-item/meta" || kind === "work-item/record") && mutation.placement) {
     const links = mutation.links ?? group.metadata.primary?.links;
     group.metadata.primary = { role: kind, placement: mutation.placement, ...(links === undefined ? {} : { links }) };

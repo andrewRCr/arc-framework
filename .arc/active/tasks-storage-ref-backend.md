@@ -342,24 +342,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           recreating retired owners. Expected absence and versions report every stale record before mutation. Real
           contention retries after release; partial acquisition cleans up, and post-commit release errors stay errors.
 
-    - `[ ]` **4.2.c Build and commit**
-        - Steps 5, 7, and 8: new trees for records and metadata files over the found tips, each record at the path its
-          expansion gives (3.2) and each metadata file in `canonicalize`'s bytes; one commit per touched ref; one
-          transaction naming every ref's expected old value (2.3)
-        - A kind whose `projection` is `"never"` is stored in `canonicalize`'s bytes, chosen by kind and never by path,
-          and every other kind as written (§ 3.5)
-        - A ref found off its expected value retries from step 4; only a writer that bypassed the lock moves it, so each
-          retry follows one such write; the layout lock lands in Phase 8
-        - Build `test-first` (one behavior at a time):
-            - a put creates its owner's ref, its record at the table path and its metadata file reading back, and returns
-              the record's version
-            - two spellings of one JSON value store one blob, and a read returns the canonical bytes
-            - a personal document keyed `notes.json` holding non-canonical bytes stores and reads them as written
-            - a metadata-only write moves the primary's version and no other record's
-            - a removal commits the record's absence and the ref stays live, and a primary's removal keeps its role,
-              placement, and links for the item's other records
-            - a writer that bypassed the lock moves a ref, and the write retries and lands over it
-            - every write yields a state version no earlier one equals
+    - `[x]` **4.2.c Build and commit**
+        - Trees store canonical metadata and never-projected JSON while preserving other record bytes. Removals retain
+          primary facts and unaffected versions. A bypassing writer's CAS race retries under the same ref locks with
+          current trees; owner relocation or rename restarts resolution, and changed writes yield distinct state tokens.
 
     - `[ ]` **4.2.d Batches**
         - A batch's refs commit in one transaction, each created ref named with an expected absence
