@@ -9,6 +9,7 @@ import { registerDecomposeSchemas } from "./lib/work-unit/decompose-v3-schema.js
 import { registerSchemaCommandSchemas } from "./lib/schema-command/envelope.js";
 import { registerSessionEnvelopeSchemas } from "./lib/session-envelope/registry.js";
 import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register-review-schemas.js";
+import { registerHandoffWriteSchemas } from "./lib/handoff/write-schema.js";
 
 /**
  * Compose every schema family served by the production CLI.
@@ -19,5 +20,5 @@ export function createProductionSchemaRegistry(): KernelRegistry {
   const registry = registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
     registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
   )))));
-  return registerInboxSchemas(registry);
+  return registerInboxSchemas(registerHandoffWriteSchemas(registry));
 }

@@ -1159,85 +1159,36 @@ with the anchors it computes and reports growth past its bounds; identity setup 
 an identity in use; session start and recovery list the commits not yet closed equal to the close's default set, with
 the close as the action; and no ratchet floor exceeds its count at the merged base.
 
-### `[ ]` **7.1 Report growth and contention past their bounds — § 9.3**
+### `[x]` **7.1 Report growth and contention past their bounds — § 9.3**
 
 - _Goal:_ One report, under `lib/handoff/`, takes the store's `maintain()` measurements or a push's retry count and time
   waited and returns only the figures past their bounds, its text precomposed and naming the deferred capability each
   tripwire guards.
 
-- _Note:_ The bounds are constants beside the report, with no configuration key; the growth bound's 2,000 commits
-  matches the notes-compaction advisory (`COMPACTION_ADVISORY_HISTORY_THRESHOLD`,
-  `lib/user-sync/compaction-retention.ts`) but is defined locally, since the deletion pass removes that module.
+- _Outcome:_ The shared report selects never-retiring ref families and reports only growth or contention figures above
+  their fixed bounds, with the deferred capability named.
 
-    - Growth: a never-retiring ref — the person's `personal` or `claims` ref, or the project's `project/inbox` or
-      `project/registry` — past 2,000 commits or 50 MB on disk, naming scheduled ref rotation.
-    - Contention: a push past one retry or 10 s waited, naming a service backend, per-record authorization, or very high
-      write parallelism.
-    - It takes the measurements as Task 3.3.a's port returns them, the ref backend's `MaintainResult` (`{ measurements:
-      null }` or each ref's commits and bytes on disk), and a push's figures as its publish outcome carries them
-      (`retryCount`, `waitedMs`); `arc sync`'s call over its push's figures is the cutover's rewire.
-
-    - Build `test-first` (one behavior at a time), over scripted measurements and push outcomes:
-        - a ref past either growth bound reports, naming ref rotation
-        - a push past either contention bound reports, naming the capabilities it guards
-        - figures at or below their bounds report nothing
-        - `{ measurements: null }` and zero retries report nothing
-
-### `[ ]` **7.2 Add `arc handoff write` — § 9.1**
+### `[x]` **7.2 Add `arc handoff write` — § 9.1**
 
 - _Goal:_ From the flip `arc handoff write` takes only what the session decides — the `## Session Context` body,
   `Next Action`, and an optional `Session Type` — computes `State at Handoff` and `Commit at Handoff` itself, writes all
   five in one write of the current work unit's meta, then maintains the store and reports growth past its bounds,
   pushing nothing; each refusal's request passes once repaired.
 
-    - `[ ]` **7.2.a The request and its schema**
+    - `[x]` **7.2.a The request and its schema**
 
-        - `arc handoff write <file | ->` reads a versioned JSON request from the file or standard input carrying the
-          body whole, `Next Action`, and an optional `Session Type`, an omitted one writing `[none]`; the request schema
-          registers through `production-schema-registry.ts`, so `arc schema` serves it.
-        - The command module and its handler sit under the `arc handoff` group Task 1.10 registers, its refusal before
-          the flip being that task's.
+        - Registered strict request and result schemas; file and explicit stdin requests accept authored
+          context and reject supplied anchors.
 
-        - Build `test-first` (one behavior at a time):
-            - a request with and without `Session Type` parses, and one carrying either anchor refuses as unknown fields
-            - `arc schema` serves the request's schema
+    - `[x]` **7.2.b The write and its anchors**
 
-    - `[ ]` **7.2.b The write and its anchors**
+        - The selected Store writes all five meta fields at the observed record version, computing state and
+          Git anchors; section, current-work-unit, and read refusals retain repaired retries.
 
-        - The verb resolves the current work unit through Task 2.3's resolver, reads the store's `version()` before its
-          write and the checkout's `HEAD`, and writes the five fields through the meta's writers
-          (`writeMetaStateAtHandoff`, `writeMetaCommitAtHandoff`, `writeMetaSessionType`, `writeMetaNextAction`,
-          `lib/store/kinds/meta/bullet-writers.ts`; `writeMetaSessionContext`, `lib/store/kinds/meta/section-writer.ts`)
-          in one write at the meta's version as read, carrying its current placement.
-        - Its refusals, each before any write: a body line that would end the section — an H2 heading, or one trimming
-          to `---` — naming that line, which the verb finds by the section writer's own rule, since
-          `writeMetaSessionContext` throws without naming it; a `version()` that refuses, with the store refusal's own
-          remedy; and a checkout holding no work unit, naming the work unit's checkout, since a handoff between work
-          units writes no session context.
+    - `[x]` **7.2.c Maintenance after the write**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - the five fields land in one write, `State at Handoff` the version read before it and `Commit at Handoff`
-              the checkout's `HEAD`
-            - an omitted `Session Type` writes `[none]`
-            - a body line that would end the section refuses, naming the line, and writes nothing; the request with the
-              line rewritten writes
-            - a refusing `version()` refuses and writes nothing; the request run again once it reads writes
-            - a checkout holding no work unit refuses, naming the repair; the request run from the work unit's checkout
-              writes
-
-    - `[ ]` **7.2.c Maintenance after the write**
-
-        - After its write the verb calls `maintain()` through Task 3.3.a's port and passes the measurements to Task
-          7.1's report, returning the figures past their bounds in its result whether or not a sync follows; it never
-          pushes, handoff's push staying `arc sync` under the sync interlock.
-        - A refused handoff calls no `maintain()`, and a `maintain()` that fails after the write landed is reported as a
-          diagnostic while the handoff succeeds.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - the verb calls `maintain()` once after its write, and returns the report's figures
-            - a refused handoff calls no `maintain()`
-            - a failing `maintain()` after the write returns success with a diagnostic
-            - the default port's `{ measurements: null }` returns no figures
+        - Local maintenance follows a landed write and reports bounded growth; a maintenance failure remains a
+          diagnostic on successful handoff.
 
 ### `[x]` **7.3 Create a person's first records only when absent, and warn on an identity in use — § 10.1, § 10.2**
 

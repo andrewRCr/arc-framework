@@ -34,6 +34,12 @@ const inboxStdinSites = ([1, 2] as const).map((occurrence) => declareInteraction
   { file: "handlers/inbox-runtime.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence },
   { acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable", automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] }, mutationBoundary: "entry or queue request read", subprocess: "explicit-stdin" },
 ));
+const handoffStdinSite = declareInteractionSite(
+  { file: "handlers/handoff-write.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+  { acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+    mutationBoundary: "handoff request read", subprocess: "explicit-stdin" },
+);
 
 /** Explicit stdin belongs to insertion and versioned request forms; output selection is deterministic. */
 export const storeCommandInputPolicyDeclarations: readonly CommandInputDeclaration[] = [
@@ -55,6 +61,6 @@ export const storeCommandInputPolicyDeclarations: readonly CommandInputDeclarati
     commandPath, aliases: [], sites: [declareCliOperandSite("file", {
       acquisition: "parser-required", schemaOwnership: "owned", schemaField: "file", cancellation: "not-applicable",
       automation: { noInput: "require-explicit", flags: ["--no-input"], acceptedSyntax: ["<file>", "-"] }, mutationBoundary: "request source selection", subprocess: "none",
-    }), ...(commandPath === "errand queue set" ? inboxStdinSites : [])],
+    }), ...(commandPath === "errand queue set" ? inboxStdinSites : [handoffStdinSite])],
   })),
 ];
