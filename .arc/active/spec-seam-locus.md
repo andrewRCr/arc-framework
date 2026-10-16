@@ -1678,10 +1678,11 @@ Promotion's one write and its branch are the transition-write-path change's (§ 
 cuts the work branch `<type>/<name>` (`--type`, default `feat`) at the Errand's tip, switches the checkout onto it, and
 links it beside the Errand's branch, recorded `created` with the Errand link's exclusions, which are none. At the scale
 floor the work unit is Active at once, so the Errand's commits stay in the close's default capture for the tasks it
-backfills, which promotion's `Next Action` asks for (`metaOverrides`, `lib/errand/promote-runtime.ts`); a
-derivation-floor promotion's work unit, in Planning, meets them in its activation's report, since activation adds the
-branch's default set to its exclusions and reports them with the close that captures any that are task work (§ 16).
-Today a derivation-floor promotion renames the Errand branch to `plan/<name>` (`promotionBranch`).
+backfills, which promotion's `Next Action` asks for (`promotionMeta`, `lib/errand/promote-store.ts`, as `metaOverrides`
+does in the in-repo arm, `lib/errand/promote-runtime.ts`); a derivation-floor promotion's work unit, in Planning, meets
+them in its activation's report, since activation adds the branch's default set to its exclusions and reports them with
+the close that captures any that are task work (§ 16). Today a derivation-floor promotion renames the Errand branch to
+`plan/<name>` (`promotionBranch`).
 
 That change builds the write and the Git step as steps `promoteOrdinaryErrand` composes (`lib/errand/promote.ts`), in a
 module of their own beside it. This change has the promotion runtime (`promoteOrdinaryErrandAtRuntime`) select those

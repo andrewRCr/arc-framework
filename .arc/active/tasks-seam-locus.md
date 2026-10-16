@@ -1684,6 +1684,8 @@ inject a reference-backend store.
             - over the reference backend a rerun after a crash following the role write — before the switch, after it,
               or after the marker's settlement — completes in that checkout, and with no such checkout refuses
               `checkout-missing`
+            - over the reference backend an Errand whose record carries no branch link for its branch refuses before any
+              write, as the steps do
 
     - `[ ]` **3.9.b The settlement**
 
@@ -1694,14 +1696,18 @@ inject a reference-backend store.
           `convertSpawnedMarker` treats a converted marker, where `removePrimaryTransientOccupancy` would refuse it as
           `subject-mismatch`. The spawned arm keeps `convertSpawnedMarker`.
         - From the flip the runtime skips its inbox settlement step (`settlePromotedInbox`), since the start moved the
-          entry into the Errand's description, and its settled result reports no origin (`receiptFromAuthority`), as
-          today.
+          entry into the Errand's description: it fills `settleInbox` with a step that settles nothing and returns the
+          frame unchanged but for its origin, which it clears (`originEntry` and `originEntrySourceDigest` `null`) as
+          `settlePromotedInbox` does, so its settled result reports no origin, as today. `promoteOrdinaryErrand` calls
+          that slot whenever the meta is committed (`settleCommittedFrame`, `lib/errand/promote.ts`), as the steps'
+          receipt always is, and today's step would refuse an inbox origin with a `null` digest after the write.
 
         - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
             - a promotion on the primary leaves an anchored work-unit marker, and the roster derives the work unit there
             - a rerun after the settlement finds its own marker settled and writes nothing
             - a promotion on a spawned checkout converts its marker
-            - no inbox settlement runs, and the result reports no origin
+            - no inbox settlement runs and the result reports no origin, for an Errand started from an inbox entry, its
+              digest `null`, as for one with no inbox origin
             - over the in-repo implementation promotion runs as today, its commit included
 
 ### `[ ]` **3.10 What is in flight** — validate exit criterion at segment scope
