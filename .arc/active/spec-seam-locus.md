@@ -2481,5 +2481,7 @@ this design open.
   _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 - **A7** — 2026-10-16 — spec-depth: promotion's steps take their checkout from the runtime once they hold the Errand.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
+- **A8** — 2026-10-16 — task: the Errand handlers open the store over their checkout and pass it to their runtimes.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.3. _Revalidated:_ pending → 3.10.
 
 ---

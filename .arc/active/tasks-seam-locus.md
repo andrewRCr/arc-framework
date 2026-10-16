@@ -1120,7 +1120,13 @@ _Design decisions:_ Every reader and runtime here branches on the capability whe
 its in-repo arm, since the in-repo store's Errand reads are local-only where the runtimes fetch and reconcile, and its
 placement listing reads the working tree where the shipped-work readers read the archive at a base ref (spec § 1.5). The
 arms from the flip live in sibling modules, since `lib/git/in-flight-derivation.ts` and `handlers/errand.ts` already
-carry `max-lines` floor entries.
+carry `max-lines` floor entries. Each Errand handler whose runtime reads or writes the Errand record —
+`handleErrandOpen`, `handleErrandLink`, `handleErrandLeave`, `handleErrandClose`, `handleErrandAbandon`,
+`handleErrandPromote`, and `handleErrandMaterialize`'s own read (`handlers/errand.ts`) — opens the store over its
+checkout as lifecycle's verbs open theirs (`openDefaultStore`, through `resolveVerbBase`,
+`handlers/lifecycle-shared.ts`) and passes it to its runtime as an optional `store`, as
+`PromoteOrdinaryErrandRuntimeOptions` already takes one, so each runtime branches on that store's capability; tests
+inject a reference-backend store.
 
 ### `[ ]` **3.1 Derive the in-flight set from placement — § 3.1, § 3.6**
 
@@ -1291,6 +1297,10 @@ carry `max-lines` floor entries.
           its retirement rules, `lib/errand/identity-transitions.ts`) as the runtime's own computation, admitting and
           refusing what it does today, with no write check; and writes the computed record at the version it read, in
           one `batch` with the transition's companion writes, each at its expected version.
+        - Each runtime's options — `OpenOrdinaryErrandRuntimeOptions`, `LinkOrdinaryErrandRuntimeOptions`,
+          `CloseOrdinaryErrandRuntimeOptions`, `AbandonOrdinaryErrandRuntimeOptions`, and
+          `LeaveOrdinaryErrandRuntimeOptions` — gain an optional `store`, which its handler fills (Phase 3's design
+          decisions) and which the step reads and writes through.
         - On a stale-version refusal it reads the record once more: where it now equals the computed record, it reports
           `idempotent`, as the transform does before it compares the request's `previous` (`transitionOrdinaryErrand`);
           otherwise it reports today's mismatch refusal. It recomputes nothing, and any other refusal, a divergent
@@ -1336,6 +1346,8 @@ carry `max-lines` floor entries.
               open under another slug then opens a new Errand
             - over the reference backend the open of an Errand with no `owner` refuses as malformed
             - over the in-repo implementation each still reads and writes through the identity transaction
+            - through the open's and the link's production handlers with nothing injected, over the in-repo
+              implementation, each runtime is given the store opened over the checkout and keeps its transaction call
 
     - `[ ]` **3.3.d Close, abandon, and leave**
 
@@ -1347,11 +1359,15 @@ carry `max-lines` floor entries.
               the record at `completed`
             - over the in-repo implementation a close where only the remote holds the newer record reconciles before it
               reads, as today
+            - through the close's, the abandon's, and the leave's production handlers with nothing injected, over the
+              in-repo implementation, each runtime is given the store opened over the checkout and keeps its transaction
+              call
 
     - `[ ]` **3.3.e `arc errand materialize`'s read**
 
-        - `handleErrandMaterialize` (`handlers/errand.ts`) reads the Errand it materializes through the store from the
-          flip, pulling first, in a sibling module; until then it reads through the identity transaction.
+        - `handleErrandMaterialize` (`handlers/errand.ts`) reads the Errand it materializes through the store it opens
+          (Phase 3's design decisions) from the flip, pulling first, in a sibling module; until then it reads through
+          the identity transaction.
         - From the flip it reads only an Errand at placement `active`, so a closed one reads as no open Errand, and
           refuses one whose record's `owner` is another identity, naming that owner, since no one but its owner takes
           over an Errand (spec Non-Goals), and one with no `owner` as malformed, naming the record (spec § 3.2).
@@ -1610,7 +1626,8 @@ carry `max-lines` floor entries.
           `store`, `exec`, `slug`, `name`, `type`, `floor`, `owner`, `priority`, `class` — its `checkout` the callback
           below and its `repository` the project ID from an optional port `PromoteOrdinaryErrandRuntimeOptions` gains
           beside `store` (Phase 2's design decision); given no project ID it refuses before `promoteOrdinaryErrand`,
-          naming that condition.
+          naming that condition. `handleErrandPromote` fills the runtime's `store` as every Errand handler does
+          (Phase 3's design decisions).
         - In `lib/errand/promote-store.ts` the steps' options (`StorePromotionOptions`) take a callback, `checkout`, in
           place of `cwd` and `frame`, which the steps call with the Errand record they hold — the one they read
           (`replaceFrame`) or the one they recover from the role write's history (`recoverPromoted`) — and with which of
