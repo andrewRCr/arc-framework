@@ -73,11 +73,16 @@ function branchLinkedElsewhere(input: ActivationBranchPlanInput, branch: string)
 function createdBranchPlan(input: ActivationBranchPlanInput, branch: string | null, head: string, target: string,
   base: string | null, warnings: string[]): ActivationBranchPlanResult {
   if (base === null) return { status: "refused", reason: `No base ref resolves for ${input.baseBranch}. Fetch origin +refs/heads/${input.baseBranch}:refs/remotes/origin/${input.baseBranch}, or run git branch ${input.baseBranch} <commit>, then retry arc activate ${input.name}.` };
+  let created = false;
     return { status: "ready", link: { repository: input.repository, ref: target, linkedAs: "created", excluded: [] }, priorRef: null,
       commits: [], report: warnings, step: {
         name: "create-work-branch", retryCommand: ["arc", "activate", input.name],
-        run: () => input.exec("git", ["switch", "-c", target, base], { cwd: input.cwd }).then(() => undefined),
+        run: async () => {
+          await input.exec("git", ["switch", "-c", target, base], { cwd: input.cwd });
+          created = true;
+        },
         rollback: async () => {
+          if (!created) return;
           await input.exec("git", branch === null ? ["switch", "--detach", head] : ["switch", branch], { cwd: input.cwd });
           await input.exec("git", ["update-ref", "-d", `refs/heads/${target}`, base], { cwd: input.cwd });
         },
