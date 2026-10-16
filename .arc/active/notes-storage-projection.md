@@ -11,6 +11,7 @@
 - [Tripwire timings](#tripwire-timings)
 - [Spike 5 — write-back through the store](#spike-5--write-back-through-the-store)
 - [Spike 6 — finding a stored clash again](#spike-6--finding-a-stored-clash-again)
+- [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
 
 ## Spike evidence
 
@@ -88,12 +89,14 @@ both platforms (`cmd`'s `del` and `Remove-Item` without `-Force` refuse). `git w
 
 What it settles:
 
-- **The refresh re-check is B with the index written before the rename onto F:** a stat comparison, the content hashed
-  only for a racy entry, and no time-based deferral — deferral costs nearly every refresh on Linux.
+- **The refresh re-check is B, with the index written before the replacement:** a stat comparison, the content hashed
+  only for a racy entry, and no time-based deferral — deferral costs nearly every refresh on Linux. The replacement is
+  § Spike 1b's swap, never a rename onto F.
 - **The exclusive open is reachable and rejected.** It makes an editor's save fail and closes nothing a hash does not.
 - **A rebuild commits with a hard link from the staged file.**
-- **A protected file's refresh clears the read-only mode before renaming,** since the index already knows the file is
-  protected; otherwise each refresh would spin through the `EPERM` retry to its timeout.
+- **A protected file's refresh needs no mode change:** § Spike 1b's swap moves a read-only F aside and links the staged
+  file in with its read-only mode, where a rename onto a 0444 F fails with `EPERM` on Windows and would spin through the
+  retry to its timeout.
 
 ## Spike 1b — moving the file aside
 
@@ -232,10 +235,10 @@ quiet gate (§ Tripwire timings).
 What it settles:
 
 - **The racy rule is needed on every platform,** not only Windows; with it, no run missed a change.
-- **The projection's own no-change cost is small beside the command it runs in.** At the writable set's size — its
-  own work item, the personal surfaces, and the owner's in-flight prose, well under 1,000 files — the stat walk is
-  about 2 ms on Linux and under 7 ms on Windows. The one Git read for the state version is the largest part on
-  Windows, and it can share the command's first store read and overlap the walk.
+- **The projection's own no-change cost is small beside the command it runs in.** At the writable set's size — its own
+  work item, the personal surfaces, and the owner's in-flight prose, well under 1,000 files — the stat walk is about 2
+  ms on Linux and under 7 ms on Windows. The one Git read for the state version is the largest part on Windows, and it
+  can start together with the walk and overlap it.
 
 ## Spike 3 — how editors and agent tools write
 
@@ -279,8 +282,9 @@ What it settles:
 
 - **Replacement is the normal save, and inode numbers recur.** Every editor default and both Claude Code tools write a
   new file; ext4 hands a freed inode number to the next file in the folder (Neovim's external-rewrite case reused
-  one). Change detection compares type, size, and modification time in nanoseconds, never inode identity — as the
-  draft's index already does.
+  one). Change detection compares type, size, and modification time in nanoseconds, and reads file identity one way
+  only: a changed identity sends the file to the hash, while an unchanged one never proves the file unchanged, since
+  freed numbers recur.
 - **A save leaves the path empty for a moment.** Vim, Neovim, and Emacs rename the original away before creating the
   new file: 14 ms between the rename and the create in Vim's log. A refresh that rebuilds an absent file in that gap
   and lands after the editor's create would replace the save, so a rebuild creates exclusively and yields when the path
@@ -475,3 +479,162 @@ reliably in arbitrary later content. Refreshing a marked file by merging the sto
 place with a line merge's own residual, and reports the rest as an overlap rather than misplacing it. Placing a stored
 clash's base range with a check on the current side, its line count known, and the lines beside it keeps the silent
 residual within a line merge's at every age, for clashes later edits left untouched.
+
+## Spike 7 — aside copies against a stale buffer's record
+
+Run 2026-10-15 on Linux (`spike7/`): a breadth-first model in Python, not the CLI, of one projected entry list of four
+entries, one editor buffer, the store with its history, the index's record of the path's last persisted write-back
+(§ 3.6), and the aside copies refreshes make (§ 5.2). The buffer either never reloads, as Zed, saving under the stamp it
+loaded, or reloads a file changed since it last loaded or wrote it before each save, as VS Code. Its events: a command
+(sweep, write-back, refresh); a save to the path; a save landing in an aside copy, only while the copy's writer runs and
+before any later save; the swap's first check, under the lock before any other command; the writer's second check;
+another machine's write, to an entry the person does not edit and, in the second bound, to one they do; the person's
+malformed set and its repair; in the runs that name it, the person deleting the file once, while it holds what the
+projection last wrote, which a refresh rebuilds by the link alone once the store has moved (§ 5.5); and a removal's
+check and persist step (§ 12.2). Entries are named values: the store's merge keeps the current side at a clash and files
+it, as `chooseEntries` does, and a merge in the checkout refuses a clash. Every interleaving within the bound is
+explored, and every reachable state is settled with no further saves and checked three ways: each writer's last saved
+value for each entry stands in the store's lineage, a filed conflict, or a reported file or copy; the same once a
+persist step that passes has removed the checkout; and the removal check answers as the persist step does.
+
+Three designs ran. The settled text. Option 1: each copy records its path's record at the swap, and a copy taken in once
+that record has changed is refused as superseded and never sent; as approved it records the record's stamp and content
+and fires only where either carries the copy's stamp; amended it records the stamp and the version the write landed,
+re-recorded at the copy's own landing, fires on any change, and adds three refinements — a copy holding what its swap
+moved or what it held when its own take-in landed is no edit, a superseded copy whose every change, from its stamp's
+version and from the record's content, the store already holds is deleted, and the persist step takes the aside copies
+over before writing files back, the order the sweep keeps. Keeping both: a copy holding an edit whose path no longer
+holds the file its swap linked is kept and reported, never merged, and one holding what its swap moved or what it held
+when its own take-in landed is no edit. With the person deleting the file, keeping both ran as § 5.2 first stated it, an
+absent path never moved on, and with a mark: each write-back of the path marks its other aside copies as it lands, which
+is § 5.2's mark before the send since every send lands in the model, a marked copy's path has moved on whether the path
+is there or not, and the removal check reads the copies in the persist step's order, each against the marks the earlier
+take-ins would set.
+
+At four commands and four saves, the buffer never reloading:
+
+| Design                                         | States  | Loss   | At removal | Disagrees | Kept copies |
+| ---------------------------------------------- | ------- | ------ | ---------- | --------- | ----------- |
+| The settled text                               | 211,914 | 28,869 | 44,690     | 0         | 0           |
+| Option 1 as approved, copies first             | 109,030 | 18     | 9          | 0         | 50,239      |
+| Option 1 amended, files first as § 12.2 has it | 85,468  | 0      | 90         | 3,296     | 12,164      |
+| Option 1 amended                               | 85,468  | 0      | 0          | 0         | 12,164      |
+| Keeping both                                   | 93,038  | 0      | 0          | 0         | 37,242      |
+
+At three commands and three saves, the buffer reloading and the other machine also editing an entry the person edits:
+
+| Design                                            | States  | Loss  | At removal | Disagrees | Kept copies |
+| ------------------------------------------------- | ------- | ----- | ---------- | --------- | ----------- |
+| The settled text                                  | 220,323 | 4,986 | 8,500      | 0         | 0           |
+| Option 1 as approved, copies first                | 191,725 | 68    | 68         | 614       | 39,218      |
+| Option 1 amended, firing only on the copy's stamp | 171,491 | 68    | 68         | 0         | 0           |
+| Option 1 amended                                  | 168,099 | 0     | 0          | 290       | 12,950      |
+| Keeping both                                      | 170,683 | 0     | 0          | 0         | 37,344      |
+
+Keeping both again, the person able to delete the file, at four by four with the buffer never reloading and at three by
+three with it reloading and the other machine also editing:
+
+| Bound and design                                  | States  | Loss   | At removal | Disagrees | Kept copies |
+| ------------------------------------------------- | ------- | ------ | ---------- | --------- | ----------- |
+| Four by four, as first stated                     | 266,015 | 22,289 | 18,673     | 0         | 83,211      |
+| Four by four, with the mark                       | 222,259 | 0      | 0          | 0         | 84,892      |
+| Three by three, as first stated                   | 672,895 | 6,032  | 6,332      | 0         | 148,548     |
+| Three by three, the mark, check reading unordered | 629,996 | 0      | 0          | 440       | 159,108     |
+| Three by three, with the mark                     | 629,996 | 0      | 0          | 0         | 159,108     |
+
+Without deletion the mark changes nothing: keeping both with it reaches the same 93,038 states at four by four, with the
+same counts.
+
+States are a count of what the bound reaches, not a frequency, and every run is complete. Disagrees counts the states
+where the removal check answers otherwise than the persist step; the check reads each file and copy against the state
+as it stands, except that with the mark, but for the row marked unordered, it reads the copies in the persist step's
+order, each against the marks the earlier take-ins would set. Kept copies counts those that settle with a copy kept,
+refused or reported, holding no malformed set. The settled text keeps none because it merges every copy. The
+digest-only runs peaked at 39–457 MB.
+
+The shortest traces, each read against the spec:
+
+- **An unedited copy reverts a newer save** (the settled text). A refresh moves the unedited file aside; the stale
+  buffer saves an edit to the path under the same stamp; an overlapping command writes it back, so the record now
+  carries that stamp; the first command's second check reads its copy against the record, and the copy reads as removing
+  the edit. A removal reaches it without overlap: the persist step writes the path back before taking the copy over.
+
+- **A copy holding an older save** (the settled text). A save opened before the move lands in the copy after the first
+  check; the buffer's newer save to the path persists; the second check sends the copy, reverting it.
+
+- **The persist step's order** (a buffer that never reloads). The buffer adds an entry, a save that lands in the copy,
+  then removes it and saves to the path. Read against its stamp's version, the path holds no edit and records nothing;
+  the copy then lands the entry; and step 4's re-check passes the path, whose stat has not changed since step 2 read it.
+  Taking the copy over first lands the entry, after which the path reads as removing it, and the removal lands. A
+  reloading buffer never meets it: it reloads the refreshed file, which lacks the entry, before the person can remove
+  it.
+
+- **The recorded identity repeats** (option 1 as approved). With no stored version, where the content taken in merges in
+  the checkout, the record's content goes from one entry set to that set plus an added entry and back once the person
+  removes it, so a copy that recorded the first sees no change, is not refused, and re-adds the removed entry. The
+  version the write landed changes at every persisted write-back, so an identity carrying it cannot repeat.
+
+- **One record per path, two stamps** (option 1 firing only on the copy's stamp). A reloading buffer saves a malformed
+  set and an added entry under the refreshed stamp; the rest lands, recording that stamp, and the file keeps its
+  content; the person repairs the set and removes the entry. An older copy under the earlier stamp, holding an edit
+  saved before the reload, is taken over first and lands, replacing the path's one record, so the file's write-back
+  reads against its stamp's stored version and the removal is lost. The copy's stamp is not the record's, so a
+  superseded test gated on it never fires; firing on any change keeps the copy aside.
+
+- **A refused copy sent back over a newer save** (the settled text). Where a copy's path holds what the projection last
+  wrote, by the index entry, a copy with a malformed set goes back over the read-back of a newer save from the same
+  buffer, and the file's partial landing reverts that save. Under either other design the superseded or moved-on test
+  runs first and keeps it aside.
+
+- **Keeping both, tested by the index entry.** A copy whose path holds what the projection last wrote is merged, so
+  after a newer save has landed and been read back the older copy merges again: 2,933 states lose at three by three, the
+  buffer never reloading. Keeping both needs the file its own swap linked recorded beside the copy.
+
+- **A deleted path after a persisted save** (keeping both as first stated). A save opened before the move, holding a
+  malformed set, lands in the copy; the buffer's newer save to the path persists while the copy's writer still runs;
+  the person deletes the refreshed file; the writer's second check reads the absent path as not moved on and sends the
+  copy back to it, and its partial landing merges from the newer record, reverting that save's edit. The mark keeps the
+  copy aside.
+
+- **Two copies of an absent path** (keeping both with the mark). The persist step takes the older copy in, which marks
+  the newer, so the newer is kept and the step refuses; the removal check, reading each copy against the state as it
+  stands, answered removable. Reading the copies in the persist step's order, each against the marks the earlier
+  take-ins would set, it refuses too.
+
+- **Two copies in one pass** (option 1 amended, the remaining disagreement). The persist step takes the older copy over
+  and lands it, which changes the record, so the newer copy reads as superseded and is kept, and the step refuses; the
+  removal check, reading the newer copy against the record as it stood, answered removable. Reading in the persist
+  step's order, each item against the record the earlier ones would leave, it refuses too.
+
+Every copy the amended option 1 keeps either adds or removes an entry a newer save from the same path handled otherwise
+— the same buffer's older save or another editor's concurrent edit, which nothing on disk tells apart — or is the newer
+of two copies taken over in one pass.
+
+Bounds: one path, four named entries, one buffer, each edit made once so no entry returns to an earlier value, no
+`_Id:_` matching (Spike 5 covers it), no index rebuild, stampless file, held file's conflict record, removal of the file
+(§ 5.6), writer stopping before its second check, stop between a write's landing and its index write, store refusing a
+write, writer holding its descriptor across the move (§ 5.3), or timing (Spikes 1 and 1b), the person deleting the file
+only once and only while it holds what the projection last wrote, and step 4's re-check passes left out, which the order
+trace shows would not catch it. The rule deleting a superseded copy whose changes the store already holds is the one
+these bounds cannot judge: a copy re-adding an entry an intermediate record removed shows no change against its stamp's
+version, a shape monotone edits never make. The model's own errors, found against the spec and fixed before these
+figures: a save could land in an older copy after a later save, that deletion rule first measured a copy's changes
+against its stamp's version alone, and an editor reloaded once at an arbitrary point.
+
+Research the same day, one pass over primary sources: Syncthing re-checks a file's metadata before replacing it and
+aborts on a change, and a real conflict renames the losing file to `.sync-conflict-*`, never merged; Dropbox keeps a
+conflicted copy, never merged; Git refuses a checkout over local changes, merging only under `-m`; and jj records
+conflicts as data, though its working-copy update carries a note to check that a file has not changed before overwriting
+it (read from source; no issue found). No tool merges a losing copy on its own, since none holds a common base for it;
+the stamp gives this projection one. Zed's behavior is not from that research but Spikes 1b and 3.
+
+What it settles: the settled text loses saves in every bound, and option 1 as approved in both. Two designs lose nothing
+in either bound. Option 1 amended needs the stamp and the version the write landed recorded beside each copy, a copy
+refused as superseded once that record changes at all, the persist step taking copies over before files with the removal
+check reading in that order, and the no-edit refinements; it keeps a copy only where an older save and another editor's
+cannot be told apart or two copies meet in one pass. Keeping both needs the file each swap linked recorded beside its
+copy and the no-edit rules for what the swap moved and what it held when its own take-in landed; it keeps about three
+times as many copies. As § 5.2 first stated it, an absent path never moved on, it held unchanged in every bound until
+the person could delete the file, and then lost saves in both; with the mark beside each copy and the removal check
+reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
+Option 1 amended was not run with the file deleted.
