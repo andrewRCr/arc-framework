@@ -161,6 +161,60 @@ The in-repo conformance run took about 34 s on the retired self-hosted pool, whe
 files added about 131 s to every full run, the integration job rising from about 354 s to 495 s. The ref fixture's
 budget is measured afresh on GitHub-hosted runners, against the in-repo conformance's time on the same runner.
 
+### Before the ref backend's test files
+
+The local capture starts at `8c705b1fcd47dff8ef957cd27ff95d3141a1ebce`, before this change adds or modifies a test
+file. Its source and test trees match the branch base, `c45c3e90876fd2ad6f83945dcff368d7f4420aae`. The machine runs
+Linux 5.15.167.4-microsoft-standard-WSL2, x86_64, Node 26.3.0, and Git 2.55.0. Each tier uses the budget record's
+`tier-isolated` condition and `12` workers, captured sequentially with one discarded warm-up and one retained pass.
+Normalization is `single-run`, not a median of repeated samples.
+
+From the repository root, the capture and normalization commands are:
+
+```sh
+npm run benchmark:test-cost -w packages/arc-framework -- \
+  --condition tier-isolated --project-set <tier> --workers 12 --output <raw-path>
+npm run -s benchmark:test-cost:normalize -w packages/arc-framework -- <raw-path>
+```
+
+The retained schema-5 runs, normalized reports, command summaries, and CI source evidence are machine-local under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/test-cost-baseline/`. The figures below are measured baselines;
+`test-cost-budgets.json` stays unchanged. Budget overruns already present here are advisory, not costs attributed to
+the ref backend.
+
+| Local tier  | Wall clock (ms) | Files | Completed tests | Existing budget (ms) |
+| ----------- | --------------- | ----- | --------------- | -------------------- |
+| unit        | 20,060          | 985   | 15,835          | 19,794               |
+| integration | 207,312         | 353   | 3,781           | 225,803              |
+| lane        | 228,129         | 1,338 | 19,616          | 245,764              |
+
+**CI source correction, approved 2026-10-16:** Task 1.1's planned source, the latest `main` run at the base, has no
+test-cost figures: run `38858690329` classified the archive-only commit as `light`, `docs-only`, and skipped the test
+jobs. Moreover, the integration job's event condition in `.github/workflows/ci.yml` excludes pushes; it runs on
+reviewed pull requests, dispatch, and schedule. The baseline therefore uses the most recent executed `main` unit
+jobs and the preceding successful reviewed pull request's integration jobs, with the provenance below. This changes
+the measurement source, retaining the requirement to baseline every affected row before the first test file lands.
+
+- **Unit:** run `38857807800`, `main` commit `5eed73b803a353faa2fa68f0b7cad0843e3f25a5`; its source, tests, and CI
+  workflow match the branch base's. The base's intervening change archives the preceding work unit.
+- **Integration:** run `38856961515`, pull-request head `695b90b105c375437c00aef020aaf771eaa9d5d4`, actually tested
+  merge `826c41d2ae88a4c31365021338d727b8a0f4eca0`, recorded by its checkout logs. Its integration test sources match
+  the base's. The code/test difference is the unrelated `local-prepare.ts` correction (+2/-1 lines) and
+  `local-prepare.test.ts` (+11 lines, one test and one assertion); the remaining differences are ARC documents.
+  These are pre-change CI observations, not an exact-base execution or a new hosted conformance comparison.
+
+The CI values are `report-test-budget.ts`'s emitted `actualMs`, measured from the job's budget clock through its
+report step, not GitHub's enclosing job duration. Their mode is `ci-job`, `native`, metric `job-elapsed-ms`.
+
+| CI job        | Elapsed (ms) | Existing budget (ms) | Run         |
+| ------------- | ------------ | -------------------- | ----------- |
+| unit-1        | 44,529       | 74,250               | 38857807800 |
+| unit-2        | 56,026       | 70,200               | 38857807800 |
+| integration-1 | 342,527      | 294,300              | 38856961515 |
+| integration-2 | 241,419      | 288,900              | 38856961515 |
+| integration-3 | 255,172      | 240,300              | 38856961515 |
+| integration-4 | 281,215      | 264,600              | 38856961515 |
+
 ## A designation per scope
 
 Where personal state publishes stays with the backend; a designation per scope is a deferred follow-on, never

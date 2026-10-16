@@ -14,19 +14,15 @@ path, so the contract is settled before any ref-backend code builds on it.
 _Mode:_ `layer` through Phase 2 — closes on the settled substrate the ref backend builds on: the amended contract over
 both existing backends, and the Git access the engine calls.
 
-### `[ ]` **1.1 Baseline the test-cost rows the new files touch — § 14.12**
+### `[x]` **1.1 Baseline the test-cost rows the new files touch — § 14.12**
 
 - _Goal:_ The unit, integration, and `lane` tier rows and the CI-job rows that the ref backend's test files will move
   carry a baseline taken before the first such file lands, so the cost they add reads as a delta.
 
-    - Tier rows measured on this branch through `benchmark:test-cost` and its normalize companion, run from the
-      repository root with `-w packages/arc-framework`, in the modes `test-cost-budgets.json` records; the `lane` row's
-      project set is unit, unit-mocks, and integration together (`src/lib/test-cost/run.ts`), so every new unit or
-      integration file moves it
-    - CI-job rows exist only inside a CI job (`report-test-budget.ts`) and CI runs on `main` and its pull requests, so
-      their baseline is `main`'s latest CI run at this branch's base, which holds no test file this change adds
-    - Method and figures recorded in `notes-storage-ref-backend.md` § CI cost history; touches no test file, so it
-      precedes every task below that adds one
+- _Outcome:_ Warm, single-run baselines and normalized reports cover unit, integration, and combined lane at 12
+  workers, before any test-file change. `notes-storage-ref-backend.md` § CI cost history records the figures, retained
+  evidence, and approved CI-source correction: preceding `main` unit jobs and reviewed-PR integration jobs, with their
+  exact commits and source difference; `main` pushes never execute integration. Existing budgets remain unchanged.
 
 ### `[ ]` **1.2 The sync inputs and results — § 2.1, § 2.2**
 
