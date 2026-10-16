@@ -417,9 +417,22 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Goal:_ One pure function refuses content that would wedge a push, leak a secret, or break canonical JSON, the same at
   every write and in the import's build, naming the first broken rule.
 
+    - _Amended in:_ 5.R (A5)
+
 - _Outcome:_ Exported pure `checkSerializationRules` with ordered byte, secret, Git-path, and canonical JSON
   admission. The ref writer checks puts before resolution and changed bytes before storage; public write/batch tests
   retain atomic refusal, repaired retries, and large never-projected records.
+
+### `[ ]` **5.R Companion path length admission — § 3.2, § 5.6 (A5)**
+
+- _Goal:_ Verbatim companion path keys use per-segment bounds, while companion names combined with owner slugs retain
+  the 2,040-byte bound (A5).
+
+    - Build `test-first` (one behavior at a time):
+        - the exported guard admits a verbatim companion path over 2,040 total UTF-8 bytes and a 4,096-byte segment,
+          refuses a 4,097-byte segment, and retains the 2,040/2,041-byte boundary for combined companion names
+        - public `write` and `batch` store and list admitted verbatim paths, refuse both over-limit forms without
+          changing refs, and admit a repaired retry
 
 ### `[ ]` **5.2 Validation: key rules, parsers, entry stamps, and writer rules — § 3.2, § 3.3, § 5.1**
 
@@ -1006,6 +1019,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
       `hold`, `race`, `produce`, and `repair` hooks serve every case they cover
     - The fixture produces `held-here`, `state-unresolvable`, and `namespace-corrupt`, the last by a commit outside ARC
       that a forward repair mends, which carries 7.5's recovery case
+    - Replay 5.R's companion name/path byte boundaries over both layouts, retaining atomic refusal and repaired
+      retries, to close A5's covering revalidation
 
 ## **Phase 9:** Two clones converge
 
@@ -2969,3 +2984,6 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` Ref-backend retirement checks observe prepared batch mutations before the automatic sweep: terminal lineage
   over held inbound entries refuses without changing state, and settling or explicitly removing those entries in that
   batch admits retirement with an empty final history tree (A4)
+
+- `[ ]` Verbatim companion paths over 2,040 total UTF-8 bytes store with segments up to 4,096 bytes; combined
+  companion names retain the 2,040-byte bound at the pure guard and ref write/batch boundaries (A5)

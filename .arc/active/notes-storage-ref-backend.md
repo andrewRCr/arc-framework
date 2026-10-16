@@ -300,4 +300,16 @@ admitted inbound cleanup is then swept with the origin; other origin-record puts
 removal already avoids the put guard. The amendment's arm records the exception to the general put restriction; its
 criterion and revalidation target remain unchanged. Task 6.R covers both admission and the exception's boundary.
 
+## A5 — Companion path length admission
+
+The superseded § 3.2 clause exempted “a `path` key, a personal document's or a companion's”, while § 5.6's table
+exempted only “a personal document's `path` key”. Task 5.1 implemented the latter: `hasUnsafeStoredPath` refuses a
+2,041-byte companion key even when `expandStoredPath` stores it verbatim and its longest segment is 2,033 bytes.
+
+The exemption now follows the encoding. `expandStoredPath` uses `isSlugSafe` to distinguish combined companion
+names from verbatim paths. Combined names retain the 2,040-byte key bound, because a later rename combines them
+with another slug of up to 2,040 bytes. Verbatim paths do not gain a slug and use the existing 4,096-byte segment
+bound, as personal document paths do. Task 5.R corrects the guard and tests both forms; the local-engine verifier
+closes the covering revalidation. The import continues to call the same exported guard.
+
 ---
