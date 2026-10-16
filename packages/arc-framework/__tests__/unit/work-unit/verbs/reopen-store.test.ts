@@ -27,6 +27,22 @@ async function fixture(open: boolean) {
   return { ...h, meta };
 }
 describe("store reopen", () => {
+  it("rejects malformed selected fields without writes and reopens after repair", async () => {
+    const h = await fixture(false);
+    const raw = [...h.store.state.records.values()].find((record) => record.reference.kind === "work-item/meta");
+    if (raw === undefined) throw new Error("Missing stored metadata");
+    const original = raw.content; raw.content = original.replace(/^# Metadata:.*$/mu, "No metadata heading");
+    const malformed = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+    expect(malformed.fields).toBeUndefined();
+    const version = lifecycleSuccess(await h.store.version());
+    const run = () => runReopen(ctx(h.store), { name: "example", prMerged: false });
+    expect(await run()).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", reference: h.meta.reference,
+      remedy: { text: expect.stringMatching(/repair.*retry/isu) } } });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(malformed);
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+    raw.content = original;
+    expect(await run()).toMatchObject({ status: "reopened" });
+  });
   it("requires the exact open task and writes workflow without retired task orientation", async () => {
     const h = await fixture(true);
     for (const nextTask of [undefined, "Task 9.1 — Other"]) {

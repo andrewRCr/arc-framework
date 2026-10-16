@@ -31,6 +31,29 @@ function parameters(check: () => Promise<void>): PublishParams {
       policy: null, reservation: null, terminus: null, deliveryReviewTermini: [] } };
 }
 describe("store publish", () => {
+  it.each(["initial", "refreshed"] as const)("rejects malformed %s fields without publication writes and publishes after repair", async (when) => {
+    const h = createLifecycleHarness(), meta = await h.seedMeta("example", { candidateId }, { kind: "active" },
+      { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+    const raw = [...h.store.state.records.values()].find((record) => record.reference.kind === "work-item/meta");
+    if (raw === undefined) throw new Error("Missing stored metadata");
+    const original = raw.content, corrupt = () => { raw.content = original.replace(/^# Metadata:.*$/mu, "No metadata heading"); };
+    const version = lifecycleSuccess(await h.store.version());
+    let once = true, claims = 0;
+    const params = { ...parameters(async () => {}), claimPublicationBoundary: async () => { claims++; },
+      refreshCandidateAuthorization: async () => {
+        if (when === "refreshed" && once) { once = false; corrupt(); }
+        return { candidateId, candidateSubjectDigest, candidateCurrent: true };
+      } };
+    if (when === "initial") corrupt();
+    expect(await runPublish(context(h.store), params)).toMatchObject({ status: "rejected", refusal: { code: "record-malformed",
+      reference: meta.reference, remedy: { text: expect.stringMatching(/repair.*retry/isu) } } });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).content).toBe(raw.content);
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+    expect(claims).toBe(0);
+    raw.content = original;
+    expect(await runPublish(context(h.store), params)).toMatchObject({ status: "published" });
+    expect(claims).toBe(1);
+  });
   it("publishes a renamed dependent after reconciling its retained cut disposition", async () => {
     const h = createLifecycleHarness(), origin = await h.seedMeta("origin");
     await h.seedMeta("member", { state: "Integrating", currentWorkflow: "integrate-work-unit" });

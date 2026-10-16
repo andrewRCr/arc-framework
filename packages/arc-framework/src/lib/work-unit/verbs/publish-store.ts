@@ -2,8 +2,7 @@
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 import type { StoreRecord } from "../../store/read.js";
-import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
-import { readWorkUnit, workUnitMetaPath } from "../../store/lifecycle-write.js";
+import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../store/lifecycle-write.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
 import { executeTransition, type ExecuteTransitionContext } from "../lifecycle-executor.js";
 import { linkedWorkBranch } from "../linked-work-branch.js";
@@ -61,9 +60,11 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   { status: "ready"; branch: string; metaPath: string; primary: StoreRecord } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
-  const meta = ParsedMetaRecordSchema.parse(read.result.fields), metaPath = workUnitMetaPath(read.result);
+  const parsed = readLifecycleMetaFields(read.result);
+  if (parsed.status === "refused") return reject(parsed.refusal.condition, parsed.refusal);
+  const meta = parsed.result, metaPath = workUnitMetaPath(read.result);
   if (meta.state !== "Active" && meta.state !== "Integrating") return reject("Publication requires an Active work unit.");
-  const pause = await checkAdvancingPause(ctx.store, params.name);
+  const pause = await checkAdvancingPause(ctx.store, params.name, read.result);
   if (pause.status === "rejected") return reject(pause.reason, pause.refusal, pause.remedy);
   const branch = await linkedWorkBranch(ctx, read.result);
   if (branch === null) return reject("The work unit has no unambiguous branch link; activate its work branch first.");

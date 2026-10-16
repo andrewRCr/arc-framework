@@ -1,8 +1,8 @@
 /** Verb-owned pause, resume, and ownership changes over the operational store. */
 import { pauseProseProblem } from "../../store/kinds/meta/pause-section.js";
 import { SlugSchema } from "../../kernel/index.js";
-import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../../active/meta-schema.js";
-import { readWorkUnit, recordPut, batchLifecycleWrites, usesOffBranchState } from "../../store/lifecycle-write.js";
+import { MetaPauseSchema, type MetaPause } from "../../active/meta-schema.js";
+import { readWorkUnit, readLifecycleMetaFields, recordPut, batchLifecycleWrites, usesOffBranchState } from "../../store/lifecycle-write.js";
 import { writeMetaPause, writeMetaOwner } from "../../store/kinds/meta/writers.js";
 import { readUnsharedWork } from "./unshared-work.js";
 import type { Store } from "../../store/contract.js";
@@ -31,7 +31,9 @@ export async function runPause(ctx: PauseHandoverContext, params: PauseParams): 
     reason: `arc pause is unsupported before the storage flip; use arc park ${params.name} --reason <text>.` };
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-  const record = read.result, fields = ParsedMetaRecordSchema.parse(record.fields);
+  const record = read.result, parsed = readLifecycleMetaFields(record);
+  if (parsed.status === "refused") return { status: "rejected", reason: parsed.refusal.condition, refusal: parsed.refusal, remedy: parsed.refusal.remedy };
+  const fields = parsed.result;
   if (record.placement?.kind === "backlog") return { status: "rejected", reason: `A stub is not in flight; use arc start ${params.name} before pausing it.`,
     remedy: { text: "Start the stub before pausing.", argv: ["arc", "start", params.name] } };
   if (record.placement?.kind !== "active" || (fields.state !== "Planning" && fields.state !== "Active")) {
@@ -99,7 +101,9 @@ export async function runHandover(ctx: PauseHandoverContext & { identity: string
   if (!owner.success) return { status: "rejected", reason: "--to requires an identity slug." };
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-  const record = read.result, previousOwner = ParsedMetaRecordSchema.parse(record.fields).owner ?? "";
+  const record = read.result, parsed = readLifecycleMetaFields(record);
+  if (parsed.status === "refused") return { status: "rejected", reason: parsed.refusal.condition, refusal: parsed.refusal, remedy: parsed.refusal.remedy };
+  const previousOwner = parsed.result.owner ?? "";
   if (previousOwner !== identity.data) return { status: "rejected", reason: previousOwner === ""
     ? `Work unit ${params.name} has no recorded Owner; resolve its ownership before retrying handover.`
     : `Only Owner ${previousOwner} can hand over ${params.name}; ask them to run arc handover ${params.name} --to ${owner.data}.` };

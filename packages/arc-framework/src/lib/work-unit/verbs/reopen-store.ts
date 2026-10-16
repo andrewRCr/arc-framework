@@ -2,10 +2,9 @@
 import { posix } from "node:path";
 import type { StoreRecord } from "../../store/read.js";
 import type { Store } from "../../store/contract.js";
-import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import { recordReferences } from "../../store/identity.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
-import { readWorkUnit, workUnitMetaPath, recordPut } from "../../store/lifecycle-write.js";
+import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath, recordPut } from "../../store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../../store/lifecycle-record-path.js";
 import { resolveTaskListCursor } from "../../task-list/cursor.js";
 import { executeTransition, type ExecuteTransitionContext } from "../lifecycle-executor.js";
@@ -14,9 +13,11 @@ import type { ReopenParams, ReopenResult } from "./reopen.js";
 export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: Store }, params: ReopenParams): Promise<ReopenResult> {
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-  const primary = read.result, meta = ParsedMetaRecordSchema.parse(primary.fields);
+  const primary = read.result, parsed = readLifecycleMetaFields(primary);
+  if (parsed.status === "refused") return { status: "rejected", reason: parsed.refusal.condition, refusal: parsed.refusal, remedy: parsed.refusal.remedy };
+  const meta = parsed.result;
   if (meta.state !== "Integrating") return { status: "rejected", reason: `Cannot reopen ${params.name}: its State is ${meta.state}.` };
-  const pause = await checkAdvancingPause(ctx.store, params.name);
+  const pause = await checkAdvancingPause(ctx.store, params.name, primary);
   if (pause.status === "rejected") return pause;
   const task = await storedTaskAuthority(ctx.store, primary, meta.taskList, params.nextTask);
   if (task.status === "rejected") return task;

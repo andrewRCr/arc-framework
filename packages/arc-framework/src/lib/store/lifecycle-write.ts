@@ -1,6 +1,6 @@
 /** Version-bound record preparation and atomic persistence shared by lifecycle verbs. */
 import { posix } from "node:path";
-import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";
 import { ArchiveSequenceSchema, SlugSchema } from "../kernel/index.js";
 import type { Store } from "./contract.js";
@@ -30,6 +30,15 @@ export async function readWorkUnit(store: Store, slug: string): Promise<StoreRes
     remedy: { text: `Use the Errand verb for \`${slug}\`, or name a work unit.` },
   } };
   return store.read({ reference: lookup.result.reference });
+}
+
+/** Validate fields from the exact selected metadata record without imposing a verb's lifecycle policy. */
+export function readLifecycleMetaFields(record: StoreRecord): StoreResult<ParsedMetaRecord> {
+  const parsed = ParsedMetaRecordSchema.safeParse(record.fields);
+  if (parsed.success) return { status: "ok", result: parsed.data };
+  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: record.reference,
+    rule: "lifecycle.meta-fields", condition: `Metadata fields for \`${record.reference.owner.name}\` could not be read.`,
+    remedy: { text: "Repair the work unit's metadata fields, then retry." } } };
 }
 
 /** Convert backend-assigned read placement into the caller's write coordinates.

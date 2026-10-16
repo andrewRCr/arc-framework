@@ -13,6 +13,23 @@ const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "c
   writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 function context(store: Store) { return { store, identity: "test-user", cwd: "/checkout", baseBranch: "main", locusPorts,
   now: () => new Date("2026-10-14T07:00:00Z"), exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }, { stdout: "" }] }]).exec }; }
+it.each(["pause", "handover"] as const)("%s rejects malformed selected fields without writes and succeeds after repair", async (verb) => {
+  const h = createLifecycleHarness(), meta = await h.seedMeta("example"), ctx = context(h.store);
+  const raw = [...h.store.state.records.values()].find((record) => record.reference.kind === "work-item/meta");
+  if (raw === undefined) throw new Error("Missing stored metadata");
+  const original = raw.content; raw.content = original.replace(/^# Metadata:.*$/mu, "No metadata heading");
+  const malformed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(malformed.fields).toBeUndefined();
+  const version = lifecycleSuccess(await h.store.version());
+  const run = () => verb === "pause" ? runPause(ctx, { name: "example", identity: "test-user", reason: "Wait." })
+    : runHandover(ctx, { name: "example", to: "another-person" });
+  expect(await run()).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", reference: meta.reference,
+    remedy: { text: expect.stringMatching(/repair.*retry/isu) } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(malformed);
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  raw.content = original;
+  expect(await run()).toMatchObject({ status: verb === "pause" ? "paused" : "handed-over" });
+});
 it("writes first pause, amends only supplied fields, and keeps since", async () => {
   const { store, seedMeta } = createLifecycleHarness(); const record = await seedMeta("example"); const ctx = context(store);
   expect(await runPause(ctx, { name: "example", identity: "andrew", reason: "Review.", waitsOnNote: "Approval.", resumeNotes: "Continue.", open: true })).toMatchObject({ status: "paused" });
