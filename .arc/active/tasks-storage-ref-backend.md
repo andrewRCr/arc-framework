@@ -318,21 +318,14 @@ _Exit criterion:_ The ref-backend fixture in the default layout passes the share
 and 15 for every served family, but for the assertions 4.4.d excludes by name, and holds items 3, 7, 11, 12, 14, 16, and
 17 by interim exclusions, each naming the phase that retires it.
 
-### `[ ]` **4.1 Machine-local ref locks — § 11.4**
+### `[x]` **4.1 Machine-local ref locks — § 11.4**
 
 - _Goal:_ Every worktree of a clone serializes writes to one ref, in either layout, and a set of locks taken together can
   never deadlock another.
 
-    - `acquireAdvisoryLocks` beside `acquireAdvisoryLock` (`lib/advisory-lock.ts`) takes a set of lock paths in name
-      order, waiting the lock's default 10 s (`DEFAULT_MAX_WAIT_MS`) unless a wait is passed, and releases those it took
-      when one times out; the backend's lock factory (3.1.a) keeps one lock per ref at `arc/locks/<ref name>.lock` in the
-      common Git directory
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, over real lock files
-        - two holders taking overlapping sets in opposite orders both complete
-        - a lock another holder keeps past an injected short wait throws `AdvisoryLockTimeoutError` with its `lockPath`,
-          and the locks already taken are released
-        - a ref name's slashes nest the lock file's folders
+- _Outcome:_ Distinct advisory locks acquire in name order with the native default wait or an explicit limit; a failed
+  acquisition releases every earlier handle and preserves cleanup errors. The lazy ref-lock factory nests full ref
+  names under the code repository's common Git directory, shared by linked worktrees in either layout.
 
 ### `[ ]` **4.2 The write path's spine — § 5.1, § 5.4**
 

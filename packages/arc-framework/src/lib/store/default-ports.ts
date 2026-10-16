@@ -1,13 +1,15 @@
 /** Production dependency binding with lazy identity, remote, and write-lock resolution. */
 import * as fs from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { atomicCreateFile, atomicWriteFile } from "../fs.js";
 import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../git/process-executor.js";
-import { withAdvisoryLock } from "../advisory-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
+import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
-import type { StorePorts } from "./ports.js";
+import type { RefStorePorts, StorePorts } from "./ports.js";
 
 /** Bind production I/O without consulting repository configuration or topology.
  * @param input - Checkout and optional already-bound Git adapters.
@@ -35,6 +37,20 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
         return withAdvisoryLock(await getNotesLockPath(exec, input.checkoutRoot, person), operation);
       },
     },
+  };
+}
+
+/** Bind the per-ref advisory lock factory without reading checkout topology until acquisition. */
+export function createRefLockFactory(input: Pick<RefStorePorts, "checkoutRoot" | "fs">): RefStorePorts["lock"] {
+  return async (ref, waitMs) => {
+    const { commonDir } = await readGitDirectories(input.checkoutRoot, input.fs);
+    const path = join(commonDir, "arc", "locks", `${ref}.lock`);
+    await input.fs.mkdir(dirname(path), { recursive: true });
+    const options = { maxWaitMs: waitMs,
+      exclusiveCreate: (path: string, content: string) => input.fs.exclusiveCreate(path, content),
+      readFile: (path: string) => input.fs.readFile(path), removeFile: (path: string) => input.fs.unlink(path) };
+    const handle = await acquireAdvisoryLock(path, options);
+    return () => releaseAdvisoryLock(handle, options);
   };
 }
 /** Select the only remote the interim state publishers serve.

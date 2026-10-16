@@ -286,6 +286,22 @@ export async function acquireAdvisoryLock(
   }
 }
 
+/** Acquire each distinct lock in name order, returning the handles in acquisition order. */
+export async function acquireAdvisoryLocks(
+  lockPaths: Iterable<string>, options: AdvisoryLockOptions = {},
+): Promise<AdvisoryLockHandle[]> {
+  const handles: AdvisoryLockHandle[] = [];
+  try {
+    for (const path of [...new Set(lockPaths)].sort()) handles.push(await acquireAdvisoryLock(path, options));
+  } catch (error) {
+    const cleanup = await Promise.allSettled(handles.map((handle) => releaseAdvisoryLock(handle, options)));
+    const failures = cleanup.flatMap((result) => result.status === "rejected" ? [result.reason as unknown] : []);
+    if (failures.length > 0) throw new AggregateError([error, ...failures], normalizeError(error).message, { cause: error });
+    throw error;
+  }
+  return handles;
+}
+
 /** Optional acquisition and release primitives for an advisory critical section. */
 export interface AdvisoryLockScopeDependencies {
   /** Acquire the exact lock, with the caller's existing I/O seams or wait policy. */

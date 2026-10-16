@@ -54,5 +54,6 @@ export interface RefStorePorts {
   identity: () => Promise<Slug | null>;
   actor: (identity: Slug) => Promise<string>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
-  lock: (path: string, waitMs: number) => Promise<() => Promise<void>>;
+  /** Acquire a full ref name's machine-local lock in the code repository's common Git directory. */
+  lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
 }
