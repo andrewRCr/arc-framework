@@ -298,16 +298,10 @@ default layout.
 - _Goal:_ A state version names one saved state of the whole store, costs one Git process when nothing changed, and is
   never torn in the separate layout's reftable format.
 
-    - `[ ]` **3.4.a The manifest**
-        - A Git tree mirroring the store's refs below `refs/arc/`, one gitlink per ref, never `refs/arc/history/`; its
-          id computed in process from Git's fixed tree format, in the object format the common directory's `config`
-          names (`extensions.objectformat`, SHA-1 where absent), read without a Git call
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over planted refs
-            - the in-process id equals Git's own write of the same tree, under SHA-1 and SHA-256
-            - `version()` of an empty store under SHA-256 equals Git's empty tree there
-            - `refs/arc/user/<id>/errands`, `sync-state`, `refs/arc/bootstrap/`, `refs/arc/tmp/`, and
-              `refs/arc/project/moved` never enter it
+    - `[x]` **3.4.a The manifest**
+        - In-process tree hashing mirrors registered state refs as gitlinks and matches Git under both object formats;
+          the common config selects the hash without Git. Legacy, history, temporary, and forwarding refs stay outside
+          the manifest, and empty SHA-256 stores use Git's empty tree.
 
     - `[ ]` **3.4.b `version` and a live listing's token**
         - `version` runs 3.3.a's tip read alone, its `refs/arc/tmp/version` included; an equal id writes nothing; a new

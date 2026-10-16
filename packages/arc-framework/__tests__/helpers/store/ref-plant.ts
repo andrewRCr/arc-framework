@@ -14,13 +14,13 @@ export type PlantTreeEntry = { path: string } & (
 );
 export interface PlantedRef { tip: string; tree: string; blobs: Map<string, string> }
 
-export async function createRefTestRepository(format: RefFormat = "files") {
-  const root = await createTempRepoCore({ prefix: "arc-ref-store-", refFormat: format });
+export async function createRefTestRepository(format: RefFormat = "files", objectFormat?: "sha1" | "sha256") {
+  const root = await createTempRepoCore({ prefix: "arc-ref-store-", refFormat: format, objectFormat });
   const paths = [root];
   try {
     const exec = makeGitExec(root);
     await exec("git", ["commit", "--allow-empty", "-m", "Code seed"]);
-    const remote = await addBareRemote(root, { callerOwnsCleanup: true });
+    const remote = await addBareRemote(root, { callerOwnsCleanup: true, objectFormat });
     paths.push(remote);
     await exec("git", ["config", "remote.origin.arc-state", "push"]);
     return { root, remote, exec, execInput: makeGitExecInput(root),

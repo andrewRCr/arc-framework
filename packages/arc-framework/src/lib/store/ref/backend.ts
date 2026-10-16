@@ -3,6 +3,7 @@
 import type { Store } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
 import { createRefBackendContext, type RefBackendContext } from "./context.js";
+import { refStateVersion } from "./manifest.js";
 import { readRefRecord, listRefRecords } from "./read.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
@@ -11,7 +12,7 @@ export function createRefBackend(ports: RefStorePorts): Store {
   return {
     capabilities: { stateOffBranch: true },
     read: (input) => readRefRecord(context, input), list: (input) => listRefRecords(context, input),
-    write: pending("write", context), batch: pending("batch", context), version: pending("version", context),
+    write: pending("write", context), batch: pending("batch", context), version: async () => ({ status: "ok", result: await refStateVersion(context) }),
     history: pending("history", context), changes: pending("changes", context), lookup: pending("lookup", context),
     pull: pending("pull", context), push: pending("push", context), maintain: pending("maintain", context),
   };

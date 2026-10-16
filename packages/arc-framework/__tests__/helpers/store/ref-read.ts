@@ -8,8 +8,8 @@ import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js"
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 import { createRefTestRepository } from "./ref-plant.js";
 
-export async function createRefReadFixture(format: "files" | "reftable" = "files", maxBuffer?: number) {
-  const repo = await createRefTestRepository(format);
+export async function createRefReadFixture(format: "files" | "reftable" = "files", maxBuffer?: number, objectFormat?: "sha1" | "sha256") {
+  const repo = await createRefTestRepository(format, objectFormat);
   onTestFinished(repo.cleanup);
   let processes = 0;
   const raw = createExecaRawGitExec(repo.root, maxBuffer);

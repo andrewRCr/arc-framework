@@ -499,6 +499,8 @@ export type TestFinishedRegistrar = (handler: () => Promise<void>) => void;
 
 /** Bare-remote cleanup ownership. */
 export interface AddBareRemoteOptions {
+  /** Object format matching the working repository when it is not the default. */
+  objectFormat?: "sha1" | "sha256";
   /** Explicit registrar for per-test cleanup; defaults to Vitest's current test. */
   registerCleanup?: TestFinishedRegistrar;
   /** Setup-hook escape hatch when an existing `afterEach` owns the returned path. */
@@ -525,7 +527,7 @@ export async function addBareRemote(
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
   let originAdded = false;
   try {
-    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", ...(options.objectFormat ? [`--object-format=${options.objectFormat}`] : []), remoteDir]);
     await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
     originAdded = true;
     await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
