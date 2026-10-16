@@ -26,7 +26,7 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
     { match: ["switch", "feat/example"], responses: [{ stdout: "" }] },
   ]);
   const options = { slug: "errand-source", name: "example", floor, type: "feat", owner: "test-user", class: "Light", store: harness.store,
-    exec: fake.exec, cwd: "/checkout", repository: "repo", frame: { checkoutPath: "/checkout", allocation: "primary" as const, parentCheckoutPath: null } };
+    exec: fake.exec, cwd: "/checkout", repository: "repo", checkout: async () => ({ kind: "ready" as const, checkoutPath: "/checkout", allocation: "primary" as const, parentCheckoutPath: null }) };
   const steps = createStorePromotionSteps(options);
   const run = () => promoteOrdinaryErrand({ ...options, protection: "full", dependencies: { ...steps,
     settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } });
@@ -192,4 +192,34 @@ it("refuses missing promotion-cut evidence without guessing and continues when t
   restored = true;
   expect(await f.run()).toMatchObject({ outcome: "idempotent", settlement: { state: "settled" } });
   expect(f.branches.get("feat/example")).toBe(sha);
+});
+
+it("refuses completed Errands without Git or role writes", async () => {
+  const f = await fixture();
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: f.primary.content, placement: { kind: "completed", quarter: "2026-q4" as never }, provenance: { verb: "close", lifecycleAction: "complete" } }));
+  expect(await f.run()).toMatchObject({ outcome: "refused" });
+  expect(f.fake.calls).toEqual([]);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.kind).toBe("work-item/record");
+});
+it("runs the checkout callback before Git or writes and preserves its refusal", async () => {
+  const f = await fixture();
+  const callback = async () => ({ kind: "refused" as const, reason: "role-conflict" as const, message: "Exact checkout is unavailable" });
+  const steps = createStorePromotionSteps({ ...f.options, checkout: callback });
+  const read = await steps.readIdentity(); if (read.kind !== "ready" || read.record?.kind !== "errand" || read.record.purpose !== "errand") throw new Error("Missing Errand");
+  expect(await steps.replaceFrame(read.record)).toEqual(await callback());
+  expect(f.fake.calls).toEqual([]);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).version).toBe(f.primary.version);
+});
+
+it("preserves a qualified inbox origin's null digest through role change and history recovery", async () => {
+  const f = await fixture("derivation", false, true);
+  const source = JSON.parse(f.primary.content) as Record<string, unknown>;
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: JSON.stringify({ ...source, originEntry: "personal:abcd1234", originEntrySourceDigest: null }), placement: { kind: "active" },
+    links: f.primary.links, provenance: { verb: "test", lifecycleAction: "origin" } }));
+  const read = await f.steps.readIdentity();
+  if (read.kind !== "ready" || read.record?.kind !== "errand" || read.record.purpose !== "errand") throw new Error("Expected source");
+  expect(await f.steps.replaceFrame(read.record)).toMatchObject({ kind: "applied", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
+  expect(await f.steps.recoverPromoted()).toMatchObject({ kind: "idempotent", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
 });

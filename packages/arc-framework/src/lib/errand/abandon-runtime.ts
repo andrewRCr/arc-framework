@@ -1,4 +1,5 @@
 /** Identity, lifecycle, and derived-occupancy composition for ordinary Errand abandonment. */
+import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
@@ -15,17 +16,15 @@ import {
   type AbandonStepResult,
 } from "./abandon-locus.js";
 import {
-  ordinaryErrandTransform,
   provePauseHead,
   type OrdinaryErrandRecord,
 } from "./identity-transitions.js";
-import { transactTransientIdentities } from "./identity-transaction.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
 import { acquireErrandCloseBranchDeletionHeadLocks } from "./close-head-lock.js";
 import { resolveOptionalCommit } from "./exact-branch-generation.js";
 
-export interface AbandonOrdinaryErrandRuntimeOptions {
+export interface AbandonOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly protection: "full";
@@ -35,7 +34,7 @@ export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly execInput: GitExecInput;
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
-  readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
+  readonly onAuthority?: (authority: Awaited<ReturnType<typeof authorizeErrandTerminal>>) => void;
   readonly clearExecuteBound: (
     record: OrdinaryErrandRecord,
     settlementCheckoutPath: string,
@@ -64,11 +63,7 @@ export async function abandonOrdinaryErrandAtRuntime(
     protection: options.protection,
     dependencies: {
       readIdentity: async () => {
-        const result = await transactTransientIdentities(identityIO, {
-          remote,
-          message: `arc: reconcile errand identity ${options.slug}`,
-          transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
-        });
+        const result = await readRuntimeErrand(options, identityIO, options.slug, remote);
         if (result.kind === "applied" || result.kind === "idempotent") {
           return { kind: "ready", record: result.value };
         }
@@ -102,13 +97,9 @@ export async function abandonOrdinaryErrandAtRuntime(
         return options.clearExecuteBound(record, primaryCheckoutPath);
       },
       retire: async (record, lifecycle) => {
-        const result = await transactTransientIdentities(identityIO, {
-          remote,
-          message: `arc: abandon errand ${options.slug}`,
-          transform: ordinaryErrandTransform(lifecycle === null
-            ? { kind: "retire", previous: record, reason: "abandon", authorization: "local" }
-            : { kind: "retire", previous: record, reason: "abandon", lifecycle }),
-        });
+        const result = await transitionRuntimeErrand(options, identityIO, lifecycle === null
+          ? { kind: "retire", previous: record, reason: "abandon", authorization: "local" }
+          : { kind: "retire", previous: record, reason: "abandon", lifecycle }, `arc: abandon errand ${options.slug}`, remote);
         if (result.kind === "applied" || result.kind === "idempotent") return { kind: result.kind };
         return result.kind === "refused"
           ? { kind: "refused", reason: result.reason }
@@ -127,7 +118,8 @@ async function cleanupOccupancy(
   frame: DerivedLocusFrame,
   primaryCheckoutPath: string,
 ): Promise<AbandonStepResult> {
-  const authority = authorizeErrandTerminal({
+  const authority = await authorizeErrandTerminal({
+    store: options.store,
     frame,
     operation: "abandon",
     subject: { kind: "errand", slug: record.slug, claimId: record.claimId },

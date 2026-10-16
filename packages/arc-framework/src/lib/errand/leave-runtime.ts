@@ -1,4 +1,5 @@
 /** Production identity, preservation, and derived-occupancy composition for Errand leave. */
+import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import { checkWorktreeRemoval, describeRemovalRefusal, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
@@ -18,10 +19,9 @@ import {
   type LeaveAuthorization,
   type LeaveCleanupResult,
 } from "./leave.js";
-import { ordinaryErrandTransform, provePauseHead, type OrdinaryErrandRecord } from "./identity-transitions.js";
-import { transactTransientIdentities } from "./identity-transaction.js";
+import { provePauseHead, type OrdinaryErrandRecord } from "./identity-transitions.js";
 
-export interface LeaveOrdinaryErrandRuntimeOptions {
+export interface LeaveOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly state: "paused" | "awaiting-merge";
@@ -52,17 +52,9 @@ export async function leaveOrdinaryErrandAtRuntime(
     protection: options.protection,
     updatedAt: options.updatedAt,
     dependencies: {
-      readIdentity: () => transactTransientIdentities(identityIO, {
-        remote: "origin",
-        message: `arc: reconcile errand identity ${options.slug}`,
-        transform: (records) => ({ kind: "idempotent", value: records.get(options.slug) ?? null }),
-      }),
+      readIdentity: () => readRuntimeErrand(options, identityIO, options.slug),
       authorize: (record) => authorizePreservation(options, record, occupancyIO),
-      persist: (transition) => transactTransientIdentities(identityIO, {
-        remote: "origin",
-        message: `arc: leave errand ${options.slug} ${options.state}`,
-        transform: ordinaryErrandTransform(transition),
-      }),
+      persist: (transition) => transitionRuntimeErrand(options, identityIO, transition, `arc: leave errand ${options.slug} ${options.state}`),
       cleanup: async (record) => {
         const authority = await readAuthority(options, record);
         if (authority.kind !== "authorized") return authorityFailure(authority);
@@ -161,7 +153,8 @@ async function readAuthority(
   record: OrdinaryErrandRecord,
 ): Promise<ErrandTerminalAuthority> {
   const subject: ErrandTerminalSubject = { kind: "errand", slug: record.slug, claimId: record.claimId };
-  const authority = authorizeErrandTerminal({
+  const authority = await authorizeErrandTerminal({
+    store: options.store,
     frame: await options.readFrame(),
     operation: "leave",
     subject,

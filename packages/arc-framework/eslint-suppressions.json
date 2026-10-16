@@ -405,7 +405,7 @@
   },
   "src/handlers/errand.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 2
@@ -1050,11 +1050,6 @@
       "count": 1
     }
   },
-  "src/lib/errand/abandon-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/errand/close-head-lock.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -1066,9 +1061,6 @@
     }
   },
   "src/lib/errand/close-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }
@@ -1102,18 +1094,8 @@
       "count": 1
     }
   },
-  "src/lib/errand/leave-runtime.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/errand/leave.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
-  "src/lib/errand/link-runtime.ts": {
-    "arc/store-raw-state": {
       "count": 1
     }
   },

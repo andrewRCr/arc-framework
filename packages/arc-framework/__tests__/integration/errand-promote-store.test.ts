@@ -34,7 +34,7 @@ it.each([false, true])("recovers the original role-write cut after source moveme
   };
   const options = { slug: "errand-source", name: "example", type: "feat", floor: "derivation" as const, owner: "test-user",
     class: "Light", store: h.store, exec, cwd, repository: "repo",
-    frame: { checkoutPath: cwd, allocation: "primary" as const, parentCheckoutPath: null } };
+    checkout: async () => ({ kind: "ready" as const, checkoutPath: cwd, allocation: "primary" as const, parentCheckoutPath: null }) };
   const run = () => promoteOrdinaryErrand({ ...options, protection: "full", dependencies: {
     ...createStorePromotionSteps(options), settleInbox: async (frame) => frame,
     settleOccupancy: async (frame) => { settled = true; return frame; },

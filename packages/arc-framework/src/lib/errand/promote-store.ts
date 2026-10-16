@@ -1,5 +1,5 @@
 /** Store-backed frame steps composed by ordinary Errand promotion. */
-import { SlugSchema, CanonicalDigestSchema } from "../kernel/index.js";
+import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
 import { TransientIdentityRecordV3Schema } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { PromoteFloor, PromoteOrdinaryErrandDependencies, PromotionFrameReceipt, PromotionFrameResult } from "./promote.js";
@@ -15,10 +15,14 @@ import { CommitShaSchema } from "../store/links.js";
 import type { StoreRecord } from "../store/read.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
-  store: Store; exec: GitExec; cwd: string; repository: string; slug: string; name: string; type?: string;
+  store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
   floor: PromoteFloor; owner: string; priority?: string; class?: string;
-  frame: Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath">;
+  checkout: (record: OrdinaryErrandRecord, mode: "replaceFrame" | "recoverPromoted") => Promise<StorePromotionCheckoutResult>;
 }
+/** Exact checkout selected by caller-owned terminal or recovery authority. */
+export type StorePromotionCheckoutResult = ({ kind: "ready" } & Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath">)
+  | Exclude<PromotionFrameResult, PromotionFrameReceipt>;
+type BoundStorePromotionOptions = StorePromotionOptions & { cwd: string; frame: Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath"> };
 /** Storage-facing dependency slots; settlement remains the runtime caller's responsibility. */
 export type StorePromotionSteps = Pick<PromoteOrdinaryErrandDependencies, "readIdentity" | "recoverPromoted" | "replaceFrame" | "retire">;
 
@@ -33,7 +37,7 @@ export function createStorePromotionSteps(options: StorePromotionOptions): Store
       const primary = await readPrimary(options);
       if (primary.kind !== "ready") return primary;
       basis = primary.record ?? undefined;
-      if (basis === undefined || basis.reference.kind === "work-item/meta") return { kind: "ready", record: null };
+      if (basis === undefined || basis.reference.kind === "work-item/meta" || basis.placement?.kind !== "active") return { kind: "ready", record: null };
       try { return { kind: "ready", record: TransientIdentityRecordV3Schema.parse(JSON.parse(basis.content)) }; }
       catch (error) { return { kind: "error", message: message(error) }; }
     },
@@ -52,7 +56,10 @@ async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "rea
   const read = await options.store.read({ reference: lookup.result.reference });
   return read.status === "refused" ? { kind: "refused", reason: read.refusal.condition } : { kind: "ready", record: read.result };
 }
-async function replace(options: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
+async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
+  const checkout = await input.checkout(source, "replaceFrame");
+  if (checkout.kind !== "ready") return checkout;
+  const options: BoundStorePromotionOptions = { ...input, cwd: checkout.checkoutPath, frame: checkout };
   const branch = `${options.type ?? "feat"}/${options.name}`;
   const inherited = basis.links?.branches?.find((link) => link.repository === options.repository && workBranchName(link.ref) === source.branch);
   if (inherited === undefined) return refused("The Errand's exact repository-qualified branch link is missing.");
@@ -91,16 +98,19 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const recovered = sourceFromHistory(history.result, options.slug, fields.promotionReceipt, meta);
   if (recovered === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
   const { source, tip } = recovered;
+  const checkout = await options.checkout(source, "recoverPromoted");
+  if (checkout.kind !== "ready") return checkout;
+  const bound: BoundStorePromotionOptions = { ...options, cwd: checkout.checkoutPath, frame: checkout };
   if (tip === undefined) return refused("The promotion role-write history lacks its exact cut commit. Inspect and repair that evidence before retrying this promotion.");
   const branch = `${options.type ?? "feat"}/${options.name}`;
   const linked = meta.links?.branches?.some((link) => link.repository === options.repository && link.ref === branch && link.linkedAs === "created");
   if (!linked) return refused("The promoted work branch's created link is missing.");
-  const current = await localBranchTip(options, branch);
+  const current = await localBranchTip(bound, branch);
   if (current !== undefined && current !== tip) return refused(
     `Promotion branch conflict: ${branch} is at ${current}, but the role write recorded ${tip}. Preserve the existing branch, repair the target to that recorded cut (or move the unrelated branch aside), then retry this exact promotion.`);
-  if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
-  await options.exec("git", ["switch", branch], { cwd: options.cwd });
-  return receipt(options, meta, source, branch, "idempotent");
+  if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: bound.cwd });
+  await options.exec("git", ["switch", branch], { cwd: bound.cwd });
+  return receipt(bound, meta, source, branch, "idempotent");
 }
 function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
   promotionReceipt: string | null, meta: StoreRecord): { source: OrdinaryErrandRecord; tip: string | undefined } | undefined {
@@ -120,17 +130,17 @@ function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
   }
   return undefined;
 }
-function receipt(options: StorePromotionOptions, meta: StoreRecord, source: OrdinaryErrandRecord, branch: string,
+function receipt(options: BoundStorePromotionOptions, meta: StoreRecord, source: OrdinaryErrandRecord, branch: string,
   kind: "applied" | "idempotent"): PromotionFrameReceipt {
   return { ...options.frame, kind, subject: { slug: source.slug, claimId: source.claimId },
     generation: `errand-v1/${source.slug}/${source.claimId}`, branch, metaPath: workUnitMetaPath(meta),
     metaCommitted: true, originEntry: source.originEntry,
-    originEntrySourceDigest: source.origin === "inbox" ? CanonicalDigestSchema.parse(source.originEntrySourceDigest) : null };
+    originEntrySourceDigest: source.origin === "inbox" ? source.originEntrySourceDigest as CanonicalDigest | null : null };
 }
-async function localBranchExists(options: StorePromotionOptions, branch: string): Promise<boolean> {
+async function localBranchExists(options: BoundStorePromotionOptions, branch: string): Promise<boolean> {
   return (await localBranchTip(options, branch)) !== undefined;
 }
-async function localBranchTip(options: StorePromotionOptions, branch: string): Promise<string | undefined> {
+async function localBranchTip(options: BoundStorePromotionOptions, branch: string): Promise<string | undefined> {
   try { return CommitShaSchema.parse((await options.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `refs/heads/${branch}^{commit}`],
     { cwd: options.cwd, objectAccess: "local-only" })).stdout.trim()); }
   catch (error) { if (error instanceof GitProcessError && error.exitCode === 1) return undefined; throw error; }

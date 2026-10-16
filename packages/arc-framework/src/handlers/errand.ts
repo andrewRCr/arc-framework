@@ -13,6 +13,8 @@
  * @module
  */
 
+import { openDefaultStore } from "./lifecycle-shared.js";
+import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
 import { basename } from "node:path";
 
@@ -56,7 +58,6 @@ import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
 import { linkOrdinaryErrandAtRuntime } from "../lib/errand/link-runtime.js";
 import { leaveOrdinaryErrandAtRuntime } from "../lib/errand/leave-runtime.js";
 import { prepareMaterializedBranch } from "../lib/errand/materialize-branch.js";
-import { transactTransientIdentities } from "../lib/errand/identity-transaction.js";
 import {
   closeOrdinaryErrandAtRuntime,
 } from "../lib/errand/close-runtime.js";
@@ -706,6 +707,7 @@ async function runErrandOpenHandler(
   let result: ErrandOperationResult;
   try {
     result = await openOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
       cwd,
       slug,
       intent: opts.intent,
@@ -886,6 +888,7 @@ export async function handleErrandLink(
   let result: ErrandOperationResult;
   try {
     result = await linkOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
       slug,
       inbox,
       updatedAt: new Date().toISOString(),
@@ -1006,11 +1009,8 @@ export async function handleErrandMaterialize(
         emitMaterializeError("identity", "The stdin Git boundary is unavailable.", opts.json === true);
         return;
       }
-      const read = await transactTransientIdentities({ exec: io.exec, execInput: io.execInput, identity }, {
-        remote: "origin",
-        message: `arc: reconcile errand identity ${parsed.data.slug}`,
-        transform: (records) => ({ kind: "idempotent", value: records.get(parsed.data.slug) ?? null }),
-      });
+      const read = await readRuntimeErrand({ store: openDefaultStore(cwd, io.exec) },
+        { exec: io.exec, execInput: io.execInput, identity }, parsed.data.slug);
       if (read.kind !== "applied" && read.kind !== "idempotent") {
         emitMaterializeError("identity", read.kind === "error" ? read.message : read.reason, opts.json === true);
         return;
@@ -1062,6 +1062,7 @@ export async function handleErrandMaterialize(
           exec: io.exec,
         })).identityGlobalRoot;
         const execution = await openOrdinaryErrandAtRuntimeWithDisposition({
+      store: openDefaultStore(cwd, io.exec),
           cwd,
           slug: parsed.data.slug,
           inbox: record.originEntry === null ? null : {
@@ -1209,6 +1210,7 @@ export async function handleErrandLeave(
       }
       let observedAuthority: ErrandTerminalAuthority | null = null;
       const result = await leaveOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
         slug: parsed.data.slug,
         state: parsed.data.state,
         protection,
@@ -1410,6 +1412,7 @@ async function runErrandCloseHandler(
       });
     } else {
       result = await closeOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
         slug,
         base,
         protection: "full",
@@ -1658,6 +1661,7 @@ async function runErrandAbandonHandler(
       });
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
         slug: input.slug,
         protection: "full",
         base,
@@ -2120,6 +2124,7 @@ async function runErrandPromoteHandler(
   let result: ErrandPromotionResult;
   try {
     result = await promoteOrdinaryErrandAtRuntime({
+      store: openDefaultStore(cwd, io.exec),
       slug,
       name: wuName,
       type: type !== undefined && type !== "" ? type : "feat",

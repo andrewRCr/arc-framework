@@ -613,65 +613,10 @@ inject a reference-backend store.
   item links none; a paused work unit in flight — and the oracle lists that set with no remote gate; until the flip
   every caller reads branch refs as today.
 
-    - `[ ]` **3.1.a The set from the store**
+    - `[x]` **3.1.a The set from the store**
 
-        - A sibling module beside `lib/git/in-flight-derivation.ts` lists the open Errands through the store, and work
-          units at placement active through the store's lifecycle view (`listLifecycleIndex`,
-          `lib/store/lifecycle-index.ts`), which validates each meta, its Pause section among it. It builds each entry
-          from the store: its lifecycle facts from the view's entry or the Errand's record; its `branch` from the work
-          item's branch link, which the view's entry carries, absent where it links none; its `worktreePath` from 2.4's
-          lookup for a work unit, and for an Errand from the derived roster's row whose marker names its claim;
-          `remoteOnly` where no checkout here holds it and its linked branch has no local ref, `false` for an entry with
-          no branch; and the tips the committed probe reads from the linked branches' local and remote-tracking refs. A
-          branch whose work item is not at placement active yields no entry, and residue lists the refs under today's
-          prefixes that no listed work item links, read with no network call.
-        - The view takes two optional additions: its input (`LifecycleIndexInput`) takes the listing's filter
-          (`locations`), which it passes to the store's `list`, so the set lists `active` alone and the view checks no
-          archived meta; and its entry (`LifecycleEntry`) carries the listed record's `links`, so no entry takes a read
-          of its own. Its other callers pass no filter and read no links, so they read as today.
-        - A work-unit listing that is not complete, or whose outcome reports `missed` — a meta the store or the view
-          rejected, a malformed Pause section among them (`inspectMetaPauseStructure`, `MetaPauseSchema`) — marks the
-          set degraded, as the claims read does, each diagnostic a warning carrying its condition and remedy, so a work
-          unit whose meta is rejected never reads as out of flight (spec § 2.1); today such a meta lists as a degraded
-          entry (`degradedMetaCandidate`).
-        - It also lists this identity's grooming and housekeeping claims that name a branch, through the store's claim
-          kinds (`claims/groom`, `claims/housekeep`), each as today's derivation lists one (`classifyInput`, by the
-          claim's slug), its `worktreePath` from the derived roster's row whose marker names the claim. Residue leaves
-          out a branch a claim names, and keeps today's report of an open Errand or a claim whose branch no ref holds
-          (`errand-record-without-branch`); a claims read that is not complete marks the set degraded, as an incomplete
-          transient read does today (`markInputDegraded`).
-        - Its entries are filtered by owner as `deriveInFlight`'s are, Errands included now that they list at project
-          scope, an Errand's owner read from its record: the Errand record (`lib/errand/identity-record.ts`) gains an
-          optional `owner`, the person's identity slug as `resolveIdentity` resolves it (`lib/git/identity.ts`), which
-          the open writes from the flip (Task 3.3.c) and the reference backend's import writes from the identity ref it
-          re-homes each Errand from (spec § 16); the in-repo arm, whose identity-scoped ref implies the owner, writes
-          none. From the flip a record without one is malformed (Task 3.2), and the set keeps it, as `keepForIdentity`
-          keeps an entry with no owner.
-        - Its entry type is the in-repo arm's with `branch` optional and `scheduling` admitting `paused`, so status's
-          direct calls of `deriveInFlight` (`lib/status/project-view.ts`, `lib/status/user-view.ts`), whose arms from
-          the flip are the status change's (spec § 16), keep today's type.
-        - A paused work unit, read from its meta's Pause section (`fields.pause`, `MetaPauseSchema`,
-          `lib/active/meta-schema.ts`), which lifecycle's pause writes, takes `scheduling: "paused"` and is in flight
-          for every consumer; `parked`, from `listParkedSlugs` (`lib/work-unit/lifecycle-resolver.ts`), stays the
-          in-repo arm's, whose consumers treat it as out of flight.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - the set lists the active work units and open Errands, each with its facts from the store
-            - a branchless planning work unit lists with no branch, and a linked one with its branch and tips
-            - a paused work unit lists with `paused`
-            - a remote `plan/` ref outliving a shipped work unit lists nothing in flight
-            - in team mode another identity's work unit and Errand are filtered out as today, the Errand by its record's
-              `owner`
-            - an Errand's entry carries the checkout here whose marker names its claim
-            - an entry's branch comes from a link the transition-write-path change's writer wrote
-            - a live grooming claim's branch lists in flight by the claim's slug, and not as residue
-            - an open Errand whose linked branch no ref holds reports as residue
-            - a claims read that is not complete marks the set degraded
-            - with no project-ID port injected, each entry's `branch` is its link's, the project ID read from the
-              project's identity record
-            - a work unit whose meta the view rejects, a malformed Pause section among them, marks the set degraded with
-              a warning naming the meta and its repair, and a completed work unit whose Pause section is malformed marks
-              nothing
+        - Placement-backed derivation retains branchless and paused work, qualified links, claims, and independent
+          inventory diagnostics.
 
     - `[ ]` **3.1.b The set's callers**
 
@@ -711,7 +656,7 @@ inject a reference-backend store.
             - the warnings come from the set listed through the store
             - the arm's state, record, purpose, and owner are unchanged by the additions
 
-### `[ ]` **3.2 Acquire Errands and claims apart — § 3.2**
+### `[x]` **3.2 Acquire Errands and claims apart — § 3.2**
 
 - _Goal:_ From the flip the derived frame's identity discovery carries Errands, listed through the store at project
   scope, and claims, identity-scoped, as two acquisitions, each pinned at its own version with the same three outcomes —
@@ -720,41 +665,8 @@ inject a reference-backend store.
 
     - _Amended in:_ 3.R2 (A20)
 
-    - `DerivedIdentityDiscovery` (`lib/locus/derived-reader.ts`) carries the two acquisitions, each with its own status.
-      The derived evidence (`lib/locus/derived-evidence.ts`) acquires them from the flip — Errands through the store's
-      listing at placement `active`, since a closed Errand's record stays at `completed` (Task 3.3.b) and discovery keys
-      each by its slug (`readTransientIdentitySnapshot`'s projections, `lib/errand/identity-snapshot.ts`), claims
-      through the `claims/groom` and `claims/housekeep` kinds — and keeps its direct read of
-      `readTransientIdentitySnapshot` (`lib/errand/identity-snapshot.ts`) until then, since the store's transient
-      listing reads a fresh snapshot on every call and two listings would be two pins.
-    - `authorizeErrandTerminal` (`lib/errand/terminal-authority.ts`) and `selectCurrentErrandMergeIdentity`
-      (`scripts/integration/errand-merge-composition.ts`) read the two acquisitions and still require both complete: the
-      claims, this identity's own, with no diagnostic, as today, and the Errands, which list everyone's, whose
-      diagnostics refuse nothing by themselves (spec § 3.2): from the flip the gate resolves the subject Errand's record
-      by `lookup` through its checkout claim (`{ kind: "errand", slug, claimId }`, `lib/store/lookup.ts`) and reads it,
-      refusing, naming the record and what was reported, where either refuses with anything but `not-found`; where the
-      lookup finds none while the Errands' listing carries a diagnostic, it refuses naming those diagnostics and their
-      remedies; and a lookup finding none beside no diagnostic refuses nothing here, as today. The in-repo arm admits no
-      diagnostic, as today. A listing of Errands alone never stands in for the claims.
-    - From the flip the Errands' acquisition reports a record with no `owner` among its diagnostics as malformed, since
-      the open and the import write one on every Errand (spec § 3.2).
-    - The one-snapshot index projection (`lib/errand/record.ts`) stays the in-repo arm for status
-      (`handlers/status/views.ts`, `lib/status/project-oracle-context.ts`), the composed lifecycle index
-      (`lib/work-unit/composed-lifecycle-index.ts`), which the in-repo store itself calls, and the review gate
-      (`scripts/review-gate/`), whose arms from the flip are their owners' (spec § 16).
-
-    - Build `test-first` (one behavior at a time):
-        - over the reference backend Errands and claims each report absent, an error, or complete independently, with
-          their own diagnostics
-        - a complete Errand listing with a failed claims read admits no terminal and selects no merge identity
-        - over the reference backend an Errand record with no `owner` reports among the Errands' diagnostics
-        - over the reference backend a slug held by a completed Errand and an open one lists the open one alone, and
-          terminal authority reads its claim
-        - over the reference backend, its records carrying UIDs, another person's malformed Errand record leaves a close
-          admitted, the subject's own malformed record refuses, naming it, a subject the lookup cannot find beside a
-          listing diagnostic refuses, naming that diagnostic and its remedy, and one it cannot find beside none proceeds
-          as today
-        - over the in-repo implementation the discovery takes both from one pinned snapshot, as today
+- _Outcome:_ Errands and claims retain independent pinned acquisition outcomes. Terminal and merge admission resolve the
+  exact Errand claim and preserve diagnostics without borrowing another inventory's completeness.
 
 ### `[ ]` **3.R2 Admit authoritative claim absence at Errand terminal and merge gates — § 3.2 (A20)**
 
@@ -770,7 +682,7 @@ inject a reference-backend store.
         - another person's malformed Errand does not block the subject, while an unresolvable subject beside an Errands
           diagnostic refuses with its remedy
 
-### `[ ]` **3.3 Reroute the Errand runtimes through the store — § 8**
+### `[x]` **3.3 Reroute the Errand runtimes through the store — § 8**
 
 - _Goal:_ From the flip the open, close, abandon, leave, and link runtimes and `arc errand materialize`'s read of the
   Errand it materializes read and write the Errand record and claims through the store — pulling first when online,
@@ -778,173 +690,48 @@ inject a reference-backend store.
   companion writes in one batch, and keeping a closed or abandoned record at `completed` — while until the flip each
   keeps calling the identity transaction itself.
 
-    - `[ ]` **3.3.a The sync port**
+    - `[x]` **3.3.a The sync port**
 
-        - A narrow injected port, in a module under `lib/store/`, carries `pull`, `pull` of named history refs,
-          `maintain()`, and a read of the history refs a store refusal names for such a pull (the ref backend's
-          `state-unresolvable` refusal, its `historyRefs`), each defaulting to no effect — no pull, no measurements, and
-          no refs named. Whichever of this change and the ref backend lands second binds it to the store's operations
-          and that refusal. The Errand runtimes and Tasks 5.7, 5.8, 7.1, and 7.2 call through it. Its result types live
-          in its own module, shaped as the ref backend plans them for `lib/store/sync.ts` (`PullResult`'s states,
-          `MaintainResult`, and the publish outcomes' `retryCount` and `waitedMs`, planned in Task 1.2 -
-          `tasks-storage-ref-backend.md`), and the binding, by whichever change lands second, takes the store's types in
-          their place.
-        - From the flip `arc status <slug> --fetch` takes the remote's reachability from the port's pull in the store
-          arm (`handleStoreLifecycleStatus`, Task 3.1.c), which ignores `--fetch` today, reporting an unreachable remote
-          with the warning the in-repo arm gives.
-        - If the ref backend's amendment already puts `pull` and `maintain()` on `Store` (`lib/store/contract.ts`) when
-          this task starts, call them directly, read the refusal's `historyRefs` itself, and build no port.
+        - The optional sync port preserves pull outcomes, named history refs, and measured maintenance; explicit
+          identity binds the selected person before configured identity.
 
-        - Build `test-first` (one behavior at a time):
-            - the default port pulls nothing, reports no measurements, and names no history refs for any refusal
-            - a bound port reaches the store's operation and returns its result, and names the history refs a
-              `state-unresolvable` refusal carries
-            - over the reference backend `arc status <slug> --fetch` reports the reachability the port's pull returns
+    - `[x]` **3.3.b The write step from the flip**
 
-    - `[ ]` **3.3.b The write step from the flip**
+        - Errand transitions read the exact active generation and batch its expected-version record with companions;
+          retirement retains the completed generation and stale writes only recognize an equal landed result.
 
-        - A shared step reads the Errand record with its version, pulling first through 3.3.a's port when online, as the
-          transaction fetches first today; computes the transition with today's transform (`ordinaryErrandTransform` and
-          its retirement rules, `lib/errand/identity-transitions.ts`) as the runtime's own computation, admitting and
-          refusing what it does today, with no write check; and writes the computed record at the version it read, in
-          one `batch` with the transition's companion writes, each at its expected version.
-        - Each runtime's options — `OpenOrdinaryErrandRuntimeOptions`, `LinkOrdinaryErrandRuntimeOptions`,
-          `CloseOrdinaryErrandRuntimeOptions`, `AbandonOrdinaryErrandRuntimeOptions`, and
-          `LeaveOrdinaryErrandRuntimeOptions` — gain an optional `store`, which its handler fills (Phase 3's design
-          decisions) and which the step reads and writes through.
-        - The record's content is the Errand record's JSON as the identity ref holds it today: the step decodes it with
-          `deserializeTransientIdentityRecord` and encodes it with `serializeTransientIdentityRecord`
-          (`lib/errand/identity-record.ts`), the encoding promotion's steps parse (`TransientIdentityRecordV3Schema`,
-          `lib/errand/promote-store.ts`), since the store's Errand kind sets none.
-        - On a stale-version refusal it reads the record once more: where it now equals the computed record, it reports
-          `idempotent`, as the transform does before it compares the request's `previous` (`transitionOrdinaryErrand`);
-          otherwise it reports today's mismatch refusal. It recomputes nothing, and any other refusal, a divergent
-          clone's among them, is reported as the store reports it.
-        - The step reads the Errand through `lookup`'s `claim` kind, its slug and `claimId`, so a slug that a closed
-          Errand held, reusable once its record completes, never reads that record; the open, which holds no claim until
-          it opens, reads an Errand to resume through `lookup`'s `slug` kind (Task 3.3.c).
-        - A retirement — the close and the abandon — writes the record as the request's `previous` holds it, its
-          `updatedAt` stamped as the retirement's time, at placement `completed`, rather than deleting it as the
-          `retire` arm does today; a closed Errand carries its landing-commit link and its close time (Task 3.4), and an
-          abandoned one no link. A rerun retirement that reads the record already at `completed` reports `idempotent`,
-          as the transform reports a retirement whose record is already absent (`transitionOrdinaryErrand`).
-        - Every reader of open Errands — the open's check for an Errand to resume (Task 3.3.c), `arc errand materialize`
-          (Task 3.3.e), the in-flight set (Task 3.1.a), `errandState` (Task 5.3.a), and identity discovery (Task 3.2) —
-          takes placement `active` only, so a completed record never reads as an open Errand.
+    - `[x]` **3.3.c Open and link**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a write at the version read lands, with its companion writes in the same batch
-            - a stale version whose re-read equals the computed record reports `idempotent`
-            - a stale version whose re-read differs reports today's mismatch refusal and writes nothing
-            - a transform refusal writes nothing
-            - the step pulls through the port before it reads
-            - a rerun retirement after its write landed reports `idempotent`
-            - an abandon's record at `completed` carries the abandon's time as its `updatedAt`
-            - an open on a slug whose Errand completed opens a fresh Errand
+        - Open and link select Store transactions on the capability, write owners and branch links, and retain the
+          identity transaction before the flip.
 
-    - `[ ]` **3.3.c Open and link**
+    - `[x]` **3.3.d Close, abandon, and leave**
 
-        - `lib/errand/open-runtime.ts` and `lib/errand/link-runtime.ts`, with the claim rollback's call of the identity
-          transaction (`lib/errand/identity-claims.ts`), take 3.3.b's step from the flip, each keeping its transaction
-          call as its in-repo arm. From the flip the open writes the record's `owner` (Task 3.1.a), the identity it runs
-          as.
-        - From the flip the open's check for an Errand to resume (`openOrdinaryErrand`, `validateResumeContinuity`,
-          `lib/errand/open.ts`) reads the slug through `lookup`'s `slug` kind and takes an Errand only at placement
-          `active`, where today it reads the identity's own ref. It refuses an Errand another identity owns, naming its
-          owner and another slug for a new Errand, since no one but its owner takes over an Errand (spec Non-Goals), and
-          refuses one with no `owner` as malformed, naming the record (spec § 3.2).
+        - Close, abandon, and leave use guarded Store transitions and retain existing remote reconciliation before the
+          flip; retirement preserves completed records.
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend each runtime's success path and refusals hold
-            - over the reference backend the open writes the record's `owner`
-            - over the reference backend the open of another identity's paused Errand refuses, naming its owner, and an
-              open under another slug then opens a new Errand
-            - over the reference backend the open of an Errand with no `owner` refuses as malformed
-            - over the in-repo implementation each still reads and writes through the identity transaction
-            - through the open's and the link's production handlers with nothing injected, over the in-repo
-              implementation, each runtime is given the store opened over the checkout and keeps its transaction call
+    - `[x]` **3.3.e `arc errand materialize`'s read**
 
-    - `[ ]` **3.3.d Close, abandon, and leave**
+        - Materialization reads only the owned active generation through the selected Store, preserving legacy remote
+          reconciliation.
 
-        - `lib/errand/close-runtime.ts`, `lib/errand/abandon-runtime.ts`, and `lib/errand/leave-runtime.ts` take 3.3.b's
-          step from the flip, each keeping its transaction call as its in-repo arm. The abandon runtime keeps the
-          zero-delta reap's exports (`reapZeroDeltaBranch`, `WorkItemZeroDeltaBranch`), which store teardown's work-item
-          arm imports (`lib/work-unit/verbs/teardown-store.ts`).
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend each runtime's success path and refusals hold, and a close and an abandon leave
-              the record at `completed`
-            - over the in-repo implementation a close where only the remote holds the newer record reconciles before it
-              reads, as today
-            - through the close's, the abandon's, and the leave's production handlers with nothing injected, over the
-              in-repo implementation, each runtime is given the store opened over the checkout and keeps its transaction
-              call
-
-    - `[ ]` **3.3.e `arc errand materialize`'s read**
-
-        - `handleErrandMaterialize` (`handlers/errand.ts`) reads the Errand it materializes through the store it opens
-          (Phase 3's design decisions) from the flip, pulling first, in a sibling module; until then it reads through
-          the identity transaction.
-        - From the flip it reads only an Errand at placement `active`, so a closed one reads as no open Errand, and
-          refuses one whose record's `owner` is another identity, naming that owner, since no one but its owner takes
-          over an Errand (spec Non-Goals), and one with no `owner` as malformed, naming the record (spec § 3.2).
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend it materializes the Errand the store reads
-            - over the reference backend a closed Errand reads as none, and another identity's refuses, naming its owner
-            - over the reference backend an Errand with no `owner` refuses as malformed
-            - over the in-repo implementation an Errand only the remote holds materializes, as today
-
-### `[ ]` **3.4 Capture the Errand close's landing commit and close time — § 8.1**
+### `[x]` **3.4 Capture the Errand close's landing commit and close time — § 8.1**
 
 - _Goal:_ From the flip the close captures the Errand's landing commit on its record, naming its repository by the
   project ID, and stamps the record's `updatedAt` as the close time; until the flip it captures nothing and deletes the
   record as today.
 
-    - The landing commit is the commit the Errand's merge made on base, never its head (`closeTargetHead`), which a
-      squash merge leaves off base. Both kinds of merge go through the host — ARC's own
-      (`scripts/integration/errand-merge.ts`) through `mergePinned`, whose result carries that commit only as
-      `providerMergeId`, kept nowhere the close reads — so the close reads it from the host: from the flip its lifecycle
-      evidence (`ChangeRequestLifecycleEvidence`, `lib/errand/change-request-lifecycle.ts`) gains the merge commit,
-      which `createGhChangeRequestLifecyclePort`'s query requests beside the fields it reads today, as the delivery host
-      reports one (`mergeCommitSha`, `lib/delivery/host.ts`).
-    - It is the record's `landingCommit` link (`lib/store/links.ts`), its copy key from `computeCopyKeys`
-      (`lib/git/copy-key.ts`) over local objects, omitted where the commit is not held locally or is a merge commit,
-      which takes none. The project ID comes from an optional port `CloseOrdinaryErrandRuntimeOptions` gains, which
-      given none reads the project's identity record over the store the close reads the Errand through (3.3.b, Phase 2's
-      design decisions); tests inject it. Given no project ID — the port absent, or its read failing — the close refuses
-      before its write, naming the port's failure (spec § 2.1).
-    - A close under unchanged-base authorization, which merges nothing (`retirementDesired`,
-      `lib/errand/identity-transitions.ts`), records no landing commit; its write still stamps the close time.
+- _Outcome:_ Close captures the host's landing commit and close time, with a local copy key where available and no
+  landing link for unchanged-base authorization.
 
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a close after a squash merge through the host records the merge commit, not the Errand's head
-        - a close after ARC's own merge records that merge's commit
-        - the link names the project ID, and the record's `updatedAt` is the close time
-        - a close under unchanged-base authorization records no landing commit and stamps the close time
-        - with no project ID the close refuses before writing, naming the port's failure, and completes once the port
-          gives one
-        - with no project-ID port injected, the link names the project ID the project's identity record holds
-        - a landing commit held locally carries its copy key, and one not held locally is captured without one, the
-          close never fetching
-
-### `[ ]` **3.5 Link the Errand's branch at open — § 8.2**
+### `[x]` **3.5 Link the Errand's branch at open — § 8.2**
 
 - _Goal:_ From the flip a full-protection `arc errand open`, cutting `chore/<slug>` in place or in a spawned worktree,
   writes the Errand's branch link recorded `created` with no exclusions, and under partial protection cuts no branch and
   writes no link; until the flip no link is stored.
 
-    - The in-place cut (`lib/locus/provisioning-runtime.ts`) and the spawned one both reach
-      `lib/errand/open-runtime.ts`, which writes the link with the record in 3.3.b's batch, its repository the project
-      ID, from an optional port `OpenOrdinaryErrandRuntimeOptions` gains, read as the close's is (Task 3.4), and its ref
-      `chore/<slug>` (Phase 2's design decisions). The link's `created` record and its exclusions are built in
-      Task 2.1.a - `tasks-seam-lifecycle.md`.
-
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - an in-place and a spawned open each record a `created` link with no exclusions, its repository the project ID
-          the port gives and its ref `chore/<slug>`
-        - a partial-protection open writes no link
-        - with no project-ID port injected, the link's repository is the project ID the project's identity record holds
+- _Outcome:_ Full-protection opens batch a created branch link with no exclusions; partial opens write neither a branch
+  nor a link.
 
 ### `[ ]` **3.6 Check overlap for a state target, excluding the caller by identity — § 3.3**
 
@@ -1160,7 +947,7 @@ inject a reference-backend store.
         - an unreadable lineage or `lookup` reports unavailable authority
         - over the in-repo implementation the outcome carries no `successors`
 
-### `[ ]` **3.9 Select promotion's steps, and settle its marker — § 8.3, § 2.6**
+### `[x]` **3.9 Select promotion's steps, and settle its marker — § 8.3, § 2.6**
 
 - _Goal:_ From the flip `promoteOrdinaryErrandAtRuntime` selects the transition-write-path change's promotion steps on
   the capability, which read the Errand through the store, runs the exclusivity check before `promoteOrdinaryErrand` so
@@ -1168,105 +955,15 @@ inject a reference-backend store.
   and on the primary replacing the transient marker's generation with an anchored work-unit marker in one write — and
   skips its inbox settlement step; until the flip it keeps today's steps, settlement, and commit.
 
-- _Note:_ `lib/errand/promote-runtime.ts` serializes with that change, whose steps land in their own module beside
-  `lib/errand/promote.ts` (Task 5.5 - `tasks-seam-lifecycle.md`).
+    - `[x]` **3.9.a The step selection and the check**
 
-    - `[ ]` **3.9.a The step selection and the check**
+        - Promotion selects Store-backed steps and checks exclusivity before writes, resolving the actual authorized
+          checkout and project identity for fresh and recovered promotion.
 
-        - From the flip the runtime fills `promoteOrdinaryErrand`'s `replaceFrame`, `readIdentity`, `recoverPromoted`,
-          and `retire` slots (`PromoteOrdinaryErrandDependencies`, `lib/errand/promote.ts`) with the
-          transition-write-path change's steps, which read the Errand and a promoted work unit through the store and
-          whose `retire` returns `idempotent`, and keeps `settleInbox` and `settleOccupancy` its own (3.9.b); until then
-          it fills every slot with today's.
-        - It runs 2.4's exclusivity check for the new work unit at the checkout it runs in (the frame's `entering` row)
-          before `promoteOrdinaryErrand`, whose dependencies carry no slot for it.
-        - It builds the steps with `createStorePromotionSteps` (`lib/errand/promote-store.ts`) from its own options —
-          `store`, `exec`, `slug`, `name`, `type`, `floor`, `owner`, `priority`, `class` — its `checkout` the callback
-          below and its `repository` the project ID from an optional port `PromoteOrdinaryErrandRuntimeOptions` gains
-          beside `store` (Phase 2's design decision); given no project ID it refuses before `promoteOrdinaryErrand`,
-          naming that condition. `handleErrandPromote` fills the runtime's `store` as every Errand handler does
-          (Phase 3's design decisions).
-        - In `lib/errand/promote-store.ts` the steps' options (`StorePromotionOptions`) take a callback, `checkout`, in
-          place of `cwd` and `frame`, which the steps call with the Errand record they hold — the one they read
-          (`replaceFrame`) or the one they recover from the role write's history (`recoverPromoted`) — and with which of
-          the two it is, before any Git step or write. They run their Git at the checkout it returns and carry its
-          `checkoutPath`, `allocation`, and `parentCheckoutPath` on their receipt, and return its refusal, confirmation,
-          or error as given. Lifecycle's tests of the steps (`__tests__/unit/errand/promote-store.test.ts`,
-          `__tests__/integration/errand-promote-store.test.ts`, `__tests__/unit/work-unit/lifecycle-program.test.ts`)
-          pass one.
-        - For a promotion the runtime's callback runs today's terminal authorization over the Errand record it is given
-          against the frame `readFrame` gives (`authorizeErrandTerminal`, operation `promote`, with
-          `confirmForeignGeneration` and the retry arguments, as `replaceLocalFrame` runs it), returning its
-          confirmation as today and its refusal through `authorityRefusalReason`, `checkout-missing` where it selects no
-          checkout, and `promotion-source-invalid` where that checkout's branch is not the Errand's; the checkout it
-          returns is the one the authority selects, as `receiptFromAuthority` derives it. It runs no clean-tree check:
-          the cut and the switch land on the commit the checkout holds, so its uncommitted changes carry onto the work
-          branch, and `inspectCheckout`'s check stays the in-repo arm's, before its meta commit.
-        - For a rerun after the role write it returns the one checkout among the frame's rows whose `subject` is that
-          Errand generation or the work unit (`name`), with no authorization, as today's recovery runs none
-          (`recoverPromotedFrame`), refusing `checkout-missing` where none is, `duplicate-locus` where more than one is,
-          with today's recovery's messages, and `promotion-source-invalid` where it is on neither the Errand's branch
-          nor the work branch. Its branch alone no longer finds it, since a crash before the switch leaves it on the
-          Errand's branch.
-        - The steps' receipt (`receipt`, `lib/errand/promote-store.ts`) carries the origin's `originEntrySourceDigest`
-          as the Errand record holds it, `null` included, as every projection of an origin does (spec § 7.6), where
-          today it parses an inbox origin's as a digest (`CanonicalDigestSchema`), which throws after the role write,
-          the branch cut, and the switch, and again in every rerun's recovery.
-        - Their Errand read (`readIdentity`) takes an Errand record only at placement `active`, as every reader of open
-          Errands does (spec § 8), so a closed Errand's record, kept at `completed` with its state still `open` (3.3.b),
-          reads as no Errand and `promoteOrdinaryErrand` refuses it before any write; today the slug lookup can return
-          that record, and the role write keeps its placement (`recordWritePlacement`). The lookup both reads share
-          (`readPrimary`), and recovery's read of the promoted work unit through it (`recoverPromoted`), stay as they
-          are.
+    - `[x]` **3.9.b The settlement**
 
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend the runtime fills the four slots with the transition-write-path change's steps,
-              and over the in-repo implementation with today's
-            - over the reference backend an injected refusing check leaves nothing written
-            - over the reference backend the steps take the checkout the callback returns and the project ID, and with
-              no project ID the runtime refuses, writing nothing
-            - over the reference backend with no project-ID port injected, the steps take the project ID the project's
-              identity record holds
-            - over the reference backend an Errand whose inbox origin carries the qualified ID and a `null` digest
-              promotes, its receipt carrying both as the record holds them, and a rerun reports `idempotent`
-            - over the reference backend promoting an Errand whose record is at `completed` refuses, writing no meta,
-              cutting no branch, and leaving `HEAD` where it was
-            - the steps call the callback before any Git step or write, and a refusal it returns leaves nothing written
-            - over the reference backend a promotion from the Errand's own checkout runs there, and one from another
-              checkout returns today's confirmation, writing nothing, and with `--confirm-foreign-generation` runs in
-              the Errand's checkout
-            - over the reference backend an incomplete identity basis and two checkouts claiming the Errand each refuse
-              as today, and an Errand with no checkout refuses `checkout-missing` once confirmed, each writing nothing
-            - over the reference backend an Errand checkout off its branch refuses, writing nothing, and one with
-              uncommitted changes promotes, its changes on the work branch
-            - over the reference backend a rerun after a crash following the role write — before the switch, after it,
-              or after the marker's settlement — completes in that checkout, and with no such checkout refuses
-              `checkout-missing`
-            - over the reference backend an Errand whose record carries no branch link for its branch refuses before any
-              write, as the steps do
-
-    - `[ ]` **3.9.b The settlement**
-
-        - From the flip `settlePromotedOccupancy`'s primary arm replaces the transient marker's generation with an
-          anchored work-unit marker through 2.5.a's writer, at the bytes it read, where today it removes the transient
-          marker (`removePrimaryTransientOccupancy`, `lib/git/worktree-marker.ts`), so no crash leaves the primary with
-          neither marker. A rerun finding its own anchored marker treats the checkout as settled, as
-          `convertSpawnedMarker` treats a converted marker, where `removePrimaryTransientOccupancy` would refuse it as
-          `subject-mismatch`. The spawned arm keeps `convertSpawnedMarker`.
-        - From the flip the runtime skips its inbox settlement step (`settlePromotedInbox`), since the start moved the
-          entry into the Errand's description: it fills `settleInbox` with a step that settles nothing and returns the
-          frame unchanged but for its origin, which it clears (`originEntry` and `originEntrySourceDigest` `null`) as
-          `settlePromotedInbox` does, so its settled result reports no origin, as today. `promoteOrdinaryErrand` calls
-          that slot whenever the meta is committed (`settleCommittedFrame`, `lib/errand/promote.ts`), as the steps'
-          receipt always is, and today's step would refuse an inbox origin with a `null` digest after the write.
-
-        - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-            - a promotion on the primary leaves an anchored work-unit marker, and the roster derives the work unit there
-            - a rerun after the settlement finds its own marker settled and writes nothing
-            - a promotion on a spawned checkout converts its marker
-            - no inbox settlement runs and the result reports no origin, for an Errand started from an inbox entry, its
-              digest `null`, as for one with no inbox origin
-            - over the in-repo implementation promotion runs as today, its commit included
+        - Promotion settles the exact marker generation, replacing primary transient occupancy atomically and preserving
+          spawned occupancy; Store promotion performs no title-based inbox settlement.
 
 ### `[ ]` **3.10 What is in flight** — validate exit criterion at segment scope
 

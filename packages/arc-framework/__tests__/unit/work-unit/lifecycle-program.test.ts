@@ -87,7 +87,7 @@ it("promotes a second owner through the real adapter, then rename keeps its Erra
     { branches: [{ repository: "repo", ref: identity.branch, linkedAs: "created", excluded: [] }] });
   git.state.branches.set(identity.branch, personal); git.state.current = identity.branch; git.state.head = personal; git.state.marker = "promoted";
   const options = { store: h.store, exec: git.exec, cwd: "/holder", repository: "repo", slug: "errand-source", name: "promoted", type: "feat", floor: "derivation" as const,
-    owner: "test-user", class: "Light", frame: { checkoutPath: "/holder", allocation: "primary" as const, parentCheckoutPath: null } };
+    owner: "test-user", class: "Light", checkout: async () => ({ kind: "ready" as const, checkoutPath: "/holder", allocation: "primary" as const, parentCheckoutPath: null }) };
   expect(await promoteOrdinaryErrand({ ...options, protection: "full", dependencies: { ...createStorePromotionSteps(options),
     settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } })).toMatchObject({ outcome: "applied" });
   const promoted = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
