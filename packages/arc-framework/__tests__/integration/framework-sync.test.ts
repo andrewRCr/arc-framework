@@ -179,8 +179,6 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
       "system/methods/validate-criteria.md",
-      "system/extensions/README.md",
-      "system/extensions/pre-pr-open.md",
       "system/workflows/arc/supplemental/run-errand.md",
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     ];
@@ -248,6 +246,19 @@ describe("framework sync (self-hosting drift check)", () => {
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
       expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
+  });
+
+  it("ships pull-request formatting with recipe-derived classification and pristine content", async () => {
+    const methodPath = "system/methods/pull-request-format.md";
+    const recipe = JSON.parse(await readFile(
+      join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8",
+    )) as Recipe;
+    const packaged = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    expect(resolveFileList(recipe, conditionals)).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(await readFile(join(ARC_DIR, methodPath), "utf8")).toBe(packaged);
+    expect(manifest.files[methodPath]).toEqual({ classification: "Configurable", layer: "core",
+      pristine_hash: createHash("sha256").update(packaged).digest("hex") });
   });
 
   it("ships discovered-work routing as a configurable core method", async () => {

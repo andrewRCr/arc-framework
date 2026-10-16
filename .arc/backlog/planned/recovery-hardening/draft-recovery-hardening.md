@@ -68,6 +68,12 @@
 - _Fold-in:_ define a narrowly bound reconciled-self-produced result over the exact seed, HEAD, expected/actual path
   sets, and live diff identity. Preserve stops for unknown edits, removed seed paths, reversions, overlapping
   ownership, multiple reasons, or any topology/cursor mismatch; always run the full audit and rehydrate first.
+- _Pulled forward:_ the `recovery-additive-drift` Errand (2026-10-14) explains dirty-path drift that only adds
+  files, when every seed-dirty file stayed dirty or was committed and the dirty-state probe agrees, and has
+  recovery name and read the added files before resuming. It was Owner-directed after a delegated overnight
+  `seam-lifecycle` run stopped for six hours on three files its own agents wrote. Added files are therefore no
+  longer unknown edits to stop on; removed seed paths, reversions, probe contradictions, and every other
+  dimension still stop.
 
 ### `[ ]` **Reframe recovery hardening after durable locus retirement**
 
@@ -104,10 +110,10 @@
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-07-07); captured
   during `finalize-parallelism` Task 2.6.e (worktree-local seed re-bind), 2026-07-05.
 - _Concern:_ FP Task 2.6.e re-bound the compaction-recovery seed **worktree-local** (per-session):
-  `resolveCompactionSeedPath` now roots at the active checkout
-  (`cwd/.arc/user/{id}/.internal/compaction-seed.json`), no longer accepts an identity-global root, and resolves
-  symmetrically on emit (`status --write-compaction-seed`) and audit (`recover`). This WU's draft was written before
-  this and shares the same files (`handlers/recover.ts` + the seed producers).
+  `resolveCompactionSeedPath` now roots at the active checkout (`cwd/.arc/user/{id}/.internal/compaction-seed.json`), no
+  longer accepts an identity-global root, and resolves symmetrically on emit (`status --write-compaction-seed`) and
+  audit (`recover`). This WU's draft was written before this and shares the same files (`handlers/recover.ts` + the seed
+  producers).
 - _Implications (prerequisite, not conflict):_
     - The hard forcing-gate is only safe under concurrency _because_ the seed is now per-worktree. Pre-2.6.e, a
       shared identity-global seed let a sibling worktree's compaction clobber this one's, so `recover audit` could
@@ -223,8 +229,7 @@
   and make the envelope presence contract match — do not require inbox/errandSweep from a fallback identity.
 
 - _Files:_ `packages/arc-framework/src/lib/git/worktree-identity.ts`,
-  `packages/arc-framework/src/commands/status/run.ts`,
-  `packages/arc-framework/src/commands/status/schema.ts`.
+  `packages/arc-framework/src/commands/status/run.ts`, `packages/arc-framework/src/commands/status/schema.ts`.
 
 - _Captured during:_ `localize-session-init-attention` frontline review, 2026-09-17.
 
@@ -292,6 +297,39 @@
 
 - _Captured during:_ the subagent recovery research for the post-compaction injection Errand, 2026-10-08 (Codex
   0.160.1, Claude Code 2.1.294 installed).
+
+### `[ ]` **Consider extracting the session-to-checkout binding from recovery hardening as its own concern**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-10-15).
+
+- _Shapes:_ the inbound entries "Bind compaction recovery to the live directed-worktree locus" and "Key the Claude Code
+  compaction seed to its session through `CLAUDE_CODE_SESSION_ID`" — the binding and its key — and the work unit's
+  scope boundary.
+
+- _Observation:_ The binding those entries design — a directed-entry verb records which checkout a harness session
+  works in, keyed by session — now has three consumers, and only one is recovery. `session-retitle`'s label reporter
+  and `agent-session-bridge`'s addressing both join harness sessions to ARC locus, and both break where a session's
+  cwd is not its working checkout. A personal Herdr label spike (2026-10-14) showed it: the `primary` Claude pane and
+  the `errands` Codex pane were both running Errands in spawned worktrees, yet both resolve to `free-primary` by cwd,
+  so neither can be labelled or addressed by its Errand. The key joins directly: Herdr's `agent_session` value is the
+  harness session ID — this session's equals its `CLAUDE_CODE_SESSION_ID`, and a Codex pane reports its session UUID
+  once Herdr's integration has seen the session — so a session-keyed binding needs no cwd matching at all.
+
+- _Observation (a second ask on the same record):_ ARC has no "stage begun" signal. The meta is written only at
+  ceremonies, so a stage stays unmarked from its `set-stage --advance` until its next ceremony; the spike labelled the
+  `seam-lifecycle` session `implementation✓` while it was running verification. A binding that also records
+  the stage a session entered at (session-init, or the directed-entry verbs) would give machine-local evidence that
+  the stage has begun without breaking meta-file timing.
+
+- _Approach:_ decide at this work unit's next planning iteration whether the binding stays a recovery mechanism or
+  becomes its own provisional stub that recovery, `session-retitle`, and `agent-session-bridge` consume. Either way
+  it must stay advisory and machine-local, under `.arc/user/<id>/.internal/` per the storage contract, with no
+  liveness judgment: the adapter (Herdr, or a harness's own session list) says which sessions are live, the binding
+  says where each works — so a stale binding for a dead session is never read. Its write sites (`arc start`,
+  `arc errand open`, recovery audit) touch the lifecycle write path, so the steering map keeps it clear of the seam.
+
+- _Captured during:_ read-only exploration session on cross-harness agent messaging, including the Herdr label spike
+  (`.arc/user/andrew/tools/herdr-arc-labels.mjs`), 2026-10-14.
 
 ## Problem / Motivation
 

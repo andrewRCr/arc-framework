@@ -68,8 +68,6 @@ export type Verb = (typeof VERBS)[number];
  *   already occupies a branch / worktree).
  * - `class-resolved` — `promote` refuses a `[TBD]` `Class` (a realized work unit
  *   never leaves `planned/` carrying an unresolved weight).
- * - `worktree-clean` — a worktree-teardown leg refuses a dirty worktree
- *   (`--force` stays rollback-only, never the user-facing teardown path).
  * - `confirmation` — the destructive `abandon` cascade requires an explicit
  *   confirmation `input`; bare invocation prints the impact plan and refuses
  *   (safe default: not-destroy).
@@ -80,9 +78,9 @@ export type GuardId =
   | "name-collision"
   | "worktree-occupancy"
   | "class-resolved"
-  | "worktree-clean"
   | "confirmation"
-  | "pr-unmerged";
+  | "pr-unmerged"
+  | "unpaused";
 
 /**
  * The side-effects an edge may declare — mechanics fired after the encoding
@@ -118,7 +116,7 @@ export type SideEffectId =
 export type ArtifactDisposition = "relocate" | "scaffold" | "remove";
 
 /** The `reconcile-branch` leg's operation — phase-and-direction-conditioned. */
-export type BranchMutation = "create" | "rename" | "delete" | "preserve";
+export type BranchMutation = "create" | "rename" | "preserve";
 
 /** The `reconcile-work-unit-worktree` leg's operation. */
 export type WorktreeMutation = "spawn" | "teardown";
@@ -137,7 +135,7 @@ export type WorktreeMutation = "spawn" | "teardown";
 export interface MutatorSpec {
   /** The artifact-set leg — relocate / scaffold / remove; omitted = untouched. */
   artifacts?: ArtifactDisposition;
-  /** `reconcile-branch` — create / rename / delete / preserve the WU branch. */
+  /** `reconcile-branch` — create / rename / preserve the WU branch. */
   reconcileBranch?: BranchMutation;
   /** `reconcile-work-unit-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
   reconcileWorkUnitWorktree?: WorktreeMutation;
@@ -148,9 +146,7 @@ export interface MutatorSpec {
    * with **no** git ref op. The merge-gated `archive` edge uses this: its
    * relocation rides the ship PR, so the *logical* encoding (`Branch → [none]`)
    * lands pre-merge, while the *physical* branch/worktree teardown is deferred to
-   * post-merge cleanup outside the table (the integration tail). Distinct from
-   * `reconcileBranch: "delete"`, which force-deletes the ref in place
-   * (`park@Planning` / `abandon` — local, not merge-gated).
+   * post-merge cleanup outside the table (the integration tail).
    */
   clearBranchField?: boolean;
   /**
@@ -203,6 +199,22 @@ export interface SoftFieldDispositions {
   blockers: SoftFieldDisposition;
 }
 
+/** Backend-independent record writes and Git ordering for one lifecycle edge. */
+export interface StoreTransitionForm {
+  /** Primary artifact disposition at the storage boundary. */
+  artifacts: "keep" | "create" | "remove" | "relocate";
+  /** The only orientation field retained after state leaves code history. */
+  nextAction: SoftFieldDisposition;
+  /** Phase to write, when this edge changes it. */
+  state?: Phase;
+  /** Workflow to write, with null explicitly clearing the pointer. */
+  currentWorkflow?: string | null;
+  /** Non-record effects retained after the atomic write. */
+  sideEffects: SideEffectId[];
+  /** Caller-supplied Git steps sequenced around the atomic write. */
+  git: "none" | "before" | "after";
+}
+
 /**
  * One legal lifecycle edge — the authoritative declaration of a `(verb, from)`
  * transition: where it lands, its inverse, the guards gating it, the encoding
@@ -227,6 +239,8 @@ export interface TransitionRecord {
   inverse: Verb | null;
   /** Guards validated before any mutation. */
   guards: GuardId[];
+  /** Record and Git form after operational state leaves the code branch. */
+  fromFlip: StoreTransitionForm;
   /** Which encoding-mutator legs fire, with direction. */
   encodingUpdates: MutatorSpec;
   /** Side-effects fired after the encoding mutators land. */
@@ -375,7 +389,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: PLANNING,
     to: ACTIVE,
     inverse: "deactivate",
-    guards: [],
+    guards: ["unpaused"],
+    fromFlip: { artifacts: "keep", nextAction: "input", state: "Active", currentWorkflow: "process-task-loop", sideEffects: [], git: "before" },
     encodingUpdates: { reconcileBranch: "rename", setPhase: true, setCurrentWorkflowField: "process-task-loop" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: "input", nextAction: "input", lastCompleted: "leave", blockers: "leave" },
@@ -385,7 +400,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: PLANNING,
     inverse: "activate",
-    guards: [],
+    guards: ["unpaused"],
+    fromFlip: { artifacts: "keep", nextAction: { reset: NONE }, state: "Planning", sideEffects: [], git: "none" },
     encodingUpdates: { reconcileBranch: "rename", setPhase: true },
     sideEffects: withRender(),
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
@@ -395,7 +411,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: INTEGRATING,
     inverse: "reopen",
-    guards: [],
+    guards: ["unpaused"],
+    fromFlip: { artifacts: "keep", nextAction: "input", state: "Integrating", currentWorkflow: "integrate-work-unit", sideEffects: [], git: "none" },
     encodingUpdates: { setPhase: true, setCurrentWorkflowField: "integrate-work-unit" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: "input", lastCompleted: "input", blockers: "leave" },
@@ -405,7 +422,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: INTEGRATING,
     to: ACTIVE,
     inverse: "publish",
-    guards: ["pr-unmerged"],
+    guards: ["unpaused", "pr-unmerged"],
+    fromFlip: { artifacts: "keep", nextAction: { reset: NONE }, state: "Active", currentWorkflow: "prepare-work-unit", sideEffects: ["withdraw-pr"], git: "none" },
     encodingUpdates: { setPhase: true, setCurrentWorkflowField: "prepare-work-unit" },
     sideEffects: withRender("withdraw-pr"),
     // Withdrawal back to Active clears the now-stale integration `Next Action`.
@@ -423,7 +441,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: PARKED,
     inverse: "resume",
-    guards: ["worktree-clean"],
+    guards: [],
+    fromFlip: { artifacts: "keep", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { reconcileWorkUnitWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -433,7 +452,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // in-verb (staged + committed with the park), but its `plan/<name>` branch +
     // worktree teardown is **out-of-band**: it runs post-action via
     // `arc teardown --force`, not an in-verb leg. Firing teardown here tripped the
-    // `worktree-clean` guard on the verb's own staged tree and, in-place, targeted
+    // mutator cleanliness check on the verb's own staged tree and, in-place, targeted
     // the un-removable primary worktree — so this edge declares neither the
     // teardown legs nor that guard (mirroring `decompose@planning`).
     verb: "park",
@@ -441,6 +460,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNED,
     inverse: "start",
     guards: [],
+    fromFlip: { artifacts: "relocate", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { artifacts: "relocate" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -454,6 +474,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
+    fromFlip: { artifacts: "keep", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -464,6 +485,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNED,
     inverse: "demote",
     guards: ["class-resolved"],
+    fromFlip: { artifacts: "relocate", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { artifacts: "relocate" },
     sideEffects: withRender(),
     softFields: PRESERVE_SOFT,
@@ -474,6 +496,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PROVISIONAL,
     inverse: "promote",
     guards: [],
+    fromFlip: { artifacts: "relocate", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { artifacts: "relocate" },
     sideEffects: withRender(),
     softFields: PRESERVE_SOFT,
@@ -486,6 +509,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PROVISIONAL,
     inverse: "abandon",
     guards: [],
+    fromFlip: { artifacts: "create", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { artifacts: "scaffold" },
     sideEffects: withRender(),
     softFields: FRESH_SOFT,
@@ -496,6 +520,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNED,
     inverse: "abandon",
     guards: [],
+    fromFlip: { artifacts: "create", nextAction: "leave", sideEffects: [], git: "none" },
     encodingUpdates: { artifacts: "scaffold" },
     sideEffects: withRender(),
     softFields: FRESH_SOFT,
@@ -506,6 +531,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["name-collision", "worktree-occupancy"],
+    fromFlip: { artifacts: "create", nextAction: "leave", sideEffects: [], git: "before" },
     encodingUpdates: { artifacts: "scaffold", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: FRESH_SOFT,
@@ -516,6 +542,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["class-resolved", "worktree-occupancy"],
+    fromFlip: { artifacts: "relocate", nextAction: "leave", sideEffects: [], git: "before" },
     encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -526,6 +553,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: "park",
     guards: ["class-resolved", "worktree-occupancy"],
+    fromFlip: { artifacts: "relocate", nextAction: "leave", sideEffects: [], git: "before" },
     encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -539,6 +567,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
+    fromFlip: { artifacts: "keep", nextAction: "leave", sideEffects: [], git: "before" },
     encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -550,7 +579,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: SHIPPED,
     inverse: null,
-    guards: [],
+    guards: ["unpaused"],
+    fromFlip: { artifacts: "relocate", nextAction: { reset: NONE }, state: "Shipped", currentWorkflow: null, sideEffects: [], git: "none" },
     encodingUpdates: {
       artifacts: "relocate",
       clearBranchField: true,
@@ -565,7 +595,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: INTEGRATING,
     to: SHIPPED,
     inverse: null,
-    guards: [],
+    guards: ["unpaused"],
+    fromFlip: { artifacts: "relocate", nextAction: { reset: NONE }, state: "Shipped", currentWorkflow: null, sideEffects: [], git: "none" },
     encodingUpdates: {
       artifacts: "relocate",
       clearBranchField: true,
@@ -583,6 +614,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: [],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -593,6 +625,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: [],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -601,7 +634,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     // A started origin retires its artifacts in-verb (staged + committed with the
     // transform), but its branch + worktree teardown is **out-of-band**: it runs
     // post-merge via the generalized `arc teardown --force`, not an in-verb leg.
-    // Firing teardown here tripped the `worktree-clean` guard on the verb's own
+    // Firing teardown here tripped the mutator cleanliness check on the verb's own
     // staged tree and, in-place, targeted the un-removable primary worktree — so
     // this edge declares neither the teardown legs nor that guard.
     verb: "decompose",
@@ -609,6 +642,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: [],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -621,6 +655,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -631,6 +666,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -638,7 +674,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
   {
     // The started-WU abandon cells remove artifacts in-verb but defer their branch +
     // worktree teardown **out-of-band** to a post-action `arc teardown --force`, not
-    // an in-verb leg. Firing teardown here tripped the `worktree-clean` guard on the
+    // an in-verb leg. Firing teardown here tripped the mutator cleanliness check on the
     // verb's own staged removal and, in-place, targeted the un-removable primary
     // worktree — so these edges declare neither the teardown legs nor that guard
     // (mirroring `park@Planning` / `decompose@planning`). PARKED likewise
@@ -649,6 +685,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -659,6 +696,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -669,6 +707,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: null,
     inverse: null,
     guards: ["confirmation"],
+    fromFlip: { artifacts: "remove", nextAction: "leave", sideEffects: [], git: "after" },
     encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,

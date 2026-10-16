@@ -104,7 +104,7 @@ it("publishes primary role and rename history without replacing its UID or calle
   const first = await seed(h, h.reference("work-item/record"));
   const promoted = RecordReferenceSchema.parse({ ...first.reference, kind: "work-item/meta" });
   success(await h.store.write(WriteInputSchema.parse({ ...update(h, first), reference: promoted, content: h.content(promoted),
-    links: { branches: [{ repository: "owner/repo", ref: "feat/example" }] }, provenance: { verb: "promote", lifecycleAction: "promote" } })));
+    links: { branches: [{ repository: "owner/repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }] }, provenance: { verb: "promote", lifecycleAction: "promote" } })));
   const current = success(await h.store.read({ reference: promoted }));
   const renamed = RecordReferenceSchema.parse({ ...promoted, owner: { ...promoted.owner, name: "renamed" } });
   success(await h.store.write(WriteInputSchema.parse({ ...update(h, current), reference: renamed,

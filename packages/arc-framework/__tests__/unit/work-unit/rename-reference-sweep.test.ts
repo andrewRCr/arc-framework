@@ -4,10 +4,12 @@ import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-re
 import { WorkUnitArtifactKindSchema } from "../../../src/lib/layout/index.js";
 import { artifactMatcher } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 import {
-  sweepRenameReferences,
+  planRenameReferences,
+  applyRenameReferencePlan,
+  type RenameReferenceSweepContext,
 } from "../../../src/lib/work-unit/rename-reference-sweep.js";
 
-describe("sweepRenameReferences", () => {
+describe("rename reference planning and application", () => {
   it.each([
     ["meta", "# Metadata: sample", "# Metadata: renamed-sample"],
     ["draft", "# Draft: sample", "# Draft: renamed-sample"],
@@ -35,15 +37,17 @@ describe("sweepRenameReferences", () => {
     ].join("\n") : "\nBody.\n";
     const files = new Map([[path, `${title}\n${body}`]]);
 
-    await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => [`active/${prefix}-sample.md`],
       readFile: async (candidate) => files.get(candidate) ?? "",
       writeFile: async (candidate, content) => { files.set(candidate, content); },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(files.get(path)).toBe(`${expectedTitle}\n${body}`);
   });
@@ -55,15 +59,17 @@ describe("sweepRenameReferences", () => {
       "# Draft: sample\n\n> Resume with `--plan sample`; plain --plan sample stays prose.\n",
     ]]);
 
-    await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => ["backlog/planned/sample/draft-sample.md"],
       readFile: async (candidate) => files.get(candidate) ?? "",
       writeFile: async (candidate, content) => { files.set(candidate, content); },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(files.get(path)).toBe(
       "# Draft: renamed-sample\n\n> Resume with `--plan renamed-sample`; plain --plan sample stays prose.\n",
@@ -77,15 +83,17 @@ describe("sweepRenameReferences", () => {
       "# Draft: sample\n\n`--plan sample`\n\nResume later with `--plan sample`.\n",
     ]]);
 
-    await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => ["backlog/planned/sample/draft-sample.md"],
       readFile: async (candidate) => files.get(candidate) ?? "",
       writeFile: async (candidate, content) => { files.set(candidate, content); },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(files.get(path)).toBe(
       "# Draft: renamed-sample\n\n`--plan renamed-sample`\n\n"
@@ -103,15 +111,17 @@ describe("sweepRenameReferences", () => {
     const files = new Map([[path, content]]);
     let wrote = false;
 
-    await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => [`active/${basename}`],
       readFile: async (candidate) => files.get(candidate) ?? "",
       writeFile: async () => { wrote = true; },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(wrote).toBe(false);
     expect(files.get(path)).toBe(content);
@@ -141,8 +151,8 @@ describe("sweepRenameReferences", () => {
       targetSlug: "renamed-sample",
     };
 
-    await sweepRenameReferences(params, ctx);
-    await sweepRenameReferences(params, ctx);
+    await applyRenameReferencePlan(await planRenameReferences(params, ctx), ctx);
+    await applyRenameReferencePlan(await planRenameReferences(params, ctx), ctx);
 
     expect(writes).toBe(1);
     expect(files.get(path)).toBe("# Draft: renamed-sample\n\n`--plan renamed-sample`\n");
@@ -163,12 +173,7 @@ describe("sweepRenameReferences", () => {
     ]);
     const written = new Map<string, string>();
 
-    const result = await sweepRenameReferences({
-      arcRoot: "/repo/.arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-      cohortDocRelativePath: "backlog/planned/group/cohort-group.md",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => [
         "active/meta-sibling.md",
         "backlog/planned/group/spec-sibling.md",
@@ -177,7 +182,14 @@ describe("sweepRenameReferences", () => {
       ],
       readFile: async (path) => files.get(path) ?? "",
       writeFile: async (path, content) => { written.set(path, content); },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: "/repo/.arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+      cohortDocRelativePath: "backlog/planned/group/cohort-group.md",
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     const rewrittenMeta = parseMetaRecord(written.get("/repo/.arc/active/meta-sibling.md") ?? "");
     expect(rewrittenMeta.dependsOn).toEqual(["renamed-sample", "sample-extra"]);
@@ -201,15 +213,17 @@ describe("sweepRenameReferences", () => {
       dependsOn: [],
     });
     let wrote = false;
-    await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => ["active/meta-sibling.md"],
       readFile: async () => content,
       writeFile: async () => { wrote = true; },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+    }, context);
+    await applyRenameReferencePlan(result, context);
     expect(wrote).toBe(false);
   });
 
@@ -221,16 +235,18 @@ describe("sweepRenameReferences", () => {
     });
     let wrote = false;
 
-    const result = await sweepRenameReferences({
+    const context: RenameReferenceSweepContext = {
+      listFiles: async () => ["active/meta-integrating.md"],
+      readFile: async () => content,
+      writeFile: async () => { wrote = true; },
+    };
+    const result = await planRenameReferences({
       arcRoot: ".arc",
       sourceSlug: "sample",
       targetSlug: "renamed-sample",
       excludedPaths: [".arc/active/meta-integrating.md"],
-    }, {
-      listFiles: async () => ["active/meta-integrating.md"],
-      readFile: async () => content,
-      writeFile: async () => { wrote = true; },
-    });
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(result.changedPaths).toEqual([]);
     expect(wrote).toBe(false);
@@ -247,18 +263,20 @@ describe("sweepRenameReferences", () => {
       [".arc/active/meta-divergent.md", content],
     ]);
 
-    const result = await sweepRenameReferences({
-      arcRoot: ".arc",
-      sourceSlug: "sample",
-      targetSlug: "renamed-sample",
-      excludedPaths: [".arc/active/meta-divergent.md"],
-    }, {
+    const context: RenameReferenceSweepContext = {
       listFiles: async () => ["active/meta-divergent.md", "active/meta-shared.md"],
       readFile: async (path) => files.get(path) ?? "",
       writeFile: async (path, updated) => {
         files.set(path, updated);
       },
-    });
+    };
+    const result = await planRenameReferences({
+      arcRoot: ".arc",
+      sourceSlug: "sample",
+      targetSlug: "renamed-sample",
+      excludedPaths: [".arc/active/meta-divergent.md"],
+    }, context);
+    await applyRenameReferencePlan(result, context);
 
     expect(result.changedPaths).toEqual([".arc/active/meta-shared.md"]);
     expect(files.get(".arc/active/meta-shared.md")).toContain("- **Depends On:** `renamed-sample`");

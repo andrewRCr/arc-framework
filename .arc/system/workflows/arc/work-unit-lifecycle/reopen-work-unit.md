@@ -5,8 +5,6 @@ arc:
   methods:
     - branch-format
     - commit-footer
-  extensions:
-    - pre-push-review
 ---
 
 # Workflow: Reopen Work Unit
@@ -111,10 +109,6 @@ Context: meta-{name}.md (maintenance)
 The branch is already upstream (the PR was open). Push the state-flip commit so the remote reflects `Active` — and,
 under `--keep-pr`, so the draft PR carries it.
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list (established at
-  session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an actionable message; user
-  fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -122,10 +116,10 @@ under `--keep-pr`, so the draft PR carries it.
 
 With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
 task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
-already-closed WU is back in
-Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and `workflow:
-prepare-work-unit`; return to [`prepare-work-unit.md`][prepare]. Candidate currentness and review procedures account
-for head-changing fixes; never route from the cleared narrative `**Next Action:**` field.
+already-closed WU is back in Candidate-bearing `**State:** Active`, which projects
+`sessionType: prepublication` and `workflow: prepare-work-unit`; return to [`prepare-work-unit.md`][prepare].
+Candidate currentness and review procedures account for head-changing fixes;
+never route from the cleared narrative `**Next Action:**` field.
 
 ---
 

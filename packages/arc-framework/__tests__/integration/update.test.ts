@@ -86,6 +86,53 @@ describe("update integration — baseline (real recipe)", () => {
     await cleanupTempDir(tempDir);
   });
 
+  it("retains old Configurable residue without reading it on subsequent updates", async () => {
+    const names = ["post-context-load", "pre-spec-finalization-review", "post-task-completion", "pre-activation",
+      "post-work-unit-activate", "pre-commit-review", "pre-push-review", "pre-pr-open", "post-pr-open", "pre-merge",
+      "post-work-unit-archive"];
+    const manifest = await readManifestFile(tempDir);
+    const pristine = await readPristineStore(tempDir);
+    const retained = new Map<string, string>();
+    for (const name of names) {
+      const path = `system/extensions/${name}.md`;
+      const baseline = `---\nname: ${name}\ndescription: Legacy lifecycle action\nactive: false\n---\n\n## ${name}.actions\n\n[No extension configured]\n`;
+      const edited = baseline.replace("active: false", "active: true")
+        .replace("[No extension configured]", "1. Preserve the project's authored action.");
+      await ensureDir(dirname(join(tempDir, ".arc", path)));
+      await writeFile(join(tempDir, ".arc", path), edited, "utf8");
+      manifest.files[path] = { classification: "Configurable", layer: "core", pristine_hash: sha256(baseline) };
+      pristine[path] = baseline;
+      retained.set(path, edited);
+    }
+    const readme = "system/extensions/README.md";
+    await writeFile(join(tempDir, ".arc", readme), "# Legacy lifecycle actions\n", "utf8");
+    manifest.files[readme] = { classification: "Framework", layer: "core", pristine_hash: sha256("# Legacy lifecycle actions\n") };
+    pristine[readme] = "# Legacy lifecycle actions\n";
+    await writeFile(manifestPath(tempDir), JSON.stringify(manifest), "utf8");
+    await writePristineStore(tempDir, pristine);
+    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir), templateDir: realTemplateDir,
+      recipe: await loadRecipe() });
+    expect(result.keptForReview.sort()).toEqual([...retained.keys()].sort());
+    expect(result.removed).toContain(readme);
+    expect(await fileExists(join(tempDir, ".arc", readme))).toBe(false);
+    for (const records of [(await readManifestFile(tempDir)).files, await readPristineStore(tempDir)]) {
+      expect(Object.keys(records).some((path) => path.startsWith("system/extensions/"))).toBe(false);
+    }
+    const io = makeIOContext(tempDir);
+    const guardedRead = io.readFile;
+    io.readFile = (path) => {
+      if ([...retained.keys()].some((key) => path.replaceAll("\\", "/").endsWith(`/${key}`))) {
+        throw new Error("Inert residue was read");
+      }
+      return guardedRead(path);
+    };
+    const next = await runUpdate({ cwd: tempDir, io, templateDir: realTemplateDir, recipe: await loadRecipe() });
+    expect(next.keptForReview).toEqual([]);
+    expect(next.removed).toEqual([]);
+    expect(next.conflicts).toEqual([]);
+    for (const [path, content] of retained) expect(await readFile(join(tempDir, ".arc", path), "utf8")).toBe(content);
+  });
+
   it("immediate update with no changes → all files unchanged or skipped", async () => {
     const recipe = await loadRecipe();
 
@@ -108,6 +155,56 @@ describe("update integration — baseline (real recipe)", () => {
       classification: "Framework",
       layer: "core",
     });
+  });
+
+  it("replaces the old Framework pull-request template with the configurable method", async () => {
+    const old = "reference/templates/arc/work-unit/template-pull-request.md";
+    const method = "system/methods/pull-request-format.md";
+    const baseline = await readFile(join(import.meta.dirname, "../fixtures/legacy-pull-request-template.txt"), "utf8");
+    const manifest = await readManifestFile(tempDir);
+    const pristine = await readPristineStore(tempDir);
+    await ensureDir(dirname(join(tempDir, ".arc", old)));
+    await writeFile(join(tempDir, ".arc", old), baseline, "utf8");
+    manifest.files[old] = { classification: "Framework", layer: "core", pristine_hash: sha256(baseline) };
+    pristine[old] = baseline;
+    Reflect.deleteProperty(manifest.files, method);
+    Reflect.deleteProperty(pristine, method);
+    await rm(join(tempDir, ".arc", method));
+    await writeFile(manifestPath(tempDir), JSON.stringify(manifest), "utf8");
+    await writePristineStore(tempDir, pristine);
+
+    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+      templateDir: realTemplateDir, recipe: await loadRecipe() });
+    expect(result.conflicts).toEqual([]);
+    expect(result.removed).toContain(old);
+    expect(await fileExists(join(tempDir, ".arc", old))).toBe(false);
+    expect(await fileExists(join(tempDir, ".arc", method))).toBe(true);
+    const updated = await readManifestFile(tempDir);
+    const updatedPristine = await readPristineStore(tempDir);
+    expect(updated.files[old]).toBeUndefined();
+    expect(updatedPristine[old]).toBeUndefined();
+    expect(updated.files[method]?.classification).toBe("Configurable");
+    expect(updatedPristine[method]).toBe(await readFile(join(realTemplateDir, method), "utf8"));
+  });
+
+  it("preserves a populated pull-request-format override and packaged pristine hash", async () => {
+    const methodPath = "system/methods/pull-request-format.md";
+    const installedPath = join(tempDir, ".arc", methodPath);
+    const customized = (await readFile(installedPath, "utf8"))
+      .replace("override-active: false", "override-active: true")
+      .replace("[No override configured]", "Keep the project disclosure and reviewer checklist.\nUse an imperative title.");
+    await writeFile(installedPath, customized, "utf8");
+    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+      templateDir: realTemplateDir, recipe: await loadRecipe() });
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(installedPath, "utf8")).toBe(customized);
+    expect((await readManifestFile(tempDir)).files[methodPath]).toMatchObject({
+      classification: "Configurable", layer: "core",
+      pristine_hash: sha256(await readFile(join(realTemplateDir, methodPath), "utf8")),
+    });
+    expect((await readPristineStore(tempDir))[methodPath]).toBe(
+      await readFile(join(realTemplateDir, methodPath), "utf8"),
+    );
   });
 
   it("preserves assess-boundary-fit overrides as Configurable content", async () => {
@@ -152,7 +249,7 @@ describe("update integration — baseline (real recipe)", () => {
     expect((await stat(hooksReadme)).mode & 0o100).toBeFalsy();
   });
 
-  it("re-update on post-restructure .arc/ is idempotent for per-file methods/extensions", async () => {
+  it("re-update is idempotent for per-file methods", async () => {
     const recipe = await loadRecipe();
 
     // First update — no-op baseline.
@@ -179,7 +276,7 @@ describe("update integration — baseline (real recipe)", () => {
     expect(result.removed).toEqual([]);
     expect(result.reclassified).toEqual([]);
 
-    // Per-file methods/extensions specifically: no registered entry moved
+    // Per-file methods specifically: no registered entry moved
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
@@ -192,14 +289,7 @@ describe("update integration — baseline (real recipe)", () => {
         "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ].map((n) => `system/methods/${n}.md`),
-      ...[
-        "post-context-load", "post-task-completion",
-        "post-work-unit-activate",
-        "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review", "pre-spec-finalization-review",
-      ].map((n) => `system/extensions/${n}.md`),
       "system/methods/README.md",
-      "system/extensions/README.md",
     ];
     for (const path of perFilePaths) {
       expect(result.added, `${path} should not be added`).not.toContain(path);
@@ -227,6 +317,7 @@ describe("update integration — baseline (real recipe)", () => {
     const legacyExtensionsContent = "# Legacy aggregate extensions file\n";
 
     await writeFile(legacyMethodsPath, legacyMethodsContent, "utf-8");
+    await ensureDir(dirname(legacyExtensionsPath));
     await writeFile(legacyExtensionsPath, legacyExtensionsContent, "utf-8");
 
     const result = await runUpdate({

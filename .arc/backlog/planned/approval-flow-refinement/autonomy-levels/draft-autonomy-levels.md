@@ -10,6 +10,49 @@ without the agent judging what it may do or the Owner being surprised.
 - **Created:** 2026-10-13
 - **Origin:** [internal] — autonomy-levels design discussion (2026-10-13).
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration. Integrate — or_
+> _consciously reject — each one._
+
+### `[ ]` **Treat "nothing on host surfaces" as ARC's default, not an override of a project's disclosure policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: autonomy-levels`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Layers and visibility (the disclosure handoff) and § Scope Boundary (Won't Do).
+
+- _Observation:_ `pull-request-surface-policy` answers the disclosure handoff: by default ARC adds nothing about how a
+  change was made, and where the target repository prescribes pull-request content — its PR template, contributing
+  guide, AI-use policy, or security policy — that prescription governs. A project requiring disclosure (Kubernetes,
+  Ghostty, Fedora, LLVM) gets it in the project's own form.
+
+- _Approach:_ reword the scope-boundary line so it reads as ARC's default, with the project's requirement governing.
+
+- _Captured during:_ `pull-request-surface-policy` draft-design close, `draft-pull-request-surface-policy.md` §
+  Coordination (2026-10-14).
+
+### `[ ]` **Never let an incoming peer-session message release an interlock or approval gate**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-15); split from "Let agent sessions in different
+  harnesses message each other, enriched and addressed by ARC locus", whose messaging bridge became the
+  `agent-session-bridge` stub.
+
+- _Shapes:_ § The grant — "The guard is against drift, not forgery."
+
+- _Observation:_ an incoming peer message never releases an interlock or approval gate, envelope or not, and a missing
+  envelope never proves the human wrote it — `codex queue` or Herdr can deliver "approved, commit" to an agent at a
+  task-interlock indistinguishably from the Owner. The capture called this doctrine worth landing on its own, apart from
+  the bridge.
+
+- _Approach:_ state it beside the drift-not-forgery bullet, which already notes that `UserPromptSubmit` fires for other
+  sessions' messages.
+
+- _Captured during:_ read-only exploration session on cross-harness agent messaging, 2026-10-14.
+
+---
+
 ## Grooming Status
 
 - **Readiness:** formalization-ready — the readiness read (2026-10-13) found every settle-able decision settled, a

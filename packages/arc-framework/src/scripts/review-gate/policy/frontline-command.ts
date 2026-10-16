@@ -1,6 +1,8 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
+import { withdrawUnrunFrontlineAdmission } from "./frontline-pending-admission.js";
 import {
   FrontlineCommandResultEnvelopeSchema,
 } from "../core/review-command-envelope.js";
@@ -178,9 +180,12 @@ async function admitNewFrontlineOperation(
   }
   const admittedSource = semantic.frontlineReview.source;
   if (admittedSource === null) throw new Error("frontline ready resolution lacks an executable source");
-  const retryGeneration = (initialOwner?.attempts
+  const priorGeneration = initialOwner?.attempts
     .filter((attempt) => attempt.logicalPass === logicalPass)
-    .reduce((maximum, attempt) => Math.max(maximum, attempt.retryGeneration), -1) ?? -1) + 1;
+    .reduce((maximum, attempt) => Math.max(maximum, attempt.retryGeneration), -1) ?? -1;
+  const retryGeneration = parsed.policyJudgment?.ceilingOverride?.conditionalPassAuthorizationId === undefined
+    ? Math.max(ownerVersion, priorGeneration + 1)
+    : priorGeneration + 1;
   const admission = createFrontlineAdmission({
     lineage,
     target: parsed.target,
@@ -336,25 +341,42 @@ async function resolveFrontlineSelection(
   return { routing, maxPasses, semantic, payload, diagnostics, base };
 }
 
-async function resolveFrontlineCommandWithinLock(
+async function readFrontlineOwnerForResolution(
   parsed: FrontlineCommandRequest,
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
-): Promise<FrontlineCommandResult> {
-  const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(dependencies.operationStore, {
+) {
+  const current = await readLaneProgressOwnerVersioned(dependencies.operationStore, {
     lane: "frontline",
     repositoryId: parsed.target.repositoryId,
     headSha: parsed.target.headSha,
     lineage,
   });
-  const pending = owner?.attempts.filter((attempt) => (
+  const pending = current.state?.attempts.filter((attempt) => (
     attempt.outcome === "pending" && attempt.frontline !== undefined
   )) ?? [];
   if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
   const pendingAdmission = pending[0]?.frontline?.admission;
-  if (pendingAdmission !== undefined) {
-    return resumePendingFrontlineAdmission(pendingAdmission);
+  if (pendingAdmission === undefined) return { ...current, replay: null };
+  const replay = resumePendingFrontlineAdmission(pendingAdmission);
+  if (parsed.invocation.mode !== "skip" && canonicalize(parsed.target) === canonicalize(pendingAdmission.target)) {
+    return { ...current, replay };
   }
+  const pendingOwner = current.state;
+  if (pendingOwner === null) throw new Error("frontline pending admission has no lane owner");
+  const withdrawn = await withdrawUnrunFrontlineAdmission(dependencies.operationStore, pendingOwner, current.version,
+    pendingAdmission, dependencies.now(), (operationId, action) => dependencies.withLaneOperationLock(operationId, action));
+  return withdrawn === null ? { ...current, replay } : { ...withdrawn, replay: null };
+}
+
+async function resolveFrontlineCommandWithinLock(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+): Promise<FrontlineCommandResult> {
+  const { version: ownerVersion, state: owner, replay } =
+    await readFrontlineOwnerForResolution(parsed, lineage, dependencies);
+  if (replay !== null) return replay;
   const phase = await readOpeningFrontlinePhase({ parsed, lineage, owner, dependencies });
   if (phase.unresolvedFindings) {
     throw new Error("unresolved frontline findings must be settled before another frontline resolution");

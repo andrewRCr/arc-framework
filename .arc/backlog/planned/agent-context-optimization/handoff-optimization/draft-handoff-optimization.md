@@ -117,6 +117,26 @@ Optimization WU.
 
 - _Captured during:_ `storage-seam` draft close, 2026-10-09.
 
+### `[ ]` **Give a between-work-units session somewhere to hand off its intent**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-10-15); homed at
+  the drain.
+
+- _Shapes:_ § In scope, "Lightweight entry-mode paths" (errand / housekeep / between-WUs handoffs); inbound "Terminal-WU
+  handoff mode, an explicit sync-only handoff tier, and boundary-marker output".
+
+- _Observation:_ session handoff writes `SESSION-NOTES.md` under `user/{identity}/{work-unit}/`, so only a work unit's
+  session can leave intent for the next one. On 2026-10-13 a housekeep drain was planned from the primary checkout
+  between work units, with captures to merge, a placement lean for the extension redesign, and a timing constraint
+  around Codex's List A; the recommendation to run it from a fresh session had nowhere to record that plan, so the drain
+  ran in the same session. WORKING-MEMORY holds durable cross-unit guidance, not one session's next step.
+
+- _Approach:_ a between-work-units handoff record that session handoff writes and session-init reads on entering the
+  primary checkout's between-WUs frame, or one a transient's resume reads (a drain or an Errand). Where it lives is
+  operational state, so it follows the storage contract.
+
+- _Captured during:_ the List B run, 2026-10-13, at the housekeep-drain recommendation.
+
 ---
 
 ## Problem / Motivation
@@ -131,8 +151,8 @@ session:
    _"When step 3 didn't fire a commit, probe-2's mutated slots are identical to
    probe-1's — the second invocation is harmless redundancy. The workflow doesn't
    branch on whether a commit fired."_ When a commit does fire, the worktree / dirty /
-   head deltas are deterministic from probe-1 plus the commit just made;
-   `recommendedSummaryLine` is the only slot that genuinely needs recomputation.
+   head deltas are deterministic from probe-1 plus the commit just made; `recommendedSummaryLine` is the only slot that
+   genuinely needs recomputation.
 
 2. **Agent-side judgment without delta context.** Three steps require the agent to
    reason about "what changed since the last handoff," but the probe surfaces that
@@ -169,64 +189,50 @@ semantic judgment in the agent, and eliminate the double probe entirely.
 Four candidate optimizations, sequenced from highest-confidence-mechanical to
 lowest:
 
-1. **Replace probe-2 with local delta + cheap recompute.** After the
-   `chore(status): handoff` commit, the agent already knows: new HEAD (from the
-   commit just fired), worktree state delta (+1 ahead, others unchanged), dirty
-   state (clean). Only `recommendedSummaryLine` needs recomputation. Approach:
-   small CLI surface (e.g., `arc status --session-handoff-refresh --json` or a
-   shape on the existing handler) that takes the post-commit HEAD and returns
-   only the recomputed summary line, or expose
-   `composeRecommendedSummaryLine` as a callable from probe-1's data + the new
-   commit hash. **This subsumes the simpler "skip probe-2 when no commit fires"
-   variant** — the no-commit case becomes "no deltas, no recompute needed,"
-   handled by the same code path with zero cost.
+1. **Replace probe-2 with local delta + cheap recompute.** After the `chore(status): handoff` commit, the agent already
+   knows: new HEAD (from the commit just fired), worktree state delta (+1 ahead, others unchanged), dirty state (clean).
+   Only `recommendedSummaryLine` needs recomputation. Approach: small CLI surface (e.g.,
+   `arc status --session-handoff-refresh --json` or a shape on the existing handler) that takes the post-commit HEAD and
+   returns only the recomputed summary line, or expose `composeRecommendedSummaryLine` as a callable from probe-1's
+   data + the new commit hash. **This subsumes the simpler "skip probe-2 when no commit fires" variant** — the no-commit
+   case becomes "no deltas, no recompute needed," handled by the same code path with zero cost.
 
-2. **Surface status-field deltas in probe-1.** New slot:
-   `statusFieldsAtLastHandoff: { state, branch, taskList, nextTask, lastCompleted,
-   blockers, nextAction }` populated from `git show <last-handoff-hash>:<status-path>`.
-   Probe-1 already has the last handoff hash via `restateCandidates`'s reference
-   frame. Skip-threshold judgment becomes mechanical: agent compares current
-   intended-write to that snapshot, and skips when no field crossed the threshold.
+2. **Surface status-field deltas in probe-1.** New slot: `statusFieldsAtLastHandoff: { state, branch, taskList,
+   nextTask, lastCompleted, blockers, nextAction }` populated from `git show <last-handoff-hash>:<status-path>`. Probe-1
+   already has the last handoff hash via `restateCandidates`'s reference frame. Skip-threshold judgment becomes
+   mechanical: agent compares current intended-write to that snapshot, and skips when no field crossed the threshold.
 
 3. **Structured Persistent Context triggers — elevated to co-headline (2026-07-02).** Persistent
    Context entries currently carry a freeform `_Remove when:_` line. Move to structured triggers (e.g.,
-   `trigger.refExists: refs/notes/...`, `trigger.fileExists: ...`,
-   `trigger.commitContains: ...`) that the CLI evaluates at probe time. Surface
-   "ready to remove" entries in a slot. Existing entries need migration; future
-   authoring requires the structured shape. Convention change in `session-handoff.md`
-   § Persistent Context.
-   _Elevation evidence:_ WORKING-MEMORY has grown to ~226 lines / ~3.5k tokens of rich prose, re-read at
-   every session-init **and** re-judged entry-by-entry at every handoff — the largest single
-   agent-judgment cost in the ceremony and a per-session read cost besides. ADR-022 already claims the
-   record-schema side; this item is its evaluator. Rank it with item 1, not below it.
+   `trigger.refExists: refs/notes/...`, `trigger.fileExists: ...`, `trigger.commitContains: ...`) that the CLI evaluates
+   at probe time. Surface "ready to remove" entries in a slot. Existing entries need migration; future authoring
+   requires the structured shape. Convention change in `session-handoff.md` § Persistent Context. _Elevation evidence:_
+   WORKING-MEMORY has grown to ~226 lines / ~3.5k tokens of rich prose, re-read at every session-init **and** re-judged
+   entry-by-entry at every handoff — the largest single agent-judgment cost in the ceremony and a per-session read cost
+   besides. ADR-022 already claims the record-schema side; this item is its evaluator. Rank it with item 1, not below
+   it.
 
-4. **Pass 2 hint surface (low priority, possibly infeasible).** Pass 2's
-   "not in any durable tracked source" criterion would require semantic search across
-   PRD, strategy, constitution, plans, ADRs. This is what an agent does well and a
-   CLI poorly without an indexer. Likely stays agent-side; flagged for completeness
-   but not pursued unless a low-cost approximation surfaces.
+4. **Pass 2 hint surface (low priority, possibly infeasible).** Pass 2's "not in any durable tracked source" criterion
+   would require semantic search across PRD, strategy, constitution, plans, ADRs. This is what an agent does well and a
+   CLI poorly without an indexer. Likely stays agent-side; flagged for completeness but not pursued unless a low-cost
+   approximation surfaces.
 
-5. **Routing-shift posture surface for session-init.** Companion slot
-   `releaseRoutingAtLastHandoff: { taskCommit, workflowCommit, workflowPush }` populated
-   alongside `statusFieldsAtLastHandoff` (item 2) — same `git show <last-handoff-hash>`
-   reference frame. Session-init handler compares the snapshot against this session's
-   resolved `releaseRouting` (PRD R12.1, shipped in Release Wrappers — Adopter Ergonomics
-   WU); when the values differ (interlock keys edited in git-config / yaml since last
-   handoff), session-init surfaces a one-line posture-change note in orientation. Silent
-   when no shift. Absorbs the deferred posture-shift surface from
-   `prd-release-wrappers-ergonomics.md` R11 — that WU dropped the always-on
-   release-wrapper engaged line as orientation noise (configuration-state surface, not
-   action-needed surface) and deferred the legitimate state-shift surface to this WU's
-   delta-detection infrastructure.
+5. **Routing-shift posture surface for session-init.** Companion slot `releaseRoutingAtLastHandoff: { taskCommit,
+   workflowCommit, workflowPush }` populated alongside `statusFieldsAtLastHandoff` (item 2) — same
+   `git show <last-handoff-hash>` reference frame. Session-init handler compares the snapshot against this session's
+   resolved `releaseRouting` (PRD R12.1, shipped in Release Wrappers — Adopter Ergonomics WU); when the values differ
+   (interlock keys edited in git-config / yaml since last handoff), session-init surfaces a one-line posture-change note
+   in orientation. Silent when no shift. Absorbs the deferred posture-shift surface from
+   `prd-release-wrappers-ergonomics.md` R11 — that WU dropped the always-on release-wrapper engaged line as orientation
+   noise (configuration-state surface, not action-needed surface) and deferred the legitimate state-shift surface to
+   this WU's delta-detection infrastructure.
 
 6. **Handoff-commit subject + body rendering helper.** The handoff-commit shape that
    lands in WOR (`session-handoff.md` step 3, codified in Task 6.1.e) reshapes the
-   commit from today's empty-body `chore(status): handoff` to a codified
-   `chore(arc): handoff — <position>` subject + structured field-delta body. The MVP
-   shipping with WOR leaves rendering as workflow-prose: agent reads the staged
-   meta-file diff + last-handoff snapshot, picks a position-string template from a
-   codified vocabulary, fills the body template. This item extracts the deterministic
-   steps to a CLI helper:
+   commit from today's empty-body `chore(status): handoff` to a codified `chore(arc): handoff — <position>` subject +
+   structured field-delta body. The MVP shipping with WOR leaves rendering as workflow-prose: agent reads the staged
+   meta-file diff + last-handoff snapshot, picks a position-string template from a codified vocabulary, fills the body
+   template. This item extracts the deterministic steps to a CLI helper:
 
     - **Input:** the staged meta-file diff + last-handoff hash from SESSION-NOTES.
       Consumes item 2's `statusFieldsAtLastHandoff` slot as the "prev" reference.
@@ -270,11 +276,9 @@ lowest:
   types, CLI evaluator, migration of existing entries across the repo, workflow doc
   update for authoring conventions.
 
-- **Handoff-commit rendering helper** (item 6) — CLI extraction of the
-  position-string template selection + body-delta rendering from `session-handoff.md`
-  step 3 (codified in WOR Task 6.1.e). Reuses item 2's `statusFieldsAtLastHandoff`
-  snapshot. Workflow update to consume the helper's output rather than render in
-  prose.
+- **Handoff-commit rendering helper** (item 6) — CLI extraction of the position-string template selection + body-delta
+  rendering from `session-handoff.md` step 3 (codified in WOR Task 6.1.e). Reuses item 2's `statusFieldsAtLastHandoff`
+  snapshot. Workflow update to consume the helper's output rather than render in prose.
 
 - **Workflow updates** in `session-handoff.md` reflecting all of the above —
   probe-1 / probe-2 collapse, skip-threshold mechanization, persistent-context
@@ -297,8 +301,7 @@ lowest:
 ### Out of scope
 
 - Sync auto-invoke behavior — gated on `syncInterlock`; not a target.
-- SESSION-NOTES authoring conventions beyond Persistent Context structured
-  triggers — Pass 1 / Pass 2 stay as-is.
+- SESSION-NOTES authoring conventions beyond Persistent Context structured triggers — Pass 1 / Pass 2 stay as-is.
 - Agent-side Pass 2 hinting — flagged in Approach as item 4 but not pursued in this
   WU.
 - Composite probe envelope shape changes that aren't slot additions — backwards-compat
@@ -322,10 +325,9 @@ lowest:
 - **User Sync UX Polish** (✅ Complete) — handoff-interior toggle pattern lives
   here; this WU composes against that substrate.
 
-- **Release Wrappers — Adopter Ergonomics** (planned, PRD active) — ships
-  `releaseRouting` envelope slot (PRD R12.1) that this WU's `releaseRoutingAtLastHandoff`
-  snapshot compares against. Release-wrappers WU explicitly defers the posture-shift
-  orientation surface to this WU; PRD R11 references this plan for the mechanism.
+- **Release Wrappers — Adopter Ergonomics** (planned, PRD active) — ships `releaseRouting` envelope slot (PRD R12.1)
+  that this WU's `releaseRoutingAtLastHandoff` snapshot compares against. Release-wrappers WU explicitly defers the
+  posture-shift orientation surface to this WU; PRD R11 references this plan for the mechanism.
 
 - **Worktree Foundation** (planned) — independent. Worktree-aware handoff would
   ride on Worktree Foundation if it lands first; otherwise this WU's scope stays

@@ -7,8 +7,8 @@ succeeds, including archived lists whose task lines do not satisfy the current s
 `ParsedTaskListRecord` is inferred from that schema.
 
 `registration.ts` installs that parser and the complete six-rule check for `work-item/task-list`. The public index
-exposes the pure content API;
-`lib/task-list/` supplies structural scans, cursors, and other derived views over the returned record content.
+exposes the pure content API; `lib/task-list/` supplies structural scans, cursors, and other derived views over the
+returned record content.
 
 `writeTaskMarker` completes or defers exactly one scanned task by identifier, preserving all other bytes. It refuses
 malformed lists, missing or ambiguous identifiers, and edits that leave the task structure invalid.

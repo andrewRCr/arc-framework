@@ -1,4 +1,6 @@
 /** Closed classification of tracked lock and canonical-writer version failures. */
+import { LineageRepairVersionConflictError } from "../kinds/lineage/repair.js";
+
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import type { RecordReference } from "../identity.js";
 import { refuse } from "./refusals.js";
@@ -26,7 +28,8 @@ export async function isWriterVersionConflict(error: unknown, reference: RecordR
     const { SubmissionBoundaryVersionConflictError } = await import("../../work-unit/submission-boundary-store.js");
     return error instanceof SubmissionBoundaryVersionConflictError;
   }
-  return reference.kind === "lineage/transition" && typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST";
+  return reference.kind === "lineage/transition" && (error instanceof LineageRepairVersionConflictError
+    || (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST"));
 }
 /** Translate the actual advisory timeout class without guessing from an error message.
  * @param operation - Complete tracked lock scope.

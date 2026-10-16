@@ -12,6 +12,7 @@
  * @module
  */
 
+import { RecordReferenceSchema, RecordVersionSchema } from "../store/identity.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, posix } from "node:path";
@@ -83,7 +84,7 @@ export interface WorktreeHuskStamp {
 export interface WorktreeRenameMovePending {
   oldSlug: string;
   newSlug: string;
-  branch: string;
+  branch: string | null;
   head: string;
   from: string;
   to: string;
@@ -311,8 +312,7 @@ function isWorktreeRenameMovePending(value: unknown): value is WorktreeRenameMov
     && pending.oldSlug !== ""
     && typeof pending.newSlug === "string"
     && pending.newSlug !== ""
-    && typeof pending.branch === "string"
-    && pending.branch !== ""
+    && (pending.branch === null || (typeof pending.branch === "string" && pending.branch !== ""))
     && typeof pending.head === "string"
     && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(pending.head)
     && typeof pending.from === "string"
@@ -379,6 +379,7 @@ function huskEvidenceMatchesAuthorization(
   evidence: RetirementEvidenceRef,
 ): boolean {
   if (evidence.kind === "shipped") return authorization === "merged-preserved";
+  if (evidence.kind === "lineage") return authorization === (evidence.transition === "abandon" ? "discard-confirmed" : "merged-preserved");
   if (evidence.transition === "park-planning") {
     return authorization === "planning-relocated";
   }
@@ -412,6 +413,14 @@ function decodeKnownEvidence(value: PersistedRetirementEvidence | undefined): Re
       && candidate.baseProofOid !== ""
       ? value as RetirementEvidenceRef
       : null;
+  }
+  if (value?.kind === "lineage") {
+    const candidate = value as Record<string, unknown>;
+    const reference = RecordReferenceSchema.safeParse(candidate.reference);
+    const version = RecordVersionSchema.safeParse(candidate.version);
+    return Object.keys(candidate).length === 5 && reference.success && reference.data.kind === "lineage/transition" && version.success
+      && (candidate.transition === "abandon" || candidate.transition === "decompose") && isCanonicalDigest(candidate.resultDigest)
+      ? value as RetirementEvidenceRef : null;
   }
   if (value?.kind === "git-transition") {
     const candidate = value as Record<string, unknown>;

@@ -255,6 +255,26 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(remoteHead).toContain(head.trim());
   });
 
+  it("create-new handler: refuses a seed without --here and leaves the repository unchanged", async () => {
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const before = await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo });
+    const result = await runHandlerAt(h.repo, () => handleStart(
+      "seeded-spawn", { new: true, from: "./spec-input.md", yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" }),
+    ));
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("arc start --here --from <seed>");
+    expect((await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo })).stdout)
+      .toBe(before.stdout);
+    expect((await execFileAsync("git", ["branch", "--list", "plan/seeded-spawn"], { cwd: h.repo })).stdout)
+      .toBe("");
+  });
+
   it("create-new handler: refuses an absent slug without --new", async () => {
     const slug = "implicit-create";
     const remote = `${h.repo}-origin.git`;

@@ -1078,18 +1078,64 @@ describe("auditRecoveryState", () => {
     expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
   });
 
-  it("stops on new dirty paths but explains seed paths committed since emission", async () => {
-    const newDirt = await run({ freshUncommittedFiles: ["src/demo.ts", "src/new.ts"] });
-    expect(newDirt.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+  it("explains files dirtied after the seed while every seed path stays dirty", async () => {
+    const added = await run({ freshUncommittedFiles: ["src/demo.ts", "src/new.ts", "src/other.ts"] });
+    expect(added.status).toBe("ready");
+    expect(added.dirtyFiles).toMatchObject({ pathSetMatch: false, match: false, explainedByCommittedProgress: false });
+    expect(added.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: [], addedPaths: ["src/new.ts", "src/other.ts"], committedSince: "a".repeat(40) },
+    }));
+  });
 
+  it("explains seed paths committed since emission, with or without files dirtied after the seed", async () => {
+    const committedProgress = async () => ({ advanced: true, files: new Set(["src/demo.ts"]) });
     const committed = await run({
       freshHead: "b".repeat(40),
       freshUncommittedFiles: [],
       recover: recover({ dirty: ok({ state: "clean", fileCount: 0 }) }),
-      resolveCommittedProgress: async () => ({ advanced: true, files: new Set(["src/demo.ts"]) }),
+      resolveCommittedProgress: committedProgress,
     });
     expect(committed.status).toBe("ready");
-    expect(committed.explainedDrift).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+    expect(committed.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: ["src/demo.ts"], addedPaths: [], committedSince: "a".repeat(40) },
+    }));
+
+    const both = await run({
+      freshHead: "b".repeat(40),
+      freshUncommittedFiles: ["src/new.ts"],
+      resolveCommittedProgress: committedProgress,
+    });
+    expect(both.status).toBe("ready");
+    expect(both.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "dirty-path-drift",
+      detail: { resolvedPaths: ["src/demo.ts"], addedPaths: ["src/new.ts"], committedSince: "a".repeat(40) },
+    }));
+  });
+
+  it.each([
+    { name: "a seed path left the dirty set uncommitted", freshUncommittedFiles: [] as string[] },
+    { name: "a seed path left the dirty set uncommitted beside a file dirtied after the seed",
+      freshUncommittedFiles: ["src/new.ts"] },
+  ])("stops when $name", async ({ freshUncommittedFiles }) => {
+    const result = await run({
+      freshUncommittedFiles,
+      recover: recover({ dirty: ok(freshUncommittedFiles.length === 0
+        ? { state: "clean" as const, fileCount: 0 } : { state: "dirty" as const, fileCount: 1 }) }),
+    });
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+    expect(result.explainedDrift).not.toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
+  });
+
+  it("stops on added files when the dirty-state probe contradicts the path set", async () => {
+    const result = await run({
+      freshUncommittedFiles: ["src/demo.ts", "src/new.ts"],
+      recover: recover({ dirty: ok({ state: "clean", fileCount: 0 }) }),
+    });
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "dirty-path-drift" }));
   });
 
   it("stops on task-cursor drift or a missing required cursor", async () => {
@@ -1127,7 +1173,6 @@ describe("auditRecoveryState", () => {
       sessionType: "planning",
       planningStage: "generate-tasks",
       taskListPath: ".arc/active/tasks-demo.md",
-      activeExtensions: [],
       cohortDocPath: null,
     });
     const row = workUnitRow({
@@ -1166,7 +1211,6 @@ describe("auditRecoveryState", () => {
         }),
         worktreeIdentity: async () => ({ kind: "primary" }),
         dirty: async () => ({ state: "dirty", fileCount: 1 }),
-        extensions: async () => fixtureValue(baseline.extensions),
         config: async () => fixtureValue(baseline.config),
         releaseRouting: async () => fixtureValue(baseline.releaseRouting),
       },
@@ -1180,7 +1224,6 @@ describe("auditRecoveryState", () => {
         worktree: fresh.worktree,
         active: ok({ path: ".arc/active/meta-demo.md", sessionType: "planning", currentWorkflow: "generate-tasks" }),
         loadSet: ok(loadSet),
-        extensions: ok({ active: [] }),
         taskCursor: ok(taskCursor),
       },
       gitSnapshot: { branch: "plan/demo", head: "a".repeat(40), uncommittedFiles: [".arc/active/tasks-demo.md"] },

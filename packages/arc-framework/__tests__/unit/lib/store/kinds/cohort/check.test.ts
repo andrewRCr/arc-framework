@@ -1,5 +1,5 @@
 /** Production cohort registration collects every applicable integrity violation. */
-import { ReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
+import { CohortReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
 import { expect, it } from "vitest";
 import { createKindRegistry } from "../../../../../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../../../src/lib/store/kinds/registrations.js";
@@ -10,7 +10,7 @@ function check() {
   return registered;
 }
 it("returns all three applicable cohort rules", async () => {
-  const next = doc("group", "missing", "—", ReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q4" }));
+  const next = doc("group", "missing", "—", CohortReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q4", sequence: "01", closeout: "a" }));
   expect((await check()(input(next, doc(), [member("group")]))).map(({ rule }) => rule).sort())
     .toEqual(["cohort.open-members", "cohort.parent", "cohort.purpose"]);
 });

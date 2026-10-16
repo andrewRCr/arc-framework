@@ -16,9 +16,9 @@ arc:
 Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
 tasks fire criteria validation as member-scope verification tasks without loading this workflow. They remain distinct
 from the sole terminal work-unit verification task. The terminal task description is intentionally thin — this
-workflow is the authoritative protocol.
-Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
-was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
+workflow is the authoritative protocol. Complete the first two steps below, mark the single verification task `[x]` with
+completion notes covering what was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable
+edit, then complete Step 3.
 
 **Relationship to preparation and integration:** This is the implementer's validation pass and the final execution
 task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
@@ -57,14 +57,13 @@ obtain approval for the complete disposition set, and commit approved fixes per 
 before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
 
 When the task list carries a Delivery Plan, inspect every member-close scale-attention result before the terminal
-merge quality gate.
-Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
-supplies them. A `disabled / none` result is complete without metrics because its typed envelope carries none. A
-`consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an explicit
-capable whole-target choice under the [`review-chunking` method][review-chunking]. Missing evidence, an unresolved
-attention result, or an unbound member re-cut stops and returns to the delivery-member boundary in
-[`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces
-the exact post-materialization recheck.
+merge quality gate. Each completed member must record the resolver's exact target, state, and disposition, plus metrics
+when the resolver supplies them. A `disabled / none` result is complete without metrics because its typed envelope
+carries none. A `consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an
+explicit capable whole-target choice under the [`review-chunking` method][review-chunking]. Missing evidence, an
+unresolved attention result, or an unbound member re-cut stops and returns to the delivery-member boundary in
+[`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces the
+exact post-materialization recheck.
 
 Request `arc check gate merge --force` before the final local attestation.
 
@@ -177,8 +176,7 @@ boundary.
 When marking the verification task `[x]`, include completion notes that make the task
 self-documenting — a reader of the archived task list should understand what was verified
 without loading this workflow. The verification task uses two italic descriptor bullets in
-lieu of the single `_Outcome:_` rule (per
-[strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
+lieu of the single `_Outcome:_` rule (per [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
 verification-task exception). Cover both:
 
 - _Quality gates:_ what ran and the outcome (e.g., "md lint, code lint, typecheck,

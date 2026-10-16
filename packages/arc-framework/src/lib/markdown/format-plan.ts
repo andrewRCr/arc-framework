@@ -253,10 +253,12 @@ export async function planExplicitMarkdownFormat(
 export async function prepareExplicitMarkdownFormat(
   options: PrepareMarkdownFormatOptions,
 ): Promise<ExplicitMarkdownFormatPlan> {
+  const allowIgnoredPaths = new Set(options.paths);
   const paths = await validateExplicitMarkdownPaths({
     root: options.root,
     paths: options.paths,
     operation: "mutate",
+    allowIgnoredPaths,
     exec: options.exec,
     lstat: options.lstat,
     realpath: options.realpath,
@@ -270,6 +272,7 @@ export async function prepareExplicitMarkdownFormat(
     root: options.root,
     paths: explicitFormatWritePaths(loaded.authority, paths),
     operation: "mutate",
+    allowIgnoredPaths,
     exec: options.exec,
     lstat: options.lstat,
     realpath: options.realpath,

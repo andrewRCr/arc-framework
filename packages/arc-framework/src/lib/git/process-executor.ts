@@ -8,7 +8,7 @@ import { execa } from "execa";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
-import type { GitExec, GitExecInput } from "./exec.js";
+import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 
 /** Captured-output ceiling retained by every Git process binding. */
@@ -133,7 +133,10 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : diagnosticEnvironment;
-    const env = applyInteractionEnvironment(objectEnvironment, options?.interaction);
+    const gateEnvironment = options?.pushGateId === undefined
+      ? objectEnvironment
+      : { ...(objectEnvironment ?? process.env), [PUSH_GATE_ID_VARIABLE]: options.pushGateId };
+    const env = applyInteractionEnvironment(gateEnvironment, options?.interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
@@ -165,18 +168,21 @@ export function createExecaRawGitExec(
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
     const environment = environmentForGitCwd(effectiveCwd);
+    const filteredEnvironment = Object.fromEntries(
+      Object.entries(environment ?? process.env).filter(([name]) => !options.removeEnvironment?.includes(name)),
+    );
     const indexedEnvironment = options.indexFile === undefined
-      ? environment
-      : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
+      ? filteredEnvironment
+      : { ...filteredEnvironment, GIT_INDEX_FILE: options.indexFile };
     const objectEnvironment = options.objectAccess === "local-only"
-      ? { ...(indexedEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      ? { ...indexedEnvironment, GIT_NO_LAZY_FETCH: "1" }
       : indexedEnvironment;
     const env = applyNonInteractiveSshEnvironment(
       applyInteractionEnvironment(objectEnvironment, {
         terminalPrompts: "forbidden",
         presenters: "forbidden",
         ambientStdin: "closed",
-      }) ?? objectEnvironment ?? {},
+      }) ?? objectEnvironment,
     );
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]

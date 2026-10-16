@@ -70,6 +70,16 @@ At each increment boundary, run `arc check increment`, then request related unit
 arc check run test:changed test:e2e:local --changed
 ```
 
+Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them.
+Before a branch's first push, request content integration feedback over the whole branch:
+
+```bash
+arc check run test:integration:content --range
+```
+
+It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
+the shared test slot for several minutes, so it runs once per branch rather than at every increment.
+
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
 
@@ -192,8 +202,8 @@ project-specific adherence rule applies on top, because this repository is ARC:
 
 **`(arc)` is not the default scope here.** It marks edits to installed ARC artifacts, which is no signal in a repo
 where everything is ARC. Prefer the narrowest descriptive locus — `fix(brief)`, `fix(hook)`, `fix(strategy)`,
-`fix(method)`, `chore(backlog)`, `feat(session-init)` — and reserve `(arc)` for genuinely cross-cutting changes with
-no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) remain legitimate.
+`fix(method)`, `chore(backlog)`, `feat(session-init)` — and omit the scope for a genuinely cross-cutting change with
+no narrower home; lifecycle-ceremony commits (`chore(arc): verify/integrate/archive/handoff …`) keep `(arc)`.
 
 **`docs` is external-facing prose only** — `README.md`, docs-site content, onboarding. Methodology-artifact edits
 are `fix` / `refactor` / `feat` by intent, never `docs`.
@@ -269,6 +279,9 @@ bound by this too; `strategies/project/` ships as an empty surface and may refer
 Operational rationale adopters need must stand alone in the adopter-facing source; rationale that doesn't earn that
 placement stays in the ADR itself, or routes to whatever capture surface the project uses for docs-site content.
 
+ARC concepts are domain vocabulary here when they are the change's subject. Naming this repository's work-unit or
+Errand identities to narrate how a change was made remains process.
+
 ### Package-source mirror inheritance
 
 Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
@@ -284,6 +297,10 @@ DEV-RULES.ARC § Documentation Boundaries and § Audience Boundaries above both 
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces.
 See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
+
+Before capturing a dependency advisory, read [SECURITY.md § Dependency dispositions][dependency-dispositions] and
+compare the finding's advisory, versions, dependency path, and usage with the recorded assessment. Do not recapture
+an unchanged assessed finding; new evidence, including a compatible fix, reopens triage.
 
 ### Surface agent-side friction and idiom divergence
 
@@ -314,3 +331,4 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 [commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
+[dependency-dispositions]: ../../../SECURITY.md#dependency-dispositions

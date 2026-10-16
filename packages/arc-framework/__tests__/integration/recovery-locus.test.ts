@@ -123,7 +123,6 @@ function recoverProbes(state: DerivedLocusFrame): SessionRecoverProbes {
       ? state.entering.row.checkout.path
       : state.entering.checkoutPath }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
-    extensions: async () => ({ mode: "session-init", active: [], warnings: [] }),
     config: async () => ({
       mode: "session-init",
       settings: {

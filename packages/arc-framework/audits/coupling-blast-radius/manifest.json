@@ -12,9 +12,6 @@
       ".arc/reference/strategies/STRATEGY-INDEX.md",
       ".arc/system/arc-checks.yml",
       ".arc/system/arc-config.yml",
-      ".arc/system/extensions/post-pr-open.md",
-      ".arc/system/extensions/pre-merge.md",
-      ".arc/system/extensions/pre-pr-open.md",
       ".arc/system/methods/testing-standards.md",
       ".arc/system/rules/DEV-RULES.PROJECT.md",
       ".arc/system/workflows/arc/initial-setup/02_define-project.md",
@@ -266,17 +263,6 @@
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D2 — The fragment substrate; roster=planned; snapshot=2026-07-18"}}
     },
     {
-      "id": "extension-root",
-      "key": { "kind": "name", "value": "system/extensions/ extension root" },
-      "patterns": [
-        { "id": "extension-root-literal", "form": "literal", "value": "system/extensions/", "caseSensitive": true },
-        { "id": "extension-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"extensions\"|'extensions'|`extensions`)", "flags": "u" }
-      ],
-      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — The workflow contract shape", "workUnit": "composable-workflows" }],
-      "idioms": ["path-literal", "directory-state"],
-      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — The workflow contract shape; roster=planned; snapshot=2026-07-18"}}
-    },
-    {
       "id": "internal-skill-root",
       "key": { "kind": "name", "value": "system/.internal/skills/ generated skill root" },
       "patterns": [
@@ -291,14 +277,6 @@
       "id": "arc-methods-key",
       "key": { "kind": "name", "value": "arc.methods declaration key" },
       "patterns": [{ "id": "arc-methods-literal", "form": "literal", "value": "arc.methods", "caseSensitive": true }],
-      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
-      "idioms": ["config-key"],
-      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18"}}
-    },
-    {
-      "id": "arc-extensions-key",
-      "key": { "kind": "name", "value": "arc.extensions declaration key" },
-      "patterns": [{ "id": "arc-extensions-literal", "form": "literal", "value": "arc.extensions", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
       "idioms": ["config-key"],
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18"}}

@@ -15,11 +15,11 @@ export interface HelpPage {
 export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   "": [
     ["Inspect work and context:", ["status", "view", "active", "locus", "log", "recover"]],
-    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-stage", "finalize", "repoint-design"]],
-    ["Run and resume work:", ["activate", "deactivate", "park", "resume", "materialize", "reopen", "abandon", "wu", "attest", "candidate"]],
+    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
+    ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
     ["Run errands and synchronize:", ["errand", "housekeep", "sync", "user"]],
-    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "extensions", "schema"]],
+    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
   ],
   review: [
     ["Choose review work:", ["pre-publication", "resolve", "changeset"]],
@@ -138,7 +138,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["Options:", ["--json", "--help"]],
     ],
     notes: [
-      ["Defaults:", "Without a slug or view flag, inspect user sync, extensions, configuration, and active work.\n"
+      ["Defaults:", "Without a slug or view flag, inspect user sync, configuration, and active work.\n"
         + "Slug queries use local state by default. Ordinary --user and --project views read live refs by default; "
         + "use --local or --no-fetch for local views. Session-init does not itself select JSON; add --json."],
       ["Choose one:", "A slug, --project, --user, --session-init, --session-handoff, or --recover. "

@@ -78,9 +78,8 @@ existing alignment checks and design re-entry routing.
 
 Run [source-grounding][source-grounding] at `artifact` scope over the selected specification scope and its upstream
 evidence chain. Upstream evidence grounds claims; it cannot supply otherwise missing binding design. The runner label
-follows that method's rule; caller inputs stay unchanged. Its
-behavior check and propagation sweep ground claims in what named code, tools, configuration, and shipped rules
-actually do, with its severity interpretation.
+follows that method's rule; caller inputs stay unchanged. Its behavior check and propagation sweep ground claims in what
+named code, tools, configuration, and shipped rules actually do, with its severity interpretation.
 
 ```yaml
 source-grounding:

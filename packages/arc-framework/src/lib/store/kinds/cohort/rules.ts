@@ -1,7 +1,7 @@
 /** Cohort Purpose, Parent, and retirement integrity over the proposed state. */
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import { brokenRule, observeRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, type OpenCohort, type OpenMember } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
@@ -55,6 +55,24 @@ export async function checkCohortOpenMembers(input: WriteCheckInput): Promise<re
   const held = [...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
     ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name)];
   return held.length === 0 ? [] : fail(`The cohort still has open members or subcohorts: ${held.join(", ")}.`);
+}
+/** Require local archive closeout in the batch that removes the final open holding.
+ * @param input - Cohort write and whole-batch membership views.
+ * @returns A stale completion refusal, without banning existing open empty cohorts.
+ */
+export async function checkCohortArchiveCloseout(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
+  if (input.writer.kind !== "verb" || input.writer.verb !== "archive" || input.prior === undefined || input.next === undefined) return [];
+  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("cohort.archive-closeout", condition,
+    "Reprepare archive against current membership and complete the final member and eligible cohorts in the same batch, then retry.")];
+  const cohort = await observeRecord(input.after, input.reference);
+  if (cohort.status !== "known") return fail(cohort.status === "unavailable" ? cohort.condition : "The proposed cohort is unavailable.");
+  if (cohort.value.placement?.kind === "completed") return [];
+  const name = input.reference.owner.name;
+  const [before, after] = await Promise.all([observeOpenCohortHoldings(input.before, name), observeOpenCohortHoldings(input.after, name)]);
+  if (before.status !== "known") return fail(before.status === "unavailable" ? before.condition : "Prior membership evidence is unavailable.");
+  if (after.status !== "known") return fail(after.status === "unavailable" ? after.condition : "Proposed membership evidence is unavailable.");
+  return before.value.length > 0 && after.value.length === 0
+    ? fail(`The archive batch removes the final open member or subcohort of ${name} without completing its document.`) : [];
 }
 async function parentProblem(view: StoreView, name: string): Promise<string | undefined> {
   const parent = await observeRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));

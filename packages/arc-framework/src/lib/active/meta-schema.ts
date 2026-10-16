@@ -5,11 +5,38 @@ import { z } from "zod";
 import { StateVersionSchema } from "../store/identity.js";
 
 import {
+  SlugSchema,
   PrioritySchema,
   CanonicalDigestSchema,
   WorkClassSchema,
   WorkUnitStateSchema,
 } from "../kernel/index.js";
+
+/** Whole verb-owned pause section, independent of lifecycle placement. */
+export const MetaPauseSchema = z.strictObject({
+  pausedBy: SlugSchema,
+  since: z.string().regex(z.regexes.datetime({})),
+  reason: z.string().min(1),
+  waitsOn: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("work-unit"), slug: SlugSchema }),
+    z.strictObject({ kind: z.literal("note"), text: z.string().min(1) }),
+  ]).nullable().default(null),
+  resumeNotes: z.string().nullable().default(null),
+  open: z.boolean().default(false),
+});
+/** Tolerant scalar evidence from a present Pause section, retaining independent meta fields. */
+export const ParsedMetaPauseSchema = MetaPauseSchema.extend({
+  pausedBy: z.string(), since: z.string(), reason: z.string(),
+  waitsOn: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("work-unit"), slug: z.string() }),
+    z.strictObject({ kind: z.literal("note"), text: z.string() }),
+  ]).nullable().default(null),
+});
+/** Parsed Pause evidence; durable validation owns its scalar vocabulary. */
+export type ParsedMetaPause = z.infer<typeof ParsedMetaPauseSchema>;
+
+/** Semantic pause state written by pause and resume. */
+export type MetaPause = z.infer<typeof MetaPauseSchema>;
 
 const SemanticStringSchema = z.string()
   .min(1)
@@ -110,6 +137,7 @@ export const ParsedMetaRecordSchema = z.strictObject({
   commitAtHandoff: z.string().min(1).nullable().default(null),
   sessionType: z.string().nullable().default(null),
   sessionContext: z.string().nullable().default(null),
+  pause: ParsedMetaPauseSchema.nullable().default(null),
   completionNotes: z.array(z.string()).default([]),
   releaseNotesEntry: z.array(z.string()).default([]),
 });
@@ -140,6 +168,7 @@ export const MetaRecordSchema = z.strictObject({
   commitAtHandoff: z.string().min(1).nullable().default(null),
   sessionType: z.enum(["planning", "execution"]).nullable().default(null),
   sessionContext: z.string().nullable().default(null),
+  pause: MetaPauseSchema.nullable().default(null),
   completionNotes: z.array(z.string()).default([]),
   releaseNotesEntry: z.array(z.string()).default([]),
 });

@@ -93,8 +93,7 @@
   `USER-INBOX entry '<title>' is not in the Errand section.` The entry was real and correctly formed; it was
   simply filed under `## Work Unit`, and the fix was to relocate it to `## Errand` first — which the message
   never says. It is a bare `throw new Error` in `lib/user-sync/inbox-writer.ts` rather than a typed refusal
-  carrying a remedy, unlike the checkpoint refusals next door that compose
-  `spineRemedy(cause, instruction, argv)`.
+  carrying a remedy, unlike the checkpoint refusals next door that compose `spineRemedy(cause, instruction, argv)`.
 
 - _Family:_ fifth in the "diagnostics that report a state without naming the fix" family tracked under "Make the
   in-flight artifact advisory name its remedy". That entry's standing clause — "If a fifth appears, state the

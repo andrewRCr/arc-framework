@@ -11,7 +11,7 @@ import { deriveState } from "../../src/lib/work-unit/lifecycle-resolver.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { resolveExplicitViewTarget } from "../../src/handlers/view.js";
 import { resolveTaskListPath } from "../../src/commands/active/status.js";
-import { branchToWorkUnitSlug } from "../../src/lib/work-unit/completed-index.js";
+import { branchToWorkUnitSlug } from "../../src/lib/work-unit/work-unit-slug.js";
 import { createGitTreeReadFs } from "../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { readLifecycleSummary } from "../../src/scripts/integration/checkpoint-composition.js";
 import type { LifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";

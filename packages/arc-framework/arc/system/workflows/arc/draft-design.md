@@ -159,10 +159,10 @@ formalization-ready gate:
 - **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
   for create-spec.
 
-At loop-exit, assess the draft's formalization-readiness with the
-[assess-draft-readiness][assess-draft-readiness] method. On **ready**, the draft crosses into create-spec; on
-**not-ready**, re-synthesize against the returned gaps and keep iterating. For a gap of inbound entries not yet
-integrated, run [route-discovered-work][route-discovered-work] at this owner's-pass fire-point:
+At loop-exit, assess the draft's formalization-readiness with the [assess-draft-readiness][assess-draft-readiness]
+method. On **ready**, the draft crosses into create-spec; on **not-ready**, re-synthesize against the returned gaps and
+keep iterating. For a gap of inbound entries not yet integrated, run [route-discovered-work][route-discovered-work] at
+this owner's-pass fire-point:
 
 ```yaml
 route-discovered-work:
@@ -226,6 +226,13 @@ adversarial-review:
   fold-verification: on
   prior-findings:  # pass two onward; omitted on pass one
 ```
+
+For a large target with a stable, contract-closed authored partition (segments, delivery members, or numbered spec
+sections), consider [adversarial-review § Authored-partition carrier mode][authored-partition]. Use one whole-target
+reviewer when no such partition exists or seams are dense.
+
+Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
+of the folds, before any successor pass or the final post-settle re-read.
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
@@ -306,3 +313,5 @@ planning-depth level is never recorded.
 [source-grounding]: ../../methods/source-grounding.md
 [pass-record]: ../../methods/adversarial-review.md#pass-record
 [route-discovered-work]: ../../methods/route-discovered-work.md
+[authored-partition]: ../../methods/adversarial-review.md#authored-partition-carrier-mode
+[fold-verification]: ../../methods/adversarial-review.md#fold-verification

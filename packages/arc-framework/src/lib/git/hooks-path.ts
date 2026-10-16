@@ -116,8 +116,8 @@ export function formatMissingHooksPathMessage(
     `error: configured core.hooksPath ${configured} does not resolve at `
     + `'${verdict.resolvedPath}'. Git will run no hooks and ${commandPath} would `
     + "commit without quality gates. Provision this worktree "
-    + "(`npm install` so husky generates hooks, or run the worktree post-create "
-    + "script) or fix core.hooksPath, then retry.\n"
+    + "(`npm install` followed by explicit hook setup, such as `npm run prepare` "
+    + "for Husky, or run the worktree post-create script) or fix core.hooksPath, then retry.\n"
   );
 }
 

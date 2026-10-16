@@ -119,6 +119,22 @@
   not a storage axis (`strategy-storage-evolution.md` Principle 7), so the storage program does not take it.
 - _Approach:_ Plan the rename's access and compatibility seam here.
 
+### `[ ]` **Reconcile the scalable core’s extension assumptions and Proposed ADR-020**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Validated seam inventory — Already-clean; Proposed ADR-020's preference for conditionally loaded
+  fragments.
+
+- _Observation:_ The inventory says post-task-completion and post-work-unit-activate fire by active-set membership;
+  retirement removes both and the active-set mechanism. Proposed ADR-020’s extension-based conditional-fragment route
+  loses its premise.
+
+- _Approach:_ Rebase the core/optional-layer design on the surviving methods and typed procedure surfaces. Reconcile
+  Proposed ADR-020 in this owner’s planning pass; leave accepted historical ADR bodies untouched.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---
 
 ## Problem / Motivation

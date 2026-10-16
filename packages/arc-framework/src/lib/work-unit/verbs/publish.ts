@@ -22,6 +22,9 @@
  * @module
  */
 
+import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import type { StoreRefusal } from "../../store/refusal.js";
+import { runStorePublish } from "./publish-store.js";
 import { join } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
@@ -92,7 +95,8 @@ export function authorizeSubmission(input: {
   return { status: "authorized", reservation: boundary.reservation, terminus: boundary.terminus };
 }
 
-function authorizeActivePublication(input: {
+/** Admit a current Candidate, including an already-recorded publication claim. */
+export function authorizeActivePublication(input: {
   candidateId: string;
   candidateSubjectDigest: string;
   boundary: IntegrationBoundaryLocus;
@@ -188,7 +192,7 @@ const PUBLISH_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
 
 /** The outcome of a `publish` attempt, including reconcile stops before phase mutation. */
 export type PublishResult =
-  | { status: "rejected"; reason: string; remedy: SpineRemedy }
+  | { status: "rejected"; reason: string; remedy: SpineRemedy; refusal?: StoreRefusal }
   | { status: "unchanged"; boundary: IntegrationBoundaryLocus }
   | {
       status: "published";
@@ -250,6 +254,7 @@ export async function runPublish(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
   params: PublishParams,
 ): Promise<PublishResult> {
+  if (ctx.store !== undefined && usesOffBranchState(ctx.store)) return runStorePublish({ ...ctx, store: ctx.store }, params);
   const {
     name,
     lastCompleted,

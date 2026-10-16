@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -116,7 +116,7 @@ describe("prepublication workflow boundary", () => {
       expect(recordedAttention).toBeLessThan(mergeChecks);
       expect(verification).toContain("    - review-chunking");
       expect(verification.slice(recordedAttention, mergeChecks))
-        .toMatch(/metrics when the resolver\s+supplies them/u);
+        .toMatch(softWrappedProse("metrics when the resolver supplies them"));
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);
@@ -190,7 +190,7 @@ describe("prepublication workflow boundary", () => {
     expect(recipe.include_files)
       .toContain("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
     expect(recipe.include_files)
-      .toContain("reference/templates/arc/work-unit/template-pull-request.md");
+      .toContain("system/methods/pull-request-format.md");
     expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
   });
 
@@ -262,21 +262,67 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
-  it("ships every pull-request template reference at its resolved installed path", async () => {
+  it("loads one policy for terminal and non-terminal delivery presentations", async () => {
+    for (const root of ROOTS) {
+      const delivery = await readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8");
+      const publication = delivery.slice(delivery.indexOf("## Validate and publish"), delivery.indexOf("arc delivery publish -"));
+      expect(publication).toContain("load [pull-request-format][pull-request-format]");
+      const input = JSON.parse(publication.match(/```json\n([\s\S]*?)```/u)?.[1] ?? "{}") as {
+        presentations: Record<string, unknown>[]; terminalPresentation: Record<string, unknown>;
+      };
+      expect(input.presentations[0]).toHaveProperty("deliverableId");
+      expect(input.presentations[0]).toHaveProperty("summary");
+      expect(input.presentations[0]).toHaveProperty("changes");
+      expect(input.presentations[0]).not.toHaveProperty("designReference");
+      expect(Object.keys(input.terminalPresentation).sort()).toEqual(["body", "title"]);
+      expect(publication).toMatch(softWrappedProse("Do not supply `designReference`"));
+      expect(publication).toContain("multi-member");
+      expect(publication).toContain("one-member");
+      expect(delivery).toMatch(softWrappedProse("scope is the work-unit ID"));
+    }
+  });
+
+  it("retires the old template from both copies, installation, and shipped references", async () => {
+    const legacy = "reference/templates/arc/work-unit/template-pull-request.md";
+    for (const root of ROOTS) {
+      await expect(readFile(resolve(root, legacy), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    }
+    const recipe = JSON.parse(await readFile(resolve(ROOT, "packages/arc-framework/init-recipe.json"), "utf8")) as {
+      include_files: string[];
+    };
+    expect(recipe.include_files).not.toContain(legacy);
+    const packageRoot = ROOTS[0]!;
+    for (const file of await readdir(packageRoot, { recursive: true })) {
+      if (!file.endsWith(".md")) continue;
+      expect(await readFile(resolve(packageRoot, file), "utf8"), file).not.toContain("template-pull-request.md");
+    }
+    for (const path of ["system/methods/pull-request-format.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"]) {
+      const document = await readFile(resolve(packageRoot, path), "utf8");
+      const content = path.includes("integrate-work-unit") ? document.slice(0, document.indexOf("## Phase 2:")) : document;
+      expect(content, path).not.toContain("**Design:**");
+      expect(content, path).not.toContain("**Local review:**");
+      expect(content, path).not.toContain("## Decisions");
+      expect(content, path).not.toContain("## Follow-Up Work");
+    }
+  });
+
+  it("ships every pull-request method reference at its resolved installed path", async () => {
     const arcRoot = resolve(ROOT, "packages/arc-framework/arc");
-    const templatePath = resolve(arcRoot, "reference/templates/arc/work-unit/template-pull-request.md");
-    const [template, recipeText] = await Promise.all([
-      readFile(templatePath, "utf8"),
+    const methodPath = resolve(arcRoot, "system/methods/pull-request-format.md");
+    const [method, recipeText] = await Promise.all([
+      readFile(methodPath, "utf8"),
       readFile(resolve(ROOT, "packages/arc-framework/init-recipe.json"), "utf8"),
     ]);
     const recipe = JSON.parse(recipeText) as { include_files: string[] };
-    const targets = [...template.matchAll(/^\[[^\]]+\]:\s+([^#\s]+)(?:#\S+)?$/gmu)]
+    const targets = [...method.matchAll(/^\[[^\]]+\]:\s+([^#\s]+)(?:#\S+)?$/gmu)]
       .map((match) => match[1])
       .filter((target): target is string => target !== undefined);
 
-    expect(targets).toHaveLength(4);
+    expect(targets.length).toBeGreaterThan(0);
     for (const target of targets) {
-      const installedPath = resolve(dirname(templatePath), target);
+      const installedPath = resolve(dirname(methodPath), target);
       await expect(readFile(installedPath, "utf8")).resolves.not.toBe("");
       expect(recipe.include_files).toContain(relative(arcRoot, installedPath));
     }

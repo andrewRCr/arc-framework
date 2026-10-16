@@ -31,16 +31,9 @@ match wins:
 **Does it replace an existing ARC default behavior?**
 
 Examples: a custom commit format, a different session state mechanism, a team-specific review process
-that replaces the default pre-merge review, a Skill that provides a better task completion workflow.
+that replaces the default review process, a Skill that provides a better task completion workflow.
 
 → **Method override.** Proceed to [Step 3a](#step-3a-wire-as-method-override).
-
-**Does it add behavior at an existing ARC hook point?**
-
-Examples: a code review tool integration that runs during pre-merge review, post-activation setup steps,
-a Skill that adds behavior at a workflow extension point.
-
-→ **Arc extension.** Proceed to [Step 3b](#step-3b-wire-as-arc-extension).
 
 **Is it standalone domain guidance that agents should consult?**
 
@@ -48,14 +41,14 @@ Examples: a testing methodology from another project, a community-shared authent
 API design patterns, a Skill that provides domain-specific guidance agents should load before
 implementing in that domain.
 
-→ **Strategy.** Proceed to [Step 3c](#step-3c-add-as-strategy).
+→ **Strategy.** Proceed to [Step 3b](#step-3b-add-as-strategy).
 
 **Is it a standalone procedure agents should follow on demand?**
 
 Examples: a deployment workflow, a community-shared database migration procedure, a Skill that
 defines a multi-step operational process.
 
-→ **Workflow.** Proceed to [Step 3d](#step-3d-add-as-workflow).
+→ **Workflow.** Proceed to [Step 3c](#step-3c-add-as-workflow).
 
 **None of the above?**
 
@@ -77,19 +70,7 @@ the system.
 5. If the source content is a Skill or external file, keep the original as a reference alongside
    the override (e.g., in a project docs directory) or note its provenance in a comment
 
-## Step 3b: Wire as ARC Extension
-
-1. Identify which extension point in [`system/extensions/`][arc-extensions] this content augments
-   (e.g., `pre-merge`, `post-context-load`)
-2. Read the extension's **contract** — your actions must satisfy the stated constraints
-3. Adapt the content to fit the extension format:
-    - Replace `[No extension configured]` in the `## {extension-name}.actions` section
-    - Toggle `active: true` in the extension's frontmatter
-    - Write clear actions the agent can follow
-4. Extensions _add to_ existing workflow behavior — they don't replace it. If the content needs
-   to replace behavior, it's a method override (Step 3a), not an extension
-
-## Step 3c: Add as Strategy
+## Step 3b: Add as Strategy
 
 1. Place the file in `strategies/project/` (or a subdirectory like `strategies/project/style/`)
 2. Follow the `strategy-` prefix convention: `strategy-{domain}.md`
@@ -98,7 +79,7 @@ the system.
 4. If the content came from an external source, adapt it to your project's context — generic
    community guidance may need project-specific examples or adjusted recommendations
 
-## Step 3d: Add as Workflow
+## Step 3c: Add as Workflow
 
 1. Place the file in an appropriate project workflow location
 2. Use a descriptive verb-noun filename (e.g., `deploy-staging.md`, `migrate-database.md`)
@@ -112,7 +93,6 @@ the system.
 1. Request `arc check increment` once over the integration changes
 2. Verify the integration works:
     - For method overrides: confirm the agent follows the override during the relevant workflow
-    - For extensions: confirm the extension fires at the right hook point
     - For strategies: confirm the agent finds and consults it via STRATEGY-INDEX
     - For workflows: confirm the agent can reach it via cross-references
 
@@ -125,5 +105,4 @@ the system.
 ---
 
 [arc-methods]: ../../../methods/README.md
-[arc-extensions]: ../../../extensions/README.md
 [strategy-index]: ../../../../reference/strategies/STRATEGY-INDEX.md

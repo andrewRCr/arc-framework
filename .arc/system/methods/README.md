@@ -28,7 +28,7 @@ read methods; the `override-active` frontmatter field is consumed by the framewo
 and authoring tooling, not by session-init. Workflows and methods declare only the methods their own bodies may fire
 in `arc.methods`; workflow declarations are roots, and method-owned declarations form a deduplicated transitive
 graph. A caller never redeclares its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring]
-and [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
+and [Session Operations Strategy § Method Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
@@ -44,7 +44,8 @@ when populating any `.override` section. Methods not listed here are independent
 | source-grounding              | spec-review, task-audit, adversarial-review                                            | Shared behavior and propagation check                |
 | spec-review                   | source-grounding                                                                       | Spec coherence and claim grounding                   |
 | task-audit                    | source-grounding                                                                       | Task grounding floor and category analysis           |
-| commit-format                 | commit-footer                                                                          | Both govern the commit message                       |
+| commit-format                 | commit-footer, pull-request-format                                                     | Both govern the commit message                       |
+| pull-request-format           | commit-format                                                                          | Title grammar and decision content                   |
 | commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
 | frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
 | standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |
@@ -65,5 +66,5 @@ when populating any `.override` section. Methods not listed here are independent
 ---
 
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
-[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-and-extension-loading
+[session-ops-methods]: ../../reference/strategies/arc/strategy-session-operations.md#method-loading
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md

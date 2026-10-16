@@ -60,6 +60,68 @@ describe("changed indexed Markdown under-wrap check", () => {
     expect(await readFile(join(root, "guide.md"), "utf8")).toBe(badIndex ? good : bad);
   });
 
+  it.each([true, false])("checks an untracked planning artifact from disk (underwrapped=%s)", async underwrapped => {
+    const path = ".arc/active/tasks-example.md";
+    await write(path, underwrapped ? bad : good);
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, ["--worktree", path])).toBe(underwrapped ? 1 : 0);
+    expect(messages.join("")).toContain("Working-tree feedback only; does not certify the Git index.");
+    expect(messages.join("").includes(`${path}:1 ARC001`)).toBe(underwrapped);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+    expect(await readFile(join(root, path), "utf8")).toBe(underwrapped ? bad : good);
+  });
+
+  it.each([true, false])("reads working-tree bytes when the index disagrees (badIndex=%s)", async badIndex => {
+    await write("guide.md", badIndex ? bad : good);
+    await git("git", ["add", "guide.md"], { cwd: root });
+    await write("guide.md", badIndex ? good : bad);
+    const before = (await git("git", ["write-tree"], { cwd: root })).stdout;
+
+    expect(await main(root, ["--worktree", "guide.md"])).toBe(badIndex ? 0 : 1);
+    expect(messages.join("").includes("guide.md:1 ARC001")).toBe(!badIndex);
+    expect((await git("git", ["write-tree"], { cwd: root })).stdout).toBe(before);
+  });
+
+  it("requires explicit paths for working-tree feedback", async () => {
+    expect(await main(root, ["--worktree"])).toBe(1);
+    expect(messages.join("")).toContain("--worktree requires at least one Markdown path");
+  });
+
+  it("keeps working-tree feedback available while checker and dependency inputs are being edited", async () => {
+    const checker = entryPaths[0]!;
+    await write(checker, `${await readFile(join(root, checker), "utf8")}\n// Local edit.\n`);
+    const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    manifest.devDependencies["markdown-it"] = "99.0.0";
+    await write("package.json", JSON.stringify(manifest));
+    await git("git", ["add", "package.json"], { cwd: root });
+
+    expect(await main(root, ["--worktree", "guide.md"])).toBe(0);
+    expect(messages.join("")).toContain("Working-tree feedback only");
+  });
+
+  it("refuses excluded working-tree paths", async () => {
+    await write(".arc/completed/excluded.md", bad);
+    expect(await main(root, ["--worktree", ".arc/completed/excluded.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown path is excluded");
+  });
+
+  it("refuses a missing working-tree path and succeeds after it is written", async () => {
+    const path = "guide.md";
+    await rm(join(root, path));
+    expect(await main(root, ["--worktree", path])).toBe(1);
+    expect(messages.join("")).toContain("Markdown path is missing or unreadable");
+    await write(path, good);
+    messages = [];
+    expect(await main(root, ["--worktree", path])).toBe(0);
+  });
+
+  it("refuses a working-tree symlink outside the repository", async () => {
+    await symlink(join(repositoryRoot, "README.md"), join(root, "outside.md"));
+    expect(await main(root, ["--worktree", "outside.md"])).toBe(1);
+    expect(messages.join("")).toContain("Markdown path escapes the repository");
+  });
+
   it("defaults to changed staged paths and leaves untouched under-wrap debt outside the check", async () => {
     await write("guide.md", `${good}\nA single-line added paragraph.\n`);
     await git("git", ["add", "guide.md"], { cwd: root });

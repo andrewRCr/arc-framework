@@ -57,6 +57,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly terminalResponseSettled?: boolean;
   /** The owning composition proved the subject's opening frontline phase closed from its recorded history. */
   readonly frontlinePhaseClosed?: boolean;
+  /** The owning composition proved the invoking checkout is the subject's own Errand. */
+  readonly errandVehicle?: boolean;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -375,6 +377,16 @@ async function deriveVerifiedTerminalSignal(
   };
 }
 
+/** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
+function provenSubjectFacts(
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): { frontlinePhaseClosed?: true; errandVehicle?: true } {
+  return {
+    ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
+    ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
+  };
+}
+
 /**
  * Bind a policy request after replacing a caller's terminal assertion with validated producer evidence.
  *
@@ -400,7 +412,7 @@ export async function bindReviewPolicyEvidence(
       ...request,
       sources: dependencies.sources,
       maxPasses: dependencies.maxPasses,
-      ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
+      ...provenSubjectFacts(dependencies),
     });
   }
   const result = await dependencies.resultReader.readResult(lastAttempt.reviewOperationId);
@@ -431,7 +443,7 @@ export async function bindReviewPolicyEvidence(
     maxPasses: dependencies.maxPasses,
     verifiedTerminalSignal,
     ...(dependencies.terminalResponseSettled === true ? { terminalResponseSettled: true } : {}),
-    ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
+    ...provenSubjectFacts(dependencies),
   });
 }
 

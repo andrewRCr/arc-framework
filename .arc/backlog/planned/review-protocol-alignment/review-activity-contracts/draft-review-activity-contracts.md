@@ -265,16 +265,15 @@
   members above it on heads that no longer descend from it. Both are the same shape: a review fix leaves the
   state around it un-reconciled. The second produced a live authority defect in this very work unit (a later
   member's head admitted under an earlier member's vehicle), which suggests the root is wider than review
-  evidence alone and worth scoping as such. The design intent is the
-  opposite — avoid redundant ceremony, repeat an expensive pass only on semantic grounds, and reach the Owner
-  as a deterministic recommendation the agent applies judgment on top of. `evidence-applicability` shipped
-  exactly that machinery; it is not wired to review lanes, and the one cause that matters most here is pinned
-  to the expensive answer. Five layers, each verified at source during
+  evidence alone and worth scoping as such. The design intent is the opposite — avoid redundant ceremony, repeat an
+  expensive pass only on semantic grounds, and reach the Owner as a deterministic recommendation the agent applies
+  judgment on top of. `evidence-applicability` shipped exactly that machinery; it is not wired to review lanes, and the
+  one cause that matters most here is pinned to the expensive answer. Five layers, each verified at source during
   `delivery-post-landing-conflict-recovery`.
 
-- _Layer 1 — the pass is recorded and complete._ Git-common
-  `review-gate/operations/operation-e71c08c3…json`: lane `standard`, head `31d0bea2`, `completedPasses: 1`,
-  one attempt, `outcome: "findings"`, `chunkSeriesComplete: true`. Nothing is lost at the recording layer.
+- _Layer 1 — the pass is recorded and complete._ Git-common `review-gate/operations/operation-e71c08c3…json`: lane
+  `standard`, head `31d0bea2`, `completedPasses: 1`, one attempt, `outcome: "findings"`, `chunkSeriesComplete: true`.
+  Nothing is lost at the recording layer.
 
 - _Layer 2 — a re-root empties the lineage; a settled response does not._ Established by running both paths.
   When an approved fix settles through `arc review respond -` with `verifiedFix`, the record gains a
@@ -563,21 +562,19 @@
 - _Observation:_ `recommended` is load-bearing for whether a finding blocks and inert for whether a pass is
   spent — the distinction is honored on the axis that costs nothing and dropped on the axis that costs money.
   Every reader of the routing projection tests only `exempt` and treats the rest alike
-  (`policy/review-policy-driver.ts:563`, `core/gate-contract-v2.ts:140`,
-  `core/review-command-envelope.ts:362,370,423`, `policy/planning-grooming-command.ts:126,133`,
-  `runtime/local-prepare.ts:186`), even though `ReviewObligationSchema` carries three values
-  (`policy/routing-schema.ts:12`). One axis over, the two-valued requirement obligation does discriminate:
-  only `required` produces blockers and gates the verdict (`core/requirements.ts:109`, `core/verdict.ts:71`),
-  and `aggregateRequirementDisposition` ranks `required` above `recommended`
+  (`policy/review-policy-driver.ts:563`, `core/gate-contract-v2.ts:140`, `core/review-command-envelope.ts:362,370,423`,
+  `policy/planning-grooming-command.ts:126,133`, `runtime/local-prepare.ts:186`), even though `ReviewObligationSchema`
+  carries three values (`policy/routing-schema.ts:12`). One axis over, the two-valued requirement obligation does
+  discriminate: only `required` produces blockers and gates the verdict (`core/requirements.ts:109`,
+  `core/verdict.ts:71`), and `aggregateRequirementDisposition` ranks `required` above `recommended`
   (`core/requirements.ts:126`).
 
 - _Observation:_ the state this wants already exists in the sibling lane, which together with the above is
   what makes the gap look like an omission rather than a decision. Frontline routing is
   `z.enum(["skip", "offer", "attempt"])`, and `action === "offer"` resolves to `state: "offered"`
-  with `nextAction: "obtain-authorization"`
-  (`policy/frontline-command.ts:102`) — a typed, pre-spend stop for exactly this decision. The standard lane
-  has no analogue. For the observed change the two lanes disagreed on the same routing verdict:
-  `arc review frontline resolve -` returned `skipped / none`, while `arc review resolve -` lane=standard
+  with `nextAction: "obtain-authorization"` (`policy/frontline-command.ts:102`) — a typed, pre-spend stop for exactly
+  this decision. The standard lane has no analogue. For the observed change the two lanes disagreed on the same routing
+  verdict: `arc review frontline resolve -` returned `skipped / none`, while `arc review resolve -` lane=standard
   returned `ready / hosted-request`.
 
 - _Observation:_ the one route that avoids the spend is closed on a first pass. The Owner-directed review stop

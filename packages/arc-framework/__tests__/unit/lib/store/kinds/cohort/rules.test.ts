@@ -1,9 +1,9 @@
 /** Cohort integrity is checked against the proposed complete batch. */
-import { ReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
+import { CohortReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
 import { describe, expect, it } from "vitest";
 import { checkCohortPurpose, checkCohortParent, checkCohortOpenMembers } from "../../../../../../src/lib/store/kinds/cohort/rules.js";
 import { cohortDoc as doc, cohortMember as member, cohortRuleInput as input } from "../../../../../helpers/store/cohort-rule-input.js";
-const complete = ReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q4" });
+const complete = CohortReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q4", sequence: "01", closeout: "a" });
 describe("Purpose floor", () => {
   it.each([null, "", "—"])("refuses a new Purpose %s", (purpose) => expect(checkCohortPurpose(input(doc("group", null, purpose))))
     .toMatchObject([{ rule: "cohort.purpose" }]));

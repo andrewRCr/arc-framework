@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { SlugSchema, LocusTokenSchema } from "../kernel/index.js";
 import { RecordReferenceSchema } from "./identity.js";
-import { CommitShaSchema } from "./links.js";
+import { CommitShaSchema, CopyKeySchema } from "./links.js";
 
 const slug = { slug: SlugSchema };
 /** Claims mirror marker discriminants; a branch alone is never an ARC claim. */
@@ -21,7 +21,7 @@ export const LookupInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("slug"), ...slug }),
   z.strictObject({ kind: z.literal("lineage"), origin: z.union([z.uuid(), SlugSchema]) }),
   z.strictObject({ kind: z.literal("claim"), claim: CheckoutClaimSchema }),
-  z.strictObject({ kind: z.literal("commit"), repository: z.string().min(1), sha: CommitShaSchema, patchId: CommitShaSchema.optional() }),
+  z.strictObject({ kind: z.literal("commit"), repository: z.string().min(1), sha: CommitShaSchema, copyKey: CopyKeySchema.optional() }),
   z.strictObject({ kind: z.literal("ref"), repository: z.string().min(1), ref: z.string().min(1) }),
 ]);
 /** A logical reverse lookup. */

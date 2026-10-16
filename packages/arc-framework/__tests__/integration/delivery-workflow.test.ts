@@ -323,13 +323,13 @@ describe("packaged delivery workflow", () => {
       const resume = workflow.indexOf("invoke its `resumeAction`", closeTask);
       const renew = workflow.indexOf("Candidate-renewal authority action", resume);
       const hosted = workflow.indexOf("retained hosted-review authority action", renew);
-      const completionExtension = workflow.indexOf("#post-task-completion", closeTask);
+      const completionReport = workflow.indexOf("**REPORT** completed work", closeTask);
       expect(closeTask).toBeGreaterThan(-1);
       expect(closeTask).toBeLessThan(resume);
       expect(resume).toBeLessThan(renew);
       expect(renew).toBeLessThan(hosted);
-      expect(hosted).toBeLessThan(completionExtension);
-      expect(workflow.slice(closeTask, completionExtension)).toMatch(
+      expect(hosted).toBeLessThan(completionReport);
+      expect(workflow.slice(closeTask, completionReport)).toMatch(
         /resumeAction[\s\S]*acknowledgment action[\s\S]*Candidate-renewal[\s\S]*unchanged[\s\S]*hosted-review[\s\S]*stops/iu,
       );
     }

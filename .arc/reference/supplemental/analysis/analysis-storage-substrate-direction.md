@@ -975,12 +975,11 @@ commits.
 ## Sources
 
 **Movable work-unit artifacts** (cited by filename): `draft-arc-backend.md`, `draft-local-mode.md`,
-`draft-operational-state-docs.md`, `draft-wu-lifecycle-state-model.md`,
-`draft-roadmap-tooling.md`, `draft-cli-substrate-complete-migration.md`, `draft-shared-inbox-model.md`,
-`draft-meta-file-tracking-model.md`, `draft-config-storage-architecture.md`, `draft-naming-conventions.md`,
-`draft-singleton-integration-continuity.md`, `draft-delivery-correction-convergence.md`,
-`draft-candidate-reroot-recovery-frame.md`, `spec-delivery-rebuild-continuity.md`,
-`report-coupling-blast-radius-audit.md`.
+`draft-operational-state-docs.md`, `draft-wu-lifecycle-state-model.md`, `draft-roadmap-tooling.md`,
+`draft-cli-substrate-complete-migration.md`, `draft-shared-inbox-model.md`, `draft-meta-file-tracking-model.md`,
+`draft-config-storage-architecture.md`, `draft-naming-conventions.md`, `draft-singleton-integration-continuity.md`,
+`draft-delivery-correction-convergence.md`, `draft-candidate-reroot-recovery-frame.md`,
+`spec-delivery-rebuild-continuity.md`, `report-coupling-blast-radius-audit.md`.
 
 **Stable internal documents:** [ADR-012][adr-012], [ADR-022][adr-022], [ADR-027][adr-027], [ADR-033][adr-033],
 [ADR-035][adr-035], [DEV-RULES.ARC][dev-rules-arc], [DEV-RULES.PROJECT][dev-rules-project],

@@ -16,6 +16,7 @@ import { indexIdentities } from "./identities.js";
 import { publicRecord } from "./read.js";
 import { withStateQueue } from "./state-queue.js";
 import { checkpointMemoryState, transferMemoryHistory } from "./history-transfer.js";
+import { reconcileCompletedCohorts } from "./cohort-placement.js";
 
 /** Remote transport condition is injected separately from its durable records. */
 export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void | Promise<void> }
@@ -119,7 +120,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
   }
   // Conflicts created by reconciliation are part of the same publish, rather than side-channel state.
   for (const key of generatedConflicts) records.set(key, structuredClone(context.state.records.get(key)!));
-  const archiveSequences = reconcileArchivePositions(records, remote.state);
+  const archiveSequences = reconcileArchivePositions(context, records, remote.state);
   for (const [quarter, highWater] of archiveSequences) context.state.archiveSequences.set(quarter,
     Math.max(context.state.archiveSequences.get(quarter) ?? 0, highWater));
   for (const key of new Set([...context.state.records.keys(), ...records.keys()])) {
@@ -130,7 +131,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
   return { records, remoteMoved, archiveSequences };
 }
 
-function reconcileArchivePositions(records: Map<string, MemoryRecord>, remote: MemoryState): Map<string, number> {
+function reconcileArchivePositions(context: ReferenceContext, records: Map<string, MemoryRecord>, remote: MemoryState): Map<string, number> {
   const highWater = new Map(remote.archiveSequences);
   for (const record of remote.records.values()) {
     if (record.reference.kind === "work-item/meta" && record.placement?.kind === "completed" && "sequence" in record.placement)
@@ -138,6 +139,7 @@ function reconcileArchivePositions(records: Map<string, MemoryRecord>, remote: M
   }
   const completions = [...records.values()].filter((record) => record.reference.kind === "work-item/meta"
     && record.placement?.kind === "completed" && "sequence" in record.placement);
+  const originalCompletions = structuredClone(completions);
   // Local allocations encode completion order; the key supplies a deterministic tie breaker.
   completions.sort((left, right) => {
     const position = (record: MemoryRecord) => record.placement?.kind === "completed" && "sequence" in record.placement ? Number(record.placement.sequence) : 0;
@@ -162,6 +164,7 @@ function reconcileArchivePositions(records: Map<string, MemoryRecord>, remote: M
       companion.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
     }
   }
+  reconcileCompletedCohorts(context, records, remote, originalCompletions, highWater);
   return highWater;
 }
 

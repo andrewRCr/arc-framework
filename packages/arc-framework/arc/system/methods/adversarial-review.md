@@ -7,6 +7,7 @@ arc:
     - assess-design-proportionality
     - disposition-report
     - assess-boundary-fit
+    - resolve-planning-depth
 related:
   - source-grounding
   - assess-design-proportionality
@@ -424,7 +425,9 @@ the two kept versions of each planning artifact the change touched, the later on
 upstream chain; `prior-findings` takes the account. The account includes the checked findings as reported (the
 pass's in round one, the previous round's thereafter) and their approved `fix` / `defer` / `reject` actions, the
 author's grounding corrections, and other changes the Owner approved since those versions, each with locus and
-what changed. Omit the author's disposition rationale. `pass-cap` does not apply to this check.
+what changed. For each correction, state its locus and what changed; omit verification claims, accounts of how it
+was checked, and directions on where to look. Omit the author's disposition rationale. `pass-cap` does not apply to
+this check.
 
 Use the canonical prompt template unchanged except for its read paragraph, replaced with:
 

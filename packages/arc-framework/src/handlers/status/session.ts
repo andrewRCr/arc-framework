@@ -4,7 +4,6 @@ import * as p from "../../lib/terminal.js";
 import { access } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { runConfigStatus } from "../../commands/config.js";
-import { runExtensionsSessionInitStatus, runExtensionsStatus } from "../../commands/extensions.js";
 import type { SessionHandoffProbes, StatusProbes } from "../../commands/status.js";
 import { buildStatusSummary, runRecoverStatus, runSessionHandoffStatus, runStatus } from "../../commands/status.js";
 import { assertSessionRecoverProbeResult } from "../../commands/status/schema.js";
@@ -15,6 +14,7 @@ import { runHeadHashStatus } from "../../lib/git/head-hash.js";
 import type { GitExecInput } from "../../lib/git/index.js";
 import { runPushabilityStatus } from "../../lib/git/pushability.js";
 import { runPassiveWorktreeInspection } from "../../lib/git/worktree-sync.js";
+import { resolveWorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../../lib/handoff/session-notes-path.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
@@ -38,18 +38,17 @@ function createHandoffProbes(
 ): SessionHandoffProbes {
   const { cwd, exec, io, identity, readUserInbox } = context;
   return {
-    derivedLocusState: async (id, activeExtensions) => {
+    derivedLocusState: async (id) => {
       const resolved = await resolvedSettingsP;
       return runDerivedLocusStateProbe({
         cwd,
         identity: id,
         baseBranch: resolved.settings["branch.base"],
-        activeExtensions,
         exec,
       });
     },
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
     dirty: () => runDirtyStateStatus({ exec }),
+    worktreeIdentity: () => resolveWorktreeIdentity(exec),
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -189,7 +188,6 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
   const json = Boolean(opts.json);
   const probes: StatusProbes = {
     user: (id) => runUserStatus({ cwd, io, identity: id }),
-    extensions: () => runExtensionsStatus({ cwd }),
     config: () => runConfigStatus({ cwd }),
     active: () => runActiveStatus({ cwd, exec }),
   };

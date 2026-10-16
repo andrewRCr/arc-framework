@@ -7,11 +7,12 @@ import { LineageRecordSchema, type LineageRecord, type WorkItemRef } from "./sch
  * @returns Canonical JSON bytes with no trailing newline.
  */
 export function writeLineageRecord(record: LineageRecord): string {
-  const { outgoing, ...fields } = record;
+  const { outgoing, retiredBranches, ...fields } = record;
   const ordered = {
     ...fields,
     origin: definedReference(record.origin),
     successors: orderReferences(record.successors),
+    ...(retiredBranches === undefined ? {} : { retiredBranches }),
     incoming: record.incoming.map((entry) => ({
       ...entry,
       dependent: definedReference(entry.dependent),

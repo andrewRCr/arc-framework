@@ -18,9 +18,8 @@ un-triaged entries**.
 The drain **routes**; routing is not execution. Writing a multi-step note into its stub _is_ routing — the
 content moves inbox → stub in a single write. Atomic _execution_ is never run inside the drain: a committed
 atomic is handed to the [`run-errand`][run-errand] lifecycle as an explicit, opt-in transition _after_ routing
-(`arc-session` is the sole top-level execution entrypoint). See
-[DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] for the capture-vs-execution boundary this mechanism
-enforces.
+(`arc-session` is the sole top-level execution entrypoint). See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc]
+for the capture-vs-execution boundary this mechanism enforces.
 
 **Mode/tier-agnostic spine.** The phases below are the routing spine; they do not vary by protection mode or
 tier. Only the **write mechanics** differ by protection mode, and they are isolated to one block (§ 5) that
@@ -54,9 +53,9 @@ invocation:
   short-lived grooming branch cut from here before any shared-path write — the base context is the fork
   point, not the write target.
 - **Work-unit branch** → **refuse and offer to relocate**: hop to a base-branch write context, run the sweep
-  there, and return. The relocation mechanics follow protection mode — see
-  [strategy-work-organization § Cheap-branch path][cheap-branch] and [§ Branch Protection Modes][branch-modes].
-  Launching from any worktree is not a blocker; only _writing_ shared paths from a WU branch is.
+  there, and return. The relocation mechanics follow protection mode — see [strategy-work-organization § Cheap-branch
+  path][cheap-branch] and [§ Branch Protection Modes][branch-modes]. Launching from any worktree is not a blocker; only
+  _writing_ shared paths from a WU branch is.
 - **Degenerate context** (detached HEAD, or no resolvable base) → **safe refusal**, never a silent write.
 
 The guard is **guidance keyed on write context, not a gate on having an active WU**: the precondition is a
@@ -156,10 +155,10 @@ boundaries (there are no routing PRs to split). Surface the split plan at the in
 
 Carry out each confirmed concern's outcome. For a capture, routing **moves** its source out of `USER-INBOX`:
 complete every split concern's route before removing the original entry, and keep any retained or execute-bound
-residual rewritten in place. For a fully routed capture,
-`arc user inbox-remove <entry-title>` drops it (matched on the title in v1; idempotent); use
-`--inbox-entry-file <path>` (`-` reads stdin) for Markdown- or shell-active titles. Pair the removal with its
-routing writes. Held entries in a picked stub take the re-triage routes below instead of inbox removal.
+residual rewritten in place. For a fully routed capture, `arc user inbox-remove <entry-title>` drops it (matched on the
+title in v1; idempotent); use `--inbox-entry-file <path>` (`-` reads stdin) for Markdown- or shell-active titles. Pair
+the removal with its routing writes. Held entries in a picked stub take the re-triage routes below instead of inbox
+removal.
 
 - **Existing-stub home** — a gated `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's integration
   modes: the drain folds only a trivially additive, on-topic note; otherwise append the entry to the draft's
@@ -208,8 +207,7 @@ never as a dispositions table in the target's draft.
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
   off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
-  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3.
+  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections.
 
   Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
   diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface
@@ -224,10 +222,9 @@ never as a dispositions table in the target's draft.
 
   Never infer exemption from `arc review planning-lane`, path intuition, or absence of a work unit. The later
   planning-lane call still classifies merge presentation only. Immediately before creating the PR, invoke
-  `arc merge lock resolve -` with
-  the exact tree root and create on its typed action: `locked / open-locked` opens the PR locked, `none /
-  open-plain` opens it plain, and `blocked / stop` halts creation before any PR exists. A write touching a
-  **foreign owner's** artifact is reviewed-lane and ships on its own.
+  `arc merge lock resolve -` with the exact tree root and create on its typed action: `locked / open-locked` opens the
+  PR locked, `none / open-plain` opens it plain, and `blocked / stop` halts creation before any PR exists. A write
+  touching a **foreign owner's** artifact is reviewed-lane and ships on its own.
 
   On both newly-created and reused-open paths, recompose the PR's exact current base ref, diff-base SHA, and head
   SHA, then re-invoke `arc review planning-grooming resolve -` with the same caller-owned judgments. This
@@ -249,9 +246,8 @@ never as a dispositions table in the target's draft.
   a planning result to reviewed without another permission stop, but never the reverse. For a literal `planning`
   result, invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the
   returned `method` as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately
-  before arming, invoke
-  `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
-  locked PR. `released / proceed` and `no-lock / none` both continue by invoking
+  before arming, invoke `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge
+  cannot be armed on a locked PR. `released / proceed` and `no-lock / none` both continue by invoking
   `gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>` with that exact returned method and the
   release payload's head; `blocked / stop` invalidates approval.
 
@@ -265,9 +261,8 @@ never as a dispositions table in the target's draft.
 
 ### 6. Execution transition — committed atomics → `run-errand`
 
-Persist the complete execute-bound set once before dispatch. Invoke
-`arc user inbox-mark-execute-bound <file | ->` with every already-marked and newly approved Errand title in its
-final file order:
+Persist the complete execute-bound set once before dispatch. Invoke `arc user inbox-mark-execute-bound <file | ->` with
+every already-marked and newly approved Errand title in its final file order:
 
 ```json
 {"schemaVersion":1,"orderedTitles":["First exact inner bold title","Second exact inner bold title"]}

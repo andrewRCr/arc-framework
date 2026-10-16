@@ -1,10 +1,13 @@
 /** Direct run-mode policies preserve configured membership, execution, and failure semantics. */
 import { expect, it } from "vitest";
-import type { TestResult } from "vitest/node";
+import type { TestResult, TestSpecification } from "vitest/node";
 import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
 import { checkVitestCompletion } from "../../src/lib/vitest-completion.js";
-import { localVitestTierArguments } from "../../src/lib/local-vitest-runner.js";
+import {
+  hasDeletedE2eFiles, localVitestTierArguments, selectLocalE2eSpecifications,
+} from "../../src/lib/local-vitest-runner.js";
 import { requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "../../src/lib/build-runtime-setup.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
   expect(normalizeVitestOptions([], { run: true, watch: true, exclude: ["ignored"], maxWorkers: 2 }))
@@ -24,7 +27,7 @@ const tiers = [
   ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
   ["integration", ["--project", "integration"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
-    "pr-open-extensions", "review-gate-workflows", "ci-check-plumbing",
+    "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
     "markdown/descriptor-spacing",
     "task-list/scanner",
     "work-unit/boundary-fit-workflow-contract",
@@ -45,6 +48,30 @@ const tiers = [
 ] as const;
 it.each(tiers)("selects configured tier %s", (tier, args) => {
   expect(localVitestTierArguments(tier)).toEqual(args);
+});
+const e2e = (name: string) => `/package/__tests__/e2e/${name}`;
+const specifications = ["a.test.ts", "b.test.ts", "c.test.ts"]
+  .map((name) => ({ moduleId: e2e(name) }) as TestSpecification);
+it("runs only the requested E2E specifications, in native order, when every requested path is one", () => {
+  const choice = selectLocalE2eSpecifications([e2e("c.test.ts"), e2e("a.test.ts"), e2e("c.test.ts")], specifications);
+  expect(choice.tier).toBe("e2e-focused");
+  expect(choice.specifications.map(({ moduleId }) => moduleId)).toEqual([e2e("a.test.ts"), e2e("c.test.ts")]);
+});
+it("runs the whole E2E suite when a requested path is a support file or nothing is requested", () => {
+  for (const requested of [[e2e("a.test.ts"), e2e("helpers.ts")], [e2e("global-setup.ts")], []]) {
+    expect(selectLocalE2eSpecifications(requested, specifications)).toEqual({ tier: "e2e", specifications });
+  }
+});
+const deletions = ["diff", "--name-only", "--no-renames", "--diff-filter=D", "-z", "--end-of-options", "base", "--",
+  "__tests__/e2e"];
+it("reports an E2E deletion since the base, and treats an unanswered read as one", async () => {
+  const { exec, calls } = scriptGitExec([{ match: deletions,
+    responses: [{ stdout: "" }, { stdout: "packages/arc-framework/__tests__/e2e/helpers.ts\0" },
+      { failure: { exitCode: 128 } }] }]);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(false);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(await hasDeletedE2eFiles(exec, "/package", "base")).toBe(true);
+  expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
 });
 it("retains each native portability boundary on the portability tier", () => {
   expect(localVitestTierArguments("portability")).toEqual([

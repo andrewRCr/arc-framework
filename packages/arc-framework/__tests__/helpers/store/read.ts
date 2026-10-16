@@ -96,7 +96,14 @@ export function listReference(context: ReferenceContext, input: ListInput): Stor
     const parsed = context.registry[record.reference.kind].parser?.(record.content);
     const kind = fault?.kind === "identity-mismatch" ? "key-mismatch" : fault?.kind
       ?? (record.formatVersion > context.registry[record.reference.kind].formatVersion ? "unknown-format-version" : parsed?.success === false ? "malformed" : undefined);
-    if (kind !== undefined) { diagnostics.push(diagnostic(record.reference, kind)); continue; }
+    if (kind !== undefined) {
+      const problem = diagnostic(record.reference, kind);
+      diagnostics.push(parsed?.success === false && kind === "malformed" ? {
+        ...problem, key: `${record.reference.kind}:${record.reference.owner.name}`,
+        condition: `Stored ${record.reference.kind} ${record.reference.owner.name} is malformed: ${parsed.error}`,
+      } : problem);
+      continue;
+    }
     const value = publicRecord(context, record, saved);
     if (input.filter?.locations === undefined || input.filter.locations.includes(listedLocation(value) as never)) records.push(value);
   }

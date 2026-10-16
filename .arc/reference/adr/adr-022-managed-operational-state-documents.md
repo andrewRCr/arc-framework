@@ -34,12 +34,11 @@ independently re-encoded by scattered consumers (`meta-reader`, `worktree-roster
 - The cross-WU merge parses markdown on the hot path; a whole-format convention change fails silently (the
   merge finds zero entries and reverts to most-recent-wins — the clobbering bug it exists to prevent).
 
-The customization line is also muddled. ARC's file-classification taxonomy
-(`Framework / Configurable / Scaffolded / Project-Owned`) is organized around **update behavior**, not
-**structural ownership** — it has no concept for "the CLI depends on this file's structure." `Framework`
-incidentally locks structure via overwrite-on-update, but that is a side effect, not an articulated
-property; `ROADMAP` is classified `Scaffolded` (adopter-editable) while strategy says never edit it; and
-`strategy-configurability-architecture` contains a live contradiction — its "File-customizable" path lists
+The customization line is also muddled. ARC's file-classification taxonomy (`Framework / Configurable / Scaffolded /
+Project-Owned`) is organized around **update behavior**, not **structural ownership** — it has no concept for "the CLI
+depends on this file's structure." `Framework` incidentally locks structure via overwrite-on-update, but that is a side
+effect, not an articulated property; `ROADMAP` is classified `Scaffolded` (adopter-editable) while strategy says never
+edit it; and `strategy-configurability-architecture` contains a live contradiction — its "File-customizable" path lists
 "template formats" as adopter-customizable, against its own "Structural contract: fill in, don't redesign."
 
 The decisive finding from a corpus survey (the agile-parallelism cohort, the architecture-remediation /
@@ -156,8 +155,7 @@ structured-record source-of-truth model for them.
    of the current markdown-canonical documents. It depends on `cli-substrate-adoption` (zod substrate) and
    **subsumes** two scattered captures: the `USER-INBOX` "structured-storage + routed-write" entry (Move B
    for `WORKING-MEMORY` / `USER-INBOX`) and `cli-substrate-adoption`'s "Complete-Migration" placeholder, for
-   the
-   managed-document surfaces.
+   the managed-document surfaces.
 
 ## Consequences
 

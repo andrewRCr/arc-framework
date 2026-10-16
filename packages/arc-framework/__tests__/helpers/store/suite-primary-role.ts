@@ -26,7 +26,7 @@ async function primaryCount(fixture: ConformanceFixture, reference: RecordRefere
 export function registerPrimaryRoleAssertions(context: SuiteContext): void {
   assertion(context, "work-item", "primary-role-transition-retains-generation-and-metadata", async (fixture) => {
     const original = await seed(fixture, fixture.reference("work-item/record"), undefined, { kind: "active" },
-      { branches: [{ repository: "repo", ref: "chore/original" }, { repository: "repo", ref: "feat/promoted" }] });
+      { branches: [{ repository: "repo", ref: "chore/original", linkedAs: "created" as const, excluded: [] }, { repository: "repo", ref: "feat/promoted", linkedAs: "created" as const, excluded: [] }] });
     const description = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference("work-item/description"), owner: original.reference.owner }));
     const renamed = RecordReferenceSchema.parse({ ...original.reference, owner: { ...original.reference.owner, name: "promoted" } });
     success(await fixture.store.write({ ...update(fixture, original), reference: renamed }));
@@ -97,7 +97,7 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
     const remote = fixture.remote(true);
     if (remote === undefined) throw new Error("Fixture must provide the configured remote");
     const original = await seed(fixture, fixture.reference("work-item/record"), undefined, { kind: "active" },
-      { branches: [{ repository: "repo", ref: "chore/original" }] });
+      { branches: [{ repository: "repo", ref: "chore/original", linkedAs: "created" as const, excluded: [] }] });
     success(await fixture.store.sync());
     const promoted = await promote(fixture, original);
     success(await remote.write({ ...update(fixture, original, fixture.content(original.reference, "changed-again")),

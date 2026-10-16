@@ -82,7 +82,7 @@ contract may preclude it.
 
 | Class                        | Members                                                                                                                                                                                           | Where                                                              | Configurable?                   |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------- |
-| **Project machinery**        | the project's configuration, rules, method overrides, and extensions under `system/`                                                                                                              | tracked                                                            | No — versions with the checkout |
+| **Project machinery**        | the project's configuration, rules, and method overrides under `system/`                                                                                                                          | tracked                                                            | No — versions with the checkout |
 | **ARC core**                 | ARC's shipped workflows, methods, rules, and templates                                                                                                                                            | tracked today; a separate decision may resolve it from the package | No                              |
 | **Constitutional documents** | strategies, ADRs, research, analysis, `PROJECT-PRD`, briefs                                                                                                                                       | tracked                                                            | No                              |
 | **Operational state**        | `meta-*`, `tasks-*`, `notes-*`, `cohort-*`, the backlog, the completed archive, inboxes, working memory, session notes, and the lifecycle, delivery, and review records under `system/.internal/` | store                                                              | No — churn with no review value |
@@ -255,9 +255,8 @@ any write anywhere in the store, which makes every other session's capture a rea
 Git stores the records; it does not define what they mean. Records carry their own identities, versions, and links, and
 the contract is implementable without Git. `registerStoreConformanceSuite` registers assertions for
 `referenceRegistration`, whose factory constructs the in-memory `ReferenceBackend`; its record operations and sync use
-memory state rather than Git.
-The Git notes lesson is the cautionary case: SHA-keyed attachment became the semantic model, and a rewrite orphaned
-state.
+memory state rather than Git. The Git notes lesson is the cautionary case: SHA-keyed
+attachment became the semantic model, and a rewrite orphaned state.
 
 ### 15. The final shape over today's
 

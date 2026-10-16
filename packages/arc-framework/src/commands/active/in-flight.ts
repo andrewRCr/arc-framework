@@ -95,6 +95,8 @@ export interface ActiveInFlightOptions {
   teamMode: boolean;
   /** `--local` / `--no-fetch`: skip the network read, derive from local refs. */
   localOnly: boolean;
+  /** Fetch live-only branch candidates within one bounded network budget. */
+  expandLiveOnly?: boolean;
   /** Configured base branch; excluded from in-flight classification. */
   baseBranch?: string;
   /** Slugs whose checkout lifecycle record classifies them as parked. */
@@ -309,7 +311,7 @@ export async function runActiveInFlight(
   const result = await deriveInFlight({
     exec,
     localOnly,
-    expandLiveOnly: false,
+    expandLiveOnly: options.expandLiveOnly ?? false,
     baseBranch,
     timeoutMs,
     identity,
@@ -318,12 +320,15 @@ export async function runActiveInFlight(
     parkedSlugs,
     prSource,
   });
+  const pendingBranchCount = result.warnings.filter((warning) => warning.code === "branch-fetch-failed").length;
   const evidence: ActiveInFlightEvidence = localOnly
     ? {
         remoteEvidence: "not-applicable",
         candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
       }
-    : result.reachable
+    : pendingBranchCount > 0
+      ? { remoteEvidence: "pending-fetch", candidateExpansion: { status: "partial", pendingBranchCount } }
+      : result.reachable
       ? {
           remoteEvidence: "exact",
           candidateExpansion: { status: "complete", pendingBranchCount: 0 },

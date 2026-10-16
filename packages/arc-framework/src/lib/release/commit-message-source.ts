@@ -205,6 +205,26 @@ const LONG_AMBIGUOUS_OPTIONS: ReadonlySet<string> = new Set([
   "--untracked-files",
 ]);
 
+// Include specialized options alongside the grouped grammar for prefix resolution.
+const LONG_OPTION_NAMES: ReadonlySet<string> = new Set([
+  ...LONG_ORDINARY_OPTIONS,
+  ...LONG_NO_COMMIT_OPTIONS,
+  ...LONG_ORDINARY_REQUIRED,
+  ...LONG_AMBIGUOUS_OPTIONS,
+  "--message",
+  "--file",
+  "--signoff",
+  "--edit",
+  "--no-edit",
+  "--cleanup",
+  "--trailer",
+  "--reuse-message",
+  "--reedit-message",
+  "--template",
+  "--fixup",
+  "--squash",
+]);
+
 function createScanState(commitCleanup: string | null | undefined): ScanState {
   return {
     messages: [],
@@ -393,8 +413,23 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
   return false;
 }
 
+/** Report whether a token names an exact long option in the closed commit grammar. */
+export function isExactCommitLongOption(token: string): boolean {
+  return LONG_OPTION_NAMES.has(splitLongOption(token).name);
+}
+
+function resolveLongOperandOption(token: string): string | null {
+  const { name, attached } = splitLongOption(token);
+  if (isExactCommitLongOption(token)) return token;
+  const matches = [...LONG_OPTION_NAMES].filter((option) => option.startsWith(name));
+  const canonical = matches.length === 1 ? matches[0] : undefined;
+  if (canonical === undefined) return null;
+  return attached === undefined ? canonical : `${canonical}=${attached}`;
+}
+
 /**
- * Report whether one recognized commit option consumes the following argv token.
+ * Report whether an exact or unambiguously abbreviated commit option consumes
+ * the following argv token. Ambiguous and unknown options consume nothing.
  *
  * @param token - Candidate short or long commit option.
  * @param nextArg - Following argv token, when present.
@@ -402,11 +437,31 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
  */
 export function commitOptionConsumesNext(token: string, nextArg: string | undefined): boolean {
   if (token.startsWith("--")) {
+    const option = resolveLongOperandOption(token);
+    if (option === null) return false;
     const state = createScanState(undefined);
-    return applyLongOption(state, token, nextArg === undefined ? [token] : [token, nextArg], 0);
+    return applyLongOption(state, option, nextArg === undefined ? [option] : [option, nextArg], 0);
   }
   const walk = walkCommitShortOption(token, nextArg);
   return walk.kind === "recognized" && walk.consumedNext;
+}
+
+function scanCommitOptions(args: readonly string[], state: ScanState): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--") break;
+    if (!arg.startsWith("-") || arg === "-") continue;
+
+    if (scanCommitOption(args, index, arg, state)) index += 1;
+  }
+}
+
+function scanCommitOption(args: readonly string[], index: number, arg: string, state: ScanState): boolean {
+  if (arg.startsWith("--")) return applyLongOption(state, arg, args, index);
+  const walk = walkCommitShortOption(arg, args[index + 1]);
+  if (walk.kind === "unsupported") { state.unsupported = true; return false; }
+  for (const member of walk.members) applyShortMember(state, member);
+  return walk.consumedNext;
 }
 
 /**
@@ -420,25 +475,7 @@ export function classifyCommitMessageInput(
 ): CommitMessageInputClassification {
   const state = createScanState(options.commitCleanup);
 
-  for (let index = 0; index < options.args.length; index += 1) {
-    const arg = options.args[index];
-    if (arg === undefined) break;
-    if (arg === "--") break;
-    if (!arg.startsWith("-") || arg === "-") continue;
-
-    if (arg.startsWith("--")) {
-      if (applyLongOption(state, arg, options.args, index)) index += 1;
-      continue;
-    }
-
-    const walk = walkCommitShortOption(arg, options.args[index + 1]);
-    if (walk.kind === "unsupported") {
-      state.unsupported = true;
-      continue;
-    }
-    for (const member of walk.members) applyShortMember(state, member);
-    if (walk.consumedNext) index += 1;
-  }
+  scanCommitOptions(options.args, state);
 
   const hasMessages = state.messages.length > 0;
   const hasFiles = state.files.length > 0;

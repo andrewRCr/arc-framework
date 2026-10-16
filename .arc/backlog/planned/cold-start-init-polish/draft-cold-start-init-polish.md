@@ -64,15 +64,14 @@ codified classify-then-**mint** path — `run-errand`'s promote-to-WU only fires
 
 The facets brush several owners — the init-routing facet (3) is `lifecycle-state-machine` territory
 (`lifecycle-transition-core`'s `start` dispatch, already shipped) and facet 2 has been relocated outright to
-`lifecycle-mechanics-tail`; the entrypoint facet touches
-`errand-lattice` (errand→WU promotion) and `out-of-wu-entry` (entry signals, a different cohort); facet 1 is
-commit-grammar; facet 4 is `roadmap-tooling`. The scope-split decision was to **not** splinter them across those
-homes — the cluster is incidental cold-start-init cleanup that reads as one coherent unit, and fanning it out
-would scatter a single cleanup far around the codebase. So it lands as one companion stub, in the
-`graduation-cleanup` mold: cohort-associated in prose, no membership gate, sequences independently. It is **not**
-a `lifecycle-closeout` concern — by the cohort's consistency-on-exit standard these are _un-enhanced_ UX seams
-(the flow works), not documented-but-unbuilt inconsistencies, and the cleanup can fast-follow the
-already-shipped `lifecycle-transition-core` rather than waiting on the whole cohort.
+`lifecycle-mechanics-tail`; the entrypoint facet touches `errand-lattice` (errand→WU promotion) and `out-of-wu-entry`
+(entry signals, a different cohort); facet 1 is commit-grammar; facet 4 is `roadmap-tooling`. The scope-split decision
+was to **not** splinter them across those homes — the cluster is incidental cold-start-init cleanup that reads as one
+coherent unit, and fanning it out would scatter a single cleanup far around the codebase. So it lands as one companion
+stub, in the `graduation-cleanup` mold: cohort-associated in prose, no membership gate, sequences independently. It is
+**not** a `lifecycle-closeout` concern — by the cohort's consistency-on-exit standard these are _un-enhanced_ UX seams
+(the flow works), not documented-but-unbuilt inconsistencies, and the cleanup can fast-follow the already-shipped
+`lifecycle-transition-core` rather than waiting on the whole cohort.
 
 ## Scope Estimate
 

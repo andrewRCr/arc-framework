@@ -253,8 +253,8 @@ closer examination.
 
 For the full design history — external research findings on dual-scope idiomaticity across eight
 representative dev tools, the `release.enabled` semantic walkthrough, naming convergence on
-`releaseOptedIn`, and the `user.notes_push` deferral rationale — see
-`notes-release-wrappers-ergonomics.md` § Phase 6.R: Configuration Scope Refactor — Design History.
+`releaseOptedIn`, and the `user.notes_push` deferral rationale — see `notes-release-wrappers-ergonomics.md` § Phase 6.R:
+Configuration Scope Refactor — Design History.
 
 This is a scope-clarification amendment, not a reversal of the decision. The trust-model framing, two-layer
 authorization model, wrapper authorization scaffolding, sync forensic umbrella, and bypass-universality
@@ -303,6 +303,14 @@ decision itself is unchanged: whenever a release wrapper is invoked, its authori
 applicable, and audit behavior remain unconditional, and the wrapper remains the per-invocation trust boundary.
 The original _Schema lock at v1_ risk remains the point-in-time record; this amendment supersedes its version
 reference, and `schemaVersion: 2` is now the locked writer and validator schema.
+
+**2026-10-14 — Task close prechecks and code 17.** `arc release commit --close[=<ids>]` checks task closure after
+interlock authorization and message preflight, before committing. A failed pause, linked-branch, base-reference, or
+task-list check refuses with code `17` (`close-precheck-failed`) and records `{ kind: "close-precheck-failed", check:
+<failed check> }` in the version-2 audit log. Before the storage flip, the check refuses `unsupported`. The bounded
+base refresh runs only after the earlier checks pass and is reused by the close following the commit. If that close
+fails after Git succeeds, the wrapper preserves and reports the commit, exits `1`, and names `arc task close <ids>` as
+its executable continuation. The wrapper's authorization and audit behavior remains unconditional.
 
 ---
 

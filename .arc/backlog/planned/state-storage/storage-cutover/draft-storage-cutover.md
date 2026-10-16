@@ -419,4 +419,81 @@
 
 - _Captured during:_ `seam-locus` create-spec, 2026-10-12.
 
+### `[ ]` **Leave no tracked or installed file in a projected root from the flip**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope — the flip and its first full materialization; an expected contract in
+  `spec-storage-projection.md` § 18.
+
+- _Observation:_ from the flip `.arc/active/`, `.arc/backlog/`, and `.arc/completed/` are projected roots. Today the
+  roots hold tracked files the import turns into records, and the installer writes files there
+  (`lib/classification.ts`). `completed/README.md` is a Configurable file that `arc update` reinstalls; no record
+  claims it, so it stays unadopted and every checkout removal refuses over it until it is deleted.
+  `backlog/ROADMAP.md` and `backlog/ATOMIC-INBOX.md` come from Scaffolded templates installed at the paths the
+  projection writes the roadmap view and the project inbox to (`lib/layout/projection.ts`), so an install there writes
+  over a projected file.
+
+- _Approach:_ at the flip, untrack the shared roots' files once their records are imported, and stop the installer and
+  `arc update` writing any file into a projected root (drop or relocate those entries in `lib/classification.ts` and
+  `init-recipe.json`).
+
+- _Captured during:_ `storage-projection` generate-tasks, adversarial pass 1 finding F17 (approved disposition),
+  2026-10-14.
+
+### `[ ]` **Lock every unlocked work-item worktree at the cutover's quiesce**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Scope — the window's quiesce; an expected contract in `spec-storage-projection.md` § 18 and its § 12.7.
+
+- _Drain note:_ `PROJECTION_LOCK_REASON` is not in code yet (2026-10-15); it lands with `storage-projection`.
+
+- _Observation:_ `storage-projection` locks each work-item checkout ARC spawns, with `PROJECTION_LOCK_REASON`, but runs
+  no one-off backfill: a worktree spawned before its lock landed takes the lock only when it is next spawned. One left
+  unlocked at the flip is exposed to a plain `git worktree remove`, which deletes its gitignored projection without
+  persisting its edits.
+
+- _Approach:_ in the quiesce, run `git worktree lock --reason` with the value `PROJECTION_LOCK_REASON` holds, read from
+  the built constant, on each linked checkout whose marker names a work unit or an Errand and that carries no lock;
+  leave anchored and unmarked worktrees unlocked.
+
+- _Captured during:_ `storage-projection` generate-tasks, adversarial pass 1 finding F22 (approved disposition),
+  2026-10-14.
+
+### `[ ]` **Decide whether `scratch/.internal/` is machine-local or the person's own**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15); homed at the
+  drain.
+
+- _Shapes:_ § Scope — the deletion passes, where per-work-unit workspaces retire at the flip.
+
+- _Observation:_ `MACHINE_LOCAL_PATHS`' `<identity>/*/.internal/**` (`lib/store/registry.ts`) also matches
+  `.arc/user/<identity>/scratch/.internal/`, while D5 (`spec-storage-contract.md`) says `scratch/` holds the person's
+  own documents, where anything goes. From the flip, work-unit workspaces retire, so the one-folder-down pattern's
+  practical reach is `scratch/.internal/` and any other identity subfolder: a file there is never stored or synced, the
+  projection skips it, and it goes with its checkout. The reference backend refuses those keys too
+  (`machineLocalPersonalPath`, `__tests__/helpers/store/refusals.ts`).
+
+- _Approach:_ narrow the pattern to the per-workspace `.internal/` it was written for once workspaces retire, or state
+  in D5 that `scratch/.internal/` is machine-local.
+
+- _Captured during:_ `storage-projection`'s create-spec fix-check round 6, 2026-10-14; the tension is in the registry
+  and D5, not that spec.
+
+### `[ ]` **Drop the retired extension step from the task-close rewrite's reorder**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15); split from
+  "Reconcile task-close sequencing and the storage reader inventory with retirement".
+
+- _Shapes:_ inbound "Rewrite the task loop's completion around the task close verb".
+
+- _Observation:_ that entry reorders the `post-task-completion` extension to fire after task close, but
+  `retire-extension-points` removed the step outright.
+
+- _Approach:_ drop the extinct extension reorder while preserving task-close and delivery acknowledgment behavior. The
+  capture's other half, removing extensions from the cohort register's reader census, runs as an Errand.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ---

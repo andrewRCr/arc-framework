@@ -97,7 +97,6 @@ describe("integration current-WU reconcile workflow", () => {
       "arc integrate checkpoint {name}",
       "checkpoint's supplied `remedy.argv` unchanged",
       "payload.interlockSurface.machineEvidence.text",
-      "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",
       "arc integrate merge {name} --checkpoint {payload.checkpointHandle}",
     ];
@@ -111,7 +110,6 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(softWrappedPattern(/repeat\s+the\s+Step\s+1\s+push\s+extension\s+contract/giu))).toHaveLength(4);
     expect(step.match(softWrappedPattern(/`push-interlock`\s+release/gu))).toHaveLength(4);
     expect(step.match(softWrappedPattern(/`commit-interlock`\s+release/gu))).toHaveLength(3);
     const flatStep = step.replace(/\s+/gu, " ");

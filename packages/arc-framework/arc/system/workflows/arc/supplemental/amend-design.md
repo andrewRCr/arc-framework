@@ -144,9 +144,8 @@ At `medium` / `high`, retain the coherence slice below alongside grounding; unch
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
 - **`medium`** — a bounded set of decisions to compose. The canonical procedures run **at scope, never whole**:
   the spec stage's authoring moves and [`spec-review`][spec-review]'s coherence slice over the affected elements;
-  [`task-audit`][task-audit] over the affected phases; and
-  [`resolve-plan-segmentation`][resolve-plan-segmentation] only when a new segment appears. Offer
-  [`adversarial-review`][adversarial-review] over the footprint, neutrally.
+  [`task-audit`][task-audit] over the affected phases; and [`resolve-plan-segmentation`][resolve-plan-segmentation] only
+  when a new segment appears. Offer [`adversarial-review`][adversarial-review] over the footprint, neutrally.
 - **`high`** — design that must be authored rather than corrected. The same procedures at scope, with the
   adversarial pass recommended. Run [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized
   floor; the write itself lands at the capture commit (§ The capture commit).
@@ -166,6 +165,9 @@ cleared, minus nothing — [`assess-design-proportionality`][assess-design-propo
 work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are
 never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
 record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
+
+Beside every disposition set carrying a fix, offer the [fix check][fold-verification] to run after author grounding
+of the folds, before any successor pass or the final post-settle re-read.
 
 **Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
 [`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
@@ -432,3 +434,4 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md
 [source-grounding]: ../../../methods/source-grounding.md
 [pass-record]: ../../../methods/adversarial-review.md#pass-record
+[fold-verification]: ../../../methods/adversarial-review.md#fold-verification

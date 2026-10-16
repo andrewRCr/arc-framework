@@ -10,6 +10,7 @@ import { nodeCopyWorktreeDirectory, setupLinkedWorktree } from "../git/linked-wo
 import { nodeCopyFileIfAbsent } from "../git/worktree-include.js";
 import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../schema-command/editor-documents.js";
@@ -69,6 +70,8 @@ export function createNodeProvisioningDependencies(
     },
     replaceMarker: replaceWorktreeMarkerGeneration,
     removeMarker: removeWorktreeMarkerGeneration,
+    canResumePendingErrandCheckout: (worktreePath, expectedHead) =>
+      canResumePendingErrandCheckout(options, worktreePath, expectedHead),
     setupWorktree: async (worktreePath, primaryPath) => {
       await setupLinkedWorktree({
         exec: options.exec,
@@ -126,6 +129,28 @@ export function createNodeProvisioningDependencies(
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
   };
+}
+
+/** Admit setup replay only for a clean, exact branch generation already preserved by base. */
+async function canResumePendingErrandCheckout(
+  options: NodeProvisioningRuntimeOptions,
+  worktreePath: string,
+  expectedHead: string,
+): Promise<boolean> {
+  const run = (args: string[]) => options.exec("git", args, { cwd: worktreePath });
+  const branch = (await run(["symbolic-ref", "--quiet", "--short", "HEAD"])).stdout.trim();
+  const head = (await run(["rev-parse", "--verify", "HEAD^{commit}"])).stdout.trim();
+  if (branch !== options.branch || head !== expectedHead) return false;
+  if ((await run(["status", "--porcelain=v1", "-z", "--untracked-files=all"])).stdout !== "") return false;
+  const args = ["merge-base", "--is-ancestor", head, options.base];
+  try {
+    await run(args);
+    return true;
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.exitCode === 1) return false;
+    throw error;
+  }
 }
 
 async function synchronizeBaseBeforeCreation(

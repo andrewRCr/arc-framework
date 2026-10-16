@@ -178,9 +178,8 @@ decisions are made, not on a schedule.
 
 ## Next Step
 
-Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT,
-QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
-session.
+Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT, QUICK-REFERENCE,
+and DEV-RULES.PROJECT — are loaded by the agent at the start of every session.
 <!-- arc:if pm.mode == arc-in-git -->
 The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during planning and
 architecture decisions. Use `arc status --project` plus backlog source artifacts for live project status.
@@ -202,9 +201,8 @@ artifacts, and helps you create a PRD and task list for your first work unit. Fr
 Clear your context and start a fresh session by invoking the `arc-session` skill (invocation
 syntax is agent-specific). With no active work unit yet, session initialization reports the
 empty state and awaits your direction. When ready to begin your first work unit, follow
-[create-spec.md][create-spec] to define it from your project docs, then
-[generate-tasks.md][generate-tasks] for the task list. From there, the normal session
-rhythm — `arc-session`, task execution, `arc-commit`, `arc-handoff` — takes over.
+[create-spec.md][create-spec] to define it from your project docs, then [generate-tasks.md][generate-tasks] for the task
+list. From there, the normal session rhythm — `arc-session`, task execution, `arc-commit`, `arc-handoff` — takes over.
 <!-- arc:endif -->
 
 <!-- arc:if pm.mode == external -->

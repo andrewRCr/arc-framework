@@ -216,10 +216,20 @@ arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 # Rename a WU and its applicable branch, notes, remote, marker, and worktree identities — no ceremony
 arc rename <slug> <new-slug>
 
+# Set Class at any lifecycle placement; the slug defaults to the checkout's work unit
+arc set-class <Light|Heavy|Novel> [slug]
+
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
 # Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
 arc demote <slug>
+
+# Set the current WU's planning-stage pointer; --advance also resets Next Action for the new stage.
+arc set-stage <draft-design|create-spec|generate-tasks> [--advance]
+# Advance the current WU's Design pointer at a planning event.
+arc repoint-design <draft-created|spec-finalized>
+# Persist Class at a planning ceremony; generate-tasks also writes Task List and Next Action.
+arc finalize <create-spec|amend-design|generate-tasks> --class <Light|Heavy|Novel>
 
 # Activate a planning WU: Planning → Active (activate-work-unit.md)
 arc activate [slug] --type <type> --task <first task> --action <next action>
@@ -342,12 +352,11 @@ arc release status --json
 See [`commit-format`](../system/methods/commit-format.md) for multiline transport, direct-file matcher fallback,
 message structure, and wrapper retry behavior.
 
-Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+Refusal exit codes 10–17 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
 `branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
-`commit-message-preflight-failed`; audit entries land at
-`.arc/user/{identity}/.internal/.audit-log.jsonl`. See
-[DEV-RULES.ARC](../system/rules/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
-opt-in semantics.
+`commit-message-preflight-failed`, and `close-precheck-failed`; audit entries land at
+`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC](../system/rules/DEV-RULES.ARC.md) § Commit
+Discipline for the trust model and opt-in semantics.
 
 ### Standalone Work History
 

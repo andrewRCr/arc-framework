@@ -439,7 +439,6 @@ export async function handleErrandCheck(
 
   const identity = await resolveIdentity({ exec });
   const { settings } = await readConfigSettings(cwd);
-  const teamMode = settings["team.mode"] === "true";
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
   const parkedSlugs = listParkedSlugs(
@@ -456,8 +455,9 @@ export async function handleErrandCheck(
     exec,
     cwd,
     identity,
-    teamMode,
+    teamMode: settings["team.mode"] === "true",
     localOnly,
+    expandLiveOnly: true,
     baseBranch,
     parkedSlugs,
   });

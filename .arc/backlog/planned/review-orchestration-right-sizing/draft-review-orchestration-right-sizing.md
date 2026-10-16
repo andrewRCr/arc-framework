@@ -281,6 +281,9 @@
 - _Fold-in:_ decide whether the review cohort should mint a review-architecture strategy and charter it against the
   integration strategy. Own placement and charter here; preserve the cohort members as the doctrine's substantive
   sources rather than re-authoring them in this WU.
+- _Split:_ `review-coverage-cadence` authors the review-pass model's section — pass, fix check, cap, convergence,
+  re-inspection, and cadence, shared by code review and adversarial review — and mints the strategy that holds it if
+  none exists yet. This entry keeps the placement charter and the rest of the doctrine.
 
 ### `[ ]` **Prune the interlock, status, discharge, and Candidate surfaces against their live readers**
 
@@ -402,6 +405,12 @@
 - _Recurred:_ `state-storage-register-batch-3` Errand (PR #743, 2026-09-29) — register rows plus ADR-035 and
   ADR-022 amendments, the same refusal, merged on Owner acceptance at zero passes; `arc review status` read
   `review-required` with no obligation level.
+- _Recurred:_ Errand `prepare-underwrap` (PR #972, 2026-10-13) — a whitespace-only rewrap of one workflow paragraph
+  routed to `standardReview: recommended` (`reviewed-routine-documentation`). The Owner asked to skip review, but the
+  driver refuses a standard-lane `invocation: { mode: "skip" }` (`review-policy-driver.ts`) and `run-errand`'s
+  Owner-directed review stop needs a completed pass, so one Codex pass (clean) was spent rather than the guard crossed
+  at the interlock. The verdict never blocks on `recommended` (`core/verdict.ts`); what is missing is the Owner's typed
+  waiver. Routed from `USER-INBOX § Work Unit`, housekeep drain (2026-10-15).
 
 ### `[ ]` **Hold the adversarial-pass recording verb to one call**
 
@@ -462,23 +471,6 @@
 - _Approach:_ either the record schema admits the fix-check sets, with rounds, origin, fold tags, and the author's
   corrections, or recording moves to successor launch; decide beside "Hold the adversarial-pass recording verb to one
   call".
-
-- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
-
-### `[ ]` **Decide whether code-review lanes' next-pass recommendation adopts the re-inspection test**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
-
-- _WU_Target:_ `review-orchestration-right-sizing`
-
-- _Observation:_ `grounded-planning-review` D5 adds inspection practice's re-inspection test to `adversarial-review`
-  § Exit gate: recommend another full pass when the folds have changed the artifact so much that the last pass's
-  assessment no longer holds; otherwise the caller's own check of the response verifies the rework. It also makes a
-  clear recommendation — another pass or stop — the default at `cap-exhausted`: the cap bounds autonomy, not advice.
-  Code-review lanes reach a next-pass recommendation through `review-triage` and the review gate's pass policy, which
-  already name the pass a fix triggers and its coverage, complete or incremental; the draft routes them here.
-
-- _Approach:_ decide whether the test and the recommendation default sit beside complete-or-incremental coverage.
 
 - _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
 

@@ -62,7 +62,7 @@ worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.
-#   conventional - type(scope): description (default)
+#   conventional - type(scope): description; scope optional, description lowercase (default)
 #   custom       - validates against commit.custom_pattern ECMAScript source
 #   any          - no format validation
 commit.format: conventional
@@ -93,7 +93,7 @@ commit.context_pattern:
 # How branches are integrated into the base branch.
 #   merge  - Merge commits preserve branch topology (default, most traceable)
 #   rebase - Linear history, commits replayed onto base
-#   squash - Single commit per branch (traceability shifts to PR descriptions)
+#   squash - Single commit per branch; the pull-request title becomes the commit subject
 # See strategy-configurability-architecture.md § Settings with behavioral implications.
 merge.strategy: merge
 

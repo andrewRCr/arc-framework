@@ -13,7 +13,7 @@ describe("reference metadata ownership", () => {
   it.each([false, true])("detaches caller input and landed reference metadata; batch: %s", async (batch) => {
     const fixture = createReferenceFixture();
     const reference = RecordReferenceSchema.parse({ ...fixture.reference("work-item/meta"), owner: { type: "work-item", name: "owned", uid: "11111111-1111-4111-8111-111111111111" } });
-    const links = { branches: [{ repository: "repo", ref: "refs/heads/owned" }] };
+    const links = { branches: [{ repository: "repo", ref: "refs/heads/owned", linkedAs: "created" as const, excluded: [] }] };
     const placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
     const provenance = { ...testProvenance };
     const write = { action: "put" as const, reference, expected: null, content: fixture.content(reference), placement, links, provenance, unknownExtra: () => "caller-only" };
@@ -36,7 +36,7 @@ describe("reference metadata ownership", () => {
     const from = success(await fixture.store.version());
     const reference = fixture.reference("work-item/meta");
     success(await fixture.store.write({ action: "put", reference, expected: null, content: fixture.content(reference), placement: { kind: "backlog", commitment: "planned" },
-      links: { branches: [{ repository: "repo", ref: "refs/heads/owned" }] }, provenance: testProvenance }));
+      links: { branches: [{ repository: "repo", ref: "refs/heads/owned", linkedAs: "created" as const, excluded: [] }] }, provenance: testProvenance }));
     const expected = structuredClone(success(await fixture.store.read({ reference })));
     const anchor = success(await fixture.store.version());
     const live = success(await fixture.store.read({ reference }));

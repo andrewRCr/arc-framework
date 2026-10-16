@@ -192,9 +192,6 @@
     },
     "arc/work-unit-paths": {
       "count": 1
-    },
-    "sonarjs/cognitive-complexity": {
-      "count": 1
     }
   },
   "src/commands/status/run.ts": {
@@ -234,7 +231,7 @@
   },
   "src/commands/user/compact.ts": {
     "arc/store-raw-state": {
-      "count": 1
+      "count": 2
     },
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -275,6 +272,9 @@
     "arc/module-doc-comment": {
       "count": 1
     },
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "arc/surface-names": {
       "count": 2
     },
@@ -293,7 +293,7 @@
       "count": 1
     },
     "arc/store-raw-state": {
-      "count": 1
+      "count": 2
     },
     "jsdoc/require-jsdoc": {
       "count": 4
@@ -426,11 +426,6 @@
       "count": 4
     }
   },
-  "src/handlers/extensions.ts": {
-    "jsdoc/require-jsdoc": {
-      "count": 1
-    }
-  },
   "src/handlers/housekeep.ts": {
     "jsdoc/require-jsdoc": {
       "count": 1
@@ -490,7 +485,7 @@
       "count": 5
     },
     "arc/surface-names": {
-      "count": 2
+      "count": 1
     },
     "max-lines": {
       "count": 1
@@ -499,7 +494,7 @@
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 2
     }
   },
   "src/handlers/plan.ts": {
@@ -703,7 +698,7 @@
   },
   "src/lib/base-drift/current-adapters.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 3
     },
     "arc/surface-names": {
       "count": 1
@@ -1064,9 +1059,6 @@
   "src/lib/errand/abandon-runtime.ts": {
     "arc/store-raw-state": {
       "count": 1
-    },
-    "jsdoc/require-jsdoc": {
-      "count": 1
     }
   },
   "src/lib/errand/close-head-lock.ts": {
@@ -1368,7 +1360,7 @@
   },
   "src/lib/locus/derived-evidence.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 3
     },
     "arc/surface-names": {
       "count": 3
@@ -1584,12 +1576,25 @@
       "count": 1
     }
   },
+  "src/lib/session-init/orphan-branch-sweep.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    }
+  },
   "src/lib/session-init/partial-push-marker-surface.ts": {
     "arc/store-raw-state": {
       "count": 1
     }
   },
+  "src/lib/session-init/retired-subdir-detection.ts": {
+    "arc/store-raw-state": {
+      "count": 2
+    }
+  },
   "src/lib/session-init/stale-worktree-sweep.ts": {
+    "arc/store-raw-state": {
+      "count": 1
+    },
     "max-depth": {
       "count": 1
     },
@@ -1982,9 +1987,6 @@
     }
   },
   "src/lib/work-unit/completed-index.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 2
     },
@@ -2438,7 +2440,7 @@
   },
   "src/lib/work-unit/verbs/archive.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 3
     },
     "arc/work-unit-paths": {
       "count": 6
@@ -2538,7 +2540,7 @@
   },
   "src/lib/work-unit/verbs/teardown.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 3
     },
     "max-depth": {
       "count": 4
@@ -2565,7 +2567,7 @@
   },
   "src/scripts/audit-method-triggers.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/scripts/audit-tables.ts": {
@@ -3121,22 +3123,12 @@
       "count": 1
     }
   },
-  "src/scripts/validate-frontmatter.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/validate-meta-spec.ts": {
     "arc/store-raw-state": {
       "count": 1
     },
     "arc/surface-names": {
       "count": 2
-    }
-  },
-  "src/scripts/validate-package-neutrality.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
     }
   }
 }

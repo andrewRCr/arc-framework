@@ -15,6 +15,9 @@ import {
   type FinalizeStageContext,
 } from "../../../../src/lib/work-unit/verbs/finalize-stage.js";
 
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
+
 interface Harness {
   ctx: FinalizeStageContext;
   classWrites: { metaPath: string; value: string }[];
@@ -158,4 +161,19 @@ describe("runFinalizeStage — guards", () => {
     expect(classWrites).toEqual([]);
     expect(softWrites).toEqual([]);
   });
+});
+
+it("finalizes a former handle using the resolved owner's task filename", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: "generate-tasks", design: ["spec-source.md"] });
+  const forbidden = async (): Promise<never> => { throw new Error("Unexpected checkout access"); };
+  expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: forbidden, baseBranch: "main",
+    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+  { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runFinalizeStage({ store: h.store, writeClassField: forbidden, writeSoftFields: forbidden },
+    { name: "source", firePoint: "generate-tasks", workClass: "Novel" }))
+    .toMatchObject({ status: "ok", taskList: "tasks-target.md" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields)
+    .toMatchObject({ taskList: "tasks-target.md", design: ["spec-target.md"] });
 });

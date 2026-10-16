@@ -5,7 +5,7 @@
  *
  * - {@link runStatus} — full-mode composite (default rendering).
  * - {@link runSessionInitStatus} — session-init-scoped composite consumed
- *   by the harness. Replaces Batch 1's four probe invocations + two
+ *   by the harness. Replaces the standalone probe invocations + two
  *   `git config` reads with a single CLI call.
  *
  * Each entry point fans out independent fallible probes through
@@ -32,6 +32,7 @@ import type {
   SessionRecoverProbeResult,
   SessionRecoverWorktreeValue,
   SessionHandoffResult,
+  SessionHandoffWorktreeValue,
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
@@ -92,7 +93,7 @@ function buildIdentity(identity: string | null, role: string | null): StatusIden
 /**
  * Run the full-mode composite probe.
  *
- * Parallel orchestration via `Promise.all` over four probe slots. Identity is
+ * Parallel orchestration via `Promise.all` over three probe slots. Identity is
  * read in the handler (`git config arc.identity` / `arc.role`) and passed as
  * pointers; when `identity` is `null` the user slot resolves to an
  * `identity-missing` {@link Probe} error without invoking the user probe.
@@ -101,13 +102,11 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
   const { identity, role, probes } = options;
 
   const userTask = userSlot(identity, (id) => probes.user(id));
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const activeTask = safeProbe("active", () => probes.active());
 
-  const [user, extensions, config, active] = await Promise.all([
+  const [user,  config, active] = await Promise.all([
     userTask,
-    extensionsTask,
     configTask,
     activeTask,
   ]);
@@ -116,7 +115,6 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
     mode: "full",
     identity: buildIdentity(identity, role),
     user: toProbe(user),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
   };
@@ -144,7 +142,6 @@ export async function runSessionInitStatus(
     "baseBranchSync",
     (context) => probes.baseBranchSync(context),
   );
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const domainRulesTask = safeProbe("domainRules", () => probes.domainRules());
   const hooksPathTask = safeProbe("hooksPath", () => probes.hooksPath());
@@ -164,7 +161,7 @@ export async function runSessionInitStatus(
 
   const [
     user, worktree, dirty, releaseRouting,
-    worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
+    worktreeIdentitySlot, baseDistance, baseBranchSync,  config, domainRules,
     hooksPath, retiredSubdirs, partialPushMarker,
   ] = await Promise.all([
     userTask,
@@ -174,7 +171,6 @@ export async function runSessionInitStatus(
     worktreeIdentityTask,
     baseDistanceTask,
     baseBranchSyncTask,
-    extensionsTask,
     configTask,
     domainRulesTask,
     hooksPathTask,
@@ -184,10 +180,7 @@ export async function runSessionInitStatus(
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
   const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
   const owningWorkUnitId = derivedLocusState.ok
     && derivedLocusState.value.active?.subject.kind === "work-unit"
@@ -502,7 +495,6 @@ export async function runSessionInitStatus(
       sessionType: null,
       planningStage: null,
       taskListPath: null,
-      activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath: null,
       cohortDoc: resolvedSlot(null),
       workingMemoryPath: workingMemoryPath ?? null,
@@ -521,7 +513,6 @@ export async function runSessionInitStatus(
     baseDistance: toProbe(enrichedBaseDistance),
     baseBranchSync: toProbe(enrichedBaseBranchSync),
     dirty: toProbe(dirty),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     active: toProbe(active),
     domainRules: toProbe(domainRules),
@@ -566,7 +557,6 @@ export async function runRecoverStatus(
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
@@ -574,24 +564,19 @@ export async function runRecoverStatus(
     worktree,
     worktreeIdentitySlot,
     dirty,
-    extensions,
     config,
     releaseRouting,
   ] = await Promise.all([
     worktreeTask,
     worktreeIdentityTask,
     dirtyTask,
-    extensionsTask,
     configTask,
     releaseRoutingTask,
   ]);
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
 
   // Physical checkout identity remains an independent informational slot; the
   // derived frame already selected the exact entering checkout.
@@ -608,7 +593,6 @@ export async function runRecoverStatus(
       state: derivedLocusState.value,
       identity,
       workingMemoryPath: workingMemoryPath ?? null,
-      activeExtensions: extensions.ok ? extensions.value.active : [],
     }));
   const recoveryFrame = mapSlot(recoveryContext, (value) => value.frame);
   const loadSet = mapSlot(recoveryContext, (value) => value.loadSet);
@@ -624,7 +608,6 @@ export async function runRecoverStatus(
     recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
-    extensions: toProbe(extensions),
     config: toProbe(config),
     releaseRouting: toProbe(releaseRouting),
     loadSet: toProbe(loadSet),
@@ -681,7 +664,6 @@ function loadSetFromState(options: {
   sessionType: ActiveSessionInitResult["sessionType"];
   planningStage: ActiveSessionInitResult["planningStage"];
   taskListPath: string | null;
-  activeExtensions: readonly string[];
   cohortDocPath: string | null;
   cohortDoc: SessionResult<string | null>;
   workingMemoryPath: string | null;
@@ -694,7 +676,6 @@ function loadSetFromState(options: {
     sessionType: options.sessionType,
     planningStage: options.planningStage,
     taskListPath: options.taskListPath,
-    activeExtensions: options.activeExtensions,
     cohortDocPath: options.cohortDocPath,
     workingMemoryPath: options.workingMemoryPath,
   }));
@@ -772,13 +753,13 @@ export async function runSessionHandoffStatus(
 
   const userTask = userSlot(identity, (id) => probes.user(id));
   const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
-  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
@@ -791,29 +772,31 @@ export async function runSessionHandoffStatus(
     : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
-    user, worktree, dirty, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, extensions, inboxState, surfaces,
+    user, worktree, worktreeIdentitySlot, dirty, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, inboxState, surfaces,
   ] = await Promise.all([
     userTask,
     worktreeTask,
+    worktreeIdentityTask,
     dirtyTask,
     releaseRoutingTask,
     syncInterlockTask,
     headTask,
     pushabilityTask,
     restateCandidatesTask,
-    extensionsTask,
     inboxStateTask,
     surfacesTask,
   ]);
 
   const derivedLocusState = identity === null
     ? failedSlot(new SessionIdentityMissingError("derivedLocusState"))
-    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
-        identity,
-        extensions.ok ? extensions.value.active : [],
-      ));
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(identity));
   const active = mapSlot(derivedLocusState, projectDerivedActiveSession);
+
+  const enrichedWorktree = mapSlot(worktree, (value) => ({
+    ...value,
+    identity: worktreeIdentitySlot.ok ? worktreeIdentitySlot.value : { kind: "primary" },
+  } satisfies SessionHandoffWorktreeValue));
 
   const branch = worktree.ok ? worktree.value.branch : null;
   const handoffActiveWuName = derivedLocusState.ok
@@ -855,7 +838,7 @@ export async function runSessionHandoffStatus(
     handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),
-    worktree: toProbe(worktree),
+    worktree: toProbe(enrichedWorktree),
     user: toProbe(enrichedUser),
     syncInterlock: toProbe(syncInterlock),
     active: toProbe(active),

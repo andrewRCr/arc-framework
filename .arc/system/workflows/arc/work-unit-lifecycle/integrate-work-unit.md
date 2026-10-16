@@ -11,11 +11,7 @@ arc:
     - review-triage
     - review-response
     - commit-footer
-  extensions:
-    - pre-pr-open
-    - post-pr-open
-    - pre-push-review
-    - pre-merge
+    - pull-request-format
 ---
 
 # Workflow: Integrate Work Unit
@@ -85,14 +81,14 @@ this entry dispatch on the `shipped` tail, which has already crossed initial pub
 Resolve the branch head, then invoke `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha}`.
 Follow its typed state:
 
-| Resolver and change-request state              | Demonstrably already ran             | Resume at                                                       |
-| ---------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
-| `integrating`; `none`                          | publication transition               | Step 1, from the idempotent **push** action                     |
-| `integrating`; `open`                          | transition, PR open                  | Step 2 (`post-pr-open` → review iteration), then candidate tail |
-| `integrating`; `closed-unmerged`               | transition, former PR                | Reopen the request, then Step 2                                 |
-| `shipped` in `completed`; `open`               | transition, PR open, candidate sweep | Step 10                                                         |
-| `merged-at-head`                               | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at Step 10 tail  |
-| `merged-stale-head`, `ambiguous`, or `blocked` | unresolved                           | Stop; follow any emitted remedy text                            |
+| Resolver and change-request state              | Demonstrably already ran             | Resume at                                                      |
+| ---------------------------------------------- | ------------------------------------ | -------------------------------------------------------------- |
+| `integrating`; `none`                          | publication transition               | Step 1, from the idempotent **push** action                    |
+| `integrating`; `open`                          | transition, PR open                  | Step 2 (review iteration), then candidate tail                 |
+| `integrating`; `closed-unmerged`               | transition, former PR                | Reopen the request, then Step 2                                |
+| `shipped` in `completed`; `open`               | transition, PR open, candidate sweep | Step 10                                                        |
+| `merged-at-head`                               | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at Step 10 tail |
+| `merged-stale-head`, `ambiguous`, or `blocked` | unresolved                           | Stop; follow any emitted remedy text                           |
 
 Resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`. Within the
 suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written into the
@@ -106,10 +102,6 @@ not that composition or archival ran. If a required product is absent, preserve 
 invoke `arc user close` or `arc teardown`. Land the missing products through a lifecycle-only repair change request,
 then re-enter this guard.
 
-**Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
-extension appears in the active-extensions list, load and execute its `.actions`. Halt-on-fail surfaces an
-actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
@@ -121,44 +113,27 @@ create-change-request` continues below; `open / reuse-change-request` proceeds t
 reopen-change-request` reopens before Step 2; `merged-at-head / complete` enters the merged tail. Every other typed
 action stops. This resolver call is the pre-create exact-head validation.
 
-Immediately before creation, compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the
-pushed branch. If `pre-pr-open` is active, execute its numbered `.actions` in authored order. Halt before later actions
-on failure. A failed `gh pr create` does not make the hook durable: retry the creation path and its retry-safe actions.
-Skip this hook whenever an open PR already exists.
-
 Immediately before creation, re-resolve the current head with:
 
 `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --require-remote`. Continue only from
 `none / create-change-request`; every other typed action dispatches as above. This exact replay requires the remote
-branch itself to carry the creation head, including after any hook action.
+branch itself to carry the creation head.
 
 Invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action: `locked / open-locked`
 creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
 
-Open the PR on the resolved action:
+Before creation, load [pull-request-format][pull-request-format] and follow its title and body guidance. Compose
+from the diff, design, and verification, not release notes. Open the single PR on the resolved action:
 
 ```bash
 gh pr create --base {base-branch} --head {type}/{name}            # open-plain
 gh pr create --base {base-branch} --head {type}/{name} --draft    # open-locked
 ```
 
-Single PR per WU. The PR title's Conventional Commits type carries the signal.
-
-**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Design / optional
-Local review / Summary / Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. The
-`Local review` field names the carrier that ran gated review locally before publication and nothing else; omit it
-when none ran. Do not add sections
-describing post-merge workflow continuity or next actions — those route to the meta file and SESSION-NOTES per
-[DEV-RULES.ARC][dev-rules-arc] § Write for the reader, not the author.
-
 ### 2) Review iteration
 
 Bind the open PR from the resolver's returned `candidate` — the reuse and reopen arms carry it, and the creation
-path uses the request Step 1 just opened — and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`
-from it. If `post-pr-open` is active, execute its numbered `.actions` in authored order before review iteration.
-This idempotent hook fires on both the newly-created path and every open-PR re-entry; actions derive current host
-state from `hostRef`. Every hook and review invocation shares this exact-head contract. If an action changes the
-head, recompose `openedChangeRequest` from the canonical current head before re-entry.
+path uses the request Step 1 just opened.
 
 Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean` and
 regenerable-only drift silent and surface substantive or uncertain interaction as review context. This read is
@@ -294,10 +269,10 @@ arc review respond -
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
 resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
-any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
-`arc review status`. Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and
-pass its exact ceiling override into the named hosted, local, or frontline admission; never reconstruct the
-authorization ID.
+any returned hosted settlement plan through the phase-ordered settlement path below, including its description upkeep
+after a pushed fix, then re-enter through `arc review status`. Retain any returned `payload.policyRequest` carrying
+`conditionalPassAuthorizationId` unchanged and pass its exact ceiling override into the named hosted, local, or
+frontline admission; never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -394,6 +369,15 @@ prior count.
 
   > [!CAUTION]
   > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+  After an approved fix is pushed, load [pull-request-format][pull-request-format] before editing the open
+  description. Update every section and qualifying decision the fix made inaccurate. For a design link, run
+  `git diff --quiet <pinned> HEAD -- <paths>` over every linked path of a layered design, and
+  `git merge-base --is-ancestor <pinned> HEAD`. Re-pin to the current design when either test fails; diagnose command
+  errors rather than treating them as successful checks. With no design link, skip the link checks. On GitHub, use
+  `gh pr edit <n> --body-file <path>` before review re-entry. This same description upkeep applies to the terminal
+  request after a delivery-owned pushed correction; the delivery workflow performs it after the continuation returns,
+  before following its review status, delivery position, or other returned step.
 
   Then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified
   for the current head. For a delivery member, require the post-fix response state `delivery-member-advanced` or
@@ -569,8 +553,6 @@ What gets pushed varies by cadence:
 - Under `manual`: completion content commit only. Sweep + ROADMAP fire later when `archive-work-unit.md` is
   invoked explicitly post-merge.
 
-Repeat the Step 1 push extension contract before this push.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -599,8 +581,6 @@ chore(arc): reconcile {name} before integration
 
 Context: meta-{name}.md (integration)
 ```
-
-Repeat the Step 1 push extension contract.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
@@ -648,8 +628,6 @@ chore(arc): record Candidate applicability for {name}
 Context: meta-{name}.md (integration)
 ```
 
-Repeat the Step 1 push extension contract.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -691,8 +669,6 @@ chore(arc): refresh publication boundary for {name}
 Context: meta-{name}.md (integration)
 ```
 
-Repeat the Step 1 push extension contract.
-
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -729,7 +705,7 @@ supplied semantic reason, detail, decisive coordinates, and `continuation` remed
 not null, reinstall the project's dependencies first. Make no applicability or review judgment before the checkpoint
 classifies the exact target.
 
-For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
+For `merged / run-quality-gates` only, push the reconciled head.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
@@ -742,9 +718,6 @@ Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
 
-**Extension report** · `#pre-merge`: If active, execute its `.actions` once for this ready checkpoint and render
-their results under this label. Otherwise, skip — the composed surface's slot carries null content, so an inactive
-extension renders nothing. The extension fires here — after `ready`, before the integration interlock.
 No commit or push may occur after `ready`.
 
 Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`, the host's
@@ -754,7 +727,7 @@ dismiss it or request re-review before merge. `approval-required` names a host a
 `unavailable` or a status refusal, surface the detail and inspect the PR's native review on the host instead.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the ready evidence, extension report, and `hostReview` read. Surface each,
+> `integration-interlock`: Stop after the ready evidence and `hostReview` read. Surface each,
 > the composed candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated
 > artifacts named rather than diffed, the review applicability calls and targeted verification retained from Step 2,
 > the approved responses already performed there and the final dispositions carried by the checkpointed settlement
@@ -766,7 +739,7 @@ dismiss it or request re-review before merge. `approval-required` names a host a
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
-push through the workflow contract, and rebuild the checkpoint over the new head.
+push through the configured release route, and rebuild the checkpoint over the new head.
 
 After approval, if the interlock surfaced required checks as not green, do not invoke merge this turn. Retain the
 authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:
@@ -879,7 +852,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
-[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
+[pull-request-format]: ../../../methods/pull-request-format.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md

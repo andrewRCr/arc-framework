@@ -451,6 +451,8 @@ export interface RunPairedPushOptions {
    * `pushInterlock` and current state. Default `false`.
    */
   setUpstream?: boolean;
+  /** Identifies the worktree leg's push to its `pre-push` hook, which records a refusal under it. */
+  pushGateId?: string;
   /**
    * Notes-leg pusher delegate. Production wires the branch-bounded export
    * adapter; tests inject a stub.

@@ -51,7 +51,8 @@ const UNCHANGED_INPUTS = "inputs unchanged";
 function isListed(check: DeclaredCheckResult): boolean {
   const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS)
     && check.batches === undefined;
-  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0;
+  return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0
+    || (check.mergedIn?.length ?? 0) > 0;
 }
 
 function renderCount(checks: readonly DeclaredCheckResult[]): string {
@@ -90,9 +91,28 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   const kind = ci ? "" : ` [${check.kind}]`;
   const notice = check.notice === undefined ? "" : ` (${check.notice})`;
   const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${notice}${difference}${rewrites}${cost}${log}`;
-  const tail = failed && check.output
-    ? `\n${check.output.split(/\r?\n/u).slice(-20).join("\n").slice(-8192)}` : "";
-  return `${heading}${tail}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+  const tail = renderOutputTail(check);
+  return `${heading}${tail}${renderMergedIn(check)}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+}
+
+function renderOutputTail(check: DeclaredCheckResult): string {
+  if (!isNonPassing(check) || !check.output) return "";
+  const lines = check.output.split(/\r?\n/u);
+  const selected = lines.slice(-20).join("\n");
+  const tail = selected.slice(-8192);
+  const removed = selected.slice(0, selected.length - tail.length);
+  const partialLine = removed.length > 0 && !removed.endsWith("\n");
+  const omitted = Math.max(0, lines.length - 20) + (removed.match(/\n/gu)?.length ?? 0) + Number(partialLine);
+  if (omitted === 0) return `\n${tail}`;
+  const fullLog = check.logPath ? `full log: ${check.logPath}` : "full log unavailable";
+  return `\n${tail}\nOutput truncated: ${omitted} earlier ${omitted === 1 ? "line" : "lines"} omitted in whole or part; ${fullLog}`;
+}
+
+/** Say how many files the check left unchecked because a merge brought them in unchanged; the result names them. */
+function renderMergedIn(check: DeclaredCheckResult): string {
+  const count = check.mergedIn?.length ?? 0;
+  if (count === 0) return "";
+  return `\nNot checked, merged in unchanged: ${count} ${count === 1 ? "file" : "files"}`;
 }
 
 function renderCost(check: DeclaredCheckResult): string {
