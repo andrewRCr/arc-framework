@@ -791,17 +791,19 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
 
         - From the flip `arc start --here` with `--new` or with no name reaches the cold start only through the
           transition-write-path change's store-backed start (`handleStoreStart`, `handlers/start-store.ts`), which hands
-          it to its cold-start slot (`admitColdStart`) ahead of its dispatch and refuses in-place creation while the
-          slot is empty. This task fills the slot with `coldStart` at its production point, `handleStart`'s
+          a nameless start to its cold-start slot (`admitColdStart`) ahead of its dispatch, and refuses in-place
+          creation while the slot is empty. This task moves a named start's hand-off into its create-new arm (`create`),
+          where that refusal sits, and fills the slot with `coldStart` at its production point, `handleStart`'s
           (`handlers/start.ts`), which the CLI calls with no overrides.
-        - A named start runs start's dispatch first, since the slot precedes it: over the store's lifecycle view
-          (`readLifecycleView`, `requireCompleteInventory`) with `create: true` (`resolveStartDispatch`), refusing with
-          its reason unless it selects `create-new`, as the in-repo arm's dispatch does, so a name the store holds
-          refuses before anything is written. A nameless start derives its name from the branch and dispatches nothing,
-          as today, so a derived name the store holds meets the record write's conflict (`version-conflict`), after
-          which the rollback removes the marker and the cold start refuses, naming the held work unit,
-          `arc start <name> --new --here` for a new one under another name, and for the held one the step its state
-          takes, which `arc status <slug>` shows.
+        - A named start so reaches the slot after store start's name resolution (`resolveStartName`), which takes a
+          former slug to its work unit and refuses an Errand's slug; its dispatch over the store's lifecycle view
+          (`readLifecycleView`, `requireCompleteInventory`) with `create: true` (`resolveStartDispatch`), which refuses
+          unless it selects `create-new`; and `create`'s refusal of `--class` — as the in-repo arm refuses each before
+          its cold start — so a name the store holds refuses before anything is written, and the cold start runs no
+          dispatch of its own. A nameless start derives its name from the branch and dispatches nothing, as today, so a
+          derived name the store holds meets the record write's conflict (`version-conflict`), after which the rollback
+          removes the marker and the cold start refuses, naming the held work unit, `arc start <name> --new --here` for
+          a new one under another name, and for the held one the step its state takes, which `arc status <slug>` shows.
         - `coldStartOccupancyRefusal` reads the current work unit through 2.3's resolver, and the marker itself
           (`readWorktreeMarkerGeneration`), since the resolver's claim read (`readClaimedCurrentWorkUnit`,
           `lib/store/current-work-unit-marker.ts`) reads a transient role and a husk stamp as no work unit and never
@@ -823,6 +825,9 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
         - Build `test-first` (one behavior at a time), over the reference backend:
             - through the production handler with nothing injected, `arc start --here --new <slug>` cold-starts, and
               `arc start --here --new` with a name the store holds refuses with the dispatch's reason, writing nothing
+            - a named `--here --new` on a former slug refuses naming its work unit, and on an Errand's slug as resolving
+              to an Errand, each writing nothing
+            - `--class` with a named `--here --new` refuses, writing nothing
             - a nameless start whose derived name the store holds refuses naming the held work unit and its two repairs,
               leaves no marker, and `arc start <name> --new --here` under another name then completes
             - an anchored no-record marker is replaced and the cold start completes

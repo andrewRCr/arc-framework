@@ -261,7 +261,7 @@ builds on:
 - `lib/work-unit/executor-context.ts`, where that change has the executor context carry the ports it is given, and this
   change binds them (§ 2.4, A1);
 - `handlers/start-store.ts`, which that change creates, and where this change has create-new take the executor's ports
-  (§ 2.4, A1);
+  and hand a named in-place start to the cold-start slot (§ 2.4, § 2.5, A1, A3);
 - `lib/git/worktree-marker.ts`, where that change adds a lineage arm to the marker's evidence decoding
   (`decodeKnownEvidence`) and this change widens the marker check (`isWorktreeMarker`, § 2.3, § 7.6);
 - `lib/git/worktree-roster.ts`, which that change also edits, and where this change has the registered-worktree scan
@@ -541,13 +541,16 @@ inspects only its own checkout (`coldStartOccupancyRefusal`), stay as today.
 cold start enters at `draft-design` (§ 16).
 
 - **Its entry from the flip** is the transition-write-path change's store-backed start (`handleStoreStart`,
-  `handlers/start-store.ts`), which hands `arc start --here` with `--new` or with no name to its cold-start slot
-  (`admitColdStart`) ahead of its dispatch, and refuses in-place creation while the slot is empty. This change fills the
-  slot at its production point, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides, handing it
-  the store and the port record of the executor it builds (§ 2.4, A1). A named start runs that dispatch itself first,
-  over the store's lifecycle view with `create: true` (`resolveStartDispatch`), refusing with its reason unless it
-  selects `create-new`, as the in-repo arm's dispatch does, so a name the store holds refuses before anything is
-  written; a nameless start derives its name from the branch and dispatches nothing, as today, so a derived name the
+  `handlers/start-store.ts`), which hands a nameless `arc start --here` to its cold-start slot (`admitColdStart`) ahead
+  of its dispatch, and a named `arc start <name> --here --new` from its create-new arm (`create`), in place of that
+  arm's refusal of in-place creation, which stays for an empty slot (A3). This change fills the slot at its production
+  point, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides, handing it the store and the port
+  record of the executor it builds (§ 2.4, A1). A named start so reaches the cold start only once store start has
+  resolved the name through `lookup` (`resolveStartName`), which takes a former slug to its work unit and refuses an
+  Errand's, dispatched it over the store's lifecycle view with `create: true` (`resolveStartDispatch`), which refuses
+  unless it selects `create-new`, and refused `--class`, as the in-repo arm dispatches and refuses `--class` before its
+  cold start; so a name the store holds refuses before anything is written, and the cold start runs no dispatch of its
+  own (A3); a nameless start derives its name from the branch and dispatches nothing, as today, so a derived name the
   store holds meets the record write's conflict, after which the rollback removes the marker and the cold start refuses,
   naming the held work unit, `arc start <name> --new --here` for a new one under another name, and for the held one the
   step its state takes, which `arc status <slug>` shows (§ 13).
@@ -2129,7 +2132,8 @@ holds until then is stated with it.
       residue sweep's retirement read takes (§ 3.4);
     - the cold start's seed handling, landing before this change reroutes `runColdStart`, and from the flip its
       store-backed start (`handleStoreStart`) handing `arc start --here` with `--new` or with no name to a cold-start
-      slot (`admitColdStart`) ahead of its dispatch, which this change fills (§ 2.5);
+      slot (`admitColdStart`) ahead of its dispatch, which this change fills, and for a named start moves into its
+      create-new arm (§ 2.5, A3);
     - promotion's one write and its work branch, built as steps `promoteOrdinaryErrand` composes, in their own module
       (§ 8.3);
     - the rule that an Active work unit is no default routing home, and the record kinds' write check refusing the move
@@ -2410,6 +2414,9 @@ close.
 13. **Every link reader and writer gets the project ID with none injected (A2).** From the flip, each reader and writer
     of links this change adds, given no project-ID port, reads the project's identity record over its store, and treats
     a failed read of that record as an incomplete observation (§ 2.1).
+14. **A named in-place start refuses as a spawning one does (A3).** From the flip, `arc start <name> --here --new`
+    refuses before any write every name `arc start <name> --new` refuses — a held work unit's, a former slug, or an
+    Errand's — and refuses `--class`, as the in-repo arm does.
 
 ## Open Questions
 
@@ -2422,5 +2429,7 @@ this design open.
   § 2.4 ¶1; § 16, the transition write path's ports item. _Trigger:_ door. _Work:_ 2.5. _Revalidated:_ pending → 2.10.
 - **A2** — 2026-10-16 — design: locus's link readers and writers bind the project-ID port over their store; the cutover
   binds none. _Supersedes:_ § 16, the cutover item. _Trigger:_ door. _Work:_ 2.1. _Revalidated:_ pending → 8.1.
+- **A3** — 2026-10-16 — design: a named in-place start reaches the cold start from store start's create-new arm.
+  _Supersedes:_ § 2.5, its entry item. _Trigger:_ door. _Work:_ 2.6. _Revalidated:_ pending → 2.10.
 
 ---

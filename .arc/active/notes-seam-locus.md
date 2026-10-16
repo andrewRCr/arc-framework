@@ -16,6 +16,7 @@
 - [Registered folder presence completion coverage](#registered-folder-presence-completion-coverage)
 - [A1: where the locus ports bind](#a1-where-the-locus-ports-bind)
 - [A2: where locus's link readers get the project ID](#a2-where-locuss-link-readers-get-the-project-id)
+- [A3: where a named in-place start meets the cold start](#a3-where-a-named-in-place-start-meets-the-cold-start)
 
 ## Consumer-map re-verification
 
@@ -411,5 +412,29 @@ too, through `resolveProjectIdentity` (`prepareTaskClose`).
 
 The rule is realized across Phases 2, 3, 5, and 7, so the row names Task 2.1, where it first lands, as its work, and the
 terminal verification, the first check over all of Success Criterion 13, as its revalidation.
+
+## A3: where a named in-place start meets the cold start
+
+A3 moves store start's hand-off of a named in-place start. `spec-seam-locus.md` § 2.5's entry item said store start
+
+> hands `arc start --here` with `--new` or with no name to its cold-start slot (`admitColdStart`) ahead of its dispatch,
+> and refuses in-place creation while the slot is empty
+
+and that
+
+> A named start runs that dispatch itself first, over the store's lifecycle view with `create: true`
+> (`resolveStartDispatch`), refusing with its reason unless it selects `create-new`, as the in-repo arm's dispatch does,
+> so a name the store holds refuses before anything is written;
+
+The cold start's own dispatch could not deliver that outcome. `handleStoreStart` (`handlers/start-store.ts`) fills the
+slot before `resolveStartName`, which resolves a slug through `lookup`, so it takes a former slug to its work unit and
+refuses an Errand's, and before `create`'s refusal of `--class`. The lifecycle view's index, which
+`resolveStartDispatch` reads, holds neither former slugs nor Errand slugs, so a named `--here --new` on either passed
+the cold start's dispatch, wrote the marker, and met its refusal only at the record write, and `--class` was taken
+silently. The in-repo arm (`handleStart`, `handlers/start.ts`) dispatches and refuses `--class` before its cold start.
+
+Handing the named start over from `create`, where store start already refuses in-place creation, reuses all three checks
+and removes the cold start's second dispatch. A nameless start has no name to resolve, so it keeps the slot ahead of the
+dispatch, and a derived name the store holds still meets the record write's conflict.
 
 ---
