@@ -19,6 +19,7 @@
 - [A3: where a named in-place start meets the cold start](#a3-where-a-named-in-place-start-meets-the-cold-start)
 - [A7: where promotion's steps get their checkout](#a7-where-promotions-steps-get-their-checkout)
 - [A10: where `arc status <slug>`'s locus reads land](#a10-where-arc-status-slugs-locus-reads-land)
+- [A11: removing an adopted branch's missing folder](#a11-removing-an-adopted-branchs-missing-folder)
 
 ## Consumer-map re-verification
 
@@ -501,5 +502,30 @@ of these sits in the checkout, so a read there would report the meta missing. Th
 record through the store wherever the work unit is checked out (`spec-seam-delivery-review.md` § 12.4), which needs no
 path from this change. The arm keeps reporting `null` until that change lands its read; the flip follows every member,
 so no flipped repository reads the gap.
+
+## A11: removing an adopted branch's missing folder
+
+A11 narrows `spec-seam-locus.md` § 12.2's typed teardown for a missing folder's registration to a branch the work unit
+created. Its first bullet read
+
+> **A branched one whose work unit has ended** — shipped by its branch, as today, and from the flip by its branch's link
+> (`lookup` by ref) and the work unit's placement — takes `arc teardown <name>`, typed, since teardown matches it by the
+> branch it retires and removes it through the removal function, which reads the folder again (§ 16); where it is
+> locked, `git worktree unlock <path>`, then `arc teardown <name>`, as text, the lock being its owner's.
+
+The transition-write-path change's store teardown (`runStoreTeardown`, `lib/work-unit/verbs/teardown-store.ts`) clears a
+missing folder's registration only on its way to deleting a branch it created: `prepareCreatedBranch` calls
+`clearMissingWorktreeRegistrations` (`lib/git/worktree-removal.ts`) for the retiring branch when its link records
+`linkedAs: "created"`, and for the additional created branches it reaps. A link recording `adopted` goes to
+`reportAdopted`, which keeps the branch and prints its owner's cleanup, a `git switch` from the registration's path
+among it, a path that no longer exists. The holder removal (`retireHolder`) finds its checkout by marker, and a missing
+folder took its marker with it. A typed `arc teardown <name>` offered for such a registration would leave it registered,
+and the sweep would offer the same action at every session start, against § 4.3's rule that an action is typed only
+where running it as given repairs the condition.
+
+Such a registration joins the ones that take `git worktree remove <path>` as text. With its folder gone nothing tells an
+ARC-spawned checkout of the adopted branch from one its owner made, so removing it is the owner's call, as for an
+in-flight work unit's. Before the flip the sweep reads no link, so nothing changes there. Teardown's own `git switch`
+text for a missing path is that change's code, captured for an Errand rather than changed here.
 
 ---

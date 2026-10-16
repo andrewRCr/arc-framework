@@ -1570,7 +1570,11 @@ inject a reference-backend store.
         - Such a row reports as a `detached` report naming its work unit, where a `branched` report
           (`StaleWorktreeReport`) names its branch; the sweep's registered schema (Task 1.1.b) gains the arm.
         - Its `missingFolders` reads a branched registration's work unit as ended through placement and `lookup`, where
-          Task 1.7.b reads it as shipped by its branch.
+          Task 1.7.b reads it as shipped by its branch. It takes the link naming that branch from the work item's links:
+          one recording the branch `created` (`linkedAs`) gives the registration `arc teardown <name>`, and one
+          recording it `adopted` the removal by path as text, with the unlock first where it is locked, since teardown
+          keeps an adopted branch with its registration, clearing a missing folder's registration only for a branch it
+          created (`reportAdopted`, `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`).
         - It leaves out a branched row whose work unit an abandonment's lineage record retires, which the residue sweep
           reports (3.7.c), so each checkout reports in one sweep, as today.
 
@@ -1578,6 +1582,8 @@ inject a reference-backend store.
             - a branchless checkout whose work unit has ended reports as `detached`, landed where it sits on base
             - a detached checkout holding unlanded commits reports unmerged
             - a folderless registration whose work unit has ended takes its teardown through placement
+            - a folderless registration whose ended work unit adopted its branch takes `git worktree remove <path>` as
+              text, with `git worktree unlock <path>` first where it is locked, and no teardown
             - a branched checkout whose work unit was abandoned is not reported here
 
     - `[ ]` **3.7.c The residue sweep's abandonment from the flip**

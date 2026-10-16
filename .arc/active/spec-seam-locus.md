@@ -1072,8 +1072,8 @@ flip's rewrite (§ 1.5).
 | `sweep`: a landed retirement's residue                                                                                                     | `arc teardown <slug>`, its teardown remedy, as today                                                                                            | typed |
 | `sweep` from the flip: a lineage lookup or retirement read refusing with anything but `not-found` (§ 3.4)                                  | its message: for a lineage record with no `retiredBranches`, repair its retired branch links, then `arc teardown <slug>`                        | text  |
 | `sweep`: a landed retirement's one ready successor, where successor readiness reports one                                                  | `arc start <slug>`, its successor remedy                                                                                                        | typed |
-| `sweep`'s `missingFolders`: a branched registration whose work unit has ended, unlocked (§ 12.2)                                           | `arc teardown <name>`                                                                                                                           | typed |
-| `sweep`'s `missingFolders`: a branched registration whose work unit has ended, locked (§ 12.2)                                             | `git worktree unlock <path>`, then `arc teardown <name>`                                                                                        | text  |
+| `sweep`'s `missingFolders`: a branched registration on a branch its ended work unit created, unlocked (§ 12.2, A11)                        | `arc teardown <name>`                                                                                                                           | typed |
+| `sweep`'s `missingFolders`: a branched registration on a branch its ended work unit created, locked (§ 12.2, A11)                          | `git worktree unlock <path>`, then `arc teardown <name>`                                                                                        | text  |
 | `sweep`'s `missingFolders`: any other registration, unlocked (§ 12.2)                                                                      | `git worktree remove <path>`, once `<path>` is confirmed still missing                                                                          | text  |
 | `sweep`'s `missingFolders`: any other registration, locked (§ 12.2)                                                                        | `git worktree unlock <path>`, then `git worktree remove <path>`, once `<path>` is confirmed still missing                                       | text  |
 | `sweep`: a checkout whose work unit another identity owns (§ 5)                                                                            | `arc locus release <slug>`                                                                                                                      | typed |
@@ -1959,15 +1959,19 @@ reading. It reports each in its own field, `missingFolders: [{ worktreePath, bra
 `worktrees`, never as a `StaleWorktreeReport`, whose kinds session-init's text dispatches on:
 
 - **A branched one whose work unit has ended** — shipped by its branch, as today, and from the flip by its branch's link
-  (`lookup` by ref) and the work unit's placement — takes `arc teardown <name>`, typed, since teardown matches it by the
-  branch it retires and removes it through the removal function, which reads the folder again (§ 16); where it is
-  locked, `git worktree unlock <path>`, then `arc teardown <name>`, as text, the lock being its owner's.
+  (`lookup` by ref), the link recording that the work unit created the branch (`linkedAs`), and the work unit's
+  placement (A11) — takes `arc teardown <name>`, typed, since teardown matches it by the branch it retires and removes
+  it through the removal function, which reads the folder again (§ 16); where it is locked,
+  `git worktree unlock <path>`, then `arc teardown <name>`, as text, the lock being its owner's.
 - **Every other one** takes `git worktree remove <path>` as text, once `<path>` is confirmed still missing, with
   `git worktree unlock <path>` first where it is locked: a detached one, which names nothing, since it has no branch and
-  its marker went with its folder, a hand-deleted husk's among them; and a branched one whose work unit is in flight,
-  whoever owns it, or whose branch no work unit links. A work unit's spawn clears such a registration itself (§ 2.7,
-  § 16), so for a work unit the report is hygiene, never a step a materialize waits on; an Errand's spawns clear nothing
-  (§ 16), so an Errand whose registration holds its branch respawns only once the removal has run.
+  its marker went with its folder, a hand-deleted husk's among them; a branched one whose work unit is in flight,
+  whoever owns it, or whose branch no work unit links; and from the flip a branched one whose ended work unit adopted
+  its branch, which teardown keeps with its registration, clearing a missing folder's registration only for a branch it
+  created (`reportAdopted`, `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`, A11). A work unit's spawn
+  clears such a registration itself (§ 2.7, § 16), so for a work unit the report is hygiene, never a step a materialize
+  waits on; an Errand's spawns clear nothing (§ 16), so an Errand whose registration holds its branch respawns only once
+  the removal has run.
 
 A removal ARC does not run is text naming its precondition, that the folder is still missing: the folder was read at
 session start, and `git worktree remove` run later deletes a checkout whose folder is present again by then, gitignored
@@ -2477,6 +2481,10 @@ close.
     unit's worktree path from the marker roster, or the lookup's condition in its place, its in-flight warnings from the
     set listed through the store, and with `--fetch` the reachability the store's pull reports, its operational boundary
     staying the delivery change's.
+18. **An adopted branch's missing-folder registration takes the removal by path (A11).** From the flip the
+    stale-worktree sweep gives a registration whose folder is missing and whose ended work unit adopted its branch
+    `git worktree remove <path>` as text, with `git worktree unlock <path>` first where it is locked, never
+    `arc teardown`.
 
 ## Open Questions
 
@@ -2505,5 +2513,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
 - **A10** — 2026-10-16 — design: `arc status <slug>`'s locus reads join lifecycle's store arm. _Supersedes:_ § 3.1 and
   § 1.2, the status read path. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
+- **A11** — 2026-10-16 — design: an adopted branch's missing-folder registration takes the removal by path.
+  _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ pending → 3.10.
 
 ---
