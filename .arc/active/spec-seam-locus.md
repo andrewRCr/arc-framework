@@ -1014,9 +1014,11 @@ frame's subject from the flip.
   records it acquired.
 - **The user-reference reconcile** rewrites personal records rather than a work unit's artifact group, and from the flip
   takes the prepared-write shape over them: it revalidates each prepared record by its version and applies every
-  rewrite in one `batch` with expected versions. The session notes it rewrites are from the flip the meta's session
-  context (§ 2.8), so the same batch writes the meta through the meta kind's writer at its expected version beside the
-  personal records. Until the flip it re-plans under the notes lock, as `runUserReferenceReconcile` does today.
+  rewrite in one `batch` with expected versions. Only managed inbox `WU_Target` fields are mechanical; working-memory
+  and meta session-context prose yield advisories and remain unchanged (A21). The records read to prepare the plan,
+  including those supporting advisory context, are revalidated by version; no unchanged meta or personal record is
+  written merely to carry that guard. Until the flip it re-plans under the notes lock, as
+  `runUserReferenceReconcile` does today.
 - **The reads stay narrow:** each goes through the contract without reshaping the workflow's prose conditionals over
   the envelope.
 
@@ -2592,6 +2594,11 @@ close.
     lookup. Complete claims with diagnostics and failed claims reads still refuse; repair restores admission. This
     supersedes Criterion 5's requirement that both acquisitions be complete, only for authoritative claims absence.
 
+26. **User-reference prose stays advisory (A21).** From the flip all managed inbox rewrites land in one prepared
+    batch after version revalidation of the records read. A changed supporting record refuses before any rewrite lands.
+    Working-memory and meta session-context prose yield advisories and remain byte-for-byte unchanged; no unchanged
+    record is written merely for revalidation.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2639,5 +2646,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ 1.13 must-stop. _Work:_ 1.R2. _Revalidated:_ 1.13.
 - **A20** — 2026-10-16 — design: authoritative claim absence is an empty terminal and merge inventory.
   _Supersedes:_ § 3.2 ¶2; Criterion 5. _Trigger:_ 3.2 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 3.10.
+- **A21** — 2026-10-16 — design: personal prose stays advisory while managed reference edits batch atomically.
+  _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.11.
 
 ---

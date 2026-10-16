@@ -709,4 +709,16 @@ absence visible; no synthetic claim or fabricated complete snapshot grants autho
 and merge gates, their repaired continuations, and real-Git handler closure. No Store contract or production backend
 capability changes.
 
+## A21: the user-reference prose boundary
+
+The superseded § 4.1 statement was “the same batch writes the meta through the meta kind's writer at its expected
+version beside the personal records.” `planUserReferenceReconcile` mechanically rewrites only inbox `WU_Target`
+fields; its working-memory and session-notes paths call `scanProse` and produce advisories. It neither calls the
+artifact code-span planner nor prepares a session-context edit. Automatic artifact-span rewriting in personal prose
+would therefore add a new grammar rather than preserve this boundary.
+
+The approved correction keeps prose advisory, including the meta's session context from the flip, and batches only
+existing managed inbox rewrites. Every supporting record is still version-revalidated before application; an unchanged
+record needs no put merely to carry that guard. Task 5.R records this correction to Task 5.1.c's meta-write premise.
+
 ---

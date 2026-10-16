@@ -2021,6 +2021,8 @@ its `arc schema` test with it.
 
     - `[ ]` **5.1.c The user-reference reconcile as one prepared write**
 
+        - _Amended in:_ 5.R (A21)
+
         - From the flip `lib/user-reference-reconcile.ts` and its command (`handleUserReconcileReferences`,
           `handlers/user.ts`) revalidate each prepared personal record by its version and apply every rewrite in one
           `batch` with expected versions, through the prepared-write protocol's revalidation and application
@@ -2373,6 +2375,19 @@ its `arc schema` test with it.
         - a work unit retired by a cut or an abandonment derives the retired frame
         - a partial teardown grants no cleanup authority past what its record and checkout show
         - a missing completed subject, and an ambiguous one, each fail closed as the Goal states
+
+### `[ ]` **5.R Keep personal prose advisory in the prepared reconcile — § 4.1 (A21)**
+
+- _Goal:_ Managed inbox reference rewrites land in one prepared batch after revalidating every supporting record;
+  working-memory and meta session-context prose yield advisories and remain unchanged (A21).
+
+    - Use `revalidateLifecycleRecords` and `applyPreparedLifecycleWrite` for the acquired personal and context records,
+      preparing writes only for managed inbox fields the existing planner rewrites. Never write an unchanged record
+      merely to revalidate its version.
+    - Build `test-first` (one behavior at a time), over the reference backend:
+        - managed inbox rewrites land together while memory and meta session context remain byte-for-byte unchanged
+        - a supporting record changed after preparation refuses before any rewrite lands
+        - prose naming former work units yields advisories without an automatic rewrite
 
 ### `[ ]` **5.11 Session-init and recovery over the store** — validate exit criterion at segment scope
 
