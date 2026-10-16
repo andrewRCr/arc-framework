@@ -13,18 +13,20 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                 | Cohort          |
-| ---------- | ------------------------------- | -------- | ------ | -------------------------- | --------------- |
-| `Planning` | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus | state-storage   |
-| `Planning` | storage-ref-backend             | P1       | andrew | —                          | state-storage   |
-| `Active`   | seam-lifecycle                  | P1       | andrew | —                          | storage-seam    |
-| `Planning` | seam-locus                      | P1       | andrew | —                          | storage-seam    |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                          | —               |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                          | —               |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                          | —               |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                          | —               |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                          | —               |
-| `Planning` | pull-request-surface-policy     | P2       | andrew | —                          | doc-conventions |
+| State         | Work unit                       | Priority | Owner  | Depends on                                      | Cohort        |
+| ------------- | ------------------------------- | -------- | ------ | ----------------------------------------------- | ------------- |
+| `Planning`    | storage-projection              | P1       | andrew | seam-lifecycle, seam-locus, storage-ref-backend | state-storage |
+| `Planning`    | storage-ref-backend             | P1       | andrew | seam-lifecycle, seam-locus                      | state-storage |
+| `Planning`    | seam-decomposition              | P1       | andrew | —                                               | storage-seam  |
+| `Planning`    | seam-delivery-review            | P1       | andrew | —                                               | storage-seam  |
+| `Integrating` | seam-lifecycle                  | P1       | andrew | —                                               | storage-seam  |
+| `Active`      | seam-locus                      | P1       | andrew | —                                               | storage-seam  |
+| `Planning`    | seam-status-roadmap             | P1       | andrew | —                                               | storage-seam  |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                               | —             |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                               | —             |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                               | —             |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                               | —             |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                               | —             |
 
 ## Ready
 
@@ -37,9 +39,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
-| seam-decomposition                  | P1       | andrew | —          | storage-seam               |
-| seam-delivery-review                | P1       | andrew | —          | storage-seam               |
-| seam-status-roadmap                 | P1       | andrew | —          | storage-seam               |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
@@ -53,6 +52,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                   | P2       | andrew | —          | approval-flow-refinement   |
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
+| pull-request-surface-policy         | P2       | andrew | —          | doc-conventions            |
 | cli-output-contract                 | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
