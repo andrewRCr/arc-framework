@@ -213,7 +213,7 @@ plumbing.
 _Mode:_ `slice` through Phase 4 — closes on records written, read, listed, and versioned through real refs in the
 default layout.
 
-### `[ ]` **3.1 The backend module and its construction — § 1.2**
+### `[x]` **3.1 The backend module and its construction — § 1.2**
 
 - _Goal:_ `lib/store/ref/` builds one backend from one ports object without running a command or reading a file, is
   reachable only through `lib/store/create.ts`, and can be tested before its write path exists.
@@ -242,16 +242,10 @@ default layout.
           delegates to it with lazy legacy candidates, retaining its API and adoption order. Worktrees share one ID,
           fresh clones mint distinct IDs, and the actor port remains unresolved during construction.
 
-    - `[ ]` **3.1.e The planting helper**
-        - A helper in `__tests__/helpers/store/` that writes blobs, trees (gitlinks, metadata files, and quarter folders
-          among them), and commits with plumbing, and moves refs, in a test repository: the read path's tests use it
-          before the write path exists, the conformance fixture's `plant` hook uses it (4.4), and later phases build
-          states only another clone's sync would leave with it
-        - It writes through Git, never through `lib/store/ref/`, except for the states Git refuses to make: a ref naming
-          an object the clone lacks is written into files-format ref storage directly, and a tip, tree, or blob the
-          clone must lack is removed from the object store after it is written, the only route under reftable
-        - The test repositories it builds carry a code remote whose `arc-state` is `push`, so their store stays in the
-          code repository's refs once a write that finds no store follows the designation (8.1, § 9.7)
+    - `[x]` **3.1.e The planting helper**
+        - `ref-plant.ts` builds real nested trees, binary blobs, gitlinks, parented commits, and refs, with files-only
+          missing-tip planting and loose-object removal for either ref format. Repositories carry a push-designated
+          code remote; new Git fixtures use the shared teardown that tolerates background-GC races.
 
 ### `[ ]` **3.2 Stored paths — § 3.2**
 

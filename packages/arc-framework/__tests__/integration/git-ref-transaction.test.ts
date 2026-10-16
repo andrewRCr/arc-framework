@@ -1,3 +1,4 @@
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +10,7 @@ import { updateRefTransaction, type RefTransactionPorts } from "../../src/lib/gi
 
 const roots: string[] = [];
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await removeGitBackedDirs(roots.splice(0));
 });
 
 async function repository(format: string) {

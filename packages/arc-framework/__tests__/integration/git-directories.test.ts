@@ -1,4 +1,5 @@
-import { mkdtemp, lstat, readFile, rm } from "node:fs/promises";
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { mkdtemp, lstat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,7 +12,7 @@ import { makeGitExec } from "../helpers/integration.js";
 const roots: string[] = [];
 const files = { lstat, readFile: (path: string) => readFile(path, "utf8") };
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await removeGitBackedDirs(roots.splice(0));
 });
 
 describe("Git directory marker compatibility", () => {

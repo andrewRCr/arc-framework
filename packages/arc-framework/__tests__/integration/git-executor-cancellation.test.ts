@@ -1,5 +1,6 @@
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { execFile } from "node:child_process";
-import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -22,7 +23,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   for (const pid of children) kill(pid);
   children.clear();
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await removeGitBackedDirs(roots.splice(0));
 });
 
 function kill(pid: number): void {

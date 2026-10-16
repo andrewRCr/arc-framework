@@ -1,3 +1,4 @@
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { createServer } from "node:http";
 import type { Socket } from "node:net";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -12,7 +13,7 @@ import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 const roots: string[] = [];
 afterEach(async () => {
   vi.unstubAllEnvs();
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await removeGitBackedDirs(roots.splice(0));
 });
 
 async function repositories() {

@@ -112,6 +112,8 @@ export async function removeGitBackedDirs(
 export interface CreateTempRepoOptions {
   /** Temp directory name prefix (tier personality). */
   prefix?: string;
+  /** Explicit ref storage for fixtures exercising both supported Git formats. */
+  refFormat?: "files" | "reftable";
   /**
    * When provided, sets `arc.identity` on the repo so `arc init --yes` skips
    * the interactive identity prompt. E2E fixtures pre-set `"test-user"`;
@@ -135,10 +137,10 @@ export interface CreateTempRepoOptions {
  * @returns Absolute path to the initialized temp repo. Caller owns teardown via {@link removeGitBackedDir}.
  */
 export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
-  const { prefix = "arc-test-", identity } = options;
+  const { prefix = "arc-test-", identity, refFormat } = options;
   const dir = await mkdtemp(join(tmpdir(), prefix));
   try {
-    await execFileAsync("git", ["init", "-b", "main", dir]);
+    await execFileAsync("git", ["init", "-b", "main", ...(refFormat ? [`--ref-format=${refFormat}`] : []), dir]);
     await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
     await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
     await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
