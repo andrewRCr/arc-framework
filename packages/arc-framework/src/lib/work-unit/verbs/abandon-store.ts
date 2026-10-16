@@ -63,7 +63,9 @@ async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "remova
   const exec = ctx.executor.exec;
   const checkout = exec === undefined ? null : await findWorkUnitHoldingCheckout({ cwd: ctx.executor.cwd, exec, locusPorts: ctx.executor.locusPorts }, primary.reference.owner.name);
   if (checkout !== null && exec !== undefined) {
-    const check = await checkRetiringCheckout({ exec, checkoutPath: checkout, ...ctx.removal,
+    const removalExec = ctx.removal?.exec ?? exec;
+    const check = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: checkout,
+      exec: (command, args, options) => removalExec(command, args, { cwd: ctx.executor.cwd, ...options }),
       check: ctx.removal?.check ?? ctx.storeTeardown?.projectionRemovalSlots?.check });
     if (check.kind === "refused") return { status: "rejected" as const, reason: describeRemovalRefusal(check) };
   }

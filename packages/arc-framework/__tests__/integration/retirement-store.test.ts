@@ -4,6 +4,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { createRetirementHarness, retirementLink } from "../helpers/store/retirement-harness.js";
+import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js";
@@ -13,7 +14,7 @@ import { runStoreAbandon } from "../../src/lib/work-unit/verbs/abandon-store.js"
 import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
 import { readStoreRetirementEvidence } from "../../src/lib/work-unit/store-retirement-evidence.js";
-import { TeardownCommandInputSchema } from "../../src/handlers/lifecycle.js";
+import { TeardownCommandInputSchema, AbandonCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -45,10 +46,30 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
   const abandon = () => runStoreAbandon({ executor, storeTeardown: ctx, baseBranch: "main", removal: { exec, readMarker: ctx.readMarker } }, { name: "demo", confirmed: true });
   const teardown = async () => { const result = await runTeardown(ctx, { name: "demo", base: "main" });
     if (result.status === "rejected") throw Error(result.reason); return result; };
-  return { ...h, root, exec, ctx, marker, baseOid, workOid, abandon, teardown, setHolder: (path: string) => { holder = path; },
+  return { ...h, root, exec, ctx, executor, marker, baseOid, workOid, abandon, teardown, setHolder: (path: string) => { holder = path; },
     local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
 }
 describe("store retirement real Git", () => {
+  it("refuses the selected repository's operator lock through an ambient executor and abandons after unlock", async () => {
+    const h = await fixture({ ended: false });
+    const ambient = await createTempRepo(); roots.push(ambient);
+    const raw = makeGitExec(ambient), path = join(h.root, "checkout");
+    await h.exec("git", ["switch", "main"]); await h.exec("git", ["worktree", "add", path, "feat/demo"]);
+    h.marker.spawnedByArc = true; h.setHolder(path); await writeWorktreeMarker(path, h.marker);
+    await h.exec("git", ["worktree", "lock", "--reason", "owner holds checkout", path]);
+    const before = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+    const input = AbandonCommandInputSchema.parse({ slug: "demo" });
+    const run = () => runStoreAbandon({ executor: { ...h.executor, exec: raw }, storeTeardown: h.ctx, baseBranch: "main",
+      removal: { exec: raw, readMarker: h.ctx.readMarker } }, { name: input.slug!, confirmed: true });
+    expect(await run()).toMatchObject({ status: "rejected", reason: expect.stringContaining("owner holds checkout") });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(before);
+    expect((await h.store.list({ family: "lineage", kind: "lineage/transition" }))).toMatchObject({ status: "ok", result: { status: "absent" } });
+    await h.exec("git", ["worktree", "unlock", path]);
+    expect(await run()).toMatchObject({ status: "abandoned" });
+    expect(await h.store.read({ reference: h.meta.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(path);
+    expect(await h.local("refs/heads/feat/demo")).toBeNull();
+  }, 30_000);
   it("returns a clean anchored created branch to base and reaps its exact local, tracking, and remote refs", async () => {
     const h = await fixture(); expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout).toBe("main");

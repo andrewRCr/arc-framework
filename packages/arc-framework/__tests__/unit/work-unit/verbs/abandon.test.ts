@@ -484,6 +484,19 @@ describe("runAbandon — illegal sources", () => {
 });
 
 describe("abandon removal preflight", () => {
+  it("reads the selected repository's lock through an ambient executor and abandons after owner unlock", async () => {
+    const { ctx, removed, recordedTransitions } = buildCtx([ACTIVE]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] !== "worktree" ? "" : options?.cwd === CWD
+        ? `worktree ${CWD}\0HEAD ${"a".repeat(40)}\0branch refs/heads/feat/foo\0${locked ? "locked owner holds checkout\0" : ""}\0`
+        : `worktree /ambient\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0` }) };
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "rejected", reason: expect.stringContaining("owner holds checkout") });
+    expect(removed).toEqual([]); expect(recordedTransitions).toEqual([]);
+    locked = false;
+    expect(await runAbandon(ctx, BASE)).toMatchObject({ status: "abandoned" });
+    expect(removed.length).toBeGreaterThan(0); expect(recordedTransitions).toHaveLength(1);
+  });
   it.each(["Planning", "Active"])("refuses dirty %s work before recording or staging", async (state) => {
     const { ctx, removed, recordedTransitions, calls } = buildCtx([{ ...ACTIVE, state }]);
     ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };

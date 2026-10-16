@@ -293,7 +293,9 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
 
   if (STARTED.has(state)) {
     if (ctx.removal === undefined) return { status: "rejected", reason: "checkout removal check is not wired." };
-    const removal = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: executor.cwd });
+    const boundary = ctx.removal;
+    const removal = await checkRetiringCheckout({ ...boundary, checkoutPath: executor.cwd,
+      exec: (command, args, options) => boundary.exec(command, args, { cwd: executor.cwd, ...options }) });
     if (removal.kind === "refused") return { status: "rejected", reason: describeRemovalRefusal(removal) };
   }
 
