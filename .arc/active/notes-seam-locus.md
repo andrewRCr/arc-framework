@@ -607,4 +607,12 @@ Spec § 1.4, item 5 changes `unit/compaction-seed/emitter.test.ts`, `unit/compac
 which equals the code head on the in-repo backend. Envelope selection remains a read-only projection: meta paths are
 recognized through the layout inverse and reprojected through the store's shared path provider.
 
+## Task 1.10: dormant command registrations
+
+Spec § 1.4, item 6 adds `unit/store-command-registration.test.ts` and `e2e/store-command-dormancy.e2e.test.ts`;
+changes `unit/command-input/registry.test.ts`, `unit/lib/cli-help-coverage.test.ts`, and
+`unit/no-input-invocations.test.ts`; and extends `fixtures/command-input/no-input-matrix.ts` and
+`helpers/cli-transport.ts`. Paths are under `packages/arc-framework/__tests__/`. No session-envelope golden changes
+are required. Both in-repo and reference stores refuse each dormant arm before reading any request or stdin bytes.
+
 ---

@@ -37,6 +37,8 @@ function commandPath(args: readonly string[]): string {
  */
 export function emitsMachineReadablePayload(args: readonly string[]): boolean {
   const path = commandPath(args);
+  if (args[0] === "route" || (args[0] === "errand" && args[1] === "queue" && args[2] === "set")
+    || (args[0] === "handoff" && args[1] === "write")) return true;
   if (args[0] === "delivery") {
     return !DELIVERY_HUMAN_DEFAULT.some((human) => path === human || path.startsWith(`${human} `));
   }

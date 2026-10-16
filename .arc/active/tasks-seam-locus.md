@@ -209,39 +209,27 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   Shared work-item and cohort path providers retain layout authority; seed meta selection and archived-integration
   relocation use the layout inverse and provider instead of filename patterns. Recovery summaries carry the version.
 
-### `[ ]` **1.10 Register the new verbs, refusing `unsupported` — § 14**
+### `[x]` **1.10 Register the new verbs, refusing `unsupported` — § 14**
 
 - _Goal:_ `arc inbox`, `arc route`, `arc locus release`, `arc errand queue`, `arc errand queue set`, and
   `arc handoff write` are registered in § 14's forms, and each branches on the store's capability, refusing
   `unsupported` before the flip and naming what serves until then.
 
-- _Approach:_ Each handler opens the store as lifecycle's verbs do (Task 3.1 - `tasks-seam-lifecycle.md`) and reads
-  `capabilities.stateOffBranch`; until its arm from the flip lands with its behavior, that arm refuses `unsupported`
-  too, so the reference backend meets the same refusal.
-
-    - Register them in `src/cli.ts` with § 14's full argument and option forms: `arc inbox` and `arc route` top level,
-      `arc locus release` under the existing `arc locus` inspect command (`handleLocus`), which keeps working unchanged,
-      `arc errand queue` and `arc errand queue set` under `arc errand`, and `arc handoff write` under a new
-      `arc handoff` group. The command-input inventory (`__tests__/unit/command-input/repository-inventory.test.ts`),
-      the help summaries (`lib/cli-help-summaries.ts`), and the no-input matrix gain each.
-    - Each refusal names its serving path, per § 14: `arc user inbox-list --target`; the routing method's until-the-flip
-      binding; `arc park` and `arc teardown`; `arc user inbox-mark-execute-bound`; and the `SESSION-NOTES` write.
-
-    - Build `test-first` (one behavior at a time):
-        - each verb refuses `unsupported` over the in-repo implementation, naming its serving path
-        - `arc locus` with no subcommand inspects as today
-
-    - `[ ]` **1.10.a `arc locus release` refusing from the flip until Task 2.9**
+    - `[x]` **1.10.a `arc locus release` refusing from the flip until Task 2.9**
 
         - _Retired in:_ Phase 2
 
-    - `[ ]` **1.10.b The listing, routing, and queue verbs refusing from the flip until Phase 6**
+    - `[x]` **1.10.b The listing, routing, and queue verbs refusing from the flip until Phase 6**
 
         - _Retired in:_ Phase 6
 
-    - `[ ]` **1.10.c `arc handoff write` refusing from the flip until Task 7.2**
+    - `[x]` **1.10.c `arc handoff write` refusing from the flip until Task 7.2**
 
         - _Retired in:_ Phase 7
+
+- _Outcome:_ Six command registrations expose the complete argument and option forms, with owned input schemas,
+  help summaries, and no-input policies. Each capability arm currently refuses with its serving path; bare locus
+  inspection keeps its existing handler and behavior.
 
 ### `[ ]` **1.11 Declare the three settings — § 4.4, § 4.6, § 14**
 

@@ -754,6 +754,21 @@ const errand = program
   .command("errand")
   .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
 
+const errandQueue = errand
+  .command("queue")
+  .description("List the person's reference-based execution queue")
+  .option("--json", "Emit the typed queue listing")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: { json?: boolean }) => {
+    await (await import("./handlers/errand-queue.js")).handleErrandQueue(opts, context);
+  }));
+
+errandQueue
+  .command("set <file>")
+  .description("Replace the execution queue from a versioned JSON file or - for stdin")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, file: string) => {
+    await (await import("./handlers/errand-queue.js")).handleErrandQueueSet(file, context);
+  }));
+
 errand
   .command("next")
   .description("Resolve the first execute-bound USER-INBOX Errand without opening it")
@@ -1659,13 +1674,48 @@ program
 
 // --- Locus ---
 
-program
+const locus = program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed session locus envelope as JSON")
   .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: LocusCliOptions) => {
     void context;
     await (await import("./handlers/locus.js")).handleLocus(opts);
+  }));
+
+locus
+  .command("release [slug]")
+  .description("Release the current checkout's work-item occupancy")
+  .action(withInteractionContext({}, async (_context, slug: string | undefined) => {
+    await (await import("./handlers/locus-release.js")).handleLocusRelease(slug, locus.opts<LocusCliOptions>());
+  }));
+
+program
+  .command("inbox <list>")
+  .description("List entries in a personal, project, or work-item inbox")
+  .option("--target <slug>", "Filter the personal inbox by work-unit target")
+  .option("--json", "Emit the typed inbox listing")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, list: string, opts: { target?: string; json?: boolean }) => {
+    await (await import("./handlers/inbox.js")).handleInbox(list, opts, context);
+  }));
+
+program
+  .command("route [entry-id]")
+  .description("Move a versioned entry, or insert an entry from standard input")
+  .option("--from <list>", "Source list for an existing entry")
+  .option("--expected-version <version>", "Entry version observed in the source listing")
+  .requiredOption("--to <destination>", "Destination inbox or work item")
+  .option("--section <name>", "Destination section when its kind has more than one")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, entryId: string | undefined, opts: { from?: string; expectedVersion?: string; to: string; section?: string }) => {
+    await (await import("./handlers/route.js")).handleRoute(entryId, opts, context);
+  }));
+
+const handoff = program.command("handoff").description("Write session handoff state");
+handoff
+  .command("write <file>")
+  .description("Write a versioned JSON handoff request from a file or - for stdin")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, file: string) => {
+    await (await import("./handlers/handoff-write.js")).handleHandoffWrite(file, context);
   }));
 
 // --- Recover ---
