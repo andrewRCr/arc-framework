@@ -150,31 +150,19 @@ recorded holding the two load-bearing host properties.
   through shared cancellation support. Real lock waits, hung HTTP transports, and sleeping push hooks exercise aborts;
   admission and reference-transaction hooks cover pre-aborted calls, normal completion, and unchanged process groups.
 
-### `[ ]` **2.2 ARC's Git floor is 2.47 — § 11.3**
+### `[x]` **2.2 ARC's Git floor is 2.47 — § 11.3**
 
 - _Goal:_ Every place ARC states its Git floor reads 2.47, and a store failure an older Git would explain names the
   version found and the floor, at no cost to a command that succeeds.
 
-    - `[ ]` **2.2.a The six sites**
-        - `packages/arc-framework/package.json` engines, the `packages/arc-framework` entry of `package-lock.json`,
-          `packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md` synced to `.arc/reference/QUICK-REFERENCE.md`
-          through the package-project sync rule, the pin in `__tests__/unit/git/capability-contract.test.ts` with its
-          test retitled for the floor's reason, and `CONTRIBUTING.md`'s Prerequisites
-        - The template and the synced reference are shipped content: state the floor as fact, with no transitional
-          framing
+    - `[x]` **2.2.a The six sites**
+        - The package engine, lockfile, quick-reference template and project copy, contributor prerequisites, and
+          capability pin all require Git 2.47, with the pin naming reftable lock timeouts.
 
-    - `[ ]` **2.2.b The failure-time check**
-        - In `lib/git/`: a version parser over `git --version`, and a wrapper over an executor port that, on a
-          `nonzero-exit` with exit code 129 from any call, runs `git --version` and, below 2.47, throws naming the
-          version found and the floor; the ref backend installs the wrapper over its executor ports at construction
-          (3.1.a), and the transaction helper (2.3) calls the same check on a failure with every ref matching
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, over a stubbed executor
-            - the parser reads `2.47.0`, `2.47.1.windows.1`, an `(Apple Git-…)` suffix, and an `rc` suffix, and a
-              failing `git --version` leaves Git's own error standing
-            - under 2.45, a wrapped call exiting 129 throws naming 2.45 and 2.47
-            - under 2.47, the same failure throws with Git's own text
-            - a call that succeeds runs no `git --version`
+    - `[x]` **2.2.b The failure-time check**
+        - `parseGitVersion`, `withGitVersionFloor`, and the reusable `checkGitVersionFloor` preserve each executor
+          port's types and original failures, probing only after a completed usage error. Old Git receives an upgrade
+          diagnostic; supported, unavailable, and unrecognized versions leave Git's error intact.
 
 ### `[ ]` **2.3 The ref-transaction helper — § 11.1, § 11.2**
 

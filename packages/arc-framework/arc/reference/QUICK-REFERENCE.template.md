@@ -111,7 +111,7 @@ All commands from **repository root**.
 
 ### Command Prerequisites and Remote Access
 
-ARC requires Node.js 24 or newer and Git 2.45 or newer.
+ARC requires Node.js 24 or newer and Git 2.47 or newer.
 
 `arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
 generation and inspects only objects already present locally. It does not fetch code objects, update or create code
