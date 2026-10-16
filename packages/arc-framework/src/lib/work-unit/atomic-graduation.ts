@@ -5,7 +5,7 @@
  */
 
 import { removeWorktreeMarkerGeneration } from "../git/worktree-marker.js";
-import { requireSpawnedWorktreeClaim } from "./spawned-worktree-claim.js";
+import { removeDisposableSpawn } from "./spawned-worktree-claim.js";
 import type { ReconcileWorkUnitWorktreeResult } from "./mutators/reconcile-work-unit-worktree.js";
 import { join, posix } from "node:path";
 
@@ -498,8 +498,8 @@ export async function occupyStoreGraduation(options: {
   if (result.mutation !== "spawn") throw new Error("store graduation occupation returned no checkout");
   const rollback = async (): Promise<void> => {
     if (!options.inPlace) {
-      await requireSpawnedWorktreeClaim(result.worktreePath, result.markerGeneration);
-      await options.exec("git", ["worktree", "remove", "--force", result.worktreePath], { cwd: options.cwd });
+      await removeDisposableSpawn({ exec: (command, args, controls) => options.exec(command, args, { cwd: options.cwd, ...controls }),
+        path: result.worktreePath, markerGeneration: result.markerGeneration, coordinate: result.spawnCoordinate });
       return;
     }
     if (result.markerGeneration !== undefined) {

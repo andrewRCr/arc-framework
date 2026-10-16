@@ -9,6 +9,8 @@ import { StartCommandInputSchema } from "../../src/handlers/start.js";
 import { MaterializeCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { runCreateNew, runGraduate } from "../../src/commands/start.js";
 import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
+import { reconcileWorkUnitWorktree, nodeReconcileWorkUnitWorktreeFs } from "../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
+import { IncompleteWorktreePreparationError } from "../../src/lib/work-unit/incomplete-worktree-preparation.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { resolveWorktreeMarkerPath, writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
@@ -67,6 +69,121 @@ it("preserves a changed spawned graduation claim after batch refusal and graduat
   h.store.batch = batch;
   await h.repair();
   expect(await runGraduate(h.context(), h.params)).toMatchObject({ status: "graduated", worktreePath: h.path });
+}, TIMEOUT_MS);
+
+it.each(["untracked", "commit", "unobservable"] as const)("preserves %s work under the original graduation claim and retries after owner repair", async (change) => {
+  const h = await fixture();
+  const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" },
+    { kind: "backlog", commitment: "planned" });
+  const batch = h.store.batch.bind(h.store);
+  let changed = false, marker: Buffer | undefined, tip: string | undefined;
+  const exec: GitExec = async (command, args, options) => {
+    if (changed && change === "unobservable" && command === "git" && args[0] === "rev-parse" && options?.cwd === h.path) {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "checkout observation unavailable" });
+    }
+    return h.exec(command, args, options);
+  };
+  h.store.batch = async () => {
+    marker = await readFile(resolveWorktreeMarkerPath(h.path));
+    await writeFile(join(h.path, "owner-work"), "preserve these uncommitted bytes\n");
+    if (change === "commit") {
+      await h.exec("git", ["add", "owner-work"], { cwd: h.path });
+      await h.exec("git", ["commit", "-m", "owner work"], { cwd: h.path });
+      tip = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout;
+    }
+    changed = true;
+    return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", condition: "Moved concurrently",
+      records: [meta.reference], remedy: { text: "Retry start" } } };
+  };
+  expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "rejected", recovery: { kind: "rollback" } });
+  await h.retained(marker!);
+  if (tip !== undefined) expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(tip);
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(meta);
+  changed = false; h.store.batch = batch; await h.repair();
+  expect(await runGraduate(h.context(exec), h.params)).toMatchObject({ status: "graduated" });
+}, TIMEOUT_MS);
+
+it("preserves new work under an unchanged create-new claim and creates after owner repair", async () => {
+  const h = await fixture(); await h.configure();
+  const batch = h.store.batch.bind(h.store);
+  let marker: Buffer | undefined;
+  h.store.batch = async (input) => {
+    marker = await readFile(resolveWorktreeMarkerPath(h.path));
+    await writeFile(join(h.path, "owner-work"), "preserve these uncommitted bytes\n");
+    return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", condition: "Scaffold refused",
+      records: input.writes.map((operation) => operation.reference), remedy: { text: "Retry start" } } };
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo", new: true });
+  const params = { name: input.name, worktreePath: h.cwd, identity: "starter" };
+  const ctx = { store: h.store, io: h.io, internalTemplateDir: "/templates" };
+  expect(await runCreateNew(ctx, params)).toMatchObject({ ok: false, reason: expect.stringContaining("owner") });
+  await h.retained(marker!);
+  expect(h.store.state.records.size).toBe(0);
+  h.store.batch = batch; await h.repair();
+  expect(await runCreateNew(ctx, params)).toMatchObject({ ok: true });
+}, TIMEOUT_MS);
+
+it.each(["untracked", "commit"] as const)("preserves %s work and its created branch after failed provisioning", async (change) => {
+  const h = await fixture();
+  let marker: Buffer | undefined, tip: string | undefined;
+  const exec: GitExec = async (command, args, options) => {
+    if (command === "sh" || command === "cmd.exe") {
+      marker = await readFile(resolveWorktreeMarkerPath(h.path));
+      await writeFile(join(h.path, "owner-work"), "preserve these uncommitted bytes\n");
+      if (change === "commit") {
+        await h.exec("git", ["add", "owner-work"], { cwd: h.path });
+        await h.exec("git", ["commit", "-m", "owner work"], { cwd: h.path });
+      }
+      tip = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout;
+    }
+    return h.exec(command, args, options);
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo" });
+  const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
+    repo: "repo", wuName: input.name!, spawningIdentity: "starter", primaryWorktreePath: h.cwd };
+  const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
+  await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
+  await h.retained(marker!);
+  expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
+  await h.repair(); await h.exec("git", ["branch", "-D", "feat/demo"]);
+  expect(await reconcileWorkUnitWorktree(ctx, op)).toMatchObject({ mutation: "spawn", branch: "feat/demo" });
+}, TIMEOUT_MS);
+
+it("preserves a created branch advanced between checkout cleanup and ref deletion", async () => {
+  const h = await fixture();
+  await h.exec("git", ["switch", "-c", "owner"]);
+  await h.exec("git", ["commit", "--allow-empty", "-m", "owner work"]);
+  const tip = (await h.exec("git", ["rev-parse", "HEAD"])).stdout;
+  await h.exec("git", ["switch", "main"]);
+  let moved = false;
+  const exec: GitExec = async (command, args, options) => {
+    const result = await h.exec(command, args, options);
+    if (command === "git" && args[0] === "worktree" && args[1] === "remove") {
+      await h.exec("git", ["update-ref", "refs/heads/feat/demo", tip]); moved = true;
+    }
+    return result;
+  };
+  const input = StartCommandInputSchema.parse({ name: "demo" });
+  const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
+  await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: `feat/${input.name}`, base: "main",
+    locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter", postCreateScript: "exit 7" }))
+    .rejects.toThrow();
+  expect(moved).toBe(true);
+  expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
+  await h.exec("git", ["branch", "-D", "feat/demo"]);
+  expect(await reconcileWorkUnitWorktree({ ...ctx, exec: h.exec }, { mutation: "spawn", branch: "feat/demo", base: "main",
+    locationTemplate: h.path, repo: "repo", wuName: "demo", spawningIdentity: "starter" })).toMatchObject({ mutation: "spawn" });
+}, TIMEOUT_MS);
+
+it("removes an unchanged failed spawn and its created branch, then provisions on retry", async () => {
+  const h = await fixture(), input = StartCommandInputSchema.parse({ name: "demo" });
+  const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
+    repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+  const ctx = { exec: h.exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
+  await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toThrow("post_create failed");
+  expect(await stat(h.path).catch(() => null)).toBeNull();
+  expect((await h.exec("git", ["branch", "--list", "feat/demo"])).stdout).toBe("");
+  expect(await reconcileWorkUnitWorktree(ctx, op)).toMatchObject({ mutation: "spawn", branch: "feat/demo" });
 }, TIMEOUT_MS);
 
 it("removes its unchanged spawned graduation claim after batch refusal and graduates on retry", async () => {

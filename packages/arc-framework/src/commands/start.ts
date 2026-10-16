@@ -29,7 +29,7 @@
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
 import { IncompleteWorktreePreparationError, describeWorktreePreparationFailure } from "../lib/work-unit/incomplete-worktree-preparation.js";
-import { requireSpawnedWorktreeClaim } from "../lib/work-unit/spawned-worktree-claim.js";
+import { removeDisposableSpawn, type SpawnedCheckoutCoordinate } from "../lib/work-unit/spawned-worktree-claim.js";
 import type { LifecycleRollbackRecovery } from "../lib/work-unit/store-transition-types.js";
 import { runStoreGraduate } from "./start-store.js";
 import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
@@ -760,6 +760,7 @@ export async function runCreateNew(
   let worktreePath: string;
   let postCreateNotice: string | undefined;
   let markerGeneration: Buffer | undefined;
+  let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
   try {
     const spawnResult = await reconcileWorkUnitWorktree(
       {
@@ -789,6 +790,7 @@ export async function runCreateNew(
     worktreePath = spawnResult.worktreePath;
     postCreateNotice = spawnResult.postCreateNotice;
     markerGeneration = spawnResult.markerGeneration;
+    spawnCoordinate = spawnResult.spawnCoordinate;
   } catch (err) {
     const message = offBranch ? describeWorktreePreparationFailure(err, ["arc", "start", wuName, "--new"])
       : err instanceof Error ? err.message : String(err);
@@ -809,7 +811,7 @@ export async function runCreateNew(
       }) }),
     });
   } catch (err) {
-    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration }, err);
+    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate }, err);
   }
 
   return {
@@ -825,12 +827,13 @@ export async function runCreateNew(
 
 async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {
   offBranch: boolean; worktreePath: string; branch: string | null; wuName: string; markerGeneration?: Buffer;
+  spawnCoordinate?: SpawnedCheckoutCoordinate;
 }, error: unknown): Promise<Extract<CreateNewOutcome, { ok: false }>> {
   let failure = error;
   if (spawn.offBranch) {
     try {
-      await requireSpawnedWorktreeClaim(spawn.worktreePath, spawn.markerGeneration);
-      await ctx.io.exec("git", ["worktree", "remove", "--force", spawn.worktreePath]);
+      await removeDisposableSpawn({ exec: ctx.io.exec, path: spawn.worktreePath,
+        markerGeneration: spawn.markerGeneration, coordinate: spawn.spawnCoordinate });
     } catch (cleanupError) {
       failure = new IncompleteWorktreePreparationError([spawn.worktreePath], [cleanupError], error);
     }

@@ -39,7 +39,8 @@
  */
 
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
-import { claimSpawnedWorktree, requireSpawnedWorktreeClaim } from "../spawned-worktree-claim.js";
+import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, readSpawnedCheckoutCoordinate, removeDisposableSpawn,
+  type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
@@ -245,6 +246,8 @@ export type ReconcileWorkUnitWorktreeResult =
       postCreateNotice?: string;
       /** Exact marker bytes for a caller-owned anchored or spawned rollback. */
       markerGeneration?: Buffer;
+      /** Initial fresh-checkout code position, before provisioning can add work. */
+      spawnCoordinate?: SpawnedCheckoutCoordinate;
     }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean }
   | {
@@ -476,7 +479,9 @@ export async function reconcileWorkUnitWorktree(
     if (creation.kind === "error") throw creation.error;
     const { worktreePath } = creation.receipt;
     let markerGeneration: Buffer | undefined;
+    let spawnCoordinate: SpawnedCheckoutCoordinate | undefined;
     try {
+      if (offBranch) spawnCoordinate = await readSpawnedCheckoutCoordinate(ctx.exec, worktreePath);
       if (offBranch) markerGeneration = await claimSpawnedWorktree(worktreePath, op);
       const postCreateNotice = await provisionSpawnedWorktree(ctx, { ...op, worktreePath, markerGeneration });
       return {
@@ -484,10 +489,11 @@ export async function reconcileWorkUnitWorktree(
         worktreePath,
         branch: creation.receipt.branch,
         ...(markerGeneration === undefined ? {} : { markerGeneration }),
+        ...(spawnCoordinate === undefined ? {} : { spawnCoordinate }),
         ...(postCreateNotice === null ? {} : { postCreateNotice }),
       };
     } catch (error) {
-      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt, markerGeneration);
+      const cleanupFailures = await rollbackFreshSpawn(ctx, creation.receipt, markerGeneration, spawnCoordinate);
       if (cleanupFailures.length === 0) throw error;
       throw new IncompleteWorktreePreparationError([worktreePath], cleanupFailures, error);
     }
@@ -603,11 +609,15 @@ async function rollbackFreshSpawn(
   ctx: ReconcileWorkUnitWorktreeContext,
   receipt: LinkedWorktreeCreationReceipt,
   markerGeneration?: Buffer,
+  coordinate?: SpawnedCheckoutCoordinate,
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
   if (usesOffBranchState(ctx.store)) {
-    try { await requireSpawnedWorktreeClaim(receipt.worktreePath, markerGeneration); }
-    catch (error) { return [error]; }
+    try {
+      await removeDisposableSpawn({ exec: ctx.exec, path: receipt.worktreePath, markerGeneration, coordinate,
+        ...(receipt.branchCreated ? { createdBranch: receipt.branch } : {}) });
+      return [];
+    } catch (error) { return [error]; }
   }
   try {
     await ctx.exec("git", ["worktree", "remove", "--force", receipt.worktreePath]);
