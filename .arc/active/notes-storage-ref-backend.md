@@ -287,4 +287,17 @@ The correction preserves admission: valid Unicode and quote paths return records
 `malformed` diagnostic under its exact name, without hiding valid records. Raw NUL-framed enumeration still retains
 every path. No canonical path rule, write admission, or projection boundary changes.
 
+## A4 — Retirement's logical check view
+
+The approved outcome admits same-batch inbound settlement before the automatic sweep. The original § 7.4 put guard
+said: “one that puts any other record of it and leaves it no primary refuses `record-malformed`”. Its final-state
+wording also caught an inbound put clearing the list in the batch creating terminal lineage, so the ordering change
+alone did not realize the approved outcome.
+
+A4 makes that narrow exception explicit: `checkLineageRecord` observes the prepared list through `after`, and
+`observeInboundHeld` admits a list containing no entry parts. The inbound grammar remains required for a put. The
+admitted inbound cleanup is then swept with the origin; other origin-record puts still refuse. Explicit inbound
+removal already avoids the put guard. The amendment's arm records the exception to the general put restriction; its
+criterion and revalidation target remain unchanged. Task 6.R covers both admission and the exception's boundary.
+
 ---

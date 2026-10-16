@@ -1656,7 +1656,10 @@ it by name first. A reopen whose slug a live work item or cohort has taken since
   Each write is read by the state it leaves: one that leaves the item its primary restores it and ends nothing, whatever
   else of it the write puts, and one that puts any other record of it and leaves it no primary refuses
   `record-malformed` naming the lineage, with the remedy to run the abandon or decomposition again, whose write ends it,
-  or to restore the primary, so no write lands content its own batch's final commit would remove.
+  or to restore the primary. The exception is an origin `work-item/inbound` put that settles its entries in the same
+  batch creating terminal lineage (A4): the declared grammar and `checkLineageRecord` must admit the resulting list
+  before the sweep removes it. This is retirement cleanup; every other origin-record put still refuses. Explicit
+  inbound removal is permitted without that put exception.
 - **A decomposition's children** are refs the same batch creates, each with an expected absence.
 
 #### 7.5 Every other removal and rename
@@ -3952,7 +3955,7 @@ open:
 - **A3** — 2026-10-16 — design: backslash entries retain exact diagnostic paths and remain invalid record keys.
   _Supersedes:_ § 11.6 pathname claim. _Trigger:_ 3.3.a must-stop. _Work:_ 3.3.R. _Revalidated:_ pending → 4.5.
 
-- **A4** — 2026-10-16 — spec-depth: retirement checks see prepared mutations before the final sweep.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
+- **A4** — 2026-10-16 — design: retirement checks precede the sweep and admit same-batch inbound settlement.
+  _Supersedes:_ § 7.4 other-origin put refusal. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
 
 ---

@@ -790,6 +790,9 @@ close, and renames and role changes.
 
     - Apply the final sweep only after 5.8's checks admit the prepared batch; the empty final tree and history-ref move
       remain in the same transaction, with the ref-backend check-view cases in 6.R (A4)
+    - An origin inbound-list put settling its entries in the same batch creating terminal lineage is the exception to
+      the other-origin put refusal: admit its proposed list through the declared grammar and `checkLineageRecord`
+      before sweeping it; explicit inbound removal remains permitted, with both cases closed by 6.R (A4)
     - An ended item's final tree holds no metadata file, so its `history` takes the paths from the last metadata file in
       its ref's log
     - Build `test-first` (one behavior at a time):
@@ -818,6 +821,8 @@ close, and renames and role changes.
           `lineage.inbound-held`, leaving every touched ref unchanged
         - the same batch settling the entries, or explicitly removing the inbound record, admits retirement; the check
           sees that proposed change rather than the old list, and the history tip's final tree is empty
+        - adding a put of another origin record to that retirement still refuses and changes no ref; the settlement
+          exception applies only to the origin's inbound list in the batch creating terminal lineage
 
 ### `[ ]` **6.5 A cohort's close — § 7.6**
 
