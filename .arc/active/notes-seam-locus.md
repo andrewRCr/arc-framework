@@ -637,4 +637,19 @@ Behavioral reconstruction logs retain the removal, residue, derived-evidence, or
 projection, provisioning, and partial-settlement red cases under `/tmp/arc-task1.12-*-red.log`. The origin round-trip
 uses the public marker writer and reader; settlement verifies the capture consumption and actual marker removal.
 
+## A16: exposing former names to the prose scan
+
+The superseded premise in `spec-seam-locus.md` § 3.5 was:
+
+> the scan takes its former slugs from the work items' aliases, listed through the store
+
+`lookupReference` resolves a supplied former slug, but cannot enumerate names a prose scan has not discovered.
+`StoreRecordSchema` admits no alias projection, and `publicRecord`, used by both `readReference` and `listReference`,
+drops `MemoryRecord.formerSlugs`. The aliases already persist and participate in lookup; the missing read-only
+projection is the bounded correction. Explicit empty arrays distinguish a complete observation from an absent
+projection; selected snapshots preserve historical alias evidence. The in-repo reader remains unchanged.
+
+The amendment's grounding and task audit cover the schema, private reference model, projection, lookup, and reconcile
+consumer. No alias mutation operation, content field, or new identity mechanism is introduced.
+
 ---

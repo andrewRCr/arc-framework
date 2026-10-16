@@ -932,9 +932,17 @@ projected from them (`lib/work-unit/transition-disposition-query.ts`).
 
 The user-reference reconcile's prose scan takes its subjects from today's transition list, and `lookup` resolves one
 slug at a time while a rename from the flip writes no lineage, so from the flip the scan takes its former slugs from the
-work items' aliases, listed through the store, plus lineage for cuts and abandonments. A cut's advisory carries its
+work items' aliases, listed through the store, plus lineage for cuts and abandonments (A16). A cut's advisory carries its
 successors: the reconcile's `decompose` outcome (`lib/work-unit/reference-reconcile.ts`) gains `successors`, read from
 the cut's lineage record, where today it carries none.
+
+The primary record's read-only `aliases` projection is an array of former slugs, validated as slugs and carried
+beside content by `read` and `list`, never written inside content (A16). `StoreRecordSchema` admits it only on
+`work-item/meta` and `work-item/record`. It remains optional for the in-repo implementation; an off-branch primary
+record supplies the complete collection for the selected live or saved state, including an explicit empty array.
+The reference backend's `publicRecord` exposes its existing `MemoryRecord.formerSlugs`, detached from mutable storage.
+The prose scan refuses unavailable authority if a primary record it needs omits aliases or its work-item listing is
+incomplete; omission never means no former names. Lookup remains the resolver for each former name discovered.
 
 #### 3.6 Lingering refs and a decomposed origin
 
@@ -2561,6 +2569,11 @@ close.
     work item, the store, and `pause.review_after_days`, returns its marks and, for a review-due item, its review prompt
     and choices, whoever owns the item, and `pausedWork` maps it over the person's listing.
 
+23. **Former names are enumerable without guessing (A16).** Off-branch primary reads and listings expose their aliases
+    at the selected state, including an explicit empty collection. A renamed work unit's managed reference rewrites
+    through lookup, and its former name in prose yields a rename advisory. Missing alias evidence or an incomplete
+    listing reports unavailable authority without rewriting.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 16 each state what holds until their change lands, and none leaves
@@ -2598,5 +2611,7 @@ this design open.
   § 4.3 and § 4.4, the review prompt as text. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
 - **A15** — 2026-10-16 — spec-depth: a paused work item's marking is one exported function the status surfaces call too.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.4. _Revalidated:_ pending → 5.11.
+- **A16** — 2026-10-16 — design: primary records expose former slugs as read-only aliases. _Supersedes:_ § 3.5,
+  alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 3.10.
 
 ---

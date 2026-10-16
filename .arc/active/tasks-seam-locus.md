@@ -1494,6 +1494,19 @@ inject a reference-backend store.
               sweep reports its other checkouts
             - over the in-repo implementation the sweep admits a Git-proven abandon alone, as today
 
+### `[ ]` **3.R Expose former names in primary record projections — § 3.5 (A16)**
+
+- _Goal:_ A16's read-only aliases are available to the prose scan through primary reads and listings, with absent
+  off-branch alias evidence reported as unavailable authority rather than an empty collection.
+
+    - Extend `StoreRecordSchema` with optional slug-array `aliases`, limited to primary work-item records. Preserve
+      the in-repo implementation's current projections and writes.
+    - Project the reference backend's private `formerSlugs` in `publicRecord`, including explicit empty arrays and
+      the aliases of a selected saved state, copying the collection so readers cannot mutate backend state.
+    - Wire the user-reference prose scan to the collection and retain lookup as the resolver of each discovered name.
+    - Build `test-first`: rename and list/read aliases, read an earlier saved state, preserve storage after editing a
+      returned collection, rewrite a managed reference, advise on a former name in prose, and refuse missing evidence.
+
 ### `[ ]` **3.8 Resolve former slugs through `lookup` in the user-reference reconcile — § 3.5**
 
 - _Goal:_ From the flip the user-reference reconcile resolves a former slug from the live primary record through
@@ -2995,3 +3008,7 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
   maps it over the person's listing (A15).
 
 - `[ ]` Ready for integration
+
+- `[ ]` Off-branch primary records expose former-name aliases at the selected state, including explicit empty arrays;
+  managed references rewrite through lookup and prose yields a rename advisory; missing aliases or incomplete
+  listings report unavailable authority without rewriting (A16).
