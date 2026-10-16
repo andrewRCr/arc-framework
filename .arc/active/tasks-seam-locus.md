@@ -1138,14 +1138,25 @@ inject a reference-backend store.
 
     - `[ ]` **3.1.a The set from the store**
 
-        - A sibling module beside `lib/git/in-flight-derivation.ts` lists `work-item/meta` at placement active, and the
-          open Errands, through the store, and builds each entry from the store: its lifecycle facts from the record;
-          its `branch` from the work item's branch link, absent where it links none; its `worktreePath` from 2.4's
+        - A sibling module beside `lib/git/in-flight-derivation.ts` lists the open Errands through the store, and work
+          units at placement active through the store's lifecycle view (`listLifecycleIndex`,
+          `lib/store/lifecycle-index.ts`), which validates each meta, its Pause section among it. It builds each entry
+          from the store: its lifecycle facts from the view's entry or the Errand's record; its `branch` from the work
+          item's branch link, which the view's entry carries, absent where it links none; its `worktreePath` from 2.4's
           lookup for a work unit, and for an Errand from the derived roster's row whose marker names its claim;
           `remoteOnly` where no checkout here holds it and its linked branch has no local ref, `false` for an entry with
           no branch; and the tips the committed probe reads from the linked branches' local and remote-tracking refs. A
           branch whose work item is not at placement active yields no entry, and residue lists the refs under today's
           prefixes that no listed work item links, read with no network call.
+        - The view takes two optional additions: its input (`LifecycleIndexInput`) takes the listing's filter
+          (`locations`), which it passes to the store's `list`, so the set lists `active` alone and the view checks no
+          archived meta; and its entry (`LifecycleEntry`) carries the listed record's `links`, so no entry takes a read
+          of its own. Its other callers pass no filter and read no links, so they read as today.
+        - A work-unit listing that is not complete, or whose outcome reports `missed` — a meta the store or the view
+          rejected, a malformed Pause section among them (`inspectMetaPauseStructure`, `MetaPauseSchema`) — marks the
+          set degraded, as the claims read does, each diagnostic a warning carrying its condition and remedy, so a work
+          unit whose meta is rejected never reads as out of flight (spec § 2.1); today such a meta lists as a degraded
+          entry (`degradedMetaCandidate`).
         - It also lists this identity's grooming and housekeeping claims that name a branch, through the store's claim
           kinds (`claims/groom`, `claims/housekeep`), each as today's derivation lists one (`classifyInput`, by the
           claim's slug), its `worktreePath` from the derived roster's row whose marker names the claim. Residue leaves
@@ -1162,9 +1173,10 @@ inject a reference-backend store.
         - Its entry type is the in-repo arm's with `branch` optional and `scheduling` admitting `paused`, so status's
           direct calls of `deriveInFlight` (`lib/status/project-view.ts`, `lib/status/user-view.ts`), whose arms from
           the flip are the status change's (spec § 16), keep today's type.
-        - A paused work unit, read from the pause record (planned in Task 2.4 - `tasks-seam-lifecycle.md`), takes
-          `scheduling: "paused"` and is in flight for every consumer; `parked`, from `listParkedSlugs`
-          (`lib/work-unit/lifecycle-resolver.ts`), stays the in-repo arm's, whose consumers treat it as out of flight.
+        - A paused work unit, read from its meta's Pause section (`fields.pause`, `MetaPauseSchema`,
+          `lib/active/meta-schema.ts`), which lifecycle's pause writes, takes `scheduling: "paused"` and is in flight
+          for every consumer; `parked`, from `listParkedSlugs` (`lib/work-unit/lifecycle-resolver.ts`), stays the
+          in-repo arm's, whose consumers treat it as out of flight.
 
         - Build `test-first` (one behavior at a time), over the reference backend:
             - the set lists the active work units and open Errands, each with its facts from the store
@@ -1180,6 +1192,9 @@ inject a reference-backend store.
             - a claims read that is not complete marks the set degraded
             - with no project-ID port injected, each entry's `branch` is its link's, the project ID read from the
               project's identity record
+            - a work unit whose meta the view rejects, a malformed Pause section among them, marks the set degraded with
+              a warning naming the meta and its repair, and a completed work unit whose Pause section is malformed marks
+              nothing
 
     - `[ ]` **3.1.b The set's callers**
 

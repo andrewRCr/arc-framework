@@ -176,9 +176,11 @@ Paths are under `packages/arc-framework/src/`.
   yet closed, and `lib/locus/derived-roster.ts`), the frame's guidance (`deriveDerivedLocusSessionGuidance`,
   `lib/locus/session-guidance.ts`), and the layout resolver's address for an identity's personal root
   (`lib/layout/schema.ts`, `lib/layout/projection.ts`).
-- **In-flight derivation and overlap:** `lib/git/in-flight-derivation.ts`, `commands/active/in-flight.ts`,
-  `handlers/active.ts`, `lib/git/foreign-artifact-detection.ts`, `handlers/errand.ts`'s `arc errand check`
-  (`handleErrandCheck`), the pre-commit foreign-write hook (`scripts/check-foreign-writes.ts`, § 3.3),
+- **In-flight derivation and overlap:** `lib/git/in-flight-derivation.ts` with the store's lifecycle view it lists work
+  units through (`lib/store/lifecycle-index.ts`, whose input takes the listing's filter and whose entries carry each
+  record's links, § 3.1, A9), `commands/active/in-flight.ts`, `handlers/active.ts`,
+  `lib/git/foreign-artifact-detection.ts`, `handlers/errand.ts`'s `arc errand check` (`handleErrandCheck`), the
+  pre-commit foreign-write hook (`scripts/check-foreign-writes.ts`, § 3.3),
   `lib/session-init/in-flight-work-unit-sweep.ts`, `lib/session-init/in-flight-composition.ts`, the target classifier
   beside the layout resolver (`lib/layout/`, § 3.3), `arc status <slug>`'s worktree path, operational read path, and
   in-flight warnings (`handlers/status/lifecycle.ts`, § 3.1), and the notes save's one read of the worktree roster
@@ -263,6 +265,8 @@ builds on:
   come from the runtime after that read (§ 7.6, § 8, § 8.3, A5–A7);
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
+- `lib/store/lifecycle-index.ts`, the store's lifecycle view, which that change also edits, and where this change has
+  the view's input take the listing's filter and its entries carry each record's links (§ 3.1, A9);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
 - `lib/work-unit/locus-ports.ts`, which that change creates with the port record and its today-behavior default, and
   where this change has the port's refusal carry the check's message whole (§ 2.4);
@@ -2484,5 +2488,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 - **A8** — 2026-10-16 — task: the Errand handlers open the store over their checkout and pass it to their runtimes.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.3. _Revalidated:_ pending → 3.10.
+- **A9** — 2026-10-16 — task: the in-flight set lists work units through lifecycle's view, which carries their links.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
 
 ---
