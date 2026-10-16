@@ -1,9 +1,9 @@
 /** Decode captured state tree entries using registered record homes. */
 
 import { FAMILY_REGISTRY, type KindDefinition } from "../registry.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
-import { canonicalDigest, canonicalize } from "../../kernel/canonical/canonical-json.js";
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { FamilyId } from "../catalog.js";
 import type { RefBackendContext } from "./context.js";
@@ -11,6 +11,7 @@ import type { BatchObject } from "./batch-read.js";
 import { conflictTarget } from "./conflicts-read.js";
 import { pathOwnerMismatch, storedKeyProblem } from "./path-admission.js";
 import type { RefMetadata } from "./metadata.js";
+import { refRecordVersion } from "./record-version.js";
 
 /** Resolve the top-level family that owns a ref, including shared subtrees. */
 export function rootFamily(family: FamilyId): FamilyId {
@@ -103,14 +104,11 @@ export function decodeRecord(context: RefBackendContext, reference: RecordRefere
   const kind = context.registry[reference.kind];
   const primary = reference.kind === metadata.primary?.role || reference.kind === "cohort/document";
   const formatVersion = metadata.formats[canonicalize({ kind: reference.kind, ...(reference.key === undefined ? {} : { key: reference.key }) })] ?? 1;
-  const recordMetadata = primary ? { role: reference.kind, slug: metadata.slug ?? reference.owner.name,
-    formerSlugs: metadata.formerSlugs ?? [], placement: metadata.primary?.placement ?? metadata.placement ?? null,
-    links: metadata.primary?.links ?? null, formatVersion } : { formatVersion };
   const parsed = kind.parser?.(content);
   if (parsed && !parsed.success) throw new Error(parsed.error);
   const placement = metadata.primary?.placement ?? metadata.placement;
   return StoreRecordSchema.parse({ reference, content, formatVersion, conflicts,
-    version: RecordVersionSchema.parse(canonicalDigest({ blob: object.oid, metadata: recordMetadata })),
+    version: refRecordVersion(reference, object.oid, metadata, formatVersion),
     ...(parsed?.success ? { fields: parsed.data } : {}),
     ...(placement ? { placement } : {}), ...(primary && metadata.primary?.links ? { links: metadata.primary.links } : {}),
   });

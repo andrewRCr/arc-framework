@@ -288,13 +288,9 @@ default layout.
           Composite format keys survive renames; unlisted records use the initial version. Retained primary facts place
           surviving records, and registry metadata names each lineage origin by UID.
 
-    - `[ ]` **3.3.d Record versions**
-        - `canonicalDigest` over the content's blob id and the record's own metadata: for a primary, its role, slug,
-          former slugs, placement, links, and format version; for any other record, its format version alone
-        - Build `test-first` (one behavior at a time):
-            - two planted tips differing only in the primary's placement give the primary two versions and every other
-              record one
-            - a record planted at the same bytes and metadata on two tips reads one version
+    - `[x]` **3.3.d Record versions**
+        - A pure version helper digests the blob and each record's own metadata. Primary placement changes leave
+          companion versions unchanged; equal bytes and metadata retain one version across distinct tips and read times.
 
     - `[ ]` **3.3.e Diagnostics and the newer-format refusal**
         - D4's per-entry diagnostics keyed by the entry's path, as § 3.1 lists them; a listing holding any is `complete`
