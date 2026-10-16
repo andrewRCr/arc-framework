@@ -2629,5 +2629,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ 2.9 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.6.
 - **A18** — 2026-10-16 — task: include the rename remedy's typed action and doubled force in its E2E assertion.
   _Supersedes:_ none. _Trigger:_ 1.13 segment. _Work:_ 1.R. _Revalidated:_ pending → 1.13.
+- **A19** — 2026-10-16 — task: include the dormant handlers in the complete CLI-loading test inventory.
+  _Supersedes:_ none. _Trigger:_ 1.13 must-stop. _Work:_ 1.R2. _Revalidated:_ pending → 1.13.
 
 ---

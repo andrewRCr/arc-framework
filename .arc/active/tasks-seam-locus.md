@@ -217,6 +217,8 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   `arc handoff write` are registered in § 14's forms, and each branches on the store's capability, refusing
   `unsupported` before the flip and naming what serves until then.
 
+    - _Amended in:_ 1.R2 (A19)
+
     - `[x]` **1.10.a `arc locus release` refusing from the flip until Task 2.9**
 
         - _Retired in:_ Phase 2
@@ -276,6 +278,14 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 
 - _Outcome:_ The existing real-CLI rename scenario asserts the doubled force, quoted executable text, and matching
   typed action. Its changed test joins § 1.4's items 1 and 3 in the completion inventory; Task 1.13 remains open.
+
+### `[x]` **1.R2 Include dormant handlers in the CLI-loading inventory — § 1.4 (A19)**
+
+- _Goal:_ The CLI-loading boundary checks every handler registered by § 1.4's item 6, retaining the assertion that all
+  implementation handlers load lazily and perform no import-time registration.
+
+- _Outcome:_ The complete inventory includes all five new handler modules, so both lazy-loading assertions and the
+  import-time registration scan cover them. Completion evidence is rewrapped without changing its meaning.
 
 ### `[ ]` **1.13 Before the flip** — validate exit criterion at segment scope
 

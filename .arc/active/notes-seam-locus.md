@@ -671,4 +671,28 @@ quoted text, and matching action that § 1.4's items 1 and 3 already require. Th
 its test derivation and adds this file to both items' completion inventory. No production behavior or golden changes.
 The initial failure is retained in `/tmp/arc-phase1-segment-scenarios.log`; Task 1.13 stays open for its rerun.
 
+## Phase 1: comparison against merged base
+
+Fresh base is `c45c3e908`; the append-only merge was already up to date, and the lockfile was unchanged. Both built
+executables ran `status --session-init --json`, `locus --json`, `active roster --json`, and `active in-flight --json`
+on the five envelope fixtures: orient, active resume, current husk, branch gone, and missing identity. Normalized raw
+captures are `/tmp/arc-phase1-differential.json`; the invocation report is `/tmp/arc-phase1-differential-rerun.log`.
+All changed paths are folder presence or missing-folder lists (item 2), or slot actions and dormant empty slots
+(item 1). The branch-gone fixture exercises the reachable in-flight result; the others retain their unchanged typed
+unreachable result. No output difference falls outside the declared items.
+
+The original session-init and envelope scenarios, plus the surrounding locus, Errand, and personal-surface real-CLI
+suites, pass in `/tmp/arc-phase1-segment-e2e-rerun.log`. The corresponding broad unit surfaces pass in
+`/tmp/arc-phase1-unit-surfaces.log`. The suppression comparison, retained as
+`/tmp/arc-phase1-suppression-comparison.json`, has no added or increased entry. A18's original failed assertion remains
+separate evidence and closes on the corrected scenario, rather than being counted as a passing verifier run.
+
+## A19: the complete lazy-handler inventory
+
+The segment quality request found that `cli-loading-boundary.test.ts`'s complete implementation-module inventory
+omitted `errand-queue`, `locus-release`, `inbox`, `route`, and `handoff-write`, which `cli.ts` loads dynamically.
+Both affected assertions share that one inventory. Adding those modules retains the existing import-time registration
+check over every handler. The changed test belongs to § 1.4, item 6; no runtime behavior changes. The original gate
+failure remains in `/tmp/arc-phase1-segment-check.log`, including its separate Markdown underwrap finding.
+
 ---
