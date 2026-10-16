@@ -212,6 +212,37 @@ describe("frontline run command", () => {
     })).rejects.toMatchObject({ code: "invalid-input", reason });
   });
 
+  it("requires fresh classification instead of carrying old facts to a changed target", async () => {
+    const { stores, resolution } = await admittedRun();
+    const current = target("e");
+    const publicTarget = { kind: current.kind, baseRef: current.baseRef,
+      diffBaseSha: current.diffBaseSha, headSha: current.headSha };
+    const write = vi.fn();
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ schemaVersion: 1, target: publicTarget, resolution }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target: current }),
+      run: (request) => runFrontlineReviewCommand(request, {
+        ...stores, now: () => "2026-09-08T13:01:00Z",
+        confirmSource: async () => source,
+        prepareExecutionTarget: async () => { throw new Error("unexpected materialization"); },
+        execute: async () => { throw new Error("unexpected provider execution"); },
+      }),
+      write, setExitCode: () => undefined,
+    });
+
+    const refusal = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(refusal).toMatchObject({
+      error: { code: "invalid-input" },
+      diagnostics: [{ code: "frontline-admission-stale-target" }],
+      remedy: {
+        argv: ["arc", "review", "frontline", "resolve", "--schema"],
+        text: expect.stringContaining("classify the current target"),
+      },
+    });
+    expect(refusal.remedy).not.toHaveProperty("stdin");
+  });
+
   it("refuses an admission withdrawn while run waits for its operation lock", async () => {
     const { stores, resolution } = await admittedRun();
     const request = { schemaVersion: 1, target: target("c"), resolution } as const;
