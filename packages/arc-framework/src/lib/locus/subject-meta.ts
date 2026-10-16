@@ -1,6 +1,7 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
 import type { Store } from "../store/contract.js";
+import { readStoreSubjectCandidate } from "./subject-meta-candidate.js";
 import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
@@ -175,8 +176,17 @@ export async function projectCheckoutSubjectMeta(options: {
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
     try {
-      const candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
-      const candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
+      const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
+      let candidatePath: string;
+      let candidateContent: string;
+      if (candidateStore !== null) {
+        if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
+        candidatePath = `review/candidate for ${options.workUnit.record.reference.owner.name}`;
+        candidateContent = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      } else {
+        candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
+        candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
+      }
       const candidateRecord = parseCandidateManagedRecord(candidateContent);
       if (candidateRecord === null) {
         if (options.foreignCheckout === true) {
@@ -190,7 +200,8 @@ export async function projectCheckoutSubjectMeta(options: {
             metaPath: expectedPath,
           };
         }
-        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`);
+        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`
+          + (candidateStore === null ? "" : ". Repair the stored Candidate record, then retry."));
       }
       if (candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");

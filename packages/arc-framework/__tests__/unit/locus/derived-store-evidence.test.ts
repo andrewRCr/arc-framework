@@ -226,11 +226,12 @@ it("recovers an Integrating Candidate's boundary and session type from its work-
     attestation, subject, transitions: [], lineageAttestations: [] });
   await changeMeta(h, { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit", candidateId: attestation.candidateId },
     { branches: [{ repository: "project-1", ref: "main", linkedAs: "adopted", excluded: [] }] });
+  const owner = success(await h.fixture.store.read({ reference: h.reference })).reference.owner;
+  await seed(h.fixture, recordReferences["review/candidate"](owner), candidate);
   const boundary = projectPublicationBoundary({ workUnit: name, branch: "main", candidateId: attestation.candidateId,
     candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null });
   const localIO: SubjectMetaIO = { ...subjectMetaIO, projectCandidateTarget: projectDurableCandidateTarget,
     readFile: async path => {
-      if (path === `/repo/.arc/system/.internal/candidates/${name}.json`) return candidate;
       if (path === `/repo/.arc/system/.internal/candidates/${name}.boundary.json`) return JSON.stringify(boundary);
       throw Object.assign(new Error("Missing projection"), { code: "ENOENT" });
     } };

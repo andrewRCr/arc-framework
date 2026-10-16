@@ -2649,4 +2649,7 @@ this design open.
 - **A21** — 2026-10-16 — design: personal prose stays advisory while managed reference edits batch atomically.
   _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 5.11.
 
+- **A22** — 2026-10-16 — task: acquire the subject Candidate through its resolved Store owner. _Supersedes:_ none.
+  _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.6.
+
 ---

@@ -1911,6 +1911,16 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
     - Keep the reference backend's behavior coverage and all independently required gates; introduce no production
       backend selector or test-only capability bypass.
 
+### `[x]` **7.R2 Acquire the subject Candidate through its Store owner — § 1.2 (A22)**
+
+- _Goal:_ The subject-meta consumer acquires its Candidate singleton through the same Store and resolved owner UID as
+  its primary record, preserves refusal and conflict evidence without checkout fallback, and retains the existing
+  Candidate parser, delivery projectors, and in-repo acquisition.
+
+- _Outcome:_ `readStoreSubjectCandidate` reads the exact generation and supplies the existing parser; missing,
+  malformed, and conflicted records retain a repair-and-retry route. Candidate acquisition no longer trusts checkout
+  bytes when state lives off the branch.
+
 ### `[ ]` **7.6 Session continuity** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
