@@ -140,6 +140,12 @@ export const infrastructureCommandInputPolicyDeclarations = [{
   commandPath: "sync",
   aliases: [],
   sites: [
+    declareInteractionSite(
+      { file: "lib/git/process-cancellation.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
+      { acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "Git process-tree cancellation", subprocess: "close-stdin" },
+    ),
     ...([1, 3] as const).map((occurrence) => declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
       terminalSubprocessPolicy,

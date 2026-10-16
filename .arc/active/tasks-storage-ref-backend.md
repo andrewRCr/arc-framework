@@ -141,32 +141,14 @@ _Exit criterion:_ The in-repo implementation, the reference backend, and the sha
 cases, the transaction helper, the push helper, cancellation, and the floor check pass theirs, and GitHub and GitLab are
 recorded holding the two load-bearing host properties.
 
-### `[ ]` **2.1 Cancellation that ends the call — § 6.1, § 11.8**
+### `[x]` **2.1 Cancellation that ends the call — § 6.1, § 11.8**
 
 - _Goal:_ A Git call whose signal aborts settles promptly on every variant, with the transport helper or hook it
   started ended too, so the existing bounded reads and every deadline built on them hold.
 
-    - The stdin and byte variants (`GitExecInput`, `RawGitExec`, `lib/git/exec.ts`) gain an optional `signal`, passed
-      as the plain variant passes `cancelSignal` (`lib/git/process-executor.ts`); `createSpawnRawGitExec`
-      (`lib/change-facts.ts`), a second `RawGitExec` binding, honors it too
-    - On every variant an abort ends the call's whole process tree and settles without waiting on a descendant's
-      output, which today keeps an aborted HTTP fetch unsettled while its `git-remote-http` helper holds the call's
-      pipe: at the abort the executor ends the child's descendants, then the child — on POSIX the descendants a
-      `ps -A -o pid=,ppid=` walk finds from the child's pid, on Windows `taskkill /T /F` on that pid
-    - No call's spawn changes, so a call keeps the caller's process group and terminal, and a credential prompt and
-      Ctrl-C behave as today: `boundedFetch` and `boundedGitInvocation` (`lib/git/exec.ts`) already pass a signal with
-      no interaction setting
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, beside the plain executor's cancellation cases; the stdin and byte variants spawn `git` by
-          name, so each waits on a ref lock another process holds under a long `core.filesRefLockTimeout`
-        - an aborted signal ends a stdin call, rejecting with a `GitProcessError` of kind `canceled`, and the same for a
-          byte call
-        - an aborted fetch from an HTTP endpoint that accepts and never answers settles within a second of the abort,
-          leaving no helper running
-        - an aborted push whose pre-push hook sleeps settles likewise
-        - a call whose signal never fires completes as before
-        - a call with no signal, and a call with one, spawn with today's options, the child in the caller's process
-          group
+- _Outcome:_ The stdin and both byte bindings accept signals; all four bindings end descendants before the Git child
+  through shared cancellation support. Real lock waits, hung HTTP transports, and sleeping push hooks exercise aborts;
+  admission and reference-transaction hooks cover pre-aborted calls, normal completion, and unchanged process groups.
 
 ### `[ ]` **2.2 ARC's Git floor is 2.47 — § 11.3**
 

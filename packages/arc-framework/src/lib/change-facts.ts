@@ -13,6 +13,8 @@ import type {
   ChangeSet,
 } from "./change-facts.schema.js";
 import type { RawGitExec, RawGitResult } from "./git/exec.js";
+import { assertGitNotCanceled, bindGitProcessCancellation } from "./git/process-cancellation.js";
+import { normalizeGitRejection } from "./git/process-error.js";
 
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
@@ -258,20 +260,34 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
       const env = options?.objectAccess === "local-only"
         ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
         : environment;
+      assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
       const child = spawn("git", effectiveArgs, {
         cwd: effectiveCwd,
         env,
         stdio: ["pipe", "pipe", "pipe"],
       });
+      let canceled = false;
+      const dispose = bindGitProcessCancellation(child, options?.signal, () => { canceled = true; });
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
 
       child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", reject);
+      child.on("error", (error) => {
+        dispose();
+        reject(error);
+      });
       child.on("close", (code) => {
+        dispose();
         const stdoutBytes = Buffer.concat(stdout);
         const stderrBytes = Buffer.concat(stderr);
+        if (canceled) {
+          reject(normalizeGitRejection(
+            { isCanceled: true, stdout: stdoutBytes, stderr: stderrBytes },
+            { command: "git", args: effectiveArgs },
+          ));
+          return;
+        }
         if (code === 0) {
           resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
           return;

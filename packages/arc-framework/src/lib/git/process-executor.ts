@@ -9,6 +9,7 @@ import { execa } from "execa";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
 import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
+import { runCancelableGitProcess } from "./process-cancellation.js";
 import { normalizeGitRejection } from "./process-error.js";
 
 /** Captured-output ceiling retained by every Git process binding. */
@@ -141,15 +142,15 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await execa(command, effectiveArgs, {
+      const result = await runCancelableGitProcess((cancelSignal) => execa(command, effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
-        cancelSignal: options?.signal,
+        cancelSignal,
         maxBuffer,
         stripFinalNewline: false,
         ...(options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
-      });
+      }), options?.signal, { command, args: effectiveArgs });
       return {
         stdout: options?.preserveOutput === true ? result.stdout : result.stdout.trimEnd(),
         stderr: result.stderr,
@@ -188,9 +189,10 @@ export function createExecaRawGitExec(
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await execa("git", effectiveArgs, {
+      const result = await runCancelableGitProcess((cancelSignal) => execa("git", effectiveArgs, {
         cwd: effectiveCwd,
         env,
+        cancelSignal,
         encoding: "buffer",
         stripFinalNewline: false,
         extendEnv: false,
@@ -198,7 +200,7 @@ export function createExecaRawGitExec(
         ...(options.input === undefined
           ? { stdin: "ignore" as const }
           : { input: options.input }),
-      });
+      }), options.signal, { command: "git", args: effectiveArgs });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
@@ -227,14 +229,15 @@ export function createExecaGitExecInput(
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await execa("git", effectiveArgs, {
+      const result = await runCancelableGitProcess((cancelSignal) => execa("git", effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
         input,
+        cancelSignal,
         maxBuffer,
         stripFinalNewline: false,
-      });
+      }), options?.signal, { command: "git", args: effectiveArgs });
       return result.stdout;
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });

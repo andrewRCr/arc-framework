@@ -96,7 +96,7 @@ export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal">,
 ) => Promise<string>;
 
 /** Result from a byte-preserving Git invocation. */
@@ -108,7 +108,14 @@ export interface RawGitResult {
 /** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only"; indexFile?: string; removeEnvironment?: readonly string[] },
+  options?: {
+    signal?: AbortSignal;
+    cwd?: string;
+    input?: Uint8Array;
+    objectAccess?: "local-only";
+    indexFile?: string;
+    removeEnvironment?: readonly string[];
+  },
 ) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */
