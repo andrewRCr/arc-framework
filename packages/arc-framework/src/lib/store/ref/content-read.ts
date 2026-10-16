@@ -36,7 +36,10 @@ export function recordDiagnostic(path: string, problem: ContentProblem): Listing
 export function parsedOwnerProblem(reference: RecordReference, fields: unknown): ContentProblem | null {
   if (reference.kind.endsWith("/conflict-record")) {
     const conflict = ConflictRecordSchema.safeParse(fields);
-    if (conflict.success && !sameOwner(reference.owner, conflict.data.record.owner)) return {
+    const target = conflict.success ? conflict.data.record.owner : null;
+    const matches = target && (target.type !== "person" && target.uid !== undefined
+      ? sameOwner(reference.owner, target) : target.type === reference.owner.type && target.name === reference.owner.name);
+    if (target && !matches) return {
       kind: "key-mismatch", condition: "Stored conflict names an owner other than its ref's metadata",
     };
   }

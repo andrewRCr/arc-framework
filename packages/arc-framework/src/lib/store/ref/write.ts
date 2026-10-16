@@ -1,6 +1,6 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
-import { BatchInputSchema, WriteInputSchema, type BatchInput, type BatchResult, type WriteInput, type WriteResult } from "../write.js";
+import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult } from "../write.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -13,15 +13,15 @@ import { readRefTips } from "./batch-read.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Describe invalid mutation content without changing any state. */
-export function malformedMutation(reference: RecordReference, condition: string): StoreRefusal {
-  return { code: "record-malformed", class: "recoverable", reference, rule: "store.mutation",
+export function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
+  return { code: "record-malformed", class: "recoverable", reference, rule,
     condition, remedy: { text: "Correct the mutation, including required primary placement, then retry." } };
 }
 
 /** Validate a single mutation before resolving its owner or starting Git. */
 export async function writeRefRecord(context: RefBackendContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
   const parsed = WriteInputSchema.safeParse(input);
-  if (!parsed.success) return { status: "refused", refusal: malformedMutation(input.reference, parsed.error.message) };
+  if (!parsed.success) return { status: "refused", refusal: mutationValidationFailure(input, parsed.error.message) };
   const { provenance, ...mutation } = parsed.data;
   const result = await batchRefRecords(context, { writes: [mutation], provenance });
   if (result.status === "refused") return result;
@@ -34,9 +34,9 @@ export async function writeRefRecord(context: RefBackendContext, input: WriteInp
 export async function batchRefRecords(context: RefBackendContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
   const parsed = BatchInputSchema.safeParse(input);
   if (!parsed.success) {
-    const reference = input.writes[0]?.reference;
-    if (!reference) throw parsed.error;
-    return { status: "refused", refusal: malformedMutation(reference, parsed.error.message) };
+    const mutation = input.writes[0];
+    if (!mutation) throw parsed.error;
+    return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
   }
   try {
     return await executeRefBatch(context, parsed.data, randomUUID());
@@ -46,6 +46,13 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } } };
   }
+}
+
+function mutationValidationFailure(mutation: Mutation, condition: string): StoreRefusal {
+  const primary = mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record";
+  const missingPlacement = mutation.action === "put" && primary && mutation.placement === undefined;
+  return malformedMutation(mutation.reference, missingPlacement ? "Primary records require placement" : condition,
+    missingPlacement ? "store.primary-placement" : "store.mutation");
 }
 
 async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {

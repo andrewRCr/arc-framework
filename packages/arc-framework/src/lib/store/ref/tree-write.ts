@@ -36,7 +36,8 @@ async function writeNode(context: RefBackendContext, node: TreeNode): Promise<st
   const rows = [...node.files].map(([name, entry]) =>
     `${entry.mode} ${entry.mode === "160000" ? "commit" : "blob"} ${entry.oid}\t${name}\0`);
   for (const [name, child] of node.children) rows.push(`040000 tree ${await writeNode(context, child)}\t${name}\0`);
-  const { stdout } = await context.rawExec(["mktree", "-z"], {
+  // Retained entries may already name unavailable blobs; keep their identities unchanged.
+  const { stdout } = await context.rawExec(["mktree", "-z", "--missing"], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: Buffer.from(rows.join("")),
   });
   return new TextDecoder().decode(stdout).trim();

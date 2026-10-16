@@ -15,6 +15,7 @@ import { referenceContent, referenceDeclarations } from "./reference-fixture.js"
 import { createConformanceTestRegistry } from "./test-registry.js";
 import { createRefClock } from "./ref-clock.js";
 import { plantRefFixtureFault } from "./ref-fixture-plant.js";
+import { refFamilyExclusions } from "./ref-exclusions.js";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
 import { makeGitExec } from "../integration.js";
 import { copyPreparedRepository, prepareRepositoryTemplate, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
@@ -25,9 +26,7 @@ export const refDeclarations: FixtureDeclarations = {
   unservedFamilies: { "project-machinery": "Tracked in the standard profile.", constitution: "Tracked in the standard profile." },
   substrates: ["refs"], syncFamilies: families,
   identitySyncFamilies: families.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
-  familyExclusions: Object.fromEntries(families.map((family) => [family, { items: {
-    5: "Every state ref is published in one Git transaction.", 8: "Ref state versions cover every served family.",
-  } }])),
+  familyExclusions: refFamilyExclusions(families),
   rejectingContentUnavailable: Object.fromEntries(Object.entries(referenceDeclarations.rejectingContentUnavailable)
     .filter(([kind]) => families.some((family) => family === familyOf(kind as KindId)))),
 };

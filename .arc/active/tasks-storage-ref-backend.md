@@ -362,7 +362,7 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
   Control-bearing or quote-opening values round-trip as JSON strings, and Git authorship follows code-repository
   configuration, including writes before ARC identity exists.
 
-### `[ ]` **4.4 The ref-backend conformance fixture over the default layout — § 14.1, § 14.12**
+### `[x]` **4.4 The ref-backend conformance fixture over the default layout — § 14.1, § 14.12**
 
 - _Goal:_ The shared suite runs over the ref backend on real temporary repositories with a bare origin, each test
   copying a prepared template, its declarations stating exactly what the backend serves.
@@ -385,32 +385,13 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Shared history assertions require `ownerUid` only when the record's reference has one. Project history before
           identity creation is accepted, while the reference and in-repo fixtures retain their existing UID checks.
 
-    - `[ ]` **4.4.d The named exclusions**
-        - The permanent set § 14.1 names: the cross-substrate and saved-state coverage items, `checkout-not-writable`,
-          nine of the ten `unsupported` cases, the transient-write cases, and `diagnostic-key-mismatch` for the six kinds
-          it lists
-        - Each later task removes the interim exclusions its behavior satisfies, and every one names its retiring phase
-        - Items 3, 7, 11, 12, 14, and 17, whole; item 16's `maintain()` assertion, which 8.4 serves; and within the
-          passing items:
-            - the assertions Phase 5's rules serve: `machine-local-path:*`,
-              `<kind>: rejecting-content-and-repaired-creation` for each served kind with a parser, the prose and
-              entry-list kinds skipping it unregistered (4.4.a), `create-only-update:*`,
-              `derived-status-root-write-and-batch-refusal`, and
-              `derived-status-root-excluded-and-nested-basename-stored`
-            - those Phase 6's moves serve: `primary-placement-move-to-completed:*`, `primary-create-at-completed:*`,
-              `lifecycle-location-filter`, `UID-rename-and-generations`, `cohort-close-placement`,
-              `rename-and-reopen-onto-live-slug`, `companion-path-key-through-rename`, and the primary-role assertions
-              but the one below
-            - the one Phase 7's lookup by ref serves: `primary-links-create-retain-replace-clear:work-item/meta` and
-              `primary-links-create-retain-replace-clear:work-item/record`
-            - every assertion `everyKind` runs for the `lineage` family in items 1, 2, 4, 6, 9, 10, and 13, whose
-              references carry no UID until 5.3 resolves them through the registry's lineage map
-            - those over `history` and `changes`: `batch-shared-ID-in-changes-and-history` and
-              `unrelated-write-keeps-scoped-changes:*`
+    - `[x]` **4.4.d The named exclusions**
+        - The full ref suite registers exact permanent and interim exclusions and validates every named exclusion's
+          use. Conformance corrected name-only conflict ownership, placement-rule specificity, and writes preserving
+          existing unavailable blobs.
+        - Remaining local-engine assertions carry their retirement reason.
             - _Retired in:_ Phase 8
-        - What a pull or push serves, held past Phase 8, where items 3 and 14 narrow to it: item 16 but its `maintain()`
-          assertion; the pull-side merge cases of § 14.2 in item 3; recovery's `unreachable`, `refused`, and
-          `retries-exhausted` cases in item 14; and `primary-role-reopen-sync-and-current-side-conflicts`
+        - Pull, push, and synchronized primary-role assertions retain their later retirement boundary.
             - _Retired in:_ Phase 11
 
 ### `[ ]` **4.5 The engine's first path** — validate exit criterion at segment scope
@@ -535,6 +516,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
           lists under that owner
         - a lineage record written and read back through a reference without a UID, as the suite's `seed` does, reads,
           lists, and takes a second write under its owner's UID
+        - stored lineage whose origin name matches the registry map but whose origin UID names another generation
+          reports `key-mismatch` under its exact stored path
 
 ### `[ ]` **5.4 `history` follows a record — § 3.1, § 3.6**
 
