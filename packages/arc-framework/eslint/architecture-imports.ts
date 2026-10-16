@@ -336,14 +336,15 @@ function storeViolations(
   for (const { node, specifier } of storeReferences(source)) {
     if (!specifier.startsWith(".")) continue;
     const target = resolve(dirname(filename), specifier.replace(/\.js$/u, ".ts")).replaceAll("\\", "/");
+    const privateImplementation = /\/lib\/store\/(?:in-repo|ref)\//u.test(target);
     if (predicates.includes("store-production")) {
-      if (target.includes("/lib/store/in-repo/") && !file.includes("/lib/store/")) {
+      if (privateImplementation && !file.includes("/lib/store/")) {
         violations.push({ node, predicate: "store-production", reason: "private store implementation outside store" });
-      } else if (target.endsWith("/store/in-repo/backend.ts") && resolve(filename) !== join(sourceRoot, "lib/store/create.ts")) {
+      } else if (/\/store\/(?:in-repo|ref)\/backend\.ts$/u.test(target) && resolve(filename) !== join(sourceRoot, "lib/store/create.ts")) {
         violations.push({ node, predicate: "store-production", reason: "store implementation entry outside public factory" });
       }
     }
-    if (predicates.includes("store-tests") && target.includes("/lib/store/in-repo/")) {
+    if (predicates.includes("store-tests") && privateImplementation) {
       violations.push({ node, predicate: "store-tests", reason: "test imports private store implementation" });
     }
   }

@@ -1,7 +1,9 @@
-/** Explicit I/O and lazy policy seams for the in-repository store. */
+/** Explicit I/O and lazy policy seams for operational storage backends. */
 
-import type { GitExec, GitExecInput } from "../git/exec.js";
+import type { GitExec, GitExecInput, RawGitExec } from "../git/exec.js";
 import type { Slug } from "../kernel/schema/slug.js";
+import type { KindId } from "./catalog.js";
+import type { KindDefinition } from "./registry.js";
 
 /** File types used by the lifecycle walk; symbolic links are never regular records. */
 export interface StoreDirectoryEntry {
@@ -31,4 +33,26 @@ export interface StorePorts {
   identity: () => Promise<Slug | null>;
   remote: () => Promise<string | null>;
   locks: { tracked: StoreWriteLock; notes: StoreWriteLock };
+}
+
+/** Signal-ended retry waits and independently scheduled deadline bounds. */
+export interface RefStoreSleep {
+  wait(milliseconds: number, signal: AbortSignal): Promise<void>;
+  bound(milliseconds: number, signal: AbortSignal): Promise<void>;
+}
+
+/** Ref backend dependencies; identity and actor resolution stay lazy. */
+export interface RefStorePorts {
+  exec: GitExec;
+  execInput: GitExecInput;
+  rawExec: RawGitExec;
+  fs: StoreFileAccess;
+  clock: () => Date;
+  sleep: RefStoreSleep;
+  random: () => number;
+  checkoutRoot: string;
+  identity: () => Promise<Slug | null>;
+  actor: (identity: Slug) => Promise<string>;
+  registry?: Readonly<Record<KindId, KindDefinition>>;
+  lock: (path: string, waitMs: number) => Promise<() => Promise<void>>;
 }

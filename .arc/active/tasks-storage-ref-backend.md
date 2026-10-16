@@ -218,48 +218,19 @@ default layout.
 - _Goal:_ `lib/store/ref/` builds one backend from one ports object without running a command or reading a file, is
   reachable only through `lib/store/create.ts`, and can be tested before its write path exists.
 
-    - `[ ]` **3.1.a Construction**
-        - `createRefBackend(ports)` in `lib/store/ref/backend.ts`, the module's entry, takes the Git executor and its
-          stdin and byte variants, file access, the clock, a sleep port whose waits and bounds a signal ends, a random
-          source, the checkout root, the identity, the actor, the kind registry (built from `PRODUCTION_REGISTRATIONS`
-          by default), and the lock factory; `createRefStore(ports)` in `lib/store/create.ts` is the export tests build
-          with; the store's `capabilities` report `stateOffBranch: true` (§ 1.3)
-        - The identity port is read at each operation, never kept, so a test can switch identity between operations; the
-          actor port resolves on first use (3.1.d); the lock factory takes a lock path and a wait and returns a release
-          (4.1); the floor check's wrapper (2.2.b) wraps each executor port here
-        - The sleep port has two calls, each taking a duration and a signal and resolving when the duration passes or
-          the signal ends it: a wait, which its caller awaits — a retry's backoff (9.5) — and a bound, raced against a
-          call its end aborts — the deadline (9.5) and a network read's bound (12.2.b); every wait and bound the backend
-          makes goes through it
-        - Its fake, which the fixtures and every deadline case share, keeps a virtual clock the clock port reads: each
-          read of the clock advances it a fixed tick, so a push's measured duration is never zero; a wait advances the
-          clock to its wake, first firing every pending bound that ends earlier, in end order, so a deadline due before
-          a retry's wake fires first; a bound never moves the clock, firing only once a later wait or a test's explicit
-          advance passes its end; and a case whose call never returns advances the clock past the deadline once its
-          server holds the connection
+    - `[x]` **3.1.a Construction**
+        - `createRefStore` lazily composes the backend from explicit ports, reporting off-branch state without consulting
+          a dependency. The backend binds production registrations and failure-time checks on all three Git ports;
+          the shared virtual clock orders pending bounds before retry wakes and resolves cancellation without delay.
         - `history`, `changes`, `lookup`, and `maintain` throw naming the operation until their tasks build them, the
           shared suite's items over them excluded meanwhile (4.4.d)
             - _Retired in:_ Phase 8
         - `pull` and `push` throw likewise until Phase 9 builds them
             - _Retired in:_ Phase 11
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, through `createRefStore` over ports that record their calls
-            - construction calls no port
-            - on the fake, a bound pending under a later wait fires before that wait resolves, and a bound alone stays
-              pending until the test advances the clock past its end
 
-    - `[ ]` **3.1.b The store import rules**
-        - `storeViolations` (`eslint/architecture-imports.ts`) extends its `store-production` and `store-tests` rules
-          from `lib/store/in-repo/` to `lib/store/ref/`, the entry check naming `lib/store/ref/backend.ts` as it names
-          `lib/store/in-repo/backend.ts`, so only `lib/store/create.ts` imports the entry, nothing outside `lib/store/`
-          imports the module, and no test does
-        - Every later test of the backend therefore runs through `lib/store/create.ts`'s exports; pure Git-output
-          parsers the backend needs live in `lib/git/`, and helpers both the backend and a contract-core module need
-          live in `lib/store/`
-        - Build `test-first` (one behavior at a time):
-            - Beside the rule's existing cases (`eslint-architecture-imports.test.ts`)
-            - an import of `lib/store/ref/` from outside `lib/store/`, of its entry from any file but `create.ts`, and
-              from a test each report a violation, and a type-only import from a test does not
+    - `[x]` **3.1.b The store import rules**
+        - Both private backend directories share `store-production` and `store-tests` enforcement. Only `create.ts`
+          imports either backend entry; internal helper imports and type-only test imports retain their exceptions.
 
     - `[ ]` **3.1.c The Git directories without a Git call**
         - A reader in `lib/git/` that finds the worktree's own Git directory from its `.git` — a directory in the main
