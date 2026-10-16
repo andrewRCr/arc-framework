@@ -1218,19 +1218,21 @@ inject a reference-backend store.
 
     - `[ ]` **3.1.c `arc status <slug>`'s locus reads**
 
-        - From the flip the slug query's locus reads (`handleLifecycleStatus`, `handlers/status/lifecycle.ts`, around
-          its state projection, `resolveSlugQuery`) take the work unit's worktree path from 2.4's lookup, reporting a
-          rejected lookup's condition in place of the path, never no checkout, read the path for its operational
-          boundary at that checkout, and take its in-flight warnings from 3.1.a's set, where today they read
-          `worktreePathBySlug`, a record's `writablePath`, and `qualityFacts` from the composed lifecycle index
-          (`resolveCallerComposedLifecycleIndex`). Its `--fetch` reachability is Task 3.3.a's.
+        - From the flip the slug query runs the transition-write-path change's store arm (`handleStoreLifecycleStatus`,
+          `handlers/status/lifecycle.ts`), which reads its state, record, purpose, and owner through the store. This
+          task adds to that arm the work unit's `worktreePath` from 2.4's lookup, reporting a rejected lookup's
+          condition in place of the path, never no checkout, and 3.1.a's in-flight warnings (`renderInFlightWarning`)
+          beside its listing and design warnings. The arm keeps `integrationBoundary: null`, the delivery change's to
+          read through the store, and the in-repo arm's composed-index reads (`resolveCallerComposedLifecycleIndex`)
+          stay as today. Its `--fetch` reachability is Task 3.3.a's.
 
-        - _Note:_ The file serializes with the transition-write-path change, which moves the query's state and record
-          onto the store first; the operational boundary's read is the delivery change's.
+        - _Note:_ The store arm is the transition-write-path change's, landed; the delivery change also edits it, to
+          read the boundary through the store, and the two serialize on the file.
 
         - Build `test-first` (one behavior at a time), over the reference backend:
             - the worktree path is the holding checkout's, an anchored one included
             - the warnings come from the set listed through the store
+            - the arm's state, record, purpose, and owner are unchanged by the additions
 
 ### `[ ]` **3.2 Acquire Errands and claims apart — § 3.2**
 
@@ -1294,8 +1296,9 @@ inject a reference-backend store.
           `MaintainResult`, and the publish outcomes' `retryCount` and `waitedMs`, planned in Task 1.2 -
           `tasks-storage-ref-backend.md`), and the binding, by whichever change lands second, takes the store's types in
           their place.
-        - From the flip `arc status <slug> --fetch` (`handleLifecycleStatus`, Task 3.1.c) takes the remote's
-          reachability from the port's pull.
+        - From the flip `arc status <slug> --fetch` takes the remote's reachability from the port's pull in the store
+          arm (`handleStoreLifecycleStatus`, Task 3.1.c), which ignores `--fetch` today, reporting an unreachable remote
+          with the warning the in-repo arm gives.
         - If the ref backend's amendment already puts `pull` and `maintain()` on `Store` (`lib/store/contract.ts`) when
           this task starts, call them directly, read the refusal's `historyRefs` itself, and build no port.
 

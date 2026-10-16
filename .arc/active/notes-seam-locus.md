@@ -18,6 +18,7 @@
 - [A2: where locus's link readers get the project ID](#a2-where-locuss-link-readers-get-the-project-id)
 - [A3: where a named in-place start meets the cold start](#a3-where-a-named-in-place-start-meets-the-cold-start)
 - [A7: where promotion's steps get their checkout](#a7-where-promotions-steps-get-their-checkout)
+- [A10: where `arc status <slug>`'s locus reads land](#a10-where-arc-status-slugs-locus-reads-land)
 
 ## Consumer-map re-verification
 
@@ -474,5 +475,31 @@ A fresh promotion's work unit is new, so no marker names it, and a rerun after t
 admits that checkout's own marker. A promotion confirmed onto another checkout passes the check the checkout it runs in
 rather than the one that will hold the work unit, which admits only a marker in the invoking checkout naming the new
 work unit, such as a crashed cold start's of that name; that edge is accepted rather than given a second check.
+
+## A10: where `arc status <slug>`'s locus reads land
+
+A10 places this change's `arc status <slug>` reads in the store arm and drops the boundary's read path.
+`spec-seam-locus.md` § 3.1's status bullet read that
+
+> From the flip the worktree path comes from the roster's lookup of the checkout whose marker names the work unit
+> (§ 2.4), a lookup that rejects reporting its condition in place of the path, never no checkout, the read path is that
+> checkout, the warnings come from the in-flight set listed through the store, and with `--fetch` the remote's
+> reachability comes from the store's pull (§ 4.8).
+
+and § 1.2 listed the query's "operational read path" among this change's files; Task 3.1.c had the query "read the path
+for its operational boundary at that checkout".
+
+The transition-write-path change's store arm (`handleStoreLifecycleStatus`, `handlers/status/lifecycle.ts`) already
+serves the query from the flip: `handleLifecycleStatus` returns into it before any composed-index read, and it reads
+state, record, purpose, and owner through the store, reporting no worktree path and no in-flight warnings, ignoring
+`--fetch`, and reporting `integrationBoundary: null`. The reads Tasks 3.1.c and 3.3.a described as moving have nothing
+to move there; they are additions to that arm.
+
+The read path fed today's boundary read (`resolveSlugOperationalBoundary`), which reads the checkout's active meta and
+the Candidate and submission-boundary records there (`runActiveStatus`, `commands/active/status.ts`). From the flip none
+of these sits in the checkout, so a read there would report the meta missing. The delivery change reads the boundary
+record through the store wherever the work unit is checked out (`spec-seam-delivery-review.md` § 12.4), which needs no
+path from this change. The arm keeps reporting `null` until that change lands its read; the flip follows every member,
+so no flipped repository reads the gap.
 
 ---

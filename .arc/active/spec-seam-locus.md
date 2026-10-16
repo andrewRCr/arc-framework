@@ -182,9 +182,10 @@ Paths are under `packages/arc-framework/src/`.
   `lib/git/foreign-artifact-detection.ts`, `handlers/errand.ts`'s `arc errand check` (`handleErrandCheck`), the
   pre-commit foreign-write hook (`scripts/check-foreign-writes.ts`, § 3.3),
   `lib/session-init/in-flight-work-unit-sweep.ts`, `lib/session-init/in-flight-composition.ts`, the target classifier
-  beside the layout resolver (`lib/layout/`, § 3.3), `arc status <slug>`'s worktree path, operational read path, and
-  in-flight warnings (`handlers/status/lifecycle.ts`, § 3.1), and the notes save's one read of the worktree roster
-  (`resolveSameMachineInFlightSubdirs`, `commands/user/save-load.ts`, § 2.1).
+  beside the layout resolver (`lib/layout/`, § 3.3), `arc status <slug>`'s worktree path, in-flight warnings, and
+  `--fetch` reachability in its store arm (`handleStoreLifecycleStatus`, `handlers/status/lifecycle.ts`, § 3.1, A10),
+  and the notes save's one read of the worktree roster (`resolveSameMachineInFlightSubdirs`,
+  `commands/user/save-load.ts`, § 2.1).
 - **Session-init and recovery:** `handlers/status.ts`'s session-init binding (`handleSessionInitStatus`),
   `handlers/status/session.ts`, `handlers/status/session-context.ts`, `handlers/status/session-evidence.ts`,
   `commands/status/run.ts`, `handlers/recover.ts`, `handlers/recover-probes.ts`, `lib/recover/audit.ts`,
@@ -757,11 +758,13 @@ flip it takes each row's work-unit identity (§ 2.1).
 - **`arc status <slug>`'s locus reads.** The slug query (`handlers/status/lifecycle.ts`) reads the work unit's worktree
   path, the read path for its operational boundary, and the in-flight warnings from the composed lifecycle index
   (`resolveCallerComposedLifecycleIndex`: `worktreePathBySlug`, a record's `writablePath`, and `qualityFacts`). From the
-  flip the worktree path comes from the roster's lookup of the checkout whose marker names the work unit (§ 2.4), a
-  lookup that rejects reporting its condition in place of the path, never no checkout, the read path is that checkout,
-  the warnings come from the in-flight set listed through the store, and with `--fetch` the remote's reachability comes
-  from the store's pull (§ 4.8). The query's state and record are the transition-write-path change's, and the
-  operational boundary the delivery change's (§ 16).
+  flip the query runs the transition-write-path change's store arm (`handleStoreLifecycleStatus`), which reads its
+  state, record, purpose, and owner through the store; this change adds its locus reads there (A10): the worktree path
+  from the roster's lookup of the checkout whose marker names the work unit (§ 2.4), a lookup that rejects reporting its
+  condition in place of the path, never no checkout; the warnings from the in-flight set listed through the store,
+  beside the arm's own; and with `--fetch` the remote's reachability from the store's pull (§ 4.8). The operational
+  boundary is the delivery change's, read through the store wherever the work unit is checked out, so this change gives
+  it no read path, and the arm reports `integrationBoundary: null` until that change reads it (§ 16).
 - **Until the flip** the derivation reads branch refs as today.
 
 #### 3.2 Errands and claims list apart
@@ -2464,6 +2467,10 @@ close.
     terminal authorization selects for the Errand it reads — the current checkout, or the Errand's other checkout after
     confirmation — refusing as today before any write, and refusing a checkout off the Errand's branch; a rerun after
     its write completes in the checkout whose marker names that Errand or its work unit.
+17. **`arc status <slug>` reports its locus from the store (A10).** From the flip `arc status <slug>` reports the work
+    unit's worktree path from the marker roster, or the lookup's condition in its place, its in-flight warnings from the
+    set listed through the store, and with `--fetch` the reachability the store's pull reports, its operational boundary
+    staying the delivery change's.
 
 ## Open Questions
 
@@ -2490,5 +2497,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.3. _Revalidated:_ pending → 3.10.
 - **A9** — 2026-10-16 — task: the in-flight set lists work units through lifecycle's view, which carries their links.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
+- **A10** — 2026-10-16 — design: `arc status <slug>`'s locus reads join lifecycle's store arm. _Supersedes:_ § 3.1 and
+  § 1.2, the status read path. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 3.10.
 
 ---
