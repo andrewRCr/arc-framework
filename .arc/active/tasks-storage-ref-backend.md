@@ -394,12 +394,14 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
         - Pull, push, and synchronized primary-role assertions retain their later retirement boundary.
             - _Retired in:_ Phase 11
 
-### `[ ]` **4.5 The engine's first path** — validate exit criterion at segment scope
+### `[x]` **4.5 The engine's first path** — validate exit criterion at segment scope
 
 - _Goal:_ The ref-backend fixture in the default layout passes items 1, 2, 4, 6, 9, 10, 13, and 15 for every served
   family, with every other item and assertion excluded by name, reason, and retiring phase.
 
-    - Request `arc check segment`
+- _Outcome:_ Default-layout conformance exercises the stated items across every served family with the exact
+  permanent and interim inventory recorded by 4.4.d. Fresh path checks retain valid Unicode and quote records and
+  exact-path backslash diagnostics in both ref formats, closing A3's covering revalidation.
 
 ## **Phase 5:** The complete write path
 
