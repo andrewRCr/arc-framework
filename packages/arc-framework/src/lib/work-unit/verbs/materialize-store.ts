@@ -74,7 +74,8 @@ async function placementOperation(ctx: Bound, params: MaterializeParams, branch:
     const local = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remote = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
     if (local === null && remote === null) throw new Error(await missingBranchRemedy(ctx, branch, work));
     const common = { mutation: "spawn" as const, branch, createBranch: local === null, wuName: params.name, spawningIdentity: identity };
-    return params.inPlace ? { ...common, inPlace: true, createBranch: false } : { ...common, base: remote ?? local ?? branch, ...spawnPlacement(params) };
+    return params.inPlace ? { ...common, inPlace: true, ...(local === null ? { startPoint: remote ?? undefined } : {}) }
+      : { ...common, base: remote ?? local ?? branch, ...spawnPlacement(params) };
   }
   if (base === null) throw new Error(`No base ref resolves. Fetch origin +refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}, or run git branch ${baseBranch} <commit>, then retry arc materialize ${params.name}.`);
   if (params.inPlace) throw new Error("Branchless in-place placement should have been marker-only");

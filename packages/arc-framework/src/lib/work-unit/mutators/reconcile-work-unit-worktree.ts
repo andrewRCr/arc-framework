@@ -202,6 +202,8 @@ export type ReconcileWorkUnitWorktreeOp =
       wuName: string;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch?: boolean;
+      /** Exact selected commit for a newly created branch; omission retains Git's current-HEAD default. */
+      startPoint?: string;
       /**
        * Skip the physical `git checkout`, returning the branch for the caller to attach later. Resume sets
        * this: its tracked-branch pointer-record removal must be committed *before* switching off that branch
@@ -431,7 +433,9 @@ export async function reconcileWorkUnitWorktree(
           primaryWorktreePath: primary, folderExists: (path) => ctx.fs.directoryExists(path), slots: ctx.projectionRemovalSlots });
         if (cleared.kind === "refused") throw new Error(cleared.reason);
       }
-      const checkout = op.createBranch ? ["checkout", "-b", op.branch] : ["checkout", op.branch];
+      const checkout = op.createBranch
+        ? ["checkout", "-b", op.branch, ...(op.startPoint === undefined ? [] : [op.startPoint])]
+        : ["checkout", op.branch];
       await ctx.exec("git", checkout);
     }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);

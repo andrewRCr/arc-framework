@@ -7,6 +7,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifec
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
+import { MaterializeCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 import type { WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -27,6 +28,30 @@ async function fixture(link = true) {
   return { ...h, root, exec, ctx, contextAt, meta, path, origin, marker: () => marker, params: { name: "demo", baseBranch: "main", identity: "starter", spawningIdentity: "starter", locationTemplate: path, primaryWorktreePath: root, repo: "repo" } };
 }
 describe("store materialize real refs", () => {
+  it.each(["other-default", "guess-disabled"] as const)("materializes the selected origin tip --here with %s", async (selection) => {
+    const h = await fixture(); await h.origin();
+    const input = MaterializeCommandInputSchema.parse({ slug: "demo", here: true });
+    const params = { name: input.slug!, inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
+    expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "rejected" });
+    expect(h.marker()).toBeUndefined();
+    await h.exec("git", ["switch", "-c", "feat/demo"]);
+    await h.exec("git", ["commit", "--allow-empty", "-m", "origin work"]);
+    const tip = (await h.exec("git", ["rev-parse", "HEAD"])).stdout;
+    await h.exec("git", ["push", "origin", "feat/demo"]);
+    await h.exec("git", ["switch", "main"]); await h.exec("git", ["branch", "-D", "feat/demo"]);
+    await h.exec("git", ["switch", "-c", "other-work"]);
+    await h.exec("git", ["commit", "--allow-empty", "-m", "other remote work"]);
+    const other = join(h.root, "other.git");
+    await h.exec("git", ["init", "--bare", other]); await h.exec("git", ["remote", "add", "other", other]);
+    await h.exec("git", ["push", "other", "HEAD:refs/heads/feat/demo"]); await h.exec("git", ["switch", "main"]);
+    await h.exec("git", ["config", "checkout.defaultRemote", "other"]);
+    if (selection === "guess-disabled") await h.exec("git", ["config", "checkout.guess", "false"]);
+    expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "materialized", branch: "feat/demo", inPlace: true });
+    expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(tip);
+    expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
+    expect(h.marker()).toMatchObject({ spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" } });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  }, timeout);
   it("materializes a released local branch with no origin", async () => {
     const h = await fixture(); await h.exec("git", ["branch", "feat/demo", "main"]);
     expect(await runMaterialize(h.ctx, h.params)).toMatchObject({ status: "materialized", branch: "feat/demo", worktreePath: h.path });
