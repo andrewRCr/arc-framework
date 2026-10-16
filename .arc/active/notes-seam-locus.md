@@ -15,6 +15,7 @@
 - [Obligations tracked elsewhere](#obligations-tracked-elsewhere)
 - [Registered folder presence completion coverage](#registered-folder-presence-completion-coverage)
 - [A1: where the locus ports bind](#a1-where-the-locus-ports-bind)
+- [A2: where locus's link readers get the project ID](#a2-where-locuss-link-readers-get-the-project-id)
 
 ## Consumer-map re-verification
 
@@ -372,5 +373,43 @@ check or the writer does so: store start's create-new, whose spawn takes the sto
 teardown's direct calls of `reconcileWorkUnitWorktree` run its move and teardown arms, which call no port. Promotion
 runs the check from its own runtime's store and Git executor (Task 3.9 - `tasks-seam-locus.md`), not through lifecycle's
 ports, so A1 leaves it alone.
+
+## A2: where locus's link readers get the project ID
+
+A2 gives locus's link readers and writers a project ID from the flip. `spec-seam-locus.md` § 16's cutover item read:
+
+> its production binding of the project-ID port the transition-write-path change injects (`projectId`), to a read of the
+> project's identity record, which only tests supply until then (§ 8.1);
+
+and the task list's Phase 2 design decision called the port one "which only tests supply until the flip binds it to a
+read of the project's identity record (spec § 16)", with Task 3.4 saying of it "which the flip binds; tests inject it".
+
+The landed transition-write-path change already binds that read, in its executor context: `buildExecutorContext`
+(`lib/work-unit/executor-context.ts`) gives a context over a store that reads state off the branch
+`createProjectIdentityReader(store)` (`lib/store/project-identity.ts`), and its verbs read the context's
+(`handlers/task.ts`, `handlers/lifecycle.ts`, `handlers/lifecycle-collaboration.ts`,
+`lib/work-unit/store-teardown-context.ts`). The binding the cutover was to make exists, gated on the same capability as
+the flip, so the cutover has nothing to bind. What it would not have reached is this change's readers and writers of
+links outside an executor context, which took the port as optional and were given one nowhere: from the flip, in
+production, each would have read no project ID — the frame unresolved, the Errand close, open, and promotion refusing,
+the sweeps and the commits listing reporting nothing.
+
+The rule follows the executor's: each takes the port as optional, a verb holding an executor context passes the
+executor's, and given none it binds `createProjectIdentityReader` over the store it already reads, so tests that inject
+a reference-backend store stay hermetic. A composer of several such readers passes one, since the reader memoizes its
+observation. The link readers and writers, each now with a test that, given no port, the project ID comes from the
+identity record: the frame (Task 2.1.b), the current-work-unit resolver's `branch` (2.3), the claimed-in-place match
+(2.7), the in-flight set (3.1.a), the close's landing commit (3.4), the open's branch link (3.5), promotion (3.9.a), the
+locus classification (5.2.a), the orphan-branch sweep (5.2.b), and the commits listing (7.4.a). The overlap check reads
+3.1.a's set rather than links, and the Errand abandon, leave, and link runtimes write no branch link.
+
+"The port absent" stays among the no-project-ID conditions, as the shipped resolver still distinguishes it
+(`resolveProjectIdentity`). § 13's two rows dropped the remedy text "or that no port is bound", which no shipped code
+says: the resolver reports an absent port as "Project identity is unavailable." with the identity record's restore
+remedy. The Phase 2 sentence also dropped that the task close "refuses only an absent port": it refuses a failed read
+too, through `resolveProjectIdentity` (`prepareTaskClose`).
+
+The rule is realized across Phases 2, 3, 5, and 7, so the row names Task 2.1, where it first lands, as its work, and the
+terminal verification, the first check over all of Success Criterion 13, as its revalidation.
 
 ---

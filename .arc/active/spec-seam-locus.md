@@ -440,12 +440,16 @@ only files beneath it.
   the transition-write-path change's selection (`selectWorkBranchLink`, `workBranchName`,
   `lib/store/lifecycle-branch.ts`) among the links naming the project ID: a chosen link gives its branch to all three;
   no link gives no branch, as a branchless planning work unit has; and links the selection cannot choose among leave the
-  subject unresolved, naming its reason, rather than one being guessed. The project ID comes from the port the
-  transition-write-path change injects (§ 16). From the flip every reader this change adds of a work item's or an
-  Errand's links that gets no project ID — the port absent, or its read of the project's identity record failing —
-  treats that as an incomplete observation, never matching no link or every link: the subject stays unresolved, a sweep
-  reports nothing from the links, the commits listing (§ 11) reports the condition in place of its set, and a verb that
-  writes or looks up a link refuses, each naming the port's failure as text (§ 13).
+  subject unresolved, naming its reason, rather than one being guessed. The project ID comes from the project-ID port
+  the transition-write-path change injects, which that change binds at its executor context from the flip to a read of
+  the project's identity record (`createProjectIdentityReader`, `lib/store/project-identity.ts`, § 16). Each reader and
+  writer of links this change adds takes the port as optional, a verb holding an executor context passing the
+  executor's, and given none, over a store that reads state off the branch, binds the same read over the store it reads
+  (A2). From the flip every reader this change adds of a work item's or an Errand's links that gets no project ID — the
+  port absent, or its read of the project's identity record failing — treats that as an incomplete observation, never
+  matching no link or every link: the subject stays unresolved, a sweep reports nothing from the links, the commits
+  listing (§ 11) reports the condition in place of its set, and a verb that writes or looks up a link refuses, each
+  naming the port's failure as text (§ 13).
 - **Two markers naming one work unit** derive as unresolved for both checkouts rather than either being chosen.
 - **An incomplete observation is never absence.** A marker that cannot be read, a store read that fails, or a listing
   that is not complete grants no role and no cleanup authority, and the slot reports it, as today's derived frame
@@ -1056,7 +1060,7 @@ flip's rewrite (§ 1.5).
 | `derivedLocusState`: an Active work unit linking no branch (§ 11)                                                                          | `arc deactivate <slug>`, then `arc activate`, which links a work branch                                                                         | text  |
 | `derivedLocusState`: no base ref, with `origin` (§ 11)                                                                                     | `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`                                                                                | typed |
 | `derivedLocusState`: no base ref, no `origin` (§ 11)                                                                                       | `git branch <base> <commit>`, a base commit chosen                                                                                              | text  |
-| `derivedLocusState`: no project ID, the port absent or its read failing (§ 2.1, § 11)                                                      | the port's failure, naming the project identity record's read and its remedy, or that no port is bound                                          | text  |
+| `derivedLocusState`: no project ID, the port absent or its read failing (§ 2.1, § 11)                                                      | the port's failure, naming the project identity record's read and its remedy                                                                    | text  |
 | `derivedLocusState`: the entering checkout's anchored marker names a work unit with no record (§ 2.5)                                      | `arc start <slug> --new --here` in that checkout, to finish the cold start, or `arc locus release <slug>`, to clear the marker                  | text  |
 | `derivedLocusState`: the entering checkout's spawned marker names a work unit with no record (§ 2.5)                                       | `arc locus release <slug>`, which removes the checkout                                                                                          | typed |
 | `user`: the store needs a designation (§ 4.8)                                                                                              | the store's remedy argv                                                                                                                         | typed |
@@ -1995,7 +1999,7 @@ actions; the verbs' refusals are these:
 | A nameless `arc start --here` from the flip whose derived name the store holds (§ 2.5)                                                     | `arc start <name> --new --here` under another name, or for the held work unit the step its state takes, which `arc status <slug>` shows                                                                                                                  | text   |
 | The cold start from the flip in a checkout whose spawned marker names a work unit with no record (§ 2.5)                                   | `arc locus release <slug>`, which removes that checkout                                                                                                                                                                                                  | typed  |
 | The cold start from the flip in a checkout holding any other marker but a crashed cold start's (§ 2.5)                                     | the marker's exit: its role's exits; work there or free it as for a marker write; its teardown; for an ended work unit `arc teardown <slug>`, or `arc locus release <slug>` where another identity owns it; for a backlog one `arc locus release <slug>` | text   |
-| A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the port's failure, which names the read of the project's identity record and that read's own remedy, or that no port is bound                                                                                                                           | text   |
+| A link read or write from the flip that gets no project ID (§ 2.1)                                                                         | the port's failure, which names the read of the project's identity record and that read's own remedy                                                                                                                                                     | text   |
 | An Errand's terminal or merge from the flip whose record's lookup or read refuses, `not-found` aside, or misses beside diagnostics (§ 3.2) | that record and what its lookup or read reported with that report's remedy, or, where the lookup finds none beside listing diagnostics, those diagnostics with their remedies                                                                            | text   |
 | `arc locus release` on a work unit this identity owns, in flight and not paused, or ended (§ 5)                                            | `arc pause <slug> --reason <text>` for a Planning or Active one; its integration, then teardown, for an Integrating one; `arc teardown <slug>` for an ended one                                                                                          | text   |
 | `arc locus release` on a checkout holding a transient role (§ 5)                                                                           | the role's exits, as handoff's locus plan names them                                                                                                                                                                                                     | text   |
@@ -2094,12 +2098,13 @@ holds until then is stated with it.
       computed any other way never match, a key computed only for a commit no stored SHA matches and from local objects
       alone (`GIT_NO_LAZY_FETCH`), so the computation never fetches (§ 11);
     - branch links' record of whether ARC created or adopted the branch and their exclusions (§ 8.2, § 11, § 12.4), each
-      link naming the project ID as its repository, through the project-ID port that change injects, and the branch's
-      short name as its ref, which this change's link writes and lookups take too, and from the flip the meta carrying
-      no `Branch`, its link holding it (§ 2.1); its selection of a work item's branch among its links
-      (`selectWorkBranchLink`), and against a checkout its resolver (`resolveLinkedCheckoutBranch`), which this change's
-      readers of a work item's branch call (§ 2.1, § 3.1); and an abandon's and a teardown's report of a kept adopted
-      branch (§ 12.4);
+      link naming the project ID as its repository, through the project-ID port that change injects and binds at its
+      executor context from the flip (`buildExecutorContext`), which this change's readers and writers outside that
+      context bind as § 2.1 states (A2), and the branch's short name as its ref, which this change's link writes and
+      lookups take too, and from the flip the meta carrying no `Branch`, its link holding it (§ 2.1); its selection of a
+      work item's branch among its links (`selectWorkBranchLink`), and against a checkout its resolver
+      (`resolveLinkedCheckoutBranch`), which this change's readers of a work item's branch call (§ 2.1, § 3.1); and an
+      abandon's and a teardown's report of a kept adopted branch (§ 12.4);
     - the widened `arc materialize` in both its arms, spawned and `--here`, the spawn, and graduation in place, each
       running the exclusivity check, and rename, `arc materialize`, abandon, start, teardown, pause, and handover the
       holding-checkout lookup, through ports that change injects and this change binds (§ 2.4), and the in-place arms
@@ -2201,9 +2206,8 @@ holds until then is stated with it.
   onto `arc inbox --target` (§ 7.1), moves hold-and-route's binding and hand-off sites onto `arc route` (§ 7.9), drops
   `session-init.md`'s `-d` offer for the slot's action (§ 12.4) and activation's workspace step (§ 2.8), replaces
   handoff's `SESSION-NOTES` write with `arc handoff write` (§ 9.1), and documents the new settings (§ 14); its rewire of
-  `arc sync` onto the contract's push, which reports its push's figures through the tripwire report (§ 9.3); its
-  production binding of the project-ID port the transition-write-path change injects (`projectId`), to a read of the
-  project's identity record, which only tests supply until then (§ 8.1); and the deletion pass over § 1.5's arms.
+  `arc sync` onto the contract's push, which reports its push's figures through the tripwire report (§ 9.3); and the
+  deletion pass over § 1.5's arms.
 - **The routing method's arms for an Active and an Integrating target** (`route-discovered-work`), which route out of a
   work unit past planning (§ 7.8); until they land its gate still proposes holding an entry in an executing work unit.
 
@@ -2403,6 +2407,9 @@ close.
     ports carries this change's exclusivity check, lookup, and anchored-marker writer, its rebind on another checkout
     (`withCwd`) the same record, and store start's create-new and the cold start reach them through it; over the in-repo
     implementation the context carries none, and lifecycle's callers keep today's defaults.
+13. **Every link reader and writer gets the project ID with none injected (A2).** From the flip, each reader and writer
+    of links this change adds, given no project-ID port, reads the project's identity record over its store, and treats
+    a failed read of that record as an incomplete observation (§ 2.1).
 
 ## Open Questions
 
@@ -2413,5 +2420,7 @@ this design open.
 
 - **A1** — 2026-10-16 — design: the locus ports bind at the executor context, not in their default record. _Supersedes:_
   § 2.4 ¶1; § 16, the transition write path's ports item. _Trigger:_ door. _Work:_ 2.5. _Revalidated:_ pending → 2.10.
+- **A2** — 2026-10-16 — design: locus's link readers and writers bind the project-ID port over their store; the cutover
+  binds none. _Supersedes:_ § 16, the cutover item. _Trigger:_ door. _Work:_ 2.1. _Revalidated:_ pending → 8.1.
 
 ---

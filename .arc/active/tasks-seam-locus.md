@@ -464,13 +464,16 @@ across machines the work unit's owner governs. Every arm here keeps its in-repo 
 checkout with no marker keeps today's active-meta reading until the flip. Each reader this phase moves onto the store
 takes it as an optional `store`, as `resolveCurrentWorkUnit` does, opening its own over the checkout where none is
 given. Promotion's marker settlement lands in Task 3.9, after the Errand runtimes read their records through the store
-(spec § 8.3). Every branch link this change writes or looks up names the project ID as its repository, from the
-project-ID port the transition-write-path change injects (`projectId`, `lib/work-unit/executor-context.ts`, planned in
-Task 3.3.d - `tasks-seam-lifecycle.md`), which each reader here takes as optional, as it takes `store`, and which only
-tests supply until the flip binds it to a read of the project's identity record (spec § 16), and the branch's short name
-as its ref, as that change's writer does; a read that gets no project ID — the port absent, or its read failing — treats
-it as an incomplete observation, never matching no link or every link (spec § 2.1), where that change's task close
-refuses only an absent port (`prepareTaskClose`) and its readers given none pass no repository, which
+(spec § 8.3). Every branch link this change writes or looks up names the project ID as its repository and the branch's
+short name as its ref, as that change's writer does. The project ID comes from the project-ID port that change injects
+(`projectId`, `lib/work-unit/executor-context.ts`), which its executor context binds from the flip to a read of the
+project's identity record (`createProjectIdentityReader`, `lib/store/project-identity.ts`). Each reader and writer of
+links in this change takes the port as optional, as it takes `store`, a verb holding an executor context passing the
+executor's; given none, over a store that reads state off the branch, it binds the same read over the store it reads,
+and a composer building several such readers over one store, as session start does, passes them one, so the invocation
+reads the record once (spec § 2.1). A read that gets no project ID — the port absent, or its read failing — treats it as
+an incomplete observation, never matching no link or every link (spec § 2.1), where that change's task close refuses
+both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers given none pass no repository, which
 `selectWorkBranchLink` reads as every link. A work item's branch comes from its links through that change's selection
 (`selectWorkBranchLink`, `lib/store/lifecycle-branch.ts`), or against a checkout its resolver
 (`resolveLinkedCheckoutBranch`, `lib/git/default-capture-set.ts`).
@@ -529,6 +532,8 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
             - a checkout on a branch other than its link's fails the topology corroboration
             - links the selection cannot choose among leave the subject unresolved, naming the reason
             - with no project ID the subject is unresolved, naming the port's failure
+            - with no project-ID port injected, a chosen link gives the subject its branch, the project ID read from the
+              project's identity record in the store
 
     - `[ ]` **2.1.c A completed work unit's frame**
 
@@ -649,6 +654,8 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
         - two candidates stay ambiguous for each caller
         - over the in-repo implementation the reconcile in a checkout on `<prefix>/<slug>` whose meta has left
           `.arc/active/` resolves `<slug>`
+        - over the reference backend with no project-ID port injected, the resolved work unit's `branch` is its link's,
+          the project ID read from the project's identity record
 
 ### `[ ]` **2.4 Build the exclusivity check and the holding-checkout lookup — § 2.4**
 
@@ -891,6 +898,7 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
         - a registration whose folder is missing is not, though Git still lists its branch
         - a work unit whose `Branch` was empty or named base, as a partial-protection cold start leaves it, is not
         - another identity's work unit is not
+        - with no project-ID port injected, the match reads the project ID from the project's identity record
 
 ### `[ ]` **2.8 Resolve the session notes through one resolver, and reconcile scratch — § 2.8**
 
@@ -1123,6 +1131,8 @@ carry `max-lines` floor entries.
             - a live grooming claim's branch lists in flight by the claim's slug, and not as residue
             - an open Errand whose linked branch no ref holds reports as residue
             - a claims read that is not complete marks the set degraded
+            - with no project-ID port injected, each entry's `branch` is its link's, the project ID read from the
+              project's identity record
 
     - `[ ]` **3.1.b The set's callers**
 
@@ -1324,10 +1334,10 @@ carry `max-lines` floor entries.
       evidence (`ChangeRequestLifecycleEvidence`, `lib/errand/change-request-lifecycle.ts`) gains the merge commit,
       which `createGhChangeRequestLifecyclePort`'s query requests beside the fields it reads today, as the delivery host
       reports one (`mergeCommitSha`, `lib/delivery/host.ts`).
-    - It is the record's `landingCommit` link (`lib/store/links.ts`). The project ID comes from the port the
-      transition-write-path change injects (planned in Task 3.3.d - `tasks-seam-lifecycle.md`), which the flip binds;
-      tests inject it. Given no project ID — the port absent, or its read failing — the close refuses before its write,
-      naming the port's failure (spec § 2.1).
+    - It is the record's `landingCommit` link (`lib/store/links.ts`). The project ID comes from an optional port
+      `CloseOrdinaryErrandRuntimeOptions` gains, which given none reads the project's identity record over the store the
+      close reads the Errand through (3.3.b, Phase 2's design decisions); tests inject it. Given no project ID — the
+      port absent, or its read failing — the close refuses before its write, naming the port's failure (spec § 2.1).
     - A close under unchanged-base authorization, which merges nothing (`retirementDesired`,
       `lib/errand/identity-transitions.ts`), records no landing commit; its write still stamps the close time.
 
@@ -1338,6 +1348,7 @@ carry `max-lines` floor entries.
         - a close under unchanged-base authorization records no landing commit and stamps the close time
         - with no project ID the close refuses before writing, naming the port's failure, and completes once the port
           gives one
+        - with no project-ID port injected, the link names the project ID the project's identity record holds
 
 ### `[ ]` **3.5 Link the Errand's branch at open — § 8.2**
 
@@ -1347,13 +1358,15 @@ carry `max-lines` floor entries.
 
     - The in-place cut (`lib/locus/provisioning-runtime.ts`) and the spawned one both reach
       `lib/errand/open-runtime.ts`, which writes the link with the record in 3.3.b's batch, its repository the project
-      ID and its ref `chore/<slug>` (Phase 2's design decisions). The link's `created` record and its exclusions are
-      planned in Task 2.1.a - `tasks-seam-lifecycle.md`.
+      ID, from an optional port `OpenOrdinaryErrandRuntimeOptions` gains, read as the close's is (Task 3.4), and its ref
+      `chore/<slug>` (Phase 2's design decisions). The link's `created` record and its exclusions are planned in Task
+      2.1.a - `tasks-seam-lifecycle.md`.
 
     - Build `test-first` (one behavior at a time), over the reference backend:
         - an in-place and a spawned open each record a `created` link with no exclusions, its repository the project ID
           the port gives and its ref `chore/<slug>`
         - a partial-protection open writes no link
+        - with no project-ID port injected, the link's repository is the project ID the project's identity record holds
 
 ### `[ ]` **3.6 Check overlap for a state target, excluding the caller by identity — § 3.3**
 
@@ -1565,6 +1578,8 @@ carry `max-lines` floor entries.
             - over the reference backend an injected refusing check leaves nothing written
             - over the reference backend the steps take the frame's checkout and the project ID, and with no project ID
               the runtime refuses, writing nothing
+            - over the reference backend with no project-ID port injected, the steps take the project ID the project's
+              identity record holds
 
     - `[ ]` **3.9.b The settlement**
 
@@ -1944,6 +1959,8 @@ its `arc schema` test with it.
         - Build `test-first` (one behavior at a time):
             - over the reference backend a work-unit row owns its linked branch, whatever its name
             - over the in-repo implementation it matches by the branch's slug as today
+            - over the reference backend with no project-ID port injected, a work-unit row owns its linked branch, the
+              project ID read from the project's identity record
 
     - `[ ]` **5.2.b The orphan-branch sweep from the flip**
 
@@ -1974,6 +1991,8 @@ its `arc schema` test with it.
               never a teardown
             - a live grooming claim's merged, gone-upstream branch is left out
             - a failed lookup, or a claims acquisition that is not complete, declines the sweep
+            - with no project-ID port injected, the lookup's repository is the project ID the project's identity record
+              holds
 
     - `[ ]` **5.2.c Retired subdirectories**
 
@@ -2737,6 +2756,8 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
             - no base ref reports the condition with its repair, in each form
             - the set is computed for the entering checkout alone
             - over the in-repo implementation nothing is listed
+            - with no project-ID port injected, the set is computed, the project ID read from the project's identity
+              record
 
     - `[ ]` **7.4.b The action**
 
