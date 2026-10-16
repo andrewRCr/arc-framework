@@ -209,7 +209,8 @@ Paths are under `packages/arc-framework/src/`.
   `handlers/errand.ts`'s settlements and materialize's re-feed, § 7.6); `change-request-lifecycle.ts`, whose merged
   evidence carries the merge commit (§ 8.1); and `promote-runtime.ts`'s selection of promotion's steps on the
   capability, its marker settlement, and its inbox settlement step (`receiptFromAuthority`, `settlePromotedInbox`,
-  § 8.3), shared with the change rerouting promotion's write (§ 1.3); and `handlers/errand.ts`'s
+  § 8.3), shared with the change rerouting promotion's write (§ 1.3); `promote-store.ts`, that change's promotion steps,
+  where this change has their receipt report the origin as the record holds it (§ 7.6, A5); and `handlers/errand.ts`'s
   `arc errand materialize` (`handleErrandMaterialize`), its Errand read (§ 8).
 - **The personal surfaces and entry lists:** `lib/user-sync/parser.ts`, `lib/user-sync/inbox-writer.ts`,
   `lib/user-sync/inbox-target.ts`, `lib/user-sync/execution-offer.ts`, `commands/user/inbox-list.ts`,
@@ -255,6 +256,8 @@ builds on:
   cold start's prompt and report (§ 2.5);
 - `lib/errand/promote-runtime.ts`, where this change has the runtime select that change's promotion steps on the
   capability, with its marker settlement and its inbox settlement step (§ 8.3);
+- `lib/errand/promote-store.ts`, which that change creates with promotion's steps, and where this change has their
+  receipt report the origin as the record holds it (§ 7.6, A5);
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
@@ -2457,5 +2460,7 @@ this design open.
   _Supersedes:_ § 2.5, its entry item. _Trigger:_ door. _Work:_ 2.6. _Revalidated:_ pending → 2.10.
 - **A4** — 2026-10-16 — spec-depth: lifecycle's in-place arms refuse a checkout another marker occupies, naming its
   exit. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 2.10.
+- **A5** — 2026-10-16 — task: promotion's receipt carries an inbox origin's digest as the record holds it, `null`
+  included. _Supersedes:_ none. _Trigger:_ door. _Work:_ 3.9. _Revalidated:_ pending → 3.10.
 
 ---

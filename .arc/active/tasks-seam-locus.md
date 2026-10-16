@@ -1612,6 +1612,10 @@ carry `max-lines` floor entries.
           its `cwd` that frame's checkout and its `repository` the project ID from an optional port
           `PromoteOrdinaryErrandRuntimeOptions` gains beside `store` (Phase 2's design decision); given no project ID it
           refuses before `promoteOrdinaryErrand`, naming that condition.
+        - The steps' receipt (`receipt`, `lib/errand/promote-store.ts`) carries the origin's `originEntrySourceDigest`
+          as the Errand record holds it, `null` included, as every projection of an origin does (spec § 7.6), where
+          today it parses an inbox origin's as a digest (`CanonicalDigestSchema`), which throws after the role write,
+          the branch cut, and the switch, and again in every rerun's recovery.
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend the runtime fills the four slots with the transition-write-path change's steps,
@@ -1621,6 +1625,8 @@ carry `max-lines` floor entries.
               the runtime refuses, writing nothing
             - over the reference backend with no project-ID port injected, the steps take the project ID the project's
               identity record holds
+            - over the reference backend an Errand whose inbox origin carries the qualified ID and a `null` digest
+              promotes, its receipt carrying both as the record holds them, and a rerun reports `idempotent`
 
     - `[ ]` **3.9.b The settlement**
 
