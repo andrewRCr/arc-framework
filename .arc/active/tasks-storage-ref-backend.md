@@ -372,23 +372,13 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           designation. Both fixtures share the extracted generic test registry; ref declarations cover served families
           and scope-specific sync, and content uses one project owner, canonical JSON, and the project-identity schema.
 
-    - `[ ]` **4.4.b The hooks**
-        - `reference` and `content`, the `reference` hook building a companion's key as a name, as 1.11 has the other
-          two fixtures do (§ 2.5); `settle` returning `version()`; `reopen` building a new store over the same
-          repository; `race` starting two writes together on two stores over it; `identity` setting the value the
-          identity port returns at each operation; and `plant` for every `PlantKind` through 3.1.e's helper — an
-          unreadable blob, an oversized projected record, a malformed entry, an entry naming two owners, a `formats`
-          entry above the registry's, and a family whose every ref is unreadable — each committed on top of the record's
-          ref
-        - A malformed entry is a blob its kind's parser refuses, or non-JSON for a never-projected kind, and, for a kind
-          with neither, the entry moved to a path that maps to no `RefHome` (§ 3.1) — on a work item's ref one under
-          `review/`, since a path elsewhere among its records reads as a companion keyed by that path (§ 2.5); an
-          unreadable blob first points the entry at a blob of bytes no other entry holds, then removes that blob, since
-          the content generator gives records of one kind the same bytes
-        - `hold`, `produce`, `repair`, and the remote hooks land with the items they serve, the fixture's placeholders
-          throwing until then: `hold`, `produce`, and `repair` in 8.6
+    - `[x]` **4.4.b The hooks**
+        - Public hooks retain companion names, state tokens, persisted data, real-lock races, and operation-time
+          identity. Fault commits preserve sibling records and earlier missing blobs while producing each declared
+          diagnostic; conflict reads also diagnose parsed target-owner mismatches.
+        - `hold`, `produce`, and `repair` remain throwing placeholders.
             - _Retired in:_ Phase 8
-        - The remote hooks in 9.6
+        - Remote hooks remain throwing placeholders.
             - _Retired in:_ Phase 11
 
     - `[ ]` **4.4.c The history item's owner UID**

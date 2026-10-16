@@ -2,7 +2,8 @@
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { LineageRecordSchema } from "../kinds/lineage/index.js";
-import type { RecordReference } from "../identity.js";
+import { sameOwner, type RecordReference } from "../identity.js";
+import { ConflictRecordSchema } from "../conflict.js";
 import type { KindDefinition } from "../registry.js";
 import { PROJECTED_RECORD_MAX_BYTES } from "../limits.js";
 import type { ListingDiagnostic } from "../read.js";
@@ -31,8 +32,14 @@ export function recordDiagnostic(path: string, problem: ContentProblem): Listing
     : `Repair the stored entry at ${path}, then retry.` } };
 }
 
-/** Compare a parser's explicit origin name with the decoded owner. */
+/** Compare a parsed origin or conflict target with its containing ref's owner. */
 export function parsedOwnerProblem(reference: RecordReference, fields: unknown): ContentProblem | null {
+  if (reference.kind.endsWith("/conflict-record")) {
+    const conflict = ConflictRecordSchema.safeParse(fields);
+    if (conflict.success && !sameOwner(reference.owner, conflict.data.record.owner)) return {
+      kind: "key-mismatch", condition: "Stored conflict names an owner other than its ref's metadata",
+    };
+  }
   if (reference.kind !== "lineage/transition") return null;
   const lineage = LineageRecordSchema.safeParse(fields);
   if (!lineage.success || lineage.data.origin.name === reference.owner.name) return null;

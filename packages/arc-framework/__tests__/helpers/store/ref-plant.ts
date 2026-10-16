@@ -37,7 +37,7 @@ interface TreeNode {
 }
 
 export async function plantRef(root: string, ref: string, entries: readonly PlantTreeEntry[],
-  options: { parents?: readonly string[]; message?: string } = {}): Promise<PlantedRef> {
+  options: { parents?: readonly string[]; message?: string; allowMissingObjects?: boolean } = {}): Promise<PlantedRef> {
   const exec = makeGitExec(root);
   const input = makeGitExecInput(root);
   const raw = createExecaRawGitExec(root);
@@ -65,7 +65,7 @@ export async function plantRef(root: string, ref: string, entries: readonly Plan
       return `${mode} ${type} ${oid}\t${name}\0`;
     });
     for (const [name, child] of treeNode.children) rows.push(`040000 tree ${await writeTree(child)}\t${name}\0`);
-    return (await input(["mktree", "-z"], rows.join(""))).trim();
+    return (await input(["mktree", "-z", ...(options.allowMissingObjects ? ["--missing"] : [])], rows.join(""))).trim();
   }
   const treeId = await writeTree(tree);
   const tip = (await exec("git", ["commit-tree", treeId,

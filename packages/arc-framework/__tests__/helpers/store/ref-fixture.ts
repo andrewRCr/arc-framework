@@ -14,6 +14,7 @@ import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.j
 import { referenceContent, referenceDeclarations } from "./reference-fixture.js";
 import { createConformanceTestRegistry } from "./test-registry.js";
 import { createRefClock } from "./ref-clock.js";
+import { plantRefFixtureFault } from "./ref-fixture-plant.js";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
 import { makeGitExec } from "../integration.js";
 import { copyPreparedRepository, prepareRepositoryTemplate, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
@@ -60,12 +61,14 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   onTestFinished(() => removeGitBackedDir(root));
   const registry = createConformanceTestRegistry(refDeclarations.entryShapes, registryOverrides);
   const defaults = createDefaultStorePorts({ checkoutRoot: root });
+  let identity: string | undefined = "test-user";
   const ports: RefStorePorts = { ...defaults, ...createRefClock(), rawExec: createExecaRawGitExec(root),
-    registry, random: () => 0.5, identity: async () => SlugSchema.parse("test-user"),
+    registry, random: () => 0.5, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: createRefLockFactory(defaults) };
   const projectId = randomUUID();
+  const store = createRefStore(ports);
   const unavailable = (): never => { throw new Error("This conformance fixture hook is not implemented yet"); };
-  return { root, ports, store: createRefStore(ports), declarations: refDeclarations,
+  return { root, ports, store, declarations: refDeclarations,
     reference(kind, suffix = "one") {
       const shape = KIND_SHAPES[kind];
       const owner = { type: shape.owner, name: shape.owner === "person" ? "test-user" : shape.owner === "project" ? "project" : `${shape.owner}-${suffix}` };
@@ -78,7 +81,15 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
       const content = referenceContent(reference, registry, variant);
       return variant !== "invalid" && registry[reference.kind].projection === "never" ? canonicalize(JSON.parse(content)) : content;
     },
-    settle: unavailable, reopen: unavailable, race: unavailable, identity: unavailable, plant: unavailable,
+    async settle() {
+      const result = await store.version();
+      if (result.status !== "ok") throw new Error("The fixture could not capture its state version");
+      return result.result;
+    },
+    reopen: () => createRefStore(ports),
+    race: (left, right) => Promise.all([store.write(left), createRefStore(ports).write(right)]),
+    identity: (name) => { identity = name; },
+    plant: (reference, kind) => plantRefFixtureFault({ root, ports, store }, reference, kind),
     remote: unavailable, remoteState: unavailable, hold: unavailable, produce: unavailable, repair: unavailable,
   };
 }
