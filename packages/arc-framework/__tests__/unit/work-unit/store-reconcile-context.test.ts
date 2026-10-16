@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
-import { writeMetaTitle, writeMetaDesign } from "../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaDesign, writeMetaDependsOn } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
@@ -13,6 +13,50 @@ import { prepareCurrentWuReconcile } from "../../../src/lib/work-unit/side-effec
 import { workUnitMetaPath } from "../../../src/lib/store/lifecycle-write.js";
 
 describe("store reconcile context", () => {
+  it.each(["uid", "former-name", "ambiguous", "namespace-corrupt"] as const)("retains or refuses a renamed dependent's immutable cut disposition: %s", async (scenario) => {
+    const h = createLifecycleHarness(), origin = await h.seedMeta("origin"), member = await h.seedMeta("member");
+    const dependent = await h.seedMeta("former-dependent", { dependsOn: ["origin"] });
+    const owner = dependent.reference.owner;
+    const identity = { ...(owner.type === "work-item" && scenario !== "former-name" && scenario !== "namespace-corrupt" ? { uid: owner.uid } : {}) };
+    const lineage = recordReferences["lineage/transition"](origin.reference.owner);
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "remove", reference: origin.reference, expected: origin.version },
+      { action: "put", reference: lineage, expected: null, content: writeLineageRecord({ schemaVersion: 2,
+        origin: { name: SlugSchema.parse("origin") }, kind: "decompose", successors: [{ name: SlugSchema.parse("member") }],
+        incoming: [{ dependent: { name: owner.name, ...identity },
+          disposition: { kind: "replace", replacementTargets: [{ name: SlugSchema.parse("member") }] } },
+        ...(scenario === "ambiguous" ? [{ dependent: { name: SlugSchema.parse("current-dependent"), ...identity },
+          disposition: { kind: "drop" as const, reason: "Another retained disposition." } }] : [])], outgoing: [] }) }],
+    { verb: "decompose", lifecycleAction: "decompose" }));
+    const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
+    expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    { sourceSlug: "former-dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
+    const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
+    const lookup = h.store.lookup.bind(h.store);
+    if (scenario === "namespace-corrupt") h.store.lookup = (input) => input.kind === "slug" && input.slug === "former-dependent"
+      ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+        condition: "Former-name namespace unreadable", remedy: { text: "Repair the namespace and retry." } } }) : lookup(input);
+    const ceremony = buildStoreCurrentWuReconcile(h.store);
+    let prepared = await ceremony.prepare({ slug: "current-dependent", metaPath: workUnitMetaPath(current) });
+    if (scenario === "ambiguous" || scenario === "namespace-corrupt") {
+      expect(prepared).toMatchObject({ status: "conflict", prepared: { plan: { dependency: { conflicts: [
+        { reason: scenario === "ambiguous" ? "ambiguous-evidence" : "namespace-corrupt" },
+      ] } } } });
+      expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: "conflict" });
+      expect(lifecycleSuccess(await h.store.read({ reference: current.reference }))).toEqual(current);
+      h.store.lookup = lookup;
+      if (scenario === "ambiguous") lifecycleSuccess(await h.store.write({ ...recordPut(current,
+        { content: writeMetaDependsOn(current.content, ["member"]) }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      prepared = await ceremony.prepare({ slug: "current-dependent", metaPath: workUnitMetaPath(current) });
+    }
+    if (scenario !== "ambiguous") {
+    expect(prepared).toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: [member.reference.owner.name], conflicts: [] } } } });
+    expect(await ceremony.apply(prepared.prepared)).toMatchObject({ status: "applied" });
+    }
+    expect(lifecycleSuccess(await h.store.read({ reference: current.reference })).fields).toMatchObject({ dependsOn: ["member"] });
+    expect(lifecycleSuccess(await h.store.read({ reference: lineage }))).toEqual(immutable);
+    expect(await ceremony.prepare({ slug: "current-dependent", metaPath: workUnitMetaPath(current) })).toMatchObject({ status: "clean" });
+  });
   it.each([false, true])("reconciles a renamed subject through its former slug, stalePath=%s", async (stalePath) => {
     const h = createLifecycleHarness();
     await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });

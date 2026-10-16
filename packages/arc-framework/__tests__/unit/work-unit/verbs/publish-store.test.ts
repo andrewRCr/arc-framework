@@ -7,6 +7,10 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { CandidateReviewResumeBoundarySchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
+import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { writeLineageRecord } from "../../../../src/lib/store/kinds/lineage/writer.js";
+import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 const candidateId = `sha256:${"a".repeat(64)}` as const, candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
@@ -27,6 +31,31 @@ function parameters(check: () => Promise<void>): PublishParams {
       policy: null, reservation: null, terminus: null, deliveryReviewTermini: [] } };
 }
 describe("store publish", () => {
+  it("publishes a renamed dependent after reconciling its retained cut disposition", async () => {
+    const h = createLifecycleHarness(), origin = await h.seedMeta("origin");
+    await h.seedMeta("member", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+    const dependent = await h.seedMeta("former-dependent", { dependsOn: ["origin"] }, { kind: "active" },
+      { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+    const lineage = recordReferences["lineage/transition"](origin.reference.owner);
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "remove", reference: origin.reference, expected: origin.version },
+      { action: "put", reference: lineage, expected: null, content: writeLineageRecord({ schemaVersion: 2,
+        origin: { name: SlugSchema.parse("origin") }, kind: "decompose", successors: [{ name: SlugSchema.parse("member") }],
+        incoming: [{ dependent: { name: dependent.reference.owner.name,
+          ...(dependent.reference.owner.type === "work-item" ? { uid: dependent.reference.owner.uid } : {}) },
+        disposition: { kind: "replace", replacementTargets: [{ name: SlugSchema.parse("member") }] } }], outgoing: [] }) }],
+    { verb: "decompose", lifecycleAction: "decompose" }));
+    const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
+    const renamed = await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
+      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    { sourceSlug: "former-dependent", targetSlug: "example" });
+    expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
+    const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
+    lifecycleSuccess(await h.store.write({ ...recordPut(current, { content: writeMetaCandidate(current.content, candidateId) }),
+      provenance: { verb: "attest", lifecycleAction: "attest" } }));
+    expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+    expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: [] });
+    expect(lifecycleSuccess(await h.store.read({ reference: lineage }))).toEqual(immutable);
+  });
   it("applies reconcile before renewed authorization and claim, then publishes without deriving Last Completed", async () => {
     const h = createLifecycleHarness();
     await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });

@@ -3,13 +3,15 @@ import { SlugSchema } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { StoreResult } from "../store/refusal.js";
+import { sameOwner, type OwnerIdentity } from "../store/identity.js";
+import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { lifecycleRecordPath } from "../store/lifecycle-record-path.js";
 import { acquireLifecycleRecords } from "./prepared-lifecycle-write.js";
 import type { CurrentWuReconcilePrepareContext } from "./side-effects/discharge-dep-edges.js";
 import { validateTransitionRecordEnumeration, type TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
-import { queryTransitionDisposition } from "./transition-disposition-query.js";
+import { queryTransitionDisposition, type TransitionDispositionQuery, type TransitionDispositionQueryResult } from "./transition-disposition-query.js";
 import { readPairedReferenceOwners } from "./paired-reference-owners.js";
 import { readTerminalReferenceAliases } from "./terminal-reference-aliases.js";
 import type { ReachableReferenceTransition } from "./reference-reconcile.js";
@@ -50,7 +52,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
       if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return { status: "namespace-corrupt" };
       const targets = lookup.status === "refused" ? lineage.result.aliases.get(input.origin) : undefined;
       if (targets !== undefined && targets.length !== 1) return { status: "ambiguous" };
-      return queryTransitionDisposition(lineage.result.enumeration, { ...input, origin: targets?.[0] ?? input.origin });
+      return queryStoreDisposition(store, primary, lineage.result.enumeration, { ...input, origin: targets?.[0] ?? input.origin });
     },
     listArtifactPaths: () => Promise.resolve([...byPath.keys()]),
     readFile: (path) => {
@@ -59,6 +61,31 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
       return Promise.resolve(record.content);
     },
   } } };
+}
+async function queryStoreDisposition(store: Store, primary: StoreRecord, enumeration: TransitionRecordEnumerationResult,
+  input: TransitionDispositionQuery): Promise<TransitionDispositionQueryResult> {
+  if (enumeration.status !== "valid") return { status: "namespace-corrupt" };
+  const group = enumeration.groups.find(({ origin }) => origin === input.origin);
+  const record = group?.records.length === 1 ? group.records[0] : undefined;
+  if (record?.kind !== "decompose") return queryTransitionDisposition(enumeration, input);
+  const matches = new Set<string>();
+  for (const { dependent } of record.incoming) {
+    const match = await readDependentMatch(store, primary.reference.owner, input.dependentSlug, dependent);
+    if (match.status === "refused") {
+      return { status: match.refusal.code === "ambiguous-match" ? "ambiguous" : "namespace-corrupt" };
+    }
+    if (match.result) matches.add(dependent.name);
+  }
+  return queryTransitionDisposition(enumeration, input, (dependent) => matches.has(dependent.name));
+}
+async function readDependentMatch(store: Store, owner: OwnerIdentity, slug: string, dependent: WorkItemRef): Promise<StoreResult<boolean>> {
+  if (dependent.uid !== undefined && owner.type === "work-item" && owner.uid !== undefined) {
+    return { status: "ok", result: dependent.uid === owner.uid };
+  }
+  if (dependent.name === slug) return { status: "ok", result: true };
+  const lookup = await store.lookup({ kind: "slug", slug: dependent.name });
+  if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { status: "ok", result: false } : lookup;
+  return { status: "ok", result: lookup.result.reference.kind === "work-item/meta" && sameOwner(lookup.result.reference.owner, owner) };
 }
 async function artifactAliasTransitions(store: Store, records: readonly StoreRecord[], index: CurrentWuReconcilePrepareContext["index"], terminalAliases: ReadonlyMap<string, readonly string[]>): Promise<StoreResult<ReachableReferenceTransition[]>> {
   const candidates = artifactAliasCandidates(records);
