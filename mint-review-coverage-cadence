@@ -3,7 +3,7 @@
   "slug": "mint-review-coverage-cadence",
   "claimId": "060eed475e188d66190dc317512da92a",
   "createdAt": "2026-10-16T05:22:53.293Z",
-  "updatedAt": "2026-10-16T05:22:53.293Z",
+  "updatedAt": "2026-10-16T05:46:42.558Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Mint and groom the review-coverage-cadence work unit: how much each re-review pass re-reads after fixes, with one pass model shared by code review and adversarial review",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let a sensitive change set re-review its fixes incrementally rather than in whole-target passes",
   "originEntrySourceDigest": "sha256:14560db01809ee43ccaec96c5102bcd7a0538f9972bcfb4b5916f9ed67e5e8f5",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/mint-review-coverage-cadence",
+    "headSha": "0def133537a6033dbac23444180bfec7f645d7b0"
+  }
 }
