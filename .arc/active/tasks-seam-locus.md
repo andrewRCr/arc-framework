@@ -241,63 +241,31 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   configuration views expose them; session-init's narrowed keys remain unchanged. The packaged template remains
   unadvertised for these dormant settings, with the inventory test recording that exact boundary.
 
-### `[ ]` **1.12 Admit the anchored marker and the origin binding's new form, dormant — § 2.3, § 7.6**
+### `[x]` **1.12 Admit the anchored marker and the origin binding's new form, dormant — § 2.3, § 7.6**
 
 - _Goal:_ A work-unit marker carrying `spawnedByArc: false` is admitted and read `external` by every removal reader, and
   a partial Errand's origin binding as a qualified ID with its version, and an Errand record's inbox origin with a
   `null` digest, are admitted wherever they are read — while nothing writes either before the flip.
 
-- _Note:_ This edits `decideWorktreeCleanup` after Task 1.5.a, which reorders its folder and marker checks.
+    - `[x]` **1.12.a The marker check and the topology check**
 
-    - `[ ]` **1.12.a The marker check and the topology check**
+        - Raw and occupancy markers round-trip anchored work-unit ownership, without transient or retirement stamps.
+          Both primary and linked topology admit it; spawned work units still refuse primary occupancy. The ordinary
+          ownership writer retains its existing creation guard.
 
-        - `isWorktreeMarker`'s `primaryOccupancyValid` arm (`lib/git/worktree-marker.ts`) admits a work-unit subject
-          with `spawnedByArc: false`, and `serializeWorktreeMarker` serializes one, carrying no husk, rename-move, or
-          decomposition-candidate stamp.
-        - The occupancy marker's work-unit arm (`lib/locus/occupancy-marker.ts`), typed and parsed `spawnedByArc: true`
-          today, admits `false`, and `validateOccupancyMarkerTopology` admits a work unit's `false` on the primary or a
-          linked checkout while keeping today's rule for a transient one.
-        - `writeWorktreeOwnershipMarker` still writes nothing for `createdByArc: false`; the anchored writer is Task
-          2.5's.
+    - `[x]` **1.12.b The derived evidence and the removal readers**
 
-        - Build `test-first` (one behavior at a time):
-            - an anchored work-unit marker parses and round-trips on the primary and on a linked checkout
-            - a spawned work-unit marker on the primary still reads `spawn-topology-mismatch`
+        - Derived evidence preserves the marker's spawn flag. Cleanup reports anchored checkouts as external, and the
+          retirement sweep excludes them from teardown offers; husk cleanup keeps its existing stamp requirement.
 
-    - `[ ]` **1.12.b The derived evidence and the removal readers**
+    - `[x]` **1.12.c The origin binding and the null digest**
 
-        - The derived evidence (`lib/locus/derived-evidence.ts`) carries the marker's own `spawnedByArc` where it
-          projects every work-unit marker as `true` today.
-        - Every removal reader keys on `spawnedByArc: true` rather than a marker's presence: `decideWorktreeCleanup`,
-          the husk cleanup decision (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`), which an anchored marker
-          already passes since it carries no husk, and the residue sweep's candidate filter (`runLandedRetirementSweep`,
-          `lib/session-init/lifecycle-residue-sweep.ts`), which would otherwise offer an anchored checkout
-          `arc teardown`.
+        - Shared marker validation admits exactly one digest or version basis. Provisioning, derived evidence, roster
+          rows, and partial settlement preserve a version binding. Inbox-origin records, claims, and link transitions
+          admit null digests. The before-flip callers keep writing their existing forms.
 
-        - Build `test-first` (one behavior at a time):
-            - an anchored checkout's cleanup decision reads `external` however clean and merged
-            - the residue sweep offers an anchored checkout no teardown
-            - the derived evidence reports an anchored marker's `false`
-
-    - `[ ]` **1.12.c The origin binding and the null digest**
-
-        - The marker check (`isWorktreeMarker`) admits a partial Errand's `originEntry` with exactly one of
-          `originEntrySourceDigest` and `originEntryVersion`, where it admits only the pair today; the provisioning
-          authority's partial-Errand arm (`ProvisioningAuthority`, `lib/locus/provisioning-authority.ts`) and the marker
-          writer's binding (`partialOrigin`, `lib/locus/provisioning-marker.ts`) admit the same form.
-        - The derived evidence's marker projection (`projectMarker`, into the occupancy marker's type), the roster row's
-          `origin` (`projectMarkerDetails`, `lib/locus/derived-roster.ts`: `entry` with `sourceDigest` or `version`),
-          and the partial settlement (`settlePartialErrandAtRuntime`, `lib/errand/partial-settle-runtime.ts`) carry the
-          version beside the digest.
-        - The Errand record's and the claim's inbox arm (`InboxOriginShape`, `lib/errand/identity-record.ts`;
-          `inboxOrigin`, `lib/locus/schema/identity.ts`) and the link transition (`OrdinaryErrandTransition`,
-          `lib/errand/identity-transitions.ts`), which `desiredRecord` writes onto the record, admit a `null`
-          `originEntrySourceDigest`.
-
-        - Build `test-first` (one behavior at a time):
-            - a binding with a version parses and round-trips, and one with both a digest and a version refuses
-            - the roster row and the derived marker carry a binding's version
-            - an inbox-origin record with a `null` digest parses, and a link carrying one writes it
+- _Outcome:_ Dormant admissions span raw markers, their projected schema, provisioning, and settlement without adding
+  a producer before the flip. Changed test inventory and reconstruction evidence are in `notes-seam-locus.md`.
 
 ### `[ ]` **1.13 Before the flip** — validate exit criterion at segment scope
 

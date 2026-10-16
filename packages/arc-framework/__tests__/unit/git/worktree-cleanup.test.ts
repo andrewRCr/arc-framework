@@ -177,3 +177,9 @@ describe("decideHuskCleanup", () => {
     });
   });
 });
+
+it.each(["shipped", "abandonment"] as const)("keeps an anchored checkout external during %s cleanup", (context) => {
+  expect(decideWorktreeCleanup({ marker: { kind: "present", marker: { ...marker, spawnedByArc: false,
+    createdFor: { kind: "work-unit", name: marker.wuName! } } }, removalCheck: { kind: "removable" }, merged: true, context }))
+    .toEqual({ action: "external" });
+});

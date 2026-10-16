@@ -220,6 +220,15 @@ describe("dormant derived checkout rows", () => {
     });
   });
 
+  it("retains a version-bound origin in the validated checkout row", () => {
+    const row = project({ checkout: { ...checkout, path: "/repo", branch: "main", primary: true }, marker: marker({
+      spawnedByArc: false, createdFor: { kind: "partial-errand", slug: "repair", claimId: null },
+      provisioning: "ready", originEntry: "personal:abcd1234", originEntryVersion: "v1:0123456789abcdef",
+    }) });
+    expect(row.origin).toEqual({ entry: "personal:abcd1234", version: "v1:0123456789abcdef" });
+    expect(DerivedCheckoutRowSchema.parse(row)).toEqual(row);
+  });
+
   it("derives direct and origin-bound partial Errands independently of identity availability", () => {
     expect(project({
       checkout: { ...checkout, path: "/repo", branch: "main", primary: true },

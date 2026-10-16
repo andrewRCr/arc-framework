@@ -163,6 +163,15 @@ describe("runLandedRetirementSweep", () => {
     };
   }
 
+  it("offers no teardown for an anchored retirement", async () => {
+    const owned = ownedMarker();
+    if (owned.kind !== "present") throw new Error("Missing marker");
+    const result = await runLandedRetirementSweep({ ...options(), markers: new Map([["/wt/retired",
+      { kind: "present" as const, marker: { ...owned.marker, spawnedByArc: false } }]]) });
+    expect(result.retirements).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it.each(["unobservable", "locked"] as const)("reports %s without offering teardown", async (reason) => {
     const result = await runLandedRetirementSweep({ ...options(), checkRemoval: async () => reason === "locked"
       ? { kind: "refused", reason, path: "/wt/retired", lockReason: "owner", folderPresent: true }

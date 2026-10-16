@@ -32,7 +32,8 @@ const context = z.strictObject({
 const row = {
   checkout: RegisteredWorktreeSchema, markerGeneration: z.string().nullable(),
   parentCheckoutPath: z.string().nullable(),
-  origin: z.strictObject({ entry: z.string(), sourceDigest: z.string() }).nullable(),
+  origin: z.union([z.strictObject({ entry: z.string(), sourceDigest: z.string() }),
+    z.strictObject({ entry: z.string(), version: z.string() })]).nullable(),
   identity: LocusIdentityV1Schema.nullable(), context: context.nullable(),
   lifecycleLocation: z.enum(["active", "completed", "parked"]).nullable(), diagnostics,
 };

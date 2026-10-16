@@ -617,11 +617,24 @@ are required. Both in-repo and reference stores refuse each dormant arm before r
 
 ## Task 1.11: dormant settings
 
-Spec § 1.4, item 6 adds `unit/config/inbound-pause-settings.test.ts` and changes the config inventory, schema, and
+Spec § 1.4, item 8 adds `unit/config/inbound-pause-settings.test.ts` and changes the config inventory, schema, and
 status-reader tests. Full-settings fixtures change in `unit/config-format.test.ts`, `unit/status-format.test.ts`,
 `unit/status/run.test.ts`, `unit/handlers/release/commit.test.ts`, `unit/handlers/release/push.test.ts`,
 `unit/release/interlock-validation.test.ts`, and `integration/release-push-upstream-init.test.ts`, all under
 `packages/arc-framework/__tests__/`. The inventory admits only these three runtime-only catalog keys; the packaged
 configuration template and session-init's key set keep their current contents. No envelope golden changes are required.
+
+## Task 1.12: dormant marker and origin admissions
+
+Spec § 1.4, item 7 changes `unit/git/worktree-marker.test.ts`, `unit/git/worktree-cleanup.test.ts`,
+`unit/locus/occupancy-marker.test.ts`, `unit/locus/derived-roster.test.ts`, `unit/locus/provisioning.test.ts`,
+`unit/session-init/lifecycle-residue-sweep.test.ts`, `unit/errand/partial-settle-runtime.test.ts`,
+`unit/errand-identity-record.test.ts`, and `unit/errand-identity-transitions.test.ts`; it adds
+`unit/locus/marker-origin-evidence.test.ts` and `unit/locus/origin-binding.test.ts`, all under
+`packages/arc-framework/__tests__/`. No envelope goldens change: existing producers keep their old forms.
+
+Behavioral reconstruction logs retain the removal, residue, derived-evidence, origin validation and exclusivity,
+projection, provisioning, and partial-settlement red cases under `/tmp/arc-task1.12-*-red.log`. The origin round-trip
+uses the public marker writer and reader; settlement verifies the capture consumption and actual marker removal.
 
 ---

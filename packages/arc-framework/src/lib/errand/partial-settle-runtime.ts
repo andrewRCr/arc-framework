@@ -42,6 +42,7 @@ export interface SettlePartialErrandRuntimeOptions {
   readonly onAuthority?: (authority: ErrandTerminalAuthority) => void;
   readonly settleInbox: (binding: {
     readonly originEntry: string | null;
+    readonly originEntryVersion?: string;
     readonly parentCheckoutPath: string | null;
   }) => Promise<PartialErrandInboxSettlement>;
 }
@@ -98,6 +99,8 @@ export async function settlePartialErrandAtRuntime(
   }
   const inbox = await options.settleInbox({
     originEntry: authority.row.origin?.entry ?? null,
+    ...(authority.row.origin !== null && "version" in authority.row.origin
+      ? { originEntryVersion: authority.row.origin.version } : {}),
     parentCheckoutPath: authority.parentCheckoutPath,
   });
   if (inbox.kind === "refused") return refusal(operation, "identity-conflict", inbox.reason);

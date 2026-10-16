@@ -328,3 +328,15 @@ describe("provisionTransientLocus", () => {
     expect(test.marker()).toEqual({ kind: "absent" });
   });
 });
+
+it("provisions a partial Errand with the qualified entry's observed version", async () => {
+  const test = harness();
+  const result = await provisionTransientLocus(options(test.dependencies, {
+    protection: "partial", identity: null,
+    proposal: { ...primaryProposal, subject: { kind: "errand", key: "demo", claimId: null } },
+    authority: { kind: "partial-errand", key: "demo", originEntry: "personal:abcd1234", originEntryVersion: "v1:0123456789abcdef" },
+  }));
+  expect(result.kind).toBe("provisioned");
+  expect(test.marker()).toMatchObject({ kind: "present", marker: { originEntry: "personal:abcd1234",
+    originEntryVersion: "v1:0123456789abcdef" } });
+});

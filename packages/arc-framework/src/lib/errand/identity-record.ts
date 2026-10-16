@@ -37,7 +37,7 @@ const DescriptionOriginShape = {
 const InboxOriginShape = {
   origin: z.literal("inbox"),
   originEntry: LocusOpaqueTextSchema,
-  originEntrySourceDigest: LocusDigestSchema,
+  originEntrySourceDigest: LocusDigestSchema.nullable(),
 };
 const OpenStateShape = { state: z.literal("open"), savedHead: z.null(), changeRequest: z.null() };
 const PausedStateShape = { state: z.literal("paused"), savedHead: LocusGitOidSchema, changeRequest: z.null() };

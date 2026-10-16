@@ -395,3 +395,12 @@ describe("ordinary Errand identity transitions", () => {
     })).toMatchObject({ kind: "refused" });
   });
 });
+
+it("links a qualified inbox origin with a null digest and recognizes its exact rerun", () => {
+  const previous = open();
+  const request = { kind: "link" as const, previous, originEntry: "personal:abcd1234", originEntrySourceDigest: null, updatedAt };
+  const result = apply(new Map([[previous.slug, previous]]), request);
+  expect(result).toMatchObject({ kind: "applied", value: { origin: "inbox", originEntrySourceDigest: null } });
+  if (result.kind !== "applied") throw new Error("Expected link write");
+  expect(apply(result.records, request)).toMatchObject({ kind: "idempotent", value: { originEntrySourceDigest: null } });
+});

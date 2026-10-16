@@ -153,6 +153,7 @@ export async function runLandedRetirementSweep(
     if (entry.detached || entry.branch === null) return false;
     const marker = options.markers.get(entry.path);
     return marker?.kind === "present"
+      && marker.marker.spawnedByArc
       && marker.marker.createdFor?.kind === "work-unit"
       && marker.marker.wuName === marker.marker.createdFor.name
       && marker.marker.husk === undefined

@@ -126,7 +126,7 @@ export function decideWorktreeCleanup(inputs: WorktreeCleanupInputs): WorktreeCl
     return { action: "blocked", reason: "locked" };
   }
   const { marker } = inputs;
-  if (marker.kind !== "present") {
+  if (marker.kind !== "present" || !marker.marker.spawnedByArc) {
     return { action: "external" };
   }
   if (removalCheck.kind === "refused") {

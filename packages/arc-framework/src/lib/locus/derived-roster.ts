@@ -34,7 +34,7 @@ interface DerivedCheckoutRowBase {
   readonly checkout: RegisteredWorktree;
   readonly markerGeneration: string | null;
   readonly parentCheckoutPath: string | null;
-  readonly origin: { readonly entry: string; readonly sourceDigest: string } | null;
+  readonly origin: DerivedCheckoutRow["origin"];
   readonly identity: LocusIdentityV1 | null;
   readonly context: Extract<SubjectMetaProjection, { kind: "resolved" }> | null;
   readonly lifecycleLocation: "active" | "completed" | "parked" | null;
@@ -134,15 +134,16 @@ export function projectDerivedCheckoutRow(options: {
 function projectMarkerDetails(marker: DormantMarkerGenerationEvidence): {
   generation: string | null;
   parentCheckoutPath: string | null;
-  origin: { entry: string; sourceDigest: string } | null;
+  origin: DerivedCheckoutRow["origin"];
 } {
   if (marker.kind !== "present") {
     return { generation: null, parentCheckoutPath: null, origin: null };
   }
   const value = marker.marker;
-  const origin = value.createdFor.kind === "partial-errand"
+  const origin: DerivedCheckoutRow["origin"] = value.createdFor.kind === "partial-errand"
     && value.originEntry !== undefined
-    ? { entry: value.originEntry, sourceDigest: value.originEntrySourceDigest }
+    ? value.originEntryVersion !== undefined ? { entry: value.originEntry, version: value.originEntryVersion }
+      : { entry: value.originEntry, sourceDigest: value.originEntrySourceDigest }
     : null;
   return {
     generation: marker.generation,

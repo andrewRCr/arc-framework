@@ -1,6 +1,12 @@
 /** Partial Errand terminal absence and authority boundaries. */
 
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { digestBytes } from "../../../src/lib/kernel/index.js";
+import { writeWorktreeMarker, readWorktreeMarker, readWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { settlePartialErrandAtRuntime } from "../../../src/lib/errand/partial-settle-runtime.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -82,4 +88,35 @@ describe("partial Errand settlement", () => {
     const result = await settlePartialErrandAtRuntime(options(frame(primaryRow("unresolved-checkout"))));
     expect(result).toMatchObject({ outcome: "refused", reason: "authority-unresolved" });
   });
+});
+
+it("settles a version-bound capture before releasing the partial marker", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-partial-origin-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  const entry = "personal:abcd1234", version = "v1:0123456789abcdef", head = "a".repeat(40);
+  await writeWorktreeMarker(cwd, { spawnedByArc: false,
+    createdFor: { kind: "partial-errand", slug: "direct-fix", claimId: null }, provisioning: "ready",
+    originEntry: entry, originEntryVersion: version, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00.000Z" });
+  const marker = await readWorktreeMarkerGeneration(cwd);
+  if (marker.kind !== "present") throw new Error("Missing fixture marker");
+  const occupied: DerivedCheckoutRow = { ...primaryRow(), kind: "transient",
+    checkout: { ...primaryRow().checkout, path: cwd }, subject: { kind: "partial-errand", key: "direct-fix", claimId: null },
+    markerGeneration: digestBytes(marker.bytes), origin: { entry, version } };
+  const entries = new Map([[entry, version]]);
+  const exec: GitExec = async (_command, args) => {
+    if (args[0] === "rev-parse") return { stdout: args[1] === "--abbrev-ref" ? "main" : head };
+    if (["check-ref-format", "fetch", "update-ref", "status"].includes(args[0] ?? "")) return { stdout: "" };
+    throw new Error(`Unexpected Git command: ${args.join(" ")}`);
+  };
+  const result = await settlePartialErrandAtRuntime({ ...options(frame(occupied)), exec,
+    settleInbox: async (binding) => {
+      if (binding.originEntry === null || entries.get(binding.originEntry) !== binding.originEntryVersion)
+        return { kind: "refused", reason: "The capture version changed." };
+      entries.delete(binding.originEntry);
+      return { kind: "applied", nextOffer: null };
+    },
+  });
+  expect(result).toMatchObject({ outcome: "applied" });
+  expect(entries.has(entry)).toBe(false);
+  expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
 });

@@ -292,7 +292,7 @@ function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarke
   }
   let marker: OccupancyMarker;
   if (subject.kind === "work-unit") {
-    marker = { spawnedByArc: true, createdFor: { kind: "work-unit", name: subject.name } };
+    marker = { spawnedByArc: result.marker.spawnedByArc, createdFor: { kind: "work-unit", name: subject.name } };
   } else {
     if (decoded.provisioning === null) {
       return { kind: "malformed", reason: "Transient marker ownership has no provisioning state" };
@@ -307,9 +307,11 @@ function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarke
     if (subject.kind === "partial-errand") {
       const originEntry = result.marker.originEntry;
       const originEntrySourceDigest = result.marker.originEntrySourceDigest;
-      marker = originEntry === undefined || originEntrySourceDigest === undefined
-        ? { ...common, createdFor: subject }
-        : { ...common, createdFor: subject, originEntry, originEntrySourceDigest };
+      const originEntryVersion = result.marker.originEntryVersion;
+      marker = originEntry === undefined ? { ...common, createdFor: subject }
+        : originEntryVersion !== undefined ? { ...common, createdFor: subject, originEntry, originEntryVersion }
+          : originEntrySourceDigest !== undefined ? { ...common, createdFor: subject, originEntry, originEntrySourceDigest }
+            : { ...common, createdFor: subject };
     } else {
       marker = { ...common, createdFor: subject };
     }

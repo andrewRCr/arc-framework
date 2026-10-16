@@ -366,7 +366,7 @@ function partialCaptureSettlement(
     kind: "capture",
     disposition: origin === null ? "absent" : disposition,
     originEntry: origin?.entry ?? null,
-    originEntrySourceDigest: origin?.sourceDigest ?? null,
+    originEntrySourceDigest: origin !== null && "sourceDigest" in origin ? origin.sourceDigest : null,
   };
 }
 
