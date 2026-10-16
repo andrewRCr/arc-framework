@@ -1090,6 +1090,7 @@ flip's rewrite (§ 1.5).
 | `userReferenceReconcile`: advisory references                                                                                              | `arc user reconcile-references --json`, to inspect, as today                                                                                    | typed |
 | `userReferenceReconcile`: rename evidence unavailable or in conflict                                                                       | its precomposed text                                                                                                                            | text  |
 | `userReferenceReconcile`: an ended work unit's scratch folder (§ 2.8)                                                                      | the folder's path, for its person to remove once nothing in it is wanted                                                                        | text  |
+| `userReferenceReconcile`: a renamed work unit's scratch folder where its current slug's holds anything (§ 2.8, A13)                        | both folders' paths, as text for the person to combine                                                                                          | text  |
 | `workUnitState`: `merged-needs-archival`                                                                                                   | the archive, in the work unit's checkout                                                                                                        | text  |
 | `workUnitState`: `mergeable`                                                                                                               | the integration, after merging base in where `behindBase` is known true                                                                         | text  |
 | `workUnitState`: `mergeability-unavailable`                                                                                                | its precomposed guidance (`mergeabilityGuidance`)                                                                                               | text  |
@@ -2281,11 +2282,12 @@ holds until then is stated with it.
 - **Delivery and review** (the change rerouting Candidate and review records through the store): its landing writes a
   work unit's landing-commit link (`landingCommit`, `lib/store/links.ts`) from the flip when the work unit's merge
   lands, which the frame reads under `archive.cadence: with-integration` to tell an archived work unit awaiting merge
-  from a retired one, beside its own landing test for a merge the landing never sees (§ 2.1, § 3.7); the
-  review gate's arm from the flip for its reads of the Errand index projection (§ 3.2); the integration checkpoint's for
-  its reads of the composed lifecycle index (§ 3.2); and `arc status <slug>`'s operational-boundary read
-  (`resolveSlugOperationalBoundary`, `handlers/status/lifecycle.ts`), which reads that work unit's checkout this change
-  locates (§ 3.1). The flip waits on it.
+  from a retired one, beside its own landing test for a merge the landing never sees (§ 2.1, § 3.7); the review gate's
+  arm from the flip for its reads of the Errand index projection (§ 3.2); the integration checkpoint's for its reads of
+  the composed lifecycle index (§ 3.2); and `arc status <slug>`'s operational-boundary read
+  (`resolveSlugOperationalBoundary`, `handlers/status/lifecycle.ts`), which from the flip reads the boundary through the
+  store wherever the work unit is checked out, so this change gives it no read path, the store arm reporting
+  `integrationBoundary: null` until it does (§ 3.1, A10). The flip waits on it.
 - **The projection:** the removal check's projection part, the persist step, and the release slot, each passing until
   filled (§ 5, § 12.1); the empty scratch folder for the checkout's work unit (§ 2.8); its locations and file names
   registered as layout addresses, the inbound list's and the Errand description's among them, which the target

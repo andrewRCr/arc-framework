@@ -404,9 +404,10 @@ executor's, and given none it binds `createProjectIdentityReader` over the store
 a reference-backend store stay hermetic. A composer of several such readers passes one, since the reader memoizes its
 observation. The link readers and writers, each now with a test that, given no port, the project ID comes from the
 identity record: the frame (Task 2.1.b), the current-work-unit resolver's `branch` (2.3), the claimed-in-place match
-(2.7), the in-flight set (3.1.a), the close's landing commit (3.4), the open's branch link (3.5), promotion (3.9.a), the
-locus classification (5.2.a), the orphan-branch sweep (5.2.b), and the commits listing (7.4.a). The overlap check reads
-3.1.a's set rather than links, and the Errand abandon, leave, and link runtimes write no branch link.
+(2.7), the in-flight set (3.1.a), the close's landing commit (3.4), the open's branch link (3.5), the stale-worktree
+sweep's folderless registrations (3.7.b), promotion (3.9.a), the locus classification (5.2.a), the orphan-branch sweep
+(5.2.b), and the commits listing (7.4.a). The overlap check reads 3.1.a's set rather than links, and the Errand abandon,
+leave, and link runtimes write no branch link.
 
 "The port absent" stays among the no-project-ID conditions, as the shipped resolver still distinguishes it
 (`resolveProjectIdentity`). § 13's two rows dropped the remedy text "or that no port is bound", which no shipped code

@@ -169,7 +169,10 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 
         - `runStaleWorktreeSweep`'s two `isWorktreeClean` reads (`lib/session-init/stale-worktree-sweep.ts`) and the
           residue sweep's default clean read (`lib/session-init/lifecycle-residue-sweep.ts`) take the check, mapping
-          `dirty` and `persist-would-refuse` to today's `uncommitted` block and reporting each other refusal.
+          `dirty` and `persist-would-refuse` to today's `uncommitted` block and reporting each other refusal. The
+          branched read's `missing`, which only a row the roster reads present reaches, such as one whose path is a
+          dangling symlink or whose folder went between the two reads, reports `external`, as branch-gone recovery reads
+          it (1.5.c), so the branched decision admits no `missing`.
         - The sweep's husk read runs the check first and reports `unobservable` and `locked` itself, then passes the
           husk decision (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`) the `clean` flag it takes today, `dirty`
           and `persist-would-refuse` reading as not clean, so its other callers, teardown's detached-husk reads
@@ -185,6 +188,7 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
             - a failed status read reports `unobservable` and grants no removal
             - a checkout Git lists as locked reports `locked` on both reads and grants no removal
             - a dirty checkout blocks as today
+            - a branched row whose check reads `missing` reports `external`
 
     - `[ ]` **1.5.c Branch-gone recovery and its cascade**
 
@@ -199,10 +203,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
           candidate builder leaves it out, and `recovery` reports it in a field beside its outcome on
           `SessionInitRecoveryValueSchema`, `missingFolders: [{ worktreePath, branch, actions }]`, where the check
           agrees — `missing`, or `locked` with no folder — any other outcome waiting for the next session start's
-          reading, as 1.7.b's sweep does. An entry the roster reads present whose check reads `missing` reads
-          `external`, since the check's `stat` and the roster's `lstat` disagree on a dangling symlink, as they do on
-          `ENOTDIR`. Its action is `git worktree remove <path>` for `missing`, with `git worktree unlock <path>` first
-          for `locked`, each as text naming its precondition, that the folder is still missing.
+          reading, as 1.7.b's sweep does. An entry the roster reads present whose check reads its folder missing —
+          `missing`, or `locked` with no folder — reads `external`, since the check's `stat` and the roster's `lstat`
+          disagree on a dangling symlink and on a non-directory at the path; where the path's parent is not a directory
+          (`ENOTDIR`) they disagree the other way, the roster reading the folder missing and the check `unobservable`,
+          which waits for the next session start's reading as above. Its action is `git worktree remove <path>` for
+          `missing`, with `git worktree unlock <path>` first for `locked`, each as text naming its precondition, that
+          the folder is still missing.
         - The branches the roster represents (`runBranchGoneRecovery`'s `represented` set) are built from the roster's
           entries, folderless registrations included, rather than from the candidates, so a folderless registration's
           branch stays out of the recent-branch tier.
@@ -212,7 +219,8 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
             - a main checkout with no meta stays `switch`
             - a missing folder is never a candidate, its branch stays out of the recent-branch tier, and recovery
               reports it in `missingFolders` with the removal by path as text
-            - an entry the roster reads present whose check reads `missing` reads `external`
+            - an entry the roster reads present whose check reads `missing`, or `locked` with no folder, reads
+              `external`
             - a missing folder under a lock names the unlock, then the removal, as text
 
     - `[ ]` **1.5.d `arc errand leave`'s authorization**
@@ -1626,11 +1634,18 @@ inject a reference-backend store.
         - Such a row reports as a `detached` report naming its work unit, where a `branched` report
           (`StaleWorktreeReport`) names its branch; the sweep's registered schema (Task 1.1.b) gains the arm.
         - Its `missingFolders` reads a branched registration's work unit as ended through placement and `lookup`, where
-          Task 1.7.b reads it as shipped by its branch. It takes the link naming that branch from the work item's links:
-          one recording the branch `created` (`linkedAs`) gives the registration `arc teardown <name>`, and one
-          recording it `adopted` the removal by path as text, with the unlock first where it is locked, since teardown
-          keeps an adopted branch with its registration, clearing a missing folder's registration only for a branch it
-          created (`reportAdopted`, `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`).
+          Task 1.7.b reads it as shipped by its branch: `lookup` with `LookupInputSchema`'s `ref` kind
+          (`lib/store/lookup.ts`), its repository the project ID and its ref the branch's short name, the project ID
+          from an optional port `RunStaleWorktreeSweepOptions` gains, bound as Phase 2's design decisions bind every
+          link reader's. It takes the link naming that branch from the work item's links: one recording the branch
+          `created` (`linkedAs`) gives the registration `arc teardown <name>`, and one recording it `adopted` the
+          removal by path as text, with the unlock first where it is locked, since teardown keeps an adopted branch with
+          its registration, clearing a missing folder's registration only for a branch it created (`reportAdopted`,
+          `prepareCreatedBranch`, `lib/work-unit/verbs/teardown-store.ts`).
+        - Given no project ID — the port absent, or its read failing — it reports no branched registration whose folder
+          is missing, each waiting for the next session start's reading rather than taking the removal by path, and
+          names the port's failure in its `warnings` (spec § 2.1); a detached one, which reads no link, reports as
+          Task 1.7.b gives it.
         - It leaves out a branched row whose work unit an abandonment's lineage record retires, which the residue sweep
           reports (3.7.c), so each checkout reports in one sweep, as today.
 
@@ -1640,6 +1655,10 @@ inject a reference-backend store.
             - a folderless registration whose work unit has ended takes its teardown through placement
             - a folderless registration whose ended work unit adopted its branch takes `git worktree remove <path>` as
               text, with `git worktree unlock <path>` first where it is locked, and no teardown
+            - with no project-ID port injected, the lookup's repository is the project ID the project's identity record
+              holds
+            - with no project ID a branched folderless registration reports nothing and the warnings name the port's
+              failure, while a detached one still reports its removal by path
             - a branched checkout whose work unit was abandoned is not reported here
 
     - `[ ]` **3.7.c The residue sweep's abandonment from the flip**
@@ -3131,5 +3150,46 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
 - `[ ]` Inbound back-pressure trips on each threshold, and below both the slot reports its figures with no action.
 
 - `[ ]` The quality gates pass at every gate the project declares
+
+- `[ ]` From the flip, a production verb's executor context given no ports carries this change's exclusivity check,
+  lookup, and anchored-marker writer, its rebind on another checkout (`withCwd`) the same record, and store start's
+  create-new and the cold start reach them through it; over the in-repo implementation the context carries none, and
+  lifecycle's callers keep today's defaults (A1).
+
+- `[ ]` From the flip, each reader and writer of links this change adds, given no project-ID port, reads the project's
+  identity record over its store, and treats a failed read of that record as an incomplete observation (§ 2.1, A2).
+
+- `[ ]` From the flip, `arc start <name> --here --new` refuses before any write every name `arc start <name> --new`
+  refuses — a held work unit's, a former slug, or an Errand's — and refuses `--class`, as the in-repo arm does (A3).
+
+- `[ ]` From the flip, graduation in place and `arc materialize --here` in a checkout whose marker names anything but
+  their work unit refuse before any Git step, `HEAD` unmoved and nothing written, naming that marker's exit (A4).
+
+- `[ ]` From the flip promotion runs in the checkout today's terminal authorization selects for the Errand it reads —
+  the current checkout, or the Errand's other checkout after confirmation — refusing as today before any write, and
+  refusing a checkout off the Errand's branch; a rerun after its write completes in the checkout whose marker names that
+  Errand or its work unit (A7).
+
+- `[ ]` From the flip `arc status <slug>` reports the work unit's worktree path from the marker roster, or the lookup's
+  condition in its place, its in-flight warnings from the set listed through the store, and with `--fetch` the
+  reachability the store's pull reports, its operational boundary staying the delivery change's (A10).
+
+- `[ ]` From the flip the stale-worktree sweep gives a registration whose folder is missing and whose ended work unit
+  adopted its branch `git worktree remove <path>` as text, with `git worktree unlock <path>` first where it is locked,
+  never `arc teardown` (A11).
+
+- `[ ]` From the flip, where the store-backed prepare returns a refusal, `currentWuReconcile` reports its condition with
+  its remedy as the slot's action, and the probe does not fail (A12).
+
+- `[ ]` From the flip a renamed work unit's scratch folder follows its current slug only where the folder there is
+  absent or empty; where it holds anything, neither moves, and both are reported with their paths as text (A13).
+
+- `[ ]` From the flip a review-due `pausedWork` item carries `arc resume <slug>`, `arc pause <slug> --open` where the
+  pause is not open, and `arc abandon <slug> --yes` as typed actions, and `arc handover <slug> --to <identity>` as text
+  (A14).
+
+- `[ ]` From the flip one exported function, given a single paused work item, the store, and `pause.review_after_days`,
+  returns its marks and, for a review-due item, its review prompt and choices, whoever owns the item, and `pausedWork`
+  maps it over the person's listing (A15).
 
 - `[ ]` Ready for integration
