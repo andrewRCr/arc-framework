@@ -1,5 +1,6 @@
 /** Marker-origin settlement for identity-free partial Errands. */
 
+import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec } from "../git/exec.js";
 import { pinRemoteBaseHead } from "./identity-claims.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
@@ -31,6 +32,7 @@ export type PartialErrandInboxSettlement =
   | { readonly kind: "error"; readonly message: string };
 
 export interface SettlePartialErrandRuntimeOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly action: "close" | "abandon";
   readonly base: string;
@@ -103,6 +105,7 @@ export async function settlePartialErrandAtRuntime(
   const primaryCheckoutPath = primaryPath(frame);
   if (primaryCheckoutPath === null) return refusal(operation, "checkout-missing", "Primary checkout is unavailable.");
   const settled = await settleTerminalOccupancy({
+    projectionRemovalSlots: options.projectionRemovalSlots,
     authority,
     primaryCheckoutPath,
     io: createTerminalOccupancyIO(options.exec),

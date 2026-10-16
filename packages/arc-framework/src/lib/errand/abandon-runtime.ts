@@ -1,5 +1,6 @@
 /** Identity, lifecycle, and derived-occupancy composition for ordinary Errand abandonment. */
 
+import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
@@ -25,6 +26,7 @@ import { acquireErrandCloseBranchDeletionHeadLocks } from "./close-head-lock.js"
 import { resolveOptionalCommit } from "./exact-branch-generation.js";
 
 export interface AbandonOrdinaryErrandRuntimeOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly protection: "full";
   readonly base: string;
@@ -146,6 +148,7 @@ async function cleanupOccupancy(
     return { kind: "refused", reason: "preservation-unproven", message: "Errand head generation changed." };
   }
   const settled = await settleTerminalOccupancy({
+    projectionRemovalSlots: options.projectionRemovalSlots,
     authority,
     primaryCheckoutPath,
     io: createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base }),

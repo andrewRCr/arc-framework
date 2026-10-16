@@ -568,4 +568,13 @@ independent of module import order in the shared unit workers. Leave's spawned i
 once its pre-write removal check has established cleanliness; terminal settlement keeps its inspection until Task 1.6 -
 `tasks-seam-locus.md`.
 
+## Task 1.6: terminal removal
+
+Spec § 1.4, item 4 additionally changes `unit/errand/terminal-occupancy.test.ts` and adds
+`unit/errand/terminal-occupancy-removal.test.ts`, under `packages/arc-framework/__tests__/`. Existing real-CLI scenarios
+cover spawned close (`errand.e2e.test.ts`), abandon (`errand-abandon.e2e.test.ts`), and paused leave
+(`errand-open-base-freshness.e2e.test.ts`), plus partial close and abandon retaining primary occupancy's status check.
+No golden fixtures change. Partial settlement remains primary-only before the flip; its optional projection slots
+follow the same runtime contract without introducing a spawned partial allocation.
+
 ---

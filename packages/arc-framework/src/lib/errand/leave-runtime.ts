@@ -70,7 +70,8 @@ export async function leaveOrdinaryErrandAtRuntime(
         if (primaryCheckoutPath === null) {
           return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
         }
-        const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath, io: occupancyIO });
+        const settled = await settleTerminalOccupancy({ authority, primaryCheckoutPath, io: occupancyIO,
+          projectionRemovalSlots: options.projectionRemovalSlots });
         if (settled.kind === "refused") {
           return { kind: "refused", reason: "preservation-unproven", message: settled.message };
         }

@@ -159,34 +159,16 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Outcome:_ Spec § 1.4, item 4's changed and added tests are enumerated in `notes-seam-locus.md`. Missing recovery
   registrations carry text-only remedies; observation failures never grant removal.
 
-### `[ ]` **1.6 Remove an Errand's checkout through the removal function — § 12.1**
+### `[x]` **1.6 Remove an Errand's checkout through the removal function — § 12.1**
 
 - _Goal:_ Every Errand exit through `lib/errand/terminal-occupancy.ts` — close, abandon, leave, and partial settlement —
   removes a spawned checkout through the removal function, inside the exit's own serialization and authorization, while
   the primary, which no exit removes, keeps its own `git status` read.
 
-    - The exits keep their preconditions — the marker generation, the branch and head match, the self-teardown locus
-      hop, and the user-surface merge-up — and the function takes over none of them.
-    - On a spawned checkout the exit's own status read (`inspect`) gives way to the function's check, so its refusal
-      carries the check's outcome rather than `preservation-unproven` alone; `settleTerminalOccupancy` keeps
-      `git status --porcelain` where it inspects the primary.
-    - The function's `removed` and `pruned` map to the exit's `applied`, `refused` to its refusal, a `failed` carrying a
-      `remedy` — the persist step's refusal — to its refusal with that remedy's text as its message, and any other
-      `failed` to `error`; `pruned` arises only by a race, since the exit's preconditions read the folder first, and
-      keeps its mapping; where Git no longer lists the checkout, the exit reports `idempotent` without calling the
-      function, as `removeSpawned`'s `absent` does today.
-    - `SettleTerminalOccupancyOptions` takes an optional `projectionRemovalSlots`, carried from each exit's runtime
-      options, which `handlers/errand.ts` composes, and passes it to the function as `slots`, so the projection binds it
-      there; given none, the passing defaults apply.
-
-    - Build `test-first` (one behavior at a time):
-        - a clean spawned Errand checkout is removed through the function on close, abandon, leave, and partial
-          settlement
-        - a refused check stops the exit before any removal, carrying the check's outcome
-        - a persist step's refusal stops the exit as a refusal carrying its remedy
-        - the primary is inspected and never removed
-        - slots injected through an exit's options reach the function
-        - a rerun after the checkout's registration is gone reports `idempotent`
+- _Outcome:_ All four exits carry projection slots through terminal settlement. Spawned checkout removal distinguishes
+  check and persist refusals from operational failures, persists before removal, and returns idempotently for an absent
+  registration. Exact marker, branch, and head checks remain before removal; partial exits retain primary inspection.
+  Spec § 1.4, item 4's additional changed and added tests are enumerated in `notes-seam-locus.md`.
 
 ### `[ ]` **1.7 Carry the removal prompts' commands, and report missing folders — § 12.2**
 

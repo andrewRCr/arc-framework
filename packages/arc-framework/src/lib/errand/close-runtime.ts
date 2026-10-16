@@ -1,5 +1,6 @@
 /** Production ports for exact ordinary-v3 Errand completion. */
 
+import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
@@ -37,6 +38,7 @@ import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-o
 import type { TransientIdentityRecord } from "./identity-record.js";
 
 export interface CloseOrdinaryErrandRuntimeOptions {
+  readonly projectionRemovalSlots?: ProjectionRemovalSlots;
   readonly slug: string;
   readonly base: string;
   readonly protection: "full" | "partial";
@@ -242,6 +244,7 @@ async function readCloseOccupancy(
     kind: "clear",
     settle: async (): Promise<CloseLocusSettlementResult> => {
       const settled = await settleTerminalOccupancy({
+        projectionRemovalSlots: options.projectionRemovalSlots,
         authority,
         primaryCheckoutPath,
         io: createTerminalOccupancyIO(options.exec, { restorePrimaryTo: options.base }),
