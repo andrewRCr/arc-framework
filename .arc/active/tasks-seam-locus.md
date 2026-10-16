@@ -672,8 +672,8 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
       checkout that cannot be read, and two checkouts whose markers name the work unit each reject it, naming the
       condition and its repair as the check does and two holders naming both, never returning no checkout, since the
       port returns a checkout or none; a husk-stamped marker names no holder, as `findWorkUnitHoldingCheckout`'s scan
-      skips it. The default record (2.5.b), given no context, opens its own Git executor, and the check its own store,
-      over the checkout the process runs in.
+      skips it. Both read through the checkout, Git executor, and store their caller gives them, opening none of their
+      own; 2.5.b binds them.
 
     - Build `test-first` (one behavior at a time):
         - no other marker naming the work unit admits
@@ -718,16 +718,24 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
 
     - `[ ]` **2.5.b The binding**
 
-        - `createDefaultLocusPorts()` returns 2.4's check, 2.4's lookup, and 2.5.a's writer in place of its
-          today-behavior defaults. The check's and the writer's callers read it when given no record, and every
-          production context gives none: `resolveVerbBase` and `buildExecutor` (`handlers/lifecycle-shared.ts`),
-          `handlers/start.ts`'s `buildExecutorContext` calls, which carry graduation in place, `withCwd`'s rebind,
-          `RenameCommandContext`, and create-new's spawn (`runCreateNew`, `commands/start.ts`).
+        - 2.4's module gains `createLocusPorts({ cwd, exec, store })`, returning 2.4's check and lookup and 2.5.a's
+          writer as one `LocusPorts` record over that context. `buildExecutorContext`
+          (`lib/work-unit/executor-context.ts`) binds it when given no record and its store reads state off the branch
+          (`usesOffBranchState`), carries it on the context and into `reconcileWorkUnitWorktree`'s, and passes the same
+          record through its `withCwd` rebind, so every production context reaches it: `resolveVerbBase` and
+          `buildExecutor` (`handlers/lifecycle-shared.ts`), `handleStart`'s executor (`handlers/start.ts`), which
+          carries graduation in place, and `RenameCommandContext`, built from the executor's (`handlers/lifecycle.ts`).
+          Over the in-repo implementation the context carries none, and `createDefaultLocusPorts()` keeps its
+          today-behavior defaults for a caller given no record.
+        - Store start's create-new passes `runCreateNew` (`commands/start.ts`) the executor's record
+          (`ctx.executor.locusPorts`, `handlers/start-store.ts`) in place of the store start context's own field
+          (`StoreStartContext.locusPorts`), which goes, since the handler's overrides already reach the executor; and
+          `handleStart` hands the cold-start slot the executor's store and record (2.6.b).
         - The lookup's two callers, `findWorkUnitHoldingCheckout` (`lib/work-unit/verbs/unshared-work.ts`), which
           rename, `arc materialize`'s candidates, abandon, start's refusal, and pause and handover through
-          `readUnsharedWork` call, and teardown's (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), read the
-          port through `createDefaultLocusPorts()` when given no record, where today they fall back to their own marker
-          scan (`resolveLegacy`); the bound lookup reads 2.4's and leaves `resolveLegacy` unread.
+          `readUnsharedWork` call, and teardown's (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), already
+          take the executor's record and stay as they are: the bound lookup reads 2.4's and leaves their own marker scan
+          (`resolveLegacy`) unread, and given no record they keep that scan.
         - The binding reconciles the port's refusal with 2.4's, as the Note above provides: `MarkerExclusivityResult`'s
           refused arm carries the check's message whole, its repair included, with `checkoutPath` optional, since an
           incomplete roster names no checkout, and `requireMarkerExclusivity` (`lib/work-unit/locus-ports.ts`) throws
@@ -736,7 +744,8 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
         - Lifecycle's callers give the check the work unit alone (`{ name }`), so through them a marker naming it in the
           checkout about to hold it refuses too, naming that checkout and its repair; the checkout's own marker admits
           only for the cold start and promotion, which pass their checkout.
-        - Lifecycle calls the ports only in its arms from the flip, so the binding changes nothing before it.
+        - Lifecycle calls the ports only in its arms from the flip, and the context binds them only from it, so the
+          binding changes nothing before it.
 
         - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
             - a spawn for a work unit another checkout's marker names refuses, naming the holder
@@ -754,6 +763,10 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
             - graduation in place over a crashed graduation's marker in its own checkout refuses, naming
               `arc locus release <slug>`, and completes once the checkout is released
             - `arc materialize`'s candidates leave out a work unit a checkout here holds
+            - an executor context over the in-repo implementation carries no ports, and over the reference backend the
+              bound record, its `withCwd` rebind the same one
+            - store start's create-new through `handlers/start.ts`'s production handler, with no ports injected, refuses
+              a name a spawn's residue marker in another checkout carries, naming that checkout
 
 ### `[ ]` **2.6 Reroute the cold start onto the marker and the store — § 2.5, § 2.6**
 
@@ -821,6 +834,10 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
         - A failure at any step leaves no record and removes the generation the writer returned, where it wrote one.
           `rollbackColdStart`'s branch deletion and `git clean` of the meta serve only the in-repo arm, retiring on the
           capability with the protected-base cut of `plan/<name>`.
+        - `coldStart` (`handlers/start.ts`) takes the store and the port record of `handleStart`'s executor, which fills
+          the slot, and passes both to `runColdStart` (`commands/start.ts`), whose arm from the flip runs the check and
+          writes the marker through that record, so ports a test injects through the handler's overrides reach it as
+          they reach lifecycle's verbs.
 
         - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
             - the cold start writes one store record and, in its checkout, only the marker and the editor documents,
@@ -829,7 +846,7 @@ refuses only an absent port (`prepareTaskClose`) and its readers given none pass
             - a scaffold failure leaves no record and no marker
             - a failure before the marker's write leaves no marker
             - another checkout's marker naming the work unit refuses the cold start before any write, naming 2.4's
-              remedy
+              remedy, through the production handler with no ports injected
 
     - `[ ]` **2.6.c The prompt and report**
 

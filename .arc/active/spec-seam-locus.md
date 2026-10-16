@@ -164,10 +164,11 @@ Paths are under `packages/arc-framework/src/`.
   `lib/locus/derived-evidence.ts`, `lib/locus/derived-lifecycle-evidence.ts`, `lib/locus/subject-meta.ts`,
   `lib/git/worktree-roster.ts`, `lib/git/worktree-marker.ts` and `lib/locus/occupancy-marker.ts` (the anchored marker's
   admission, and the worktree marker's origin binding with its writer, `lib/locus/provisioning-marker.ts`, § 7.6), the
-  default port record's binding (`createDefaultLocusPorts`, `lib/work-unit/locus-ports.ts`, § 2.4) and the lookup's two
-  lifecycle callers' default through it (`findWorkUnitHoldingCheckout`, `lib/work-unit/verbs/unshared-work.ts`;
-  teardown's `holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), `lib/git/worktree-cleanup.ts` (the cleanup
-  decision), `commands/active/roster.ts`, `lib/release/wu-resolution.ts` (`resolveActiveWu`'s body and
+  locus ports' binding where the executor context is built (`buildExecutorContext`,
+  `lib/work-unit/executor-context.ts`), with store start's create-new taking the executor's ports
+  (`handlers/start-store.ts`) and the port's refusal carrying the check's message whole (`requireMarkerExclusivity`,
+  `lib/work-unit/locus-ports.ts`) (§ 2.4, A1), `lib/git/worktree-cleanup.ts` (the cleanup decision),
+  `commands/active/roster.ts`, `lib/release/wu-resolution.ts` (`resolveActiveWu`'s body and
   `resolveOriginatingMetaPath`), `lib/session-init/locus-classification.ts`, the derived frame and roster
   (`lib/locus/derived-reader.ts`, whose work-unit context gains the pause record and the commits not yet closed, and
   `lib/locus/derived-roster.ts`), the frame's guidance (`deriveDerivedLocusSessionGuidance`,
@@ -222,9 +223,9 @@ Paths are under `packages/arc-framework/src/`.
   § 6.4).
 - **The cold start:** `commands/start.ts`'s cold start (`runColdStart`, `coldStartOccupancyRefusal`,
   `rollbackColdStart`), with its sequence from the flip, the anchored marker among it, and its rollback's removal of
-  that marker, and its handler's prompt and report (`handlers/start.ts`) (§ 2.5); its call of the scaffold
-  (`lib/git/worktree-scaffold.ts`) stays, the scaffold's arm from the flip being the transition-write-path change's
-  (§ 2.8).
+  that marker, and its handler's prompt and report and the executor's store and ports it hands the slot
+  (`handlers/start.ts`) (§ 2.5, A1); its call of the scaffold (`lib/git/worktree-scaffold.ts`) stays, the scaffold's arm
+  from the flip being the transition-write-path change's (§ 2.8).
 - **Handoff:** the new `arc handoff write` command and its handler, and the tripwire report beside it under
   `lib/handoff/` (§ 9.1, § 9.3).
 - **The new verbs and settings, and the changed forms:** their registrations in `cli.ts` — the new verbs, and from the
@@ -255,10 +256,12 @@ builds on:
 - `handlers/status/lifecycle.ts`, where that change moves the slug query's state and record onto the store and this
   change its locus reads (§ 3.1);
 - `lib/work-unit/reference-reconcile.ts`, where this change adds the cut's `successors` (§ 3.5);
-- `lib/work-unit/locus-ports.ts`, which that change creates with the default port record and this change binds, its
-  refusal carrying the check's message whole (§ 2.4);
-- `lib/work-unit/verbs/unshared-work.ts` and `lib/work-unit/verbs/teardown-store.ts`, which that change creates and
-  where this change has the lookup's callers default through the port record (§ 2.4);
+- `lib/work-unit/locus-ports.ts`, which that change creates with the port record and its today-behavior default, and
+  where this change has the port's refusal carry the check's message whole (§ 2.4);
+- `lib/work-unit/executor-context.ts`, where that change has the executor context carry the ports it is given, and this
+  change binds them (§ 2.4, A1);
+- `handlers/start-store.ts`, which that change creates, and where this change has create-new take the executor's ports
+  (§ 2.4, A1);
 - `lib/git/worktree-marker.ts`, where that change adds a lineage arm to the marker's evidence decoding
   (`decodeKnownEvidence`) and this change widens the marker check (`isWorktreeMarker`, § 2.3, § 7.6);
 - `lib/git/worktree-roster.ts`, which that change also edits, and where this change has the registered-worktree scan
@@ -503,25 +506,29 @@ verbs the lookup, through ports the transition-write-path change injects, each d
 flip, and the change landing second binds them to these reads, by § 1.3's order this one (§ 16). Those ports give the
 check the work unit alone, so through them a marker naming it in the checkout about to hold it refuses too, naming that
 checkout; the checkout's own marker is admitted only where its caller passes the checkout, as the cold start and
-promotion do. The binding has one production point, the default port record (`createDefaultLocusPorts`): the check's and
-the writer's callers read it when given no record, as every production context gives none, and the lookup's two callers
-(`findWorkUnitHoldingCheckout`, `lib/work-unit/verbs/unshared-work.ts`, and teardown's,
-`lib/work-unit/verbs/teardown-store.ts`), which fall back to their own marker scan when given none, come to read it too.
-The port's refusal carries the check's message whole, its repair included, and its caller (`requireMarkerExclusivity`,
-`lib/work-unit/locus-ports.ts`) reports that message as given, since each refusal names its own repair (§ 13) and an
-incomplete roster names no checkout. A roster that is not complete, or a marker that cannot be read, refuses the check
-rather than admitting the write (§ 2.1), and the refusal names its repair (§ 13). A marker that cannot be read names its
-checkout and what the read reported (`readWorktreeMarkerGeneration`, `lib/git/worktree-marker.ts`): a `malformed` marker
-with its message and path, or the error the read threw for any failure but a missing file. Its repair: inspect that
-checkout, then repair or remove its marker, or remove the checkout. An incomplete roster names the rerun once Git lists
-the worktrees. The lookup fails closed as the check does: a roster that is not complete, a marker on any registered
-checkout that cannot be read, or two checkouts whose markers name the work unit reject it, naming the condition and its
-repair as the check does and two holders naming both (§ 13), never returning no checkout, since its port returns a
-checkout or none and carries no refusal; a husk-stamped marker names no holder, as the scan it replaces skips it
-(`findWorkUnitHoldingCheckout`). The default record, given no context, opens its own Git executor, and the check its own
-store for the holder's state, over the checkout the process runs in, as this change's readers do where none is given.
-The guard is per machine, as markers are; across machines the work unit's owner governs. Until the flip, Git's refusal
-and the cold start's own check, which inspects only its own checkout (`coldStartOccupancyRefusal`), stay as today.
+promotion do. The binding has one production point, where the executor context is built (`buildExecutorContext`,
+`lib/work-unit/executor-context.ts`): given no ports and a store that reads state off the branch (`usesOffBranchState`),
+it binds one record of this change's check, lookup, and anchored-marker writer (§ 2.6) over the context's checkout, Git
+executor, and store, and carries it to every caller, its rebind on another checkout (`withCwd`) included.
+Store start's create-new, whose spawn takes the handler's ports today (`handlers/start-store.ts`), takes the executor's,
+and the cold start takes the executor's store and record through its slot (§ 2.5). Over the in-repo implementation the
+context carries no record, so the check's and the writer's callers read the today-behavior default
+(`createDefaultLocusPorts`), and the lookup's two callers (`findWorkUnitHoldingCheckout`,
+`lib/work-unit/verbs/unshared-work.ts`, and teardown's, `lib/work-unit/verbs/teardown-store.ts`) their own marker scan,
+as today (A1). The port's refusal carries the check's message whole, its repair included, and its caller
+(`requireMarkerExclusivity`, `lib/work-unit/locus-ports.ts`) reports that message as given, since each refusal names its
+own repair (§ 13) and an incomplete roster names no checkout. A roster that is not complete, or a marker that cannot be
+read, refuses the check rather than admitting the write (§ 2.1), and the refusal names its repair (§ 13). A marker that
+cannot be read names its checkout and what the read reported (`readWorktreeMarkerGeneration`,
+`lib/git/worktree-marker.ts`): a `malformed` marker with its message and path, or the error the read threw for any
+failure but a missing file. Its repair: inspect that checkout, then repair or remove its marker, or remove the checkout.
+An incomplete roster names the rerun once Git lists the worktrees. The lookup fails closed as the check does: a roster
+that is not complete, a marker on any registered checkout that cannot be read, or two checkouts whose markers name the
+work unit reject it, naming the condition and its repair as the check does and two holders naming both (§ 13), never
+returning no checkout, since its port returns a checkout or none and carries no refusal; a husk-stamped marker names no
+holder, as the scan it replaces skips it (`findWorkUnitHoldingCheckout`). The guard is per machine, as markers are;
+across machines the work unit's owner governs. Until the flip, Git's refusal and the cold start's own check, which
+inspects only its own checkout (`coldStartOccupancyRefusal`), stay as today.
 
 #### 2.5 The cold start
 
@@ -532,13 +539,14 @@ cold start enters at `draft-design` (§ 16).
 - **Its entry from the flip** is the transition-write-path change's store-backed start (`handleStoreStart`,
   `handlers/start-store.ts`), which hands `arc start --here` with `--new` or with no name to its cold-start slot
   (`admitColdStart`) ahead of its dispatch, and refuses in-place creation while the slot is empty. This change fills the
-  slot at its production point, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides. A named
-  start runs that dispatch itself first, over the store's lifecycle view with `create: true` (`resolveStartDispatch`),
-  refusing with its reason unless it selects `create-new`, as the in-repo arm's dispatch does, so a name the store holds
-  refuses before anything is written; a nameless start derives its name from the branch and dispatches nothing, as
-  today, so a derived name the store holds meets the record write's conflict, after which the rollback removes the
-  marker and the cold start refuses, naming the held work unit, `arc start <name> --new --here` for a new one under
-  another name, and for the held one the step its state takes, which `arc status <slug>` shows (§ 13).
+  slot at its production point, `handleStart`'s (`handlers/start.ts`), which the CLI calls with no overrides, handing it
+  the store and the port record of the executor it builds (§ 2.4, A1). A named start runs that dispatch itself first,
+  over the store's lifecycle view with `create: true` (`resolveStartDispatch`), refusing with its reason unless it
+  selects `create-new`, as the in-repo arm's dispatch does, so a name the store holds refuses before anything is
+  written; a nameless start derives its name from the branch and dispatches nothing, as today, so a derived name the
+  store holds meets the record write's conflict, after which the rollback removes the marker and the cold start refuses,
+  naming the held work unit, `arc start <name> --new --here` for a new one under another name, and for the held one the
+  step its state takes, which `arc status <slug>` shows (§ 13).
 - **Its occupancy check** reads the current work unit from the marker plus the store (§ 2.2), and the marker itself,
   since that resolver (`readClaimedCurrentWorkUnit`, `lib/store/current-work-unit-marker.ts`) reads a transient role and
   a husk stamp as no work unit and never reads `spawnedByArc`. From the flip the cold start admits one present marker,
@@ -2097,9 +2105,10 @@ holds until then is stated with it.
       holding-checkout lookup, through ports that change injects and this change binds (§ 2.4), and the in-place arms
       writing the anchored marker through a third, whose default writes nothing and reports `unadmitted`, bound to this
       change's anchored-marker writer (§ 2.6, § 4.5); the three ports are one record (`LocusPorts`, in
-      `lib/work-unit/locus-ports.ts`), whose default (`createDefaultLocusPorts`) the check's and the writer's callers
-      read when given no record, as every production context gives none, and the lookup's callers, which fall back to
-      their own marker scan, come to read through this change, so it binds them at that one point;
+      `lib/work-unit/locus-ports.ts`), which the executor context carries to its callers and into its worktree reconcile
+      when given one (`buildExecutorContext`), and whose default (`createDefaultLocusPorts`) keeps today's behavior for
+      the check's and the writer's callers given none, as the lookup's callers keep their own marker scan, so this
+      change binds them at that one point, the context, when the store reads state off the branch (§ 2.4, A1);
     - from the flip, a work unit's spawns clearing a registration whose folder is missing at their target path or
       holding their branch, through the removal function's missing-folder arm, so a checkout deleted by hand never
       blocks one: graduation's spawn and the linked spawn, through `createLinkedWorktree`'s optional clearing step
@@ -2390,6 +2399,10 @@ close.
    recovery lists them beside a matching cursor.
 10. **Back-pressure trips on each threshold,** and below both the slot reports its figures with no action.
 11. **The quality gates pass** at every gate the project declares.
+12. **The locus ports bind at the executor context (A1).** From the flip, a production verb's executor context given no
+    ports carries this change's exclusivity check, lookup, and anchored-marker writer, its rebind on another checkout
+    (`withCwd`) the same record, and store start's create-new and the cold start reach them through it; over the in-repo
+    implementation the context carries none, and lifecycle's callers keep today's defaults.
 
 ## Open Questions
 
@@ -2398,6 +2411,7 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-16 — design: the locus ports bind at the executor context, not in their default record. _Supersedes:_
+  § 2.4 ¶1; § 16, the transition write path's ports item. _Trigger:_ door. _Work:_ 2.5. _Revalidated:_ pending → 2.10.
 
 ---

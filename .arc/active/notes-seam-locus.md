@@ -14,6 +14,7 @@
 - [Calibration and evidence](#calibration-and-evidence)
 - [Obligations tracked elsewhere](#obligations-tracked-elsewhere)
 - [Registered folder presence completion coverage](#registered-folder-presence-completion-coverage)
+- [A1: where the locus ports bind](#a1-where-the-locus-ports-bind)
 
 ## Consumer-map re-verification
 
@@ -326,5 +327,50 @@ fixtures under `packages/arc-framework/__tests__/fixtures/session-envelope/`:
 
 The unchanged `integration/rename-worktree-composition.test.ts` exercises the whole-record comparisons across an
 actual checkout move, with presence retained in both snapshots.
+
+## A1: where the locus ports bind
+
+A1 moves the locus ports' binding from their default record to the executor context. `spec-seam-locus.md` § 2.4 read:
+
+> The binding has one production point, the default port record (`createDefaultLocusPorts`): the check's and the
+> writer's callers read it when given no record, as every production context gives none, and the lookup's two callers
+> (`findWorkUnitHoldingCheckout`, `lib/work-unit/verbs/unshared-work.ts`, and teardown's,
+> `lib/work-unit/verbs/teardown-store.ts`), which fall back to their own marker scan when given none, come to read it
+> too.
+
+and, later in the same paragraph:
+
+> The default record, given no context, opens its own Git executor, and the check its own store for the holder's state,
+> over the checkout the process runs in, as this change's readers do where none is given.
+
+§ 16's ports item read:
+
+> the three ports are one record (`LocusPorts`, in `lib/work-unit/locus-ports.ts`), whose default
+> (`createDefaultLocusPorts`) the check's and the writer's callers read when given no record, as every production
+> context gives none, and the lookup's callers, which fall back to their own marker scan, come to read through this
+> change, so it binds them at that one point;
+
+The landed transition-write-path change already carries a port record through the executor context:
+`buildExecutorContext` (`lib/work-unit/executor-context.ts`) passes an injected `locusPorts` to its callers and into
+`reconcileWorkUnitWorktree`'s context, and every lookup caller already reads the executor's (`handlers/start-store.ts`,
+`handlers/materialize-store.ts`, `lib/work-unit/verbs/abandon-store.ts`, `lib/work-unit/store-teardown-context.ts`,
+`handlers/lifecycle-collaboration.ts`, `handlers/lifecycle.ts`). Binding the default instead would have:
+
+- had a function given no context open a Git executor and a store over the process's directory on every call, beside the
+  verb's own, which a test could replace only by mocking the module;
+- had the lookup's callers rewritten to default through it, where given no record they keep their own scan today;
+- rested pre-flip inertness on each caller's arm alone, with no gate at the binding itself.
+
+Binding where the context is built gives one production point that tests already inject through (the overrides
+`handleStart` takes, `VerbBase.locusPorts` in `handlers/lifecycle-shared.ts`), and gating it on `usesOffBranchState`
+leaves every context over the in-repo implementation without ports, so nothing changes before the flip. It follows the
+context's binding of the project-ID reader (`createProjectIdentityReader`), gated the same way.
+
+The trade-off is that a context built outside `buildExecutorContext` carries no ports. One production path reaching the
+check or the writer does so: store start's create-new, whose spawn takes the store start context's own field
+(`StoreStartContext.locusPorts`, `handlers/start-store.ts`), and A1 moves it onto the executor's. Rename's and
+teardown's direct calls of `reconcileWorkUnitWorktree` run its move and teardown arms, which call no port. Promotion
+runs the check from its own runtime's store and Git executor (Task 3.9 - `tasks-seam-locus.md`), not through lifecycle's
+ports, so A1 leaves it alone.
 
 ---
