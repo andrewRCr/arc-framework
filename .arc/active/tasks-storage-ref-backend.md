@@ -2498,8 +2498,8 @@ without duplicating one.
 
 _Purpose:_ The rest of the import's source table, each row landed and compared through the first path's harness:
 completed items and closed cohorts, Candidate chains, lineage and renames, the Errand identity refs and the three kinds
-with no in-repo home, branch links with their exclusions and task captures, parked work units, notes snapshots, and
-personal state at D5's layout.
+with no in-repo home, branch links with their exclusions and task captures, parked work units, notes snapshots, personal
+state at D5's layout, and the review mapping's port.
 
 _Mode:_ `replication` — closes when every row of § 10.9 lands and compares clean, and every source the import cannot yet
 carry refuses it.
@@ -2765,7 +2765,37 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
         - the review gate's evidence and outcomes added to the fixture are listed in `notices`, and the import refuses,
           changing nothing
 
-### `[ ]` **15.9 Every source the import carries** — validate exit criterion at segment scope
+### `[ ]` **15.9 The review mapping's port — § 10.5, § 10.8, § 10.9**
+
+- _Goal:_ Whatever mapping fills the port, the import hands it every review source of live work and lands only what it
+  returns, so once the review family's mapping lands no review fact of live work is lost or carried in today's shape.
+
+    - An optional `reviewMapping` among `runStoreMigrate`'s ports, its `ReviewMappingInput` and `ReviewMappingResult`
+      types in the transform module (§ 10.8); the `arc store migrate` handler passes none until the review family's
+      mapping lands, and that mapping conforms by shape, importing nothing of the transform's
+    - The gate's folder read whole from the Git common directory, every file with its path; each live work unit's
+      Candidate versions from the path log 15.1 reads, with its commit, and its boundary record's current content
+    - The work-item table from the UIDs the import mints (A11), each entry's `live` flag as § 10.8 states it; an
+      archived work unit's landing tested with `isLandedInBaseStrict` (`lib/git/branch-containment.ts`) only where its
+      `Branch` still resolves
+    - Build `test-first` (one behavior at a time):
+        - a test mapping receives the gate's whole folder, its quarantined and retired files among them, each live work
+          unit's Candidate versions oldest first with its current boundary, and the work-item table: a work unit in
+          flight, one merged but not yet archived among them, and every Errand live, and an archived, abandoned, or cut
+          work unit not
+        - what it returns lands in place of the live work unit's Candidate and boundary records and every gate file,
+          each record at its kind's stored path and a record's contents replayed oldest first, one batch each, while a
+          completed work unit's Candidate and boundary land as found
+        - the trial's `reviewMapping` carries the listing, and an `in-flight` entry refuses the import, which lands once
+          the mapping no longer reports it
+        - a returned record a parser the test registry installs refuses, and one a serialization rule refuses, are each
+          listed in `refused` under `review-mapping`, refusing the import
+        - a gate file or Candidate version the listing omits, and one it lists twice, are listed in `notices`, refusing
+          the import
+        - an archived work unit whose branch exists unlanded in base is listed in `notices` and refuses the import,
+          which lands once the branch merges, while one whose branch is gone or merged imports as completed
+
+### `[ ]` **15.10 Every source the import carries** — validate exit criterion at segment scope
 
 - _Goal:_ Every import, notes-snapshot, post-import, and Candidate case of § 14.7 passes over the fixture.
 
@@ -3355,8 +3385,9 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Every case of § 14.7 passes: each move, interrupted after each step, completes on a rerun; the trial report of
   each move that takes `--trial` matches it; and the import's comparison differs only by the transforms of § 10.9, its
-  three entry kinds compared under § 14.1's test grammars, refusing for the review gate's facts; and a parked work unit
-  lands paused and in flight, every branch link carrying `linkedAs` and `excluded` and every task capture its copy key
+  three entry kinds compared under § 14.1's test grammars, refusing for the review gate's facts while no mapping is in
+  the port and landing a test mapping's records in place of what it was given; and a parked work unit lands paused and
+  in flight, every branch link carrying `linkedAs` and `excluded` and every task capture its copy key
 
 - `[ ]` The Git floor reads 2.47 at every listed site, a store failure an older Git explains names the version found
   and the floor, and the stdin and byte executor variants end a call on an aborted signal

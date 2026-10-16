@@ -540,33 +540,33 @@ export interface RefHome {
 // KindMechanism gains: ref?: RefHome — set for every kind whose family has a ref.
 ```
 
-| Kind                                             | Stored path                                                                                    |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `work-item/meta`                                 | `meta-<slug>.md`                                                                               |
-| `work-item/task-list`                            | `tasks-<slug>.md`                                                                              |
-| `work-item/draft`, `spec`, `notes`               | `draft-<slug>.md`, `spec-<slug>.md`, `notes-<slug>.md`                                         |
-| `work-item/companion`                            | `<key>-<slug>.md` for a name, a paired spec's halves below, and any other key verbatim (§ 2.5) |
-| `work-item/description`                          | `errand-<slug>.md`                                                                             |
-| `work-item/inbound`                              | `inbound-<slug>.md`                                                                            |
-| `work-item/record`                               | `errand-<uid>.json`                                                                            |
-| `review/candidate`                               | `review/candidate-<uid>.json`                                                                  |
-| `review/integration-boundary`                    | `review/integration-boundary-<uid>.json`                                                       |
-| `review/evidence`, `outcome`, `terminus`         | `review/evidence-<key>-<uid>.json`, and likewise                                               |
-| `review/adversarial-pass`                        | `review/adversarial-pass-<key>-<uid>.json`                                                     |
-| `cohort/document`                                | `cohort-<slug>.md`                                                                             |
-| `project-inbox/inbox`                            | `ATOMIC-INBOX.md`                                                                              |
-| `project-registry/identity`                      | `identity.json`                                                                                |
-| `project-registry/counter`                       | `counters/<key>.json`                                                                          |
-| `lineage/transition`                             | `lineage/<uid>.json`                                                                           |
-| `personal/inbox`                                 | `<person>/USER-INBOX.md`                                                                       |
-| `personal/working-memory`                        | `<person>/WORKING-MEMORY.md`                                                                   |
-| `personal/document`                              | `<person>/<key>`                                                                               |
-| `personal/errand-queue`                          | `<person>/errand-queue-<person>.md`                                                            |
-| `personal/session-context`                       | `<person>/<key>/SESSION-NOTES.md`                                                              |
-| `claims/groom`, `claims/housekeep`               | `groom-<key>-<person>.json`, `housekeep-<key>-<person>.json`                                   |
-| every `*/conflict-record` of a family with a ref | `conflicts/<key>.json` under the family's root                                                 |
-| `project-inbox/routing-receipt`                  | `receipts/<key>.json`                                                                          |
-| `personal/routing-receipt`                       | `<person>/receipts/<key>.json`                                                                 |
+| Kind                                                            | Stored path                                                                                    |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `work-item/meta`                                                | `meta-<slug>.md`                                                                               |
+| `work-item/task-list`                                           | `tasks-<slug>.md`                                                                              |
+| `work-item/draft`, `spec`, `notes`                              | `draft-<slug>.md`, `spec-<slug>.md`, `notes-<slug>.md`                                         |
+| `work-item/companion`                                           | `<key>-<slug>.md` for a name, a paired spec's halves below, and any other key verbatim (§ 2.5) |
+| `work-item/description`                                         | `errand-<slug>.md`                                                                             |
+| `work-item/inbound`                                             | `inbound-<slug>.md`                                                                            |
+| `work-item/record`                                              | `errand-<uid>.json`                                                                            |
+| `review/candidate`                                              | `review/candidate-<uid>.json`                                                                  |
+| `review/integration-boundary`                                   | `review/integration-boundary-<uid>.json`                                                       |
+| every `review/` kind keyed by `id` but `review/conflict-record` | `review/<name>-<key>-<uid>.json`, `<name>` the kind's name after `review/`                     |
+| `review/adversarial-pass`                                       | `review/adversarial-pass-<key>-<uid>.json`                                                     |
+| `cohort/document`                                               | `cohort-<slug>.md`                                                                             |
+| `project-inbox/inbox`                                           | `ATOMIC-INBOX.md`                                                                              |
+| `project-registry/identity`                                     | `identity.json`                                                                                |
+| `project-registry/counter`                                      | `counters/<key>.json`                                                                          |
+| `lineage/transition`                                            | `lineage/<uid>.json`                                                                           |
+| `personal/inbox`                                                | `<person>/USER-INBOX.md`                                                                       |
+| `personal/working-memory`                                       | `<person>/WORKING-MEMORY.md`                                                                   |
+| `personal/document`                                             | `<person>/<key>`                                                                               |
+| `personal/errand-queue`                                         | `<person>/errand-queue-<person>.md`                                                            |
+| `personal/session-context`                                      | `<person>/<key>/SESSION-NOTES.md`                                                              |
+| `claims/groom`, `claims/housekeep`                              | `groom-<key>-<person>.json`, `housekeep-<key>-<person>.json`                                   |
+| every `*/conflict-record` of a family with a ref                | `conflicts/<key>.json` under the family's root                                                 |
+| `project-inbox/routing-receipt`                                 | `receipts/<key>.json`                                                                          |
+| `personal/routing-receipt`                                      | `<person>/receipts/<key>.json`                                                                 |
 
 - **The session-context kind is interim** (`interim: true` in `KIND_MECHANISMS`): session context moves into the meta
   at the flip and the kind retires with it. The ref backend stores it at the path above only so the shared suite covers
@@ -2342,8 +2342,8 @@ the in-repo implementation; everything at the destination is the verb's.
 #### 10.5 The trial run
 
 `--trial` runs the same build as the move, reports it, and drops it, so a trial and the move cannot drift apart. A trial
-returns its report whatever it lists; an import whose report lists a refused record, or a notice that refuses it, lands
-nothing and refuses `import-refused`, carrying the report (§ 10.1):
+returns its report whatever it lists; an import whose report lists a refused record, an in-flight review, or a notice
+that refuses it, lands nothing and refuses `import-refused`, carrying the report (§ 10.1):
 
 ```ts
 interface MigrateReport {
@@ -2351,8 +2351,10 @@ interface MigrateReport {
   refs: { ref: string; scope: "project" | "identity"; person?: string; action: "copy" | "merge" | "create" | "delete" }[];
   refused: { reference: RecordReference; rule: string }[];   // "branch-missing" and "branch-diverged" first, then a
                                                             // § 5.6 rule, "key", "entry-id", "session-context",
-                                                            // or "pause"
+                                                            // "pause", or "review-mapping"
   brokenChains: { reference: RecordReference; condition: string }[];
+  reviewMapping: { source: string; outcome: "mapped" | "left-behind" | "in-flight"; reason?: string;
+                   records: RecordReference[] }[];
   differingNotes: { person: string; path: string; kind: "differs" | "snapshot-only" | "disk-only" }[];
   notices: { condition: string; remedy?: Remedy }[];
 }
@@ -2371,20 +2373,25 @@ interface MigrateReport {
   `SESSION-NOTES.md` the fold cannot write (§ 10.12); and `pause` for a parked work unit whose pause `MetaPauseSchema`
   refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause section's writer
   refuses, a `---` line or a `##` heading (`pauseProseProblem`, `lib/store/kinds/meta/pause-section.ts`), naming the
-  field, with the remedy to write the reason or correct the `Owner` (§ 10.9); **`brokenChains`**, for the import, every
-  Candidate chain it finds broken (§ 10.9); **`differingNotes`**, for the import, every notes file that differs from a
-  disk copy, and apart from them every file the snapshot holds and no disk copy does, and every file notes save never
-  writes (§ 10.10).
+  field, with the remedy to write the reason or correct the `Owner` (§ 10.9); and `review-mapping` for a record the
+  review mapping returns that its kind's parser or a serialization rule refuses, with the remedy to correct the mapping
+  (§ 10.8); **`brokenChains`**, for the import, every Candidate chain it finds broken (§ 10.9); **`differingNotes`**,
+  for the import, every notes file that differs from a disk copy, and apart from them every file the snapshot holds and
+  no disk copy does, and every file notes save never writes (§ 10.10).
+- **`reviewMapping`**, for the import, is the review mapping's account of every source it was given: each `mapped` with
+  the records it became, `left-behind` with its reason, or `in-flight`, which refuses the import until that review has
+  finished (§ 10.8); it is empty with no mapping in the port.
 - **`notices`** carries, for the import, each entry kind it would write whose grammar the backend's kind registry does
   not declare, which refuses the import until it does (§ 5.1), a base branch no ref resolves, which
-  `computeDefaultCaptureSet` refuses with its reason and remedy, refusing it likewise (§ 10.9), and the review gate's
-  facts while their mapping has not landed, which refuses it too (§ 10.8); for a move off a remote, that it stops later
-  publication and never unpublishes (§ 10.7), and that teammates follow only once the tracked pointer's change, which
-  the move leaves uncommitted, reaches them as code; and that a push composed before a switch — a teammate's loop's, or
-  one already in flight in another of this clone's worktrees — may land after the move's last listing and stays on the
-  old remote until a follow answering `push` clears it (§ 10.6); and, for a copy onto a destination holding state, each
-  notice that pull reports (§ 2.2) — an end it withdrew, or two ends, among them — and each rule its write checks find
-  broken (§ 10.4).
+  `computeDefaultCaptureSet` refuses with its reason and remedy, refusing it likewise (§ 10.9), the review gate's facts
+  while no mapping is in the port, a source the mapping's listing does not account for exactly once, and an archived
+  work unit whose branch has not landed in base, each of which refuses it too (§ 10.8); for a move off a remote, that it
+  stops later publication and never unpublishes (§ 10.7), and that teammates follow only once the tracked pointer's
+  change, which the move leaves uncommitted, reaches them as code; and that a push composed before a switch — a
+  teammate's loop's, or one already in flight in another of this clone's worktrees — may land after the move's last
+  listing and stays on the old remote until a follow answering `push` clears it (§ 10.6); and, for a copy onto a
+  destination holding state, each notice that pull reports (§ 2.2) — an end it withdrew, or two ends, among them — and
+  each rule its write checks find broken (§ 10.4).
 
 #### 10.6 The forwarding record
 
@@ -2579,10 +2586,9 @@ private moves it before going public, and the trial run says so.
     - each parked work unit's records, from the head of the branch its pointer record names (`composePointerRecord`,
       `lib/work-unit/pointer-record.ts`), since the in-repo implementation reads the pointer in `backlog/planned/` and
       the stub's companions beside it, while the work unit's own stay on that branch (D13);
-    - the review gate's durable facts under `.git/arc/review-gate/`, its evidence and outcomes, by the mapping below.
-      Its termini are not there: they are fields of the integration boundary records (`terminus` and
-      `deliveryReviewTermini`, `scripts/review-gate/policy/integration-boundary-locus.ts`), which the import carries as
-      state, so it reads none apart;
+    - the review gate's whole folder under the Git common directory (`arc/review-gate/`), every file with its path — its
+      quarantined and retired records, sources, and operation records among them — for the review mapping below, which
+      decides what each becomes;
     - and the sources of the stored kinds with no in-repo home (`KIND_MECHANISMS`): Errand descriptions from their
       origin entries, inbound lists from drafts' buffer sections and pending owner-adoption `_Hold` captures, and each
       person's Errand queue from their execute-bound marks.
@@ -2590,15 +2596,50 @@ private moves it before going public, and the trial run says so.
   `scripts/review-gate/hosts/local/git-common-state.ts`), already a UUID, so receipts keep their key (D14). That ID is
   minted per clone, so another clone's review facts carry another key and are not read; the cutover's quiesce finishes
   review on every other clone first.
-- **The review gate's facts land by a mapping this change does not define.** Their kinds, `review/evidence` and
-  `review/outcome`, are keyed records on a work item's ref (`keyed("work-item", "id")`, `lib/store/catalog.ts`) with no
-  field schemas yet (`machine(unhomed)`, `lib/store/registry.ts`), and the gate keys its records otherwise: a
-  disposition binds a Candidate, an Errand, a delivery member — alone, or with the Candidate that owns a private member
-  — or none (`ApprovedDispositionRecordSchema`, `scripts/review-gate/core/advisory-records.ts`), and is named by its
-  operation ID's digest; the receipts ledger keys each receipt by target; and an outcome is named by operation ID. Which
-  record becomes which kind, how its work item and key resolve, and what a fact with no live owner becomes are the
-  mapping the review family's field schemas bring, an expected contract (Open Questions). Until it lands, the trial
-  lists the gate's facts in `notices` and the import refuses (§ 10.5).
+- **The review mapping turns the review records of live work into the review family's records.** It is a pure function
+  the import calls through an optional `reviewMapping` among `runStoreMigrate`'s ports, whose input and result types the
+  transform module defines; the `arc store migrate` handler passes it in, so the transform holds no knowledge of the
+  review gate's shapes and the mapping references nothing of the transform's. The mapping is an expected contract (Open
+  Questions):
+
+```ts
+interface ReviewMappingInput {
+  projectId: string;
+  gate: { path: string; bytes: Uint8Array }[];            // arc/review-gate/, whole
+  candidates: {                                          // each live work unit holding a Candidate record
+    workItem: string;                                    // its UID
+    versions: { commit: string; content: string }[];    // oldest first, from the path log
+    boundary: string | null;                             // the boundary record's current content
+  }[];
+  workItems: { slug: string; kind: "work-unit" | "errand"; uid: string; live: boolean }[];
+}
+
+interface ReviewMappingResult {
+  records: { reference: RecordReference; contents: string[] }[];   // oldest first; one but for a Candidate's
+  listing: { source: string; outcome: "mapped" | "left-behind" | "in-flight"; reason?: string;
+             records: RecordReference[] }[];
+}
+```
+
+- **`workItems`** lists every work unit and Errand the import carries, with the UID it mints for each (A11), so a name
+  absent from it is no work the import holds. **Live** is what the import carries as in flight: a work unit neither
+  archived, abandoned, nor cut, one merged but not yet archived among them, and every Errand an identity ref holds,
+  open, paused, or awaiting merge. An archived work unit has ended unless its branch still exists and has not landed in
+  base by patch identity (`isLandedInBaseStrict`, `lib/git/branch-containment.ts`), tested against `origin/<base>` where
+  it resolves and the local base otherwise: one archived before merge that way is listed in `notices` and refuses the
+  import until it merges or is abandoned (§ 10.5).
+- **What the mapping returns lands in place of what it was given:** a live work unit's Candidate and boundary records
+  and every gate file land only as the mapping's records, each on its work item's ref at its kind's stored path (§ 3.2),
+  a record's contents replayed oldest first, each version in a batch of its own as a Candidate version is (§ 10.11). A
+  Candidate or boundary record of work that is not live lands as found (§ 10.9, § 10.11).
+- **Every returned record is checked as every imported record is,** by its kind's parser and the serialization rules
+  (§ 5.6); one either refuses is listed in `refused` under `review-mapping`, naming the record, with the remedy to
+  correct the mapping. No move gates on a write check (§ 10.4), so the mapping guarantees that its records pass their
+  kinds' write checks. A source the listing does not account for exactly once — each gate file by its path, and each
+  Candidate version and boundary by its tracked path, a version's with its commit — is listed in `notices` and refuses
+  the import, as an `in-flight` entry does until the review it names has finished (§ 10.5).
+- **With no mapping in the port,** the trial lists the gate's facts in `notices` and the import refuses (§ 10.5), and
+  every Candidate and boundary record lands as found.
 - **Its provenance** is `migrate` with lifecycle action `import`, and `Arc-Code-Head` names the importing checkout's
   HEAD, so each imported record's earlier history stays findable in code history (§ 5.5).
 - **What stays out:** project machinery and the constitution, tracked in the standard profile (`FAMILY_REGISTRY`), the
@@ -2607,7 +2648,8 @@ private moves it before going public, and the trial run says so.
   pristine store, and editor schemas Git ignores under `.arc/system/.internal/`; the registry's counters, since nothing
   allocates one (§ 7.7); and the identity root's `STATUS.USER.md`, a view status renders and shipped code discards as a
   cache (`DISCARDABLE_GENERATED_CACHES`, `lib/user-surface-migration.ts`). The Candidate, boundary, and transition
-  records tracked under `.arc/system/.internal/` are state, which the import carries (ADR-035).
+  records tracked under `.arc/system/.internal/` are state, which the import carries, a live work unit's Candidate and
+  boundary through the review mapping (ADR-035).
 - **Every record passes the serialization rules** (§ 5.6), § 3.2's key refusals, for an entry kind the stamp (§ 5.1),
   and for a folded `SESSION-NOTES.md` the section writer (§ 10.12), in the build; a refusal names the record and rule
   (§ 10.5), the trial run lists it, and the import refuses until the source is fixed.
@@ -2621,7 +2663,7 @@ private moves it before going public, and the trial run says so.
 | A parked work unit, its pointer record in `backlog/planned/`                     | A paused work unit in flight at `Active`, its records as the tip the branch row's rule reads holds them, refusing as that row does; its meta's pause section built through `MetaPauseSchema` (`lib/active/meta-schema.ts`) from the pointer's `Reason:` line as its reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as since when, an ISO-8601 UTC string as `arc pause` writes it, waiting on nothing. A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause section's writer refuses, a `---` line or a `##` heading (`pauseProseProblem`, `lib/store/kinds/meta/pause-section.ts`), refuses `pause` (§ 10.5), since the import invents neither and edits no reason. A work unit parked from Planning is a stub and imports as one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Open cohorts                                                                     | One UID per cohort (A11); its document at current content on its cohort ref                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Completed work units and closed cohorts                                          | As an archive or close leaves them (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Candidate records                                                                | Every version its path log holds replayed oldest first on its work item's ref, then current files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Candidate records                                                                | Every version its path log holds replayed oldest first on its work item's ref, then current files; a live work unit's, with its boundary, as the review mapping returns them (§ 10.8)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Errand identity refs                                                             | Re-homed: Errands to `refs/arc/work/<uid>`, each record's `owner` the identity whose ref held it, grooming and housekeeping claims to each person's claims ref; open Errands' origin entries moved into their descriptions before any `_Id:_` stamp, each leaving its inbox                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Execute-bound marks                                                              | Each person's Errand queue, in file order, each mark's `_Disposition:_` line leaving its entry (`executeBoundMark`, `lib/user-sync/inbox-writer.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Buffer sections and held captures                                                | Each work unit's inbound list, each section leaving its draft and each capture its inbox; an entry from a buffer section takes its `_Routed from:_` date as its `_Created:_`, and one from a held capture keeps the capture's                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -2629,7 +2671,7 @@ private moves it before going public, and the trial run says so.
 | Each person's notes snapshot and disk-only files                                 | Their personal ref, at D5's layout (§ 10.10, § 10.12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | A live work unit's `SESSION-NOTES.md`, where its meta's `Owner` names the person | That meta's session context, by the fold (§ 10.12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Other workspace files, and root files outside ARC's surfaces                     | `scratch/work-unit/<slug>/` and `scratch/` on the personal ref (§ 10.12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| The review gate's evidence and outcomes                                          | Review records on their subjects' work items, by the mapping of § 10.8; the gate's repository ID as the project ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| The review gate's records                                                        | For live work, review records on their work items as the review mapping returns them (§ 10.8), and nothing for other work; the gate's repository ID as the project ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `rename` transition records                                                      | Former slugs in their successors' metadata, never lineage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `abandon` and `decompose` transitions                                            | Lineage at `lineage/<uid>.json`, keyed by a UID the import mints for its origin, each record as found but for its work-item references' UIDs, which the lineage kind leaves to the import: the origin's the one minted for it, and every other's — a successor, a dependent, a replacement, a prerequisite, a member — the UID its named owner takes (A11) where the import holds one; and an empty history ref (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Closed tasks' commits                                                            | Task captures in their work units' links (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -3033,9 +3075,9 @@ the default in a files-format code repository, and the separate one in its refta
   refusing `ambiguous-match` naming both, which the reference backend already refuses (`indexIdentities`) and a fixture
   whose backend refuses the rename or reopen itself excludes by that refusal (D7); and a companion keyed by a path,
   `diagram.svg` and `sub/notes.md`, which writes, reads, and lists under that key and keeps it through its owner's
-  rename, and which the in-repo fixture excludes by its `unhomed-kind` refusal (§ 2.5). The cross-type cases stay in §
-  14.3, since the reference backend's index compares one type (`ownerNameKey`, `__tests__/helpers/store/model.ts`). The
-  suite's merge items gain five, which a fixture whose backend refuses concurrent writes skips as it skips them
+  rename, and which the in-repo fixture excludes by its `unhomed-kind` refusal (§ 2.5). The cross-type cases stay in
+  § 14.3, since the reference backend's index compares one type (`ownerNameKey`, `__tests__/helpers/store/model.ts`).
+  The suite's merge items gain five, which a fixture whose backend refuses concurrent writes skips as it skips them
   (`mergesConcurrentWrites`, `__tests__/helpers/store/suite-merges.ts`), the in-repo one among them: a write whose
   stale-base merge clashes, its conflict record's `history` naming the verb `merge` whatever verb the write carried; a
   put whose content is the stored record's, naming in `resolves` the open conflict record a clash filed, removing it; a
@@ -3544,6 +3586,16 @@ remote.
   schema rejects, which refuse on both sides; and a live work unit whose Candidate and boundary records sit only on its
   unmerged branch imports them from that branch, comparing clean against today's reader and the in-repo implementation
   run at that branch's head (§ 10.8).
+- **The review mapping,** through a test mapping in the port: the import hands it the gate's whole folder, quarantined
+  and retired files among them, each live work unit's Candidate versions oldest first with its current boundary, and the
+  work-item table, a work unit in flight — one merged but not yet archived among them — and every Errand live, and an
+  archived, abandoned, or cut work unit not. What it returns lands in place of those records and files, each at its
+  kind's stored path and a record's contents replayed oldest first, while a completed work unit's Candidate and boundary
+  land as found, and the trial's `reviewMapping` carries its listing. A returned record a parser the test registry
+  installs refuses, and one a serialization rule refuses, are listed in `refused` under `review-mapping`; an `in-flight`
+  entry, a source the listing omits or repeats, and an archived work unit whose branch exists unlanded in base each
+  refuse the import until fixed, after which it lands. With no mapping in the port, the gate's evidence and outcomes
+  added to the fixture are listed in `notices` and refuse the import.
 
 #### 14.8 Hosts: a scripted trial, run by hand
 
@@ -3799,7 +3851,8 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
 7. **Every move restarts and the import compares clean.** Every case of § 14.7 passes: each move, interrupted after each
    step, completes on a rerun; the trial report of each move that takes `--trial` matches it; and the import's
    comparison differs only by the transforms of § 10.9, its three entry kinds compared under § 14.1's test grammars, the
-   review gate's facts refusing until their mapping lands, and a parked work unit importing paused (§ 14.7).
+   review gate's facts refusing while no mapping is in the port and a test mapping's records landing in place of what it
+   was given, and a parked work unit importing paused (§ 14.7).
 8. **The Git access holds.** The Git floor reads 2.47 at every site in § 11.3's table, a store failure an older Git
    explains names the version found and the floor, and the stdin and byte executor variants end a call on an aborted
    signal (§ 14.1).
@@ -3831,10 +3884,12 @@ open:
 - **Before the import runs:** `work-item/description`, `work-item/inbound`, and `personal/errand-queue` declare their
   entry grammars, which the import's build stamps by and the backend merges by (§ 5.1, § 10.9); until each does, the
   import's trial names it and the import refuses (§ 10.5). This change verifies those three kinds' import under test
-  grammars (§ 14.7), so the declared grammars are first exercised by the cutover's trial run. The review family's field
-  schemas for `review/evidence` and `review/outcome` likewise bring the mapping of the review gate's records onto them —
-  which kind each becomes, its work item and key, and what a fact with no live owner becomes (§ 10.8); until it lands,
-  the import's trial lists the gate's facts and the import refuses, and this change verifies only that refusal.
+  grammars (§ 14.7), so the declared grammars are first exercised by the cutover's trial run. The review family's
+  mapping likewise fills the import's `reviewMapping` port (§ 10.8): a pure function over the input § 10.8 states,
+  returning the records of live work in the family's kinds and an account of every source it was given, each record
+  parsing under its kind's schema and passing its kind's write check over the set it returns. Until it does, the
+  import's trial lists the gate's facts and the import refuses; this change verifies the import's side through a test
+  mapping, and that refusal.
 - **Available before the import re-homes Errands (§ 10.9):** the Errand record's optional `owner`, the identity slug of
   the person who owns it. The record's schema is strict today (`TransientIdentityRecordSchema`,
   `lib/errand/identity-record.ts`), so `serializeTransientIdentityRecord` throws on a record carrying `owner` until
