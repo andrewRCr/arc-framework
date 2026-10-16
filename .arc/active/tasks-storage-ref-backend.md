@@ -232,23 +232,10 @@ default layout.
         - Both private backend directories share `store-production` and `store-tests` enforcement. Only `create.ts`
           imports either backend entry; internal helper imports and type-only test imports retain their exceptions.
 
-    - `[ ]` **3.1.c The Git directories without a Git call**
-        - A reader in `lib/git/` that finds the worktree's own Git directory from its `.git` — a directory in the main
-          checkout, a file naming the worktree's Git directory in a linked one — and the common Git directory from the
-          `commondir` file that leads to, resolving relative paths against the file that holds them, as Git lays out a
-          linked worktree (§ 4.2), and returns both; storage-projection's working copy reads the first, so whichever of
-          the two changes builds it first, the other takes it
-        - `resolveGitCommonDir` (`lib/git/exec.ts`) spawns `git rev-parse`, which § 4.2's one-process `version` cannot
-          afford
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, over directories the test lays out
-            - the main checkout's `.git` directory is both its own Git directory and its common directory
-            - a linked worktree's `.git` file names its Git directory, and its `commondir` leads to the main Git
-              directory, with relative paths in either
-            - a `.git` file whose Git directory holds no `commondir` names that directory for both
-            - Integration tier, since the unit tier spawns no process (`UNIT_PROCESS_ALLOWLIST`): on a real repository and
-              a real linked worktree, the common directory equals `resolveGitCommonDir`'s answer and the worktree's own
-              equals `git rev-parse --absolute-git-dir`'s
+    - `[x]` **3.1.c The Git directories without a Git call**
+        - `readGitDirectories` follows `.git` and `commondir` through file ports, resolving each relative path against
+          its containing file. Main and linked-worktree answers match Git; malformed markers and unreadable common
+          directories refuse without hiding the failure and succeed after repair.
 
     - `[ ]` **3.1.d The machine ID and the actor**
         - `lib/store/machine-id.ts` reads `arc/user/<identity>/.internal/.machine-id` in the common Git directory (3.1.c)
