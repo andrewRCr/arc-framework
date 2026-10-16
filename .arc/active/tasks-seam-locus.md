@@ -720,7 +720,7 @@ inject a reference-backend store.
 - _Outcome:_ Full-protection opens batch a created branch link with no exclusions; partial opens write neither a branch
   nor a link.
 
-### `[ ]` **3.6 Check overlap for a state target, excluding the caller by identity — § 3.3**
+### `[x]` **3.6 Check overlap for a state target, excluding the caller by identity — § 3.3**
 
 - _Goal:_ From the flip `arc errand check` classifies its targets through one inverse of the layout resolver — a code
   target keeping both probes, a state target reporting overlap when its record's own work item is in flight in another
@@ -728,68 +728,18 @@ inject a reference-backend store.
   own identity from the marker, and keeps Errands as candidates; it stays advisory, and the pre-commit foreign-write
   hook returns before any read.
 
-    - `[ ]` **3.6.a The target classifier**
+    - `[x]` **3.6.a The target classifier**
 
-        - The classifier takes two steps, split by the layout's dependency rule (`layout-dependencies`,
-          `eslint/architecture-imports.ts`), which bars `lib/layout/` from importing the store: in `lib/layout/`, beside
-          today's identification (`identifyWorkUnitArtifactPath`, `isProjectDocumentPath`,
-          `lib/layout/identification.ts`), a path inverts to the file address `resolveArcPath` resolves to it, or to
-          none; in `lib/store/`, beside the kinds' mechanisms (`KIND_MECHANISMS`, `lib/store/registry.ts`), an address
-          maps to its kind and key, or to none, exhaustively over the address union (`ArcLayoutAddressSchema`), so an
-          address the projection adds takes its kind there. The entry-list kinds are `personal/inbox`,
-          `project-inbox/inbox`, `work-item/inbound`, `work-item/description`, `personal/errand-queue`, and
-          `personal/working-memory`.
-        - A directory inverts to none: `projectContainer` (`lib/layout/projection.ts`) resolves every project-scope
-          active work unit's container to `.arc/active`, the active placement root's path too, so no directory's path
-          names one address. The classifier inverts the file addresses — the internal records, the editor document, the
-          inboxes, a work unit's artifacts, the cohort document, the project document, and the user documents.
-        - The projection registers its locations and file names as addresses, adding them to the address union
-          (`ArcLayoutAddressSchema`), the inbound list's and the Errand description's among them (spec § 16); until it
-          does, those kinds have no address, and the classifier places no path at them.
+        - File-address inversion and exhaustive Store-kind mapping distinguish code, state, and entry-list targets.
 
-        - Build `test-first` (one behavior at a time):
-            - a work unit's meta path classifies to its kind and key, and a path under no registered address to none
-            - the personal inbox's path classifies to its entry-list kind
-            - every file address kind `resolveArcPath` resolves inverts back to its address, a round trip over those
-              kinds
-            - `.arc/active` and a work unit's container path classify to none
+    - `[x]` **3.6.b The check from the flip**
 
-    - `[ ]` **3.6.b The check from the flip**
+        - Store overlap reports work-item identities, retains paused and branchless candidates, and excludes the current
+          marker identity while preserving the bracketed Git probes for code.
 
-        - `handleErrandCheck` (`handlers/errand.ts`) takes 3.6.a's classification in a sibling module from the flip: a
-          path it places nowhere is a code target and keeps both probes, with `preferRemoteBaseRef` and the
-          `indeterminate` brackets (`detectForeignArtifactOverlap`, `lib/git/foreign-artifact-detection.ts`); a state
-          target resolves to its record and reports overlap when that record's own work item is in flight in another
-          locus, from 3.1.a's set; an entry-list target reports none.
-        - An entry with no branch link takes no committed probe; its uncommitted probe still covers a checkout here. A
-          paused work unit counts through both probes; today's skip of parked work units retires with park.
-        - From the flip an overlap and a skipped entry (`ForeignArtifactOverlap`, `ForeignArtifactSkippedEntry`,
-          `lib/git/foreign-artifact-detection.ts`) name their work item, and their `branch`, required today, is
-          optional; the advisory (`handlers/errand.ts`) prints the work item's name where an entry has no branch.
-        - The check excludes the locus running it, Errand or work unit, by its own identity from the marker, where today
-          it excludes by name, by originating checkout, or by `resolveOriginatingMetaPath`, and an Errand only by its
-          checkout. Errands stay candidates.
+    - `[x]` **3.6.c The pre-commit foreign-write hook**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a state target whose work item is in flight in another locus reports overlap
-            - a personal inbox, project inbox, or `WORKING-MEMORY` target reports none
-            - a branchless entry's checkout here is probed for uncommitted edits only, and its overlap is reported by its
-              work item's name
-            - a paused work unit's committed and uncommitted edits each report
-            - the caller is excluded by its marker's identity, an Errand and a work unit alike
-            - a code target reports as today
-
-    - `[ ]` **3.6.c The pre-commit foreign-write hook**
-
-        - `scripts/check-foreign-writes.ts` branches on the capability and from the flip returns before any read, since
-          a commit then stages no work unit's state; until then it runs as today, its reads — `runActiveInFlight`,
-          `listParkedSlugs`, `projectInFlightToOverlapRoster`, `detectForeignArtifactOverlap`, and
-          `resolveOriginatingMetaPath` — unchanged.
-
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend the hook passes a commit staging a path named like a work unit's artifact, with
-              no read
-            - over the in-repo implementation it reports overlap as today
+        - The foreign-write hook returns before acquisition when operational state lives off the branch.
 
 ### `[ ]` **3.7 Read shipped work through placement and `lookup` — § 3.4, § 2.1**
 

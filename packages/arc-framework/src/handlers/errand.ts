@@ -13,6 +13,7 @@
  * @module
  */
 
+import { runStoreErrandOverlap } from "../lib/errand/store-overlap.js";
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
@@ -401,10 +402,10 @@ export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult)
   return [
     ...(result.skipped ?? []).map(
       (entry) =>
-        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${formatOverlapLocation(entry)})`,
+        `${entry.branch ?? entry.workItem ?? "unknown work item"}  skipped  marked ${entry.marks.join(", ")}  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.indeterminate ?? []).map(
-      (entry) => `${entry.branch}  caveat  probe indeterminate  (${formatOverlapLocation(entry)})`,
+      (entry) => `${entry.branch ?? entry.workItem ?? "unknown work item"}  caveat  probe indeterminate  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.notes ?? []),
   ];
@@ -442,6 +443,16 @@ export async function handleErrandCheck(
   const { settings } = await readConfigSettings(cwd);
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
+  const store = openDefaultStore(cwd, exec);
+  if (store.capabilities.stateOffBranch) {
+    if (identity === null) {
+      emitErrandCheckResult({ overlaps: [], notes: ["No identity resolved; configure arc.identity, then rerun the overlap check."] }, [], true, localOnly, opts.json === true);
+      return;
+    }
+    const checked = await runStoreErrandOverlap({ store, cwd, exec, identity, teamMode: settings["team.mode"] === "true", baseBranch, targetPaths });
+    emitErrandCheckResult(checked.result, checked.warnings, checked.reachable, localOnly, opts.json === true);
+    return;
+  }
   const parkedSlugs = listParkedSlugs(
     await buildLifecycleIndex({
       cwd,
@@ -474,7 +485,12 @@ export async function handleErrandCheck(
     snapshot,
   });
 
-  if (opts.json) {
+  emitErrandCheckResult(result, warnings, reachable, localOnly, opts.json === true);
+}
+
+function emitErrandCheckResult(result: ForeignArtifactDetectionResult, warnings: readonly InFlightWarning[], reachable: boolean,
+  localOnly: boolean, json: boolean): void {
+  if (json) {
     process.stdout.write(`${JSON.stringify(buildErrandCheckJsonEnvelope(result, warnings, reachable))}\n`);
     return;
   }
@@ -485,7 +501,7 @@ export async function handleErrandCheck(
     p.note("No in-flight work unit or Errand touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
-      (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,
+      (o) => `${o.branch ?? o.workItem ?? "unknown work item"}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,
     );
     p.note(
       [...lines, ...caveats].join("\n"),

@@ -447,12 +447,12 @@ export function projectInFlightToOverlapRoster(entries: readonly (InFlightEntry 
     projected.push({
       ...location,
       name: entry.name,
-      metaFilePath: resolveArcPath({
+      ...(includeWorkItem ? {} : { metaFilePath: resolveArcPath({
         kind: "work-unit-artifact",
         placement: { kind: "active", scope: { kind: "project" } },
         slug: SlugSchema.parse(entry.name),
         artifact: "meta",
-      }),
+      }) }),
       state: entry.state,
       ...(entry.marks !== undefined ? { marks: entry.marks } : {}),
       ...(entry.scheduling !== undefined ? { scheduling: entry.scheduling } : {}),
