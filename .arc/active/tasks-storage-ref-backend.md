@@ -327,7 +327,7 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
   acquisition releases every earlier handle and preserves cleanup errors. The lazy ref-lock factory nests full ref
   names under the code repository's common Git directory, shared by linked worktrees in either layout.
 
-### `[ ]` **4.2 The write path's spine — § 5.1, § 5.4**
+### `[x]` **4.2 The write path's spine — § 5.1, § 5.4**
 
 - _Goal:_ `write` and `batch` land a put or removal as one commit per ref in one compare-and-swap transaction under the
   refs' locks, all or none, with nothing landing on refs an owner has left.
@@ -347,12 +347,10 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           primary facts and unaffected versions. A bypassing writer's CAS race retries under the same ref locks with
           current trees; owner relocation or rename restarts resolution, and changed writes yield distinct state tokens.
 
-    - `[ ]` **4.2.d Batches**
-        - A batch's refs commit in one transaction, each created ref named with an expected absence
-        - Build `test-first` (one behavior at a time):
-            - a batch spanning a work item's ref and a personal ref lands both or neither
-            - a batch whose one record refuses lands nothing
-            - two batches over overlapping refs, named in opposite orders, both land
+    - `[x]` **4.2.d Batches**
+        - Cross-ref batches publish together, including a new personal ref with expected absence. A competing creation
+          leaves both own mutations unapplied; stale-record preflight also preserves every ref. Concurrent batches
+          naming overlapping refs in opposite orders both complete and retain all records in files and reftable stores.
 
 ### `[ ]` **4.3 Provenance in commit messages — § 3.1, § 5.5**
 
