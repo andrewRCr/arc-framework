@@ -15,6 +15,7 @@
 import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import { missingRegistrationActions } from "./missing-worktree-folders.js";
 import type { SessionAction } from "./actions.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
@@ -160,10 +161,8 @@ async function buildWorktreeCandidate(
     const check = await checkWorktreeRemoval({ exec: ctx.exec, checkoutPath: entry.worktreePath,
       disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
     if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
-      const path = JSON.stringify(entry.worktreePath);
-      const unlock = check.kind === "refused" ? `its lock's owner may run git worktree unlock ${path}, then ` : "";
       ctx.missingFolders.push({ worktreePath: entry.worktreePath, branch: entry.branch,
-        actions: [{ text: `After confirming the folder is still missing, ${unlock}git worktree remove ${path}.` }] });
+        actions: missingRegistrationActions(entry.worktreePath, { locked: check.kind === "refused" }) });
     }
     return null;
   }
@@ -184,17 +183,13 @@ async function buildWorktreeCandidate(
     }),
   ]);
 
-  return {
-    branch: entry.branch,
-    worktreePath: entry.worktreePath,
-    proposedAction: determineCandidateAction({
-      isMainOrAdmin: false,
-      marker,
-      removalCheck,
-      userSurfacesSafe,
-      merged: merged ?? false,
-    }),
-  };
+  const proposedAction = determineCandidateAction({ isMainOrAdmin: false, marker, removalCheck,
+    userSurfacesSafe, merged: merged ?? false });
+  const candidate = { branch: entry.branch, worktreePath: entry.worktreePath };
+  if (proposedAction !== "removable") return { ...candidate, proposedAction };
+  const workUnitName = marker.kind === "present" ? marker.marker.wuName : undefined;
+  return workUnitName === undefined ? { ...candidate, proposedAction: "external" }
+    : { ...candidate, proposedAction, workUnitName };
 }
 
 async function resolveCandidateMerged(ctx: CandidateContext, branch: string): Promise<boolean | null> {

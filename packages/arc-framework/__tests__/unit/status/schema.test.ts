@@ -149,6 +149,7 @@ describe("deep advisory routing views", () => {
   it("pins stale-worktree report and cleanup decision discriminants", () => {
     const value = {
       remoteEvidence: "exact",
+      missingFolders: [],
       worktrees: [
         {
           kind: "branched", worktreePath: "/tmp/alpha", branch: "feat/alpha",
@@ -174,6 +175,7 @@ describe("deep advisory routing views", () => {
     expect(StaleWorktreeSweepResultSchema.parse(value)).toEqual(value);
     expect(
       StaleWorktreeSweepResultSchema.safeParse({
+        missingFolders: [],
         worktrees: [
           {
             kind: "branched",
@@ -268,6 +270,7 @@ describe("deep advisory routing views", () => {
   it("rejects cleanup authority when remote evidence is incomplete", () => {
     expect(StaleWorktreeSweepResultSchema.safeParse({
       remoteEvidence: "pending-fetch",
+      missingFolders: [],
       worktrees: [{ kind: "branched", decision: { action: "removable" } }],
       renameMoves: [],
       retirements: [],
@@ -275,6 +278,7 @@ describe("deep advisory routing views", () => {
     expect(StaleWorktreeSweepResultSchema.safeParse({
       remoteEvidence: "unreachable",
       failureReason: "network",
+      missingFolders: [],
       worktrees: [],
       renameMoves: [],
       retirements: [{
@@ -315,6 +319,7 @@ describe("deep advisory routing views", () => {
       StaleWorktreeSweepResultSchema,
       {
         remoteEvidence: "exact",
+        missingFolders: [],
         worktrees: [
           {
             kind: "branched",

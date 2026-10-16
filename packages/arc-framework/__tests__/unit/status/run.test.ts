@@ -650,6 +650,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({
       remoteEvidence: "not-applicable",
+      missingFolders: [],
       worktrees: [],
       renameMoves: [],
       retirements: [],
@@ -980,6 +981,7 @@ describe("runSessionInitStatus — orchestration", () => {
         return {
           remoteEvidence: "unreachable",
           failureReason: "network",
+          missingFolders: [],
           worktrees: [],
           renameMoves: [],
           retirements: [],
@@ -2691,6 +2693,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] });
     const sweepValue: StaleWorktreeSweepResult = {
       remoteEvidence: "exact",
+      missingFolders: [],
       worktrees: [{
         kind: "branched",
         worktreePath: "/wt",

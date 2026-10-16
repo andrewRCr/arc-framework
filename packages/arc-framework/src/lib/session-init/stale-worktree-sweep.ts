@@ -33,7 +33,8 @@ import {
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
-import type { SessionAction } from "./actions.js";
+import { readMissingWorktreeFolders } from "./missing-worktree-folders.js";
+import { workUnitTeardownAction, type SessionAction } from "./actions.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -193,7 +194,7 @@ export async function runStaleWorktreeSweep(
 
   const derivedRoster = options.derivedRoster;
   if (derivedRoster === null) {
-    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   if (
@@ -201,7 +202,7 @@ export async function runStaleWorktreeSweep(
     && options.teamMode === true
     && (options.identity === null || options.identity === undefined)
   ) {
-    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], missingFolders: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   let shipped: ReadonlySet<string>;
@@ -264,43 +265,22 @@ export async function runStaleWorktreeSweep(
           : [];
       })
     : [];
+  const missingPaths = new Set(derivedRoster.filter((row) => !row.checkout.folderPresent).map((row) => row.checkout.path));
+  const missingFolders = worktreeIdentity.kind === "primary" ? await readMissingWorktreeFolders({
+    rows: derivedRoster, shipped, exec, check: options.projectionRemovalSlots?.check, folderExists: options.folderExists,
+  }) : [];
   const candidates = [...new Map(
     [...selected.candidates, ...retainedRoleCandidates].map((entry) => [entry.worktreePath, entry]),
-  ).values()];
+  ).values()].filter((entry) => !missingPaths.has(entry.worktreePath));
   const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
-  const worktrees: StaleWorktreeReport[] = await Promise.all(
-    candidates.map(async (entry) => {
-      const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
-        readMarker(entry.worktreePath),
-        checkWorktreeRemoval({ exec, checkoutPath: entry.worktreePath, disposition: "remove", check: options.projectionRemovalSlots?.check, folderExists: options.folderExists }),
-        exactBaseOid === null
-          ? Promise.resolve(false)
-          : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
-        linkedIdentityGlobalUserSurfacesAreSafe({
-          primaryWorktreePath,
-          worktreePath: entry.worktreePath,
-          fs: userSurfaceFs,
-        }),
-      ]);
-      const localDecision = decideWorktreeCleanup({ marker, removalCheck, userSurfacesSafe, merged, context: "shipped" });
-      const decision = exactBaseOid === null
-        && localDecision.action === "blocked"
-        && localDecision.reason === "unmerged"
-        ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
-        : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
-      return {
-        kind: "branched" as const,
-        worktreePath: entry.worktreePath,
-        branch: entry.branch,
-        decision,
-      };
-    }),
-  );
+  const worktrees: StaleWorktreeReport[] = await Promise.all(candidates.map((entry) => inspectBranchedRemoval(entry, {
+    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase,
+  })));
 
   if (!scan.ok) {
     warnings.push(`Could not scan registered worktrees: ${scan.message}`);
-    return { ...projectedEvidence, worktrees, renameMoves: [], retirements: [], warnings };
+    return { ...projectedEvidence, worktrees, missingFolders, renameMoves: [], retirements: [], warnings };
   }
 
   const renameMoves: RenameMoveResidue[] = [];
@@ -366,12 +346,49 @@ export async function runStaleWorktreeSweep(
   return {
     ...projectedEvidence,
     worktrees,
+    missingFolders,
     renameMoves,
     retirements: retirementSweep.retirements,
     warnings,
   };
 }
 
+
+async function inspectBranchedRemoval(entry: WorktreeRosterEntry, context: {
+  options: RunStaleWorktreeSweepOptions;
+  readMarker: (path: string) => Promise<WorktreeMarkerReadResult>;
+  userSurfaceFs: UserSurfaceMigrationFs;
+  primaryWorktreePath: string | null;
+  exactBaseOid: string | null;
+  analysisExec: GitExec;
+  mergeBase: string;
+}): Promise<Extract<StaleWorktreeReport, { kind: "branched" }>> {
+  const { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase } = context;
+  const { exec } = options;
+  const [marker, removalCheck, merged, userSurfacesSafe] = await Promise.all([
+    readMarker(entry.worktreePath),
+    checkWorktreeRemoval({ exec, checkoutPath: entry.worktreePath, disposition: "remove", check: options.projectionRemovalSlots?.check, folderExists: options.folderExists }),
+    exactBaseOid === null
+      ? Promise.resolve(false)
+      : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
+    linkedIdentityGlobalUserSurfacesAreSafe({
+      primaryWorktreePath,
+      worktreePath: entry.worktreePath,
+      fs: userSurfaceFs,
+    }),
+  ]);
+  const localDecision = decideWorktreeCleanup({ marker, removalCheck, userSurfacesSafe, merged, context: "shipped" });
+  const decision = exactBaseOid === null
+    && localDecision.action === "blocked"
+    && localDecision.reason === "unmerged"
+    ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
+    : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
+  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision };
+  if (decision.action !== "removable") return report;
+  const name = marker.kind === "present" ? marker.marker.wuName : undefined;
+  return name === undefined ? { ...report, decision: { action: "external" as const } }
+    : { ...report, actions: [workUnitTeardownAction(name)] };
+}
 
 async function inspectHuskRemoval(context: {
   entry: RegisteredWorktree;

@@ -51,6 +51,7 @@ export const CascadeCandidateSchema = z.discriminatedUnion("proposedAction", [
     branch: NON_EMPTY_TEXT,
     worktreePath: NON_EMPTY_TEXT,
     proposedAction: z.literal("removable"),
+    workUnitName: NON_EMPTY_TEXT,
   }),
   z.strictObject({
     branch: NON_EMPTY_TEXT,

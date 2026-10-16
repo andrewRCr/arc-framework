@@ -136,7 +136,7 @@ describe("runBranchGoneRecovery", () => {
     expect(result).toEqual({
       kind: "resolved",
       remoteEvidence: "exact",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable", workUnitName: "x" },
     });
   });
 
@@ -180,7 +180,7 @@ describe("runBranchGoneRecovery", () => {
     expect(result).toEqual({
       kind: "resolved",
       remoteEvidence: "exact",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable", workUnitName: "x" },
     });
   });
 
@@ -527,7 +527,7 @@ describe("recovery folder observations", () => {
       checkout: { path: "/wt/a", branch: "feat/a", head: "a".repeat(40), detached: false, primary: false, folderPresent: false } }];
     const result = await runBranchGoneRecovery({ ...input, derivedRoster });
     expect(result).toMatchObject({ kind: "main-fallback", missingFolders: [{ worktreePath: "/wt/a", branch: "feat/a",
-      actions: [{ text: expect.stringContaining('git worktree remove "/wt/a"') }] }] });
+      actions: [{ text: expect.stringContaining("git worktree remove '/wt/a'") }] }] });
     expect(JSON.stringify(result)).toContain("still missing");
   });
   it.each([true, false])("keeps foreign-locked registrations separate (folder present=%s)", async (folderPresent) => {

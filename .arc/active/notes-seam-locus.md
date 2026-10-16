@@ -577,4 +577,18 @@ cover spawned close (`errand.e2e.test.ts`), abandon (`errand-abandon.e2e.test.ts
 No golden fixtures change. Partial settlement remains primary-only before the flip; its optional projection slots
 follow the same runtime contract without introducing a spawned partial allocation.
 
+## Task 1.7: cleanup commands and missing registrations
+
+Spec § 1.4, item 2 changes `unit/session-init/branch-gone-cascade.test.ts`,
+`unit/session-init/branch-gone-recovery.test.ts`, `unit/session-init/recommended-action-recovery.test.ts`,
+`unit/session-init/removal-observations.test.ts`, `unit/status/schema.test.ts`, and `unit/status/run.test.ts`, and adds
+`unit/session-init/missing-worktree-folders.test.ts`. The integration status fixtures in `integration/status.test.ts`
+also supply the new empty missing-folder list and assert the housekeep action introduced by item 1. Paths are under `packages/arc-framework/__tests__/`.
+
+The five session-init goldens (`session-init-active-resume.json`, `session-init-branch-gone.json`,
+`session-init-current-husk.json`, `session-init-identity-missing.json`, and `session-init-orient.json`) gain only
+`sweep.value.missingFolders: []`. Recovery's removable candidate carries the work-unit name read from its marker; a
+marker without a work-unit name grants no teardown offer. Missing registrations keep their branches out of both
+candidate tiers, and a foreign lock's unlock stays its owner's text-only decision.
+
 ---

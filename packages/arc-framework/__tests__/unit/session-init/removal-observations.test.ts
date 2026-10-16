@@ -89,3 +89,9 @@ it("applies the injected projection check to the default residue observation", a
   expect(result.retirements).toEqual([{ status: "blocked", worktreePath: checkout,
     subject: { slug: "done", branch: "feat/done" }, reason: "uncommitted" }]);
 });
+
+it("offers a typed teardown for a removable shipped checkout", async () => {
+  const result = await sweep();
+  expect(result.worktrees[0]?.actions).toEqual([{ argv: ["arc", "teardown", "done"], text: "arc teardown done" }]);
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
+});

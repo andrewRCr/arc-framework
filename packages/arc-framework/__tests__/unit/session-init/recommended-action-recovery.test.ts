@@ -30,11 +30,28 @@ describe("branch recovery actions", () => {
     { kind: "surface", remoteEvidence: "exact", candidates: [candidate, { ...candidate, branch: "feat/other" }] },
     { kind: "unproven", remoteEvidence: "unreachable", failureReason: "network", candidates: [] },
     { kind: "resolved", remoteEvidence: "exact", candidate: { ...candidate, proposedAction: "external", worktreePath: "/wt/external" } },
-    { kind: "resolved", remoteEvidence: "exact", candidate: { ...candidate, proposedAction: "removable", worktreePath: "/wt/retired" } },
     { kind: "resolved", remoteEvidence: "exact", candidate },
   ] satisfies CascadeResolution[])("preserves the composed decision text for $kind", (resolution) => {
     const result = inferBranchGoneRecovery(resolution, dirty);
     expect(result.actions).toEqual([{ text: result.recommendedPromptText }]);
     expect(SessionInitRecoveryValueSchema.safeParse(result).success).toBe(true);
   });
+});
+
+it("offers the marker's work-unit teardown when recovery finds a removable checkout", () => {
+  const result = inferBranchGoneRecovery({ kind: "resolved", remoteEvidence: "exact",
+    candidate: { branch: "feat/retired", proposedAction: "removable", worktreePath: "/wt/retired", workUnitName: "retired" } }, clean);
+  expect(result.actions).toEqual([{ argv: ["arc", "teardown", "retired"], text: "arc teardown retired" }]);
+  expect(result.recommendedPromptText).toContain("arc teardown retired");
+  expect(SessionInitRecoveryValueSchema.safeParse(result).success).toBe(true);
+});
+
+it("keeps teardown routes with each removable choice in an ambiguous recovery", () => {
+  const result = inferBranchGoneRecovery({ kind: "surface", remoteEvidence: "exact", candidates: [
+    { branch: "feat/retired", proposedAction: "removable", worktreePath: "/wt/retired", workUnitName: "retired" },
+    candidate,
+  ] }, clean);
+  expect(result.actions).toContainEqual({ argv: ["arc", "teardown", "retired"], text: "arc teardown retired" });
+  expect(result.recommendedPromptText).toContain("arc teardown retired");
+  expect(SessionInitRecoveryValueSchema.safeParse(result).success).toBe(true);
 });

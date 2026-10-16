@@ -13,9 +13,10 @@ import {
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
 function candidate(
-  overrides: { branch?: string; worktreePath?: string; proposedAction?: CandidateAction } = {},
+  overrides: { branch?: string; worktreePath?: string; proposedAction?: CandidateAction; workUnitName?: string } = {},
 ): CascadeCandidate {
-  return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides });
+  return CascadeCandidateSchema.parse({ branch: "feat/x", proposedAction: "switch", ...overrides,
+    ...(overrides.proposedAction === "removable" ? { workUnitName: overrides.workUnitName ?? "x" } : {}) });
 }
 
 type ResolveInput = Parameters<typeof resolveCascade>[0];
@@ -264,6 +265,7 @@ describe("CascadeResolutionSchema", () => {
     branch: "feat/shipped",
     worktreePath: "/wt/shipped",
     proposedAction: "removable",
+    workUnitName: "x",
   });
   const pendingResolution = {
     kind: "pending",

@@ -9,6 +9,7 @@
  * @module
  */
 
+import { workUnitTeardownAction } from "./actions.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type {
   WorktreeSnapshotAnalysisResult,
@@ -81,6 +82,15 @@ export function inferBranchGoneRecovery(
   if (recovery.kind === "pending") {
     return { ...recommendation, actions: [{ ...recovery.refreshRemedy, argv: [...recovery.refreshRemedy.argv] }] };
   }
+  if (recovery.kind === "surface") {
+    const removals = recovery.candidates.flatMap((candidate) => candidate.proposedAction !== "removable" ? []
+      : [workUnitTeardownAction(candidate.workUnitName)]);
+    if (removals.length !== 0) return { ...recommendation, actions: [...removals, { text: recommendation.recommendedPromptText }] };
+  }
+  if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "removable") {
+    const name = recovery.candidate.workUnitName;
+    return { ...recommendation, actions: [workUnitTeardownAction(name)] };
+  }
   if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch") {
     if (recovery.candidate.worktreePath !== undefined) {
       return { ...recommendation, actions: [{ text: `Continue recovery in checkout \`${recovery.candidate.worktreePath}\`.` }] };
@@ -119,7 +129,7 @@ function recommendBranchGoneRecovery(
         ...recovery,
         recommendedAction: "prompt",
         recommendedPromptText: recovery.candidate.proposedAction === "removable"
-          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` before recovering?`
+          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` with \`${workUnitTeardownAction(recovery.candidate.workUnitName).text}\` before recovering?`
           : `Recover onto \`${recovery.candidate.branch}\`?`,
       };
     case "surface":
@@ -129,7 +139,7 @@ function recommendBranchGoneRecovery(
         recommendedPromptText: [
           "Choose a recovery branch:",
           ...recovery.candidates.map((candidate) =>
-            `- \`${candidate.branch}\` (${candidate.proposedAction})`),
+            `- \`${candidate.branch}\` (${candidate.proposedAction}${candidate.proposedAction === "removable" ? `; ${workUnitTeardownAction(candidate.workUnitName).text}` : ""})`),
         ].join("\n"),
       };
     case "unproven":

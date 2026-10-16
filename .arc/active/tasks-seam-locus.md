@@ -170,50 +170,26 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   registration. Exact marker, branch, and head checks remain before removal; partial exits retain primary inspection.
   Spec § 1.4, item 4's additional changed and added tests are enumerated in `notes-seam-locus.md`.
 
-### `[ ]` **1.7 Carry the removal prompts' commands, and report missing folders — § 12.2**
+### `[x]` **1.7 Carry the removal prompts' commands, and report missing folders — § 12.2**
 
 - _Goal:_ The stale-worktree sweep's removable worktree and branch-gone recovery's removable candidate each carry an
   `arc teardown <name>` argv, as the residue sweep's report already does, and the sweep reports every registration whose
   folder is missing in its own `missingFolders` field with its removal.
 
-    - `[ ]` **1.7.a The teardown argv**
+    - `[x]` **1.7.a The teardown argv**
 
-        - The sweep's `StaleWorktreeReport` for a removable `branched` worktree, which carries only its path and branch
-          today, gains its typed `arc teardown <name>`; recovery's removable candidate (`inferBranchGoneRecovery`) is
-          prompted with it rather than with no command, its name the work unit its checkout's marker names (`wuName`),
-          which the candidate's removable decision already reads (`determineCandidateAction`,
-          `lib/session-init/branch-gone-cascade.ts`), so `CascadeCandidateSchema`'s `removable` arm gains the name.
-        - The sweep's registered schema (Task 1.1.b) admits the branched report's `actions` beside its producer.
-        - Session-init's text that prints them is unchanged; the flip's rewrite dispatches the actions.
+        - Removable branched reports and recovery candidates carry marker-named teardown routes, including ambiguous
+          recovery choices; the registered schemas admit their actions and recovery names.
 
-        - Build `test-first` (one behavior at a time):
-            - a removable shipped worktree carries `arc teardown <name>` for its work unit
-            - branch-gone's removable candidate carries the same
+    - `[x]` **1.7.b The sweep's `missingFolders`**
 
-    - `[ ]` **1.7.b The sweep's `missingFolders`**
+        - The primary sweep corroborates unmarked missing registrations through the removal check, separates their
+          reports from branched cleanup, and offers typed teardown only for unlocked shipped work units. Other repairs
+          remain guarded text, including owner-controlled unlocks; returned or unobservable folders wait for a new read.
 
-        - In the primary's session only, as it selects branched candidates today (`findStaleWorktreeCandidates`), the
-          sweep selects every registration whose folder reads missing on the derived roster's rows it is handed
-          (`derivedRoster`, Task 1.4), apart from its marked rows, and reports one only where the removal check agrees:
-          `missing` where it is unlocked or holds the projection's lock, `locked` with no folder where any other lock
-          holds it. Any other outcome waits for the next session start's reading.
-        - It reports each in `missingFolders: [{ worktreePath, branch, outcome, actions }]`, beside `worktrees`, never
-          as a `StaleWorktreeReport`, so a shipped work unit's registration whose folder is missing stops reporting as
-          an `external` `branched` report. The sweep's registered schema (Task 1.1.b) gains the field beside its
-          producer.
-        - A branched one whose work unit has ended — shipped by its branch, as today — takes `arc teardown <name>`,
-          typed; where it is locked, `git worktree unlock <path>`, then `arc teardown <name>`, as text. Every other one
-          — detached, a hand-deleted husk's among them, or branched with its work unit in flight or no work unit linking
-          its branch — takes `git worktree remove <path>` as text, once `<path>` is confirmed still missing, with
-          `git worktree unlock <path>` first where it is locked. Task 3.7 adds the reading of an ended work unit from
-          the flip.
-
-        - Build `test-first` (one behavior at a time):
-            - a shipped work unit's folderless registration reports in `missingFolders` with its typed teardown, and a
-              locked one with the unlock, then the teardown, as text
-            - a hand-deleted husk's registration reports the removal by path, unlocked first where locked
-            - a registration whose folder came back by the check reports nothing
-            - a linked checkout's session reports none
+- _Outcome:_ Spec § 1.4, item 2's test and golden changes are enumerated in `notes-seam-locus.md`; the envelope goldens
+  gain only `sweep.value.missingFolders: []`. Displayed path operands are quoted literally, while typed argv remain the
+  executable form. Workflow text stays unchanged until the flip.
 
 ### `[ ]` **1.8 Move a locked checkout in the doubled-force form — § 12.3**
 

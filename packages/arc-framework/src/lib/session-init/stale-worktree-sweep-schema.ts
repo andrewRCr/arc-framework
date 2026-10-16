@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
 import { withRemoteEvidence } from "../kernel/index.js";
+import { MissingWorktreeFolderSchema } from "./missing-worktree-folders.js";
 import { CurrentHuskAdvisorySchema } from "./current-husk-advisory.js";
 
 const WorktreeSubjectSchema = z.discriminatedUnion("kind", [
@@ -29,7 +30,7 @@ const HuskCleanupDecisionSchema = z.discriminatedUnion("action", [
 ]);
 const StaleWorktreeReportSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("branched"), worktreePath: z.string(), branch: z.string(), decision: BranchedCleanupDecisionSchema,
+    kind: z.literal("branched"), worktreePath: z.string(), branch: z.string(), decision: BranchedCleanupDecisionSchema, actions: SessionActionsSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("husk"), worktreePath: z.string(), branch: z.null(), stampedBranch: z.string(),
@@ -79,6 +80,7 @@ const RenameMoveResidueSchema = z.strictObject({
 
 /** Complete cleanup advisory with exact-evidence authorization constraints. */
 export const StaleWorktreeSweepResultSchema = withRemoteEvidence({
+  missingFolders: z.array(MissingWorktreeFolderSchema),
   worktrees: z.array(StaleWorktreeReportSchema), renameMoves: z.array(RenameMoveResidueSchema),
   retirements: z.array(LandedRetirementResidueSchema), warnings: z.array(z.string()),
 }).superRefine((value, context) => {
