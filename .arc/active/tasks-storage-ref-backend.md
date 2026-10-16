@@ -164,33 +164,19 @@ recorded holding the two load-bearing host properties.
           port's types and original failures, probing only after a completed usage error. Old Git receives an upgrade
           diagnostic; supported, unavailable, and unrecognized versions leave Git's error intact.
 
-### `[ ]` **2.3 The ref-transaction helper — § 11.1, § 11.2**
+### `[x]` **2.3 The ref-transaction helper — § 11.1, § 11.2**
 
 - _Goal:_ One `update-ref --stdin` transaction applies every ref change with its expected old value, and a failure comes
   back as a typed lost race naming each ref's actual tip, or as Git's own error where nothing raced.
 
-    - `[ ]` **2.3.a The transaction and its outcomes**
-        - A module beside the executor seam in `lib/git/`: `RefChange` and `RefTransactionOutcome` as § 11.1 gives them;
-          never `--batch-updates`; a failure re-reads every named ref with one `for-each-ref`, filtering its output by
-          exact name since a prefix pattern also lists refs below it, and returns `lost-race` for each ref off its
-          expected value, an absent one with `actual: null`, else runs 2.2.b's check and rethrows with Git's text
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, in both ref formats
-            - a create, an update, and a delete each commit with their expected values
-            - a create meeting an existing ref, and an update or delete meeting another tip, return `lost-race` with
-              each ref's actual tip, and leave every ref in the transaction unchanged
-            - an update or delete meeting an absent ref returns `lost-race` with `actual: null`
-            - a failure with every ref matching — a stale lock file, or a ref name colliding with a folder of refs —
-              rethrows with Git's text
-            - Unit tier, over a stubbed executor: reporting Git 2.45, a failure with every ref matching throws naming
-              2.45 and 2.47, and reporting 2.47 it rethrows with Git's text
+    - `[x]` **2.3.a The transaction and its outcomes**
+        - `updateRefTransaction` applies changes atomically and re-reads exact ref names to report every lost race.
+          Matching tips preserve Git's failure or name the Git floor; updates never follow symbolic refs into another
+          namespace. Files and reftable cases include refusal repair and retry.
 
-    - `[ ]` **2.3.b Lock waits**
-        - One shared argument set, `-c reftable.lockTimeout=5000 -c core.filesRefLockTimeout=5000`, that every store
-          write and every fetch into the tracking namespace passes; the wait is a parameter, so the stale-lock case
-          above runs with a short one
-        - Build `test-first` (one behavior at a time):
-            - a transaction meeting a lock another process holds for less than the wait commits, in both ref formats
+    - `[x]` **2.3.b Lock waits**
+        - `gitRefLockArgs` shares the parameterized five-second lock settings across ref formats. A transaction
+          commits after another process releases a contended lock in either format; stale locks retain a short override.
 
 ### `[ ]` **2.4 The push helper — § 11.5**
 
