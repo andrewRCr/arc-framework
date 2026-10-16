@@ -983,7 +983,9 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
           checkout's own identity root — resolving each through `lookup`; its slot reports the plan, and
           `arc user reconcile-references --apply` applies it, since session start writes nothing:
             - a folder whose work unit was renamed follows its current slug, applied unasked as the reconcile's
-              reference rewrites are;
+              reference rewrites are, taking the place of an empty folder there, as the projection creates; where the
+              current slug's folder holds anything, neither folder moves, the two are never merged, and the plan reports
+              both paths as text for the person to combine;
             - a folder whose work unit has ended is reported with its path, as text for its person to remove once
               nothing in it is wanted (§ 4.3), and never removed, `--apply` included;
             - a name resolving to no work unit is left and reported;
@@ -993,6 +995,10 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
 
         - Build `test-first` (one behavior at a time), over the reference backend:
             - a renamed work unit's folder is planned and, on `--apply`, moved to its current slug
+            - an empty folder at the current slug, as the projection creates, is replaced by the renamed one on
+              `--apply`
+            - a folder at the current slug holding anything leaves both folders in place, `--apply` included, and the
+              plan reports both paths as text
             - an ended work unit's folder is reported with its path as text, and `--apply` leaves it
             - a name resolving to no work unit is left and reported
             - a promoted work item's folder reconciles as a fresh start's

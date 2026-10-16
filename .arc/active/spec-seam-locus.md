@@ -720,13 +720,20 @@ from the flip a checkout claimed in place before it holds its work unit with no 
   `arc user open` (`handlers/user.ts`) refuses `unsupported` from the flip, naming the meta's session context; until
   then it runs as today.
 - **Scratch.** The projection creates `.arc/user/<identity>/scratch/work-unit/<slug>/`, empty, for the checkout's own
-  work unit. From the flip the user-reference reconcile reconciles the person's folders there through `lookup`, its
-  slot planning and `arc user reconcile-references --apply` applying, since session start writes nothing (§ 3.5): a
-  folder whose work unit was renamed follows its current slug, applied unasked as the reconcile's reference rewrites
-  are; one whose work unit has ended is reported with its path, for its person to remove (§ 4.3); and a name
-  resolving to no work unit is left and reported. The reconcile never removes a folder, `--apply` included, since its
-  apply runs unasked and a folder may hold anything the person put there. An absent scratch root plans nothing. A
-  promoted work item's folder reconciles as a fresh start's does, and the tests include one.
+  work unit. From the flip the user-reference reconcile reconciles the person's folders there through `lookup`, its slot
+  planning and `arc user reconcile-references --apply` applying, since session start writes nothing (§ 3.5): a folder
+  whose work unit was renamed follows its current slug, applied unasked as the reconcile's reference rewrites are,
+  taking the place of an empty folder there, as the projection creates, while where the current slug's folder holds
+  anything neither folder moves, the two are never merged, and both are reported with their paths as text for the person
+  to combine (A13); one whose work unit has ended is reported with its path, for its person to remove (§ 4.3); and a
+  name resolving to no work unit is left and reported. The reconcile never removes a folder, `--apply` included, since
+  its apply runs unasked and a folder may hold anything the person put there; replacing an empty one, as a follow does,
+  removes nothing the person put there. An absent scratch root plans nothing. A promoted work item's folder reconciles
+  as a fresh start's does, and the tests include one.
+- **A renamed work unit's workspace.** From the flip a rename leaves the per-work-unit workspace under its old name
+  untouched, since only rename's in-repo arm renames it (`runUserRenameWorkspace`, `commands/rename.ts`), and this
+  change neither reads, reports, nor moves it: from the flip nothing reads a workspace's `SESSION-NOTES` (above), and
+  `retiredSubdirs` resolves `skip` (§ 4.2). The deletion pass retires the per-work-unit workspaces (A13).
 
 ### 3. In-flight derivation and overlap
 
@@ -2494,6 +2501,9 @@ close.
 19. **A refused reconcile prepare reports in its slot (A12).** From the flip, where the store-backed prepare returns a
     refusal, `currentWuReconcile` reports its condition with its remedy as the slot's action, and the probe does not
     fail.
+20. **A renamed work unit's scratch folder never lands on another (A13).** From the flip a renamed work unit's scratch
+    folder follows its current slug only where the folder there is absent or empty; where it holds anything, neither
+    moves, and both are reported with their paths as text.
 
 ## Open Questions
 
@@ -2526,5 +2536,7 @@ this design open.
   _Supersedes:_ § 12.2, the ended registration's teardown. _Trigger:_ door. _Work:_ 3.7. _Revalidated:_ pending → 3.10.
 - **A12** — 2026-10-16 — spec-depth: a refused store prepare reports in the session reconcile slot with its remedy.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.1. _Revalidated:_ pending → 5.11.
+- **A13** — 2026-10-16 — spec-depth: a renamed work unit's scratch folder follows only into an absent or empty one.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.8. _Revalidated:_ pending → 2.10.
 
 ---
