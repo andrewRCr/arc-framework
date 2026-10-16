@@ -1316,6 +1316,10 @@ inject a reference-backend store.
           `CloseOrdinaryErrandRuntimeOptions`, `AbandonOrdinaryErrandRuntimeOptions`, and
           `LeaveOrdinaryErrandRuntimeOptions` — gain an optional `store`, which its handler fills (Phase 3's design
           decisions) and which the step reads and writes through.
+        - The record's content is the Errand record's JSON as the identity ref holds it today: the step decodes it with
+          `deserializeTransientIdentityRecord` and encodes it with `serializeTransientIdentityRecord`
+          (`lib/errand/identity-record.ts`), the encoding promotion's steps parse (`TransientIdentityRecordV3Schema`,
+          `lib/errand/promote-store.ts`), since the store's Errand kind sets none.
         - On a stale-version refusal it reads the record once more: where it now equals the computed record, it reports
           `idempotent`, as the transform does before it compares the request's `previous` (`transitionOrdinaryErrand`);
           otherwise it reports today's mismatch refusal. It recomputes nothing, and any other refusal, a divergent
