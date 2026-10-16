@@ -1,5 +1,8 @@
 /** Complete runtime contracts for checkout-derived session frames. */
 
+import { StoreIdentityDiscoverySchema } from "./store-identities.js";
+import { ParsedMetaPauseSchema } from "../active/meta-schema.js";
+import { SessionActionsSchema } from "../session-init/actions.js";
 import { z } from "zod";
 import { RegisteredWorktreeSchema } from "../git/worktree-roster.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../load-set/types.js";
@@ -21,6 +24,7 @@ export const DerivedCheckoutDiagnosticSchema = z.strictObject({
 const diagnostics = z.array(DerivedCheckoutDiagnosticSchema).readonly();
 const context = z.strictObject({
   kind: z.literal("resolved"), metaPath: LoadSetPathSchema,
+  pause: ParsedMetaPauseSchema.nullable().optional(),
   owner: z.string().nullable(), branch: z.string().nullable(),
   sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
   workflow: z.string().nullable(), stage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
@@ -35,6 +39,7 @@ const row = {
   origin: z.union([z.strictObject({ entry: z.string(), sourceDigest: z.string() }),
     z.strictObject({ entry: z.string(), version: z.string() })]).nullable(),
   identity: LocusIdentityV1Schema.nullable(), context: context.nullable(),
+  actions: SessionActionsSchema.optional(),
   lifecycleLocation: z.enum(["active", "completed", "parked"]).nullable(), diagnostics,
 };
 /** Full row taxonomy, including unresolved and terminal registrations. */
@@ -64,6 +69,7 @@ export const DerivedLocusFrameSchema = z.strictObject({
     z.strictObject({ kind: z.literal("unsafe"), checkoutPath: z.string().nullable(), reasons: z.array(z.string()).readonly() }),
   ]),
   identityDiscovery: z.discriminatedUnion("kind", [
+    StoreIdentityDiscoverySchema,
     z.strictObject({ kind: z.literal("absent") }),
     z.strictObject({ kind: z.literal("error"), stage: z.enum(["tip", "tree"]), message: z.string() }),
     z.strictObject({ kind: z.literal("complete"), identities: z.array(LocusIdentityV1Schema).readonly(),

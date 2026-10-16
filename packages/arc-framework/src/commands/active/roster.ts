@@ -18,9 +18,12 @@ import {
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
 } from "../../lib/git/worktree-roster.js";
+import type { Store } from "../../lib/store/contract.js";
 import type { GitExec } from "../../lib/git/index.js";
 
 export interface ActiveRosterOptions {
+  cwd?: string;
+  store?: Store;
   exec: GitExec;
   fs: WorktreeRosterFs;
   /** Current identity, or `null` when unconfigured — the filter passes through. */
@@ -46,10 +49,10 @@ export async function runActiveRoster(
   options: ActiveRosterOptions,
 ): Promise<ActiveRosterResult> {
   const { exec, fs, identity, teamMode } = options;
-  const roster = await runWorktreeRoster({ exec, fs });
+  const roster = await runWorktreeRoster({ exec, fs, cwd: options.cwd, store: options.store });
   const filtered = filterRosterByIdentity(roster, { identity, teamMode });
   // Narrow to actual work units: admin / main / meta-less checkouts carry no
   // meta file and are not in-flight work to weigh for scope overlap.
-  const entries = filtered.entries.filter((e) => e.metaFilePath !== undefined);
+  const entries = filtered.entries.filter((e) => e.workUnit !== undefined || e.metaFilePath !== undefined);
   return { entries, warnings: filtered.warnings };
 }

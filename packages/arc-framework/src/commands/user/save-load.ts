@@ -1134,8 +1134,8 @@ async function resolveSameMachineInFlightSubdirs(
   }
 
   for (const entry of roster.entries) {
-    if (entry.metaFilePath === undefined || entry.state === "Shipped") continue;
-    const wuName = wuNameFromMetaFilePath(entry.metaFilePath);
+    if ((entry.workUnit === undefined && entry.metaFilePath === undefined) || entry.state === "Shipped") continue;
+    const wuName = entry.workUnit ?? (entry.metaFilePath === undefined ? null : wuNameFromMetaFilePath(entry.metaFilePath));
     if (wuName !== null && candidates.has(wuName)) inFlight.add(wuName);
   }
 

@@ -105,7 +105,7 @@ export function findStaleWorktreeCandidates(
     return { candidates: [], warnings: roster.warnings };
   }
   return {
-    candidates: roster.entries.filter((entry) => isShippedWorkUnit(entry.branch, shipped)),
+    candidates: roster.entries.filter((entry) => entry.branch !== undefined && isShippedWorkUnit(entry.branch, shipped)),
     warnings: roster.warnings,
   };
 }
@@ -270,7 +270,9 @@ export async function runStaleWorktreeSweep(
     rows: derivedRoster, shipped, exec, check: options.projectionRemovalSlots?.check, folderExists: options.folderExists,
   }) : [];
   const candidates = [...new Map(
-    [...selected.candidates, ...retainedRoleCandidates].map((entry) => [entry.worktreePath, entry]),
+    [...selected.candidates, ...retainedRoleCandidates]
+      .filter((entry): entry is WorktreeRosterEntry & { branch: string } => entry.branch !== undefined)
+      .map((entry) => [entry.worktreePath, entry]),
   ).values()].filter((entry) => !missingPaths.has(entry.worktreePath));
   const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
@@ -354,7 +356,7 @@ export async function runStaleWorktreeSweep(
 }
 
 
-async function inspectBranchedRemoval(entry: WorktreeRosterEntry, context: {
+async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: string }, context: {
   options: RunStaleWorktreeSweepOptions;
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>;
   userSurfaceFs: UserSurfaceMigrationFs;

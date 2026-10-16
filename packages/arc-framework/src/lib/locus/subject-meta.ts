@@ -1,5 +1,12 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
+import type { Store } from "../store/contract.js";
+import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
+import { WorkUnitReadPlacementSchema } from "../store/placement.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { cohortDocumentPath } from "../store/lifecycle-record-path.js";
+import { recordReferences, OwnerIdentitySchema } from "../store/identity.js";
+import { ParsedMetaPauseSchema, type ParsedMetaPause } from "../active/meta-schema.js";
 import { join, relative, sep } from "node:path";
 
 import {
@@ -28,6 +35,7 @@ import {
   type LoadSetWorkUnitStage,
 } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
+import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { resolveActiveCohortDocPath } from "../session-init/cohort-doc.js";
 import {
   resolveTaskListCursorFromFile,
@@ -83,6 +91,7 @@ export type SubjectMetaProjection =
       kind: "resolved";
       metaPath: string;
       owner: string | null;
+      pause?: ParsedMetaPause | null;
       branch: string | null;
       sessionType: SessionType | null;
       workflow: string | null;
@@ -98,6 +107,8 @@ export type SubjectMetaProjection =
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
 export async function projectCheckoutSubjectMeta(options: {
   cwd: string;
+  store?: Store;
+  workUnit?: Extract<StoreWorkUnitEvidence, { kind: "present" }>;
   subjectKey: string;
   identity: string;
   identityGlobalUserDir?: string | null;
@@ -108,14 +119,16 @@ export async function projectCheckoutSubjectMeta(options: {
   foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
-  const expectedPath = options.metaRoot.kind === "maintainer"
+  const expectedPath = options.workUnit !== undefined
+    ? workItemArtifactPath(options.subjectKey, "meta", WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), options.workUnit.fields.cohort)
+    : options.metaRoot.kind === "maintainer"
     ? `.arc/active/meta-${options.subjectKey}.md`
     : options.metaRoot.kind === "contributor"
       ? `.arc/user/${options.metaRoot.identity}/active/meta-${options.subjectKey}.md`
       : normalizedRelative(options.cwd, options.metaRoot.path);
   const matches = options.candidates.filter((candidate) =>
     normalizedRelative(options.cwd, candidate.path) === expectedPath);
-  if (matches.length !== 1) {
+  if (options.workUnit === undefined && matches.length !== 1) {
     return {
       kind: "unresolved",
       code: "subject-unresolved",
@@ -124,7 +137,7 @@ export async function projectCheckoutSubjectMeta(options: {
     };
   }
   const selected = matches[0];
-  if (selected === undefined || selected.kind === "error") {
+  if (options.workUnit === undefined && (selected === undefined || selected.kind === "error")) {
     return {
       kind: "unresolved",
       code: "subject-unresolved",
@@ -135,7 +148,9 @@ export async function projectCheckoutSubjectMeta(options: {
 
   let record;
   try {
-    record = parseMetaRecord(selected.text);
+    record = options.workUnit === undefined
+      ? parseMetaRecord(selected?.kind === "read" ? selected.text : "")
+      : { ...options.workUnit.fields, branch: options.workUnit.branch };
   } catch (error) {
     return {
       kind: "unresolved",
@@ -219,7 +234,7 @@ export async function projectCheckoutSubjectMeta(options: {
       };
     }
   }
-  const inferredSessionType = options.metaRoot.kind === "completed"
+  const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, record.taskList, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
@@ -262,10 +277,14 @@ export async function projectCheckoutSubjectMeta(options: {
       });
     }
   }
-  const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
+  const taskListPath = options.workUnit === undefined || record.taskList === null
+    ? resolveTaskListPath(expectedPath, record.taskList)
+    : workItemArtifactPath(options.subjectKey, "tasks", WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), record.cohort);
   const taskCursor = taskListPath === null
     ? null
-    : await resolveTaskListCursorFromFile({
+    : options.workUnit !== undefined && options.store !== undefined
+      ? await readStoreTaskCursor(options.store, options.workUnit.record, taskListPath)
+      : await resolveTaskListCursorFromFile({
         cwd: options.cwd,
         taskListPath,
         readFile: (path) => options.io.readFile(path),
@@ -318,7 +337,9 @@ export async function projectCheckoutSubjectMeta(options: {
     candidateRenewalRequired: requireExactDurableBoundary,
     deliveryCorrection,
   });
-  const cohortDocPath = await resolveActiveCohortDocPath({
+  const cohortDocPath = options.workUnit !== undefined && options.store !== undefined
+    ? await readStoreCohortDoc(options.store, record.cohort)
+    : await resolveActiveCohortDocPath({
     cwd: options.cwd,
     activeMetaPath: expectedPath,
     fs: options.io,
@@ -327,6 +348,7 @@ export async function projectCheckoutSubjectMeta(options: {
     kind: "resolved",
     metaPath: expectedPath,
     owner: normalizePointer(record.owner),
+    ...(options.workUnit === undefined ? {} : { pause: ParsedMetaPauseSchema.nullable().parse(record.pause) }),
     branch: normalizePointer(record.branch),
     sessionType,
     workflow: workflowFor(sessionType, workUnitStage),
@@ -416,4 +438,26 @@ function projectWorkUnitStage(input: {
     return "verification-closeout";
   }
   return null;
+}
+
+async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<string | null> {
+  if (cohort === null) return null;
+  const name = cohort.split("/").at(-1);
+  const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
+  const read = await store.read({ reference });
+  if (read.status === "refused") {
+    if (read.refusal.code === "not-found") return null;
+    throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  }
+  return cohortDocumentPath(read.result);
+}
+
+async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
+  taskListPath: string): Promise<TaskListCursorFileResult> {
+  const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
+  if (read.status === "refused") {
+    if (read.refusal.code === "not-found") return { status: "missing", path: taskListPath };
+    throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  }
+  return resolveTaskListCursor(read.result.content);
 }

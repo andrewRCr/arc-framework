@@ -1,7 +1,8 @@
 /** Dormant checkout-row composition over authority, corroboration, and safety facts. */
 
+import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import type { z } from "zod";
-import { DerivedCheckoutDiagnosticSchema, DerivedCheckoutRowSchema } from "./derived-schema.js";
+import { DerivedCheckoutDiagnosticSchema } from "./derived-schema.js";
 import type { TransientIdentitySnapshot } from "../errand/identity-snapshot.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { CompletedEvidenceRead } from "../work-unit/completed-index.js";
@@ -24,6 +25,8 @@ import {
   projectCheckoutAuthorityTopology,
   projectCheckoutCorroborationTopology,
 } from "./role-topology.js";
+import type { SessionAction } from "../session-init/actions.js";
+import type { DerivedCheckoutSubject } from "./role-derivation.js";
 import type { LocusIdentityV1 } from "./schema/identity.js";
 import type { SubjectMetaProjection } from "./subject-meta.js";
 
@@ -34,7 +37,9 @@ interface DerivedCheckoutRowBase {
   readonly checkout: RegisteredWorktree;
   readonly markerGeneration: string | null;
   readonly parentCheckoutPath: string | null;
-  readonly origin: DerivedCheckoutRow["origin"];
+  readonly origin: { readonly entry: string; readonly sourceDigest: string }
+    | { readonly entry: string; readonly version: string } | null;
+  readonly actions?: SessionAction[];
   readonly identity: LocusIdentityV1 | null;
   readonly context: Extract<SubjectMetaProjection, { kind: "resolved" }> | null;
   readonly lifecycleLocation: "active" | "completed" | "parked" | null;
@@ -42,13 +47,18 @@ interface DerivedCheckoutRowBase {
 }
 
 /** Future internal row taxonomy; deliberately separate from the selected public locus schema. */
-export type DerivedCheckoutRow = z.infer<typeof DerivedCheckoutRowSchema>;
+export type DerivedCheckoutRow = DerivedCheckoutRowBase & (
+  | { readonly kind: "free-primary" | "unmanaged-checkout"; readonly subject: null }
+  | { readonly kind: "work-unit" | "retired" | "transient"; readonly subject: DerivedCheckoutSubject }
+  | { readonly kind: "unresolved-checkout"; readonly subject: DerivedCheckoutSubject | null }
+);
 
 /** Project one registered checkout without consulting records, branches as authority, or process liveness. */
 export function projectDerivedCheckoutRow(options: {
   checkout: RegisteredWorktree;
   marker: DormantMarkerGenerationEvidence;
   activeMeta: ActiveMetaEvidence;
+  workUnit?: StoreWorkUnitEvidence;
   archivedMeta?: ArchivedMetaEvidence;
   completed: CompletedEvidenceRead;
   identities: TransientIdentitySnapshot;
@@ -62,12 +72,12 @@ export function projectDerivedCheckoutRow(options: {
     && markerSubject.kind !== "partial-errand"
     ? markerSubject
     : null;
-  const lifecycle = projectWorkUnitLifecycle({
+  const lifecycle = options.workUnit === undefined ? projectWorkUnitLifecycle({
     activeMeta: options.activeMeta,
     archivedMeta,
     markerSubject: markerWorkUnit,
     completed: options.completed,
-  });
+  }) : options.workUnit.kind === "present" ? options.workUnit.lifecycle : options.workUnit;
   const identityAuthority = projectIdentityAuthority(options.identities, markerTransient);
   const derived = deriveCheckoutRole({
     topology: projectCheckoutAuthorityTopology(options.checkout),
@@ -87,7 +97,7 @@ export function projectDerivedCheckoutRow(options: {
     ? composed.subject
     : "subject" in derived
       ? derived.subject
-      : null;
+      : markerSubject;
   const identity = subject === null || subject.kind === "work-unit" || subject.kind === "partial-errand"
     ? null
     : exactIdentity(options.identities, subject);
@@ -98,7 +108,9 @@ export function projectDerivedCheckoutRow(options: {
     origin: markerDetails.origin,
     identity,
     context: null,
-    lifecycleLocation: options.activeMeta.kind === "present"
+    lifecycleLocation: options.workUnit?.kind === "present"
+      ? options.workUnit.record.placement?.kind === "completed" ? "completed" : options.workUnit.record.placement?.kind === "active" ? "active" : "parked"
+      : options.activeMeta.kind === "present"
       ? options.activeMeta.location
       : archivedMeta.kind === "present"
         ? archivedMeta.location

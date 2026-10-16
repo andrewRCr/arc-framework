@@ -10,6 +10,12 @@
  * @module
  */
 
+import type { Store } from "../store/contract.js";
+import { createStore } from "../store/create.js";
+import { createDefaultStorePorts } from "../store/default-ports.js";
+import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
+import { SlugSchema } from "../kernel/index.js";
 import { lstat } from "node:fs/promises";
 
 import { validateState } from "../kernel/schema/vocabulary.js";
@@ -42,7 +48,8 @@ export type WorktreeRosterState = z.infer<typeof WorktreeRosterStateSchema>;
  */
 export const WorktreeRosterEntrySchema = z.strictObject({
   worktreePath: z.string(),
-  branch: z.string(),
+  branch: z.string().optional(),
+  workUnit: z.string().optional(),
   identity: z.string().optional(),
   metaFilePath: z.string().optional(),
   state: WorktreeRosterStateSchema.optional(),
@@ -85,6 +92,8 @@ export type RegisteredWorktreeScanResult =
   | { ok: false; message: string };
 
 export interface RunWorktreeRosterOptions {
+  cwd?: string;
+  store?: Store;
   exec: GitExec;
   fs: WorktreeRosterFs;
 }
@@ -94,6 +103,8 @@ export async function runWorktreeRoster(
 ): Promise<WorktreeRosterResult> {
   const { exec, fs } = options;
   const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd ?? process.cwd(), exec }));
+  if (store.capabilities.stateOffBranch) return runStoreRoster(store, worktrees);
   const branched = worktrees.filter(
     (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
@@ -447,4 +458,38 @@ async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promis
   } catch {
     return [];
   }
+}
+
+async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorcelainRecord[]): Promise<WorktreeRosterResult> {
+  const warnings: string[] = [];
+  const entries = await Promise.all(worktrees.map(async worktree => {
+    const entry: WorktreeRosterEntry = { worktreePath: worktree.path,
+      ...(worktree.branch === null ? {} : { branch: worktree.branch }) };
+    try {
+      const marker = await readWorktreeMarkerGeneration(worktree.path);
+      if (marker.kind === "absent") return entry;
+      if (marker.kind === "malformed") { warnings.push(`${marker.path}: ${marker.message}`); return entry; }
+      const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+      if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
+      entry.workUnit = ownership.subject.name;
+      const lookup = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(entry.workUnit) } });
+      if (lookup.status === "refused") { warnings.push(`${worktree.path}: ${lookup.refusal.condition}`); return entry; }
+      const read = await store.read({ reference: lookup.result.reference });
+      if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition}`); return entry; }
+      Object.assign(entry, storeRosterFields(ParsedMetaRecordSchema.parse(read.result.fields)));
+    } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
+    return entry;
+  }));
+  return { entries, warnings };
+}
+
+function storeRosterFields(fields: ParsedMetaRecord): Partial<WorktreeRosterEntry> {
+  return {
+    ...(fields.owner === null ? {} : { identity: fields.owner }),
+    ...(fields.state === null ? {} : { state: validateState(fields.state) }),
+    ...(fields.cohort === null ? {} : { cohort: fields.cohort }),
+    ...(fields.workClass === null ? {} : { class: fields.workClass }),
+    ...(fields.priority === null ? {} : { priority: fields.priority }),
+    ...(fields.dependsOn.length === 0 ? {} : { dependsOn: fields.dependsOn }),
+  };
 }

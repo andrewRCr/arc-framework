@@ -2,6 +2,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 
+import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
@@ -20,6 +21,8 @@ import { resolveUserIdentity } from "./shared.js";
  */
 export async function resolveCandidateMutationOwner(input: {
   readonly cwd: string;
+  readonly store?: Store;
+  readonly projectId?: () => Promise<string>;
   readonly exec: GitExec;
 }): Promise<CandidateMutationOwner> {
   const [{ settings }, identity] = await Promise.all([
@@ -28,6 +31,9 @@ export async function resolveCandidateMutationOwner(input: {
   ]);
   return projectCandidateMutationOwner(await runDerivedLocusStateProbe({
     cwd: input.cwd,
+    store: input.store,
+    projectId: input.projectId,
+    archiveCadence: settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
     identity,
     baseBranch: settings["branch.base"],
     exec: input.exec,

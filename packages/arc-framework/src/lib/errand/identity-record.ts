@@ -28,6 +28,7 @@ const OrdinaryBaseShape = {
   kind: z.literal("errand"),
   purpose: z.literal("errand"),
   intent: z.string().max(4_096),
+  owner: SlugSchema.optional(),
   branch: LocusOpaqueTextSchema,
 };
 const DescriptionOriginShape = {

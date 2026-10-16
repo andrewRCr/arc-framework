@@ -30,7 +30,7 @@ export function resolveInFlightComposition(
 ): ClassComposition | null {
   if (entries.length === 0) return null;
   const rows = entries.map((e) => ({
-    workUnit: e.branch,
+    workUnit: e.workUnit ?? e.branch ?? e.worktreePath,
     class: validateClass(e.class ?? null),
   }));
   return classComposition(rows);

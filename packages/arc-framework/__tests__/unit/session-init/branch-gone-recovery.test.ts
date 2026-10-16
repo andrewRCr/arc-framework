@@ -18,7 +18,7 @@ function runBranchGoneRecovery(options: Omit<RunBranchGoneRecoveryOptions, "deri
   return runBranchGoneRecoveryCore({ ...options, folderExists: options.folderExists ?? folderExists, derivedRoster: options.derivedRoster ?? options.roster.entries.map((entry) => ({
     kind: "unmanaged-checkout" as const, subject: null, markerGeneration: null, parentCheckoutPath: null,
     origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [],
-    checkout: { path: entry.worktreePath, branch: entry.branch, head: "a".repeat(40), detached: false, primary: false, folderPresent: true },
+    checkout: { path: entry.worktreePath, branch: entry.branch ?? null, head: "a".repeat(40), detached: false, primary: false, folderPresent: true },
   })) });
 }
 

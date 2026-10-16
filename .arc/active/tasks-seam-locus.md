@@ -330,153 +330,46 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
 (`resolveLinkedCheckoutBranch`, `lib/git/default-capture-set.ts`), which requires the project ID as its repository, so a
 read that gets none stops at that incomplete observation before calling it.
 
-### `[ ]` **2.1 Derive each checkout's role from its marker and the store — § 2.1**
+### `[x]` **2.1 Derive each checkout's role from its marker and the store — § 2.1**
 
 - _Goal:_ From the flip each registered checkout's role comes from its marker, naming the work item, and that work
   item's placement, `State`, owner, and pause read through the store — never from the checkout's `.arc/active/` — with a
   completed work unit in the frame its archive cadence allows, two markers naming one work unit unresolved for both, and
   an incomplete observation granting no role and no cleanup authority.
 
-    - `[ ]` **2.1.a The personal root's layout address**
+    - `[x]` **2.1.a The personal root's layout address**
 
-        - Add an address for an identity's personal root to `ArcLayoutAddressSchema` (`lib/layout/schema.ts`), resolved
-          by `resolveArcPath` (`lib/layout/projection.ts`), whose `user-document` addresses name only files beneath it
-          today.
-        - The derived-locus probe (`runDerivedLocusStateProbe`, `handlers/derived-locus-state-probe.ts`) takes its
-          identity-global root from it, in place of `join(primary.path, ".arc", "user", identity)`.
+        - Added the personal-root layout address; the probe resolves its identity-global root through it.
 
-        - Build `test-first` (one behavior at a time):
-            - the address resolves to the identity's personal root under the primary checkout
-            - the probe's identity-global root comes from it
+    - `[x]` **2.1.b The evidence over the store**
 
-    - `[ ]` **2.1.b The evidence over the store**
+        - The selected store supplies primary records, branch links, project identity, cohort paths, and lifecycle
+          facts; unresolved observations retain their diagnostics.
 
-        - From the flip the derived evidence and lifecycle evidence (`lib/locus/derived-evidence.ts`,
-          `lib/locus/derived-lifecycle-evidence.ts`) and the subject's meta read (`projectCheckoutSubjectMeta`,
-          `lib/locus/subject-meta.ts`, which expects `.arc/active/meta-<slug>.md` today) read the marker's work item
-          through the store: its claim through `lookup`, then its record with placement, `State`, owner, and pause. The
-          evidence's IO (`DerivedLocusEvidenceIO`) gains the store, which the probe opens over the checkout.
-        - From the flip the subject's branch, which the expected topology (`expectedTopology`,
-          `lib/locus/derived-lifecycle-evidence.ts`), session-type inference (`inferSessionType`), and an Integrating
-          work unit's integration boundary (`recoverIntegratingBoundary`, `lib/locus/subject-meta.ts`) read from the
-          meta's `Branch` today, is its work-branch link, chosen by the transition-write-path change's selection
-          (`selectWorkBranchLink`, `workBranchName`, `lib/store/lifecycle-branch.ts`) among the links naming the project
-          ID, called with the project ID as its `repository` and no `currentBranch`, since a current branch it finds
-          unlinked reads `ambiguous` and would leave the subject unresolved before the topology corroboration compares
-          the checkout's branch with the link's: `linked` gives its branch to all three, `none` gives none, as a
-          branchless planning work unit has, and `ambiguous` leaves the subject unresolved (`subject-unresolved`),
-          naming the selection's reason, as no project ID from the port does, naming the port's failure (spec § 2.1).
-        - From the flip the subject's meta read resolves the frame's cohort document itself: it takes the work unit's
-          `Cohort` from its record and reads the `cohort/document` record through the store, its path from Task 1.9's
-          cohort path over that record, so a completed cohort's comes from its own quarter, sequence, and closeout,
-          never the work unit's, since a cohort can close after its member in a closeout of its own; a work unit with no
-          cohort, or a cohort with no document, still yields none. The cohort resolver (`resolveActiveCohortDocPath`,
-          `lib/session-init/cohort-doc.ts`), which reads the active meta by path (`parseMetaRecord`) and checks the
-          document on disk, stays the in-repo arm unchanged, and `arc view`'s calls of it (`handlers/view.ts`), for
-          either target, stay the status change's (spec § 16).
-        - The Candidate mutation owner (`resolveCandidateMutationOwner`, `handlers/candidate-mutation-owner.ts`)
-          projects the probe, so it follows with no reads of its own; its completed set is Task 3.7's.
+    - `[x]` **2.1.c A completed work unit's frame**
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - a spawned marker's checkout derives its work unit's role from the store's active placement
-            - a failed store read or an unreadable marker grants no role and reports the condition
-            - the Candidate mutation owner resolves the work unit the probe derives
-            - the frame's cohort document resolves from the work unit's record, and a work unit with no cohort, or one
-              whose cohort has no document, carries none
-            - a completed work unit whose cohort closed after it, in a closeout of its own, resolves the cohort's
-              projected path at the cohort's quarter, sequence, and closeout
-            - over the in-repo implementation the cohort document resolves as today
-            - an Integrating work unit with a Candidate recovers its integration boundary and session type from its link
-            - a checkout on a branch other than its link's fails the topology corroboration
-            - links the selection cannot choose among leave the subject unresolved, naming the reason
-            - with no project ID the subject is unresolved, naming the port's failure
-            - with no project-ID port injected, a chosen link gives the subject its branch, the project ID read from the
-              project's identity record in the store
+        - Completed records derive the cadence-specific integration or retired frame from landing links, lineage, and
+          exact patch containment.
 
-    - `[ ]` **2.1.c A completed work unit's frame**
+    - `[x]` **2.1.d The derived roster and frame**
 
-        - From the flip a work unit at placement `completed` derives the frame its archive cadence allows, where today
-          an archived meta on the checkout's `HEAD` derives the integration frame and base's completed index the retired
-          one (`projectWorkUnitLifecycle`). The probe reads `archive.cadence` from the resolved settings.
-        - Under `manual` it derives the retired frame. Under `with-integration` it derives the retired frame when the
-          work unit carries a landing-commit link (`landingCommit`, `lib/store/links.ts`), when a lineage record retires
-          it by a cut or an abandonment, or when its checkout's `HEAD` has landed in base by patch identity
-          (`isLandedInBaseStrict`, `lib/git/branch-containment.ts`, against `origin/<base>` where it resolves and the
-          local base otherwise); otherwise, and where no base ref resolves, the integration frame.
-        - Nothing writes the landing-commit link before the delivery change's landing does (spec § 16), so the tests
-          supply it. The full matrix across session-init and recovery is Task 5.10's.
+        - Roster and frame projections retain pause context and reject duplicate marker holders and incomplete inventories.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - under `manual` a completed work unit derives the retired frame
-            - under `with-integration` a landing-commit link, a cut's or an abandonment's lineage record, and a `HEAD`
-              landed by patch identity each derive the retired frame
-            - under `with-integration` an archived, unlanded work unit derives the integration frame, as does one where
-              no base ref resolves
-            - a multi-commit squash merged outside ARC reads unlanded
-
-    - `[ ]` **2.1.d The derived roster and frame**
-
-        - The derived roster and reader (`lib/locus/derived-roster.ts`, `lib/locus/derived-reader.ts`) take each row's
-          role from 2.1.b and 2.1.c; the frame's work-unit context gains the pause record.
-        - Two markers naming one work unit derive as unresolved for both checkouts, where today's reader has no rule for
-          them (`guardWorkUnitLocusCollisions` covers a marker against a markerless checkout alone); an incomplete
-          listing grants no role and no cleanup authority, as today's frame reports an unreadable checkout.
-        - Until the flip a checkout with no marker keeps today's reading of its active meta, which is how a cold-started
-          checkout and one graduated in place are found today.
-
-        - Build `test-first` (one behavior at a time):
-            - two markers naming one work unit derive unresolved for both, over the reference backend
-            - an incomplete listing grants no role, over the reference backend
-            - the frame carries a paused work unit's pause record, over the reference backend
-            - a markerless checkout reads its active meta as today, over the in-repo implementation
-
-### `[ ]` **2.2 Keep every registered checkout in the worktree roster — § 2.1**
+### `[x]` **2.2 Keep every registered checkout in the worktree roster — § 2.1**
 
 - _Goal:_ From the flip the worktree roster keeps detached checkouts, and every checkout whether or not one holds an
   active meta, each row's work unit coming from its marker and its owner from the work unit's record; and every consumer
   that took `metaFilePath` as the sign of a work unit, or a row's branch as its key, reads the row as § 2.1 states.
 
-    - `[ ]` **2.2.a The roster's rows from the flip**
+    - `[x]` **2.2.a The roster's rows from the flip**
 
-        - `runWorktreeRoster` (`lib/git/worktree-roster.ts`), which today drops a detached checkout and returns no rows
-          when no checkout holds `.arc/active/meta-*`, keeps detached rows with no `branch` from the flip and drops the
-          meta gate: a row's work unit, by slug, comes from its marker, and its owner and the other fields its meta
-          gives today from the work unit's record, which `filterRosterByIdentity` then reads.
-        - `WorktreeRosterEntrySchema`'s `branch` becomes optional, and the row gains an optional work unit that only
-          this arm sets, so the in-repo rows, and `arc active roster --json` before the flip, are unchanged.
-        - A row whose marker names an Errand carries no work unit, as today it carries no `metaFilePath`.
-        - The branch and meta gates stay the in-repo arm, and lifecycle's own roster scan for park (`resolveParkSource`,
-          `handlers/lifecycle.ts`) stays park's.
+        - Store-backed roster rows retain detached and non-work-unit checkouts, with work-unit identity and ownership
+          resolved through their marker and record.
 
-        - Build `test-first` (one behavior at a time), over the reference backend and a scripted repository:
-            - a detached planning checkout with a marker lists with its work unit and no branch
-            - with no checkout holding an active meta, the marked checkouts still list
-            - the owner filter reads the owner from the work unit's record
-            - an Errand's checkout lists with no work unit
-            - over the in-repo implementation the roster drops a detached checkout as today, and its rows carry no work
-              unit
+    - `[x]` **2.2.b The roster's consumers**
 
-    - `[ ]` **2.2.b The roster's consumers**
-
-        - The consumers that take `metaFilePath` as the sign of a work unit take the row's work unit in their arm from
-          the flip: `arc active roster` (`commands/active/roster.ts`), branch-gone recovery's candidates
-          (`buildWorktreeCandidate`, `lib/session-init/branch-gone-recovery.ts`), the in-flight work-unit sweep
-          (`enumerateOwnedIntegratingWorkUnits`, `lib/session-init/in-flight-work-unit-sweep.ts`), and the notes save's
-          in-flight subdirectories (`resolveSameMachineInFlightSubdirs`, `commands/user/save-load.ts`).
-        - A consumer keyed on a row's branch passes a detached row over, as today's roster does by dropping it:
-          branch-gone recovery's candidates, and the `Integrating` rows the work-unit state slot reads
-          (`lib/session-init/work-unit-state.ts`).
-        - The in-flight class tally (`resolveInFlightComposition`, `lib/session-init/in-flight-composition.ts`), which
-          counts every row it is given by its `Class` and labels each by its branch, labels a row by its work unit and
-          keeps detached rows, so branchless planning work stays counted.
-        - The stale-worktree sweep's selection from the flip, by its work unit's placement whether or not the row has a
-          branch, is Task 3.7's.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - `arc active roster` lists a detached planning checkout's work unit
-            - the in-flight work-unit sweep and the notes save read each row's work unit
-            - branch-gone recovery and the work-unit state slot pass a detached row over
-            - the class tally counts a detached planning row, labelled by its work unit
+        - Roster consumers use work-unit identity; branch-specific consumers skip detached rows while class composition
+          counts and labels them.
 
 ### `[ ]` **2.3 Resolve the current work unit through the contract's resolver — § 2.2**
 
@@ -769,25 +662,14 @@ read that gets none stops at that incomplete observation before calling it.
         - Build `test-first` (one behavior at a time), over the reference backend:
             - each no-record marker in the entering checkout yields its row's action and form
 
-### `[ ]` **2.7 Find checkouts claimed in place before the flip — § 2.7**
+### `[x]` **2.7 Find checkouts claimed in place before the flip — § 2.7**
 
 - _Goal:_ From the flip derivation finds each checkout with no marker, its folder present, that has out a branch linked
   by an in-flight work unit this identity owns, so session start can offer that work unit
   `arc materialize <slug> --here` from that checkout and leave it out of the ordinary materialize set.
 
-    - A function under `lib/locus/` matches each owned in-flight work unit's branch link, read through the store,
-      against the branches the derived roster's markerless rows have out, leaving out every registration whose folder
-      reads missing (`folderPresent`, Task 1.4). It returns the matches as pairs of the work unit's slug and the
-      checkout's absolute path, which the materialize offer and the paused-work item consume (Tasks 5.5, 5.4).
-    - It lists the identity's in-flight work units through the store's lifecycle listing itself, since it lands before
-      the in-flight set (Task 3.1).
-
-    - Build `test-first` (one behavior at a time), over the reference backend:
-        - a markerless checkout with an owned in-flight work unit's linked branch out is found
-        - a registration whose folder is missing is not, though Git still lists its branch
-        - a work unit whose `Branch` was empty or named base, as a partial-protection cold start leaves it, is not
-        - another identity's work unit is not
-        - with no project-ID port injected, the match reads the project ID from the project's identity record
+- _Outcome:_ Markerless, present checkouts match owned active work through repository-qualified branch links; missing
+  folders, base-only work, and foreign ownership yield no match.
 
 ### `[ ]` **2.8 Resolve the session notes through one resolver, and reconcile scratch — § 2.8**
 

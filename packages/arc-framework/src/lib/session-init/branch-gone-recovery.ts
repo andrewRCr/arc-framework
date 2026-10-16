@@ -154,6 +154,7 @@ async function buildWorktreeCandidate(
   entry: WorktreeRosterEntry,
   ctx: CandidateContext,
 ): Promise<CascadeCandidate | null> {
+  if (entry.branch === undefined) return null;
   if (ctx.folderPresent === undefined) {
     return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "external" };
   }
@@ -168,7 +169,7 @@ async function buildWorktreeCandidate(
   }
   // A worktree with no resolved meta is main / admin — always a switch
   // destination, so the marker / clean / merged gathering is skipped.
-  if (entry.metaFilePath === undefined) {
+  if (entry.workUnit === undefined && entry.metaFilePath === undefined) {
     return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "switch" };
   }
 

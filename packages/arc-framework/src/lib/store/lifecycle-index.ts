@@ -9,6 +9,7 @@ import type { Phase, Location } from "../work-unit/lifecycle-state.js";
 import type { Store } from "./contract.js";
 import type { OwnerIdentity, RecordReference, RecordVersion, StateVersion } from "./identity.js";
 import type { ListingOutcome, ListingDiagnostic, StoreRecord } from "./read.js";
+import type { Links } from "./links.js";
 import type { ReadPlacement } from "./placement.js";
 import type { StoreResult } from "./refusal.js";
 import type { LookupInput, LookupResult } from "./lookup.js";
@@ -21,6 +22,7 @@ export interface LifecycleEntry {
   placement: ReadPlacement;
   phase: Phase;
   location: Location;
+  links?: Links;
 }
 /** Identity lookup and iteration over independently selected work units. */
 export interface IdentityLifecycleIndex {
@@ -36,14 +38,16 @@ export type LifecycleIndexOutcome = Exclude<ListingOutcome, { status: "complete"
   asOf?: StateVersion;
 };
 /** Optional saved-state anchor shared by selected and held queries. */
-export interface LifecycleIndexInput { asOf?: StateVersion }
+export interface LifecycleIndexInput { asOf?: StateVersion; locations?: Location[] }
 /** Build selected lifecycle records from the public meta listing.
  * @param store - Contract implementation.
  * @param input - Optional saved-state anchor.
  * @returns Indexed fields and combined listing and projection completeness evidence.
  */
 export async function listLifecycleIndex(store: Store, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
-  return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", ...input }));
+  const { locations, ...anchor } = input;
+  return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", ...anchor,
+    ...(locations === undefined ? {} : { filter: { locations } }) }));
 }
 /** Build the interim checkout's own lifecycle records.
  * @param store - Contract implementation.
@@ -51,7 +55,9 @@ export async function listLifecycleIndex(store: Store, input: LifecycleIndexInpu
  * @returns Held records or the store's held-here refusal.
  */
 export async function listHeldLifecycleIndex(store: Store, input: LifecycleIndexInput = {}): Promise<StoreResult<LifecycleIndexOutcome>> {
-  return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", filter: { heldHere: true }, ...input }));
+  const { locations, ...anchor } = input;
+  return indexedListing(await store.list({ family: "work-item", kind: "work-item/meta", filter: { heldHere: true,
+    ...(locations === undefined ? {} : { locations }) }, ...anchor }));
 }
 /** Compare the selected copy with this checkout's semantically agreeing copy.
  * @param store - Contract implementation.
@@ -119,7 +125,7 @@ function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic
     const placement = record.placement;
     workUnitMetaPath({ ...record, fields });
     const location = placement.kind === "backlog" ? placement.commitment : placement.kind;
-    return { reference: record.reference, version: record.version, fields, placement, phase, location };
+    return { reference: record.reference, version: record.version, fields, placement, phase, location, ...(record.links === undefined ? {} : { links: record.links }) };
   } catch (error) {
     return malformedMeta(record, `Metadata could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
   }

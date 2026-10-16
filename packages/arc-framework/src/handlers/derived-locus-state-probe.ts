@@ -2,7 +2,13 @@
 
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveArcPath } from "../lib/layout/index.js";
 
+import type { Store } from "../lib/store/contract.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { createProjectIdentityReader } from "../lib/store/project-identity.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { createRawGitExec } from "../lib/io-context.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
@@ -24,6 +30,9 @@ import { readPendingCandidateReviewFixAuthority } from
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
+  readonly store?: Store;
+  readonly projectId?: () => Promise<string>;
+  readonly archiveCadence?: "manual" | "with-integration";
   readonly identity: string;
   readonly baseBranch: string;
   readonly exec: GitExec;
@@ -65,7 +74,14 @@ export async function runDerivedLocusStateProbe(
   options: DerivedLocusStateProbeOptions,
 ): Promise<DerivedLocusFrame> {
   const identity = SlugSchema.parse(options.identity);
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
+  const projectId = options.projectId ?? (store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined);
+  const configuredCadence = store.capabilities.stateOffBranch
+    ? options.archiveCadence ?? (await readConfigSettings(options.cwd)).settings["archive.cadence"]
+    : undefined;
+  const archiveCadence = configuredCadence === "manual" ? "manual" : "with-integration";
   const io = createDerivedLocusEvidenceIO({
+    store, projectId, archiveCadence,
     exec: options.exec,
     identity,
     baseBranch: options.baseBranch,
@@ -78,16 +94,18 @@ export async function runDerivedLocusStateProbe(
     identity,
     ...(primary === undefined
       ? {}
-      : { identityGlobalRoot: join(primary.path, ".arc", "user", identity) }),
+      : { identityGlobalRoot: join(primary.path, resolveArcPath({ kind: "user-root", identity })) }),
   }).identityGlobalRoot;
   return readDerivedLocusFrame({
     identity,
+    store,
     identityGlobalUserDir,
     enteringCheckoutPath: options.cwd,
     topology: evidence.topology,
     checkouts: evidence.checkouts,
     completed: evidence.completed,
     identities: evidence.identities,
+    identityAcquisitions: evidence.identityAcquisitions,
     primarySafety: evidence.primarySafety,
     canonicalizePath: (path) => io.canonicalizePath(path),
     subjectMetaIO: {
