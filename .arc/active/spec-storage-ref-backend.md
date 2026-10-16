@@ -1050,6 +1050,10 @@ Each written record's registered write check (`WriteCheck`, `lib/store/write-che
   next record, the content the write persists, which for a stale base is the merged content; the writer; and two
   read-only views, `before` over the tips the write found and `after` over the batch's new trees laid over those tips,
   each offering `read`, `list`, and `lookup`.
+- **A retirement's check view precedes its final sweep (A4).** For an end under § 7.4, `after` contains the batch's
+  prepared mutations laid over the captured tips, including its own inbound-list settlement or explicit removal,
+  before the backend's automatic sweep. All write checks must admit the batch before that sweep runs. The empty final
+  tree and the move to the history ref still land in the same atomic transaction.
 - **The writer** comes from the batch's provenance through `deriveWriteCheckWriter`: a verb in `HAND_EDIT_VERBS`
   (`lib/store/links.ts`) is a hand edit, any other verb itself.
 - **A primary's role replacement** (A5) runs the removed kind's check with no next record and the created kind's with no
@@ -1644,15 +1648,15 @@ it by name first. A reopen whose slug a live work item or cohort has taken since
   keyed by the item's UID (D5) — ends the item, whether one batch removes the primary and creates the lineage or either
   follows the other, as the shared suite's `terminal-transition-after-primary-removal` writes the lineage first
   (`__tests__/helpers/store/suite-lookup.ts`): in that write's batch the ref's final commit removes every record on it,
-  so `history` reads a removal (`HistoryEntrySchema`, `lib/store/contract.ts`), and the ref moves to
-  `refs/arc/history/work/<uid>`. Lineage beside a live primary ends nothing. A merge that leaves a live item its lineage
-  and no primary — the lineage and the primary's removal written on two machines, neither having pulled the other — ends
-  nothing either, since a merge writes nothing of its own (§ 6.4): the item lists live with no primary until a removal
-  on its ref ends it, in that write's batch. Each write is read by the state it leaves: one that leaves the item its
-  primary restores it and ends nothing, whatever else of it the write puts, and one that puts any other record of it and
-  leaves it no primary refuses `record-malformed` naming the lineage, with the remedy to run the abandon or
-  decomposition again, whose write ends it, or to restore the primary, so no write lands content its own batch's final
-  commit would remove.
+  after the write checks admit its pre-sweep `after` view (§ 5.3, A4), so `history` reads a removal
+  (`HistoryEntrySchema`, `lib/store/contract.ts`), and the ref moves to `refs/arc/history/work/<uid>`. Lineage beside a
+  live primary ends nothing. A merge that leaves a live item its lineage and no primary — the lineage and the primary's
+  removal written on two machines, neither having pulled the other — ends nothing either, since a merge writes nothing
+  of its own (§ 6.4): the item lists live with no primary until a removal on its ref ends it, in that write's batch.
+  Each write is read by the state it leaves: one that leaves the item its primary restores it and ends nothing, whatever
+  else of it the write puts, and one that puts any other record of it and leaves it no primary refuses
+  `record-malformed` naming the lineage, with the remedy to run the abandon or decomposition again, whose write ends it,
+  or to restore the primary, so no write lands content its own batch's final commit would remove.
 - **A decomposition's children** are refs the same batch creates, each with an expected absence.
 
 #### 7.5 Every other removal and rename
@@ -3904,6 +3908,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     as records; an entry whose path holds a backslash lists as `malformed`, keyed by that exact original path, beside
     every valid record (§ 11.6) (A3).
 
+16. **Retirement checks observe the proposed batch before its sweep.** On the ref backend, creating terminal lineage
+    over held inbound entries refuses without changing state; settling or explicitly removing those entries in that
+    batch admits the retirement and leaves an empty final history tree. Checks observe the prepared mutations before
+    the automatic sweep (§ 5.3, § 7.4) (A4).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -3942,5 +3951,8 @@ open:
 
 - **A3** — 2026-10-16 — design: backslash entries retain exact diagnostic paths and remain invalid record keys.
   _Supersedes:_ § 11.6 pathname claim. _Trigger:_ 3.3.a must-stop. _Work:_ 3.3.R. _Revalidated:_ pending → 4.5.
+
+- **A4** — 2026-10-16 — spec-depth: retirement checks see prepared mutations before the final sweep.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
 
 ---

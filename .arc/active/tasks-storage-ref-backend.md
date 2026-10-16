@@ -700,6 +700,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
     - `WriteCheckInput` with `before` over the found tips and `after` over the new trees laid on them, each offering
       `read`, `list`, and 5.7's `lookup`; the writer through `deriveWriteCheckWriter`; refusals composed through
       `composeWriteCheckRefusal`
+    - A retirement's `after` view contains the prepared batch mutations, including its own inbound-list settlement or
+      removal, before 6.4's automatic sweep; 6.R closes that ordering over the real ref backend (A4)
     - Cases install their checks through the registry override, as the suite's write-check item does; a case about a
       shipped check, such as `work-item.slug-edges`, builds the backend with `PRODUCTION_REGISTRATIONS`
     - Build `test-first` (one behavior at a time):
@@ -805,6 +807,8 @@ close, and renames and role changes.
 - _Goal:_ An item ends outside the archive exactly when a write leaves it with its lineage and no primary, and every other
   removal is an ordinary write of absence, so each end carries a record other machines read.
 
+    - Apply the final sweep only after 5.8's checks admit the prepared batch; the empty final tree and history-ref move
+      remain in the same transaction, with the ref-backend check-view cases in 6.R (A4)
     - An ended item's final tree holds no metadata file, so its `history` takes the paths from the last metadata file in
       its ref's log
     - Build `test-first` (one behavior at a time):
@@ -820,6 +824,19 @@ close, and renames and role changes.
         - an ended item's `read` refuses `not-found` by UID, and `history` by UID reads its history ref, or refuses
           `state-unresolvable` naming it where this clone holds the lineage without the ref
         - a primary's removal with no lineage keeps the ref live, as `current-removal` expects
+
+### `[ ]` **6.R Retirement checks before the final sweep — § 5.3, § 7.4**
+
+- _Goal:_ A4's ref-backend retirement checks observe the batch's prepared mutations before the automatic sweep, refusing
+  held inbound entries while admitting a batch that settles them itself.
+
+    - Exercise the shipped `checkLineageRecord` through a registry override supplying a declared inbound test grammar;
+      `KIND_MECHANISMS["work-item/inbound"]` declares none until the kind's grammar lands
+    - Build `test-first` (one behavior at a time):
+        - abandonment and decomposition batches creating terminal lineage over held inbound entries refuse
+          `lineage.inbound-held`, leaving every touched ref unchanged
+        - the same batch settling the entries, or explicitly removing the inbound record, admits retirement; the check
+          sees that proposed change rather than the old list, and the history tip's final tree is empty
 
 ### `[ ]` **6.5 A cohort's close — § 7.6**
 
@@ -3049,3 +3066,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Valid Unicode and quote-bearing managed path keys list as records; a backslash-bearing entry lists as
   `malformed` under its exact original path beside every valid record (§ 11.6) (A3)
+
+- `[ ]` Ref-backend retirement checks observe prepared batch mutations before the automatic sweep: terminal lineage
+  over held inbound entries refuses without changing state, and settling or explicitly removing those entries in that
+  batch admits retirement with an empty final history tree (A4)
