@@ -243,6 +243,13 @@ Errands land after the contract and before the members:
   pre-commit assert, the conflict remedy, and the merge driver. The integration checkpoint binds the lifecycle records
   it attested plus the code head, and `merge.ts` compares those, before the flip. The inbox writer's lock moves onto the
   contract's per-surface write serialization before the notes-lock code is deleted.
+
+  Amended 2026-10-16 — ROADMAP's removal departs from this order (`draft-seam-status-roadmap.md` § Direction). Only
+  status's own write stops on the capability: `arc status --project --staged --write` refuses. `storage-cutover`'s flip
+  change takes the ROADMAP template's install entries and the integrity check's presence test, which act once no
+  ROADMAP file exists. Its deletion pass takes the rest, which stays in place and inert from the flip, since a
+  branch from before the flip runs the hidden remedy command from its tracked pre-commit hook. The layout's
+  `project-document` address stays past the deletion pass for `storage-projection`'s never-adopted rule.
 - **Tests** of rerouted code keep their local doubles; the shared scripted `GitExec` fake and `GitProcessError`
   fixture from `cli-substrate-complete-migration` serve the rewrites.
 
@@ -415,6 +422,17 @@ listings.
 
 _Consumes:_ locus's in-flight model, record kinds' parsed fields, and the lifecycle composition it shares with lifecycle
 (`composed-lifecycle-index.ts`).
+
+Amended 2026-10-16 — `seam-status-roadmap` departs from the reroute (`draft-seam-status-roadmap.md` § Direction).
+Today's status, ROADMAP, `STATUS.USER`, and `arc view` code stays the in-repo arm, unchanged before the flip but for
+the capability dispatch and three fixes to duplication that survives the flip. The store versions are built from
+lifecycle's typed view (`readLifecycleView`) and locus's in-flight set, not from the composition, which stays in-repo.
+They stay dark until the flip, and the in-repo arms leave in `storage-cutover`'s deletion pass. From the flip no derived
+view renders as a file: ROADMAP (key 18) is the on-demand view only, `STATUS.USER` (key 53) renders on demand with no
+cache, and the projected `completed/` folder is the archive listing (key 06). Neither the closed-Errand listing nor
+`arc view` of a closed Errand is built. The member's two artifact-kind lists stay hand-kept, one typed by the registry's
+kinds and one held to them by a test. Key 05's lint clause is not this member's to realize. From the flip no Markdown
+check a gate runs reads projected state until `projected-markdown-checks` ships over `storage-projection`'s selection.
 
 ## ADR anchors
 
