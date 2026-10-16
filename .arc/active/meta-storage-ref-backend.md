@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** generate-tasks — `tasks-storage-ref-backend.md` finalized after two review passes
+- **Last Completed:** activate-work-unit — plan checked against the shipped `seam-lifecycle` code, review mapping folded
 - **Next Task:** Task 1.1 — Baseline the test-cost rows the new files touch (line ~17)
 - **Blockers:** [none] — the `seam-locus` edge gates only Task 15.3.a, which starts once it ships
 
