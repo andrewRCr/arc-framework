@@ -23,13 +23,13 @@ and personal-surface test passes unchanged.
 _Design decisions:_ Every test a § 1.4 item changes, the envelope fixtures (`__tests__/fixtures/session-envelope/`) and
 the schema registry's ID list among them, is named with that item in its commit and completion note, so Success
 Criterion 1's "unchanged but for" stays checkable. The removal check (`checkWorktreeRemoval`), the removal function
-(`removeWorktreeCheckout`), the release (`releaseWorktreeCheckout`), all in `lib/git/worktree-removal.ts`, and
-teardown's completion on a missing folder are the transition-write-path change's, planned in Tasks 1.6–1.8 -
-`tasks-seam-lifecycle.md`, and the store a verb opens is planned in its Task 3.1; that change lands before this one
-(spec § 1.3). Every decision here runs the check with `disposition: "remove"`, since `release` reads only its projection
-part; the function and the release take the primary's path (`primaryWorktreePath`), and the release leaves the marker to
-its caller. Every work-unit state path this change resolves — a work item's meta or task list, or a cohort document —
-comes through Task 1.9's work-item or cohort path under `lib/store/`, since the `work-unit-paths` leg counts every
+(`removeWorktreeCheckout`), and the release (`releaseWorktreeCheckout`), all in `lib/git/worktree-removal.ts`, and
+teardown's completion on a missing folder are the transition-write-path change's, built in its Tasks 1.6, 1.7, 1.9.b,
+and 1.8.a - `tasks-seam-lifecycle.md`, as is the store a verb opens, in its Task 3.1; that change has landed (spec
+§ 1.3). Every decision here runs the check with `disposition: "remove"`, since `release` reads only its projection part;
+the function and the release take the primary's path (`primaryWorktreePath`), and the release leaves the marker to its
+caller. Every work-unit state path this change resolves — a work item's meta or task list, or a cohort document — comes
+through Task 1.9's work-item or cohort path under `lib/store/`, since the `work-unit-paths` leg counts every
 layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imports.ts`).
 
 ### `[x]` **1.1 Register the shared action shape and each rebuilt slot's schema — § 4.2, § 4.3**
@@ -712,10 +712,9 @@ both (`resolveProjectIdentity`, through `prepareTaskClose`) and its readers give
   the holding checkout through this change's lookup; and the in-place arms write the anchored marker through this
   change's writer — each through the transition-write-path change's ports, bound at their one production point.
 
-- _Note:_ The ports are planned in Task 5.4 - `tasks-seam-lifecycle.md`: `LocusPorts` (`lib/work-unit/locus-ports.ts`)
-  with `checkMarkerExclusivity`, `findHoldingCheckout`, and `writeAnchoredMarker`, defaulting through
-  `createDefaultLocusPorts()`. Confirm them against the landed code first; a name or signature changed in implementation
-  is reconciled here, since this change lands second.
+- _Note:_ The ports are the transition-write-path change's, built in its Task 5.4 - `tasks-seam-lifecycle.md`:
+  `LocusPorts` (`lib/work-unit/locus-ports.ts`) with `checkMarkerExclusivity`, `findHoldingCheckout`, and
+  `writeAnchoredMarker`, defaulting through `createDefaultLocusPorts()`.
 
     - `[ ]` **2.5.a The anchored-marker writer**
 
@@ -1451,8 +1450,8 @@ inject a reference-backend store.
     - The in-place cut (`lib/locus/provisioning-runtime.ts`) and the spawned one both reach
       `lib/errand/open-runtime.ts`, which writes the link with the record in 3.3.b's batch, its repository the project
       ID, from an optional port `OpenOrdinaryErrandRuntimeOptions` gains, read as the close's is (Task 3.4), and its ref
-      `chore/<slug>` (Phase 2's design decisions). The link's `created` record and its exclusions are planned in Task
-      2.1.a - `tasks-seam-lifecycle.md`.
+      `chore/<slug>` (Phase 2's design decisions). The link's `created` record and its exclusions are built in
+      Task 2.1.a - `tasks-seam-lifecycle.md`.
 
     - Build `test-first` (one behavior at a time), over the reference backend:
         - an in-place and a spawned open each record a `created` link with no exclusions, its repository the project ID
@@ -1585,7 +1584,7 @@ inject a reference-backend store.
 
         - From the flip the residue sweep (`runLandedRetirementSweep`, `lib/session-init/lifecycle-residue-sweep.ts`)
           takes an abandonment's evidence from its lineage record through the transition-write-path change's store
-          retirement read (`readStoreRetirementEvidence`, `lib/work-unit/store-retirement-evidence.ts`, planned in
+          retirement read (`readStoreRetirementEvidence`, `lib/work-unit/store-retirement-evidence.ts`, built in
           Task 6.5.a - `tasks-seam-lifecycle.md`), admitting its `lineage` evidence (`RetirementEvidenceRef`) under the
           `discard` rule, since the teardown authority it builds today (`createTeardownRetirementAuthority`) reads Git
           alone and admits no lineage; today it admits only a Git-proven abandon (`git-transition`), which stays the
@@ -1617,7 +1616,7 @@ inject a reference-backend store.
   advisories; until the flip it reads today's transition records and the dispositions projected from them.
 
 - _Note:_ The current-work-unit reconcile reaches former slugs through the transition-write-path change's store-backed
-  prepare context (`createStoreReconcilePrepareContext`, planned in Task 4.3.b - `tasks-seam-lifecycle.md`), which
+  prepare context (`createStoreReconcilePrepareContext`, built in Task 4.3.b - `tasks-seam-lifecycle.md`), which
   resolves them through `lookup` and lists lineage only; the session probe binds it in Task 5.1 and writes no binding of
   its own.
 
@@ -2049,7 +2048,7 @@ its `arc schema` test with it.
 
         - From the flip the session probe (`runCurrentWuReconcileSessionProbe`,
           `lib/session-init/current-wu-reconcile.ts`) binds the transition-write-path change's store-backed prepare
-          context (`createStoreReconcilePrepareContext`, planned in Task 4.3.b - `tasks-seam-lifecycle.md`) in place of
+          context (`createStoreReconcilePrepareContext`, built in Task 4.3.b - `tasks-seam-lifecycle.md`) in place of
           the lifecycle index, transition queries, and artifact reads `handleSessionInitStatus` binds inline; until then
           the inline bindings stay, since over the in-repo implementation they read the transition records that carry
           today's renames. It only prepares, the apply staying `arc wu reconcile <slug> --apply`.
@@ -2874,7 +2873,7 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
           `active` work-unit context after selection, never for every roster row (`readDerivedLocusRoster`), so another
           checkout's failure never turns its row unresolved.
         - It reads the work item's links from its store record and resolves which branch link the checkout has out
-          through the transition-write-path change's one resolver (planned in Task 2.3.c - `tasks-seam-lifecycle.md`):
+          through the transition-write-path change's one resolver (built in Task 2.3.c - `tasks-seam-lifecycle.md`):
           `linked` computes the set by that change's default-set computation (`computeDefaultCaptureSet`, its Task 2.3)
           with `refresh: false`, over the base refs the clone has, its copy keys from `lib/git/copy-key.ts` (its
           Task 2.2) and only for commits no stored SHA matches, against the work item's captures and the resolved link's
