@@ -33,7 +33,7 @@ both existing backends, and the Git access the engine calls.
 - _Goal:_ Every input and result `pull`, `push`, and `maintain` carry is a schema a caller parses, and both existing
   backends' publish outcomes carry the retry figures, so the operations that follow change no result type.
 
-    - In `lib/store/sync.ts`: `PullInput`, `PushInput` with `carry`, the five new `SyncState` arms, `PullResult`,
+    - In `lib/store/sync.ts`: `PullInput`, `PushInput` with `carry`, the five new `SyncStateSchema` arms, `PullResult`,
       `PullOutcome` with its `candidate` role, the eight `PullNotice` kinds, `PushResult`, `CarryOutcome` and
       `CarryRefusal`, `MaintainResult`, and `retryCount` and `waitedMs` on every `pushed`, `noop`, `reconciled`, and
       `failed` publish outcome; the in-repo-only statuses keep their shape
@@ -41,7 +41,8 @@ both existing backends, and the Git access the engine calls.
       of 1.4 reads it with no import cycle
     - The required figures reach both producers in this task: the in-repo outcome literals (`sync-outcomes.ts`) carry a
       retry count of zero and the elapsed time they already measure as `waitedMs`, and the reference backend's
-      (`__tests__/helpers/store/sync.ts`) the same; exact-shape assertions over publish outcomes gain the two fields
+      (`__tests__/helpers/store/sync.ts`), whose publish loop tries up to three times, its attempts before the one that
+      settled and the time since its loop `started`; exact-shape assertions over publish outcomes gain the two fields
     - Build `test-first` (one behavior at a time):
         - each new state parses with its remedy, and a result reporting one state twice refuses
         - a `HistoryRef` parses for each ref form, and refuses an unknown field
@@ -83,16 +84,25 @@ both existing backends, and the Git access the engine calls.
     - `[ ]` **1.3.b The reference backend**
         - `pull` reconciles against its memory remote (`createMemoryRemote`, `__tests__/helpers/store/sync.ts`) and
           publishes nothing; `push` is today's `sync`, `pulls` empty; `maintain` returns no measurements
+        - Build `test-first` (one behavior at a time):
+            - a pull runs the archive reconciliation `push` runs (`reconcileArchivePositions` in `sync.ts`, with
+              `reconcileCompletedCohorts` in `cohort-placement.ts`): it renumbers an archived work unit's folder as
+              `push` does, and with it the unpublished cohort folder that took its number, and a cohort closed alone on
+              two clients into one quarter takes the next number after the remote's
 
     - `[ ]` **1.3.c The contract and its callers**
         - `lib/store/contract.ts` gains the three and drops `sync`, with no alias, under the pre-release posture;
-          `createStore` (`lib/store/create.ts`) delegates them; no production code calls `sync` today
+          `createStore` (`lib/store/create.ts`) delegates them
+        - The one production caller, the store archive's publication (`publishArchive`,
+          `lib/work-unit/verbs/archive-store.ts`), moves from `sync()` to `push()`, reading the `states` and `publishes`
+          it reads today
         - Every test and helper calling `.sync()` moves to `.push()`: the suite's helpers (`suite-sync.ts`,
-          `suite-recovery.ts`, `suite-primary-role.ts`, `in-repo-remote.ts`, `in-repo-remote-recovery.ts`,
-          `reference-recovery.ts`), the `store-sync*` and `store-notes-*` integration files with
-          `store-in-repo-fixture-sync.test.ts`, the `reference-*` unit files with `envelopes.test.ts`, and seam-lifecycle's
-          `__tests__/unit/work-unit/verbs/task-close.test.ts`, whose `Store` facade also gains the three; exact-shape
-          assertions gain `pulls: []`
+          `suite-primary-role.ts`, `in-repo-remote.ts`, `in-repo-remote-recovery.ts`, `reference-recovery.ts`), the
+          `store-sync*` and `store-notes-*` integration files with `store-in-repo-fixture-sync.test.ts`, the
+          `reference-*` unit files, `cohort-archive-placement.test.ts`, and
+          `__tests__/unit/work-unit/verbs/task-close.test.ts` and `archive-store.test.ts`, whose `Store` facade and
+          proxy (the proxy intercepting `sync`) also take the three; exact-shape assertions gain `pulls: []`, those in
+          `envelopes.test.ts` among them
         - Type-checked and exercised by the suite (1.9)
 
 ### `[ ]` **1.4 The `state-unresolvable` refusal and its recovery case — § 2.3, § 14.2**
@@ -116,32 +126,24 @@ both existing backends, and the Git access the engine calls.
 - _Goal:_ A cohort's document closes by a `completed` placement write and reads back with its sequence and closeout
   letter, as seam-lifecycle ships it, and each backend serves or refuses it by name.
 
-- _Note:_ The schemas are seam-lifecycle's and used as they ship: `MutationSchema` (`lib/store/write.ts`) admits a
-  `completed` placement on a `cohort/document` put, `CohortReadPlacementSchema` (`lib/store/placement.ts`) reads
-  `closeout: "a" | "b"`, `StoreRecordSchema` (`lib/store/read.ts`) checks it on cohort documents, and the reference
-  backend assigns both coordinates (`assignCompletedCohorts`, `__tests__/helpers/store/cohort-placement.ts`) where the
-  cohort kind's parser is registered, since it parses every cohort document's fields.
+- _Note:_ The schemas and both backends' handling are seam-lifecycle's and used as they ship: `MutationSchema`
+  (`lib/store/write.ts`) admits a `completed` placement on a `cohort/document` put, `CohortReadPlacementSchema`
+  (`lib/store/placement.ts`) reads `closeout: "a" | "b"`, `StoreRecordSchema` (`lib/store/read.ts`) checks it on cohort
+  documents, the in-repo implementation refuses the put `placement-move` (`admitTrackedRole`,
+  `lib/store/in-repo/write-admission.ts`), and the reference backend assigns both coordinates
+  (`assignCompletedCohorts`, `__tests__/helpers/store/cohort-placement.ts`), reading a document's `cohort` and `parent`
+  from its parser's fields and, with no parser registered, naming no parent, and renumbers an unpublished closed
+  cohort's folder in its sync (`reconcileCompletedCohorts`, beside it).
 
-    - `[ ]` **1.5.a The in-repo implementation refuses it**
-        - A `cohort/document` put carrying a placement refuses `unsupported` `placement-move`, terminal, naming archive
-          as what serves it until the flip
-        - Build `test-first` (one behavior at a time):
-            - a cohort put carrying `completed` refuses as above and changes nothing
-
-    - `[ ]` **1.5.b The reference backend's renumbering and the suite**
-        - The reference backend's sync reconciliation (`reconcileArchivePositions`, `__tests__/helpers/store/sync.ts`)
-          renumbers a closed cohort's folder with the work unit whose number it took, and one that took the quarter's
-          next as a work unit
+    - `[ ]` **1.5.a The suite item**
         - The suite item opens its fixture with the cohort kind's parser, `parseCohortDocument`
           (`lib/store/kinds/cohort/parser.ts`), installed through the registration's registry overrides, as
-          `suite-write-checks.ts` installs a kind's parser (`__tests__/helpers/store/`), since the reference fixture
-          registers none for a prose kind
+          `suite-write-checks.ts` installs a kind's parser (`__tests__/helpers/store/`), since a closeout `b` reads the
+          parent from parsed fields and the reference fixture registers no parser for a prose kind
         - Build `test-first` (one behavior at a time):
             - item 1's `cohort-close-placement`: a lone close reads back with the quarter's next sequence and closeout
               `a`, and a close of a cohort another cohort's document names as its parent reads `b`; the in-repo fixture
               excludes it by `placement-move`
-            - Unit tier, over the reference backend: a pull whose merge renumbers an archived work unit renumbers the
-              cohort folder that took its number
 
 ### `[ ]` **1.6 Hunk conflict records carry their base version and side counts — § 3.7**
 
@@ -203,9 +205,10 @@ both existing backends, and the Git access the engine calls.
           item has taken each refuse `ambiguous-match` naming both; a fixture whose backend refuses the move itself
           excludes it by that refusal
         - item 1's `primary-put-without-placement`: a primary's put without placement at its current version refuses
-          `record-malformed`, the reference backend parsing each write through `WriteInputSchema` and each batch through
-          `BatchInputSchema`, the refusal's rule derived from the failing arm; the in-repo fixture excludes it by
-          `placement-move`
+          `record-malformed`, the reference backend parsing each write's mutation through `MutationSchema` and its
+          provenance through `CallerProvenanceSchema`, and each batch through `BatchInputSchema`, the refusal's rule
+          derived from the failing arm, since `WriteInputSchema` reports one generic issue; the in-repo fixture excludes
+          it by `placement-move`
         - item 3's `stale-base-clash-conflict-record`: a write whose stale-base merge clashes files a conflict record
           whose `history` names the verb `merge`, and a put of the stored content naming that record in `resolves`
           removes it
@@ -259,11 +262,13 @@ both existing backends, and the Git access the engine calls.
       `RecordReferenceSchema` in `in-repo/list.ts`)
     - The in-repo implementation is unchanged: `companionPath` (`lib/store/in-repo/paths.ts`) refuses a key whose file
       name `artifactMatcher` rejects
-    - `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) places a companion where § 2.5 stores it, below its
-      meta's folder — a name at `<key>-<slug>.md`, a paired spec's half as the in-repo implementation names it, and any
-      other key at its path — and its callers that match by file name, `renameProjection`
-      (`lib/store/lifecycle-rename.ts`) and `readLifecycleDesign` (`lib/store/lifecycle-design.ts`), match by that path
-      instead, so a companion in a folder never shares a projected path with another record
+    - `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`) already places a name and a paired spec's halves
+      through `companionArtifactName` (`lib/store/companion-name.ts`), which the in-repo `companionPath` shares; it gains
+      the arm for any other key, placed at its path below the meta's folder, leaving `companionArtifactName` unchanged
+    - Its readers that match by file name match by that path instead, so a companion in a folder never shares a
+      projected path with another record: `renameProjection` and the artifact-rename map `ownedArtifactRenames`
+      (`lib/store/lifecycle-rename.ts`), whose map the Design and Task List rewrite, the paired-reference check, and the
+      reference sweep read, and `readLifecycleDesign` (`lib/store/lifecycle-design.ts`)
     - Each fixture's `reference` hook builds a companion's key as a name, where its `path` arm builds
       `scratch-<suffix>.md` (`in-repo-fixture.ts`) or `scratch/<suffix>.md` (`reference-fixture.ts`), so every assertion
       `everyKind` runs keeps keying companions as it does today
@@ -275,11 +280,12 @@ both existing backends, and the Git access the engine calls.
           the in-repo fixture excludes it alike
         - the in-repo implementation refuses a put of a companion keyed `sub/notes.md` `unsupported` `unhomed-kind`, as
           it refuses one keyed `notes-extra`, and one keyed `research` stores at `research-<slug>.md` as before
-        - `lifecycleRecordPath` places a companion keyed `research` at `research-<slug>.md`, the paired spec's halves at
-          `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`, and one keyed `sub/notes.md` at that path below the meta's
-          folder
+        - `lifecycleRecordPath` places a companion keyed `sub/notes.md` at that path below the meta's folder, while its
+          name and paired-half placements hold as `lifecycle-record-path.test.ts` asserts them
         - on the reference backend, a rename of a work item holding companions keyed `sub/notes.md` and `other/notes.md`
           sweeps both, and its Design lookup finds the draft beside a companion keyed `sub/draft-<slug>.md`
+        - a rename of a work item holding a draft and a companion keyed `sub/draft-<slug>.md` rewrites its meta's Design
+          to `draft-<new slug>.md`, leaving the companion's path as it was
 
 ## **Phase 2:** Git access
 
@@ -531,10 +537,10 @@ default layout.
 - _Goal:_ Every record maps to exactly one ref and one stored path, through one expansion every caller shares.
 
     - One expansion in `lib/store/`, beside the registry, over 1.7's `RefHome`s, maps a reference to its ref and stored
-      path — each family's root, a paired spec's halves as `companionPath` (`lib/store/in-repo/paths.ts`) names them, a
-      companion keyed by a name at `<key>-<slug>.md` and any other at its key verbatim (§ 2.5), which a template cannot
-      express, a completed item's quarter folder, each ref's metadata file and manifest — so the serialization rules
-      (5.1) and the backend's codec (3.3.b) expand one way
+      path — each family's root, a companion keyed by a name, a paired spec's halves among them, as
+      `companionArtifactName` (`lib/store/companion-name.ts`) names it and any other at its key verbatim (§ 2.5), which
+      a template cannot express, a completed item's quarter folder, each ref's metadata file and manifest — so the
+      serialization rules (5.1) and the backend's codec (3.3.b) expand one way
     - Build `test-first` (one behavior at a time):
         - Unit tier
         - every kind with a home expands at its table path, and a paired spec's halves keyed `spec-prd` and `spec-rfc` at
@@ -1209,7 +1215,7 @@ close, and renames and role changes.
     - The sequence is the highest the same batch assigns, in the cohort's quarter, to a work unit whose meta's `Cohort`
       path names the cohort, else the quarter's next; the closeout is `b` where any cohort document's parsed `parent`
       names the cohort, else `a`, as `assignCompletedCohorts` (`__tests__/helpers/store/cohort-placement.ts`) assigns
-      them; a document whose kind has no parser registered names no parent here, where that assignment needs the parser
+      them; a document whose kind has no parser registered names no parent, as that assignment reads it
     - A cohort put carries no other placement, so a closed cohort comes back only through the reopen an end's withdrawal
       runs (10.5): its history ref moves back under `refs/arc/cohort/` and its folder leaves the quarter, as 6.2's reopen
       moves a work item
@@ -2040,7 +2046,8 @@ between layouts as its designation calls for.
       position, as `__tests__/unit/config/inventory.test.ts` matches the two in order; the shipped file states the key
       as fact, with no transitional framing
     - The project's `.arc/system/arc-config.yml`, a Configurable file, gains the key by an edit in `.arc/`, never a copy
-      over it; the catalog's key lists in `schema.test.ts` and the full `ConfigSettings` literals in the tests take it
+      over it; the catalog's key lists in `__tests__/unit/config/schema.test.ts` and the full `ConfigSettings` literals
+      in the tests take it
     - Build `test-first` (one behavior at a time):
         - `arc config status` lists the key empty
         - `arc config validate` gives no unknown-key warning for it
@@ -2638,8 +2645,8 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       names the work unit: each range expanded with `expandTaskReference` (`lib/commit-check/task-reference.ts`), its IDs
       kept as written and only those whose task is closed captured, so a footer naming a closed task and an open one
       captures the closed alone; each capture the project ID as its repository, and its SHA with the copy key
-      `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, a merge commit, or one whose patch the clone cannot produce,
-      carrying none
+      `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, and none wherever it gives none: a merge commit, one with no
+      readable author, and one whose patch is empty or the clone cannot produce
     - The in-repo `lookup` by ref finds a branch only where it exists locally, reads an Errand's records only for a
       `chore/` branch (`isTransientLookup`, `lib/store/in-repo/transient-lookup.ts`), and takes any other branch's slug
       from its name (`branchToWorkUnitSlug`), so the comparator's allowance names three links a transform difference: one
@@ -2676,15 +2683,19 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as
       since when, an ISO-8601 UTC string as `arc pause` writes it (`toISOString()`,
       `lib/work-unit/verbs/pause-handover.ts`), with no waits-on
-    - A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — is listed in `refused` as
-      `pause`, naming the field, with the remedy to write the reason or correct the `Owner`
+    - A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause
+      section's writer refuses, a `##` heading or a `---` line (`pauseProseProblem`,
+      `lib/store/kinds/meta/pause-section.ts`), is listed in `refused` as `pause`, naming the field, with the remedy to
+      write the reason or correct the `Owner`
     - Build `test-first` (one behavior at a time):
-        - a work unit parked from `Active` imports in flight at `Active`, its records as its branch's head holds them
+        - a work unit parked from `Active` imports in flight at `Active`, its records as the tip 15.4 reads holds them
           and its pause carrying the pointer's reason, the meta's owner, and the parking commit's committer time in
           ISO-8601 UTC
         - a pointer whose `Reason:` line is empty, and a meta whose `Owner` is not a slug, are each listed in `refused`
           as `pause` naming the field, since the import invents neither, refusing the import until it is fixed, then
           landing
+        - a pointer whose reason is `---`, and one whose reason is a `##` heading, are each listed in `refused` as
+          `pause` naming the reason, refusing the import until it is fixed, then landing
         - a work unit parked from Planning imports as a stub
         - a parked work unit whose branch only the remote holds imports its records from the remote's tip, and one whose
           tips diverged is listed under `branch-diverged`, refusing the import until fixed
@@ -3222,9 +3233,9 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
     - Twenty worktrees writing personal-inbox insertions and removals at once, and twenty clones converging on one ref,
       in a suite registered in the `portability` tier's list (`localVitestTierArguments`, `lib/local-vitest-runner.ts`),
       which both portability jobs (`.github/workflows/ci.yml`) run through `test:portability`
-    - The suite runs only where `ci.yml` sets `ARC_STORE_BURSTS` for both jobs, on `schedule` and `workflow_dispatch`
-      alone, so the Linux job's runs on reviewed pull requests and the integration tier skip it; a per-test timeout
-      above the Windows bursts' 378–401 s
+    - The suite runs only where `ci.yml` sets `ARC_STORE_BURSTS`: on the pair's `schedule` and `workflow_dispatch`
+      runs and the Linux job's `workflow_dispatch` runs, so the Linux job's runs on reviewed pull requests and the
+      integration tier skip it; a per-test timeout above the Windows bursts' 378–401 s
     - Passes with no lost write in one dispatched run of the Windows and macOS pair (`run_portability_pair: true`) and one
       of the Linux portability job before this change lands, each recorded in `notes-storage-ref-backend.md`, since a
       scheduled workflow runs only on the default branch

@@ -265,8 +265,10 @@ type ReadOnlyStore = Pick<Store, "capabilities" | "read" | "list" | "version" | 
   backend's `pull` reconciles against its in-memory remote and publishes nothing (`createMemoryRemote`,
   `__tests__/helpers/store/sync.ts`), its `push` is today's `sync`, and its `maintain` returns no measurements. Both
   backends' `push` returns `pulls` empty, reporting its reconciliation through `publishes` as `sync` does today.
-- **The rename is cheap now:** no production code calls the contract's `sync()` — `createStore` delegates it, and the
-  conformance suite exercises it (`__tests__/helpers/store/suite-sync.ts`).
+- **The rename is cheap now:** one production caller uses the contract's `sync()`, the store archive's publication
+  (`publishArchive`, `lib/work-unit/verbs/archive-store.ts`), which moves to `push()` reading the `states` and
+  `publishes` it reads today; `createStore` delegates it, and the conformance suite exercises it
+  (`__tests__/helpers/store/suite-sync.ts`).
 
 #### 2.2 Results
 
@@ -369,8 +371,7 @@ One local refusal is added to `LocalRefusalSchema` (`lib/store/refusal.ts`):
 #### 2.4 A cohort's archive placement
 
 A cohort's document is its only record, and closing a cohort is a placement write to it, as archiving a work item is a
-placement write to its primary. The contract's code holds the shape, available before this change implements (Open
-Questions), and this design uses it unchanged:
+placement write to its primary. The contract's code holds the shape, and this design uses it unchanged:
 
 - **Write:** a `put` to `cohort/document` may carry `placement: { kind: "completed", quarter }` to close the cohort, and
   no other placement; with none it keeps its current one. `MutationSchema` (`lib/store/write.ts`) admits it for that
@@ -382,8 +383,9 @@ Questions), and this design uses it unchanged:
 - **No write reopens a cohort:** a closed one comes back only where a pull withdraws the end that closed it (§ 6.6,
   § 7.6).
 - **The in-repo implementation** refuses the write as `unsupported` `placement-move`, terminal, as it refuses moving a
-  work item, naming archive as what serves it until the flip. The reference backend implements it
-  (`assignCompletedCohorts`, `__tests__/helpers/store/cohort-placement.ts`).
+  work item, naming archive as what serves it until the flip (`admitTrackedRole`,
+  `lib/store/in-repo/write-admission.ts`). The reference backend implements it (`assignCompletedCohorts`,
+  `__tests__/helpers/store/cohort-placement.ts`).
 - **The cohort kind's rules** already read this placement through `after` (`cohort.open-members`, `cohort.parent`), so
   an archive's batch that places the document completed beside its last open member passes, and a cohort read as open
   until a backend returned a completed placement now reads closed on this backend.
@@ -416,8 +418,10 @@ valid, a paired spec's halves keeping `spec-prd` and `spec-rfc`.
   schema admits.
 - **A reader that places a companion** places it at its stored path below its meta's folder and matches by that path,
   never by its file name alone: `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`), and the rename's
-  projection and Design lookup over it (`renameProjection`, `lib/store/lifecycle-rename.ts`; `readLifecycleDesign`,
-  `lib/store/lifecycle-design.ts`), so two companions sharing a file name, or one sharing another record's, stay apart.
+  projection, artifact-rename map, and Design lookup over it (`renameProjection` and `ownedArtifactRenames`,
+  `lib/store/lifecycle-rename.ts`; `readLifecycleDesign`, `lib/store/lifecycle-design.ts`), so two companions sharing a
+  file name, or one sharing another record's, stay apart. The map is what the meta's Design and Task List rewrite, the
+  paired-reference check, and the reference sweep read.
 - **The shared suite keys companions by name** wherever `everyKind` runs: each fixture's `reference` hook builds a
   companion's key as a name rather than through its `path` arm, which builds `scratch-<suffix>.md` in the in-repo
   fixture and `scratch/<suffix>.md` in the reference one (`in-repo-fixture.ts`, `reference-fixture.ts`,
@@ -570,8 +574,8 @@ export interface RefHome {
 - **A family's root** is its ref's root, or its subtree for `review` and `lineage` (`review/`, `lineage/`), or
   `<person>/` on a personal ref. A companion's key is its path (§ 2.5): a name stores as `<key>-<slug>.md`, any other
   key verbatim, and a paired spec's halves, keyed `spec-prd` and `spec-rfc`, keep the checkout's `spec-<slug>-prd.md`
-  and `spec-<slug>-rfc.md`, as the in-repo implementation names them (`companionPath`, `lib/store/in-repo/paths.ts`); an
-  adversarial pass's key is its activity and number joined by a hyphen.
+  and `spec-<slug>-rfc.md`, as `companionArtifactName` (`lib/store/companion-name.ts`) names them, which the in-repo
+  `companionPath` shares; an adversarial pass's key is its activity and number joined by a hyphen.
 - **A key that would land on another kind's path refuses** `unsupported` `unhomed-kind`, naming that kind, as the
   in-repo implementation refuses a conventional role's name: a companion keyed `meta`, `tasks`, `draft`, `spec`,
   `notes`, `errand`, `inbound`, or `cohort`, or keyed verbatim at a path the decode reads back as another reference or
@@ -1019,8 +1023,8 @@ and resolving inside the queue (`withStateQueue`, `__tests__/helpers/store/state
   a single-writer kind, and a removal's on any kind, since a removal carries no content to merge, as the reference
   backend's `stale` reads it (`__tests__/helpers/store/write.ts`) and the suite's `stale-removal` asserts.
 - **A put updating a `create-only` or `write-once` record** refuses `version-conflict` with its expected version
-  current, as `stale` reads it and the suite's `create-only-update` asserts: such a record is written once and changes
-  only by removal, under § 5.1's writer rules. The one exception is the terminal-lineage repair
+  current, as `stale` reads it, and as the suite's `create-only-update` asserts for create-only kinds: such a record is
+  written once and changes only by removal, under § 5.1's writer rules. The one exception is the terminal-lineage repair
   (`isTerminalSnapshotRepair`, `lib/store/kinds/lineage/repair.ts`): a `repair-lineage` or hand-edit put to a
   `lineage/transition` record at its current version whose only change adds the missing `retiredBranches` lands, as both
   other backends admit it (`stale`; `write-transaction.ts` and `write-stores.ts` in `lib/store/in-repo/`), and a stale
@@ -1671,9 +1675,9 @@ it by name first. A reopen whose slug a live work item or cohort has taken since
       work unit's is (§ 7.1), so the next work unit archived there numbers after it.
     - The letter is `b` where any cohort document's parsed `parent` names the cohort, a parent cohort, and `a`
       otherwise. This backend reads a document whose kind has no parser registered as naming no parent, so with none
-      registered the letter is `a`, where the reference backend's assignment needs the parser. Today's archive writes
-      the same two (`sweepCohortDoc` and `sweepNestedParentDoc`, `lib/work-unit/verbs/archive.ts`), which the layout
-      resolver projects as `leaf` and `parent` (`resolveArcPath`, `lib/layout/projection.ts`).
+      registered the letter is `a`, as the reference backend's assignment does. Today's archive writes the same two
+      (`sweepCohortDoc` and `sweepNestedParentDoc`, `lib/work-unit/verbs/archive.ts`), which the layout resolver
+      projects as `leaf` and `parent` (`resolveArcPath`, `lib/layout/projection.ts`).
 - **A closed cohort reopens only where a pull withdraws the end that closed it** (§ 6.6): its history ref moves back
   under `refs/arc/cohort/` and its folder leaves the quarter, as § 7.2 reopens a work item; no write reopens one (§ 2.4).
 - **The history namespace mirrors the live one:** `refs/arc/history/work/<uid>` and `refs/arc/history/cohort/<uid>`.
@@ -2365,10 +2369,12 @@ interface MigrateReport {
   together; then a serialization rule's identifier (§ 5.6); `key` for § 3.2's key refusals; `entry-id` for an entry the
   stamp cannot place an ID in, or whose `_Id:_` another entry repeats (§ 5.1); `session-context` for a
   `SESSION-NOTES.md` the fold cannot write (§ 10.12); and `pause` for a parked work unit whose pause `MetaPauseSchema`
-  refuses — an empty `Reason:` line, or an `Owner` that is not a slug — naming the field, with the remedy to write the
-  reason or correct the `Owner` (§ 10.9); **`brokenChains`**, for the import, every Candidate chain it finds broken
-  (§ 10.9); **`differingNotes`**, for the import, every notes file that differs from a disk copy, and apart from them
-  every file the snapshot holds and no disk copy does, and every file notes save never writes (§ 10.10).
+  refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause section's writer
+  refuses, a `---` line or a `##` heading (`pauseProseProblem`, `lib/store/kinds/meta/pause-section.ts`), naming the
+  field, with the remedy to write the reason or correct the `Owner` (§ 10.9); **`brokenChains`**, for the import, every
+  Candidate chain it finds broken (§ 10.9); **`differingNotes`**, for the import, every notes file that differs from a
+  disk copy, and apart from them every file the snapshot holds and no disk copy does, and every file notes save never
+  writes (§ 10.10).
 - **`notices`** carries, for the import, each entry kind it would write whose grammar the backend's kind registry does
   not declare, which refuses the import until it does (§ 5.1), a base branch no ref resolves, which
   `computeDefaultCaptureSet` refuses with its reason and remedy, refusing it likewise (§ 10.9), and the review gate's
@@ -2612,7 +2618,7 @@ private moves it before going public, and the trial run says so.
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Live work units and Errands                                                      | One UID per owner (A11), reused across its kinds; each record at its current content on its work ref                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | A live work unit's or open Errand's branch                                       | A branch link (A3) on its primary as `BranchLinkSchema` (`lib/store/links.ts`) holds it, naming the branch its meta's `branch` field holds (`META_FIELDS`, `lib/store/kinds/meta/projection.ts`) or its identity record does, its repository the project ID, as A6's forward amendment has every link name it (§ 10.11); none where the field is empty or names the base branch (`branch.base`), where a cold start outside full protection leaves a work unit (`runColdStart`, `commands/start.ts`). Its `linkedAs` is `created` for a name in ARC's forms for the item — `plan/<slug>`, `<type>/<slug>`, or an Errand's `<errand-type>/<slug>` over `ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) — and `adopted` for any other. The link reads one tip: of the branch's local tip and the tip its remote-tracking ref holds, the one that contains the other, or the remote's where only the remote holds it; a branch neither holds refuses `branch-missing`, and diverged tips `branch-diverged` (§ 10.5). A work unit's `excluded` is `computeDefaultCaptureSet`'s set (`lib/git/default-capture-set.ts`) over that tip, given the work unit's task captures (§ 10.11) and `refresh: false`, so a trial and its landing read one base, its refusal where no base ref resolves listed in `notices` with its reason and remedy, refusing the import (§ 10.5); an Errand's is empty |
-| A parked work unit, its pointer record in `backlog/planned/`                     | A paused work unit in flight at `Active`, its records as the tip the branch row's rule reads holds them, refusing as that row does; its meta's pause section built through `MetaPauseSchema` (`lib/active/meta-schema.ts`) from the pointer's `Reason:` line as its reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as since when, an ISO-8601 UTC string as `arc pause` writes it, waiting on nothing. A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — refuses `pause` (§ 10.5), since the import invents neither. A work unit parked from Planning is a stub and imports as one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| A parked work unit, its pointer record in `backlog/planned/`                     | A paused work unit in flight at `Active`, its records as the tip the branch row's rule reads holds them, refusing as that row does; its meta's pause section built through `MetaPauseSchema` (`lib/active/meta-schema.ts`) from the pointer's `Reason:` line as its reason, the meta's `Owner` as who paused it, and the committer time of the commit that first wrote the pointer as since when, an ISO-8601 UTC string as `arc pause` writes it, waiting on nothing. A pause the schema refuses — an empty `Reason:` line, or an `Owner` that is not a slug — or whose reason the Pause section's writer refuses, a `---` line or a `##` heading (`pauseProseProblem`, `lib/store/kinds/meta/pause-section.ts`), refuses `pause` (§ 10.5), since the import invents neither and edits no reason. A work unit parked from Planning is a stub and imports as one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Open cohorts                                                                     | One UID per cohort (A11); its document at current content on its cohort ref                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Completed work units and closed cohorts                                          | As an archive or close leaves them (§ 10.11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Candidate records                                                                | Every version its path log holds replayed oldest first on its work item's ref, then current files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -2717,10 +2723,11 @@ or a fetch between the two machines, in the cutover's quiesce.
   live work unit's branch, once each, whose footer names the work unit, each range expanded against the task list with
   `expandTaskReference` (`lib/commit-check/task-reference.ts`) and its IDs kept as written, only those whose task is
   closed; each capture the project ID as its repository, as A6's forward amendment has every link name it, and a
-  commit's SHA with the copy key `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, which a merge commit, or one whose
-  patch the clone cannot produce, does without (A6, D16). Two residuals: a task whose footers a squash dropped keeps no
-  capture, and a commit no closed task's footer names — a ceremony or code-review commit, or an open task's — gets none,
-  resolving from the flip to nothing, since `lookup` by commit matches stored links alone (D3).
+  commit's SHA with the copy key `computeCopyKeys` (`lib/git/copy-key.ts`) gives it, and none wherever it gives none — a
+  merge commit, one with no readable author, and one whose patch is empty or the clone cannot produce (A6, D16). Two
+  residuals: a task whose footers a squash dropped keeps no capture, and a commit no closed task's footer names — a
+  ceremony or code-review commit, or an open task's — gets none, resolving from the flip to nothing, since `lookup` by
+  commit matches stored links alone (D3).
 - **The transient-identity refs** are re-homed, then deleted locally and, once the imported state is published, from the
   remote, each delete leased on the tip the import re-homed, which the import keeps under
   `refs/arc/tmp/migrate/import/kept/` in the code repository, where those refs and the remote live, a prefix its landing
@@ -2869,13 +2876,13 @@ tips; where the operation needs a tree's entries — a listing, a lookup, or a r
 name carries a sequence — one `cat-file --batch-check` resolving each tip's root tree and one
 `git diff-tree --stdin -r -z` over those trees (§ 3.3), `-z` since without it Git quotes a path holding a non-ASCII
 byte, `"`, or `\`, which a personal document's `path` may; and one `cat-file --batch` of the blobs, by id or as
-`<tip>:<path>`. `version` costs one process (§ 4.2), a live `read` two — three where its ref holds open conflict records,
-whose IDs alone name them, so the family root's `conflicts` tree, read in the first batch, gives the blobs a second
-reads to fill the record's `conflicts` (§ 3.7) — and a `list`, a `lookup`, or a read reaching a
-quarter four — `version` and a live `list` two more where they write a new manifest — as today's batch reads do
-(`lib/io-context.ts`, `lib/git/object-availability.ts`); a reference without a UID adds the scan's four once per process
-(§ 8). Each executor caps a call's captured output at 64 MiB (`MAX_GIT_OUTPUT_BYTES`, `lib/git/process-executor.ts`), so
-a `cat-file --batch` that fails `output-limit` (`GitProcessError`, `lib/git/process-error.ts`) runs again as two calls
+`<tip>:<path>`. `version` costs one process (§ 4.2), a live `read` two — three where its ref holds open conflict
+records, whose IDs alone name them, so the family root's `conflicts` tree, read in the first batch, gives the blobs a
+second reads to fill the record's `conflicts` (§ 3.7) — and a `list`, a `lookup`, or a read reaching a quarter four —
+`version` and a live `list` two more where they write a new manifest — as today's batch reads do (`lib/io-context.ts`,
+`lib/git/object-availability.ts`); a reference without a UID adds the scan's four once per process (§ 8). Each binding
+in `lib/git/process-executor.ts` caps a call's captured output at 64 MiB (`MAX_GIT_OUTPUT_BYTES`), so a
+`cat-file --batch` that fails `output-limit` (`GitProcessError`, `lib/git/process-error.ts`) runs again as two calls
 over halves of its blobs, until each fits; the split costs nothing where a read fits, and a single blob past the
 ceiling, which no record nears, fails the read with that error. A process start costs about 30 ms on Windows against 1.3
 ms on Linux. Every read passes `objectAccess: "local-only"` (`GitExecOptions` and `RawGitExec`, `lib/git/exec.ts`),
@@ -2906,7 +2913,7 @@ its process count stops growing with the records it writes.
 
 #### 11.8 Cancellation on every variant
 
-The plain executor takes a `signal` (`cancelSignal`, `lib/git/process-executor.ts:145`). The stdin and byte variants,
+The plain executor takes a `signal` (`cancelSignal`, `lib/git/process-executor.ts`). The stdin and byte variants,
 `GitExecInput` and `RawGitExec` (`lib/git/exec.ts`), gain an optional `signal` passed the same way, so a call stuck on a
 locked ref or a slow disk can be ended. On every variant an abort ends the call's whole process tree and settles without
 waiting on a descendant's output (§ 6.1), so the existing bounded reads (`boundedFetch`, `lib/git/exec.ts`;
@@ -3026,9 +3033,9 @@ the default in a files-format code repository, and the separate one in its refta
   refusing `ambiguous-match` naming both, which the reference backend already refuses (`indexIdentities`) and a fixture
   whose backend refuses the rename or reopen itself excludes by that refusal (D7); and a companion keyed by a path,
   `diagram.svg` and `sub/notes.md`, which writes, reads, and lists under that key and keeps it through its owner's
-  rename, and which the in-repo fixture excludes by its `unhomed-kind` refusal (§ 2.5). The cross-type cases stay in
-  § 14.3, since the reference backend's index compares one type (`ownerNameKey`, `__tests__/helpers/store/model.ts`).
-  The suite's merge items gain five, which a fixture whose backend refuses concurrent writes skips as it skips them
+  rename, and which the in-repo fixture excludes by its `unhomed-kind` refusal (§ 2.5). The cross-type cases stay in §
+  14.3, since the reference backend's index compares one type (`ownerNameKey`, `__tests__/helpers/store/model.ts`). The
+  suite's merge items gain five, which a fixture whose backend refuses concurrent writes skips as it skips them
   (`mergesConcurrentWrites`, `__tests__/helpers/store/suite-merges.ts`), the in-repo one among them: a write whose
   stale-base merge clashes, its conflict record's `history` naming the verb `merge` whatever verb the write carried; a
   put whose content is the stored record's, naming in `resolves` the open conflict record a clash filed, removing it; a
@@ -3040,14 +3047,14 @@ the default in a files-format code repository, and the separate one in its refta
   content its kind's parser refuses, through a parser the registry override installs as the write-check item installs
   its test registration, refusing `record-malformed`. One more item, a primary's put without placement at its current
   version, refuses `record-malformed`, which the in-repo fixture excludes by its `placement-move` refusal. The reference
-  backend implements `pull`, `maintain`, the renumbering of a closed cohort's folder in its sync, and the retry figures;
-  it parses each write's input through `MutationSchema`, which `writeReference` and its batch take typed today; it
-  refuses a repeated entry ID as § 5.1 and § 5.2 do, where its merge throws today; it runs the kind's parser on a stale
-  base's merged content (`land`, `__tests__/helpers/store/write.ts`); it passes the merge library the base's version
-  (`mergeContents`, `__tests__/helpers/store/merge.ts`), and null where its pull's merge synthesizes an empty base for a
-  record both sides created (`reconciledRecords`, `__tests__/helpers/store/sync.ts`); and it refuses
-  `state-unresolvable` for a state version it holds no snapshot of (`recordsAt`, `changesReference`,
-  `__tests__/helpers/store/read.ts`), where it throws today.
+  backend implements `pull`, `maintain`, and the retry figures; it parses each write's input through `MutationSchema`,
+  which `writeReference` and its batch take typed today; it refuses a repeated entry ID as § 5.1 and § 5.2 do, where its
+  merge throws today; it runs the kind's parser on a stale base's merged content (`land`,
+  `__tests__/helpers/store/write.ts`); it passes the merge library the base's version (`mergeContents`,
+  `__tests__/helpers/store/merge.ts`), and null where its pull's merge synthesizes an empty base for a record both sides
+  created (`reconciledRecords`, `__tests__/helpers/store/sync.ts`); and it refuses `state-unresolvable` for a state
+  version it holds no snapshot of (`recordsAt`, `changesReference`, `__tests__/helpers/store/read.ts`), where it throws
+  today.
 - **`keyed-independence` seeds its foreign owner only for owner types a store holds more than one of** — work items,
   cohorts, and people (`__tests__/helpers/store/suite-records.ts`). The contract gives a store one project (D14, § 3.2),
   so for a project-owned kind the item checks two keys under that one owner.
@@ -3828,13 +3835,6 @@ open:
   schemas for `review/evidence` and `review/outcome` likewise bring the mapping of the review gate's records onto them —
   which kind each becomes, its work item and key, and what a fact with no live owner becomes (§ 10.8); until it lands,
   the import's trial lists the gate's facts and the import refuses, and this change verifies only that refusal.
-- **Available before this change implements:** the meta kind's pause section (`MetaPauseSchema`), `LinksSchema`'s branch
-  entries with `linkedAs` and `excluded` (A3's forward amendment), captures' copy keys and every link naming the project
-  ID as its repository (A6's), and `computeDefaultCaptureSet` and `computeCopyKeys`, which the import writes and calls
-  (§ 8, § 10.9, § 10.11); a cohort's archive placement, `CohortReadPlacementSchema` and `assignCompletedCohorts` (§ 2.4,
-  § 7.6); the terminal-lineage repair, `isTerminalSnapshotRepair` (§ 5.2); the lifecycle verbs' record placement,
-  `lifecycleRecordPath`, with the rename and Design lookups over it (§ 2.5); and `arc rename`'s store path,
-  `runStoreRename`, whose retry this change builds (§ 4.5).
 - **Available before the import re-homes Errands (§ 10.9):** the Errand record's optional `owner`, the identity slug of
   the person who owns it. The record's schema is strict today (`TransientIdentityRecordSchema`,
   `lib/errand/identity-record.ts`), so `serializeTransientIdentityRecord` throws on a record carrying `owner` until
