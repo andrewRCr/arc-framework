@@ -117,6 +117,26 @@ Optimization WU.
 
 - _Captured during:_ `storage-seam` draft close, 2026-10-09.
 
+### `[ ]` **Give a between-work-units session somewhere to hand off its intent**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-10-15); homed at
+  the drain.
+
+- _Shapes:_ § In scope, "Lightweight entry-mode paths" (errand / housekeep / between-WUs handoffs); inbound "Terminal-WU
+  handoff mode, an explicit sync-only handoff tier, and boundary-marker output".
+
+- _Observation:_ session handoff writes `SESSION-NOTES.md` under `user/{identity}/{work-unit}/`, so only a work unit's
+  session can leave intent for the next one. On 2026-10-13 a housekeep drain was planned from the primary checkout
+  between work units, with captures to merge, a placement lean for the extension redesign, and a timing constraint
+  around Codex's List A; the recommendation to run it from a fresh session had nowhere to record that plan, so the drain
+  ran in the same session. WORKING-MEMORY holds durable cross-unit guidance, not one session's next step.
+
+- _Approach:_ a between-work-units handoff record that session handoff writes and session-init reads on entering the
+  primary checkout's between-WUs frame, or one a transient's resume reads (a drain or an Errand). Where it lives is
+  operational state, so it follows the storage contract.
+
+- _Captured during:_ the List B run, 2026-10-13, at the housekeep-drain recommendation.
+
 ---
 
 ## Problem / Motivation

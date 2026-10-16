@@ -338,8 +338,14 @@ check_method_frontmatter() {
         return
     fi
 
-    if ! head -n 20 "$file" | tail -n +2 | grep -qE '^---$'; then
-        error "$file_label: frontmatter block not closed within first 20 lines"
+    local frontmatter
+    if ! frontmatter=$(awk '
+        NR == 1 { next }
+        /^---$/ { closed=1; exit }
+        { print }
+        END { exit closed ? 0 : 1 }
+    ' "$file"); then
+        error "$file_label: frontmatter block not closed"
         return
     fi
 
@@ -348,7 +354,7 @@ check_method_frontmatter() {
 
     local missing=""
     for key in $required_keys; do
-        if ! head -n 20 "$file" | grep -qE "^${key}:"; then
+        if ! printf '%s\n' "$frontmatter" | grep -qE "^${key}:"; then
             missing="${missing} ${key}"
         fi
     done

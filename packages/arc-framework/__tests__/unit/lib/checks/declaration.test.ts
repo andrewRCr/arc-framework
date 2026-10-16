@@ -20,7 +20,7 @@ describe("check declaration fields", () => {
   it("resolves omitted fields conservatively", () => {
     expect(CheckDeclarationSchema.parse({ checks: { test: { command: ["npm", "test"] } } })).toEqual({
       global_inputs: [], global_runtime_inputs: [], commit_fixes: "restage",
-      checks: { test: { command: ["npm", "test"], mode: "project", inputs: ["**"], runtime_inputs: [],
+      checks: { test: { command: ["npm", "test"], mode: "project", pass_paths: true, inputs: ["**"], runtime_inputs: [],
         root: ".", widen: true, cache: true, shell: false, fixes: false, ci_only: false, reads_index: false } },
     });
   });
@@ -70,11 +70,16 @@ describe("cross-field check rules", () => {
     { check: { command: "echo ready" }, field: "command" },
     { check: { command: ["npm", "test"], shards: { count: 4, argument: "--shard={count}" } }, field: "shards.argument" },
     { check: { command: ["npm", "test"], gate: "push", no_evidence_exit: 5 }, field: "no_evidence_exit" },
+    { check: { command: ["npm", "test"], pass_paths: false }, field: "pass_paths" },
   ])("refuses an incompatible $field", ({ check, field }) => {
     const result = CheckDeclarationSchema.safeParse({ checks: { test: check } });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues.map((issue) => issue.path.join(".")))
       .toContain(`checks.test.${field}`);
+  });
+  it("accepts a files check that withholds its paths from the command", () => {
+    const check = { command: ["npm", "test"], mode: "files", pass_paths: false, inputs: ["docs/**/*.md"] };
+    expect(CheckDeclarationSchema.parse({ checks: { test: check } })).toMatchObject({ checks: { test: check } });
   });
   it("accepts a project shell command with indexed shards", () => {
     const check = { command: "echo ready", shell: true, shards: { count: 4, argument: "--shard={index}/{count}" } };

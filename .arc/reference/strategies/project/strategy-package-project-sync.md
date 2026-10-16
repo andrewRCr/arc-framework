@@ -158,11 +158,11 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 103 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 102 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 35
+### Configurable files (project sections expected to differ) — 36
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -180,6 +180,7 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 - `system/methods/route-discovered-work.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
+- `system/methods/pull-request-format.md`
 - `system/methods/design-audit.md`
 - `system/methods/disposition-report.md`
 - `system/methods/frontline-review.md`
@@ -227,8 +228,8 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 103   | Wholesale replaced. No conflicts.                     |
-| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 102   | Wholesale replaced. No conflicts.                     |
+| Configurable   | 36    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 

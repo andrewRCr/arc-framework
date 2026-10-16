@@ -11,6 +11,7 @@ arc:
     - review-response
     - review-chunking
     - validate-criteria
+    - pull-request-format
 ---
 
 # Workflow: Deliver Stack
@@ -127,29 +128,29 @@ applicability method.
 
 ## Validate and publish
 
-Before the first mutation, load both the ordinary and delivery-member forms of
-[`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
-deliverable ID plus the ordinary terminal request as `terminalPresentation`:
+Before the first mutation, load [pull-request-format][pull-request-format]. Use its non-terminal guidance for
+one `presentations` entry per non-terminal deliverable ID, and its full title/body policy for `terminalPresentation`:
 
 ```json
 {
   "presentations": [{
     "deliverableId": "{canonical deliverable ID}",
     "summary": "{reviewer-facing purpose and outcome}",
-    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
-    "designReference": "{accessible filename or URL}"
+    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }]
   }],
   "terminalPresentation": {
-    "title": "{ordinary Conventional Commits pull-request title}",
+    "title": "{authored terminal title under the method contract}",
     "body": "{complete ordinary work-unit pull-request body}"
   }
 }
 ```
 
-`summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
-Author the terminal `title` as an ordinary Conventional Commits subject: in a multi-member delivery it is also the
-source of the delivery-wide identity, so the verb takes its type from there and refuses
-(`terminal-title-not-conventional`) when it is not an admitted conventional subject.
+`summary`, terminal `title`, and terminal `body` are required; `changes` is content-gated. Do not supply
+`designReference`. For a multi-member delivery, author the terminal title as an admitted Conventional Commits subject
+under the method's contract: the verb derives the shared type from that title and refuses
+`terminal-title-not-conventional` when it cannot. A one-member delivery's authored title follows the method's
+ordinary title policy.
+
 Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
 locators, and the same `gateResults` list to the sole initial mutation verb:
 
@@ -165,11 +166,11 @@ top-branch push, then requests bottom-up. Each request is based on its predecess
 originating branch over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒
 `true`) so every request opens under the configured hold; the landing sequence releases that lock only after readiness.
 The verb composes every request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` —
-one shared type and scope taken from the authored terminal title, positions from the canonical plan, and non-terminal
-summaries from the plan's member titles — so delivery identity and the complete range stay visible even when the host
-cannot link the requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
-presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A failed
-request step retains its reservation for `reconcile` or an exact publication retry.
+the shared type comes from the authored terminal title, scope is the work-unit ID, positions come from the canonical
+plan, and non-terminal summaries come from the plan's member titles — so delivery identity and the complete range stay
+visible even when the host cannot link the requests natively. A one-member delivery is not a stack and keeps its
+authored title unchanged. Authored presentation is used only when creating a missing request; an exact existing request
+is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
@@ -711,6 +712,15 @@ that authority against the canonical plan, versioned Delivery State, persisted o
 boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from a
 selector reconstructed in prose.
 
+After every continuation result, before following its returned step, perform
+[integration's description upkeep][description-upkeep] after the approved correction is pushed. Load
+[pull-request-format][pull-request-format] and update the terminal request against its published head from the
+canonical delivery bindings. Read `effectLog` for the controller's executed and replayed correction effects. This
+upkeep applies before handling `review-status-required`, `position`, or any other returned result after a pushed
+correction, including a stop after partial progress. Diagnose an incomplete description update before advancing;
+retain the original result unchanged for resumption. The returned action keeps its authoring, settlement, and
+review-admission authority.
+
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
@@ -803,6 +813,7 @@ terminal merge. Do not fire a delivery interlock here.
 [review-chunking]: ../../../methods/review-chunking.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
-[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [validate-criteria]: ../../../methods/validate-criteria.md
 [review-increment-invariant]: ../../../rules/DEV-RULES.ARC.md#review-increment-invariant
+[pull-request-format]: ../../../methods/pull-request-format.md
+[description-upkeep]: ../work-unit-lifecycle/integrate-work-unit.md#2-review-iteration

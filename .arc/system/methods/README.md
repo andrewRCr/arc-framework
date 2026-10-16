@@ -44,7 +44,8 @@ when populating any `.override` section. Methods not listed here are independent
 | source-grounding              | spec-review, task-audit, adversarial-review                                            | Shared behavior and propagation check                |
 | spec-review                   | source-grounding                                                                       | Spec coherence and claim grounding                   |
 | task-audit                    | source-grounding                                                                       | Task grounding floor and category analysis           |
-| commit-format                 | commit-footer                                                                          | Both govern the commit message                       |
+| commit-format                 | commit-footer, pull-request-format                                                     | Both govern the commit message                       |
+| pull-request-format           | commit-format                                                                          | Title grammar and decision content                   |
 | commit-footer                 | commit-format                                                                          | Both govern the commit message                       |
 | frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage               | Advisory review mechanism, scope, and lens           |
 | standard-review               | adversarial-review, implementation-audit, review-chunking, review-triage               | Satisfying standard, mechanism, and lens             |

@@ -1,14 +1,14 @@
-# Metadata: pull-request-surface-policy
+# Metadata: work-item-relations
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
-- **Cohort:** `doc-conventions`
-- **Depends On:** [none]
+- **Cohort:** [none]
+- **Depends On:** `storage-cutover`
 
 - **Origin:** [internal]
-- **Design:** `draft-pull-request-surface-policy.md`
+- **Design:** `draft-work-item-relations.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

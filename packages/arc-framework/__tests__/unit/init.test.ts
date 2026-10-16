@@ -295,6 +295,17 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain("system/workflows/arc/draft-design.md");
   });
 
+  it("ships pull-request formatting as a configurable core method", () => {
+    const method = "system/methods/pull-request-format.md";
+    for (const pm of ["none", "arc-in-git", "external"]) {
+      const files = resolveFileList(actualRecipe, { "pm.mode": pm, tools: "", "team.mode": "false" });
+      expect(files).toContain(method);
+      expect(files).not.toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    }
+    expect(classifyFile(method)).toBe("Configurable");
+    expect(fileLayer(method, new Set())).toBe("core");
+  });
+
   it("ships residual evidence assessment as a configurable core method", () => {
     const files = resolveFileList(actualRecipe, {
       "pm.mode": "none", "tools": "", "team.mode": "false",

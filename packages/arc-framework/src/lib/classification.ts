@@ -70,6 +70,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/route-discovered-work.md",
   "system/methods/commit-footer.md",
   "system/methods/commit-format.md",
+  "system/methods/pull-request-format.md",
   "system/methods/design-audit.md",
   "system/methods/disposition-report.md",
   "system/methods/frontline-review.md",

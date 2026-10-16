@@ -538,6 +538,7 @@ function makeResolvedReleaseModeSessionHandoffProbes(
       identity,
     ),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     worktree: async () => ({
       state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
     }),

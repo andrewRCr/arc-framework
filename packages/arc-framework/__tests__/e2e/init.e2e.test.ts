@@ -107,6 +107,12 @@ describe("init", () => {
     const pristineStore = JSON.parse(pristineRaw) as Record<string, string>;
     expect(Object.keys(pristineStore).length).toBeGreaterThan(0);
 
+    expect(await pathExists(join(tmpDir, ".arc/reference/templates/arc/work-unit/template-pull-request.md"))).toBe(false);
+    const formatMethod = "system/methods/pull-request-format.md";
+    expect(await pathExists(join(tmpDir, ".arc", formatMethod))).toBe(true);
+    expect(manifest.files[formatMethod]).toMatchObject({ classification: "Configurable", layer: "core" });
+    expect(pristineStore[formatMethod]).toBe(await readFile(join(tmpDir, ".arc", formatMethod), "utf8"));
+
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-checks.yml"))).toBe(false);

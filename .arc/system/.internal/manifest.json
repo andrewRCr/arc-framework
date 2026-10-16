@@ -92,11 +92,6 @@
       "layer": "core",
       "pristine_hash": "6a5a148698aa1ef6a0fef9120f5bb450d3f8b40881756891fe1755731b198cc0"
     },
-    "reference/templates/arc/work-unit/template-pull-request.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "b32421512e620060da85429893153ebed6add13c20954b50e5b601b508de2cb6"
-    },
     "reference/templates/arc/work-unit/template-tasks.md": {
       "classification": "Framework",
       "layer": "core",
@@ -721,6 +716,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "8d5e31b2b433644f8bed5f36893333e2cb4890bc14d605a144c63181dfbcafe1"
+    },
+    "system/methods/pull-request-format.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "7cec1023ce74b7f1d9b11c18e2e1f29363974e9da574763a1faead3e0c2e2706"
     }
   }
 }

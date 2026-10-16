@@ -76,6 +76,60 @@ WU activation.
 
 - _Captured during:_ `quality-gate-hooks` task generation, Pass 3 grounding audit, 2026-10-08.
 
+### `[ ]` **Stage the complete public-docs extension retirement sweep**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep — item 2, session portability and probe vocabulary (it still lists `arc extensions status`
+  as a shipped surface), and item 6, adopter-facing customization paths; the inbound quality-gate and task-execution
+  demos entry.
+
+- _Observation:_ Retirement removes arc extensions status, system/extensions/, active/.actions hooks, and extension
+  fire-point prose. Public docs and mkdocs.yml are deliberately excluded from the retirement implementation and must
+  be updated in the holistic docs sweep.
+
+- _Approach:_ Sweep docs/ and mkdocs.yml by mechanism sense: customization model/decision trees, examples, command
+  reference, glossary, navigation, external-PM notifications, and demos/GIF narration. Retain file-extension settings
+  and unrelated principle/convention/escape-hatch tiers. Coordinate with the already-staged quality-gate rewrite; do
+  not teach a replacement until it exists.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
+### `[ ]` **Teach explicit dependency-tool setup in contributor onboarding**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep — a new drift item for contributor onboarding: `docs/contributing.md` still teaches only
+  `npm install`.
+
+- _Observation:_ Repository installs disable dependency lifecycle scripts through `.npmrc`. The contributor
+  bootstrap command is `npm install && npm run setup`: setup checks for an unexpected `lefthook.yml`, rebuilds
+  esbuild explicitly, and runs Husky's prepare script. Installation alone does not initialize the hooks.
+
+- _Approach:_ carry that explicit setup step into the contributor guide during the planned holistic docs rewrite.
+  Use root `CONTRIBUTING.md`, `package.json`, and `.npmrc` as the current sources; keep site edits in this work unit.
+
+- _Captured during:_ `enforce-install-script-policy`, hosted Codex pass 1, 2026-10-14 (approved review disposition).
+
+### `[ ]` **Correct the docs' squash-traceability claim and teach the pull-request format**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-10-15).
+
+- _Shapes:_ § Items to Sweep > Drift Items — a new numbered item.
+
+- _Observation:_ `docs/customization/configuration.md` (~169-172), `docs/methodology/rationale.md` (~208), and
+  `docs/methodology/principles.md` (~163) say that under squash merge traceability shifts to pull-request
+  descriptions. Once `pull-request-surface-policy` lands, the title becomes the commit subject under squash and a
+  pull-request description carries no ARC traceability, so those lines go stale.
+
+- _Approach:_ replace the claim with "the pull-request title becomes the commit subject", and teach the
+  `pull-request-format` method where the site covers pull requests: one content-gated body (Summary, Changes, Notes
+  for Reviewers, Test Plan, Out of Scope), no `Design` or `Local review` field, and the target repository's own
+  template and policies governing. Source it from the shipped method, not this capture.
+
+- _Captured during:_ `pull-request-surface-policy` create-spec, adversarial pass 1 finding F6 (deferred: `docs/` stays
+  stale until the sweep), 2026-10-14.
+
 ---
 
 ## Why a Dedicated Plan

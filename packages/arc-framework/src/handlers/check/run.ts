@@ -2,7 +2,7 @@
 import { tmpdir } from "node:os";
 import type { PushRefDisposition } from "../../lib/checks/push.js";
 import { resolve } from "node:path";
-import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
+import { checkArgumentBatches, checkFileArguments } from "../../lib/checks/batching.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
 import { findPartiallyStagedChecks } from "../../lib/checks/partial-staging.js";
 import { commitRestageAllowed, restageCommitFixes } from "../../lib/checks/commit-fixes.js";
@@ -78,7 +78,7 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   reports?: CheckReportStore;
   now?(): number;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
 
 /**
@@ -218,7 +218,8 @@ async function runRequestedCheck(
   let paths: string[] = [];
   let mergedIn: string[] = [];
   if (check.mode === "files") {
-    paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths });
+    paths = await selectedFilePaths(io, { id, root, tree, selectionTree, inputs: check.inputs, selectedPaths: selected.paths,
+      withDeletions: !check.pass_paths });
     if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
     const checkedTree = usesFormingWorktree(check, request) ? resolved.worktreeTree ?? tree : tree;
     mergedIn = await readRangeMergedInPaths(io.git, root, { scope: resolved.scope, base: resolved.base, merges: resolved.merges,
@@ -266,7 +267,7 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
     const selected = selectCheckInputs({ id, check, request, resolved, selection });
     if (selected.status === "not selected") continue;
     if (check.mode === "files" && (await selectedFilePaths(io, { id, root, tree: resolved.tree, selectionTree: resolved.tree,
-      inputs: check.inputs, selectedPaths: selected.paths })).length === 0) continue;
+      inputs: check.inputs, selectedPaths: selected.paths, withDeletions: !check.pass_paths })).length === 0) continue;
     candidates.push({ id, inputs: check.inputs });
     if (context.globalInputs.length > 0) candidates.push({ id, inputs: context.globalInputs });
   }
@@ -279,13 +280,19 @@ async function partiallyStagedRefusal(io: DeclaredCheckDependencies, context: {
   return `Partially staged inputs: ${paths} (checks: ${ids}). Stage each whole file and retry git commit, or skip these checks for this commit with ARC_SKIP=${ids} git commit ... .`;
 }
 
+/**
+ * The changed input paths that select a files check. A deleted path cannot be handed to a command, so it counts only
+ * for a check that withholds its paths, which any change to its inputs selects.
+ */
 async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
   id: string; root: string; tree: string; selectionTree: string; inputs: string[]; selectedPaths?: TreePathChange[];
+  withDeletions: boolean;
 }): Promise<string[]> {
   const { id, root, tree, selectionTree, inputs, selectedPaths } = input;
   const matching = selectedPaths === undefined ? await matchTreeInputs(io, root, selectionTree, inputs)
     : { status: "known" as const, paths: selectedPaths };
   if (matching.status !== "known") throw new Error(`Could not resolve inputs for ${id}; retry the check request.`);
+  if (input.withDeletions) return matching.paths.map(path => path.path);
   const paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
   if (tree === selectionTree || paths.length === 0) return paths;
   const current = await matchTreeInputs(io, root, tree, inputs);
@@ -343,11 +350,12 @@ const KILLED_EXIT_CODE = 137;
 const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  result: { started: boolean; exitCode: number; output: string }, key: string | null): Promise<DeclaredCheckResult> {
+  result: { started: boolean; exitCode: number; output: string; notRunReason?: string }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
   const { rewritten, reason } = await finishCheckRewrites(selected, io, request);
   const { divergent } = selected;
   const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
+  if (result.notRunReason !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: result.notRunReason };
   if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
   if (result.exitCode === KILLED_EXIT_CODE && check.no_evidence_exit !== KILLED_EXIT_CODE) {
     return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
@@ -401,19 +409,19 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
   const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
   const notices = new Set<string>();
-  const ran = (result: { started: boolean; exitCode: number }) => ({ ...result, output: outputs.join("\n"),
+  const ran = (result: { started: boolean; exitCode: number; notRunReason?: string }) => ({ ...result, output: outputs.join("\n"),
     ...(notices.size > 0 ? { notice: [...notices].join("; ") } : {}) });
   let exitCode = 0;
   // A batch that found nothing to examine neither fails the check nor shows the others examined anything, so the
   // check reports no evidence only when every batch did.
   let examined = false;
   try {
-    const batches = check.mode === "files" ? batchCheckPaths(command, paths, io.platform) : [[]];
+    const batches = checkArgumentBatches(check, command, paths, io.platform);
     for (const batch of batches) {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
       if (result.notice !== undefined) notices.add(result.notice);
-      if (!result.started) return ran(result);
+      if (!result.started || result.notRunReason !== undefined) return ran(unavailableBatchResult(exitCode, result));
       if (result.exitCode === check.no_evidence_exit) continue;
       examined = true;
       // A kill never hides another batch's failure, which is a verdict where the kill is none.
@@ -424,4 +432,10 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
     return ran({ started: false, exitCode: 1 });
   }
   return ran({ started: true, exitCode: examined ? exitCode : check.no_evidence_exit ?? exitCode });
+}
+
+/** A completed batch failure remains a verdict when a later runner reports no result. */
+function unavailableBatchResult(previousExit: number, result: { started: boolean; exitCode: number; notRunReason?: string }) {
+  return result.notRunReason !== undefined && previousExit !== 0 && previousExit !== KILLED_EXIT_CODE
+    ? { started: true, exitCode: previousExit } : result;
 }

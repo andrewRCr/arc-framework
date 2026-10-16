@@ -380,6 +380,22 @@
 
 - _Captured during:_ `grounded-planning-review` create-spec, 2026-10-02 (Owner question on the `runner` design).
 
+### `[ ]` **Drop extension declarations and choose independent fire-point validation**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-10-15).
+
+- _Shapes:_ D1 declaration family; D2 private visibility and stable anchors; inbound method fire-site validation.
+
+- _Observation:_ Retirement removes arc.extensions, point-scanner, orphan detection, and extension-point validation.
+  The #name marker becomes unreserved. D1’s declared-and-validated extension entries and D2’s point-scanner-enforced
+  visibility lose their substrate.
+
+- _Approach:_ Choose the method/fragment/anchor grammar and validator independently. Recover the old scanner from the
+  retirement ADR’s pre-removal revision only if useful; remove any assumption that extending it or preserving
+  extension-reserved markers is required.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

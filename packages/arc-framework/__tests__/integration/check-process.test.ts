@@ -65,3 +65,22 @@ it("reports no notice when the command writes none, and replaces an inherited no
   expect(result.stdout).not.toBe("/inherited/notice");
   expect(result).not.toHaveProperty("notice");
 });
+
+it("recognizes a runner's not-run line before truncating the display notice", async () => {
+  const command = writesNotice("ran remotely: " + "x".repeat(220) + "\nnot run: VM connection dropped\n");
+  command[2] += "; process.exitCode = 1";
+  const result = await runCheckProcess(command, await checkout());
+  expect(result).toMatchObject({ started: true, notRunReason: "VM connection dropped" });
+  expect(result.notice).toHaveLength(200);
+});
+
+it.each([
+  { text: "not run: successful command's advisory", exit: 0 },
+  { text: "diagnostic mentions not run: without a marker", exit: 1 },
+])("requires a nonzero exit and a line-prefix marker: $text", async ({ text, exit }) => {
+  const command = writesNotice(text);
+  command[2] += `; process.exitCode = ${exit}`;
+  const result = await runCheckProcess(command, await checkout());
+  expect(result.exitCode).toBe(exit);
+  expect(result).not.toHaveProperty("notRunReason");
+});

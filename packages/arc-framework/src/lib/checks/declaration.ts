@@ -8,6 +8,7 @@ const CheckSchema = z.strictObject({
   shell: z.boolean().default(false),
   gate: z.enum(["commit", "push", "merge"]).optional(),
   mode: z.enum(["files", "project"]).default("project"),
+  pass_paths: z.boolean().default(true),
   inputs: z.array(z.string()).default(["**"]),
   runtime_inputs: z.array(ArgumentListSchema).default([]),
   widen: z.boolean().default(true),
@@ -21,6 +22,10 @@ const CheckSchema = z.strictObject({
 }).superRefine((check, context) => {
   if (check.shell && check.mode === "files") {
     context.addIssue({ code: "custom", path: ["mode"], message: "Shell checks require project mode." });
+  }
+  if (!check.pass_paths && check.mode !== "files") {
+    context.addIssue({ code: "custom", path: ["pass_paths"],
+      message: "Only a files check can withhold its paths; a project check never receives any." });
   }
   if (check.shell && typeof check.command !== "string") {
     context.addIssue({ code: "custom", path: ["command"], message: "A shell command must be one string." });

@@ -104,7 +104,7 @@ a configurability path (how teams adapt it).
 | Planning checkpoint review             | P2 / P4   | No checkpoint stop                  | None                                                 |
 | Leave it cleaner (capture floor)       | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
 | Test-first assessment                  | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
-| Conventional commit format             | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
+| Conventional commit format             | P6        | `type[(scope)]: description`        | Config setting — `commit.format`                     |
 | Context footer on commits              | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
 | Atomic commits                         | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
 | Branch naming conventions              | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
@@ -266,8 +266,8 @@ Most config settings are straightforward toggles. Some carry deeper implications
   with P6 (traceability).
 - **`rebase`** (convention, tier 2) — Commits replayed onto a new base for linear history. Hashes change,
   which can complicate traceability if commits are referenced elsewhere by hash.
-- **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
-  PR descriptions must carry the traceability that individual commits would normally provide.
+- **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. The pull-request title
+  becomes the commit subject.
 
 **Merge lock** (`merge.lock`) decides whether a pull request is held unmergeable until the work is cleared to
 land:

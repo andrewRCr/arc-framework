@@ -207,8 +207,7 @@ never as a dispositions table in the target's draft.
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
   off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
-  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3.
+  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections.
 
   Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
   diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface

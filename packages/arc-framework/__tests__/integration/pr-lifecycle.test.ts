@@ -243,7 +243,7 @@ describe("PR lifecycle and review contracts", () => {
       "utf8",
     );
     const creation = workflow.slice(
-      workflow.indexOf("The no-match creation arm"),
+      workflow.indexOf("3. **Resolve the Errand PR**"),
       workflow.indexOf("4. **Enter the open PR.**"),
     );
     const guard = creation.indexOf(

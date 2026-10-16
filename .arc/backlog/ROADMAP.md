@@ -52,7 +52,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                   | P2       | andrew | —          | approval-flow-refinement   |
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
-| pull-request-surface-policy         | P2       | andrew | —          | doc-conventions            |
+| agent-session-bridge                | P2       | andrew | —          | —                          |
 | cli-output-contract                 | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
@@ -126,6 +126,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-request-contracts        | P1       | andrew | review-activity-contracts | review-protocol-alignment |
 | delivery-correction-convergence | P1       | andrew | storage-cutover           | —                         |
 | delivery-observe-attest         | P1       | andrew | storage-cutover           | —                         |
+| work-item-relations             | P1       | andrew | storage-cutover           | —                         |
 | wu-lifecycle-state-model        | P1       | andrew | storage-cutover           | —                         |
 | naming-conventions              | P2       | andrew | storage-cutover           | doc-conventions           |
 | errand-promotion-concurrency    | P2       | andrew | storage-cutover           | —                         |

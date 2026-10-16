@@ -454,7 +454,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await git(repo, ["add", "-A"]);
     const control = await commitAttempt(
       repo,
-      "chore(test): Configure canonical lifecycle fixture\n\n"
+      "chore(test): configure canonical lifecycle fixture\n\n"
         + "Context: standalone (maintenance)",
       hookPath.env,
     );
@@ -497,7 +497,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await git(repo, ["add", "-A"]);
     const predecessorCommit = await commitAttempt(
       repo,
-      "chore(test): Create planned origin predecessor\n\n"
+      "chore(test): create planned origin predecessor\n\n"
         + "Context: standalone (planning)",
       hookPath.env,
     );
@@ -568,7 +568,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await git(sourceWorktree, ["add", "-A"]);
     const planningCommit = await commitAttempt(
       sourceWorktree,
-      "feat(test): Author paired origin planning\n\n"
+      "feat(test): author paired origin planning\n\n"
         + "Context: standalone (planning)",
       hookPath.env,
     );
@@ -639,7 +639,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await git(sourceWorktree, ["add", "source-rider.txt"]);
     const riderCommit = await commitAttempt(
       sourceWorktree,
-      "chore(test): Add unrelated source rider\n\n"
+      "chore(test): add unrelated source rider\n\n"
         + "Context: standalone (maintenance)",
       hookPath.env,
     );
@@ -671,7 +671,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await git(sourceWorktree, ["revert", "--no-commit", "HEAD"]);
     const revertCommit = await commitAttempt(
       sourceWorktree,
-      "fix(test): Remove unrelated source rider\n\n"
+      "fix(test): remove unrelated source rider\n\n"
         + "Context: standalone (maintenance)",
       hookPath.env,
     );

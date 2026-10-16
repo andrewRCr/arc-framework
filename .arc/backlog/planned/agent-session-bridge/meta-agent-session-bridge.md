@@ -1,15 +1,16 @@
-# Metadata: public-repo-flip
+# Metadata: agent-session-bridge
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-public-repo-flip.md`
+- **Design:** `draft-agent-session-bridge.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
 - **Last Completed:** [none]

@@ -2049,8 +2049,10 @@ reviewCmd
   }));
 
 reviewCmd
-  .command("planning-lane <base> <head>")
+  .command("planning-lane")
   .description("Classify an exact Git change for planning clearance")
+  .argument("<base>", "Full base commit SHA, 40 or 64 hex characters")
+  .argument("<head>", "Full head commit SHA, the same width as base")
   .option("--repository <path>", "Repository containing both exact commits")
   .action(async (base: string, head: string, opts: ReviewPlanningLaneOptions) => {
     await (await import("./handlers/review.js")).handleReviewPlanningLane(base, head, opts);

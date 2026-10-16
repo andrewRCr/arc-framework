@@ -6,9 +6,9 @@ disable-model-invocation: false
 
 # ARC Session
 
-Run `.arc/system/workflows/arc/session-lifecycle/session-init.md`. It consumes the reader-owned session locus
-projection, attaches the exact entering role, and dispatches its derived workflow/load set. Never select entry from branch
-shape, active-meta hints, or a second worktree scan.
+Run `.arc/system/workflows/arc/session-lifecycle/session-init.md`. It consumes the reader-owned `derivedLocusState`
+projection and dispatches the workflow/load set for its exact entering role. Never select entry from branch shape,
+active-meta hints, or a second worktree scan.
 
 An optional positional argument supplies an **entry seed** — a spec pointer or description that the workflow's
 new-work arm consumes (confirmed before use). A bare invocation enters per the probe.

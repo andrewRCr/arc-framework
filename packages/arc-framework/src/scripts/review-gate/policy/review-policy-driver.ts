@@ -20,18 +20,24 @@ import {
 } from "./review-additional-pass.js";
 export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
 export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
+import { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
+export { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
+export type { ReviewCeilingOverride } from "./review-ceiling-override.js";
 import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
+import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
+import { errandFirstPassHostedRequest } from "./review-errand-hosted-request.js";
 
 import {
   ReviewAttemptOutcomeSchema,
   ReviewAttemptSchema,
+  isSafeUnavailable,
   type ReviewAttempt,
 } from "./review-policy-attempt.js";
-export { projectReviewPolicyAttempt } from "./review-policy-attempt.js";
+export { isSafeUnavailable, projectReviewPolicyAttempt } from "./review-policy-attempt.js";
 
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const FrontlinePolicyInvocationSchema = z.strictObject({
@@ -162,14 +168,6 @@ function closedFrontlinePhaseMessage(request: ReviewPolicyRequest): string | nul
     : null;
 }
 
-export const ReviewCeilingOverrideSchema = z.strictObject({
-  target: ReviewPolicyTargetSchema,
-  lane: z.enum(["frontline", "standard"]),
-  exhaustedPassCount: CompletedReviewPassCountSchema,
-  nextPass: ReviewPassSchema,
-  conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
-}).readonly();
-export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
 const InvalidOverrideReasonSchema = z.enum([
   "target-mismatch",
   "lane-mismatch",
@@ -301,6 +299,8 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   terminalResponseSettled: z.literal(true).optional(),
   /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
   frontlinePhaseClosed: z.literal(true).optional(),
+  /** Repository-proven: the invoking checkout is the subject's own Errand; never a command input. */
+  errandVehicle: z.literal(true).optional(),
 }).superRefine((request, context) => {
   validateTerminalPassProgress(request, context);
   validateVerifiedTerminalSignal(request, context);
@@ -536,6 +536,8 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
     ...ReviewResolveHeaderShape,
     state: z.literal("ready"),
     nextAction: z.enum(["run-frontline", "local-prepare", "hosted-request"]),
+    /** The submit-ready hosted request for an Errand's first pass, whose every input this request holds. */
+    action: HostedRequestEnvelopeSchema.optional(),
     payload: z.strictObject({
       lane: z.enum(["frontline", "standard"]),
       scope: ReviewScopeModeSchema,
@@ -995,9 +997,13 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   if (selectedCapability === undefined) {
     throw new Error(`eligible review source '${sourceId}' has no registered capability`);
   }
+  const action = selectedCapability.nextAction === "hosted-request"
+    ? errandFirstPassHostedRequest(request, scope, sourceId)
+    : null;
   return resolveEnvelope({
     state: "ready",
     nextAction: selectedCapability.nextAction,
+    ...(action === null ? {} : { action }),
     payload: {
       lane: request.lane,
       scope,
@@ -1029,11 +1035,6 @@ function resolveInvalidOverrideReason(
   if (override.nextPass !== overrideBasePasses + 1) return "next-pass-mismatch";
   if (overrideBasePasses < request.maxPasses) return "ceiling-not-exhausted";
   return null;
-}
-
-/** Whether a source outcome permits falling through to the next configured source. */
-export function isSafeUnavailable(outcome: ReviewAttempt["outcome"]): boolean {
-  return outcome === "rate-limited" || outcome === "transient-unavailable";
 }
 
 function sameTarget(

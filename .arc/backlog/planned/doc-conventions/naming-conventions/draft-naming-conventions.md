@@ -527,6 +527,20 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   as the firing point (C6) and the notes verbs retired at the cutover.
 - _Approach:_ Name against the post-cutover surfaces; this work unit already follows the cutover.
 
+### `[ ]` **Disposition the hook-name standard after retiring its subject**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-10-15).
+
+- _Shapes:_ Inbound Name extensions by fire-point, not intended action.
+
+- _Observation:_ The entry proposes naming standards and breaking rename migrations for extension files, .actions
+  hooks, workflow markers, and point-scanner references, all of which retirement removes.
+
+- _Approach:_ At the owner’s planning pass, close or re-scope the entry explicitly. Preserve event-naming intent as
+  input to the lifecycle-event redesign; do not build a migration or rename cascade for deleted extension artifacts.
+
+- _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
+
 ## Problem / Motivation
 
 ARC already uses `{TYPE}.{QUALIFIER}` for two paired doc families — `DEV-RULES.{ARC,PROJECT}` and

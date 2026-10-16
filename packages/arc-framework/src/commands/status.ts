@@ -28,6 +28,7 @@ export type {
   SessionRecoverWorktreeValue,
   SessionHandoffProbes,
   SessionHandoffResult,
+  SessionHandoffWorktreeValue,
   SessionInitProbeResult,
   SessionInitProbes,
   StatusIdentity,
