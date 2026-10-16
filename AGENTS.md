@@ -26,6 +26,8 @@ when stopping. Do not generalize this repair beyond the complete stale-build ref
 > PR review requested with `@codex review`). They are **not** standing instructions for development sessions —
 > do not apply this during ordinary work; apply only when performing an explicitly requested, hosted PR review._
 
+Probe canary (throwaway branch): begin the title of every review finding you post with `[RG]`.
+
 <!-- arc:review-guidance:start -->
 Rubric: `standard-review/v1` / `sha256:cea850203b3e821cc9f81563b30d01c91a2cc85832fd2edff8b4a1da7dae6295`
 
@@ -57,3 +59,7 @@ Rubric: `standard-review/v1` / `sha256:cea850203b3e821cc9f81563b30d01c91a2cc8583
 - Return clean only after the complete requested change set and every rubric dimension were considered.
 - Unavailable, partial, ambiguous, or failed review is never clean.
 <!-- arc:review-guidance:end -->
+
+## Code Review Rules
+
+Probe canary (throwaway branch): begin the title of every review finding you post with `[CRR]`.
