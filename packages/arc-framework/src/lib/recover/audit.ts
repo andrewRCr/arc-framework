@@ -9,6 +9,7 @@
  */
 import { posix } from "node:path";
 import { z } from "zod";
+import { SlugSchema } from "../kernel/schema/slug.js";
 
 import type { Probe } from "../../commands/status/types.js";
 import {
@@ -18,7 +19,8 @@ import {
   type CompactionSeed,
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
-import { resolveArcPath } from "../layout/index.js";
+import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import {
   LoadSetAuditDiffSchema,
   LoadSetAuditVerdictSchema,
@@ -553,15 +555,12 @@ function archivedIntegrationRelocation(
     || diff.pathDrifts.length !== 1) return null;
   const drift = diff.pathDrifts[0];
   if (drift === undefined) return null;
-  const expected = `.arc/active/meta-${slug}.md`;
-  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const actualPattern = new RegExp(
-    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
-    "u",
-  );
+  if (!SlugSchema.safeParse(slug).success) return null;
+  const expected = workItemArtifactPath(slug, "meta", { kind: "active" }, null);
+  const actual = identifyWorkUnitArtifactPath(drift.actual.path);
   if (options.seed.metaPath !== expected
     || drift.expected.path !== expected
-    || !actualPattern.test(drift.actual.path)
+    || actual === null || actual.artifact !== "meta" || actual.slug !== slug || actual.placement.kind !== "completed"
     || entering.row.context.metaPath !== drift.actual.path
     || drift.expected.readMode.kind !== "full"
     || drift.actual.readMode.kind !== "full") return null;

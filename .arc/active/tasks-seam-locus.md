@@ -199,47 +199,15 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
 - _Outcome:_ Validated branched and detached rename residues carry doubled-force move argv in both the remedy and
   typed actions, with shell-safe displayed paths; the sweep schema admits that same tuple.
 
-### `[ ]` **1.9 Record the state version and the layout-resolved paths in the compaction seed — § 4.9**
+### `[x]` **1.9 Record the state version and the layout-resolved paths in the compaction seed — § 4.9**
 
 - _Goal:_ The compaction seed records the store's state version beside its explicit code-head baseline and resolves its
   meta path through the layout resolver, under an advanced schema version, staying a read-only projection of the
   envelope through the shared load-set projection.
 
-    - `emitCompactionSeed` (`lib/compaction-seed/emitter.ts`) opens the store over the checkout
-      (`createStore(createDefaultStorePorts({ checkoutRoot, exec }))`) and records its `version()`; where `version()`
-      refuses, the seed records `stateVersion: null`. `head` stays the code-head baseline the recovery audit reads.
-    - It takes the meta path from the store's work-item path, which this task adds in `lib/store/lifecycle-storage.ts`:
-      given a slug, an artifact, a work unit's placement as the store reads it (`WorkUnitReadPlacementSchema`,
-      `lib/store/placement.ts`), and the work unit's `Cohort`, under which a backlog placement nests, it returns the
-      artifact's projected path through `resolveArcPath` (`lib/layout/projection.ts`), mapping the placement as
-      `lifecycleArtifactPath` maps a listed entry's (`placementOf`), and `lifecycleArtifactPath` then calls it, so one
-      mapping serves both. It replaces the emitter's `.arc/active/meta-` and `meta-(.+)\.md` patterns.
-    - Beside `completedCohortPath` (`lib/store/lifecycle-record-path.ts`) the task adds the store's cohort path, which
-      returns a cohort document's projected path from its `cohort/document` record. The coordinate comes from the
-      record's `Parent` and name. A record at placement `completed` takes its own quarter, sequence, and closeout,
-      closeout `a` mapping to the leaf's and `b` to the parent's; both are taken as `completedCohortPath` takes them,
-      and `completedCohortPath` then calls the new path. A record with no placement gives the planned document's path.
-      `workUnitMetaPath` (`lib/store/lifecycle-write.ts`) keeps its own mapping.
-    - Recovery's archived-integration relocation (`archivedIntegrationRelocation`, `lib/recover/audit.ts`) takes its
-      active meta path from the work-item path and recognizes the completed one through the layout's inverse
-      (`identifyWorkUnitArtifactPath`, `lib/layout/identification.ts`) — the slug's meta at a completed placement — in
-      place of its pattern, since it holds no quarter or sequence to resolve one from. Neither file gains a
-      `work-unit-paths` entry.
-    - `COMPACTION_SEED_SCHEMA_VERSION` (`lib/compaction-seed/schema.ts`) advances to 2, with the schema's new field and
-      the recovery audit's seed summary (`RecoverAuditSeedSummarySchema`, `lib/recover/report.ts`); the seed's readers
-      refuse a version 1 seed as they refuse any other version.
-
-    - Build `test-first` (one behavior at a time):
-        - the seed carries the state version, injected distinct from `HEAD`, beside the code-head baseline, and parses
-          under the advanced schema
-        - a refusing `version()` records `stateVersion: null`
-        - the work-item path returns a meta's and a task list's projected path at an active, a backlog, and a completed
-          placement, a backlog work unit nested under its cohort among them
-        - the cohort path returns a planned and a completed cohort document's projected path, a nested cohort's among
-          them, and `lifecycleArtifactPath` and `completedCohortPath` return what they return today
-        - the relocation recognizes the completed meta of any quarter and sequence, and no other slug's
-        - its meta path comes from the work-item path for the current work unit
-        - a version 1 seed refuses with the schema's message
+- _Outcome:_ Seed schema 2 carries the store version independently of the code head, recording refusals as null.
+  Shared work-item and cohort path providers retain layout authority; seed meta selection and archived-integration
+  relocation use the layout inverse and provider instead of filename patterns. Recovery summaries carry the version.
 
 ### `[ ]` **1.10 Register the new verbs, refusing `unsupported` — § 14**
 

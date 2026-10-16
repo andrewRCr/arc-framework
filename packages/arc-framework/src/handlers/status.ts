@@ -884,6 +884,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
       const gitSnapshot = await compactionSeedGitSnapshotP;
       result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
         cwd,
+        exec,
         envelope: result,
         gitSnapshot,
       }));

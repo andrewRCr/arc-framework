@@ -598,4 +598,13 @@ Spec § 1.4, item 3 changes `unit/session-init/lifecycle-residue-sweep.test.ts`,
 `packages/arc-framework/__tests__/`. Branched and detached validated moves share the doubled-force argv and executable
 action; displayed paths use literal shell quoting. No golden fixtures change.
 
+## Task 1.9: seed state version and projected paths
+
+Spec § 1.4, item 5 changes `unit/compaction-seed/emitter.test.ts`, `unit/compaction-seed/schema.test.ts`,
+`unit/recover/audit.test.ts`, `unit/recover/report.test.ts`, and `unit/handlers/recover-envelope-boundary.test.ts`; it adds
+`unit/lib/store/lifecycle-paths.test.ts`, under `packages/arc-framework/__tests__/`. The recovery goldens
+`recovery-audit-ready.json` and `recovery-audit-dirty-path-drift.json` gain only seed schema 2 and the state version,
+which equals the code head on the in-repo backend. Envelope selection remains a read-only projection: meta paths are
+recognized through the layout inverse and reprojected through the store's shared path provider.
+
 ---

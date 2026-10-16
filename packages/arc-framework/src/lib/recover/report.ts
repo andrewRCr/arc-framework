@@ -1,5 +1,6 @@
 /** Runtime authority for the complete recovery-audit report wire shape. */
 
+import { StateVersionSchema } from "../store/identity.js";
 import { z } from "zod";
 
 import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js";
@@ -18,6 +19,7 @@ export const RecoverAuditSeedSummarySchema = z.strictObject({
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
   emittedAt: NON_EMPTY_TEXT,
   head: NON_EMPTY_TEXT,
+  stateVersion: StateVersionSchema.nullable(),
   branch: NON_EMPTY_TEXT,
   sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
   locus: CompactionSeedLocusHintSchema,

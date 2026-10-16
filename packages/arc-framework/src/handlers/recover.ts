@@ -384,6 +384,7 @@ function seedSummary(
     schemaVersion: seed.schemaVersion,
     emittedAt: seed.emittedAt,
     head: seed.head,
+    stateVersion: seed.stateVersion,
     branch: seed.branch,
     sessionType: seed.sessionType,
     locus: seed.locus,

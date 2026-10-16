@@ -777,9 +777,6 @@
     }
   },
   "src/lib/compaction-seed/emitter.ts": {
-    "arc/surface-names": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -1465,11 +1462,6 @@
     },
     "sonarjs/cognitive-complexity": {
       "count": 1
-    }
-  },
-  "src/lib/recover/audit.ts": {
-    "arc/surface-names": {
-      "count": 2
     }
   },
   "src/lib/recover/integration-correction.ts": {

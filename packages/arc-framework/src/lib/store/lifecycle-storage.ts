@@ -1,4 +1,6 @@
 /** Immutable lifecycle filesystem projection over the public storage contract. */
+import type { z } from "zod";
+import { WorkUnitReadPlacementSchema } from "./placement.js";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { ArcError } from "../kernel/errors.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
@@ -49,16 +51,21 @@ function repositoryPath(root: string, path: string): string {
   const absolute = isAbsolute(path) ? resolve(path) : resolve(root, path);
   return relative(resolve(root), absolute).split(sep).join("/");
 }
-function placementOf(entry: LifecycleEntry): WorkUnitPlacement {
-  const value = entry.placement;
-  if (value.kind === "active") return { kind: "active", scope: { kind: "project" } };
-  if (value.kind === "backlog") return { ...value, cohort: (entry.fields.cohort ?? "").split("/").filter(Boolean).map((part) => SlugSchema.parse(part)) };
-  if (!("sequence" in value)) throw new ArcError("A completed work-unit record has no archive sequence", "store.lifecycle-placement");
-  return { kind: "completed", quarter: value.quarter, sequence: value.sequence };
+/** Project an artifact from its logical work-unit identity and read placement. */
+export function workItemArtifactPath(slug: string, artifact: WorkUnitArtifactKind,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): string {
+  const selected = WorkUnitReadPlacementSchema.parse(readPlacement);
+  const placement: WorkUnitPlacement = selected.kind === "active"
+    ? { kind: "active", scope: { kind: "project" } }
+    : selected.kind === "backlog"
+      ? { ...selected, cohort: (cohort ?? "").split("/").filter(Boolean).map((part) => SlugSchema.parse(part)) }
+      : selected;
+  return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug), placement });
 }
 /** Project a diagnostic path for a lifecycle record without reading through that path. */
 export function lifecycleArtifactPath(entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string {
-  return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: entry.reference.owner.name, placement: placementOf(entry) });
+  return workItemArtifactPath(entry.reference.owner.name, artifact,
+    WorkUnitReadPlacementSchema.parse(entry.placement), entry.fields.cohort);
 }
 const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: "work-item/spec", tasks: "work-item/task-list", notes: "work-item/notes" } as const;
 function snapshotFs(input: { store: Store; checkoutRoot: string }, version: StateVersion, entries: readonly LifecycleEntry[]): ProjectViewFs {

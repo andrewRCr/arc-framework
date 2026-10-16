@@ -1,3 +1,4 @@
+import { StateVersionSchema } from "../../../src/lib/store/identity.js";
 /** Recovery audit over checkout-local seed and derived-frame facts. */
 
 import { readFileSync } from "node:fs";
@@ -124,7 +125,8 @@ const CURSOR = {
 
 function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    stateVersion: null,
     emittedAt: "2026-08-05T12:00:00.000Z",
     repoRoot: "/repo",
     branch: "fix/demo",
@@ -1043,6 +1045,16 @@ describe("auditRecoveryState", () => {
     }));
   });
 
+  it("recognizes canonical completed meta paths across archive quarters and sequences", async () => {
+    const result = await run(archivedIntegrationOptions({ archivedMetaPath: ".arc/completed/2029-q2/88_demo/meta-demo.md" }));
+    expect(result.status).toBe("ready");
+    expect(result.explainedDrift).toContainEqual(expect.objectContaining({ kind: "load-set-archival-relocation" }));
+  });
+
+  it.each([".arc/completed/not-a-quarter/49_demo/meta-demo.md"])("refuses a completed lookalike outside the layout: %s", async (archivedMetaPath) => {
+      expect((await run(archivedIntegrationOptions({ archivedMetaPath }))).status).toBe("stop");
+    });
+
   it.each([
     {
       name: "additional path drift",
@@ -1217,6 +1229,7 @@ describe("auditRecoveryState", () => {
     });
     assertSessionRecoverProbeResult(fresh);
     const emitted = await emitCompactionSeed({
+      store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("planning-state") }) },
       cwd: "/repo",
       envelope: {
         identity: { identity: "andrew" },
