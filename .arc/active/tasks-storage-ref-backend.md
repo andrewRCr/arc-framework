@@ -178,45 +178,20 @@ recorded holding the two load-bearing host properties.
         - `gitRefLockArgs` shares the parameterized five-second lock settings across ref formats. A transaction
           commits after another process releases a contended lock in either format; stale locks retain a short override.
 
-### `[ ]` **2.4 The push helper — § 11.5**
+### `[x]` **2.4 The push helper — § 11.5**
 
 - _Goal:_ A push with explicit `<oid>:<ref>` pairs, leases, and `--atomic` returns a typed outcome per ref and for the
   whole push, reading Git's porcelain lines and exit code, and its cause from `classifyRemoteFailure`, never prose.
 
-    - `[ ]` **2.4.a Parsing the porcelain**
-        - A pure parser in `lib/git/` over `git push --porcelain` output and exit code: every flag — ` `, `+`, `*`, `-`,
-          and `=` for a ref the remote already held at that tip — reads `ok`, a successful delete's `:<ref>` and a
-          rejected one's `(delete):<ref>` among them; `!` reads `rejected` with Git's reason, `remote-rejected` with the
-          server's message, or `atomic-collateral`; `To` and `Done` lines frame them; the whole push reads
-          `atomic-unsupported` by its text, checked before `unreachable`, `hook-declined` as exit 1 with no per-ref
-          line, and `unreachable` otherwise; every `remote:` line and a pre-push hook's stderr kept verbatim
-        - Its typed outcome is the helper's only classification: the helper ignores `expectedOutcome`
-          (`GitExpectedOutcome`, `lib/git/process-error.ts`), whose stderr regexes miss what `--porcelain` moves to
-          stdout
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, over recorded output
-            - each flag parses, with the reason or message it carries, `=` as `ok`
-            - `atomic push failed` and `atomic push failure` lines read as collateral
-            - a hook's refusal with no per-ref lines reads `hook-declined`, carrying its text verbatim, as does any
-              refusal Git raises before sending, a residual the outcome names
-            - `the receiving end does not support --atomic push` reads `atomic-unsupported`, though Git also prints the
-              hung-up line and exits 128 as for an unreachable remote
+    - `[x]` **2.4.a Parsing the porcelain**
+        - `parsePushPorcelain` reads every success flag, client and server refusals, atomic collateral, and whole-push
+          failures. Captured stdout and stderr retain server and pre-push diagnostics verbatim; atomic capability
+          refusal takes precedence over unreachable classification.
 
-    - `[ ]` **2.4.b Running the push**
-        - Runs under `LC_ALL=C` (`diagnosticLocale: "stable"`) and `PASSIVE_REMOTE_INTERACTION`
-          (`lib/git/remote-ref-reader.ts`), so a credential prompt fails as `auth` rather than waiting; `--porcelain`,
-          `--atomic` when more than one ref, and `--force-with-lease=<ref>:<oid>` or absence leases; a push the deadline
-          aborts reads `unreachable` with cause `timeout` from the executor's `canceled` failure while the signal has
-          fired, as `boundedFetch` does
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, against a bare remote
-            - an atomic push of two refs lands both, and one losing its lease lands neither
-            - a delete leased on the remote's tip lands, and one leased on another tip reads `stale info`
-            - a push of a tip the remote already holds reads `ok`
-            - a receiver with `receive.advertiseAtomic=false` reads `atomic-unsupported`
-            - a pre-receive hook's refusal reads `remote-rejected` with the hook's `remote:` lines kept
-            - an unreachable remote reads `unreachable` with `classifyRemoteFailure`'s cause, and an aborted push with
-              cause `timeout`
+    - `[x]` **2.4.b Running the push**
+        - `pushRefs` sends explicit tips and deletes with leases, uses atomic batches for multiple refs, and pins
+          non-interactive stable diagnostics. Real remotes cover all-or-none races, absence and delete leases, unchanged
+          tips, capability refusal, hook repair, and network cancellation; an aborted call reports a timeout cause.
 
 ### `[ ]` **2.5 The two load-bearing host properties — § 14.8**
 
