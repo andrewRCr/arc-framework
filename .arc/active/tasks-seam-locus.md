@@ -1295,227 +1295,82 @@ through them. The notes-sync machinery keeps `lib/user-sync/parser.ts` until the
 The in-repo backend calls no personal kind's parser and runs no write check, so filling these slots changes nothing
 before the flip.
 
-### `[ ]` **4.1 Build the entry-field module — § 6.1, § 6.2**
+### `[x]` **4.1 Build the entry-field module — § 6.1, § 6.2**
 
 - _Goal:_ One module, `lib/store/kinds/entry-fields.ts`, defines each managed field once — its name, value shape, and
   placement in an entry — reading every spelling today's entries carry and writing only the managed form, and computes
   an entry's version as exactly what the entry merge compares.
 
-- _Note:_ The module stays outside the kinds' registration modules, which the `store-raw-state` predicate restricts
-  (`eslint/architecture-imports.ts`), so session-init's readers may import it; a kind module names no `USER-INBOX.md` or
-  `WORKING-MEMORY.md` literal (`__tests__/unit/lib/store/registry.test.ts`).
+    - `[x]` **4.1.a The managed fields and their spellings**
 
-    - `[ ]` **4.1.a The managed fields and their spellings**
+        - The shared field module reads managed and accepted legacy spellings, validates values, and writes grouped
+          canonical fields with a leading disposition preserved.
 
-        - A managed field is ``- _Name:_ `value` ``; the module reads a field wherever `managedFieldValue` and
-          `managedFlagIsTrue` find it today, in the entry's block (`lib/session-init/managed-field.ts`, which then reads
-          through the module), and writes it only as a bullet in the leading group, so its readers behave as today.
-        - Managed fields lead an entry, grouped, separated by a blank line from the bare prose descriptors after them. A
-          `_Disposition:_`, when present, is the entry's first body line, its own group ahead of the managed fields, as
-          `executeBoundMark` requires (`lib/user-sync/inbox-writer.ts`).
-        - The fields: `_Id:_`, `_Created:_` (`YYYY-MM-DD`), `_Remind:_` and `_Hold:_` (`` `true` `` or absent),
-          `_WU_Target:_` (a slug with an optional `(planned)` or `(provisional)` hint, or `TBD`), `_Shapes:_`,
-          `_Cites:_` (an entry ID), `_Disposition:_`, `_Inbox:_` (`personal` or `project`), and `_Rank:_`.
-        - `_WU_Target:_` reads in the three spellings the capture gates accept (`TARGET_LINE`,
-          `lib/user-sync/inbox-target.ts`), since a missed target line would let a gate pass, and `_Shapes:_` in its
-          bare prose form too.
-        - The module carries the heading's title match (`matchInboxEntryTitle`, `lib/user-sync/parser.ts`), which the
-          title-keyed arms keep using until the deletion pass.
+    - `[x]` **4.1.b `WORKING-MEMORY`'s trigger**
 
-        - Build `test-first` (one behavior at a time):
-            - each field reads from its managed form and writes only that form
-            - `_WU_Target:_` reads from each of its three spellings, and `_Shapes:_` from its prose form
-            - a `_Disposition:_` the module writes leads the entry, and `hasExecuteBoundDisposition` reads it as marked
-            - a field `managedFieldValue` finds today, the module finds
+        - Working-memory triggers read both delimiters and wrapped content through the closing delimiter; writes use the
+          underscore form.
 
-    - `[ ]` **4.1.b `WORKING-MEMORY`'s trigger**
+    - `[x]` **4.1.c `_Routed from:_`'s written form**
 
-        - A `WORKING-MEMORY` entry's one field, `_Remove when:_`, is an italic line under its header (`WM_REMOVE_WHEN`,
-          `lib/user-sync/parser.ts`): written `_Remove when: <trigger>._`, read in that form and the asterisk form
-          `*Remove when: <trigger>.*`, both of which today's entries carry; a trigger wrapped across lines ends at its
-          closing delimiter.
+        - Routed-from provenance is a prose line directly after the ID, replaceable and removable by label.
 
-        - Build `test-first` (one behavior at a time):
-            - a trigger in either form reads, and the module writes the underscore form
-            - a wrapped trigger reads whole, ending at its closing delimiter
+    - `[x]` **4.1.d The ID and the entry's version**
 
-    - `[ ]` **4.1.c `_Routed from:_`'s written form**
+        - Entry versions hash section and exact bytes with the merge protocol; ID generation retains collision redraws.
 
-        - A plain prose bullet, `- _Routed from:_ <list> § <section>`, its value unbackticked, holding only the list and
-          section the entry left — `personal` with the router's identity, `project`, or a work unit's slug, with the
-          section where the list has sections — written on the line directly after the `_Id:_`, ending the managed
-          group.
-        - The module finds it by its label to replace or drop it, and parses no value from it; no kind lists it among
-          its managed fields, so the stamp never takes it for one (Task 4.3).
-
-        - Build `test-first` (one behavior at a time):
-            - the line is written directly after the `_Id:_`, and found by its label to replace or drop
-
-    - `[ ]` **4.1.d The ID and the entry's version**
-
-        - `_Id:_` is eight hex characters, unique within its list, re-drawn on a clash there, as `stampEntryIds` already
-          draws it (`drawId`, `lib/store/concurrency/stamp.ts`); the module reuses that draw.
-        - An entry's version is `v1:` and the first 16 hex characters of the SHA-256 of its section's name and its
-          bytes, NUL-separated, as `splitEntryList` splits them (`lib/store/concurrency/entries.ts`) — what the entry
-          merge compares when it decides an entry changed (`same`, `lib/store/concurrency/entry-merge.ts`, which stays
-          private and is tested through `mergeEntryText`).
-
-        - Build `test-first` (one behavior at a time):
-            - an unchanged entry keeps its version, and a byte change or a move between sections changes it
-            - two entries `mergeEntryText` reads as unchanged share a version, and two it reads as changed differ
-            - the version has the `v1:` form
-
-### `[ ]` **4.2 Declare the entry kinds and the routing receipts — § 6.3, § 6.5, § 6.6, § 7.3, § 15.1**
+### `[x]` **4.2 Declare the entry kinds and the routing receipts — § 6.3, § 6.5, § 6.6, § 7.3, § 15.1**
 
 - _Goal:_ Each of the six entry kinds declares its shape, the sections that hold entries, and the managed fields it
   admits beyond `_Id:_` as § 6.3's table gives them, with a parser in its registry slot; the three kinds the registry
   leaves unhomed gain their entry configs and parsers; the reference harness reads every kind through its production
   grammar; and the routing receipts take their own write-once mechanism, schema, and writer verbs.
 
-- _Note:_ The reference fixture declares a generic `Entries` grammar for the three unhomed kinds after the production
-  definition (`referenceDeclarations.entryShapes`, `__tests__/helpers/store/reference-fixture.ts`), as `entryConfig`
-  does in the reference backend's merge (`__tests__/helpers/store/merge.ts`), and registers no production check; tests
-  needing a production parser or check inject it through `registryOverrides`.
+    - `[x]` **4.2.a The inboxes**
 
-    - `[ ]` **4.2.a The inboxes**
+        - Personal and project inbox parsers declare their sections and fields while preserving outside text and
+          existing project-inbox content.
 
-        - `personal/inbox` (`Errand`, `Work Unit`; `_Created:_`, `_Remind:_`, `_Hold:_`, `_WU_Target:_`, `_Shapes:_`)
-          and `project-inbox/inbox` (`Inbox`; `_Created:_`) in `KIND_MECHANISMS` (`lib/store/registry.ts`), with parsers
-          built on 4.1's module registered through `createKindRegistry`.
-        - The in-repo listing reaches the project inbox's parser and reports `malformed` where it fails
-          (`lib/store/in-repo/list.ts`), so the parser accepts all of today's `ATOMIC-INBOX` content.
+    - `[x]` **4.2.b The three kinds the registry leaves unhomed**
 
-        - Build `test-first` (one behavior at a time):
-            - each inbox parses and writes the fields it admits and drops none it does not
-            - an entry outside its kind's sections reads as outside, as the splitter keeps it
-            - today's `ATOMIC-INBOX` content parses
+        - Inbound, description, and queue kinds carry production grammars; the reference harness uses them, and metadata
+          and lineage checks refuse held inbound entries.
 
-    - `[ ]` **4.2.b The three kinds the registry leaves unhomed**
+    - `[x]` **4.2.c `WORKING-MEMORY`'s kind**
 
-        - `work-item/inbound` (`Inbound`; `_Created:_`, `_Shapes:_`, `_Cites:_`, with the `_Routed from:_` line),
-          `work-item/description` (`Description`; the personal inbox's fields whole, and `_Cites:_`), and
-          `personal/errand-queue` (`Queue`; `_Inbox:_`, `_Rank:_`) move from `entry(unhomed)` to declared entry configs,
-          each with a parser module under `lib/store/kinds/`; their in-repo home stays none, since none exists before
-          the flip.
-        - A queue member's `_Id:_` is the referenced entry's ID, and its heading carries that entry's title for
-          legibility; the member is a reference, never the item.
-        - Once declared, the record kinds' held-entries rules (`meta.inbound-held`, `lineage.inbound-held`) read the
-          inbound kind's entries rather than admitting.
-        - The reference fixture's generic grammar for the three goes, from `referenceDeclarations.entryShapes` and from
-          `entryConfig`'s fallback, so the harness reads their production grammars; the meta check's test
-          (`__tests__/unit/lib/store/kinds/meta/check.test.ts`), which asserts no `meta.inbound-held` over an `Entries`
-          inbound list, writes `Inbound` and expects the rule.
+        - The working-memory kind parses field headers and required removal triggers, including the seeded document.
 
-        - Build `test-first` (one behavior at a time):
-            - each kind parses and writes the fields § 6.3 gives it
-            - a description round-trips a personal capture unchanged
-            - over the reference backend, with the meta and lineage checks injected, the inbound-held rule refuses a
-              work unit's exit while its inbound list holds an entry
-            - over the reference backend, with the meta check injected, a Planning work unit's activation refuses while
-              its inbound list holds an entry, naming the rule's remedy
+    - `[x]` **4.2.d The routing receipts**
 
-    - `[ ]` **4.2.c `WORKING-MEMORY`'s kind**
+        - Receipts have independent write-once mechanisms, typed routing coordinates and time, and only the declared
+          moving and conflict-resolution writers.
 
-        - `personal/working-memory` (field-header; `Memories`; `_Remove when:_`, required) gains its parser, built on
-          4.1's module, in its registry slot. No caller in this change reads the file through `lib/user-sync/parser.ts`
-          but the notes-sync machinery, which keeps it, so the slot is the whole of the move.
-
-        - Build `test-first` (one behavior at a time):
-            - an entry parses and writes its header and trigger, and an entry with no trigger refuses
-            - today's seeded `WORKING-MEMORY` parses
-
-    - `[ ]` **4.2.d The routing receipts**
-
-        - `project-inbox/routing-receipt` and `personal/routing-receipt` leave the conflict records' shared mechanism
-          (`once`, `lib/store/registry.ts`), which stays as it is, for their own: write-once, never projected, their
-          writer verbs `route`, `errand-open`, `errand-link`, and `errand-abandon` beside `merge`, `sync`, and
-          `resolve`. Those four are the provenance verb strings the moving runtimes pass (`CallerProvenanceSchema.verb`,
-          `lib/store/links.ts`).
-        - A receipt module under `lib/store/kinds/` gives the record's schema and parser: the entry's ID, its
-          destination, the list and section the move left, and the time of the move. Each receipt is its own record
-          under a fresh key per move, never the entry's `_Id:_`, since the kinds are keyed and write-once
-          (`lib/store/catalog.ts`) and one entry gathers a receipt for every move.
-
-        - Build `test-first` (one behavior at a time):
-            - a receipt round-trips its fields, and two moves of one entry write two receipts
-            - each moving verb string is admitted as a receipt's writer, and an unlisted verb refuses
-            - a conflict record still admits only its own writers
-
-### `[ ]` **4.3 Place an entry's `_Id:_` after its kind's managed fields — § 6.4, § 15.1**
+### `[x]` **4.3 Place an entry's `_Id:_` after its kind's managed fields — § 6.4, § 15.1**
 
 - _Goal:_ `stampEntryIds` places a heading entry's `_Id:_` after the last of its kind's managed fields, matched by name
   from the list its entry config carries, or, when the entry has none, after a leading `_Disposition:_` or directly
   under the heading, and a field-header entry's after its trigger's last line; with no list, today's placement holds.
 
-    - `stampEntryIds` (`lib/store/concurrency/stamp.ts`) places the ID after the last `- _Key:_` bullet whose key holds
-      no underscore today, so an italic-key prose descriptor draws the ID away from the managed group and `_WU_Target:_`
-      is skipped.
-    - `EntryListConfig` (`lib/store/concurrency/entries.ts`) gains an optional `managedFields`, the field names, which
-      each kind's `EntryConfig` (`lib/store/registry.ts`) supplies from 4.1's module, since the `store-concurrency`
-      predicate bars the concurrency library from importing a kind; configs built without it, test grammars and fixtures
-      among them, keep today's placement.
-    - A match on the managed shape alone is not enough, since prose descriptors may open with a backticked token. The
-      stamp's test of today's placement (`__tests__/unit/lib/store/concurrency/entries.test.ts`) stays for a config with
-      no list.
-    - An entry with no managed fields whose first body line is `_Disposition:_` takes the ID after it, as today, so the
-      mark keeps the place its writer requires (`executeBoundMark`, `lib/user-sync/inbox-writer.ts`) until the import
-      turns marks into the queue (spec § 6.1).
-    - The field-header arm places the ID after the trigger's last line, where today it places it after the first and so
-      splits a wrapped trigger.
+- _Outcome:_ Kind-aware ID stamping follows the managed group or a wrapped memory trigger without absorbing prose
+  descriptors; configurations without declared managed fields retain their original placement.
 
-    - Build `test-first` (one behavior at a time):
-        - an italic-key prose descriptor after the managed fields leaves the ID after the managed group
-        - `_WU_Target:_` counts as a managed field
-        - a prose descriptor opening with a backticked token does not draw the ID
-        - an entry with no managed fields takes the ID directly under its heading
-        - an entry whose only field is a leading `_Disposition:_` takes the ID after it, and its mark still reads
-        - a wrapped `_Remove when:_` trigger takes the ID after its last line
-        - a config with no `managedFields` places the ID as today
-
-### `[ ]` **4.4 Read and write the personal inbox through its kind — § 6.1, § 6.2**
+### `[x]` **4.4 Read and write the personal inbox through its kind — § 6.1, § 6.2**
 
 - _Goal:_ This change's readers and writers of the personal inbox move off `lib/user-sync/parser.ts` onto the inbox's
   kind and the entry-field module, and behave as today over the in-repo implementation.
 
-- _Note:_ The in-repo arm keeps today's title-keyed writes, the notes lock around the inbox writer, and the
-  execute-bound disposition read (`hasExecuteBoundDisposition`, `lib/user-sync/inbox-writer.ts`, a raw-state module)
-  until the deletion pass (§ 1.5).
+- _Outcome:_ Personal inbox callers share kind parsing and field interpretation. Alternate target spellings participate
+  in off-branch reconciliation while notes-sync retains its existing parser and title-keyed operations.
 
-    - The callers: `lib/session-init/inbox-state.ts` (`isRoutableEntry`'s `_Hold:_` read),
-      `lib/session-init/inbox-reminders.ts`, `lib/user-sync/inbox-target.ts` (`TARGET_LINE` through the module),
-      `lib/user-sync/inbox-writer.ts`, and `lib/inbox-entry-operand.ts`, importing `parseCrossWuEntries` or
-      `matchInboxEntryTitle` today.
-    - The user-reference reconcile reads `_WU_Target:_` through the module from the flip, so its managed-spelling-only
-      match (`MANAGED_TARGET`, `lib/user-reference-reconcile.ts`) no longer misses the other two; until then it matches
-      as today. Its personal reads move onto the store in Tasks 5.1.c and 5.9.
-    - The notes-sync machinery (`lib/user-sync/merge.ts`, `materialized-baseline.ts`, `projection.ts`) and
-      `lib/user-surface-migration.ts` keep the old parser.
-
-    - Build `test-first` (one behavior at a time):
-        - each moved caller's tests pass unchanged over the in-repo implementation
-        - the capture gate's target listing reads each `_WU_Target:_` spelling through the module
-        - the reconcile's planner, given the flip's input and an inbox in each `_WU_Target:_` spelling, rewrites a
-          former slug in each
-
-### `[ ]` **4.5 Refuse a wrapped or colon-less `WORKING-MEMORY` header — § 6.5**
+### `[x]` **4.5 Refuse a wrapped or colon-less `WORKING-MEMORY` header — § 6.5**
 
 - _Goal:_ From the flip a write of `WORKING-MEMORY` whose `_Remove when:_` trigger has, as its nearest non-blank line
   above, anything but a one-line header matching `WM_HEADER` refuses, naming that line and the documented shape, before
   the entry splitter could fold it into the entry above; bold-led prose elsewhere in an entry, and a trigger inside an
   HTML comment, are untouched.
 
-    - The refusal runs in 4.2.c's parse, ahead of `splitEntryList`'s one-line header rule (`isEntryHeader`,
-      `lib/store/concurrency/entries.ts`); a malformed header with no trigger at all still folds into the entry before
-      it, as today.
-    - Until the flip the file parses as today, whose parser accepts a trigger anywhere in an entry
-      (`parseWorkingMemory`).
-
-    - Build `test-first` (one behavior at a time), over the reference backend with 4.2.c's parser injected:
-        - a wrapped header above a trigger refuses, naming its line and the shape
-        - a colon-less header above a trigger refuses
-        - bold-led prose inside an entry's body is untouched
-        - the seeded file's commented example never refuses
-        - a well-formed entry writes
+- _Outcome:_ Working-memory parsing rejects wrapped or colon-less headers above a trigger with the line and expected
+  shape; prose and commented examples remain ordinary content.
 
 ### `[ ]` **4.6 The entry grammar** — validate exit criterion at segment scope
 

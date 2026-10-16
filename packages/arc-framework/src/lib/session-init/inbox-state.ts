@@ -21,7 +21,7 @@ import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
 
 import { hasExecuteBoundDisposition } from "../user-sync/inbox-writer.js";
-import { parseCrossWuEntries } from "../user-sync/parser.js";
+import { parsePersonalInboxEntries } from "../store/kinds/personal-inbox.js";
 import type { EntryParse } from "../user-sync/schema.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
@@ -61,7 +61,7 @@ function isRoutableEntry(parse: EntryParse): boolean {
  * @returns The routable-entry count and the housekeep-needed flag.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
-  const entries = parseCrossWuEntries(options.content, "user-inbox");
+  const entries = parsePersonalInboxEntries(options.content);
   const routableCount = entries.filter(isRoutableEntry).length;
   const executeBoundCount = entries.filter(
     (parse) => parse.ok && hasExecuteBoundDisposition(parse.entry.raw),

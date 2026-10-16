@@ -12,7 +12,7 @@
  * @module
  */
 
-import { matchInboxEntryTitle } from "./parser.js";
+import { matchInboxEntryTitle } from "../store/kinds/entry-fields.js";
 import { contentDigest } from "../canonical/content-digest.js";
 import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { managedFieldValue } from "../session-init/managed-field.js";

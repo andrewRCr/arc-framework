@@ -6,7 +6,7 @@
 
 import { readFile } from "node:fs/promises";
 
-import { matchInboxEntryTitle } from "./user-sync/parser.js";
+import { matchInboxEntryTitle } from "./store/kinds/entry-fields.js";
 
 /** User-provided sources for an exact USER-INBOX entry title. */
 export interface InboxEntryOperand {

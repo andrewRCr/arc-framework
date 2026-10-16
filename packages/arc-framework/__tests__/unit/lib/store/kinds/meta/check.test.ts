@@ -25,17 +25,17 @@ function badInput() {
   const dependent = ruleRecord("work-item/meta", "dependent", dependentUID, dependentBytes, parseMetaRecord(dependentBytes));
   input.before = ruleView([holder, dependent], new Map([["slug:example", { status: "ok", result: { reference: holder.reference } }]]));
   input.after = ruleView([ruleRecord("work-item/meta", "example", META_RULE_UID, bytes, input.next?.fields), dependent,
-    ruleRecord("work-item/inbound", "example", META_RULE_UID, "# Inbound\n\n## Entries\n\n### Concern\n\n- _Id:_ `11111111`\n\nConcern.\n")]);
+    ruleRecord("work-item/inbound", "example", META_RULE_UID, "# Inbound\n\n## Inbound\n\n### Concern\n\n- _Id:_ `11111111`\n\nConcern.\n")]);
   return input;
 }
 it("returns every applicable violation through the production registration", async () => {
   const check = createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/meta"].check;
   expect(check).toBeTypeOf("function");
   if (check === null) throw new Error("A meta check must be registered");
-  expect((await check(badInput())).map(({ rule }) => rule).sort()).toEqual([...ids].sort());
+  expect((await check(badInput())).map(({ rule }) => rule).sort()).toEqual([...ids, "meta.inbound-held"].sort());
 });
 it("composes the inbound rule when its declared grammar is supplied", async () => {
-  expect((await checkMetaRecord(badInput(), { shape: "heading", sections: ["Entries"] })).map(({ rule }) => rule).sort())
+  expect((await checkMetaRecord(badInput(), { shape: "heading", sections: ["Inbound"] })).map(({ rule }) => rule).sort())
     .toEqual([...ids, "meta.inbound-held"].sort());
 });
 it("admits a valid creation by a lifecycle verb through the production registration", async () => {

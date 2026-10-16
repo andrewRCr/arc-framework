@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { readEntryField, targetNamedByLine } from "./store/kinds/entry-fields.js";
 
 import type { z } from "zod";
 import { UserReferenceReconcileSessionResultSchema } from "./user-reference-reconcile-schema.js";
@@ -66,6 +67,7 @@ export interface UserReferenceReconcilePlan {
 
 /** Pure planner inputs over the three permitted current user surfaces. */
 export interface PlanUserReferenceReconcileInput {
+  stateOffBranch?: boolean;
   transitions: readonly ReachableReferenceTransition[];
   userInbox: UserReferenceSurface;
   workingMemory?: UserReferenceSurface;
@@ -187,12 +189,13 @@ export function planUserReferenceReconcile(
     if (line.startsWith("## ")) inWorkUnit = line === "## Work Unit";
     if (!inWorkUnit) return line;
     const match = MANAGED_TARGET.exec(line);
-    const subject = match?.[1];
+    const subject = input.stateOffBranch === true ? targetNamedByLine(line) : match?.[1];
     if (subject === undefined) return line;
     const resolution = resolveReferenceTransition(input.transitions, subject);
     if (resolution.kind === "rename") {
       replacements.push({ subject, targetSlug: resolution.targetSlug });
-      return `- _WU_Target:_ \`${resolution.targetSlug}${match?.[2] ?? ""}\``;
+      const hint = input.stateOffBranch === true ? /\s+\((?:planned|provisional)\)$/u.exec(readEntryField(line, "WU_Target") ?? "")?.[0] ?? "" : match?.[2] ?? "";
+      return `- _WU_Target:_ \`${resolution.targetSlug}${hint}\``;
     }
     if (resolution.kind !== "absent") {
       advisories.push(managedAdvisory(input.userInbox, index + 1, line, subject, resolution));

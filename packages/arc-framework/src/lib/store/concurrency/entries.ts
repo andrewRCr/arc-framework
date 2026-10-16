@@ -1,7 +1,7 @@
 /** Lossless generic Markdown entry splitting and stable managed identity stamping. */
 
 /** Role-based entry grammars; callers supply the sections that hold entries. */
-export interface EntryListConfig { readonly shape: "heading" | "field-header"; readonly sections: readonly string[] }
+export interface EntryListConfig { readonly shape: "heading" | "field-header"; readonly sections: readonly string[]; readonly managedFields?: readonly string[] }
 /** A detected entry, with its trailing separator kept separately from its identity-bearing bytes. */
 export interface ListEntry {
   readonly kind: "entry";
