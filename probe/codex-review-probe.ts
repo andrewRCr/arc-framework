@@ -11,7 +11,7 @@ export function isInsideRoot(root: string, candidate: string): boolean {
 /** Remove every entry in a directory except the names listed in keep. */
 export function removeStaleEntries(directory: string, keep: readonly string[]): void {
   for (const name of readdirSync(directory)) {
-    if (keep.length === 0 || keep.includes(name)) {
+    if (keep.length > 0 && keep.includes(name)) {
       rmSync(join(directory, name), { recursive: true, force: true });
     }
   }
