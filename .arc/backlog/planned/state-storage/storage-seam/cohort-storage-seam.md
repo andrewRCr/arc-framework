@@ -201,6 +201,11 @@ Errands land after the contract and before the members:
   The same section also admits behavior-preserving setup deletions, the doubled-force checkout move form,
   dormant anchored-checkout code, `arc set-class` working at once, and registration of the verbs that refuse
   `unsupported` until the flip. The seed fix's one cold-start workflow-text change is the scope exception below.
+
+  Amended 2026-10-16 — `seam-decomposition` departs from the reroute (`draft-seam-decomposition.md` § Direction).
+  Today's decomposition machine stays the in-repo arm, untouched, and its one pre-flip change is the capability branch
+  in `handleDecompose`, which sends a post-flip invocation to a store version rebuilt from the domain rules. The machine
+  leaves in `storage-cutover`'s deletion pass, in place of the consumer map's per-module end states for it.
 - **Prepared writes** are shared decision 12, lifecycle's; decomposition's and locus's reconciling writers follow it.
 - **Moves, archive, rename, and links.** The in-repo implementation refuses each `unsupported` (D4, D8). The refusals
   for moves and archive name the verb that serves them until rerouted (`lib/store/in-repo/write-admission.ts`); the link
@@ -214,6 +219,11 @@ Errands land after the contract and before the members:
   inbound list and Errand description (item 9) and the personal surfaces', and delivery and review the review family's.
   The contract already registers the meta parser (`createInRepoContext`, `lib/store/in-repo/context.ts`), which record
   kinds takes over, and the Errand record's schema.
+
+  Amended 2026-10-16 — `seam-decomposition` owns `work-item/cut-map` (a working name), a never-projected machine record
+  holding a cut's map on its origin between the cut's two batches. Through record kinds' modules it adds the cohort
+  kind's at-cap fan-out writer and the lineage kind's `lineage.cut-in-flight` write-check rule
+  (`draft-seam-decomposition.md` § The cut, R7).
 - **The write check** is shared decision 11, record kinds'; every member whose verbs write a checked kind runs through
   it, and `storage-ref-backend` and `storage-projection` call it from the flip.
 - **The machine-local set.** `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) names the identity's `.internal/` folders
@@ -325,6 +335,11 @@ member whose consumer-map partition holds it:
   (`lib/errand/terminal-occupancy.ts`) would refuse on every locked worktree, so `storage-projection` leaves those files
   to the members.
 
+With `storage-ref-backend` (2026-10-16): `seam-decomposition` registers the cut-map kind, at the stored path
+`cut-map-<uid>.json`, after that member lands. Should `seam-decomposition` land first, `storage-ref-backend` sets the
+kind's `RefHome`, as its spec sets one for every kind whose family has a ref (its § 3.2). This is an ordering, not an
+edge.
+
 ### Citing the register
 
 **Citing the register.** Row keys are `notes-storage-contract.md` § Register keys, which the consumer map's Register
@@ -391,6 +406,12 @@ lineage record.
 
 _Consumes:_ record kinds' meta, lineage, and cohort writers and the parsed `Parent`, and lifecycle's prepared-write
 protocol (item 12).
+
+Amended 2026-10-16 — a cut runs as two batches with the distribution approval between them
+(`draft-seam-decomposition.md` § The cut). The additive batch writes the member stubs, any new cohort documents, and
+the stored cut map. The terminal batch writes the lineage record and the dependents' edges, and appends the at-cap
+fan-out block. Key 49's one-write end state holds for the terminal batch. The member also consumes locus's inbound
+kind (item 9), whose grammar its held-entry refusals read.
 
 ### `seam-delivery-review`
 
