@@ -247,10 +247,10 @@ Paths are under `packages/arc-framework/src/`.
 Readers outside this list that call into it keep their call: the lifecycle verbs and handlers that call the in-flight
 expansion (`commands/rename.ts`, `handlers/start.ts`, `handlers/lifecycle.ts`) and the review handlers' checkout binding
 (`handlers/review-locus-context.ts`, through `runDerivedLocusStateProbe`). The lifecycle callers call the expansion only
-in their in-repo arms, reading the store's slug-keyed lifecycle view from the flip (§ 16), so the expansion keeps its
-result shape for them and never hands them an entry with no branch (§ 3.1). Status's direct calls of the derivation
-(`lib/status/project-view.ts`, `lib/status/user-view.ts`) and `arc view`'s explicit-target composition and its cohort
-read, for either target (`handlers/view.ts`), are the status change's (§ 16).
+in their in-repo arms, reading the store from the flip, most through its slug-keyed lifecycle view (§ 16), so the
+expansion keeps its result shape for them and never hands them an entry with no branch (§ 3.1). Status's direct calls of
+the derivation (`lib/status/project-view.ts`, `lib/status/user-view.ts`) and `arc view`'s explicit-target composition
+and its cohort read, for either target (`handlers/view.ts`), are the status change's (§ 16).
 
 #### 1.3 Order and shared files
 
@@ -2221,12 +2221,14 @@ holds until then is stated with it.
       prepare throwing over a lifecycle listing with a malformed or missed record (`store.lifecycle-incomplete`, its
       diagnostics its `cause`) or one it cannot read (`store.lifecycle-unreadable`), through `requireCompleteInventory`,
       `lib/store/lifecycle-storage.ts`, and returning the store's refusal where a read it makes refuses (§ 4.1, A12);
-    - lifecycle's own callers reading the store's slug-keyed lifecycle view from the flip — start's dispatch, rename's
-      subject and collision checks, and resume's and abandon's target and state (`handleResume`, `handleAbandon`,
-      `handlers/lifecycle.ts`), taking the branch from the link, with `resolveTransformComposition` their in-repo arm —
-      and `arc materialize`'s candidates from the store's listing and the holding-checkout lookup, so the in-flight
-      expansion and the composed lifecycle index stay their in-repo arms, and park's roster scan (`resolveParkSource`,
-      `handlers/lifecycle.ts`) park's (§ 1.2, § 2.1, § 3.2);
+    - lifecycle's own callers reading the store's slug-keyed lifecycle view from the flip — start's dispatch
+      (`handleStoreStart`, `handlers/start-store.ts`), rename's subject and collision checks (`readStoreRenameSubject`,
+      `lib/store/lifecycle-rename.ts`), and abandon's target and state (`handleStoreAbandon`,
+      `handlers/abandon-store.ts`), taking the branch from the link, with `resolveTransformComposition` their in-repo
+      arm, while resume's store arm reads the work item alone, neither the view nor a branch (`handleStoreResume`,
+      `handlers/lifecycle-collaboration.ts`) — and `arc materialize`'s candidates from the store's listing and the
+      holding-checkout lookup, so the in-flight expansion and the composed lifecycle index stay their in-repo arms, and
+      park's roster scan (`resolveParkSource`, `handlers/lifecycle.ts`) park's (§ 1.2, § 2.1, § 3.2);
     - `arc status <slug>`'s state and record from the flip (`handlers/status/lifecycle.ts`): the query
       (`resolveSlugQuery`) over the store's lifecycle view and the purpose and owner from the work unit's record, beside
       which this change moves the query's locus reads (§ 1.3, § 3.1);

@@ -1628,19 +1628,22 @@ inject a reference-backend store.
         - From the flip the residue sweep (`runLandedRetirementSweep`, `lib/session-init/lifecycle-residue-sweep.ts`)
           takes an abandonment's evidence from its lineage record through the transition-write-path change's store
           retirement read (`readStoreRetirementEvidence`, `lib/work-unit/store-retirement-evidence.ts`, built in
-          Task 6.5.a - `tasks-seam-lifecycle.md`), admitting its `lineage` evidence (`RetirementEvidenceRef`) under the
-          `discard` rule, since the teardown authority it builds today (`createTeardownRetirementAuthority`) reads Git
-          alone and admits no lineage; today it admits only a Git-proven abandon (`git-transition`), which stays the
-          in-repo arm.
+          Tasks 6.5.a and 6.5.R.b - `tasks-seam-lifecycle.md`), admitting its `lineage` evidence
+          (`RetirementEvidenceRef`) under the `discard` rule, since the teardown authority it builds today
+          (`createTeardownRetirementAuthority`) reads Git alone and admits no lineage; today it admits only a Git-proven
+          abandon (`git-transition`), which stays the in-repo arm.
         - Since that read throws for every outcome alike, the sweep reads it only for a work unit with no live record
           (`readWorkUnit` finding none) whose lineage, by `lookup` from its origin, is an abandonment; a live record, no
           lineage, or a lineage of another kind reports no retirement, as today's `evidence-missing` and
-          `unsupported-transition` do, and a lookup or read refusing with anything but `not-found` — a lineage record
-          with no `retiredBranches` among them — reports its message as the checkout's repair rather than failing the
-          sweep. The sweep's registered schema (Task 1.1.b) gains that repair as text, where today a blocked residue
-          carries only its reason.
+          `unsupported-transition` do, and a lookup or read refusing with anything but `not-found`, or the retirement
+          read throwing over the lineage it read — one whose owner does not match its origin, or with no
+          `retiredBranches` — reports its message as the checkout's repair rather than failing the sweep. The sweep's
+          registered schema (Task 1.1.b) gains that repair as text, where today a blocked residue carries only its
+          reason.
         - Its candidates stay branched, as today; a branchless checkout whose work unit has ended is the stale-worktree
-          sweep's (3.7.b). Nothing writes a lineage record before that change lands, so the tests seed it.
+          sweep's (3.7.b). Store abandon writes the lineage record in its terminal batch (`runStoreAbandon`,
+          `lib/work-unit/verbs/abandon-store.ts`), so the tests abandon through it, seeding a record only where it lacks
+          `retiredBranches`.
 
         - Build `test-first` (one behavior at a time):
             - over the reference backend a work unit abandoned on another clone, its lineage record pulled, reports its
