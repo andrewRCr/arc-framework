@@ -21,7 +21,8 @@ export const MutationSchema = z.discriminatedUnion("action", [
   if (value.action === "remove") return;
   const primary = value.reference.kind === "work-item/meta" || value.reference.kind === "work-item/record";
   if (primary && value.placement === undefined) context.addIssue({ code: "custom", message: "Primary records require placement" });
-  if (!primary && (value.placement !== undefined || value.links !== undefined)) {
+  const completedCohort = value.reference.kind === "cohort/document" && value.placement?.kind === "completed";
+  if (!primary && ((!completedCohort && value.placement !== undefined) || value.links !== undefined)) {
     context.addIssue({ code: "custom", message: "Only primary records carry placement or links on writes" });
   }
   if (value.reference.kind === "work-item/record" && value.placement?.kind === "backlog") {

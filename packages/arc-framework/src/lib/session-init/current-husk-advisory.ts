@@ -16,9 +16,12 @@ import type {
   WorktreeMarkerReadResult,
 } from "../git/worktree-marker.js";
 import { decodeWorktreeHuskStamp } from "../git/worktree-marker.js";
+import { RecordReferenceSchema, RecordVersionSchema } from "../store/identity.js";
 import { CanonicalDigestSchema } from "../kernel/index.js";
 
 const RetirementEvidenceRefSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("lineage"), transition: z.enum(["abandon", "decompose"]),
+    reference: RecordReferenceSchema.refine((reference) => reference.kind === "lineage/transition"), version: RecordVersionSchema, resultDigest: CanonicalDigestSchema }),
   z.strictObject({
     kind: z.literal("shipped"),
     expectedLifecycle: z.literal("completed"),

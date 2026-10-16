@@ -76,3 +76,24 @@ describe("lineage registration", () => {
     expect(parser?.(JSON.stringify(record()))).toEqual({ success: true, data: record() });
   });
 });
+
+describe("terminal branch snapshots", () => {
+  const branch = { repository: "repo", ref: "feat/origin", linkedAs: "created" as const, excluded: [] };
+  it("round-trips exact link order, including an adopted branch and exclusions", () => {
+    const retiredBranches = [branch, { ...branch, ref: "person", linkedAs: "adopted" as const, excluded: [{ repository: "repo", sha: "a".repeat(40) }] }];
+    const value = { schemaVersion: 2 as const, origin: ref("origin"), kind: "abandon" as const, successors: [], incoming: [], retiredBranches };
+    const parsed = parseLineageRecord(writeLineageRecord(value));
+    expect(parsed).toMatchObject({ retiredBranches });
+    expect(parsed?.retiredBranches).toEqual(retiredBranches);
+  });
+  it("preserves an explicitly empty snapshot and accepts legacy absence", () => {
+    const base = { schemaVersion: 2 as const, origin: ref("origin"), kind: "abandon" as const, successors: [], incoming: [] };
+    expect(parseLineageRecord(writeLineageRecord({ ...base, retiredBranches: [] }))).toHaveProperty("retiredBranches", []);
+    expect(parseLineageRecord(writeLineageRecord(base))).not.toHaveProperty("retiredBranches");
+  });
+  it("refuses duplicate qualified links and snapshots on rename lineage", () => {
+    const base = { schemaVersion: 2, origin: ref("origin"), kind: "abandon", successors: [], incoming: [] };
+    expect(LineageRecordSchema.safeParse({ ...base, retiredBranches: [branch, branch] }).success).toBe(false);
+    expect(LineageRecordSchema.safeParse({ ...base, kind: "rename", successors: [ref("next")], retiredBranches: [] }).success).toBe(false);
+  });
+});

@@ -1,4 +1,7 @@
 /** Capture, preflight and restore exact tracked file bytes inside the checkout write lock. */
+import { parseLineageRecord } from "../kinds/lineage/parser.js";
+import { isTerminalSnapshotRepair } from "../kinds/lineage/repair.js";
+
 import { join } from "node:path";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { ArcError } from "../../kernel/errors.js";
@@ -48,9 +51,10 @@ export async function captureTrackedWrites(context: InRepoContext, targets: Trac
   for (const target of targets) prepared.push({ ...target, before: await readFileAt(context, target.path) });
   const stale = prepared.filter(({ input, before }) => {
     const current = before === null ? null : RecordVersionSchema.parse(digestBytes(Buffer.from(before)));
-    return current !== input.expected || (input.action === "put" && before !== null && context.registry[input.reference.kind].writerRule === "create-only");
+    return current !== input.expected || (input.action === "put" && before !== null && context.registry[input.reference.kind].writerRule === "create-only" && !isTerminalSnapshotRepair(input, before));
   }).map(({ input }) => input.reference);
   if (stale.length !== 0) staleWrites(stale);
+  for (const entry of prepared) refuseSnapshotRemoval(entry);
   return prepared;
 }
 async function restoreOne(context: InRepoContext, entry: PreparedTrackedWrite, heldLocks: ReadonlySet<string>): Promise<void> {
@@ -60,10 +64,7 @@ async function restoreOne(context: InRepoContext, entry: PreparedTrackedWrite, h
   if (["review/candidate", "review/integration-boundary"].includes(entry.input.reference.kind) && !heldLocks.has(`${path}.lock`)) {
     throw new Error(`Canonical restoration has no held lock: ${path}`);
   }
-  if (entry.input.reference.kind === "lineage/transition") {
-    if (entry.before !== null) { await context.ports.fs.exclusiveCreate(path, entry.before); return; }
-    if (current !== entry.content?.bytes) throw new Error(`Transition restoration collision at ${path}: another creation occupies the target`);
-  }
+  if (await restoreLineage(context, entry, current, path, heldLocks)) return;
   if (entry.before !== null) { await context.ports.fs.writeFile(path, entry.before); return; }
   try { await context.ports.fs.unlink(path); } catch (error) { if (!isMissing(error)) throw error; }
 }
@@ -108,4 +109,23 @@ function appliedResult(entry: PreparedTrackedWrite): WriteResult {
   if (entry.input.action === "remove") return result;
   if (entry.content === undefined) throw new Error("A successful put has no prepared content");
   return { ...result, version: RecordVersionSchema.parse(digestBytes(Buffer.from(entry.content.bytes))) };
+}
+
+function refuseSnapshotRemoval({ input, before }: PreparedTrackedWrite): void {
+  if (input.reference.kind !== "lineage/transition" || input.action !== "remove" || before === null || parseLineageRecord(before)?.retiredBranches === undefined) return;
+  refuse({ code: "record-malformed", class: "recoverable", reference: input.reference, rule: "lineage.retired-branches",
+    condition: "A terminal branch snapshot cannot be removed with its lineage record.",
+    remedy: { text: "Keep terminal lineage and its branch authority available for cleanup and retry." } });
+}
+async function restoreLineage(context: InRepoContext, entry: PreparedTrackedWrite, current: string | null, path: string, heldLocks: ReadonlySet<string>): Promise<boolean> {
+  if (entry.input.reference.kind !== "lineage/transition") return false;
+  if (entry.before === null) {
+    if (current !== entry.content?.bytes) throw new Error(`Transition restoration collision at ${path}: another creation occupies the target`);
+    return false;
+  }
+  if (isTerminalSnapshotRepair(entry.input, entry.before)) {
+    if (!heldLocks.has(`${path}.lock`)) throw new Error(`Lineage restoration has no held lock: ${path}`);
+    await context.ports.fs.writeFile(path, entry.before);
+  } else await context.ports.fs.exclusiveCreate(path, entry.before);
+  return true;
 }

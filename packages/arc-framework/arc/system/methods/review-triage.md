@@ -33,6 +33,13 @@ Verify every finding against source using the primary agent's own judgment. Reco
 the evidence that supports that decision. An invalid or misunderstood finding still receives an explicit `reject`
 disposition with rationale.
 
+For each valid finding, search the reviewed change for other instances of the same defect — the same missing check,
+wrong assumption, or misused interface at another call site — before proposing its disposition. A reviewer reports the
+instance it saw, and the rest otherwise surface one at a time across later passes. Name every instance in the finding's
+`recommendation`, so the approved fix covers the defect rather than one site, and say in its `rationale` where the
+search ran. An instance outside the reviewed change is not this round's fix: name it for the approver and route it as
+discovered work.
+
 ### 2. Classify two independent axes
 
 For each producer-backed finding, retain the producer's observation separately from ARC's source-verified judgment.

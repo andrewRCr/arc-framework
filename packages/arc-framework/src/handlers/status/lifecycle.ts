@@ -6,7 +6,16 @@ import { runActiveStatus } from "../../commands/active.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
-import { readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
+import type { StoreRefusal } from "../../lib/store/refusal.js";
+import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
+import type { Store } from "../../lib/store/contract.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
+import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
+import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
+import { ParsedMetaRecordSchema } from "../../lib/active/meta-schema.js";
+import { extractWorkUnitPurpose, readWorkUnitPurpose } from "../../lib/status/work-unit-purpose.js";
 import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
@@ -29,7 +38,13 @@ export async function handleLifecycleStatus(
   exec: GitExec,
   slug: string,
   opts: StatusCliOptions,
+  store?: Store,
 ): Promise<void> {
+  store ??= createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec }));
+  if (usesOffBranchState(store)) {
+    await handleStoreLifecycleStatus(store, slug, opts);
+    return;
+  }
   const json = Boolean(opts.json);
   // Slug→state query: a subject-keyed read over the lifecycle-complete index.
   // The index walk binds real I/O; the resolution stays a pure lib projection.
@@ -174,4 +189,43 @@ async function resolveSlugOperationalBoundary(options: {
         })
       : integrationBoundary;
   return { integrationBoundary: publicationRecovery, warnings: active.warnings };
+}
+
+/** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
+async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions): Promise<void> {
+  const view = await readLifecycleView(store);
+  if (view.status === "refused") {
+    renderStoreQueryRefusal(view.refusal, opts);
+    return;
+  }
+  const record = await readWorkUnit(store, slug);
+  if (record.status === "refused" && record.refusal.code !== "not-found") {
+    renderStoreQueryRefusal(record.refusal, opts);
+    return;
+  }
+  const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
+  const fields = record.status === "ok" ? ParsedMetaRecordSchema.safeParse(record.result.fields) : undefined;
+  const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { content: null, warnings: [] };
+  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing)];
+  const purpose = design.content === null ? null : extractWorkUnitPurpose(design.content);
+  const output = { ...query, purpose, owner: fields?.success === true ? fields.data.owner : null,
+    integrationBoundary: null, ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
+  if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
+  else {
+    p.intro("arc status");
+    p.note(formatSlugStateQuery(query, { purpose, warnings }), "Lifecycle state");
+    p.outro("Done.");
+  }
+}
+
+/** Retain readable query diagnostics without imposing write completeness. */
+function lifecycleListingWarnings(listing: LifecycleIndexOutcome): string[] {
+  if (listing.status === "complete") return listing.diagnostics.map((diagnostic) => diagnostic.condition);
+  return listing.status === "unreadable" ? [listing.condition] : [];
+}
+/** Preserve the exact refusal in machine output and its remedy in human output. */
+function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions): void {
+  if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal })}\n`);
+  else p.log.error(`${refusal.condition} ${refusal.remedy.text}`);
+  process.exitCode = 1;
 }

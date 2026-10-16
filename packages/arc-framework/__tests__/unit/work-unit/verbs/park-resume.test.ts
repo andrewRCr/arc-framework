@@ -15,6 +15,7 @@
  * ordered call log and the recorded writes / removals.
  */
 
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
@@ -154,7 +155,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorkUnitWorktree: async (op) => {
       worktreeOps.push(op);
@@ -163,7 +164,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true };
       }
       if (op.mutation === "spawn") {
-        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
+        return { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch ?? null };
       }
       return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
     },
@@ -174,10 +175,9 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       calls.push(`soft:${path}:${Object.keys(updates).join(",")}`);
     },
     sideEffects,
-    // The `worktree-clean` / `worktree-occupancy` IO guards are injected seams
+    // The `worktree-occupancy` IO guard is an injected seam
     // (the CLI binds the real worktree reads); both pass by default here.
     guardValidators: {
-      "worktree-clean": () => ({ ok: true }),
       "worktree-occupancy": () =>
         occupancyOk ? { ok: true } : { ok: false, message: "worktree already holds an active work unit `other`." },
     },
@@ -235,7 +235,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     },
   };
 
-  return { ctx: { executor, fs, planningRetirement }, calls, writes, removals, worktreeOps };
+  return { ctx: { executor, fs, planningRetirement, removal: { exec: async () => ({ stdout: "", stderr: "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) } }, calls, writes, removals, worktreeOps };
 }
 
 const ACTIVE: MetaSpec = {
@@ -747,5 +747,37 @@ describe("park / resume reject a non-slug name", () => {
     expect(result.status).toBe("rejected");
     expect(calls.some((call) => call.startsWith("worktree:"))).toBe(false);
     expect(writes).toEqual([]);
+  });
+});
+
+describe("Planning park removal preflight", () => {
+  it("observes operator locks in the selected repository and parks after unlock", async () => {
+    const { ctx, calls, writes } = buildCtx([PLANNING]);
+    let locked = true;
+    ctx.removal = { folderExists: async () => true, readMarker: async () => ({ kind: "absent" }),
+      exec: async (_command, args, options) => ({ stdout: args[0] === "worktree" && options?.cwd === ctx.executor.cwd
+        ? `worktree ${ctx.executor.cwd}\0HEAD ${"a".repeat(40)}\0branch refs/heads/plan/foo\0${locked ? "locked operator\0" : ""}\0` : "" }) };
+    expect(await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) }))
+      .toMatchObject({ status: "rejected", reason: expect.stringContaining("operator") });
+    expect(writes).toEqual([]);
+    expect(calls.some((call) => call.startsWith("relocate:") || call.startsWith("retirement:stage"))).toBe(false);
+    locked = false;
+    expect(await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) })).toMatchObject({ status: "parked" });
+  });
+
+  it("refuses dirty work before relocating or staging", async () => {
+    const { ctx, calls, writes, removals } = buildCtx([PLANNING]);
+    ctx.removal = { exec: async (_cmd, args) => ({ stdout: args[0] === "status" ? " M changed-file\n" : "" }), folderExists: async () => true, readMarker: async () => ({ kind: "absent" }) };
+    expect(await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) })).toMatchObject({ status: "rejected", reason: expect.stringContaining("changed-file") });
+    expect(writes).toEqual([]); expect(removals).toEqual([]); expect(calls.some((call) => call.startsWith("relocate:") || call.startsWith("retirement:stage"))).toBe(false);
+  });
+});
+
+describe("store-backed park", () => {
+  it("refuses unsupported before slug, reason, or retirement parsing", async () => {
+    const { ctx, calls, writes } = buildCtx([PLANNING]);
+    ctx.executor.store = createLifecycleHarness().store;
+    expect(await runPark(ctx, { ...BASE_PARK, name: "../unsafe", reason: undefined, sourceRecord: recordFor(PLANNING) })).toMatchObject({ status: "rejected", code: "unsupported", reason: expect.stringContaining("arc pause") });
+    expect(calls).toEqual([]); expect(writes).toEqual([]);
   });
 });

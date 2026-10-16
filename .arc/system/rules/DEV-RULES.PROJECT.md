@@ -298,6 +298,10 @@ DEV-RULES.ARC § Documentation Boundaries and § Audience Boundaries above both 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces.
 See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
 
+Before capturing a dependency advisory, read [SECURITY.md § Dependency dispositions][dependency-dispositions] and
+compare the finding's advisory, versions, dependency path, and usage with the recorded assessment. Do not recapture
+an unchanged assessed finding; new evidence, including a compatible fix, reopens triage.
+
 ### Surface agent-side friction and idiom divergence
 
 **Dev-internal to this repository only** — elsewhere an ARC-improvement observation is something the reader cannot
@@ -327,3 +331,4 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 [commit-footer]: ../methods/commit-footer.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
+[dependency-dispositions]: ../../../SECURITY.md#dependency-dispositions

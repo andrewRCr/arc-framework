@@ -39,8 +39,9 @@ export function renderReleaseCommitCommand(args: readonly string[], verbatim: re
  *
  * @param path - Absolute wrapper-owned retry path.
  * @param args - The commit's argv; none renders the retry file alone.
+ * @param wrapperArgs - Leading wrapper metadata, separate from Git arguments.
  * @returns A shell-safe release-commit invocation.
  */
-export function renderCommitMessageRetryCommand(path: string, args: readonly string[] = []): string {
-  return renderReleaseCommitCommand(replaceCommitMessageSource(args, path));
+export function renderCommitMessageRetryCommand(path: string, args: readonly string[] = [], wrapperArgs: readonly string[] = []): string {
+  return renderReleaseCommitCommand([...wrapperArgs, ...replaceCommitMessageSource(args, path)]);
 }

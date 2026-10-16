@@ -89,7 +89,7 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
     expect(calls.some((c) => c[0] === "git" && c[1] === "worktree" && c[2] === "add")).toBe(false);
   });
 
-  it("renders Origin and Design from parsed spec-input fields (Origin ⊥ Design)", async () => {
+  it("renders an issue Origin without assigning a seed Design", async () => {
     await scaffoldIntoWorktree(
       { io, internalTemplateDir: getInternalTemplatePath() },
       {
@@ -98,7 +98,6 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
         wuName: "manual-tool",
         spawningIdentity: "andrew",
         origin: "https://github.com/acme/widget/issues/42",
-        design: "spec-manual-tool.md",
         createdByArc: false,
       },
     );
@@ -107,7 +106,7 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
       await io.readFile(join(worktree, ".arc", "active", "meta-manual-tool.md")),
     );
     expect(record.Origin).toBe("https://github.com/acme/widget/issues/42");
-    expect(record.Design).toBe("spec-manual-tool.md");
+    expect(record.Design).toBe("[none]");
   });
 
   it("passes a ceremony SESSION-NOTES seed through to the user workspace", async () => {

@@ -108,7 +108,7 @@ export interface RawGitResult {
 /** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only"; indexFile?: string },
+  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only"; indexFile?: string; removeEnvironment?: readonly string[] },
 ) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */
