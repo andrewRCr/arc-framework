@@ -352,31 +352,15 @@ and 15 for every served family, but for the assertions 4.4.d excludes by name, a
           leaves both own mutations unapplied; stale-record preflight also preserves every ref. Concurrent batches
           naming overlapping refs in opposite orders both complete and retain all records in files and reftable stores.
 
-### `[ ]` **4.3 Provenance in commit messages — § 3.1, § 5.5**
+### `[x]` **4.3 Provenance in commit messages — § 3.1, § 5.5**
 
 - _Goal:_ Every commit renders its batch's provenance as D3 has a backend over Git render it, authored as the person, so
   `history` and `changes` read the stored provenance back and conflict labels name the machine.
 
-    - A subject naming the verb and owner slug, and the trailers `Arc-Lifecycle-Action`, `Arc-Code-Head`, `Arc-Owner`
-      where the owner has a UID, `Arc-Batch` (one `randomUUID` per committing operation, shared across its refs), and
-      `Arc-Actor` where the clone has an actor; a commit holding several owners' records names the first in the batch's
-      order in its subject and `Arc-Owner`; authored with the person's name and email as the code repository resolves
-      them; `StoredProvenanceSchema` reads back the verb, `Arc-Lifecycle-Action`, `Arc-Code-Head`, and `Arc-Batch`, its
-      `ownerUid` coming from each record's own reference (5.4)
-    - A verb or lifecycle action holding a newline or other control character, which `CallerProvenanceSchema`
-      (`lib/store/links.ts`) admits, or opening with `"`, renders as a JSON string literal in the subject and in its
-      trailer and reads back unescaped, so no value splits the subject or forges a trailer and no write refuses for it;
-      a code head is a SHA (`CommitShaSchema`) and holds none
-    - Build `test-first` (one behavior at a time):
-        - rendering then parsing a provenance returns it, `Arc-Actor` apart
-        - one batch spanning two refs commits on each with one `Arc-Batch`
-        - a batch writing a work item's lineage record, its UID given, and then a project counter names the first in
-          its subject and `Arc-Owner`
-        - a commit's author is the person the code repository's configuration names
-        - a backend whose identity is null commits with no `Arc-Actor`
-        - a project write before the identity record exists carries no `Arc-Owner`
-        - a lifecycle action holding a newline, and a verb opening with `"`, render as JSON strings, leave the commit's
-          trailers whole, and parse back to the values written
+- _Outcome:_ Ref commits use a shared store message codec for caller provenance, optional code head and owner UID,
+  operation batch ID, and optional clone actor. Parsing derives each changed record's owner UID from its reference.
+  Control-bearing or quote-opening values round-trip as JSON strings, and Git authorship follows code-repository
+  configuration, including writes before ARC identity exists.
 
 ### `[ ]` **4.4 The ref-backend conformance fixture over the default layout — § 14.1, § 14.12**
 

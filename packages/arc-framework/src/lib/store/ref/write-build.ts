@@ -11,6 +11,7 @@ import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { RecordReference } from "../identity.js";
+import { renderStoreCommitMessage } from "../commit-provenance.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -36,6 +37,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     results.push(await applyMutation(context, group, write));
   }
   const changes: RefChange[] = [];
+  const identity = await context.identity();
+  const actor = identity === null ? undefined : await context.actor(identity);
   for (const [ref, group] of groups) {
     const write = resolved.writes.find((write) => write.home.ref === ref);
     if (!write) throw new Error("A changed ref has no mutation");
@@ -44,7 +47,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const tree = await writeRefTree(context, group.entries.values());
     const parent = tips.get(ref);
     const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
-      "-m", `${provenance.verb} ${write.mutation.reference.owner.name}`], { cwd: context.checkoutRoot });
+      "-m", renderStoreCommitMessage(provenance, write.mutation.reference, batchId, actor)], { cwd: context.checkoutRoot });
     changes.push({ ref, next: stdout.trim(), expected: parent ?? null });
   }
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
