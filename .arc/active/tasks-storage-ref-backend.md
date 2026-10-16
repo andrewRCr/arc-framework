@@ -247,28 +247,13 @@ default layout.
           missing-tip planting and loose-object removal for either ref format. Repositories carry a push-designated
           code remote; new Git fixtures use the shared teardown that tolerates background-GC races.
 
-### `[ ]` **3.2 Stored paths — § 3.2**
+### `[x]` **3.2 Stored paths — § 3.2**
 
 - _Goal:_ Every record maps to exactly one ref and one stored path, through one expansion every caller shares.
 
-    - One expansion in `lib/store/`, beside the registry, over 1.7's `RefHome`s, maps a reference to its ref and stored
-      path — each family's root, a companion keyed by a name, a paired spec's halves among them, as
-      `companionArtifactName` (`lib/store/companion-name.ts`) names it and any other at its key verbatim (§ 2.5), which
-      a template cannot express, a completed item's quarter folder, each ref's metadata file and manifest — so the
-      serialization rules (5.1) and the backend's codec (3.3.b) expand one way
-    - Build `test-first` (one behavior at a time):
-        - Unit tier
-        - every kind with a home expands at its table path, and a paired spec's halves keyed `spec-prd` and `spec-rfc` at
-          `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`
-        - each family's root: the ref's root, `review/` and `lineage/`, and `<person>/` on a personal ref
-        - a companion keyed `notes-extra` expands at `notes-extra-<slug>.md`, and ones keyed `diagram.svg` and
-          `sub/notes.md` at those paths among the work item's records, in its quarter folder once it ends
-        - the project's refs take fixed names, and its owner is named `project`
-        - each ref's metadata file and manifest path, by ref kind
-        - a quarter's folder names: a work unit's `<sequence>_<slug>/`, a closed Errand's `<slug>-<suffix>/` with its
-          UID's first eight hex characters, and a closed cohort's `<sequence><a|b>_cohort-<slug>/`
-        - no two kinds' paths collide within a ref, compared as expanded instances, and a path two refs share embeds its
-          owner or a random key, as `conflicts/<key>.json` does on five ref kinds
+- _Outcome:_ `expandStoredPath` shares registry-based ref, record, family-root, metadata, and manifest expansion.
+  Named and path-keyed companions keep their distinct encodings; completed work units, Errands, and cohorts take
+  their quarter folders, while history retains the live layout. Expanded instances remain unique across refs.
 
 ### `[ ]` **3.3 The read path — § 3.1, § 3.2, § 3.3, § 3.4, § 3.7, § 11.6, § 13.1**
 
