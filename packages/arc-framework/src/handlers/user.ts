@@ -57,6 +57,8 @@ import {
 } from "../lib/command-input/interaction-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { userAddIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
+import { confirmPersonalIdentity } from "./identity-setup.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
   enumerateGitTransitionRecords,
@@ -224,7 +226,8 @@ export async function handleUserAdd(
     await runWithSpinner(
       output,
       `Creating user directory for ${identity}...`,
-      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath() }),
+      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(),
+        confirmIdentityInUse: confirmPersonalIdentity(userAddIdentityInUsePromptSite, context) }),
       `User directory created for ${identity}.`,
     );
   } catch (err) {
@@ -930,6 +933,8 @@ export const staleSubdirPromptSite = declarePromptSite("prompt.stale-subdir", "s
 
 /** Command-owned policy that syntax cannot express for user-state acquisition. */
 export const userCommandInputPolicyDeclarations = [{
+  commandPath: "user add", aliases: [], sites: [userAddIdentityInUsePromptSite],
+}, {
   commandPath: "user open",
   aliases: [],
   sites: [staleSubdirPromptSite],

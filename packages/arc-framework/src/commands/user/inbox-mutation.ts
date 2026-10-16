@@ -1,12 +1,8 @@
-/** Lock-serialized, atomic mutation boundary for identity-global `USER-INBOX`. */
+/** Identity-global inbox mutation through a selected Store and its write lock. */
 
-import { atomicWriteFile } from "../../lib/fs.js";
-import { contentDigest } from "../../lib/canonical/content-digest.js";
-import {
-  withAdvisoryLock,
-  type AdvisoryLockHandle,
-} from "../../lib/advisory-lock.js";
-import { getNotesLockPath } from "../../lib/user-sync/notes-lock.js";
+import { createPersonalCommandStore, type PersonalCommandStoreOverrides } from "../../lib/store/personal-command-store.js";
+import type { Store } from "../../lib/store/contract.js";
+import { mutateStoreInbox } from "./inbox-store.js";
 import {
   inboxEntrySourceDigest,
   inspectInboxEntry,
@@ -15,19 +11,14 @@ import {
   type InboxEntryMutation,
   type MutateInboxEntriesResult,
 } from "../../lib/user-sync/inbox-writer.js";
-import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
-import { SlugSchema } from "../../lib/kernel/index.js";
 import type { UserInboxPostImage, UserIOContext } from "./types.js";
 
 /** Injectable transaction boundaries for deterministic failure and interleaving tests. */
-export interface UserInboxMutationDependencies {
-  atomicReplace?: (path: string, content: string) => Promise<void>;
-  acquireLock?: (path: string) => Promise<AdvisoryLockHandle>;
-  releaseLock?: (handle: AdvisoryLockHandle) => Promise<void>;
-}
+export type UserInboxMutationDependencies = PersonalCommandStoreOverrides;
 
 /** Options shared by exact inbox mutation operations. */
 export interface RunUserInboxMutationOptions {
+  store?: Store;
   cwd: string;
   io: UserIOContext;
   identity: string;
@@ -46,42 +37,16 @@ interface LockedInboxContext {
   path: string;
 }
 
-/** Execute one USER-INBOX read/validate/replace transaction under the identity notes lock. */
+/** Execute one inbox mutation using the selected backend's version and write lock. */
 export async function withLockedUserInbox<T>(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity">,
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store">,
   mutate: (context: LockedInboxContext) => { result: T; replacement?: string }
     | Promise<{ result: T; replacement?: string }>,
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<{ result: T; postImage: UserInboxPostImage }> {
   const { cwd, io, identity } = options;
-  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(identity), exec: io.exec }))
-    .identityGlobalPath("USER-INBOX.md");
-  return withAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity), async () => {
-    let content: string | null;
-    try {
-      content = await io.readFile(inboxPath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      content = null;
-    }
-    const mutation = await mutate({ content, path: inboxPath });
-    if (mutation.replacement !== undefined) {
-      await (dependencies.atomicReplace ?? atomicWriteFile)(inboxPath, mutation.replacement);
-      return {
-        result: mutation.result,
-        postImage: {
-          state: "present",
-          content: mutation.replacement,
-          digest: contentDigest(Buffer.from(mutation.replacement, "utf8")),
-        },
-      };
-    }
-    if (content === null) return { result: mutation.result, postImage: { state: "missing", content: null, digest: null } };
-    return {
-      result: mutation.result,
-      postImage: { state: "present", content, digest: contentDigest(Buffer.from(content, "utf8")) },
-    };
-  }, {}, dependencies);
+  const store = options.store ?? createPersonalCommandStore(cwd, io.exec, identity, dependencies);
+  return mutateStoreInbox({ store, cwd, identity }, mutate);
 }
 
 /** Apply an exact title/source-digest-qualified mutation batch. */
@@ -115,7 +80,7 @@ export async function runUserInboxMutation(
 
 /** Remove the unique current title while retaining exact under-lock digest qualification. */
 export async function removeCurrentInboxEntry(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { title: string },
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store"> & { title: string },
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<{ removed: boolean; postImage: UserInboxPostImage }> {
   const transaction = await withLockedUserInbox(options, ({ content }) => {
@@ -137,7 +102,7 @@ export async function removeCurrentInboxEntry(
 
 /** Mark selected current entries execute-bound in one lock-serialized transaction. */
 export async function markCurrentInboxEntriesExecuteBound(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { titles: readonly string[] },
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store"> & { titles: readonly string[] },
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<RunUserInboxMutationResult> {
   const transaction = await withLockedUserInbox(options, ({ content }) => {
@@ -153,7 +118,7 @@ export async function markCurrentInboxEntriesExecuteBound(
 
 /** Clear one current execute-bound mark without deleting its capture. */
 export async function unmarkCurrentInboxEntry(
-  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity"> & { title: string },
+  options: Pick<RunUserInboxMutationOptions, "cwd" | "io" | "identity" | "store"> & { title: string },
   dependencies: UserInboxMutationDependencies = {},
 ): Promise<{ changed: boolean; postImage: UserInboxPostImage }> {
   const transaction = await withLockedUserInbox(options, ({ content }) => {

@@ -1,3 +1,5 @@
+import type { Store } from "../../lib/store/contract.js";
+import type { PersonalIdentitySetupOptions } from "../../lib/personal-identity-setup.js";
 import type { z } from "zod";
 import { UserSessionInitStatusResultSchema } from "./session-init-schema.js";
 import { isRefusalCondition } from "../../lib/git/index.js";
@@ -179,7 +181,7 @@ export interface NearestUserNoteRef {
 }
 
 /** Options for the add operation. */
-export interface UserAddOptions {
+export interface UserAddOptions extends PersonalIdentitySetupOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
@@ -206,6 +208,7 @@ export interface UserCloseOptions {
 
 /** Options for dropping a slug-matched `USER-INBOX` entry. */
 export interface UserInboxRemoveOptions {
+  store?: Store;
   cwd: string;
   io: UserIOContext;
   identity: string;

@@ -1770,48 +1770,22 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
             - a failing `maintain()` after the write returns success with a diagnostic
             - the default port's `{ measurements: null }` returns no figures
 
-### `[ ]` **7.3 Create a person's first records only when absent, and warn on an identity in use — § 10.1, § 10.2**
+### `[x]` **7.3 Create a person's first records only when absent, and warn on an identity in use — § 10.1, § 10.2**
 
 - _Goal:_ From the flip `arc user add`, `arc init`, and `arc join` create an identity's personal inbox and
   `WORKING-MEMORY` through the store only where absent, never overwriting; and when the identity's records already
   exist, each says so and asks the person to confirm the identity is theirs, warning and never refusing on its own,
   while a person who answers that it is not theirs stops the run before it writes; until the flip setup runs as today.
 
-    - `[ ]` **7.3.a Only where absent**
+    - `[x]` **7.3.a Only where absent**
 
-        - `runUserAdd` (`commands/user/add.ts`) and `runPostInitSetup` (`lib/setup.ts`, called from `commands/init.ts`
-          and `commands/join.ts`) take an optional `store`, defaulting to `createStore` over the checkout bound to the
-          identity being set up (Task 5.7.b), and from the flip write each of `CROSS_WU_INSTANCE_FILES`' records as a
-          create with `expected: null` (`lib/store/write.ts`), reading a refusal because the record exists as present
-          and skipping it; their unconditional seeding stays the in-repo arm.
+        - Identity setup creates absent personal records with compare-and-swap and preserves records already present;
+          the in-repo arm retains its seeding behavior through the selected Store.
 
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - each verb creates both records where absent
-            - an existing inbox or `WORKING-MEMORY` is left unchanged
-            - the in-repo arm seeds as today
+    - `[x]` **7.3.b An identity already in use**
 
-    - `[ ]` **7.3.b An identity already in use**
-
-        - Each verb opens its store with its identity port bound to the identity being set up (Task 5.7.b), so the check
-          reads that identity's records, and in `arc join` the pull fetches them, whether or not `arc.identity` is set
-          or names another.
-        - Each verb checks for the identity's records before it sets `arc.identity` or writes any record —
-          `runPostInitSetup` sets the identity before it seeds today — and in `arc join` after join's pull (Task 5.7.b),
-          since on a fresh clone the records appear only once it pulls.
-        - Finding them, it says so and asks through a confirm prompt declared for each verb beside
-          `joinIdentityPromptSite` (`prompts/identity-prompt-sites.ts`; compare `join-input.ts`), whose no-input answer
-          proceeds and whose cancellation stops. A person who answers that the identity is not theirs stops the run
-          before it writes, naming another identity: `--identity <name>` on `arc init` or `arc join`, another name to
-          `arc user add`. A run that cannot ask reports the identity in use in its output — `arc user add`'s through its
-          log (`handlers/user.ts`) — and continues.
-
-        - Build `test-first` (one behavior at a time), over the reference backend:
-            - an identity with records prompts for confirmation, and setup proceeds on it
-            - an answer that the identity is not theirs stops before `arc.identity` or any record is written, naming
-              another identity, and the run with another identity proceeds
-            - a run that cannot ask reports the identity in use and does not refuse
-            - in `arc join` the records the pull brings in are found, with no `arc.identity` set before the run
-            - `arc user add` of another identity checks and writes that identity's records, not the configured one's
+        - Init, join, and add bind the requested identity before checking records. Confirmation precedes configuration
+          and personal writes; join pulls first, and noninteractive runs report the identity in use and proceed.
 
 ### `[ ]` **7.4 List the commits not yet closed — § 11, § 4.3**
 

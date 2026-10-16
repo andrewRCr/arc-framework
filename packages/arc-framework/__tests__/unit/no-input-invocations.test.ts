@@ -29,13 +29,18 @@ describe("distinct no-input invocations", () => {
       .toEqual(["--no-input", "CI"]);
   });
 
+  it("retains all Linux signals for the plain join identity setup", () => {
+    expect(selectNoInputInvocations(entry("join"), "linux").map(({ signal }) => signal))
+      .toEqual(["--no-input", "CI", "non-TTY"]);
+  });
+
   it.each(["win32", "darwin"] as const)("folds all piped signals on %s", (platform) => {
-    expect(NO_INPUT_MATRIX.flatMap((item) => selectNoInputInvocations(item, platform))).toHaveLength(94);
+    expect(NO_INPUT_MATRIX.flatMap((item) => selectNoInputInvocations(item, platform))).toHaveLength(95);
   });
 
   it("reconciles all Linux matrix entries into the distinct transport groups", () => {
     const lengths = NO_INPUT_MATRIX.map((item) => selectNoInputInvocations(item, "linux").length);
     expect([lengths.filter((n) => n === 1).length, lengths.filter((n) => n === 2).length,
-      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([52, 9, 33, 169]);
+      lengths.filter((n) => n === 3).length, lengths.reduce((sum, n) => sum + n, 0)]).toEqual([52, 9, 34, 172]);
   });
 });

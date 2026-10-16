@@ -249,7 +249,7 @@
       "count": 1
     },
     "arc/surface-names": {
-      "count": 5
+      "count": 4
     }
   },
   "src/commands/user/paired-push.ts": {
@@ -451,9 +451,6 @@
     }
   },
   "src/handlers/join.ts": {
-    "jsdoc/require-jsdoc": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 1
     }

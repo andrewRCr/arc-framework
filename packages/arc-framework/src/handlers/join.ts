@@ -4,8 +4,9 @@
  * @module
  */
 
+import { confirmPersonalIdentity } from "./identity-setup.js";
 import * as p from "../lib/terminal.js";
-import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
+import { joinIdentityPromptSite, joinIdentityInUsePromptSite } from "../prompts/identity-prompt-sites.js";
 import { unlink, rmdir } from "node:fs/promises";
 
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
@@ -22,9 +23,61 @@ import {
   isHandledError,
 } from "./shared.js";
 
+import { execa } from "execa";
+import type { GitExec } from "../lib/git/exec.js";
+import { SlugSchema, type Slug } from "../lib/kernel/index.js";
+import { createStore } from "../lib/store/create.js";
+import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import type { Store } from "../lib/store/contract.js";
+import { createStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
+import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
+import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
+
+/** Optional backend bindings for the identity being set up. */
+export interface JoinStorePorts {
+  openStore?: (input: { cwd: string; exec: GitExec; identity: Slug }) => Store;
+  sync?: (store: Store) => StoreSyncPort;
+  execute?: (argv: readonly string[], cwd: string, context: InteractionContext) => Promise<void>;
+  renderer?: PromptRenderer;
+}
+
+/** Pull the selected person's state and offer an explicit remote designation when required. */
+export async function pullJoinStore(input: { cwd: string; exec: GitExec; identity: Slug | null; context: InteractionContext },
+  ports: JoinStorePorts = {}): Promise<StoreSessionInitUserValue | null> {
+  if (input.identity === null) return null;
+  const store = ports.openStore?.({ cwd: input.cwd, exec: input.exec, identity: input.identity })
+    ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
+  if (!store.capabilities.stateOffBranch) return null;
+  const result = await (ports.sync?.(store) ?? createStoreSyncPort()).pull();
+  const value = describeStorePull(result);
+  if (result.status !== "designation-needed") return value;
+  p.log.info(value.summary);
+  if (input.context.interaction !== "allowed") return value;
+  const recommended = result.remedy.argv.at(-1);
+  const answer = await prompt(joinStoreDesignationSite, input.context, {
+    message: `How should remote ${result.remote} serve store state?`,
+    options: result.choices.map(choice => ({ value: choice, label: choice,
+      ...(choice === recommended ? { hint: result.remedy.argv.join(" ") } : {}) })),
+    ...(recommended !== undefined && result.choices.includes(recommended) ? { initialValue: recommended } : {}),
+  }, ports.renderer);
+  if (answer.kind !== "answered" || !result.choices.includes(answer.value)) return value;
+  const argv = answer.value === recommended ? [...result.remedy.argv] : ["arc", "store", "remote", result.remote, answer.value];
+  await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
+  return value;
+}
+
+async function executeJoinDesignation(argv: readonly string[], cwd: string, context: InteractionContext): Promise<void> {
+  const [command, ...args] = argv;
+  if (command === undefined) return;
+  await execa(command, args, { cwd, stdin: context.subprocess.ambientStdin === "closed" ? "ignore" : "inherit",
+    stdout: "inherit", stderr: "inherit", env: context.subprocess.terminalPrompts === "forbidden" ? { GIT_TERMINAL_PROMPT: "0" } : {} });
+}
+
 export type JoinOptions = JoinCommandOptions;
 
-export async function handleJoin(opts: JoinOptions, context: InteractionContext): Promise<void> {
+/** Set up a personal workspace, then pull through its selected-identity store. */
+export async function handleJoin(opts: JoinOptions, context: InteractionContext, storePorts: JoinStorePorts = {}): Promise<void> {
   const io = createIOContext(context.subprocess);
 
   if (opts.reconfigure) {
@@ -60,6 +113,12 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext)
   spinner.start("Setting up developer workspace...");
 
   try {
+    const identity = identityResult === null ? null : SlugSchema.parse(identityResult);
+    const store = identity === null ? undefined : storePorts.openStore?.({ cwd, exec: io.exec, identity })
+      ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: io.exec, identity }));
+    if (store?.capabilities.stateOffBranch) {
+      await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, openStore: () => store });
+    }
     const result = await runJoin({
       cwd,
       io,
@@ -67,9 +126,14 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext)
       internalTemplateDir: getInternalTemplatePath(),
       prompts,
       identityResult,
+      store,
+      confirmIdentityInUse: confirmPersonalIdentity(joinIdentityInUsePromptSite, context, storePorts.renderer),
     });
 
     spinner.stop("Workspace setup complete.");
+    if (!store?.capabilities.stateOffBranch) {
+      await pullJoinStore({ cwd, exec: io.exec, identity, context }, { ...storePorts, ...(store === undefined ? {} : { openStore: () => store }) });
+    }
 
     p.note(buildPostJoinMessage(result), "What's next");
   } catch (err) {

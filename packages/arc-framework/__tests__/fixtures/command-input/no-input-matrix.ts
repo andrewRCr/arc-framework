@@ -77,6 +77,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
   { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "publish", args: ["publish", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "join", args: ["join", "--tools", "", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
   { commandPath: "materialize", args: ["materialize", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "pause", args: ["pause", "matrix", "--reason", "blocked", "--no-waits-on", "--no-resume-notes", "--no-open"], expected: { exitCode: 1 } },
   { commandPath: "handover", args: ["handover", "matrix", "--to", "other"], expected: { exitCode: 1 } },
