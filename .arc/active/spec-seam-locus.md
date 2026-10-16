@@ -285,7 +285,8 @@ builds on:
 - `lib/work-unit/executor-context.ts`, where that change has the executor context carry the ports it is given, and this
   change binds them (§ 2.4, A1);
 - `handlers/start-store.ts`, which that change creates, and where this change has create-new take the executor's ports
-  and hand a named in-place start to the cold-start slot (§ 2.4, § 2.5, A1, A3);
+  and hand a named in-place start to the cold-start slot, and has its refusal of a started Planning work unit report the
+  holder lookup's rejection (`startedPlanningReason`) (§ 2.4, § 2.5, A1, A3);
 - `lib/work-unit/lifecycle-guards.ts`, where that change gives the occupancy guard its store arm, and where this change
   has it refuse a checkout another marker occupies (§ 2.6, A4);
 - `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`, where that change's in-place leg writes the anchored marker
@@ -493,12 +494,15 @@ only files beneath it.
 take its result: the cold start's occupancy check (`coldStartOccupancyRefusal`, `commands/start.ts`), which also reads
 the marker's `spawnedByArc` itself (§ 2.5), and `resolveOriginatingMetaPath`. For the default root
 `readActiveMetaCandidates` already delegates to the resolver (`readHeldCandidates`, `lib/active/meta-reader.ts`), so the
-move changes the result's shape, not the read; the function stays for its other callers. The user-reference reconcile's
-current-work-unit read (`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves onto
-`resolveCurrentWorkUnit` too, leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the notes-sync
-commands as callers. Until the flip, where the resolver finds no work unit the reconcile falls back to the slug of the
-checkout's branch, as `resolveCurrentWuName` does today, so a checkout whose meta has left `.arc/active/` keeps its
-session notes scanned.
+move changes the result's shape, not the read; the function stays for its other callers, among them `arc active status`
+(`commands/active/status.ts`) and the review gate's local host context
+(`scripts/review-gate/hosts/local/live-context.ts`), which no change reroutes: they stay in-repo reads of
+`.arc/active/`, finding nothing where it is absent, until the cutover's projection lays it. The user-reference
+reconcile's current-work-unit read (`resolveCurrentWuName` in `handleUserReconcileReferences`, `handlers/user.ts`) moves
+onto `resolveCurrentWorkUnit` too, leaving `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) with only the
+notes-sync commands as callers. Until the flip, where the resolver finds no work unit the reconcile falls back to the
+slug of the checkout's branch, as `resolveCurrentWuName` does today, so a checkout whose meta has left `.arc/active/`
+keeps its session notes scanned.
 
 #### 2.3 The anchored marker
 
@@ -580,7 +584,8 @@ cold start enters at `draft-design` (§ 16).
   unless it selects `create-new`, and refused `--class`, as the in-repo arm dispatches and refuses `--class` before its
   cold start; so a name the store holds refuses before anything is written, and the cold start runs no dispatch of its
   own (A3); a nameless start derives its name from the branch and dispatches nothing, as today, so a derived name the
-  store holds meets the record write's conflict, after which the rollback removes the marker and the cold start refuses,
+  store holds meets the record write's refusal, after which the rollback removes the marker and the cold start, reading
+  the name through `lookup` since the scaffold reports that refusal as text alone (`scaffoldIntoWorktree`), refuses,
   naming the held work unit, `arc start <name> --new --here` for a new one under another name, and for the held one the
   step its state takes, which `arc status <slug>` shows (§ 13).
 - **Its occupancy check** reads the current work unit from the marker plus the store (§ 2.2), and the marker itself,
@@ -888,12 +893,14 @@ The locus and session-init readers of the archive index (`lib/work-unit/complete
 orphan-branch sweeps (`lib/session-init/stale-worktree-sweep.ts`, `lib/session-init/orphan-branch-sweep.ts`) and the
 derived locus evidence (`lib/locus/derived-evidence.ts`), whose read the derived lifecycle evidence and the roster
 consume — read placement and `lookup` from the flip, and none keys on an archive folder's number, which the archive's
-sync may renumber until the archive is published. Retired-subdirectory detection
-(`lib/session-init/retired-subdir-detection.ts`, which hands the shipped set it reads to `planRetiredSubdirReconcile`)
-reads none from the flip, its slot resolving `skip` (§ 4.2). Until the flip each of the four keeps its read of the
-archive at a base ref, with its object and shallow-history guards (§ 1.5): the in-repo implementation lists
-placement from the checkout's working tree and local branches (`composedMetas`, `lib/store/in-repo/meta.ts`), which is
-not the shipped set those readers take today.
+sync may renumber until the archive is published. An archive persisted here whose publication failed reads completed on
+this clone, as these readers take it; its publication is the archive's own retry (`arc archive <name>`,
+`publishArchive`, `lib/work-unit/verbs/archive-store.ts`) or the next sync's, outside this change. Retired-subdirectory
+detection (`lib/session-init/retired-subdir-detection.ts`, which hands the shipped set it reads to
+`planRetiredSubdirReconcile`) reads none from the flip, its slot resolving `skip` (§ 4.2). Until the flip each of the
+four keeps its read of the archive at a base ref, with its object and shallow-history guards (§ 1.5): the in-repo
+implementation lists placement from the checkout's working tree and local branches (`composedMetas`,
+`lib/store/in-repo/meta.ts`), which is not the shipped set those readers take today.
 
 The Candidate mutation owner's completed set (`resolveCompletedCandidateWorkUnits`,
 `handlers/candidate-mutation-owner.ts`) reads no archive: it takes the working tree's lifecycle index
@@ -1057,9 +1064,10 @@ flip's rewrite (§ 1.5).
   has out; and, from the flip, any writer of a work unit's meta or task list, which writes only from the work unit's own
   checkout. Each slot sets the checkout from its verb's own rule; an action without one runs from any checkout.
 - **A paused work unit.** From the flip, on a paused work unit, a slot whose action advances the work takes
-  `arc resume <slug>` as its action in its place, since the verb would refuse naming it (§ 16), and its text names the
-  command to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, the commits not
-  yet closed name `arc task close`, and `derivedLocusState`'s Active work unit linking no branch names
+  `arc resume <slug>` as its action in its place, in `actions` alone, today's command fields beside it keeping their
+  values until the deletion pass (above), since the verb would refuse naming it (§ 16), and its text names the command
+  to run once resumed: `currentWuReconcile` offers no `arc wu reconcile <slug> --apply --json`, the commits not yet
+  closed name `arc task close`, and `derivedLocusState`'s Active work unit linking no branch names
   `arc deactivate <slug>`, then `arc activate`, each of which refuses a paused work unit (`unpaused`,
   `lib/work-unit/lifecycle-transitions.ts`).
 - **Existing commands are kept.** Where a slot carries a command today, the action is that command, under today's
@@ -1635,9 +1643,10 @@ This amends the contract's return to "the inbox it came from", which assumed a d
   door (§ 16).
 - **An Integrating or completed one takes nothing,** so a late concern goes to a follow-on, or the owner reopens an
   Integrating work unit (`arc reopen`).
-- **Nothing stays held past an exit.** From the flip the record kinds' write check refuses moving a work unit to
-  Active, to Integrating (`arc publish`), or to the archive, and refuses retiring it by a cut or an abandonment, while
-  its inbound list holds an entry, naming each (`meta.inbound-held`, `lineage.inbound-held`); those rules read this
+- **Nothing stays held past an exit.** From the flip the record kinds' write check refuses moving a work unit to Active,
+  to Integrating (`arc publish`), or to the archive, and refuses retiring it by a cut or an abandonment, while its
+  inbound list holds an entry, with the remedy to integrate or route the held entries (`meta.inbound-held`,
+  `lineage.inbound-held`; `checkMetaInboundHeld`, `lib/store/kinds/meta/inbound-held-rule.ts`); those rules read this
   change's inbound kind and admit until it is declared (§ 6.6). Before a cut the owner folds each held entry into the
   origin's draft or spec, whichever the cut copies to every member, or re-routes or dismisses it; before an abandonment,
   re-routes or dismisses it. Until the flip, activation's and verification's capture gates
@@ -1693,15 +1702,18 @@ is § 7.7's.
 #### 8.1 The close's landing commit and close time
 
 From the flip the close (`lib/errand/close-runtime.ts`) captures the Errand's landing commit on its record, naming its
-repository by the project ID, as every commit capture does (§ 16). The landing commit is the commit the Errand's merge
-made on base, never the Errand's head (`closeTargetHead`), which a squash merge leaves off base: for a merge through the
-host, its merge commit, which the close's lifecycle read (`ChangeRequestLifecyclePort`,
-`lib/errand/change-request-lifecycle.ts`) carries from the flip as the delivery host reports one (`mergeCommitSha`,
-`lib/delivery/host.ts`); for ARC's own merge (`scripts/integration/errand-merge.ts`), the commit that merge wrote. The
-close write stamps the record's `updatedAt` as the close time, by which a listing of closed Errands orders them. Today
-the close deletes the record from the transient-identity ref (`ordinaryErrandTransform`'s `retire` arm,
-`lib/errand/identity-transitions.ts`), and the last write to stamp `updatedAt` is the await-merge write. Until the flip
-the close captures nothing and keeps today's deletion.
+repository by the project ID, as every commit capture does (§ 16). Its copy key comes from the one copy-key function
+over local objects (`computeCopyKeys`, `lib/git/copy-key.ts`), and the capture omits it where the commit is not held
+locally or is a merge commit, which takes none, as the capture's schema admits (`CommitCaptureSchema`,
+`lib/store/links.ts`). The landing commit is the commit the Errand's merge made on base, never the Errand's head
+(`closeTargetHead`), which a squash merge leaves off base: for a merge through the host, its merge commit, which the
+close's lifecycle read (`ChangeRequestLifecyclePort`, `lib/errand/change-request-lifecycle.ts`) carries from the flip as
+the delivery host reports one (`mergeCommitSha`, `lib/delivery/host.ts`); for ARC's own merge
+(`scripts/integration/errand-merge.ts`), the commit that merge wrote. The close write stamps the record's `updatedAt` as
+the close time, by which a listing of closed Errands orders them. Today the close deletes the record from the
+transient-identity ref (`ordinaryErrandTransform`'s `retire` arm, `lib/errand/identity-transitions.ts`), and the last
+write to stamp `updatedAt` is the await-merge write. Until the flip the close captures nothing and keeps today's
+deletion.
 
 #### 8.2 The Errand's branch link
 

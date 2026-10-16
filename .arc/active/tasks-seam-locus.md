@@ -738,7 +738,9 @@ read that gets none stops at that incomplete observation before calling it.
   path and returns `clear`, or `refused` with the holding checkout's path and a `reason`; the lookup takes a name and
   the caller's own scan (`resolveLegacy`) and returns the holder's path or `null`; and the writer takes the checkout,
   the marker, and an optional `expected` generation, and returns `created` or `replaced` with the bytes written,
-  `exists`, `generation-mismatch`, or `unadmitted`, which only the default returns.
+  `exists`, `generation-mismatch`, or `unadmitted`, which only the default returns. Graduation in place runs the check
+  twice, in store start's graduation (`runStoreGraduate`, `commands/start-store.ts`) and again in the in-place leg
+  (`reconcileWorkUnitWorktree`), each reading the roster; the binding keeps both.
 
     - `[ ]` **2.5.a The anchored-marker writer**
 
@@ -783,6 +785,9 @@ read that gets none stops at that incomplete observation before calling it.
           `readUnsharedWork` call, and teardown's (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`), already
           take the executor's record and stay as they are: the bound lookup reads 2.4's and leaves their own marker scan
           (`resolveLegacy`) unread, and given no record they keep that scan.
+        - Start's refusal of a started Planning work unit (`startedPlanningReason`, `handlers/start-store.ts`) calls the
+          lookup unguarded, so a rejection would surface as an unexpected error; it catches the rejection and refuses
+          with its condition and repair, as the lookup words them (spec § 2.4).
         - The binding reconciles the port's refusal with 2.4's, as the Note above provides: `MarkerExclusivityResult`'s
           refused arm carries the check's message whole in its `reason`, its repair included, with `checkoutPath`
           optional, since an incomplete roster names no checkout, and `requireMarkerExclusivity`
@@ -818,6 +823,8 @@ read that gets none stops at that incomplete observation before calling it.
               bound record, its `withCwd` rebind the same one
             - store start's create-new through `handlers/start.ts`'s production handler, with no ports injected, refuses
               a name a spawn's residue marker in another checkout carries, naming that checkout
+            - with no ports injected, `arc start <slug> --new` on a started Planning work unit whose holder's marker
+              cannot be read refuses, naming that checkout and 2.4's repair
 
 ### `[ ]` **2.6 Reroute the cold start onto the marker and the store — § 2.5, § 2.6**
 
@@ -845,9 +852,12 @@ read that gets none stops at that incomplete observation before calling it.
           unless it selects `create-new`; and `create`'s refusal of `--class` — as the in-repo arm refuses each before
           its cold start — so a name the store holds refuses before anything is written, and the cold start runs no
           dispatch of its own. A nameless start derives its name from the branch and dispatches nothing, as today, so a
-          derived name the store holds meets the record write's conflict (`version-conflict`), after which the rollback
-          removes the marker and the cold start refuses, naming the held work unit, `arc start <name> --new --here` for
-          a new one under another name, and for the held one the step its state takes, which `arc status <slug>` shows.
+          derived name the store holds meets the record write's refusal, which the scaffold throws as its condition and
+          remedy text alone (`scaffoldIntoWorktree`, `lib/git/worktree-scaffold.ts`), so after the rollback removes the
+          marker, the cold start reads the name through `lookup` and, where a work unit holds it, refuses naming the
+          held work unit, `arc start <name> --new --here` for a new one under another name, and for the held one the
+          step its state takes, which `arc status <slug>` shows. Where `lookup` finds none, it refuses with the
+          scaffold's message as given.
         - `coldStartOccupancyRefusal` reads the current work unit through 2.3's resolver, and the marker itself
           (`readWorktreeMarkerGeneration`), since the resolver's claim read (`readClaimedCurrentWorkUnit`,
           `lib/store/current-work-unit-marker.ts`) reads a transient role and a husk stamp as no work unit and never
@@ -875,6 +885,8 @@ read that gets none stops at that incomplete observation before calling it.
             - `--class` with a named `--here --new` refuses, writing nothing
             - a nameless start whose derived name the store holds refuses naming the held work unit and its two repairs,
               leaves no marker, and `arc start <name> --new --here` under another name then completes
+            - a nameless start whose record write refuses for another reason reports the write's message and leaves no
+              marker
             - an anchored no-record marker is replaced and the cold start completes
             - an incomplete store read refuses rather than replacing the marker
             - each other marker refuses, naming its exit, the spawned residue's typed
@@ -1465,10 +1477,12 @@ inject a reference-backend store.
       evidence (`ChangeRequestLifecycleEvidence`, `lib/errand/change-request-lifecycle.ts`) gains the merge commit,
       which `createGhChangeRequestLifecyclePort`'s query requests beside the fields it reads today, as the delivery host
       reports one (`mergeCommitSha`, `lib/delivery/host.ts`).
-    - It is the record's `landingCommit` link (`lib/store/links.ts`). The project ID comes from an optional port
-      `CloseOrdinaryErrandRuntimeOptions` gains, which given none reads the project's identity record over the store the
-      close reads the Errand through (3.3.b, Phase 2's design decisions); tests inject it. Given no project ID — the
-      port absent, or its read failing — the close refuses before its write, naming the port's failure (spec § 2.1).
+    - It is the record's `landingCommit` link (`lib/store/links.ts`), its copy key from `computeCopyKeys`
+      (`lib/git/copy-key.ts`) over local objects, omitted where the commit is not held locally or is a merge commit,
+      which takes none. The project ID comes from an optional port `CloseOrdinaryErrandRuntimeOptions` gains, which
+      given none reads the project's identity record over the store the close reads the Errand through (3.3.b, Phase 2's
+      design decisions); tests inject it. Given no project ID — the port absent, or its read failing — the close refuses
+      before its write, naming the port's failure (spec § 2.1).
     - A close under unchanged-base authorization, which merges nothing (`retirementDesired`,
       `lib/errand/identity-transitions.ts`), records no landing commit; its write still stamps the close time.
 
@@ -1480,6 +1494,8 @@ inject a reference-backend store.
         - with no project ID the close refuses before writing, naming the port's failure, and completes once the port
           gives one
         - with no project-ID port injected, the link names the project ID the project's identity record holds
+        - a landing commit held locally carries its copy key, and one not held locally is captured without one, the
+          close never fetching
 
 ### `[ ]` **3.5 Link the Errand's branch at open — § 8.2**
 
@@ -1936,6 +1952,8 @@ before the flip.
             - a description round-trips a personal capture unchanged
             - over the reference backend, with the meta and lineage checks injected, the inbound-held rule refuses a
               work unit's exit while its inbound list holds an entry
+            - over the reference backend, with the meta check injected, a Planning work unit's activation refuses while
+              its inbound list holds an entry, naming the rule's remedy
 
     - `[ ]` **4.2.c `WORKING-MEMORY`'s kind**
 
@@ -2253,11 +2271,13 @@ its `arc schema` test with it.
 
         - From the flip, on a paused work unit, read from the frame's work-unit context (Task 2.1.d),
           `currentWuReconcile` offers `arc resume <slug>` in place of `arc wu reconcile <slug> --apply --json`, its text
-          naming the apply to run once resumed. The probe's prepare never reads the pause, so it never meets the apply's
-          refusal. The commits not yet closed take the same swap in Task 7.4.
+          naming the apply to run once resumed. The swap is in `actions` alone: `recommendedCommand` and the slot's
+          other command fields keep today's values until the deletion pass. The probe's prepare never reads the pause,
+          so it never meets the apply's refusal. The commits not yet closed take the same swap in Task 7.4.
 
         - Build `test-first` (one behavior at a time), over the reference backend:
             - a paused work unit's pending reconcile yields `arc resume <slug>`, its text naming the apply
+            - a paused work unit's slot keeps today's `recommendedCommand` beside its swapped action
 
 ### `[ ]` **5.4 Report paused work, and enter a paused checkout — § 4.4**
 
@@ -2311,7 +2331,9 @@ its `arc schema` test with it.
     - `findMaterializableWorkUnits` (`lib/session-init/materializable-work-units.ts`) reads the oracle's set
       (Task 3.1.b), which no remote gates, less the work units a checkout here holds (Task 2.4's lookup) and less paused
       ones, reporting the condition for a work unit whose lookup rejects rather than offering it; today it admits only
-      remote-only work units that are not parked.
+      remote-only work units that are not parked. It keeps its own loop over that set rather than calling the verb's
+      listing (`listStoreMaterializable`, `lib/work-unit/verbs/materialize-store.ts`), which aborts whole on any one
+      work unit's rejected lookup.
     - Task 2.7's pairs give the `--here` offers; a registration whose folder is missing holds no checkout, so its work
       unit takes the ordinary offer, whose spawn clears it.
     - Its entry's `branch` (`MaterializableWorkUnitSchema`), a required non-empty string today, is optional from the
@@ -2323,6 +2345,8 @@ its `arc schema` test with it.
         - a work unit whose branch a markerless checkout has out is offered the `--here` form with that checkout
         - a work unit whose checkout's folder was deleted takes the ordinary offer
         - a branchless work unit is offered with no branch, and the entry parses under the slot's schema
+        - one work unit's rejected lookup reports its condition while the others are offered, and where no lookup
+          rejects the offer's set is `arc materialize`'s listing less paused work units
 
 ### `[ ]` **5.6 Report inbound back-pressure — § 4.6**
 
@@ -2985,13 +3009,14 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
     - `[ ]` **7.4.b The action**
 
         - The action runs in the work unit's checkout: `arc task close`, typed, only where every listed commit's
-          committer and author times are equal; otherwise text naming the bare close where the open task's work is among
-          them and `arc task close <id>` where it is not.
+          committer and author times were read from its header and are equal, and it carries a copy key; otherwise text
+          naming the bare close where the open task's work is among them and `arc task close <id>` where it is not.
         - On a paused work unit the action is `arc resume <slug>`, its text naming `arc task close` to follow, as Task
           5.3.c gives `currentWuReconcile`.
 
         - Build `test-first` (one behavior at a time), integration tier, over the reference backend:
             - every commit made fresh yields the typed bare close in the work unit's checkout
+            - a commit whose header times went unread, or with no copy key, yields the text, never the typed close
             - an amended commit, made by a raw `git commit --amend` since the release wrapper refuses an amend from the
               flip, yields the text naming both repairs, with the checkout
             - a paused work unit yields `arc resume <slug>`
