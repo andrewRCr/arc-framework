@@ -4,6 +4,7 @@ import {
   projectRenameMoveRemedy,
   runLandedRetirementSweep,
 } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
+import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
@@ -32,7 +33,7 @@ function pendingMarker(
   overrides: { renameMovePending?: {
     oldSlug: string;
     newSlug: string;
-    branch: string;
+    branch: string | null;
     head: string;
     from: string;
     to: string;
@@ -109,42 +110,31 @@ function authorizedDecision() {
 }
 
 describe("projectRenameMoveRemedy", () => {
-  it("projects exact argv and display text for valid registered path lag", () => {
-    expect(projectRenameMoveRemedy(
-      registered(),
-      pendingMarker(),
-      [registered()],
-    )).toEqual({
-      oldSlug: "old-name",
-      newSlug: "new-name",
-      branch: "feat/new-name",
-      head: HEAD,
-      from: "/wt/project.old-name",
-      to: "/wt/project.new-name",
-      remedy: {
-        argv: ["git", "worktree", "move", "/wt/project.old-name", "/wt/project.new-name"],
-        text: "Move the registered worktree from \"/wt/project.old-name\" to \"/wt/project.new-name\".",
-      },
-    });
+  it.each(["feat/new-name", null])("projects doubled-force argv and a typed action for branch %s", (branch) => {
+    const worktree = registered({ branch, detached: branch === null });
+    const from = worktree.path, to = "/wt/project.new-name";
+    const marker = pendingMarker({ renameMovePending: {
+      oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD, from, to,
+    } });
+    const result = projectRenameMoveRemedy(worktree, marker, [worktree]);
+    const remedy = { argv: ["git", "worktree", "move", "-f", "-f", from, to],
+      text: `Run git worktree move -f -f '${from}' '${to}' from outside the checkout.` };
+    expect(result).toEqual({ oldSlug: "old-name", newSlug: "new-name", branch, head: HEAD,
+      from, to, remedy, actions: [remedy] });
+    expect(StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "not-applicable", worktrees: [],
+      missingFolders: [], renameMoves: [result], retirements: [], warnings: [] }).renameMoves).toEqual([result]);
   });
 
   it("keeps executable argv authoritative for paths containing shell metacharacters", () => {
     const from = "/wt/project old;touch-pwned";
-    const to = "/wt/project new$(touch-pwned)";
+    const to = "/wt/project new$(touch-pwned)'suffix";
     const worktree = registered({ path: from });
-    const marker = pendingMarker({
-      renameMovePending: {
-        oldSlug: "old-name",
-        newSlug: "new-name",
-        branch: "feat/new-name",
-        head: HEAD,
-        from,
-        to,
-      },
-    });
+    const marker = pendingMarker({ renameMovePending: {
+      oldSlug: "old-name", newSlug: "new-name", branch: "feat/new-name", head: HEAD, from, to,
+    } });
     expect(projectRenameMoveRemedy(worktree, marker, [worktree])?.remedy).toEqual({
-      argv: ["git", "worktree", "move", from, to],
-      text: `Move the registered worktree from ${JSON.stringify(from)} to ${JSON.stringify(to)}.`,
+      argv: ["git", "worktree", "move", "-f", "-f", from, to],
+      text: `Run git worktree move -f -f '${from}' '/wt/project new$(touch-pwned)'"'"'suffix' from outside the checkout.`,
     });
   });
 

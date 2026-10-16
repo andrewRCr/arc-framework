@@ -4,6 +4,7 @@
  * @module
  */
 
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import type { SessionAction } from "./actions.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots, type RemovalCheck } from "../git/worktree-removal.js";
@@ -35,7 +36,7 @@ import {
 
 /** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
-  argv: readonly ["git", "worktree", "move", string, string];
+  argv: readonly ["git", "worktree", "move", "-f", "-f", string, string];
   text: string;
 }
 
@@ -48,6 +49,7 @@ export interface RenameMoveResidue {
   from: string;
   to: string;
   remedy: RenameMoveRemedy;
+  actions: SessionAction[];
 }
 
 /** Ordinary CLI action offered for one structurally proven landed retirement. */
@@ -130,13 +132,11 @@ export function projectRenameMoveRemedy(
   ) {
     return null;
   }
-  return {
-    ...pending,
-    remedy: {
-      argv: ["git", "worktree", "move", pending.from, pending.to],
-      text: `Move the registered worktree from ${JSON.stringify(pending.from)} to ${JSON.stringify(pending.to)}.`,
-    },
+  const remedy: RenameMoveRemedy = {
+    argv: ["git", "worktree", "move", "-f", "-f", pending.from, pending.to],
+    text: `Run git worktree move -f -f ${quoteShellArgument(pending.from)} ${quoteShellArgument(pending.to)} from outside the checkout.`,
   };
+  return { ...pending, remedy, actions: [{ ...remedy, argv: [...remedy.argv] }] };
 }
 
 /**

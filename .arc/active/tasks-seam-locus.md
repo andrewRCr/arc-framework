@@ -191,19 +191,13 @@ layout-resolver call for one made outside `lib/store/` (`eslint/architecture-imp
   gain only `sweep.value.missingFolders: []`. Displayed path operands are quoted literally, while typed argv remain the
   executable form. Workflow text stays unchanged until the flip.
 
-### `[ ]` **1.8 Move a locked checkout in the doubled-force form — § 12.3**
+### `[x]` **1.8 Move a locked checkout in the doubled-force form — § 12.3**
 
 - _Goal:_ The residue sweep's rename-move remedy is `git worktree move -f -f <from> <to>`, so a checkout the projection
   later locks still moves with its lock and reason intact.
 
-    - `projectRenameMoveRemedy` (`lib/session-init/lifecycle-residue-sweep.ts`) and its `RenameMoveRemedy` argv type
-      change; the accepted edge — a move landing on a path registered to a missing or locked worktree — needs no guard.
-    - The stale-worktree sweep's full schema (Task 1.1.b), beside its producer, takes the doubled form in its rename
-      move's tuple, and the deferred move's `actions` carries the same argv, typed (§ 4.3).
-
-    - Build `test-first` (one behavior at a time):
-        - a validated deferred move, branched and detached, yields the doubled-force argv and its text
-        - the deferred move's action carries that argv, typed, and parses under the slot's schema
+- _Outcome:_ Validated branched and detached rename residues carry doubled-force move argv in both the remedy and
+  typed actions, with shell-safe displayed paths; the sweep schema admits that same tuple.
 
 ### `[ ]` **1.9 Record the state version and the layout-resolved paths in the compaction seed — § 4.9**
 

@@ -591,4 +591,11 @@ The five session-init goldens (`session-init-active-resume.json`, `session-init-
 marker without a work-unit name grants no teardown offer. Missing registrations keep their branches out of both
 candidate tiers, and a foreign lock's unlock stays its owner's text-only decision.
 
+## Task 1.8: deferred rename moves
+
+Spec § 1.4, item 3 changes `unit/session-init/lifecycle-residue-sweep.test.ts`,
+`unit/session-init/stale-worktree-sweep.test.ts`, and `unit/status/session-envelope-schema.test.ts`, under
+`packages/arc-framework/__tests__/`. Branched and detached validated moves share the doubled-force argv and executable
+action; displayed paths use literal shell quoting. No golden fixtures change.
+
 ---
