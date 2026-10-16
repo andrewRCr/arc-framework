@@ -265,43 +265,18 @@ default layout.
   its table path, its owner's slug, and its version — and 3.3.b to 3.3.e complete each, every case running through
   `read` and `list`.
 
-    - `[ ]` **3.3.R Exact diagnostics for invalid path keys — § 11.6 (A3)**
+    - `[x]` **3.3.R Exact diagnostics for invalid path keys — § 11.6 (A3)**
         - _Goal:_ Preserve managed-path admission while a backslash-bearing entry lists as `malformed` under its exact
           original path beside valid Unicode and quote-bearing records (A3).
-        - Build `test-first` (one behavior at a time): integration through `createRefStore` over planted refs in both
-          ref formats; valid Unicode and quote paths return records, and a backslash path returns an exact-path
-          `malformed` diagnostic in a complete listing with `missed: true`, preserving the valid records.
+        - Invalid decoded path keys become `malformed` diagnostics under their original path; valid Unicode and
+          quote-bearing records remain in complete listings with `missed: true`, in both ref formats.
 
-    - `[ ]` **3.3.a The processes and the tip read**
-        - The tip read: one `for-each-ref` of `refs/arc/` as a single pattern with `--exclude=refs/arc/history/`, which
-          also reads `refs/arc/tmp/version` for the state version (3.4.b); then one `cat-file --batch-check` of each tip's
-          root tree, one `git diff-tree --stdin -r -z` pairing each tree with the empty tree, and one `cat-file --batch`
-          of the metadata and record blobs; every read with `objectAccess: "local-only"`; a `cat-file --batch` failing
-          `output-limit` runs again over halves until each fits
-        - The first decode: a record at its kind's table path (3.2) reads as that kind and key, its owner's slug from the
-          ref's metadata file, and its version by 3.3.d's digest
-        - A reference without a UID resolves among live owners by § 8's metadata scan, once per call, which 4.2.a's
-          write resolution shares, 5.3 extends through the registry's lineage map, and Phase 7 extends to ended owners
-        - A record's `conflicts` lists the open conflict records on its ref whose content names it: a list reads them
-          from its own batch; a read requests the family root's `conflicts` tree in its first batch and reads their blobs
-          in a second only where that tree exists (§ 11.6)
-        - The byte executor rewrites `GIT_SSH_COMMAND` only for a call that can reach a remote:
-          `applyNonInteractiveSshEnvironment` (`lib/git/process-executor.ts`) throws before spawning on a command such as
-          `ssh -i ~/.ssh/k`, so a call under `objectAccess: "local-only"` skips it
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, through `createRefStore` over planted refs, as every case of 3.3 is
-            - a record planted at its table path reads and lists as its kind and key, under its owner's slug
-            - a live `read` by UID spawns two processes, and three on a ref holding an open conflict record, which its
-              `conflicts` lists; a reference without a UID adds the scan's four and returns the owner's UID
-            - a `list` spawns four where the manifest is unchanged, and lists each record's open conflicts
-            - a listing whose blobs pass an injected output cap (`createExecaRawGitExec(cwd, maxBuffer)`) splits and
-              returns every record
-            - two records sharing one blob both list
-            - a path holding a non-ASCII byte, `"`, or `\` lists under its exact name
-                - _Amended in:_ 3.3.R (A3)
-            - a read under a `GIT_SSH_COMMAND` holding `~` reads
-            - with no identity configured, a read of a person-owned record refuses `not-found` naming `arc.identity`, and
-              a listing of `personal` or `claims` is `absent`, with no identity ref named, as the contract has it
+    - `[x]` **3.3.a The processes and the tip read**
+        - Live reads capture tips and batch records with metadata in two processes, three with open conflicts; listings
+          use four. Recursive NUL-framed diffs preserve path bytes and shared-blob instances; output limits split batches.
+        - Slug-only references resolve once through live metadata. Identity absence refuses person reads and leaves
+          identity families absent; local-only byte calls skip SSH rewriting. Kind filters retain open conflict links.
+        - _Amended in:_ 3.3.R (A3)
 
     - `[ ]` **3.3.b The decode**
         - The backend's codec in `lib/store/ref/` maps a ref and tree entry back to a reference, taking the owner's slug

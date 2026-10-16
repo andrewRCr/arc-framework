@@ -178,13 +178,13 @@ export function createExecaRawGitExec(
     const objectEnvironment = options.objectAccess === "local-only"
       ? { ...indexedEnvironment, GIT_NO_LAZY_FETCH: "1" }
       : indexedEnvironment;
-    const env = applyNonInteractiveSshEnvironment(
-      applyInteractionEnvironment(objectEnvironment, {
-        terminalPrompts: "forbidden",
-        presenters: "forbidden",
-        ambientStdin: "closed",
-      }) ?? objectEnvironment,
-    );
+    const interactionEnvironment = applyInteractionEnvironment(objectEnvironment, {
+      terminalPrompts: "forbidden",
+      presenters: "forbidden",
+      ambientStdin: "closed",
+    }) ?? objectEnvironment;
+    const env = options.objectAccess === "local-only" ? interactionEnvironment
+      : applyNonInteractiveSshEnvironment(interactionEnvironment);
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
