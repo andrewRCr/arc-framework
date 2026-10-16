@@ -20,6 +20,7 @@ import {
   settleLaneAttempt,
 } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { resolveFrontlineCommand } from "../../../../../src/scripts/review-gate/policy/frontline-command.js";
+import { persistFrontlineRunPending } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { readSingletonFrontlinePhaseClosure, recordSingletonFrontlineInitialSkip } from
   "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 import { normalizeFrontlineOutcome } from
@@ -170,6 +171,94 @@ async function recordCompletedPass(
 }
 
 describe("frontline workflow command", () => {
+  it.each(["candidate", "errand"] as const)("withdraws a never-started %s admission on explicit skip", async (kind) => {
+    const store = operationStore();
+    const ownerLineage = kind === "candidate" ? lineage : headBoundLineage;
+    const deps = { ...dependencies(store), resolveLineage: async () => ownerLineage };
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const first = await resolveFrontlineCommand(request, deps);
+    expect(first.state).toBe("ready");
+    await expect(resolveFrontlineCommand({ ...request, invocation: { mode: "skip" } }, deps))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: ownerLineage,
+    })).resolves.toMatchObject({ completedPasses: 0, attempts: [] });
+    const next = await resolveFrontlineCommand(request, deps);
+    if (kind === "candidate") {
+      expect(next.state).toBe("skipped");
+    } else {
+      expect(next.state).toBe("ready");
+      expect(next.payload.admission?.operationId).not.toBe(first.payload.admission?.operationId);
+    }
+  });
+
+  it("supersedes a never-started admission when the exact Errand target moves", async () => {
+    const store = operationStore();
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const first = await resolveFrontlineCommand(request, {
+      ...dependencies(store), resolveLineage: async () => headBoundLineage,
+    });
+    const next = await resolveFrontlineCommand({ ...request, target: movedTarget }, {
+      ...dependencies(store), resolveLineage: async () => movedHeadBoundLineage,
+    });
+    expect(next).toMatchObject({ state: "ready", payload: { pass: 1, admission: { target: movedTarget } } });
+    expect(next.payload.admission?.operationId).not.toBe(first.payload.admission?.operationId);
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: movedTarget.headSha,
+      lineage: movedHeadBoundLineage,
+    })).resolves.toMatchObject({ completedPasses: 0, attempts: [
+      expect.objectContaining({ attemptId: next.payload.admission?.operationId, outcome: "pending" }),
+    ] });
+  });
+
+  it("does not revive a withdrawn ready response after an earlier inconclusive attempt", async () => {
+    const store = operationStore();
+    const deps = { ...dependencies(store), resolveLineage: async () => headBoundLineage };
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const first = await resolveFrontlineCommand(request, deps);
+    const admission = first.payload.admission;
+    if (admission === undefined) throw new Error("expected admission");
+    await recordFrontlineAttempt(store, { admission, now: deps.now(), outcome: normalizeFrontlineOutcome({
+      providerResult: { kind: "timed-out" }, source, target, pass: 1, maxPasses: 2,
+    }) });
+    const retry = await resolveFrontlineCommand(request, deps);
+    await resolveFrontlineCommand({ ...request, invocation: { mode: "skip" } }, deps);
+    const fresh = await resolveFrontlineCommand(request, deps);
+    expect(fresh.payload.admission?.operationId).not.toBe(retry.payload.admission?.operationId);
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    })).resolves.toMatchObject({ completedPasses: 0, attempts: [
+      expect.objectContaining({ attemptId: admission.operationId, outcome: "timed-out" }),
+      expect.objectContaining({ attemptId: fresh.payload.admission?.operationId, outcome: "pending" }),
+    ] });
+  });
+
+  it.each(["skip", "move"] as const)("preserves a started run when asked to %s", async (intent) => {
+    const store = operationStore();
+    const request = { schemaVersion: 1, target, changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" } } as const;
+    const deps = { ...dependencies(store), resolveLineage: async () => headBoundLineage };
+    const first = await resolveFrontlineCommand(request, deps);
+    const admission = first.payload.admission;
+    if (admission === undefined) throw new Error("expected admission");
+    await persistFrontlineRunPending(store, { admission, expectedVersion: 0, updatedAt: deps.now() });
+    const before = await store.readOperation(admission.operationId);
+    const ownerBefore = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    });
+    const next = await resolveFrontlineCommand({ ...request,
+      ...(intent === "skip" ? { invocation: { mode: "skip" } } : { target: movedTarget }),
+    }, deps);
+    expect(next).toMatchObject({ state: "ready", payload: { admission } });
+    expect(await store.readOperation(admission.operationId)).toEqual(before);
+    expect(await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage: headBoundLineage,
+    })).toEqual(ownerBefore);
+  });
+
   it("keeps frontline closed after a validated superseded owner has a clean result", async () => {
     const store = operationStore();
     const ancestorLineage = {
@@ -424,6 +513,16 @@ describe("frontline workflow command", () => {
         }),
       })]),
     });
+    const consumed = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage,
+    });
+    await expect(resolveFrontlineCommand({ ...authorizedRequest, invocation: { mode: "skip" } }, followUpDependencies))
+      .rejects.toMatchObject({ code: "invalid-input", reason: "conditional-authority-consumed" });
+    expect(await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage,
+    })).toEqual(consumed);
+    await expect(resolveFrontlineCommand(authorizedRequest, followUpDependencies))
+      .resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
   });
 
   it("accepts explicit change-set facts and a force invocation without executing a source", async () => {
@@ -515,7 +614,7 @@ describe("frontline workflow command", () => {
         pass: 1,
         admission: {
           logicalPass: 1,
-          retryGeneration: 1,
+          retryGeneration: 2,
           operationId: expect.not.stringMatching(first.payload.admission.operationId),
         },
       },

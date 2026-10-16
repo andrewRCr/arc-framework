@@ -193,6 +193,47 @@ async function admittedRun(reviewTarget = target("c")) {
 }
 
 describe("frontline run command", () => {
+  it.each(["stale-target", "missing-admission"] as const)("distinguishes a %s before execution", async (reason) => {
+    const { stores, resolution } = await admittedRun();
+    const runTarget = reason === "stale-target" ? target("e") : target("c");
+    if (reason === "missing-admission") {
+      const ownerId = laneProgressOperationId({ lane: "frontline", repositoryId: runTarget.repositoryId,
+        headSha: runTarget.headSha, lineage: defaultLineage });
+      const current = await stores.operationStore.readOperation(ownerId);
+      if (current.state?.kind !== "lane-progress") throw new Error("expected owner");
+      await stores.operationStore.publishOperation({ ...current.state, attempts: [] }, current.version);
+    }
+    await expect(runFrontlineReviewCommand({ schemaVersion: 1, target: runTarget, resolution }, {
+      ...stores,
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => { throw new Error("unexpected materialization"); },
+      execute: async () => { throw new Error("unexpected provider execution"); },
+      now: () => "2026-09-08T13:01:00Z",
+    })).rejects.toMatchObject({ code: "invalid-input", reason });
+  });
+
+  it("refuses an admission withdrawn while run waits for its operation lock", async () => {
+    const { stores, resolution } = await admittedRun();
+    const request = { schemaVersion: 1, target: target("c"), resolution } as const;
+    await expect(runFrontlineReviewCommand(request, {
+      ...stores,
+      withOperationLock: async (_id, _wait, action) => {
+        const ownerId = laneProgressOperationId({ lane: "frontline", repositoryId: target("c").repositoryId,
+          headSha: target("c").headSha, lineage: defaultLineage });
+        const current = await stores.operationStore.readOperation(ownerId);
+        if (current.state?.kind !== "lane-progress") throw new Error("expected owner");
+        await stores.operationStore.publishOperation({ ...current.state, attempts: [] }, current.version);
+        return action();
+      },
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => { throw new Error("unexpected materialization"); },
+      execute: async () => { throw new Error("unexpected provider execution"); },
+      now: () => "2026-09-08T13:01:00Z",
+    })).rejects.toMatchObject({ code: "invalid-input", reason: "missing-admission" });
+    expect(await stores.operationStore.readOperation(resolution.payload.admission.operationId))
+      .toEqual({ version: 0, state: null });
+  });
+
   it("rejects a schema-valid ready envelope that is not the durable lineage admission", async () => {
     const stores = memoryStores();
     const admittedLineage = {
@@ -647,7 +688,10 @@ describe("frontline run command", () => {
     const retryResolution = await resolveFrontlineCommand({ ...resolveRequest, target: reviewTarget }, resolverDependencies);
     const retryAdmission = retryResolution.payload.admission;
     if (retryAdmission === undefined) throw new Error("expected fresh admission");
-    expect(retryAdmission).toMatchObject({ logicalPass: 1, retryGeneration: 1 });
+    expect(retryAdmission).toMatchObject({ logicalPass: 1 });
+    expect(retryAdmission.retryGeneration).toBeGreaterThan(
+      firstResolution.payload.admission?.retryGeneration ?? -1,
+    );
     const retry = await runFrontlineReviewCommand({
       schemaVersion: 1,
       target: reviewTarget,

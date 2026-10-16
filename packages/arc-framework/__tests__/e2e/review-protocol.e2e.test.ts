@@ -490,6 +490,39 @@ describe("built review protocol", () => {
     });
   });
 
+  it("withdraws an unused frontline admission through public verbs and refuses its old ready response", async () => {
+    const root = await fixture();
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const diffBaseSha = await git(root, ["merge-base", "main", "HEAD"]);
+    const target = { kind: "change-set", baseRef: "main", diffBaseSha, headSha };
+    const request = {
+      schemaVersion: 1, target,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing", reviewRisk: "routine",
+        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    };
+    const ready = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    expect(ready.state).toBe("ready");
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], {
+      ...request, invocation: { mode: "skip" },
+    })).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+    const refused = await runArcWithStdin(["review", "frontline", "run", "-"], root,
+      JSON.stringify({ schemaVersion: 1, target, resolution: ready }));
+    expect(refused.exitCode).toBe(1);
+    const result = JSON.parse(refused.stdout);
+    expect(result).toMatchObject({
+      error: { code: "invalid-input" },
+      diagnostics: [{ code: "frontline-admission-missing-admission" }],
+      remedy: { argv: ["arc", "review", "frontline", "resolve", "-"], stdin: { target } },
+    });
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], result.remedy.stdin))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+  });
+
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
     const headSha = await git(root, ["rev-parse", "HEAD"]);
