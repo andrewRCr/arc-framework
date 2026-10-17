@@ -839,10 +839,10 @@ converge with no lost write.
           unpublished folders after the remote in local order. Cohorts retain borrowed member assignments or take the
           next number; saved-state changes keep each merge's records under its one stored batch.
 
-    - `[ ]` **9.2.c Checks report and rules never gate**
-        - Build `test-first` (one behavior at a time):
-            - a merged record breaking a write check stores the merge and reports a `rule-broken` notice, filing nothing
-            - a merged record breaking a serialization rule is stored, and one over the cap lists `oversized`
+    - `[x]` **9.2.c Checks report and rules never gate**
+        - Registered checks report every broken rule against immutable local and prepared views, including unreadable
+          priors and primary-role replacements. Companion values retain inherited placement. Merges carry serialization
+          violations and report oversized entries through listings.
 
     - `[ ]` **9.2.d History and labels across a merge**
         - Build `test-first` (one behavior at a time):

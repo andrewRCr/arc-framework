@@ -38,7 +38,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
       let tree: SyncMergedTree | undefined;
       if (current && !await syncRefIsAncestor(context, current, next)) {
-        const merged = await mergeSyncTree(staged, ref, current, next);
+        const merged = await mergeSyncTree(staged, ref, current, next, local);
         if (merged.status === "refused") return { status: "complete", changed: false, notices: [{
           kind: "namespace-corrupt", ref, condition: merged.refusal.condition, remedy: merged.refusal.remedy,
         }] };
@@ -50,7 +50,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
         return updateRefTransaction(physical, [{ ref: target, next: tip, expected: current }], { cwd: context.checkoutRoot });
       }, options.commitMode);
       if (committed.status === "layout-changed" || committed.result.status === "lost-race") return { status: "restart" };
-      return { status: "complete", changed: true, notices: [] };
+      return { status: "complete", changed: true, notices: prepared?.notices ?? [] };
     });
     if (result.status === "restart") return result;
     changed ||= result.changed;

@@ -16,19 +16,21 @@ import { mergeSyncMetadata } from "./sync-metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import { isArchiveRef } from "./archive-read.js";
 import { mergeArchiveTree } from "./sync-archive.js";
+import { observeSyncChecks } from "./sync-checks.js";
+import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 /** Prepared entries retain untouched blob identities and the provenance's actual owner. */
-export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference }
+export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; notices?: PullNotice[] }
 
 /** Merge independently changed tree entries and metadata over their captured common ancestor. */
-export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string): Promise<StoreResult<SyncMergedTree>> {
-  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming);
+export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>): Promise<StoreResult<SyncMergedTree>> {
+  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips);
 }
 
-async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string): Promise<StoreResult<SyncMergedTree>> {
+async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string, captured: ReadonlyMap<string, string>): Promise<StoreResult<SyncMergedTree>> {
   const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   if (!family) return { status: "refused", refusal: corruptRef(ref) };
   const prototype = refPrototype(context, live, family);
@@ -54,9 +56,10 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
     const selected = sameEntry(here, before) ? there : here;
     if (selected) entries.set(path, selected);
   }
-  await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts);
+  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
-  return { status: "ok", result: { entries, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
+  const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);
+  return { status: "ok", result: { entries, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
 }
 
 function metadataAt(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, path: string, ref: string): RefMetadata | null {

@@ -16,6 +16,7 @@ import { mergeLineText, mergeEntryText, splitEntryList } from "../concurrency/in
 import { writeRefBlob } from "./tree-write.js";
 import type { RefMetadata } from "./metadata.js";
 import type { EntryConfig, KindDefinition } from "../registry.js";
+import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel } from "./sync-label.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue }
@@ -26,7 +27,7 @@ interface RecordChoice { selected: IndexedRecord | undefined; conflicts: Conflic
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
-  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][]): Promise<void> {
+  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][]): Promise<SyncCheckRecord[]> {
   const previous = indexRecords(context, ref, base, objects), current = indexRecords(context, ref, local, objects);
   const remote = indexRecords(context, ref, incoming, objects), conflicts: ConflictRecord[] = [];
   const choices: { records: RecordTriple; choice: RecordChoice }[] = [];
@@ -39,6 +40,7 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
   }
   for (const { records, choice } of choices) installRecord(context, ref, group, records, choice.selected, choice.retainMetadata ?? false);
   await appendRefConflicts(context, ref, group, conflicts);
+  return choices.flatMap(({ records, choice }) => checkRecords(ref, group.metadata, records.local, choice.selected));
 }
 
 async function chooseRecord(context: RefBackendContext, ref: string, sides: SyncRecordSides,
@@ -103,10 +105,7 @@ function installRecord(context: RefBackendContext, ref: string, group: CapturedW
     Reflect.deleteProperty(group.metadata.formats, refFormatKey(record.value.reference));
   }
   if (!selected) return;
-  const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
-  if (!family) throw new Error("A registered record lacks a containing family");
-  const reference = RecordReferenceSchema.parse({ ...selected.value.reference,
-    owner: selected.value.reference.kind.startsWith("lineage/") ? selected.value.reference.owner : refOwner(ref, family, group.metadata) });
+  const reference = canonicalRecordReference(ref, group.metadata, selected.value.reference);
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
   group.entries.set(home.path, { ...selected.entry, path: home.path });
   group.metadata.formats[refFormatKey(reference)] = retainMetadata ? selected.value.formatVersion : selectedFormat;
@@ -160,6 +159,24 @@ function recordValue(reference: RecordReference, entry: RefTreeEntry, object: Ba
   formatVersion: number, primary: boolean): ConflictRecordValue {
   return ConflictRecordValueSchema.parse({ reference, content: new TextDecoder("utf-8", { fatal: true }).decode(object.bytes),
       version: refRecordVersion(reference, entry.oid, metadata, formatVersion), formatVersion,
-      ...primary && (metadata.primary?.placement ?? metadata.placement) ? { placement: metadata.primary?.placement ?? metadata.placement } : {},
+      ...(metadata.primary?.placement ?? metadata.placement) ? { placement: metadata.primary?.placement ?? metadata.placement } : {},
       ...primary && metadata.primary?.links ? { links: metadata.primary.links } : {} });
+}
+
+function canonicalRecordReference(ref: string, metadata: RefMetadata, reference: RecordReference): RecordReference {
+  const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
+  if (!family) throw new Error("A registered record lacks a containing family");
+  return RecordReferenceSchema.parse({ ...reference,
+    owner: reference.kind.startsWith("lineage/") ? reference.owner : refOwner(ref, family, metadata) });
+}
+
+function checkRecords(ref: string, metadata: RefMetadata, prior: IndexedRecord | undefined,
+  next: IndexedRecord | undefined): SyncCheckRecord[] {
+  if (prior && next && prior.value.reference.kind !== next.value.reference.kind) return [
+    ...checkRecords(ref, metadata, prior, undefined), ...checkRecords(ref, metadata, undefined, next),
+  ];
+  const subject = next ?? prior;
+  if (!subject) return [];
+  return [{ reference: canonicalRecordReference(ref, metadata, subject.value.reference),
+    ...prior ? { prior: prior.value } : {}, ...next ? { next: next.value } : {} }];
 }
