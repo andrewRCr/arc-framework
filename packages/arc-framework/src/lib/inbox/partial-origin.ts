@@ -8,7 +8,7 @@ import type { InboxContext, InboxOutcome } from "./types.js";
  * @param context - Current identity and store.
  * @returns Exact settlement disposition.
  */
-export async function removePartialOrigin(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string }, context: InboxContext, legacyDigest?: (content: string, title: string) => string): Promise<InboxOutcome<EntryRemoval>> {
+export async function removePartialOrigin(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string }, context: InboxContext, legacyDigest?: (content: string, title: string, expectedDigest?: string) => string): Promise<InboxOutcome<EntryRemoval>> {
   if (binding.originEntry === null) return { status: "ok", result: { disposition: "absent" } };
   const qualified = /^(personal|project):([0-9a-f]{8})$/u.exec(binding.originEntry);
   if (qualified !== null && binding.originEntryVersion !== undefined) return removeInboxEntry({ list: qualified[1] as "personal" | "project", id: qualified[2] ?? "", expectedVersion: binding.originEntryVersion }, context);
@@ -20,7 +20,7 @@ export async function removePartialOrigin(binding: { originEntry: string | null;
   const row = rows.result.find(entry => entry.title === binding.originEntry);
   if (row === undefined) return { status: "ok", result: { disposition: "absent" } };
   let matches = false;
-  try { matches = legacyDigest?.(inbox.result.saved.content, binding.originEntry) === binding.originEntrySourceDigest; } catch { /* An unresolvable legacy binding retains its capture. */ }
+  try { matches = legacyDigest?.(inbox.result.saved.content, binding.originEntry, binding.originEntrySourceDigest) === binding.originEntrySourceDigest; } catch { /* An unresolvable legacy binding retains its capture. */ }
   return matches ? removeInboxEntry({ list: "personal", id: row.id, expectedVersion: row.version }, context)
     : { status: "ok", result: { disposition: "retained", foundVersion: row.version } };
 }

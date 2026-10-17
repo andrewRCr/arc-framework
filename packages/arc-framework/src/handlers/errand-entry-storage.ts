@@ -61,7 +61,7 @@ export async function prepareHandlerErrandReturn(slug: string, protection: "full
  * @param legacyDigest - Compatibility caller's existing exact digest primitive.
  * @returns Exact disposition and queue selection or refusal.
  */
-export async function settleStorePartialCapture(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null }, context: InboxContext, legacyDigest: (content: string, title: string) => string = legacyInboxEntryDigest) {
+export async function settleStorePartialCapture(binding: { originEntry: string | null; originEntryVersion?: string; originEntrySourceDigest?: string; parentCheckoutPath: string | null }, context: InboxContext, legacyDigest: (content: string, title: string, expectedDigest?: string) => string = legacyInboxEntryDigest) {
   const removed = await removePartialOrigin(binding, context, legacyDigest);
   if (removed.status === "refused") return { outcome: { kind: "refused" as const, reason: removed.refusal.condition }, disposition: "retained" as const, offer: null };
   const offer = await resolveQueueExecutionOffer(context, binding.parentCheckoutPath);

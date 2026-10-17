@@ -15,7 +15,8 @@ import { createInboxHarness } from "../helpers/inbox-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import { listInbox } from "../../src/lib/inbox/listing.js";
@@ -158,6 +159,29 @@ it("mints a text description and links a project capture beside it from register
   expect((await h.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("chore/cli-linked");
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
   expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "errand", slug: "cli-linked" } } });
+}, 30000);
+it.each([false, true])("closes a partial Errand with a pre-import digest marker after ID stamping (edited=%s)", async edited => {
+  const h = await lifecycleFixture("partial");
+  await addBareRemote(h.cwd); await h.exec("git", ["push", "-u", "origin", "main"]);
+  const beforeImport = "## Errand\n\n### **Concern**\n- _Created:_ `2026-01-01`\n\nOriginal capture\n";
+  const digest = inboxEntrySourceDigest(beforeImport, "Concern");
+  const imported = await seed(h.h.fixture, h.h.fixture.reference("personal/inbox"), beforeImport);
+  const listed = await listInbox({ list: "personal" }, h.h.context);
+  if (listed.state === "refused" || !listed.entries[0]) throw new Error("Imported capture required");
+  expect(await invokeRegistered(h, ["errand", "open", "legacy-partial", "--from-inbox", `personal:${listed.entries[0].id}`, "--json"]))
+    .toMatchObject({ result: { outcome: "applied" } });
+  const read = await readWorktreeMarker(h.cwd);
+  if (read.kind !== "present") throw new Error("Partial marker required");
+  const marker = { ...read.marker, originEntry: "Concern", originEntrySourceDigest: digest };
+  delete marker.originEntryVersion;
+  await writeWorktreeMarker(h.cwd, marker);
+  if (edited) success(await h.h.context.store.write({ action: "put", reference: imported.reference, expected: imported.version,
+    content: imported.content.replace("Original capture", "Edited capture"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const closed = await invokeRegistered(h, ["errand", "close", "legacy-partial", "--json"]);
+  expect(closed, JSON.stringify(closed)).toMatchObject({ result: { outcome: "applied", settlement: { disposition: edited ? "retained" : "removed" } } });
+  expect(await listInbox({ list: "personal" }, h.h.context)).toMatchObject({ entries: edited ? [{ raw: expect.stringContaining("Edited capture") }] : [] });
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
 }, 30000);
 it("closes an unchanged full Errand without removing a later inbox entry of the same ID", async () => {
   const h = await lifecycleFixture("full");
