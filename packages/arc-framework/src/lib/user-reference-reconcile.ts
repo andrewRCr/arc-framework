@@ -627,7 +627,10 @@ async function runPreparedUserReferenceReconcile(ctx: UserReferenceReconcileBase
       if (applied.status === "refused") return { status: "refused", plan, refusal: applied.refusal };
     }
     const scratch = ctx.scratch === undefined ? undefined : await applyScratchReconcile(ctx.scratch);
+    const current: UserReferenceReconcilePlan = scratch === undefined ? plan : { ...plan, scratch,
+      status: plan.edits.length > 0 || scratch.moves.length > 0 ? "pending"
+        : plan.advisories.length > 0 || scratch.advisories.length > 0 ? "advisory" : "clean" };
     const writtenPaths = [...plan.edits.map(edit => edit.path), ...(scratch?.moves.map(move => move.to) ?? [])];
-    return writtenPaths.length === 0 ? { status: plan.status, plan } : { status: "applied", plan, writtenPaths };
+    return writtenPaths.length === 0 ? { status: current.status, plan: current } : { status: "applied", plan: current, writtenPaths };
   } finally { await ctx.releaseLock(handle); }
 }

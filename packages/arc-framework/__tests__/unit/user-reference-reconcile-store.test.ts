@@ -110,3 +110,40 @@ it("leaves planned scratch moves untouched when a prepared Store basis is stale"
     await expect(access(to)).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
+
+it.each([true, false])("reports a scratch collision acquired under the lock with managed edits=%s, then continues after combining", async managedEdits => {
+  const { mkdtemp, mkdir, writeFile, readFile, rename, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { createStoreUserReferencePrepareContext } = await import("../../src/lib/user-reference-reconcile-store.js");
+  const h = await fixture(), cwd = await mkdtemp(join(tmpdir(), "arc-scratch-collision-"));
+  try {
+    const from = join(cwd, ".arc/user/andrew/scratch/work-unit/former"), to = join(cwd, ".arc/user/andrew/scratch/work-unit/current");
+    await mkdir(from, { recursive: true });
+    await writeFile(join(from, "former-idea"), "Former personal contents");
+    const result = await runUserReferenceReconcile({ ...h.context,
+      transitions: managedEdits ? h.context.transitions : [], scratch: { cwd, identity: "andrew", store: h.store },
+      acquireLock: async () => {
+        await mkdir(to, { recursive: true });
+        await writeFile(join(to, "current-idea"), "Current personal contents");
+        return "lock";
+      } });
+    expect(await readFile(join(from, "former-idea"), "utf8")).toBe("Former personal contents");
+    expect(await readFile(join(to, "current-idea"), "utf8")).toBe("Current personal contents");
+    expect(result).toMatchObject({ status: managedEdits ? "applied" : "advisory", plan: { scratch: { moves: [],
+      advisories: [{ path: from, destination: to, reason: "occupied", text: expect.stringContaining(from) }] } } });
+    expect(result.plan.scratch?.advisories[0]?.text).toContain(to);
+    expect(lifecycleSuccess(await h.store.read({ reference: h.inbox.reference })).content)
+      .toContain(managedEdits ? "_WU_Target:_ `current`" : "_WU_Target:_ `former`");
+    await rename(join(from, "former-idea"), join(to, "former-idea"));
+    await rm(from, { recursive: true });
+    const fresh = lifecycleSuccess(await createStoreUserReferencePrepareContext({ store: h.store, identity: "andrew" }));
+    const retried = await runUserReferenceReconcile({ ...h.context, preparedStore: fresh.preparedStore,
+      transitions: fresh.authority.transitions, readSurfaces: async () => fresh.surfaces,
+      scratch: { cwd, identity: "andrew", store: h.store } });
+    expect(retried.status).toBe(managedEdits ? "advisory" : "applied");
+    expect(retried.plan.scratch).toEqual({ moves: [], advisories: [] });
+    expect(await readFile(join(to, "former-idea"), "utf8")).toBe("Former personal contents");
+    expect(await readFile(join(to, "current-idea"), "utf8")).toBe("Current personal contents");
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
