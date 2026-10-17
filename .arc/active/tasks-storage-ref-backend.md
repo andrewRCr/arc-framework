@@ -803,16 +803,10 @@ converge with no lost write.
 - _Goal:_ One fetch round trip brings the remote's state, and only its state, into a tracking namespace no push, manifest,
   or listing reads, never naming a code commit as held.
 
-    - `[ ]` **9.1.a Parsing the porcelain**
-        - A pure parser in `lib/git/` over `git fetch --porcelain` output: each line's flag — ` ` a fast-forward, `+`
-          forced, `*` new, `-` pruned, `!` refused, `=` up to date — its old and new tips, and its ref; on exit 1 the
-          lines come from the rejection's `GitProcessError.stdout` (`lib/git/process-error.ts`), and
-          `classifyRemoteFailure` reads the failure only where no per-ref line arrived
-        - Build `test-first` (one behavior at a time):
-            - Unit tier, over recorded output
-            - each flag parses with its tips and ref, and a `!` line carries both
-            - an exit-1 rejection whose stdout holds per-ref lines reads them, and one holding none reads as a remote
-              failure
+    - `[x]` **9.1.a Parsing the porcelain**
+        - `lib/git/fetch.ts` reads all six flags with both tips and preserves the complete process evidence. Typed
+          exit-1 stdout supplies per-ref refusals; only rowless failures use the remote-failure classifier.
+          Unit fixtures retain real Git output, including verbose up-to-date reporting.
 
     - `[ ]` **9.1.b The fetch**
         - A fetch module under `lib/store/ref/`: refspecs on the command line, one wildcard each, with no `+`, the
