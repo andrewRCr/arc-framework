@@ -110,6 +110,10 @@ function identityKey(owner: OwnerIdentity): string {
 }
 function lifecycleEntry(record: StoreRecord): LifecycleEntry | ListingDiagnostic | undefined {
   if (record.reference.kind !== "work-item/meta" || record.placement === undefined) return undefined;
+  if (record.conflicts.length > 0) return {
+    ...malformedMeta(record, `Primary record has unresolved conflicts: ${record.conflicts.map(reference => JSON.stringify(reference)).join(", ")}.`),
+    remedy: { text: "Resolve the named conflict records, then retry the lifecycle inventory." },
+  };
   try {
     const decoded = ParsedMetaRecordSchema.safeParse(record.fields);
     const fields = decoded.success ? decoded.data : parseMetaRecord(record.content);

@@ -8,10 +8,31 @@ import { writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import { runPausedWork, PausedWorkResultSchema, markPausedWorkItem } from "../../../src/lib/session-init/paused-work.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { createMemoryRemote } from "../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 
 const now = new Date("2026-10-16T12:00:00.000Z");
 const pause = (waitsOn: unknown = null, open = false) => MetaPauseSchema.parse({ pausedBy: "former-owner", since: "2026-09-01T12:00:00.000Z",
   reason: "Waiting for a decision", waitsOn, resumeNotes: "Read the decision first", open });
+
+it("refuses disputed pause ownership after sync and lists only the explicitly resolved owner on retry", async () => {
+  const h = createLifecycleHarness(), initial = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  lifecycleSuccess(await h.store.write({ ...recordPut(initial, { content: writeMetaPause(initial.content, pause()) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  const local = lifecycleSuccess(await h.store.read({ reference: initial.reference })), other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
+  const content = local.content.replace("Waiting for a decision", "Local reason"), provenance = { verb: "update", lifecycleAction: "update" };
+  lifecycleSuccess(await h.store.write({ ...recordPut(local, { content }), provenance }));
+  lifecycleSuccess(await writer.write({ ...recordPut(other, { content: other.content.replaceAll("andrew", "another").replace("Waiting for a decision", "Remote reason") }), provenance }));
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference })); expect(disputed.conflicts).toHaveLength(1);
+  const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: async () => "/holder" });
+  for (const owner of ["andrew", "another"]) await expect(read(owner)).rejects.toThrow(/conflicts.*resolve.*retry/iu);
+  lifecycleSuccess(await h.store.write({ ...recordPut(disputed, { content }), resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await read("andrew")).toMatchObject({ items: [{ slug: "paused", reason: "Local reason" }] });
+  expect(await read("another")).toEqual({ items: [] });
+});
 it("marks work waiting on a shipped work unit resumable", async () => {
   const h = createLifecycleHarness();
   await h.seedMeta("dependency", { state: "Shipped", currentWorkflow: null });

@@ -16,7 +16,8 @@ export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise
   const result: { ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] } = { ended: [], releases: [], warnings: [] };
   const listing = await listLifecycleIndex(input.store);
   if (listing.status === "refused" || listing.result.status === "unreadable" || (listing.result.status === "complete" && (listing.result.missed || listing.result.diagnostics.length > 0))) {
-    result.warnings.push("Work-unit inventory is incomplete; repair the store and retry checkout cleanup."); return result;
+    result.warnings.push(incompleteInventoryMessage(listing));
+    return result;
   }
   for (const checkout of input.topology) {
     if (checkout.path === input.excludeWorktreePath) continue;
@@ -27,6 +28,11 @@ export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise
     } catch (error) { result.warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
   return result;
+}
+function incompleteInventoryMessage(listing: Awaited<ReturnType<typeof listLifecycleIndex>>): string {
+  const diagnostics = listing.status === "ok" && listing.result.status === "complete" ? listing.result.diagnostics : [];
+  return ["Work-unit inventory is incomplete; repair the store and retry checkout cleanup.",
+    ...diagnostics.map(item => `${item.condition} ${item.remedy.text}`)].join(" ");
 }
 async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktree): Promise<Selected> {
   const marker = await input.readMarker(checkout.path);
@@ -41,6 +47,8 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   }
   const read = await input.store.read({ reference: found.result.reference });
   if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.result.conflicts.length > 0) throw new Error(
+    `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry checkout cleanup.`);
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
   return read.result.placement?.kind === "completed" ? { kind: "ended", name: read.result.reference.owner.name } : null;
