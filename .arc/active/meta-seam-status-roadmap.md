@@ -15,9 +15,10 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Activation waits on `seam-locus` landing; this work unit renders its in-flight model and paused work
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Once `seam-locus` lands, merge base, re-ground the locus-provided symbols listed in
+  `notes-seam-status-roadmap.md` § Grounding baseline for the task list, then activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
