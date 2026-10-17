@@ -64,6 +64,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "worktree.location_template": "../{repo}.{name}",
         "worktree.post_create": "",
         "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+        "storage.backing_repository": "",
         "commit.format": "conventional",
         "commit.context_footer": "required",
         "commit.custom_pattern": "",
@@ -301,7 +302,7 @@ describe("buildStatusSummary — full mode", () => {
     // User formatter output: "andrew: git note up to date"
     expect(summary).toContain("andrew: git note up to date");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("35 agent-consumable settings");
+    expect(summary).toContain("36 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

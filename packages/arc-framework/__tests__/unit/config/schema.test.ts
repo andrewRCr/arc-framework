@@ -194,6 +194,7 @@ describe("ARC config field catalog", () => {
     const unset = new Set([
       "worktree.post_create",
       "worktree.harness_dirs",
+      "storage.backing_repository",
       "commit.custom_pattern",
       "commit.context_pattern",
       "hooks.skip_extensions",
@@ -239,6 +240,7 @@ describe("ARC config field catalog", () => {
       ["worktree.location_template", "../{repo}.{name}"],
       ["worktree.post_create", ""],
       ["worktree.harness_dirs", ".claude,.codex,.gemini,.opencode"],
+      ["storage.backing_repository", ""],
       ["commit.format", "conventional"],
       ["commit.context_footer", "required"],
       ["commit.custom_pattern", ""],

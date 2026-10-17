@@ -113,6 +113,7 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+      "storage.backing_repository": "",
     },
   }),
 }));

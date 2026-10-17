@@ -55,8 +55,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
 
   // Keep this expected count hand-maintained: a catalog addition or omission must not
   // change both sides of the completeness check.
-  it("enumerates the 35 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(35);
+  it("enumerates the 36 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(36);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -167,6 +167,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "worktree.location_template: .worktrees/{branch}",
       "worktree.post_create: npm run setup:worktree",
       "worktree.harness_dirs: .codex,.custom-harness",
+      "storage.backing_repository: https://example.test/state.git",
       "commit.format: custom",
       "commit.context_footer: disabled",
       "commit.custom_pattern: ^FOO-.+",

@@ -1080,22 +1080,14 @@ pointer.
 _Mode:_ `slice` through Phase 13 — closes on a clone that designates its state remote, reads an upstream, and moves
 between layouts as its designation calls for.
 
-### `[ ]` **12.1 The tracked backing-repository pointer — § 9.7**
+### `[x]` **12.1 The tracked backing-repository pointer — § 9.7**
 
 - _Goal:_ `storage.backing_repository` is a known configuration key, empty by default, that `arc config status` lists and
   `arc config validate` knows, while only the hidden `arc store` commands and a first designation act on it.
 
-    - Added to `ARC_CONFIG_FIELDS` (`lib/config/schema.ts`) through `stringField` with a `repository-url` kind added to
-      the string policy kinds and the posture `unset`, as `worktree.post_create` takes, over a non-empty trimmed string,
-      so the empty value stays valid, and declared empty in the package's `arc/system/arc-config.yml` at the catalog's
-      position, as `__tests__/unit/config/inventory.test.ts` matches the two in order; the shipped file states the key
-      as fact, with no transitional framing
-    - The project's `.arc/system/arc-config.yml`, a Configurable file, gains the key by an edit in `.arc/`, never a copy
-      over it; the catalog's key lists in `__tests__/unit/config/schema.test.ts` and the full `ConfigSettings` literals
-      in the tests take it
-    - Build `test-first` (one behavior at a time):
-        - `arc config status` lists the key empty
-        - `arc config validate` gives no unknown-key warning for it
+- _Outcome:_ The ordered configuration catalog and both configuration files declare the empty backing pointer.
+  Status exposes it, validation recognizes it, and its unset repository-URL policy accepts the empty sentinel or a
+  trimmed nonempty string. Explicit key inventories and complete settings fixtures include the new field.
 
 ### `[ ]` **12.2 A first designation — § 9.2, § 9.3**
 

@@ -81,6 +81,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "worktree.location_template": "../{repo}.{name}",
     "worktree.post_create": "",
     "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+    "storage.backing_repository": "",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",
