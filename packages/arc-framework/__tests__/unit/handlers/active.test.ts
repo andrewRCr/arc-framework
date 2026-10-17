@@ -58,6 +58,10 @@ function workUnit(overrides: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit {
 }
 
 describe("formatActiveInFlightLine", () => {
+  it("reports an indeterminate Errand location as unknown", () => {
+    expect(formatActiveInFlightLine({ kind: "errand", slug: "held", branch: "chore/held", remoteOnly: false,
+      marks: ["degraded", "indeterminate"] })).toBe("chore/held  (errand)  location unknown");
+  });
   it("renders an unoccupied local branch as having no worktree", () => {
     expect(formatActiveInFlightLine(workUnit())).toBe(
       "feat/local-unoccupied  (Active)  no worktree",

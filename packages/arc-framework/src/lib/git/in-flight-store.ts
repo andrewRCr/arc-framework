@@ -95,7 +95,10 @@ class InFlightProjection {
     const branch = errandsOnly ? this.branchFor(saved, record.branch) : record.branch;
     const row = this.options.roster?.find((candidate) => matchesTransient(candidate, slug, record.claimId));
     const owner = record.kind === "errand" && record.purpose === "errand" ? record.owner : this.options.identity;
-    this.entries.push({ kind: "errand", slug, ...this.locate(branch, row?.checkout.path), ...optionalField("owner", owner) });
+    const locationUnknown = this.options.identity === null && this.options.roster === undefined;
+    if (locationUnknown) this.warn(`Location for project Errand '${slug}' is unavailable without personal identity. Set arc.identity or Git user.name, then retry arc active in-flight.`, "worktree-list-failed");
+    this.entries.push({ kind: "errand", slug, ...this.locate(branch, row?.checkout.path), ...optionalField("owner", owner),
+      ...(locationUnknown ? { marks: ["degraded", "indeterminate"] as const } : {}) });
     if (branch !== undefined) this.addMissingBranch(workBranchName(branch), slug);
   }
   private addMissingBranch(branch: string, slug: string): void {

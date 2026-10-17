@@ -131,8 +131,8 @@ it("errand check preserves duplicate-holder uncertainty and matches code after t
   expect(repaired.indeterminate ?? []).toEqual([]);
 }, 30_000);
 
-it.each(["errand", "groom", "housekeep"] as const)("active in-flight and errand check locate a held %s through the registered reader binding", async kind => {
-  const h = await fixture(), slug = kind === "groom" ? "groom-alpha" : `held-${kind}`, claimId = "e".repeat(32), branch = `chore/${slug}`;
+async function heldTransient(h: Awaited<ReturnType<typeof fixture>>, kind: "errand" | "groom" | "housekeep") {
+  const slug = kind === "groom" ? "groom-alpha" : `held-${kind}`, claimId = "e".repeat(32), branch = `chore/${slug}`;
   h.store.environment.identity = "test-user";
   const person = OwnerIdentitySchema.parse({ type: "person", name: "test-user" });
   const reference = kind === "errand" ? recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }))
@@ -152,10 +152,31 @@ it.each(["errand", "groom", "housekeep"] as const)("active in-flight and errand 
     createdFor: { kind, slug, claimId }, provisioning: "ready" });
   await mkdir(join(holder, "src"));
   await writeFile(join(holder, "src/transient.ts"), "export const transient = true;\n");
+  return { slug, branch, holder, claimId };
+}
+
+it.each(["errand", "groom", "housekeep"] as const)("active in-flight and errand check locate a held %s through the registered reader binding", async kind => {
+  const h = await fixture(), { slug, branch, holder } = await heldTransient(h, kind);
   const active = await invoke(h, ["active", "in-flight", "--json"]);
   expect(active.entries).toContainEqual(expect.objectContaining({ kind: "errand", slug, branch, worktreePath: holder }));
   const overlap = await invoke(h, ["errand", "check", "--target", "src/transient.ts", "--json"]);
   expect(overlap.overlaps).toContainEqual(expect.objectContaining({ workItem: slug, branch, worktreePath: holder, matchedPaths: ["src/transient.ts"] }));
   expect(overlap.skipped ?? []).toEqual([]);
   expect(overlap.indeterminate ?? []).toEqual([]);
+}, 30_000);
+
+it("keeps project Errands with unknown location when identity is unavailable and locates them after identity repair", async () => {
+  const h = await fixture(), { slug, branch, holder } = await heldTransient(h, "errand");
+  await h.exec("git", ["config", "--unset", "arc.identity"]);
+  await h.exec("git", ["config", "user.name", ""]);
+  const unknown = await invoke(h, ["active", "in-flight", "--json"]);
+  const item = unknown.entries.find((entry: { slug?: string }) => entry.slug === slug);
+  expect(item).toMatchObject({ kind: "errand", slug, branch, owner: "test-user", marks: ["degraded", "indeterminate"] });
+  expect(item).not.toHaveProperty("worktreePath");
+  expect(unknown.snapshot.worktrees).not.toHaveProperty(branch);
+  expect(unknown.warnings).toContainEqual(expect.objectContaining({ rendered: expect.stringMatching(/arc.identity.*user.name.*retry/iu) }));
+  await h.exec("git", ["config", "arc.identity", "test-user"]);
+  const restored = await invoke(h, ["active", "in-flight", "--json"]);
+  expect(restored.entries).toContainEqual(expect.objectContaining({ slug, worktreePath: holder }));
+  expect(restored.entries.find((entry: { slug?: string }) => entry.slug === slug)).not.toHaveProperty("marks");
 }, 30_000);

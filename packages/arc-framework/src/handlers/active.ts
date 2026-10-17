@@ -73,7 +73,8 @@ export const activeCommandInputPolicyDeclarations = [
 
 /** Render one oracle entry with its lifecycle and local/remote location. */
 export function formatActiveInFlightLine(entry: InFlightEntry | StoreInFlightEntry): string {
-  const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
+  const locationUnknown = entry.marks?.some(mark => mark === "indeterminate" || mark === "location-ambiguous") === true;
+  const where = entry.worktreePath ?? (locationUnknown ? "location unknown" : entry.remoteOnly ? "remote-only" : "no worktree");
   return entry.kind === "work-unit"
     ? `${entry.branch ?? entry.name}  (${entry.state}${entry.scheduling === "paused" ? ", paused" : ""})  ${where}`
     : `${entry.branch ?? entry.slug}  (errand)  ${where}`;
