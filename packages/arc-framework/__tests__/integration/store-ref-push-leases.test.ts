@@ -104,7 +104,10 @@ describe.each(["default", "separate"] as const)("push leases in the %s layout", 
       expect(result.pulls.length).toBeGreaterThan(1);
       const final = (await h.remote("git", ["rev-parse", ref])).stdout;
       await h.a.git(["merge-base", "--is-ancestor", remoteTip, final]);
-      fetched.release(); success(await pulling);
+      fetched.release();
+      const siblingResult = success(await pulling);
+      const following = [result, siblingResult, success(await h.a.store.pull()), success(await h.b.store.pull()), success(await sibling.pull())];
+      expect(following.flatMap(({ pulls }) => pulls.flatMap(({ notices }) => notices)).some(({ kind }) => kind === "history-diverged")).toBe(false);
     } finally { listed.release(); fetched.release(); await Promise.allSettled([pushing, ...pulling ? [pulling] : []]); }
   });
   it("publishes nothing after the state designation switches while its listing is composed", async () => {

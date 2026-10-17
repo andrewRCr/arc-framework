@@ -24,6 +24,7 @@ export interface RefMergeOptions {
   incomingState?: ReadonlyMap<string, string>;
   commitMode?: RefCommitMode;
   targetRef?: (canonical: string) => string;
+  onObserved?: (notices: readonly PullNotice[]) => void;
   onApplied?: (context: RefBackendContext, ref: string, before: string | null, after: string, notices: readonly PullNotice[]) => Promise<void>;
 }
 /** One explicit lifecycle destination and the held source it replaces. */

@@ -3,9 +3,9 @@
 import type { RefBackendContext } from "./context.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 
-/** Read one namespace without dereferencing its tips or consulting a worktree. */
-export async function readSyncRefs(context: RefBackendContext, prefix: string): Promise<Map<string, string>> {
-  const { stdout } = await context.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", prefix],
+/** Read selected namespaces without dereferencing their tips or consulting a worktree. */
+export async function readSyncRefs(context: RefBackendContext, prefix: string | readonly string[]): Promise<Map<string, string>> {
+  const { stdout } = await context.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", ...typeof prefix === "string" ? [prefix] : prefix],
     { cwd: context.checkoutRoot, objectAccess: "local-only" });
   return new Map(stdout.split(/\r?\n/u).filter(Boolean).map((line) => {
     const at = line.indexOf(" ");

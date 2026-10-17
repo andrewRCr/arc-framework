@@ -14,12 +14,13 @@ export interface RefPushListing {
 }
 
 /** Release and retake the whole lock set whenever the locked listing gains a ref. */
-export async function capturePushListing(context: RefBackendContext, remote: string, identity: string | null): Promise<RefPushListing> {
+export async function capturePushListing(context: RefBackendContext, remote: string, identity: string | null,
+  diverged: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
   for (;;) {
-    const initial = await readPushListing(context, remote, identity);
+    const initial = await readPushListing(context, remote, identity, diverged);
     const locked = new Set(initial.changes.map(({ ref }) => ref));
     const result = await withRefLocks(context, locked, async () => {
-      const current = await readPushListing(context, remote, identity);
+      const current = await readPushListing(context, remote, identity, diverged);
       return current.changes.some(({ ref }) => !locked.has(ref)) ? null : current;
     });
     if (result) return result;
@@ -46,14 +47,18 @@ export async function pushListingIncludesTracking(context: RefBackendContext, li
   return true;
 }
 
-async function readPushListing(context: RefBackendContext, remote: string, identity: string | null): Promise<RefPushListing> {
-  const prefix = `refs/arc-remotes/${remote}/`;
-  const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, prefix)]);
+async function readPushListing(context: RefBackendContext, remote: string, identity: string | null,
+  diverged: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
+  const prefix = `refs/arc-remotes/${remote}/`, seenPrefix = `refs/arc/tmp/seen/${remote}/`;
+  const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, [seenPrefix, prefix])]);
   const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
-  const tracking = new Map([...allTracking].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
+  const tracking = new Map([...allTracking].filter(([ref]) => ref.startsWith(prefix)).map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
+  const basis = new Map([...allTracking].filter(([ref]) => ref.startsWith(seenPrefix)
+    && diverged.has(`refs/arc/${ref.slice(seenPrefix.length)}`)).map(([ref, tip]) => [`refs/arc/${ref.slice(seenPrefix.length)}`, tip]));
+  for (const [ref, tip] of tracking) basis.set(ref, tip);
   const pending = [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
     ? new Set((await readPendingRefEnds(context, local, local, tracking)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
-  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => !pending.has(ref) && tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => !pending.has(ref) && basis.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
   for (const ref of tracking.keys()) {
     if (local.has(ref)) continue;
     const counterpart = ref.startsWith("refs/arc/history/") ? ref.replace("refs/arc/history/", "refs/arc/")

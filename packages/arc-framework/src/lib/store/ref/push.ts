@@ -15,6 +15,7 @@ import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
+import { refPushTarget } from "./fetch-target.js";
 import { recordPushTracking } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
 
@@ -70,7 +71,14 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   const unsettled = settlePushRejection(loop, designation, merged);
   if (unsettled) return failedStatePublication(context, result, pushOutcomeFailure(context, unsettled), loop);
   context = await writeRefRepository(context);
-  const listing = await capturePushListing(context, remote.name, await context.identity());
+  const refused = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state")
+    .flatMap(({ notices }) => notices).filter((notice) => notice.kind === "history-diverged");
+  const listing = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)));
+  const divergence = refused.find((notice) => listing.changes.some(({ ref }) => ref === notice.ref));
+  if (divergence?.kind === "history-diverged") return failedStatePublication(context, result, {
+    code: "refused", class: "terminal", message: `Unpublished writes remain on ${divergence.ref}, whose remote history diverged.`,
+    condition: divergence.condition, remedy: divergence.remedy,
+  }, loop);
   const target = await checkedPushTarget(context, remote, designation, listing, merged);
   if (target === null) return "retry";
   const outcome = await publishListing(context, remote.name, target, listing, loop);
@@ -111,12 +119,6 @@ function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushCla
         ? "Enable atomic pushes on the receiver, then retry the push." : "Repair the reported receiver policy or hook and retry the push." } };
 }
 
-async function pushRemoteTarget(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation): Promise<string> {
-  if (remote.repository === "backing" || remote.name === designation.codeRemote) return remote.name;
-  const source = context.repository?.source ?? context;
-  return (await source.exec("git", ["remote", "get-url", "--push", remote.name], { cwd: source.checkoutRoot })).stdout.trim();
-}
-
 async function publishListing(context: RefBackendContext, remote: string, target: string, listing: RefPushListing, loop: PushLoop): Promise<PushClassification> {
   if (listing.changes.length === 0) return { status: "ok", message: "" };
   const changes = listing.changes.map((change) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(change.ref)
@@ -144,7 +146,7 @@ async function pullPushBasis(context: RefBackendContext, remote: string, loop: P
 async function checkedPushTarget(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   listing: RefPushListing, merged: ReadonlyMap<string, string>): Promise<string | null> {
   if (!await pushListingIncludesTracking(context, listing, merged)) return null;
-  const target = await pushRemoteTarget(context, remote, designation);
+  const target = await refPushTarget(context, remote, designation);
   const source = context.repository?.source ?? context;
   return JSON.stringify(await readRefDesignation(source)) === JSON.stringify(designation) ? target : null;
 }

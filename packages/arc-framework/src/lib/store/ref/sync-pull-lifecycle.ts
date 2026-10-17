@@ -33,6 +33,8 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   if (discovered.length) {
     const fetched = await fetchRefHistories(context, remote, designation, discovered.map(({ history }) => history), context.syncDeadline?.signal);
     if (fetched.status === "unreachable") return { status: "fetch-failed", fetched };
+    first.notices.push(...fetched.notices);
+    options.onObserved?.(fetched.notices);
     captureFetchedHistories(incoming, discovered.map(({ history }) => history), remote.name, fetched);
   }
   const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published), withdrawn = withdrawal.result;

@@ -14,6 +14,8 @@ import { writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { withRefSyncDeadline } from "./sync-deadline.js";
 import { fetchRefRemote } from "./fetch.js";
+import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
+import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
 import { mergePulledRefState, captureFetchedHistories } from "./sync-pull-lifecycle.js";
@@ -25,6 +27,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
   onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<StoreResult<PullResult>> {
   try { return await withRefSyncDeadline(context, (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied)); }
   catch (error) {
+    if (error instanceof RefFetchKeeperLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lock,
+      condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
@@ -66,20 +70,26 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     const prefix = `refs/arc-remotes/${remote.name}/`;
     const previous = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
     const fetched = await fetchRefRemote(context, remote, designation, input.history, context.syncDeadline?.signal);
+    notices.push(...fetched.notices);
     if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.");
     observed.changed ||= fetched.refs.some(({ flag }) => flag !== "=");
     const incoming = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) =>
-      [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success));
+      [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => (isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success)
+        && !fetched.notices.some((notice) => "ref" in notice && notice.ref === ref)));
     captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
     const merged = remote.role === "push" ? await mergePulledRefState(context, incoming, designation, remote, input.history ?? [], {
-      lock: context.lock, onApplied: async (physical, ref, before, after, applied) => {
+      lock: context.lock, onObserved: (reported) => { notices.push(...reported); },
+      onApplied: async (physical, ref, before, after, applied) => {
         observed.changed = true;
         notices.push(...applied); await onApplied?.(physical, ref, before, after, applied);
       },
     }, previous) : null;
     if (merged?.status === "restart") return "restart";
     if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.");
-    if (merged) onMerged?.(remote.name, incoming);
+    if (merged) {
+      await releaseEndedRefKeepers(context, remote.name, incoming);
+      onMerged?.(remote.name, incoming);
+    }
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {
@@ -103,5 +113,7 @@ function timedOutPull(outcome: PullOutcome): boolean {
 interface PullAttemptObservations { notices: PullNotice[]; changed: boolean }
 
 function uniqueNotices(notices: readonly PullNotice[]): PullNotice[] {
-  return [...new Map(notices.map((notice) => [canonicalize(notice), notice])).values()];
+  const refused = new Set(notices.flatMap((notice) => notice.kind === "history-diverged" || notice.kind === "tracking-update-failed" ? [notice.ref] : []));
+  return [...new Map(notices.filter((notice) => notice.kind !== "end-pending" || !refused.has(notice.ref))
+    .map((notice) => [canonicalize(notice), notice])).values()];
 }

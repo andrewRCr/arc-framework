@@ -996,43 +996,23 @@ but three that need later phases: the presence read's bound (12.2.b), an importe
 carried ref under `moved` (16.1) and `designation-needed` (12.2.c); and the ref-backend fixture passes the shared suite
 in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.6).
 
-### `[ ]` **11.1 The ancestry check — § 6.3**
+### `[x]` **11.1 The ancestry check — § 6.3**
 
 - _Goal:_ A state ref whose new head does not descend from the last one seen is refused and reported with three ways out,
   while every other ref applies and a local tracking failure is never read as one.
 
     - _Amended in:_ 11.1.R (A15)
-    - The three remedies travel in the notice's remedy `text`, since `Remedy.argv` (`lib/store/refusal.ts`) holds one
-      command
-    - Build `test-first` (one behavior at a time):
-        - a rewritten ref refuses at the pull, keeps its tracking and local tips, applies every other ref, and reports
-          `history-diverged` naming both tips with the three remedies as Git commands against the store's repository,
-          each forced fetch carrying § 6.2's flags
-        - each remedy leads back to a clean pull
-        - the same refusal with `fetch.showForcedUpdates` false in the person's global configuration and in the store
-          repository's own, in both layouts
-        - a ref pruned while its item lives keeps its last tip at `refs/arc/tmp/seen/<remote>/<path>`; a returned tip that
-          neither descends from it nor is its ancestor fails the check, the pull deleting the tracking ref it created and
-          reporting `history-diverged` again at a second pull, while one that descends or is an ancestor passes and the
-          kept tip goes
-        - after the forced fetch taking theirs, the kept tip goes and the next pull is clean
-        - a `!` line whose new tip descends, or whose old tip is absent, reports `tracking-update-failed`, keeps that
-          ref's tips, applies the rest, and the next pull applies it
-        - a push holding writes on a diverged ref ends at once as terminal `refused` for every family of its scope, the
-          notice in its `pulls`, while one holding none past the kept tip publishes every other ref
-        - 9.4.b's two-worktree race run again with the check live: no clone's next pull reports `history-diverged`
 
-### `[ ]` **11.1.R Failed fetch transaction evidence — § 6.3 (A15)**
+- _Outcome:_ Fetches retain tracking heads before pruning and check returned ancestry; refused refs keep their tips
+  with executable store-specific repair commands. Only unpublished writes on a diverged ref stop publication; a still
+  absent remote ref remains restorable. Failed local updates use actual tracking state, known keeper locks refuse
+  recoverably, and applied ends release keepers. Supplemental rewrite notices survive later failures and displace false
+  absence notices; shared-worktree lease races remain valid.
+
+### `[x]` **11.1.R Failed fetch transaction evidence — § 6.3 (A15)**
 
 - _Goal:_ A failed Git fetch's ordinary success rows are accepted only where actual tracking state establishes the
   update, preserving tips and classifying failed creates, advances, and deletes as local tracking failures (A15).
-
-    - Build `test-first` (one behavior at a time):
-        - files and reftable native lock failures preserve the local and tracking tips, report `tracking-update-failed`,
-          and permit other acquired refs to apply; release the lock and the next pull completes
-        - a failed tracking create or delete reports the same local failure, never `history-diverged`
-        - a sibling's later tracking advance remains accepted when it descends from the reported acquired tip
-    - Re-run the ancestry cases and shared-worktree races in both layouts.
 
 ### `[ ]` **11.2 Refs left out of a push — § 3.3, § 6.7**
 
@@ -1046,6 +1026,8 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
         - a push whose other families then exhaust their retries reports one `failed` outcome for each failure
         - the same commit pushed outside ARC makes another clone's pull keep that ref, apply every other, and report a
           `namespace-corrupt` notice, while that clone's push fails its families only where it holds a write on that ref
+        - malformed historical metadata encountered by merge side-label construction reports the ref's
+          `namespace-corrupt` notice, applies other refs, and never escapes as a generic exception
         - a live ref left out for `end-pending` leaves out a ref a batch spans with it alike
         - a forward repair on either clone, once pushed, brings both back to reads that succeed
 
