@@ -22,7 +22,7 @@ it.each([false, true])("recovers the original role-write cut after source moveme
   const h = createLifecycleHarness(), claimId = "a".repeat(32);
   const primary = await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" })),
     JSON.stringify({ version: 3, slug: "errand-source", claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
-      kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null,
+      kind: "errand", purpose: "errand", owner: "test-user", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null,
       state: "open", savedHead: null, changeRequest: null }), { kind: "active" },
     { branches: [{ repository: "repo", ref: "chore/errand-source", linkedAs: "created", excluded: [] }] });
   let failCut = true, settled = false;
@@ -32,7 +32,7 @@ it.each([false, true])("recovers the original role-write cut after source moveme
     }
     return git(command, args, options);
   };
-  const options = { slug: "errand-source", name: "example", type: "feat", floor: "derivation" as const, owner: "test-user",
+  const options = { slug: "errand-source", name: "example", type: "feat", floor: "derivation" as const, owner: "test-user", identity: "test-user",
     class: "Light", store: h.store, exec, cwd, repository: "repo",
     checkout: async () => ({ kind: "ready" as const, checkoutPath: cwd, allocation: "primary" as const, parentCheckoutPath: null }) };
   const run = () => promoteOrdinaryErrand({ ...options, protection: "full", dependencies: {

@@ -82,12 +82,12 @@ it("promotes a second owner through the real adapter, then rename keeps its Erra
   const h = createLifecycleHarness(), git = repository();
   const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" }), claimId = "a".repeat(32);
   const identity = { version: 3, slug: "errand-source", claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
-    kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null };
+    kind: "errand", purpose: "errand", owner: "test-user", intent: "Useful work", branch: "chore/errand-source", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null };
   const primary = await h.seed(recordReferences["work-item/record"](owner), JSON.stringify(identity), { kind: "active" },
     { branches: [{ repository: "repo", ref: identity.branch, linkedAs: "created", excluded: [] }] });
   git.state.branches.set(identity.branch, personal); git.state.current = identity.branch; git.state.head = personal; git.state.marker = "promoted";
   const options = { store: h.store, exec: git.exec, cwd: "/holder", repository: "repo", slug: "errand-source", name: "promoted", type: "feat", floor: "derivation" as const,
-    owner: "test-user", class: "Light", checkout: async () => ({ kind: "ready" as const, checkoutPath: "/holder", allocation: "primary" as const, parentCheckoutPath: null }) };
+    owner: "test-user", identity: "test-user", class: "Light", checkout: async () => ({ kind: "ready" as const, checkoutPath: "/holder", allocation: "primary" as const, parentCheckoutPath: null }) };
   expect(await promoteOrdinaryErrand({ ...options, protection: "full", dependencies: { ...createStorePromotionSteps(options),
     settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } })).toMatchObject({ outcome: "applied" });
   const promoted = lifecycleSuccess(await h.store.read({ reference: primary.reference }));

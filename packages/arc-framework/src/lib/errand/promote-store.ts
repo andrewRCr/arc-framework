@@ -1,6 +1,6 @@
 /** Store-backed frame steps composed by ordinary Errand promotion. */
 import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
-import { TransientIdentityRecordV3Schema } from "./identity-record.js";
+import { TransientIdentityRecordV3Schema, type TransientIdentityRecordV3 } from "./identity-record.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { PromoteFloor, PromoteOrdinaryErrandDependencies, PromotionFrameReceipt, PromotionFrameResult } from "./promote.js";
 import { renderMetaFile } from "../store/kinds/meta/writers.js";
@@ -16,7 +16,7 @@ import type { StoreRecord } from "../store/read.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
   store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
-  floor: PromoteFloor; owner: string; priority?: string; class?: string;
+  floor: PromoteFloor; owner: string; identity: string; priority?: string; class?: string;
   checkout: (record: OrdinaryErrandRecord, mode: "replaceFrame" | "recoverPromoted") => Promise<StorePromotionCheckoutResult>;
 }
 /** Exact checkout selected by caller-owned terminal or recovery authority. */
@@ -38,7 +38,11 @@ export function createStorePromotionSteps(options: StorePromotionOptions): Store
       if (primary.kind !== "ready") return primary;
       basis = primary.record ?? undefined;
       if (basis === undefined || basis.reference.kind === "work-item/meta" || basis.placement?.kind !== "active") return { kind: "ready", record: null };
-      try { return { kind: "ready", record: TransientIdentityRecordV3Schema.parse(JSON.parse(basis.content)) }; }
+      try {
+        const record = TransientIdentityRecordV3Schema.parse(JSON.parse(basis.content));
+        const reason = sourceOwnerRefusal(options.identity, record);
+        return reason === null ? { kind: "ready", record } : { kind: "refused", reason };
+      }
       catch (error) { return { kind: "error", message: message(error) }; }
     },
     recoverPromoted: async () => recover(options),
@@ -98,6 +102,8 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const recovered = sourceFromHistory(history.result, options.slug, fields.promotionReceipt, meta);
   if (recovered === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
   const { source, tip } = recovered;
+  const ownerFailure = sourceOwnerRefusal(options.identity, source);
+  if (ownerFailure !== null) return { kind: "refused", reason: "identity-conflict", message: ownerFailure };
   const checkout = await options.checkout(source, "recoverPromoted");
   if (checkout.kind !== "ready") return checkout;
   const bound: BoundStorePromotionOptions = { ...options, cwd: checkout.checkoutPath, frame: checkout };
@@ -111,6 +117,11 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: bound.cwd });
   await options.exec("git", ["switch", branch], { cwd: bound.cwd });
   return receipt(bound, meta, source, branch, "idempotent");
+}
+function sourceOwnerRefusal(identity: string, source: TransientIdentityRecordV3): string | null {
+  if (source.kind !== "errand" || source.purpose !== "errand") return null;
+  if (source.owner === undefined) return `Errand ${source.slug}: owner is missing. Repair its owner, then retry promotion.`;
+  return source.owner === identity ? null : `Errand ${source.slug} is owned by ${source.owner}. Run this promotion as its owner ${source.owner}.`;
 }
 function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
   promotionReceipt: string | null, meta: StoreRecord): { source: OrdinaryErrandRecord; tip: string | undefined } | undefined {

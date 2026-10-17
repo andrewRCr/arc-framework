@@ -9,9 +9,10 @@ import { computeDefaultCaptureSet } from "../../../src/lib/git/default-capture-s
 import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import type { PromoteFloor, PromotionFrameReceipt } from "../../../src/lib/errand/promote.js";
 const sha = "1".repeat(40), claimId = "a".repeat(32);
-async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbox = false) {
+async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbox = false, sourceOwner: string | null = "test-user") {
   const harness = createLifecycleHarness(), owner = OwnerIdentitySchema.parse({ type: "work-item", name: "errand-source" });
   const identity = { version: 3, slug: "errand-source", claimId, createdAt: "2026-10-14T00:00:00Z", updatedAt: "2026-10-14T00:00:00Z",
+    ...(sourceOwner === null ? {} : { owner: sourceOwner }),
     kind: "errand", purpose: "errand", intent: "Useful work", branch: "chore/errand-source", origin: inbox ? "inbox" : "description", originEntry: inbox ? "Retained capture" : null,
     ...(inbox ? { originEntrySourceDigest: `sha256:${"b".repeat(64)}` } : {}),
     state: "open", savedHead: null, changeRequest: null };
@@ -25,13 +26,34 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
     { match: ["branch", "feat/example", sha], responses: failCut ? [{ failure: { exitCode: 128, stderr: "interrupted cut" } }, { stdout: "" }] : [{ stdout: "" }] },
     { match: ["switch", "feat/example"], responses: [{ stdout: "" }] },
   ]);
-  const options = { slug: "errand-source", name: "example", floor, type: "feat", owner: "test-user", class: "Light", store: harness.store,
+  const options = { slug: "errand-source", name: "example", floor, type: "feat", owner: "test-user", identity: "test-user", class: "Light", store: harness.store,
     exec: fake.exec, cwd: "/checkout", repository: "repo", checkout: async () => ({ kind: "ready" as const, checkoutPath: "/checkout", allocation: "primary" as const, parentCheckoutPath: null }) };
   const steps = createStorePromotionSteps(options);
   const run = () => promoteOrdinaryErrand({ ...options, protection: "full", dependencies: { ...steps,
     settleInbox: async (frame) => frame, settleOccupancy: async (frame) => frame } });
-  return { ...harness, primary, description, fake, steps, run, options };
+  return { ...harness, primary, description, fake, steps, run, options, source: identity };
 }
+it("requires the source owner while retaining a separately selected target owner", async () => {
+  const f = await fixture(), before = lifecycleSuccess(await f.store.version());
+  f.options.identity = "bob"; f.options.owner = "new-owner";
+  expect(await f.run()).toMatchObject({ outcome: "refused", reason: "identity-conflict", recommendedPromptText: expect.stringContaining("owned by test-user") });
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(f.fake.calls).toEqual([]);
+  f.options.identity = "test-user";
+  expect(await f.run()).toMatchObject({ outcome: "applied" });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).fields).toMatchObject({ owner: "new-owner" });
+});
+it("refuses a missing source owner before mutation and promotes after its explicit repair", async () => {
+  const f = await fixture("derivation", false, false, null), before = lifecycleSuccess(await f.store.version());
+  expect(await f.run()).toMatchObject({ outcome: "refused", reason: "identity-conflict", recommendedPromptText: expect.stringMatching(/owner is missing.*repair.*retry/isu) });
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(f.fake.calls).toEqual([]);
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: JSON.stringify({ ...f.source, owner: "test-user" }), placement: { kind: "active" }, links: f.primary.links,
+    provenance: { verb: "repair-owner", lifecycleAction: "update" } }));
+  expect(await f.run()).toMatchObject({ outcome: "applied" });
+});
 it("puts the Planning meta on the same UID, retains aliases/history/description, and cuts then switches a created work branch", async () => {
   const f = await fixture(); expect(await f.run()).toMatchObject({ outcome: "applied", subject: { slug: "errand-source", claimId } });
   const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
