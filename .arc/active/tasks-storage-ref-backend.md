@@ -1288,12 +1288,14 @@ without duplicating one.
   or diagnostics, reporting dropped records. The combined scenario compares clean after landing and an unchanged rerun
   in both layouts, while deliberate prose, field, and record loss remains observable.
 
-### `[ ]` **14.5 The import's first path** — validate exit criterion at segment scope
+### `[x]` **14.5 The import's first path** — validate exit criterion at segment scope
 
 - _Goal:_ Over the fixture, the import lands every live work unit and open cohort, its trial matching, every record
   comparing clean, and a rerun after the landing duplicating nothing.
 
-    - Request `arc check segment`
+- _Outcome:_ The first import path compares clean in both layouts, with masked trial and landing ref multisets
+  agreeing and the combined rerun preserving every imported ref. The segment scenario also covers source repair,
+  branch-selected review records, retained legacy diagnostics, and interrupted publication.
 
 ## **Phase 15:** Every source the import carries
 
