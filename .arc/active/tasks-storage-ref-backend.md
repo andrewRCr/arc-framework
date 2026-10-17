@@ -732,52 +732,23 @@ at once, and the conformance fixture running over both layouts.
 _Exit criterion:_ The ref-backend fixture passes the shared suite in both layouts with no exclusion beyond § 14.1's but
 those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull passes.
 
-### `[ ]` **8.1 Reading the designation and the code remote — § 9.1, § 9.2, § 9.7**
+### `[x]` **8.1 Reading the designation and the code remote — § 9.1, § 9.2, § 9.7**
 
 - _Goal:_ The backend reads each clone's `arc-state` keys and its code remote the same from every worktree, so a write
   or pull that finds no store places it where the designation calls for.
 
-    - `remote.<name>.arc-state` read with `git --git-dir=<common directory> config`, which sees the main worktree's
-      `config.worktree` and the person's global configuration as the primary checkout does, the store directory's own
-      `backing` remote counted with it; the code remote is `remote.pushDefault` where set, else the clone's only remote,
-      else `origin`; who sets a key lands in Phase 12
-    - One module exports the counted designation that 9.1.b, 9.4.b, and 12.2 read: a code repository's remote named
-      `backing` counts for nothing, a fork upstream's `push` counts for nothing beside the store directory's `backing`,
-      and two `push` keys read as ambiguous, naming both
-    - Build `test-first` (one behavior at a time):
-        - for a fresh store, the resolver picks the code repository's refs where a code remote carries `push`, and the
-          separate directory for every other designation, which 8.2 creates and lands in
-        - the default-layout fixture's store stays in the code repository's refs
-        - the code remote resolves through `remote.pushDefault`, a lone remote not named `origin`, and `origin` among
-          others, the same from a detached worktree and from one whose `config.worktree` sets `remote.pushDefault`
-        - a clone with no code remote resolves none
-        - a code repository's remote named `backing` carrying `push` counts for nothing, a fork upstream's `push` beside
-          the store directory's `backing` counts for nothing, and two `push` keys read as ambiguous
-        - the resolver keeps a store that holds state where it is whatever the designation now says, a directory a
-          case plants with plumbing standing for one 8.2 creates
+- _Outcome:_ One counted designation reader combines common-directory and global config, resolving the code remote
+  consistently across worktrees and excluding reserved or upstream candidates. Lazy selection preserves existing
+  state; configuration-only pull stops report ambiguity before fetching.
 
-### `[ ]` **8.2 The store directory — § 9.7**
+### `[x]` **8.2 The store directory — § 9.7**
 
 - _Goal:_ A separate-layout store is a bare reftable repository at `arc/store` in the common Git directory, shared by
   every worktree, whose commands never read the code repository's configuration but its person.
 
-    - Made by `git init --bare --ref-format=reftable --object-format=<the code repository's>` at a temporary sibling and
-      renamed into place, under the layout lock (`arc/locks/layout.lock`, which 8.3 also takes around every commit), so
-      an interrupted creation never leaves a directory that selects a broken store
-    - Every store command names it with `--git-dir` and passes `cwd`, since `environmentForGitCwd`
-      (`lib/git/process-executor.ts`) clears repository-local variables such as `GIT_OBJECT_DIRECTORY` only for a call
-      given one; commits authored as the code repository resolves the person; commands read the person's global
-      configuration and the directory's own
-    - Its cases live in `store-ref-directory.test.ts`, the integration file 18.2 lists in the portability tier by name
-    - Build `test-first` (one behavior at a time):
-        - a first write on a clone the designation sends to the separate layout creates the directory and lands there
-        - the directory's object format matches the code repository's, under SHA-1 and SHA-256
-        - a commit there carries the name and email set only in the code repository's own configuration
-        - a store command run with `GIT_OBJECT_DIRECTORY` set writes into the store directory
-        - every worktree of the clone reads and writes the one directory, and its presence alone selects the layout with
-          no Git call
-        - a ref there whose tip commit the store lacks lists as one `unreadable` diagnostic with `missed`, and `version`
-          lists it
+- _Outcome:_ First writes install a complete bare reftable store by sibling rename under the layout lock. Every
+  executor pins its Git directory and cwd; commits use the code checkout's person. Both object formats, shared
+  worktrees, environment isolation, interrupted-install retry, and missing-tip diagnostics retain their behavior.
 
 ### `[ ]` **8.3 The layout lock — § 11.4**
 

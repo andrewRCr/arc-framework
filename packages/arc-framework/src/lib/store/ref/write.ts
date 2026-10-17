@@ -1,11 +1,12 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
+import { writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult } from "../write.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
-import { resolveRefWrites, refWriteTargets } from "./write-resolution.js";
+import { resolveRefWrites, refWriteTargets, refWriteIdentityRefusal } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
 import { archivedLockRefs, archiveBasisChanged } from "./archive-resolution.js";
 import { retirementLockRefs } from "./write-retirement.js";
@@ -109,6 +110,9 @@ function mutationValidationFailure(mutation: Mutation, condition: string): Store
 }
 
 async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {
+  const identity = await refWriteIdentityRefusal(context, input.writes);
+  if (identity) return { status: "refused", refusal: identity };
+  context = await writeRefRepository(context);
   for (;;) {
     const resolved = await resolveRefWrites(context, input.writes);
     if (resolved.status === "refused") return resolved;

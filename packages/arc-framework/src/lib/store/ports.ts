@@ -41,12 +41,18 @@ export interface RefStoreSleep {
   bound(milliseconds: number, signal: AbortSignal): Promise<void>;
 }
 
+/** Directory operations used to install a complete bare repository atomically. */
+export interface RefRepositoryFileAccess {
+  rename(source: string, destination: string): Promise<void>;
+  removeDirectory(path: string): Promise<void>;
+}
+
 /** Ref backend dependencies; identity and actor resolution stay lazy. */
 export interface RefStorePorts {
   exec: GitExec;
   execInput: GitExecInput;
   rawExec: RawGitExec;
-  fs: StoreFileAccess;
+  fs: StoreFileAccess & RefRepositoryFileAccess;
   clock: () => Date;
   sleep: RefStoreSleep;
   random: () => number;
@@ -54,6 +60,6 @@ export interface RefStorePorts {
   identity: () => Promise<Slug | null>;
   actor: (identity: Slug) => Promise<string>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
-  /** Acquire a full ref name's machine-local lock in the code repository's common Git directory. */
+  /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
   lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
 }

@@ -33,12 +33,8 @@ export function refWriteTargets(context: Pick<RefBackendContext, "registry">, ba
 
 /** Resolve all owner names together so records created in one batch share a generation. */
 export async function resolveRefWrites(context: RefBackendContext, writes: readonly Mutation[]): Promise<StoreResult<ResolvedBatch>> {
-  const personal = writes.find((write) => write.reference.owner.type === "person");
-  if (personal && await context.identity() === null) return { status: "refused", refusal: {
-    code: "not-found", class: "recoverable", reference: personal.reference,
-    condition: "No arc.identity is configured for person-owned state",
-    remedy: { text: "Configure arc.identity, then retry the write." },
-  } };
+  const identity = await refWriteIdentityRefusal(context, writes);
+  if (identity) return { status: "refused", refusal: identity };
   const tips = await readRefTips(context, { includeHistory: true });
   const project = await bindProjectMutations(context, writes, tips);
   if (project.status === "refused") return project;
@@ -165,4 +161,15 @@ function unreadableNewClaim(writes: readonly ResolvedMutation[], captured: LiveR
     return !prior || prior.reference.owner.name !== mutation.reference.owner.name;
   });
   return changesClaim ? unseen : undefined;
+}
+
+/** Refuse identity-owned writes before selecting a repository or consulting Git. */
+export async function refWriteIdentityRefusal(context: RefBackendContext, writes: readonly Mutation[]): Promise<StoreRefusal | undefined> {
+  const personal = writes.find((write) => write.reference.owner.type === "person");
+  if (personal && await context.identity() === null) return {
+    code: "not-found", class: "recoverable", reference: personal.reference,
+    condition: "No arc.identity is configured for person-owned state",
+    remedy: { text: "Configure arc.identity, then retry the write." },
+  };
+  return undefined;
 }

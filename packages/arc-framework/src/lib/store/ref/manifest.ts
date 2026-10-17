@@ -1,5 +1,6 @@
 /** Git-compatible manifest trees naming the current tips of registered state refs. */
 
+import { readRefRepository } from "./repository.js";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
@@ -23,8 +24,8 @@ interface ManifestNode { tips: Map<string, string>; children: Map<string, Manife
 
 /** Read the configured object format without invoking Git or consulting identity. */
 export async function readObjectFormat(context: RefBackendContext): Promise<ObjectFormat> {
-  const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
-  const config = await context.fs.readFile(join(commonDir, "config"));
+  const gitDir = context.repository?.gitDir ?? context.repository?.commonDir ?? (await readGitDirectories(context.checkoutRoot, context.fs)).commonDir;
+  const config = await context.fs.readFile(join(gitDir, "config"));
   let extensions = false;
   let format: ObjectFormat = "sha1";
   for (const line of config.split(/\r?\n/u)) {
@@ -96,5 +97,6 @@ export async function saveCapturedManifest(context: RefBackendContext, tips: Rea
 
 /** Compute and retain the current manifest from one local ref-tip snapshot. */
 export async function refStateVersion(context: RefBackendContext): Promise<StateVersion> {
+  context = await readRefRepository(context);
   return saveCapturedManifest(context, await readRefTips(context));
 }

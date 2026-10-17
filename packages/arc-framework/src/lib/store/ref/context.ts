@@ -11,6 +11,8 @@ import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
   registry: NonNullable<RefStorePorts["registry"]>;
+  /** One operation's selected repository; absence leaves selection lazy. */
+  repository?: { commonDir: string; gitDir: string | null };
 }
 
 /** Bind failure-time checks and pure defaults without invoking any dependency. */

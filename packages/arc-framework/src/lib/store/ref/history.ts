@@ -1,6 +1,7 @@
 /** Record history follows immutable ref commits and filters unrelated changes. */
 
 import { checkRefTip } from "./namespace-health.js";
+import { readRefRepository } from "./repository.js";
 import type { HistoryEntry } from "../contract.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -24,6 +25,7 @@ export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 export async function historyRefRecord(context: RefBackendContext, input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>> {
   const key = checkRefKey(input.reference, context.registry, false);
   if (key) return { status: "refused", refusal: key };
+  context = await readRefRepository(context);
   const tips = await readRefTips(context, { includeHistory: true });
   const resolved = await resolveReadReference(context, input.reference, tips);
   if (resolved.status === "refused") return resolved;

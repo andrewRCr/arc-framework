@@ -1,6 +1,7 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
 import { corruptRef } from "./namespace-health.js";
+import { readRefRepository } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
 import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
@@ -30,6 +31,7 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   if (invalidKey) return { status: "refused", refusal: invalidKey };
   const personal = reference.owner.type === "person" ? await resolveReadReference(context, reference) : null;
   if (personal?.status === "refused") return personal;
+  context = await readRefRepository(context);
   const byUid = await readUidRefRecord(context, reference);
   if (byUid) return byUid;
   const tips = await readRefTips(context);
@@ -100,6 +102,7 @@ export function resolveCapturedOwner(context: RefBackendContext, reference: Reco
 export async function listRefRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   const unsupported = refListingRefusal(input);
   if (unsupported) return { status: "refused", refusal: unsupported };
+  context = await readRefRepository(context);
   const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
   const captured = await readRefTips(context);
   const resolved = await resolveRefListInput(context, input, captured);

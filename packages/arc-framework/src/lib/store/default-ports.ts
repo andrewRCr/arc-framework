@@ -9,13 +9,13 @@ import { createExecaGitExec, createExecaGitExecInput } from "../git/process-exec
 import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
-import type { RefStorePorts, StorePorts } from "./ports.js";
+import type { RefStorePorts, StorePorts, RefRepositoryFileAccess, StoreFileAccess } from "./ports.js";
 
 /** Bind production I/O without consulting repository configuration or topology.
  * @param input - Checkout and optional already-bound Git adapters.
  * @returns All required store ports, each policy or lock resolved only when used.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput }): StorePorts {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput }): StorePorts & { fs: StoreFileAccess & RefRepositoryFileAccess } {
   const baseExec = input.exec ?? createExecaGitExec();
   const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
   const baseInput = input.execInput ?? createExecaGitExecInput();
@@ -27,7 +27,7 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
     fs: { readFile: (path) => fs.readFile(path, "utf8"),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
       writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
-      unlink: fs.unlink },
+      unlink: fs.unlink, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },
     locks: {
       tracked: (operation) => withTrackedWriteLock({ exec, checkoutRoot: input.checkoutRoot }, operation),
       notes: async (operation) => {

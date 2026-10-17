@@ -1,4 +1,6 @@
 /** Read records and families from immutable manifest tips, confined to this identity. */
+import { readRefRepository } from "./repository.js";
+import { checkRefKey } from "./path-admission.js";
 import type { StateVersion } from "../identity.js";
 import type { ReadInput, ListInput, StoreRecord, ListingOutcome } from "../read.js";
 import { HistoryRefSchema, type StoreResult } from "../refusal.js";
@@ -14,6 +16,9 @@ import { isArchiveRef } from "./archive-read.js";
 /** Resolve a saved record without consulting today's state ref tips. */
 export async function readSnapshotRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   if (!input.asOf) throw new Error("A snapshot read requires a state version");
+  const invalid = checkRefKey(input.reference, context.registry, false);
+  if (invalid) return { status: "refused", refusal: invalid };
+  context = await readRefRepository(context);
   const loaded = await snapshotView(context, input.asOf, { family: context.registry[input.reference.kind].family, owner: input.reference.owner });
   return loaded.status === "refused" ? loaded : loaded.result.read(input);
 }
@@ -23,6 +28,7 @@ export async function listSnapshotRecords(context: RefBackendContext, input: Lis
   if (!input.asOf) throw new Error("A snapshot listing requires a state version");
   const unsupported = refListingRefusal(input);
   if (unsupported) return { status: "refused", refusal: unsupported };
+  context = await readRefRepository(context);
   const loaded = await snapshotView(context, input.asOf, input);
   if (loaded.status === "refused") return loaded;
   const listing = await loaded.result.list(input);

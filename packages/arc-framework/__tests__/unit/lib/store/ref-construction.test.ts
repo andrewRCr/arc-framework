@@ -10,7 +10,7 @@ function observedPorts() {
   const ports: RefStorePorts = {
     exec: unexpected, execInput: unexpected, rawExec: unexpected,
     fs: { readFile: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
-      writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected },
+      writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected, removeDirectory: unexpected },
     checkoutRoot: "/no-repository", identity: unexpected, actor: unexpected, lock: unexpected,
     clock: () => { calls.push("clock"); return new Date(0); },
     sleep: { wait: unexpected, bound: unexpected }, random: () => { calls.push("random"); return 0.5; },
