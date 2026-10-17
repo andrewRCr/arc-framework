@@ -11,6 +11,8 @@ import { writeRefBlob } from "../tree-write.js";
 import { prepareImportGroups } from "./groups.js";
 import { addImportArchive, type ImportQuarter } from "./archive.js";
 import { replayImportCandidate } from "./candidate.js";
+import { expandStoredPath } from "../../stored-path.js";
+import { RecordReferenceSchema } from "../../identity.js";
 
 /** Admit every record before any prepared commit can become visible. */
 export function prepareImportRecords(context: RefBackendContext, records: ImportRecord[], report: MigrateReport): ImportRecord[] {
@@ -72,5 +74,10 @@ export async function buildImportCommits(context: RefBackendContext, records: re
     else refs.set(ref, tip);
   }
   for (const [ref, quarter] of quarters) refs.set(ref, await commitRefTree(context, quarter.entries.values(), undefined, provenance, quarter.reference, batchId, actor));
+  for (const record of records.filter(({ reference }) => reference.kind === "lineage/transition")) {
+    const primary = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: record.reference.owner });
+    const history = expandStoredPath(primary, { registry: context.registry, history: true }).ref;
+    refs.set(history, await commitRefTree(context, [], undefined, provenance, primary, batchId, actor));
+  }
   return refs;
 }

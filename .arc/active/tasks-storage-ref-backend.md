@@ -1320,27 +1320,16 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
   remain reported and schema-rejected bytes remain intact. Distinct replay batches precede one shared landing batch,
   each ended folder agrees with its history, and every completed record compares clean without a new allowance.
 
-### `[ ]` **15.2 Lineage, renames, and abandoned origins — § 10.9, § 10.11**
+### `[x]` **15.2 Lineage, renames, and abandoned origins — § 10.9, § 10.11**
 
 - _Goal:_ Terminal transitions land as lineage under minted origin UIDs with every reference resolved to its owner's UID,
   and renames as former slugs, so `lookup` and `history` answer as an archive or abandon would have left them.
 
-    - The build writes each origin's slug under its UID in the registry's lineage map, as 5.3's write path does, since
-      the import lands through the move's transaction rather than `write`
-    - Build `test-first` (one behavior at a time):
-        - each `abandon` and `decompose` transition lands at `lineage/<uid>.json` keyed by a minted origin UID, its
-          successors, dependents, replacements, prerequisites, and members carrying their owners' UIDs where held
-        - each such origin gets a history ref of one empty-tree commit, and `history` of its records refuses `not-found`
-        - each `rename` transition becomes a former slug in its successor's metadata, in its quarter folder, where
-          `lookup` reads it, and never lineage
-        - after the import, a completed work unit reopens and takes a write, and a write to a closed cohort's document
-          lands on its history ref
-        - `lookup` of an imported decomposed origin by its slug resolves through its lineage
-        - a second clone that pulls the published import reads no end pending for its completed items or its
-          lineage-ended origins, at that pull and every later one (§ 14.5)
-        - its records compare clean through 14.4's harness, its comparator allowing only § 10.9's two transition rows:
-          each `abandon` and `decompose` transition read against its lineage record, its work-item references carrying
-          their owners' UIDs, and each `rename` transition against the former slug its successor's metadata holds
+- _Outcome:_ Terminal transitions land under minted origin UIDs with held work-item references enriched and registry
+  lineage names indexed; each origin retains one empty history commit whose absent records read `not-found`.
+  Renames become archived successors' former slugs. Lineage lookup accepts an origin slug while ordinary slug lookup
+  retains D9's refusal. Imported work reopens, closed cohort corrections reach history, repeated peer pulls report no
+  pending ends, and independent comparison permits only UID enrichment and rename-to-former-slug projection.
 
 ### `[ ]` **15.3 Errand identity refs, descriptions, inbound lists, and queues — § 10.9, § 10.11, § 3.8**
 

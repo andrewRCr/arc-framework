@@ -18,6 +18,7 @@ import type { StoreMigrateResult } from "../../../src/lib/store/commands.js";
 import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
 import { inRepoContent } from "./in-repo-fixture.js";
 import { seedImportArchives } from "./import-archives.js";
+import { seedImportLineage } from "./import-lineage.js";
 
 export const IMPORT_DOCUMENTS = [
   ["work-item/task-list", "tasks", "# Task List: Alpha\n\n## **Phase 1:** Example\n\n### `[ ]` **1.1 Example**\n\n- _Goal:_ Finish the example.\n"],
@@ -28,11 +29,11 @@ export const IMPORT_DOCUMENTS = [
 export const IMPORT_COHORT = "# Cohort: `group`\n\n**Purpose:** Coordinate the example work.\n";
 export const IMPORT_INBOX = "# Project Inbox\n\n## Inbox\n\n### **First**\n\n- _Description:_ First source entry.\n\n### **Second**\n\n- _Id:_ `11111111`\n- _Description:_ Second source entry.\n";
 
-export interface ImportFixtureOptions { completed?: boolean }
-const templates = new Map<boolean, Promise<PreparedRepositoryTemplate>>();
+export interface ImportFixtureOptions { completed?: boolean; lineage?: boolean }
+const templates = new Map<string, Promise<PreparedRepositoryTemplate>>();
 afterAll(async () => { for (const template of templates.values()) await removeGitBackedDir((await template).root); });
 
-async function build(completed: boolean): Promise<string> {
+async function build(completed: boolean, lineage: boolean): Promise<string> {
   const root = await createTempRepoCore({ prefix: "arc-import-", identity: "andrew" });
   const git = makeGitExec(root);
   const meta = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse("alpha"),
@@ -58,6 +59,7 @@ async function build(completed: boolean): Promise<string> {
   await git("git", ["commit", "-m", "Seed tracked work"]);
   await git("git", ["branch", "feat/alpha"]);
   if (completed) await seedImportArchives(root, git);
+  if (lineage) await seedImportLineage(root, git);
   const origin = join(root, PREPARED_REMOTE_PATH);
   await mkdir(dirname(origin), { recursive: true });
   await git("git", ["init", "--bare", "--initial-branch=main", origin]);
@@ -67,10 +69,11 @@ async function build(completed: boolean): Promise<string> {
 
 /** Copy the prepared source without precreating either the store or review-gate identity. */
 export async function importFixture(layout: "default" | "separate" = "default", options: ImportFixtureOptions = {}) {
-  const completed = options.completed === true;
-  const shape = { kind: "remote-bearing", key: completed ? "tracked-import-archives" : "tracked-import" } as const;
-  let template = templates.get(completed);
-  if (!template) { template = prepareRepositoryTemplate(shape, () => build(completed)); templates.set(completed, template); }
+  const completed = options.completed === true, lineage = options.lineage === true;
+  const key = `tracked-import${completed ? "-archives" : ""}${lineage ? "-lineage" : ""}`;
+  const shape = { kind: "remote-bearing", key } as const;
+  let template = templates.get(key);
+  if (!template) { template = prepareRepositoryTemplate(shape, () => build(completed, lineage)); templates.set(key, template); }
   const root = await copyPreparedRepository(await template, shape);
   onTestFinished(() => removeGitBackedDir(root));
   const git = makeGitExec(root);

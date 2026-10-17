@@ -6,7 +6,7 @@ import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import { rootFamily } from "./path-decode.js";
 import { readLineageOwners } from "./lineage-resolution.js";
-import { readBatchObjects } from "./batch-read.js";
+import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import { metadataFailure, parseRefMetadata } from "./metadata.js";
 
 /** An ended origin has no live tree; its lineage names the retained history that callers must fetch. */
@@ -33,5 +33,10 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
     const owner = OwnerIdentitySchema.parse({ ...reference.owner, name: metadata.slug });
     return { status: "ok", result: expandStoredPath({ ...reference, owner }, { registry: context.registry, history: true }) };
   }
+  const trees = await readRefTrees(context, new Map([[home.ref, tip]]));
+  if (queries.length === 0 && trees.get(home.ref)?.length === 0) return { status: "refused", refusal: {
+    code: "not-found", class: "recoverable", reference, condition: "The ended origin's retained history contains no records.",
+    remedy: { text: "Inspect its lineage for the terminal transition; pre-import records remain in code history." },
+  } };
   return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
 }

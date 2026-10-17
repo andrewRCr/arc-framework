@@ -12,10 +12,12 @@ import { internalReferences } from "../../in-repo/paths.js";
 import { inspectCandidateChain } from "./review.js";
 import { importCohortPlacements } from "./cohort-source.js";
 import { readImportCandidateVersions } from "./candidate.js";
+import { appendImportLineage } from "./lineage.js";
+import type { Slug } from "../../../kernel/schema/slug.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
-  versions?: { commit: string; content: string }[] }
+  versions?: { commit: string; content: string }[]; formerSlugs?: Slug[] }
 /** All source content is acquired before a destination object or ref is published. */
 export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string): Promise<ImportRecord[]> {
   const source = context.importSource;
@@ -37,9 +39,12 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   const head = StateVersionSchema.parse((await source.ports.exec("git", ["rev-parse", `${codeHead}^{tree}`], { cwd: source.ports.checkoutRoot })).stdout.trim());
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
+  await appendImportLineage(context, report, result, owners, head);
   await appendPersonal(context, report, result);
   const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"
     ? [expandStoredPath(reference, { registry: context.registry, placement }).ref, expandStoredPath(reference, { registry: context.registry, history: true }).ref]
+    : reference.kind === "lineage/transition" ? [expandStoredPath(reference, { registry: context.registry }).ref,
+      expandStoredPath(RecordReferenceSchema.parse({ ...reference, kind: "work-item/meta" }), { registry: context.registry, history: true }).ref]
     : [expandStoredPath(reference, { registry: context.registry }).ref]));
   for (const ref of refs) {
     const person = /^refs\/arc\/user\/([^/]+)\//u.exec(ref)?.[1];

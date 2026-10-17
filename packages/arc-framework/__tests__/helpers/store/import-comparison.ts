@@ -11,6 +11,7 @@ import type { Store, ReadOnlyStore } from "../../../src/lib/store/contract.js";
 import type { KindId } from "../../../src/lib/store/catalog.js";
 import type { StoreRecord, ListInput, ListingDiagnostic } from "../../../src/lib/store/read.js";
 import type { RecordReference } from "../../../src/lib/store/identity.js";
+import type { StoreResult } from "../../../src/lib/store/refusal.js";
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
 import { basename } from "node:path";
 import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
@@ -20,8 +21,11 @@ import { expandStoredPath } from "../../../src/lib/store/stored-path.js";
 /** One observable disagreement; record versions are deliberately excluded. */
 export interface ImportDifference { reference: RecordReference; field: string; expected?: unknown; actual?: unknown; condition?: string }
 /** Each source's documented transformation normalizes only the fields it owns. */
-export type ImportComparator = (expected: StoreRecord, actual: StoreRecord) =>
-  { expected: StoreRecord; actual: StoreRecord } | Promise<{ expected: StoreRecord; actual: StoreRecord }>;
+export interface ImportComparator {
+  normalize(expected: StoreRecord, actual: StoreRecord):
+    { expected: StoreRecord; actual: StoreRecord } | Promise<{ expected: StoreRecord; actual: StoreRecord }>;
+  read?(expected: StoreRecord, store: Store): Promise<StoreResult<StoreRecord>>;
+}
 
 /** Arrange independent copies before any import can delete or re-home source data. */
 export async function importComparisonFixture(layout: "default" | "separate" = "default",
@@ -83,7 +87,8 @@ async function listing(store: ReadOnlyStore, input: ListInput): Promise<{ record
 async function compareRecords(sourceStore: ReadOnlyStore, store: Store, source: ComparisonSource, comparators: ReadonlyMap<KindId, ImportComparator>): Promise<ImportDifference[]> {
   const differences: ImportDifference[] = [];
   for (const expected of source.records) {
-    const actual = await store.read({ reference: expected.reference });
+    const comparator = comparators.get(expected.reference.kind);
+    const actual = comparator?.read ? await comparator.read(expected, store) : await store.read({ reference: expected.reference });
     if (actual.status === "refused") {
       differences.push({ reference: expected.reference, field: "record", condition: actual.refusal.condition });
       continue;
@@ -97,7 +102,7 @@ async function compareRecords(sourceStore: ReadOnlyStore, store: Store, source: 
 async function comparePair(expected: StoreRecord, actual: StoreRecord, comparators: ReadonlyMap<KindId, ImportComparator>): Promise<ImportDifference[]> {
   const pair = { expected: normalizeRecord(expected), actual: normalizeRecord(actual) };
   const comparator = comparators.get(expected.reference.kind);
-  const normalized = comparator ? await comparator(pair.expected, pair.actual) : pair;
+  const normalized = comparator ? await comparator.normalize(pair.expected, pair.actual) : pair;
   return recordDifferences(normalized.expected, normalized.actual);
 }
 
