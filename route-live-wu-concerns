@@ -3,7 +3,7 @@
   "slug": "route-live-wu-concerns",
   "claimId": "eea97136351ce834e715cf9705404ef0",
   "createdAt": "2026-10-17T15:05:50.350Z",
-  "updatedAt": "2026-10-17T15:05:50.350Z",
+  "updatedAt": "2026-10-17T18:42:00.780Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route a concern for a live work unit when raised, message-first, within its scope window",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Route a concern for a live work unit when raised: message its session first, within its scope window",
   "originEntrySourceDigest": "sha256:c55ea0c9aabfeb3e1db9cef255dbe4834b892359da6fc6ad3d4718badc4ea2f3",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-live-wu-concerns",
+    "headSha": "08c1f24ffa12524767cd422a92d44fe1033018cf"
+  }
 }
