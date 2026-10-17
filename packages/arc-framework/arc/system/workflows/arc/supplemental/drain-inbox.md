@@ -102,11 +102,11 @@ route-discovered-work:
   is the first candidate to check, never a destination decided by existence. Retain any unclear Errand pair with
   all four record answers for the Owner at § 3.
 - **In-flight target adoption.** Only a gate-confirmed `hold` into a started work unit takes the method binding's
-  owner-adoption route. Leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
-  and carry the target and `_Shapes:_` for its owning session; for a live target, also draft the message to its
-  session for the plan, except for a held transit capture, which the plan shows as waiting on its target. Surface the
-  handoff or the binding's named wait at § 3; never write to the base branch's stale backlog copy. A failed or
-  ambiguous status lookup stops with its diagnostic, never with a checkout-local path guess.
+  owner-adoption route. A live target's message to its session routes the concern in place of the capture: draft it
+  for the plan. Without one, leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
+  and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at § 3;
+  never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its diagnostic,
+  never with a checkout-local path guess.
 - **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
   grouping with its rationale. Entry count alone never establishes concern identity.
 - **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,
@@ -166,11 +166,11 @@ removal.
   `## Inbound Buffer — Pending Integration` section, with `routed from <origin>, <date>` and `_Shapes:_`. Create
   the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
   before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
-- **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write; set
-  `_Hold: true`, re-stamp `_Created:` to the adoption date, and keep the target and `_Shapes:_` in the capture for its
-  owning session. Once the writes are done, send each confirmed message to a live target, or hand it to the Owner to
-  relay. Follow the method binding's named gap for another person's started target, with the wait confirmed at § 3.
-  Never append to the base branch's stale backlog copy.
+- **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write. Once the
+  writes are done, send each confirmed message to a live target, or hand it to the Owner to relay, and remove its
+  capture's line. Keep every other capture with `_Hold: true`, `_Created:` re-stamped to the adoption date, and its
+  target and `_Shapes:_` for its owning session. Follow the method binding's named gap for another person's started
+  target, with the wait confirmed at § 3. Never append to the base branch's stale backlog copy.
 - **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
   confirmed commitment level. Always write a `draft-*` beside the meta, carrying the concern and opening with a
   one-sentence Purpose; name it through `arc stub --design`. A provisional stub carries no design authority.
@@ -306,11 +306,11 @@ session, by this sweep — idempotent backstops to the authoritative removal in 
 
 The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
 disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
-line stays), **owner-adoption** (live target; line stays for its owning session), or **execute-bound** (dispatched
+line stays), **owner-adoption** (started target; line stays for its owning session), or **execute-bound** (dispatched
 in-flight, or pending a fresh `--errand` — line stays until the errand completes). No entry is left
 **un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries; their async
 tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the drain. Report
-what routed where, which entries were retained or handed to live owners, and which errands are in flight. Surface
+what routed where, which entries were retained or handed to their owners, and which errands are in flight. Surface
 shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there — reminder nudges for personal captures and
 in-flight-errand staleness belong to session-init orientation, not the drain.
 

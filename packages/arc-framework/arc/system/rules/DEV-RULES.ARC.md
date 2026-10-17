@@ -334,7 +334,7 @@ destination (existing stub, new stub, standalone errand, flush to shared) resolv
 | The concern is…                        | Can I write its home here? | Route                                                  |
 | -------------------------------------- | -------------------------- | ------------------------------------------------------ |
 | The current WU's own                   | Yes — you're on its branch | Fix **inline**. Never capture.                         |
-| Another WU's, live (it has a checkout) | No — its session owns it   | **Message** its session now, within its scope window.  |
+| Another WU's, live (it has a checkout) | No — its session owns it   | **Message** its session now (via `arc-inbox`).         |
 | Out-of-WU, **urgent**                  | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
 | Out-of-WU, not urgent                  | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
 
