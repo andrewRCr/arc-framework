@@ -1,6 +1,6 @@
 /** Survivor carries preserve other writers, use citing entries where replacement is forbidden, and stay atomic. */
 import { describe, expect, it } from "vitest";
-import { createInboxHarness } from "../../../helpers/inbox-harness.js";
+import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { listInbox } from "../../../../src/lib/inbox/listing.js";
 import { routeEntry } from "../../../../src/lib/inbox/route.js";
@@ -23,6 +23,29 @@ async function racedSurvivor(owner = "test-user") {
   return { h, target, row: survivor.entries[0], input: { entryId: row.id, from: "personal", expectedVersion: survivor.entries[0].version, to: target.reference.owner.name } };
 }
 describe("survivor carry boundaries", () => {
+  it("normalizes a survivor's edited plain heading when replacing its held personal capture", async () => {
+    const h = createInboxHarness();
+    const saved = await h.inbox("project", entry() + "\n- _Hold:_ `true`\n<!-- Keep this comment. -->\nActual prose");
+    await h.inbox("personal", "");
+    const listed = await listInbox({ list: "project" }, h.context);
+    if (listed.state === "refused" || !listed.entries[0]) throw new Error("No capture");
+    const racing = Object.create(h.context.store) as typeof h.context.store;
+    racing.batch = async input => {
+      success(await h.context.store.write({ action: "put", reference: saved.reference, expected: saved.version,
+        content: saved.content.replace("### **Concern**", "### [x] Updated concern").replace("Actual prose", "Surviving prose"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      return h.context.store.batch(input);
+    };
+    const route = { entryId: "12345678", from: "project", expectedVersion: listed.entries[0].version, to: "personal", section: "Errand" };
+    expect(await routeEntry(route, { ...h.context, store: racing })).toMatchObject({ state: "routed" });
+    const survivor = await listInbox({ list: "project" }, h.context);
+    if (survivor.state === "refused" || !survivor.entries[0]) throw new Error("No survivor");
+    h.context.now = () => new Date("2026-02-02T12:00:00Z");
+    expect(await routeEntry({ ...route, expectedVersion: survivor.entries[0].version }, h.context)).toMatchObject({ state: "routed", carried: "replaced" });
+    expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [] });
+    const home = await listInbox({ list: "personal" }, h.context);
+    expect(home).toMatchObject({ entries: [{ id: "12345678", title: "Updated concern", held: true, fields: { Created: "2026-02-01" }, raw: expect.stringContaining("### [x] **Updated concern**") }] });
+    if (home.state !== "refused") { expect(home.entries[0]?.raw).toContain("<!-- Keep this comment. -->"); expect(home.entries[0]?.raw).toContain("Surviving prose"); }
+  });
   it("inserts a citing entry into another person's started work unit", async () => {
     const { h, target, input, row } = await racedSurvivor("someone-else");
     expect(await routeEntry(input, h.context)).toMatchObject({ state: "routed", carried: "cited" });

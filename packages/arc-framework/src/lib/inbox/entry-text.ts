@@ -1,7 +1,7 @@
 /** Lossless existing-entry edits and canonical newly inserted list fragments. */
 import { maskComments, rejoinEntryList, splitEntryList } from "../store/concurrency/entries.js";
 import { ENTRY_CONFIGS, type EntryKind } from "../store/kinds/entry-configs.js";
-import { ENTRY_FIELDS, writeEntryFields, writeRoutedFrom } from "../store/kinds/entry-fields.js";
+import { ENTRY_FIELDS, matchInboxEntryTitle, writeEntryFields, writeRoutedFrom } from "../store/kinds/entry-fields.js";
 import type { RoutingCoordinate } from "./receipts.js";
 
 /** Apply the destination's field rules while retaining every unowned prose descriptor.
@@ -16,9 +16,20 @@ export function entryForDestination(raw: string, kind: EntryKind, date: string, 
   const admitted: readonly string[] = ["Id", ...ENTRY_CONFIGS[kind].managedFields];
   const changes = Object.fromEntries(ENTRY_FIELDS.filter((field) => !admitted.includes(field) || field === "Cites").map((field) => [field, undefined])) as Record<string, string | undefined>;
   if (kind !== "work-item/description" && !preserveCreated) changes.Created = date;
-  const rewritten = writeEntryFields(raw, changes);
+  const rewritten = writeEntryFields(entryHeadingForDestination(raw, kind), changes);
   const origin = kind === "work-item/inbound" && source !== null ? describeOrigin(source) : undefined;
   return writeRoutedFrom(rewritten, origin);
+}
+
+/** Adapt a moved heading to the destination grammar, retaining any checkbox and remaining bytes.
+ * @param raw - Admitted source entry.
+ * @param kind - Destination grammar.
+ * @returns Personal captures use bold titles; other destinations retain their heading.
+ */
+export function entryHeadingForDestination(raw: string, kind: EntryKind): string {
+  if (kind !== "personal/inbox" || matchInboxEntryTitle(maskComments(raw.split("\n")[0] ?? "")) !== null) return raw;
+  return raw.replace(/^(###[ \t]+(?:`?\[[ xX]\]`?[ \t]+)?)([^\r\n]*)/u,
+    (_match, prefix: string, title: string) => `${prefix}**${title.trim()}**`);
 }
 
 function describeOrigin(source: RoutingCoordinate): string {

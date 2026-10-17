@@ -7,7 +7,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { readQueueState } from "../../src/lib/inbox/queue-storage.js";
 import { resolveQueueExecutionOffer } from "../../src/lib/inbox/offer.js";
 
@@ -38,6 +38,23 @@ it("routes the visible entry identity and fields while retaining commented examp
   expect(destination).toMatchObject([{ id: row.id, raw: expect.stringContaining("Actual decision") }]);
   expect(destination[0]?.raw).toContain(comment);
   expect(destination[0]?.raw).toContain("Actual prose");
+}, 30000);
+
+it("routes a plain inbound heading through an Errand and returns it to personal captures on abandon", async () => {
+  const f = await repairCliFixture(), workUnit = await f.h.workUnit("plain-heading");
+  const reference = recordReferences["work-item/inbound"](workUnit.reference.owner);
+  success(await f.h.context.store.write({ action: "put", reference, expected: null,
+    content: `## Inbound\n\n${entry("87654321").replace("### **Concern**", "### [ ] Concern")}\n<!-- Keep this comment. -->\nActual prose\n`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  expect(await repairCli(f, ["errand", "open", "plain-return", "--intent", "Other concern", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  const row = (await cliRows(f, workUnit.reference.owner.name))[0]; if (!row) throw new Error("No inbound entry");
+  expect(await repairCli(f, ["route", row.id, "--from", workUnit.reference.owner.name, "--expected-version", row.version, "--to", "plain-return"])).toMatchObject({ result: { state: "routed" } });
+  expect(await cliRows(f, workUnit.reference.owner.name)).toEqual([]);
+  expect(await cliRows(f, "plain-return")).toEqual(expect.arrayContaining([expect.objectContaining({ id: row.id })]));
+  expect(await repairCli(f, ["errand", "abandon", "plain-return", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  expect(await cliRows(f, "plain-return")).toEqual([]);
+  const returned = (await cliRows(f, "personal")).find(entry => entry.id === row.id);
+  expect(returned).toMatchObject({ id: row.id, title: "Concern", section: "Errand", raw: expect.stringContaining("### [ ] **Concern**") });
+  expect(returned?.raw).toContain("<!-- Keep this comment. -->"); expect(returned?.raw).toContain("Actual prose");
 }, 30000);
 
 it("lists actual captures, refuses an invalid target filter, and routes a stale entry only after listing its new version", async () => {

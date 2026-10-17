@@ -1,6 +1,6 @@
 /** Routing validates the observed entry version and lands the complete move atomically. */
 import { describe, expect, it } from "vitest";
-import { createInboxHarness } from "../../../helpers/inbox-harness.js";
+import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
 import { listInbox } from "../../../../src/lib/inbox/listing.js";
 import { routeEntry } from "../../../../src/lib/inbox/route.js";
 import { success } from "../../../helpers/store/suite-tools.js";
@@ -11,6 +11,24 @@ async function source(h: ReturnType<typeof createInboxHarness>) {
   return listing.entries[0];
 }
 describe("atomic versioned entry routes", () => {
+  it("moves admitted plain and checkbox headings into personal captures without changing their titles or IDs", async () => {
+    const h = createInboxHarness();
+    const headings = ["### Concern", "### [ ] Concern", "### `[X]` Concern", "### **Concern**"];
+    await h.inbox("project", headings.map((heading, index) => entry(`${index + 1}`.repeat(8)).replace("### **Concern**", heading) + "\n<!-- Keep this comment. -->\nActual prose").join("\n\n"));
+    await h.inbox("personal", "");
+    const original = await listInbox({ list: "project" }, h.context);
+    if (original.state === "refused") throw new Error(original.reason);
+    for (const row of original.entries) {
+      expect(await routeEntry({ entryId: row.id, from: "project", expectedVersion: row.version, to: "personal", section: "Work Unit" }, h.context)).toMatchObject({ state: "routed", entryId: row.id });
+    }
+    expect(await listInbox({ list: "project" }, h.context)).toMatchObject({ entries: [] });
+    const destination = await listInbox({ list: "personal" }, h.context);
+    if (destination.state === "refused") throw new Error(destination.reason);
+    expect(destination.entries.map(row => ({ id: row.id, title: row.title }))).toEqual(original.entries.map(row => ({ id: row.id, title: "Concern" })));
+    expect(destination.entries.map(row => row.raw.split("\n")[0])).toEqual(["### **Concern**", "### [ ] **Concern**", "### `[X]` **Concern**", "### **Concern**"]);
+    for (const row of destination.entries) { expect(row.raw).toContain("<!-- Keep this comment. -->"); expect(row.raw).toContain("Actual prose"); }
+    expect(success(await h.context.store.list({ family: "project-inbox", kind: "project-inbox/routing-receipt" }))).toMatchObject({ status: "complete", records: expect.arrayContaining(original.entries.map(row => expect.objectContaining({ fields: expect.objectContaining({ entryId: row.id }) }))) });
+  });
   it("moves into an inbound list and reports its receipt-backed destination", async () => {
     const h = createInboxHarness(); await h.inbox("personal"); const target = await h.workUnit();
     const row = await source(h);

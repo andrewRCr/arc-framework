@@ -2,7 +2,7 @@
 import { ENTRY_FIELDS, drawEntryId, writeEntryFields, writeRoutedFrom } from "../store/kinds/entry-fields.js";
 import { ENTRY_CONFIGS } from "../store/kinds/entry-configs.js";
 import { rejoinEntryList, splitEntryList } from "../store/concurrency/entries.js";
-import { appendEntry, entryForDestination } from "./entry-text.js";
+import { appendEntry, entryForDestination, entryHeadingForDestination } from "./entry-text.js";
 import { mayReplaceEntry } from "./admission.js";
 import { prepareEntryMove, type EntryMoveInput, type PreparedEntryMove } from "./mover.js";
 import { listCoordinate } from "./receipts.js";
@@ -21,7 +21,7 @@ export function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow, cont
   const replaces = mayReplaceEntry(destination, context.identity);
   const carried = replaces ? "replaced" : "cited";
   const id = replaces ? held.id : drawEntryId(new Set(splitEntryList(destination.saved?.content ?? "", ENTRY_CONFIGS[destination.kind]).parts.flatMap((part) => part.kind === "entry" && part.id !== undefined ? [part.id] : [])), context.random ?? Math.random);
-  const raw = replaces ? replacementProse(input.entry.raw, held)
+  const raw = replaces ? replacementProse(entryHeadingForDestination(input.entry.raw, destination.kind), held)
     : writeEntryFields(entryForDestination(input.entry.raw, destination.kind, now.toISOString().slice(0, 10), input.source === null ? null : listCoordinate(input.source, input.entry.section)), { Id: id, Cites: held.id });
   const content = replaces ? replaceEntry(destination.saved?.content ?? "", destination.kind, held.id, raw)
     : appendEntry(destination.saved?.content ?? "", input.section, raw);
