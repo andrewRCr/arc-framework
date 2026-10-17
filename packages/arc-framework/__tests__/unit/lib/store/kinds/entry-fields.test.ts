@@ -83,4 +83,21 @@ describe("shared entry fields", () => {
       expect(parsed).toMatchObject({ success: true, data: { entries: [{ id: "12345678", bytes: expect.stringContaining(comment),
         fields: { Created: "2026-02-01" } }] } });
     });
+  it.each(["\n", "\r\n"].flatMap(newline => ["next-line", "blank-line", "interleaved"].flatMap(layout =>
+    ["once", "replacement"].map(passes => ({ newline, layout, passes, ending: newline === "\n" ? "LF" : "CRLF" }))))) (
+    "keeps field-group comments entry-owned across $layout notes and $passes writes with $ending endings", ({ newline, layout, passes }) => {
+      const first = ["<!--", "First heading note.", "-->"].join(newline);
+      const second = ["<!--", "Second entry note.", "-->"].join(newline);
+      const between = layout === "blank-line" ? [""] : layout === "interleaved" ? ['- _Created:_ `2026-01-01`'] : [];
+      const raw = [`### **Title** ${first}`, ...between, second, '- _Id:_ `12345678`'].join(newline);
+      const original = parseEntryList(`## Errand${newline}${raw}${newline}`, "personal/inbox");
+      expect(original).toMatchObject({ success: true, data: { entries: [{ id: "12345678", bytes: expect.stringContaining(second) }] } });
+      const source = passes === "once" ? raw : writeEntryFields(raw, { Id: undefined, Created: undefined });
+      const rewritten = writeEntryFields(source, { Id: "12345678", Created: "2026-02-01" });
+      const parsed = parseEntryList(`## Errand${newline}${rewritten}${newline}`, "personal/inbox");
+      expect(parsed).toMatchObject({ success: true, data: { entries: [{ id: "12345678", bytes: expect.stringContaining(second),
+        fields: { Created: "2026-02-01" } }] } });
+      if (!parsed.success) throw new Error(parsed.error);
+      expect(parsed.data.entries[0]?.bytes).toContain(first);
+    });
 });

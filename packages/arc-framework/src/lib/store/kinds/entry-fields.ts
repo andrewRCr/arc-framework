@@ -1,6 +1,6 @@
 /** Shared readers and canonical writers for managed Markdown entry fields. */
 import { createHash } from "node:crypto";
-import { maskComments } from "../concurrency/entries.js";
+import { entryContentEnd, maskComments } from "../concurrency/entries.js";
 export { drawId as drawEntryId } from "../concurrency/stamp.js";
 
 /** Fields owned by the shared entry grammar, including compatibility-only disposition. */
@@ -67,18 +67,19 @@ export function readRemovalTrigger(raw: string): string | undefined {
  */
 export function writeRemovalTrigger(trigger: string): string { return `_Remove when: ${trigger.replace(/\.$/u, "")}._`; }
 /** Write supplied fields in a leading group, retaining all other prose and fields.
- * @param raw - Heading entry.
+ * @param raw - Heading entry bytes, excluding surrounding document comments.
  * @param fields - Fields to replace or remove (undefined).
  * @returns Entry with canonical managed bullets before its prose.
  */
 export function writeEntryFields(raw: string, changes: Readonly<Record<string, string | undefined>>): string {
   const newline = raw.includes("\r\n") ? "\r\n" : "\n";
-  const { header, body: rawBody } = entryFieldHeader(raw);
+  const initial = entryFieldHeader(raw);
   const fields = { ...fieldsOnLines(maskComments(raw).split("\n").slice(1)), ...changes };
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined && !validEntryFieldValue(field, value)) throw new Error(`Invalid ${field} entry value: ${value}`);
   }
-  const body = withoutVisibleLines(rawBody, (line) => fieldOnLine(line) !== undefined).split("\n");
+  const kept = attachTrailingEntryComments(initial.header, withoutVisibleLines(initial.body, (line) => fieldOnLine(line) !== undefined), newline);
+  const body = kept.body.split("\n");
   while (body[0]?.trim() === "") body.shift();
   const bodyText = body.join("\n");
   const openComment = bodyText.lastIndexOf("<!--") > bodyText.lastIndexOf("-->");
@@ -87,7 +88,13 @@ export function writeEntryFields(raw: string, changes: Readonly<Record<string, s
   const managed = Object.entries(fields).filter(([field, value]) => field !== "Disposition" && value !== undefined)
     .sort(([a], [b]) => Number(a === "Id") - Number(b === "Id"))
     .map(([field, value]) => `- _${field}:_ \`${value}\``);
-  return [header, ...disposition, ...managed].join(newline) + (body.length ? `${newline}${newline}${body.join("\n")}` : "");
+  return [kept.header, ...disposition, ...managed].join(newline) + (body.length ? `${newline}${newline}${body.join("\n")}` : "");
+}
+
+function attachTrailingEntryComments(header: string, body: string, newline: string): { header: string; body: string } {
+  const commentAt = entryContentEnd(body);
+  if (commentAt === body.length) return { header, body };
+  return { header: `${header}${newline}${body.slice(commentAt).trimEnd()}`, body: body.slice(0, commentAt) };
 }
 
 function entryFieldHeader(raw: string): { header: string; body: string } {
