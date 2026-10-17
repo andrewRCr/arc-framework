@@ -1,13 +1,16 @@
 /** Registered session status waits for the operational pull before selecting its frame. */
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { StoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
-import { writeMetaOwner } from "../../src/lib/store/kinds/meta/writers.js";
+import { renderMetaFile, writeMetaOwner } from "../../src/lib/store/kinds/meta/writers.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { CompactionSeedSchema } from "../../src/lib/compaction-seed/schema.js";
+import { resolveTaskListCursor } from "../../src/lib/task-list/cursor.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
@@ -39,13 +42,13 @@ async function fixture(remoteSync = "enabled") {
   return { ...h, cwd, meta };
 }
 
-async function session(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPort) {
+async function session(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPort, writeSeed = false) {
   const cwd = process.cwd(), exit = process.exitCode;
   let output = "";
   const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
   try {
     binding.store = h.store; binding.sync = sync; process.chdir(h.cwd); process.exitCode = undefined;
-    await dispatchRegisteredCli(["--no-input", "status", "--session-init", "--json"]);
+    await dispatchRegisteredCli(["--no-input", "status", "--session-init", "--json", ...(writeSeed ? ["--write-compaction-seed"] : [])]);
     expect(process.exitCode, output).toBeUndefined();
     return JSON.parse(output);
   } finally { binding.store = null; binding.sync = null; out.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
@@ -67,6 +70,35 @@ it("returns the refreshed owner when base-distance work runs during a delayed pu
   expect(result.active).toMatchObject({ ok: true, value: { resolution: "single" } });
 }, 30_000);
 
+it("pairs the saved task cursor with its exact state when task and unrelated state change during frame acquisition", async () => {
+  const h = await fixture("disabled");
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: renderMetaFile("demo", { state: "Active", owner: "alice", currentWorkflow: "process-task-loop", taskList: "tasks-demo.md" }) }),
+    provenance: { verb: "activate", lifecycleAction: "activate" } }));
+  const tasks = await h.seed(recordReferences["work-item/task-list"](h.meta.reference.owner), "# Tasks\n\n## **Phase 1:** Work\n\n### `[ ]` **1.1 Continue**\n");
+  const anchor = lifecycleSuccess(await h.store.version()), read = h.store.read.bind(h.store);
+  let changed = false;
+  vi.spyOn(h.store, "read").mockImplementation(async input => {
+    const result = await read(input);
+    if (!changed && input.reference.kind === "work-item/task-list") {
+      changed = true;
+      lifecycleSuccess(await h.store.write({ ...recordPut(tasks, { content: tasks.content.replace("[ ]", "[x]") }), provenance: { verb: "task-mark", lifecycleAction: "task-mark" } }));
+      await h.seed(recordReferences["personal/working-memory"](OwnerIdentitySchema.parse({ type: "person", name: "alice" })), "# Memory\n\n## Memories\n");
+    }
+    return result;
+  });
+  const head = (await makeGitExec(h.cwd)("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const result = await session(h, createStoreSyncPort({ pull: async () => { throw new Error("Disabled synchronization was invoked"); } }), true);
+  expect(changed).toBe(true);
+  expect(result.compactionSeedWrite).toMatchObject({ status: "written" });
+  const seed = CompactionSeedSchema.parse(JSON.parse(await readFile(join(h.cwd, ".arc/user/alice/.internal/compaction-seed.json"), "utf8")));
+  const saved = lifecycleSuccess(await read({ reference: tasks.reference, asOf: seed.stateVersion ?? undefined }));
+  expect(resolveTaskListCursor(saved.content)).toMatchObject({ status: "found", cursor: seed.taskCursor });
+  expect(seed.stateVersion).toBe(anchor);
+  expect(seed.head).toBe(head);
+  expect(seed.taskCursor?.leaf.id).toBe("1.1");
+  expect(resolveTaskListCursor(lifecycleSuccess(await read({ reference: tasks.reference })).content)).toEqual({ status: "no-open-task" });
+}, 30_000);
+
 it("keeps a failed pull in the user slot while deriving the local frame", async () => {
   const h = await fixture();
   const result = await session(h, createStoreSyncPort({ pull: async () => { throw new Error("State pull failed"); } }));
@@ -80,4 +112,35 @@ it("does not pull when session remote synchronization is disabled", async () => 
   const result = await session(h, createStoreSyncPort({ pull: async () => { throw new Error("Disabled synchronization was invoked"); } }));
   expect(result.user).toEqual({ ok: true, value: null });
   expect(result.derivedLocusState).toMatchObject({ ok: true, value: { active: { context: { owner: "alice" } } } });
+}, 30_000);
+
+it("keeps metadata from the captured state when its owner changes between listing and record acquisition", async () => {
+  const h = await fixture("disabled"), list = h.store.list.bind(h.store);
+  let changed = false;
+  vi.spyOn(h.store, "list").mockImplementation(async input => {
+    const result = await list(input);
+    if (!changed && input.kind === "work-item/meta") {
+      changed = true;
+      lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaOwner(h.meta.content, SlugSchema.parse("bob")) }), provenance: { verb: "handoff", lifecycleAction: "handoff" } }));
+    }
+    return result;
+  });
+  const result = await session(h, createStoreSyncPort());
+  expect(changed).toBe(true);
+  expect(result.derivedLocusState).toMatchObject({ ok: true, value: { active: { context: { owner: "alice" } } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).content).toContain("`bob`");
+}, 30_000);
+
+it("surfaces an unavailable captured record and restores the ordinary frame after history repair", async () => {
+  const h = await fixture("disabled"), read = h.store.read.bind(h.store);
+  let broken = true;
+  vi.spyOn(h.store, "read").mockImplementation(async input => broken && input.asOf !== undefined && input.reference.kind === "work-item/meta"
+    ? { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [], condition: "Captured work-unit history is unavailable.", remedy: { text: "Restore that history and retry session status." } } }
+    : read(input));
+  const refused = await session(h, createStoreSyncPort());
+  expect(refused.derivedLocusState).toMatchObject({ ok: true, value: { entering: { row: { kind: "unresolved-checkout" } } } });
+  expect(JSON.stringify(refused.derivedLocusState)).toMatch(/restore.*retry/iu);
+  broken = false;
+  const repaired = await session(h, createStoreSyncPort());
+  expect(repaired.derivedLocusState).toMatchObject({ ok: true, value: { active: { context: { owner: "alice" } } } });
 }, 30_000);

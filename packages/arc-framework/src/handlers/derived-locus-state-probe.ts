@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { resolveArcPath } from "../lib/layout/index.js";
 
 import type { Store } from "../lib/store/contract.js";
+import type { StateVersion } from "../lib/store/identity.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { createProjectIdentityReader } from "../lib/store/project-identity.js";
@@ -36,6 +37,30 @@ export interface DerivedLocusStateProbeOptions {
   readonly identity: string;
   readonly baseBranch: string;
   readonly exec: GitExec;
+}
+
+/** A frame and the operational anchor used for its record projections. */
+export interface DerivedLocusStateSnapshot { frame: DerivedLocusFrame; stateVersion: StateVersion | null }
+
+/** Capture an off-branch read snapshot before acquiring the frame, preserving legacy reads and refused-version fallback. */
+export async function readDerivedLocusStateSnapshot(options: DerivedLocusStateProbeOptions): Promise<DerivedLocusStateSnapshot> {
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
+  const version = store.capabilities.stateOffBranch ? await store.version() : null;
+  const stateVersion = version?.status === "ok" ? version.result : null;
+  const selected = stateVersion === null ? store : storeAtVersion(store, stateVersion);
+  const frame = await runDerivedLocusStateProbe({ ...options, store: selected });
+  return { frame, stateVersion };
+}
+
+function storeAtVersion(store: Store, stateVersion: StateVersion): Store {
+  return {
+    capabilities: store.capabilities,
+    read: input => store.read({ ...input, asOf: input.asOf ?? stateVersion }),
+    list: input => store.list({ ...input, asOf: input.asOf ?? stateVersion }),
+    version: () => Promise.resolve({ status: "ok", result: stateVersion }),
+    lookup: input => store.lookup(input), history: input => store.history(input), changes: input => store.changes(input),
+    write: input => store.write(input), batch: input => store.batch(input), sync: () => store.sync(),
+  };
 }
 
 const DELIVERY_CORRECTION_STATUS_BY_ENTRY_STATUS = {

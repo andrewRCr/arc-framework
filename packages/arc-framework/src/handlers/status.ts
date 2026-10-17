@@ -5,6 +5,7 @@ import { withPausedCurrentWuActions } from "../lib/session-init/paused-current-w
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { createStoreSessionProbes } from "./status/store-session.js";
 import { createProjectIdentityReader } from "../lib/store/project-identity.js";
+import type { Store } from "../lib/store/contract.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -86,7 +87,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { revalidateDecodedHuskRetirementEvidenceStrict } from "../lib/work-unit/teardown-retirement-driver.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
-import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import { readDerivedLocusStateSnapshot, runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import { requireArcProjectRoot } from "./shared.js";
 import {
   createSessionRemoteContextReader,
@@ -234,27 +235,29 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     remoteSyncEnabled: async () =>
       (await resolvedSettingsP).settings["session.remote_sync"] === "enabled",
   });
-  const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
-  const getDerivedLocusState = (
+  const derivedLocusStatePromises = new Map<string, ReturnType<typeof readDerivedLocusStateSnapshot>>();
+  const getDerivedLocusStateSnapshot = (
     id: string,
-  ): ReturnType<typeof runDerivedLocusStateProbe> => {
+  ): ReturnType<typeof readDerivedLocusStateSnapshot> => {
     let pending = derivedLocusStatePromises.get(id);
     if (pending === undefined) {
       pending = (async () => {
         // The user slot owns pull failures; sibling probes can still read local state.
         if (stateOffBranch) await getStoreUser().catch(() => null);
         const resolved = await resolvedSettingsP;
-        return runDerivedLocusStateProbe({
+        return readDerivedLocusStateSnapshot({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
-          exec, store, projectId,
+          exec, store,
         });
       })();
       derivedLocusStatePromises.set(id, pending);
     }
     return pending;
   };
+  const getDerivedLocusState = (id: string): ReturnType<typeof runDerivedLocusStateProbe> =>
+    getDerivedLocusStateSnapshot(id).then(snapshot => snapshot.frame);
   const getOptionalDerivedFrame = async () => {
     if (identity === null) return null;
     try {
@@ -916,23 +919,8 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     : (await userSurfacesFor(identity)).workingMemoryPath;
   const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath, stateOffBranch });
   if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
-    try {
-      const gitSnapshot = await compactionSeedGitSnapshotP;
-      result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
-        cwd,
-        exec,
-        envelope: result,
-        gitSnapshot, store,
-      }));
-      surfaceCompactionSeedWrite(result.compactionSeedWrite);
-    } catch (err) {
-      result.compactionSeedWrite = {
-        status: "failed",
-        reason: "git-failed",
-        message: errorMessage(err),
-      };
-      surfaceCompactionSeedWrite(result.compactionSeedWrite);
-    }
+    await writeSessionCompactionSeed({ cwd, exec, store, result, gitSnapshot: compactionSeedGitSnapshotP,
+      snapshot: derivedLocusStatePromises.get(identity ?? "") });
   }
   assertSessionInitProbeResult(result);
   if (json) {
@@ -943,4 +931,20 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
   p.note(buildSessionInitStatusSummary(result), "Session Init");
   p.outro("Done.");
   return;
+}
+
+async function writeSessionCompactionSeed(input: {
+  cwd: string; exec: GitExec; store: Store; result: Awaited<ReturnType<typeof runSessionInitStatus>>;
+  gitSnapshot: ReturnType<typeof readCompactionSeedGitSnapshot>; snapshot?: ReturnType<typeof readDerivedLocusStateSnapshot>;
+}): Promise<void> {
+  try {
+    const [gitSnapshot, snapshot] = await Promise.all([input.gitSnapshot, input.snapshot?.catch(() => undefined)]);
+    input.result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
+      cwd: input.cwd, exec: input.exec, envelope: input.result, gitSnapshot, store: input.store,
+      ...(input.store.capabilities.stateOffBranch ? { stateVersion: snapshot?.stateVersion ?? null } : {}),
+    }));
+  } catch (err) {
+    input.result.compactionSeedWrite = { status: "failed", reason: "git-failed", message: errorMessage(err) };
+  }
+  surfaceCompactionSeedWrite(input.result.compactionSeedWrite);
 }

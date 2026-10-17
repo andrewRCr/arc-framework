@@ -14,6 +14,7 @@ import { createDefaultStorePorts } from "../store/default-ports.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import type { Store } from "../store/contract.js";
+import type { StateVersion } from "../store/identity.js";
 import type { GitExec } from "../git/exec.js";
 import { join } from "node:path";
 
@@ -69,6 +70,8 @@ export interface EmitCompactionSeedOptions {
   now?: () => Date;
   exec?: GitExec;
   store?: Pick<Store, "version">;
+  /** Operational anchor paired with the supplied frame; null preserves an unavailable acquisition. */
+  stateVersion?: StateVersion | null;
 }
 
 /** Result of a seed write attempt. */
@@ -229,15 +232,14 @@ export async function emitCompactionSeed(
     }
   }
   metaPath = projectSeedMetaPath(metaPath);
-  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
-  const version = await store.version();
+  const stateVersion = options.stateVersion === undefined ? await readEmissionStateVersion(options) : options.stateVersion;
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),
     repoRoot: options.cwd,
     branch: options.gitSnapshot.branch,
     head: options.gitSnapshot.head,
-    stateVersion: version.status === "ok" ? version.result : null,
+    stateVersion,
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
@@ -261,6 +263,12 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "write-failed", message: errorMessage(err) };
   }
   return { status: "written", path, seed };
+}
+
+async function readEmissionStateVersion(options: EmitCompactionSeedOptions): Promise<StateVersion | null> {
+  const store = options.store ?? createStore(createDefaultStorePorts({ checkoutRoot: options.cwd, exec: options.exec }));
+  const version = await store.version();
+  return version.status === "ok" ? version.result : null;
 }
 
 function asCompactionSeedSessionType(value: string | null): CompactionSeedSessionType | null {

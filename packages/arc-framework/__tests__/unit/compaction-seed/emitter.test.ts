@@ -1,4 +1,4 @@
-import { StateVersionSchema } from "../../../src/lib/store/identity.js";
+import { StateVersionSchema, type StateVersion } from "../../../src/lib/store/identity.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { join } from "node:path";
 
@@ -243,10 +243,12 @@ async function emit(overrides: {
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
   store?: Pick<Store, "version">;
+  stateVersion?: StateVersion | null;
 } = {}) {
   return emitCompactionSeed({
     cwd: "/repo",
     store: overrides.store ?? { version: async () => ({ status: "ok", result: StateVersionSchema.parse("state-distinct-from-code") }) },
+    ...(overrides.stateVersion === undefined ? {} : { stateVersion: overrides.stateVersion }),
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
       branch: overrides.snapshotBranch ?? "feat/compaction-recovery",
@@ -329,6 +331,11 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it.each([StateVersionSchema.parse("captured-before-task-update"), null])("retains a paired frame anchor %j when state advances before emission", async stateVersion => {
+    const result = await emit({ stateVersion, store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("advanced-after-task-update") }) } });
+    expect(result).toMatchObject({ status: "written", seed: { stateVersion, taskCursor: CURSOR.cursor,
+      currentWorkflow: "process-task-loop", head: "72d145021bf4166fa70efc5b9fd11916cf0a359a" } });
+  });
   it("records an independent state version beside the explicit code baseline under the advanced schema", async () => {
     const result = await emit();
     expect(result).toMatchObject({ status: "written", seed: { schemaVersion: 2,
