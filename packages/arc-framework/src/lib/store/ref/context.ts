@@ -4,6 +4,7 @@ import type { GitExecOptions, GitExecInput, RawGitExec } from "../../git/exec.js
 import { withGitVersionFloor } from "../../git/version-floor.js";
 import type { RefStorePorts } from "../ports.js";
 import { createKindRegistry } from "../registry.js";
+import { parseProjectIdentity } from "./project-identity.js";
 import { validateRefAnchors } from "./anchor-registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 
@@ -14,7 +15,12 @@ export interface RefBackendContext extends RefStorePorts {
 
 /** Bind failure-time checks and pure defaults without invoking any dependency. */
 export function createRefBackendContext(ports: RefStorePorts): RefBackendContext {
-  const registry = ports.registry ?? createKindRegistry(PRODUCTION_REGISTRATIONS);
+  const registered = ports.registry ?? createKindRegistry(PRODUCTION_REGISTRATIONS);
+  const identity = registered["project-registry/identity"];
+  const registry = { ...registered, "project-registry/identity": { ...identity, parser: identity.parser ?? ((content: string) => {
+    const data = parseProjectIdentity(content);
+    return data ? { success: true as const, data } : { success: false as const, error: "Invalid project identity" };
+  }) } };
   validateRefAnchors(registry);
   return {
     ...ports, registry,

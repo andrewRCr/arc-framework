@@ -50,7 +50,7 @@ function historicalState(context: RefBackendContext, requested: RecordReference,
   const family = context.registry[requested.kind].family;
   const decoded = family === "lineage" ? decodeReference(context, requested.owner, family, entry.path, metadata, object) : null;
   if (family === "lineage" && (!decoded || !("owner" in decoded))) return { status: "refused", refusal: malformedHistory(requested, "The historical lineage owner cannot be decoded") };
-  const reference = decoded && "owner" in decoded ? decoded : RecordReferenceSchema.parse({ ...requested, owner: refOwner(home.ref, family, metadata) });
+  const reference = decoded && "owner" in decoded ? decoded : RecordReferenceSchema.parse({ ...requested, owner: requested.owner.type === "project" ? requested.owner : refOwner(home.ref, family, metadata) });
   const definition = context.registry[reference.kind];
   const formatVersion = metadata.formats[refFormatKey(reference)] ?? 1;
   if (formatVersion > definition.formatVersion) return { status: "refused", refusal: malformedHistory(reference, "Stored format version is newer than this build supports.") };

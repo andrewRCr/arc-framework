@@ -27,12 +27,12 @@ export function attachOpenConflicts(records: readonly StoreRecord[]): StoreRecor
   const conflicts = records.filter((record) => record.reference.kind.endsWith("/conflict-record"))
     .map((record) => ({ reference: record.reference, target: conflictTarget(new TextEncoder().encode(record.content)) }));
   return records.map((record) => ({ ...record, conflicts: conflicts.filter((conflict) =>
-    conflict.target && sameReference(conflict.target, record.reference)).map((conflict) => conflict.reference) }));
+    conflict.target && matchesTarget(conflict.target, record.reference)).map((conflict) => conflict.reference) }));
 }
 
 function namesTarget(bytes: Uint8Array, target: RecordReference): boolean {
   const record = conflictTarget(bytes);
-  return record !== null && sameReference(record, target);
+  return record !== null && matchesTarget(record, target);
 }
 
 /** Decode the target of a typed conflict independently of its containing path. */
@@ -57,4 +57,11 @@ function conflictTreeEntries(tree: BatchObject): { key: string; oid: string }[] 
     cursor = end + 1 + oidBytes;
   }
   return entries;
+}
+
+function matchesTarget(record: RecordReference, target: RecordReference): boolean {
+  if (record.owner.type === "project" && target.owner.type === "project" && !record.owner.uid && record.owner.name === target.owner.name) {
+    return sameReference({ ...record, owner: target.owner }, target);
+  }
+  return sameReference(record, target);
 }

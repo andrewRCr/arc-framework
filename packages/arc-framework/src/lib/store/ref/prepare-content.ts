@@ -1,4 +1,5 @@
 /** Pure parser admission and content preparation shared by local writes and import. */
+import { checkProjectIdentity } from "./project-identity.js";
 import type { RecordReference, RecordVersion } from "../identity.js";
 import type { KindDefinition, EntryConfig } from "../registry.js";
 import type { KindId } from "../catalog.js";
@@ -10,6 +11,8 @@ import { maskComments } from "../concurrency/entries.js";
 /** Prepare incoming bytes before owner resolution, retaining their original mutation basis. */
 export function prepareRefPut(reference: RecordReference, expected: RecordVersion | null, content: string,
   registry: Readonly<Record<KindId, KindDefinition>>): StoreResult<string> {
+  const identity = checkProjectIdentity(reference, content);
+  if (identity) return { status: "refused", refusal: identity };
   const kind = registry[reference.kind];
   const parsed = kind.parser?.(content);
   if (parsed?.success === false) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",

@@ -21,6 +21,7 @@ import { refFormatKey } from "./format-key.js";
 import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { expandStoredPath } from "../stored-path.js";
 import { checkRefWrites } from "./write-checks.js";
+import { bindProjectMutations } from "./project-identity.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
@@ -29,6 +30,13 @@ type RefGroup = RefWriteGroup;
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
   provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | "retry" | "resolve"> {
+  const project = await bindProjectMutations(context, resolved.writes.map(({ mutation }) => mutation), resolved.tips);
+  if (project.status === "refused") return project;
+  resolved = { ...resolved, writes: resolved.writes.map((write, index) => {
+    const mutation = project.result[index];
+    if (!mutation) throw new Error("A project-bound mutation is missing");
+    return { ...write, mutation };
+  }) };
   const loaded = await readWriteGroups(context, resolved);
   if (loaded.status === "refused") return loaded;
   const groups = loaded.result;

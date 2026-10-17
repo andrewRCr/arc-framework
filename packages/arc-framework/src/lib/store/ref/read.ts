@@ -14,6 +14,7 @@ import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
+import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity } from "./project-identity.js";
 import { resolveLineageReadReference } from "./lineage-resolution.js";
 
 /** Read one live record, resolving a slug-only owner through one captured family scan. */
@@ -27,11 +28,16 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   const home = expandStoredPath(reference, { registry: context.registry });
   const tips = await readRefTips(context);
   const tip = tips.get(home.ref);
-  if (!tip) return missing(reference);
+  if (!tip && reference.owner.type !== "project") return missing(reference);
   const recordQuery = `${tip}:${home.path}`;
   const metadataQuery = `${tip}:${home.metadataPath}`;
   const conflictsQuery = `${tip}:${home.root}conflicts`;
-  const objects = await readBatchObjects(context, [metadataQuery, recordQuery, conflictsQuery]);
+  const objects = await readBatchObjects(context, [...(tip ? [metadataQuery, recordQuery, conflictsQuery] : []),
+    ...(reference.owner.type === "project" ? projectIdentityQueries(tips) : [])]);
+  const admitted = projectReadReference(reference, tips, objects);
+  if (admitted.status === "refused") return admitted;
+  reference = admitted.result;
+  if (!tip) return missing(reference);
   const object = objects.get(recordQuery);
   if (object?.type !== "blob") return missing(reference);
   const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
@@ -67,6 +73,7 @@ export async function resolveReadReference(context: RefBackendContext, reference
 export function resolveCapturedOwner(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
   metadata: RefMetadata, object: BatchObject): StoreResult<OwnerIdentity> {
   const family = context.registry[reference.kind].family;
+  if (reference.owner.type === "project") return { status: "ok", result: reference.owner };
   if (family !== "lineage") return { status: "ok", result: refOwner(home.ref, family, metadata) };
   const decoded = decodeReference(context, reference.owner, family, home.path, metadata, object);
   if (!decoded || !("owner" in decoded)) return { status: "refused", refusal: {
@@ -89,13 +96,22 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
   const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)));
   if (tips.size === 0) return { status: "ok", result: { status: "absent", asOf } };
   const trees = await readRefTrees(context, tips);
-  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid)))]);
+  const projectFamily = input.family === "project-inbox" || input.family === "project-registry";
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid))),
+    ...(projectFamily ? projectIdentityQueries(captured) : [])]);
+  const project = projectFamily ? projectListingBinding(projectOwnerFromObjects(captured, objects)) : undefined;
+  if (project && !project.diagnostic) {
+    const admitted = projectListInput(input, project.owner);
+    if (admitted.status === "refused") return admitted;
+    input = admitted.result;
+  }
   const groups = [...tips.keys()].map((ref) => {
     const entries = trees.get(ref);
-    return entries ? decodeCapturedRef(context, input, ref, entries, objects) : unreadableRef(ref);
+    return entries ? decodeCapturedRef(context, input, ref, entries, objects, undefined, project?.owner) : unreadableRef(ref);
   });
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
+  if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
   if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
     remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
@@ -106,7 +122,7 @@ interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnosti
 
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
-  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata): DecodedRecords {
+  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity): DecodedRecords {
   if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
@@ -115,7 +131,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
   if (entries.every((entry) => entry.path === home.metadataPath || isManifestPath(home, entry.path))) return { records, diagnostics };
   const metadata = metadataOverride ?? capturedMetadata(home, entries, objects);
   if (!("formats" in metadata)) return metadata;
-  const owner = refOwner(ref, input.family, metadata);
+  const owner = projectOwner ?? refOwner(ref, input.family, metadata);
   for (const entry of entries) {
     if (entry.path === home.metadataPath || isManifestPath(home, entry.path)) continue;
     const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata);
@@ -136,7 +152,12 @@ function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner
   if (object?.type !== "blob") return recordDiagnostic(entry.path, {
     kind: "unreadable", condition: "The stored blob is not available locally",
   });
-  return decodeRecord(context, reference, object, metadata, entry.path);
+  const record = decodeRecord(context, reference, object, metadata, entry.path);
+  if ("reference" in record) {
+    const invalid = checkProjectIdentity(reference, new TextDecoder().decode(object.bytes));
+    if (invalid) return recordDiagnostic(entry.path, { kind: "malformed", condition: invalid.condition });
+  }
+  return record;
 }
 
 function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry[],
@@ -185,4 +206,11 @@ function missing(reference: RecordReference, condition = "The record is not pres
 
 function isManifestPath(home: StoredRecordHome, path: string): boolean {
   return path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath);
+}
+
+function projectReadReference(reference: RecordReference, tips: ReadonlyMap<string, string>,
+  objects: ReadonlyMap<string, BatchObject | null>): StoreResult<RecordReference> {
+  if (reference.owner.type !== "project") return { status: "ok", result: reference };
+  const owner = projectOwnerFromObjects(tips, objects);
+  return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
 }

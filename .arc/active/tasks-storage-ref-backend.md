@@ -535,31 +535,23 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   Unchanged anchors and earlier manifests remain reachable, including empty trees. Public real-Git cases fetch only
   the owning ref, resolve its token, and cover atomic refusal plus repaired retries for unavailable manifests/subtrees.
 
-### `[ ]` **5.10 The project owner and its identity record — § 3.2**
+### `[x]` **5.10 The project owner and its identity record — § 3.2**
 
 - _Goal:_ A store holds one project, whose ID exists only once its create-only identity record does, and no reference to
   another project shares its paths.
 
-    - The identity record is a never-projected kind, so its content is stored in `canonicalize`'s bytes (§ 3.5) and its
-      check reads the parsed value
-    - Build `test-first` (one behavior at a time):
-        - a project family's listing returns the store's one project owner
-        - a project reference with another name, or a UID not the project ID, refuses `identity-mismatch`
-        - a put of the identity record whose value is anything but `{ "projectId": <lowercase UUID> }` refuses
-          `record-malformed`, and another spelling of that value stores canonical
-        - project references carry no UID before the record exists and the project ID after, as each commit's
-          `Arc-Owner` does from the record's own creating commit
+- _Outcome:_ Project reads, listings, history, batch mutations, check views, and commit owners resolve the registry's
+  identity without extra read/list processes. Backend-owned shape checks preserve canonical JSON and parsed fields;
+  unavailable identity refuses with a repair route, while partial listings retain diagnostics and earlier conflicts.
 
-### `[ ]` **5.10.R Identity removal conformance — § 14.2 (A7)**
+### `[x]` **5.10.R Identity removal conformance — § 14.2 (A7)**
 
 - _Goal:_ Removing the project identity invalidates its UID-bearing handle while the UID-less handle reports absence,
   and shared removal conformance retains recreation coverage without a new fixture exclusion (A7).
 
-    - Change `registerRecordAssertions`' identity-only absence read to use the original fixture handle
-    - Build `test-first` (one behavior at a time):
-        - removing identity returns no version; its expired UID-bearing handle refuses `identity-mismatch`, its UID-less
-          handle refuses `not-found`, and recreating identity succeeds
-        - the shared removal case passes for every served kind without adding an exclusion
+- _Outcome:_ Shared removal conformance uses the original UID-less handle only for identity, retaining its removal
+  and recreation assertions. Real-Git coverage verifies expired UID refusal, UID-less absence, and recreation without
+  adding any fixture exclusion; A7's covering revalidation remains at Task 8.6.
 
 ## **Phase 6:** Lifecycle moves
 

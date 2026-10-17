@@ -5,6 +5,7 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type Re
 import type { Mutation } from "../write.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
+import { bindProjectMutations } from "./project-identity.js";
 import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { checkLiveNamespace } from "./namespace-admission.js";
@@ -33,6 +34,9 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     remedy: { text: "Configure arc.identity, then retry the write." },
   } };
   const tips = await readRefTips(context, { includeHistory: true });
+  const project = await bindProjectMutations(context, writes, tips);
+  if (project.status === "refused") return project;
+  writes = project.result;
   const observed = await readLiveRefOwners(context, tips);
   if (observed.status === "refused") return observed;
   const owners = observed.result;

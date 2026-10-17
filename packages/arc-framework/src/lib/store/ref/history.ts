@@ -6,7 +6,8 @@ import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefTips } from "./batch-read.js";
+import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference } from "./project-identity.js";
+import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
@@ -21,9 +22,16 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
   if (key) return { status: "refused", refusal: key };
   const resolved = await resolveReadReference(context, input.reference);
   if (resolved.status === "refused") return resolved;
-  const reference = resolved.result;
-  const home = expandStoredPath(reference, { registry: context.registry });
+  let reference = resolved.result;
   const tips = await readRefTips(context);
+  if (reference.owner.type === "project") {
+    const owner = projectOwnerFromObjects(tips, await readBatchObjects(context, projectIdentityQueries(tips)));
+    if (owner.status === "refused") return owner;
+    const admitted = admitProjectReference(reference, owner.result);
+    if (admitted.status === "refused") return admitted;
+    reference = admitted.result;
+  }
+  const home = expandStoredPath(reference, { registry: context.registry });
   const tip = tips.get(home.ref);
   return tip ? readRefHistory(context, reference, home, tip) : { status: "ok", result: [] };
 }

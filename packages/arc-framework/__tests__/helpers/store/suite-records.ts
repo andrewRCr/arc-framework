@@ -65,7 +65,8 @@ export function registerRecordAssertions(context: SuiteContext): void {
     const record = await seed(fixture, reference);
     const removed = success(await fixture.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
     expect(removed.version).toBeUndefined();
-    expect(await fixture.store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const absent = reference.kind === "project-registry/identity" ? reference : record.reference;
+    expect(await fixture.store.read({ reference: absent })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     const recreated = await seed(fixture, reference);
     expect(recreated.content).toBe(record.content);
   }, (kind) => !kind.endsWith("/conflict-record"));

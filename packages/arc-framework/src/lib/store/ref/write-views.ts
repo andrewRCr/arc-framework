@@ -7,13 +7,14 @@ import { captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadat
 import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult } from "../refusal.js";
-import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
 import { decodeCapturedRef, resolveCapturedOwner } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { metadataFailure } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
+import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { checkRefKey } from "./path-admission.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
@@ -48,8 +49,15 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   if (FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null) return { status: "ok", result: { status: "absent" } };
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family));
   if (refs.length === 0) return { status: "ok", result: { status: "absent" } };
-  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata));
+  const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewProjectOwner(state)) : undefined;
+  if (project && !project.diagnostic) {
+    const admitted = projectListInput(input, project.owner);
+    if (admitted.status === "refused") return admitted;
+    input = admitted.result;
+  }
+  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner));
   const diagnostics = groups.flatMap(({ diagnostics }) => diagnostics);
+  if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
   if (groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map(({ condition }) => condition).join("; "), remedy: { text: diagnostics.map(({ remedy }) => remedy.text).join(" ") } } };
   return { status: "ok", result: { status: "complete", records: groups.flatMap(({ records }) => records), diagnostics, missed: diagnostics.length > 0 } };
@@ -59,21 +67,20 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   let reference = input.reference;
   const invalid = checkRefKey(reference, context.registry);
   if (invalid) return { status: "refused", refusal: invalid };
+  const project = viewProjectReference(state, reference);
+  if (project.status === "refused") return project;
+  reference = project.result;
   if (reference.owner.type === "person" && await context.identity() === null) return missing(reference, "Configure arc.identity before reading person-owned state.");
-  if (needsOwnerLookup(reference)) {
-    const query = reference.kind.startsWith("lineage/") ? { kind: "lineage" as const, origin: reference.owner.name }
-      : { kind: "slug" as const, slug: reference.owner.name };
-    const found = lookupView(context, state, query);
-    if (found.status === "refused") return found;
-    reference = RecordReferenceSchema.parse({ ...reference, owner: found.result.reference.owner });
-  }
+  const resolved = resolveViewOwner(context, state, reference);
+  if (resolved.status === "refused") return resolved;
+  reference = resolved.result;
   let home = expandStoredPath(reference, { registry: context.registry });
   const group = state.refs.get(home.ref);
   if (!group) return missing(reference);
   const family = context.registry[reference.kind].family;
   const metadata = viewRefMetadata(context, state, home.ref, family);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
-  if (family !== "lineage") {
+  if (family !== "lineage" && reference.owner.type !== "project") {
     reference = RecordReferenceSchema.parse({ ...reference, owner: refOwner(home.ref, family, metadata) });
     home = expandStoredPath(reference, { registry: context.registry });
   }
@@ -85,8 +92,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
-  const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata);
-  const conflicts = listed.records.find((record) => sameReference(record.reference, reference))?.conflicts ?? [];
+  const conflicts = viewOpenConflicts(context, state, home, reference);
   const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
@@ -99,4 +105,35 @@ function needsOwnerLookup(reference: RecordReference): boolean {
 function missing(reference: RecordReference, condition = "The record is absent from this captured view."): StoreResult<never> {
   return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference, condition,
     remedy: { text: "Create the record or settle the batch's reference, then retry." } } };
+}
+
+function viewProjectOwner(state: RefViewState): StoreResult<OwnerIdentity> {
+  const registry = state.refs.get("refs/arc/project/registry");
+  if (registry && !registry.entries) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: "refs/arc/project/registry", condition: "The captured registry tree is unavailable.",
+    remedy: { text: "Restore or fetch the registry objects, then retry." } } };
+  return projectOwnerFromEntries(registry?.entries ?? [], state.objects);
+}
+
+function viewProjectReference(state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {
+  if (reference.owner.type !== "project") return { status: "ok", result: reference };
+  const owner = viewProjectOwner(state);
+  return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
+}
+
+function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home: StoredRecordHome, reference: RecordReference): RecordReference[] {
+  const group = state.refs.get(home.ref);
+  if (!group) throw new Error("A checked record has no captured ref group");
+  const family = context.registry[reference.kind].family;
+  const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata,
+    reference.owner.type === "project" ? reference.owner : undefined);
+  return listed.records.find((record) => sameReference(record.reference, reference))?.conflicts ?? [];
+}
+
+function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {
+  if (!needsOwnerLookup(reference)) return { status: "ok", result: reference };
+  const query = reference.kind.startsWith("lineage/") ? { kind: "lineage" as const, origin: reference.owner.name }
+    : { kind: "slug" as const, slug: reference.owner.name };
+  const found = lookupView(context, state, query);
+  return found.status === "refused" ? found : { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner: found.result.reference.owner }) };
 }
