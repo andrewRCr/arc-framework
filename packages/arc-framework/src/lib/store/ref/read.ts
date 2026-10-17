@@ -47,7 +47,8 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
     condition: record.condition, remedy: record.remedy } };
 }
 
-async function resolveReadReference(context: RefBackendContext, reference: RecordReference): Promise<StoreResult<RecordReference>> {
+/** Resolve a live reference before choosing its containing ref and stored path. */
+export async function resolveReadReference(context: RefBackendContext, reference: RecordReference): Promise<StoreResult<RecordReference>> {
   if (reference.owner.type === "person" && await context.identity() === null) {
     return missing(reference, "No arc.identity is configured for person-owned state", "Configure arc.identity, then retry.");
   }

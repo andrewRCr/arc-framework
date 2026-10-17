@@ -475,26 +475,15 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   admission, puts, removals, and fixture fault planting agree, preserving independent initial and newer formats and
   other origins' versions. Unsupported formats remain per-origin diagnostics with a supporting-registry retry.
 
-### `[ ]` **5.4 `history` follows a record — § 3.1, § 3.6**
+### `[x]` **5.4 `history` follows a record — § 3.1, § 3.6**
 
 - _Goal:_ `history` returns a record's versions as its own ref's log holds them, every one a commit where the record's
   version or presence changed, so a stale base finds the version it names.
 
-    - One path-limited `git rev-list --full-history --parents` over every path the record has had and its ref's metadata
-      file, keeping a commit only where the record's version or presence differs from its parent's, ordered from
-      `--parents` with the local side first; renames and role changes extend the path set in 6.6, and merges order in 9.2
-    - Resolve a slug-only lineage reference through 5.3's live-owner and registry-map resolver before selecting its log
-    - Each entry's provenance takes `ownerUid` from the record's own reference, read from the tree, since one commit can
-      hold several owners' records
-    - Build `test-first` (one behavior at a time):
-        - Integration tier
-        - a record's writes list newest first with their content, versions, and provenance
-        - a metadata-only write to the primary lists as the primary's entry with unchanged content, and as no entry of
-          the owner's other records
-        - a removal lists with a null version and content
-        - a registry commit holding a project counter and a work item's lineage record gives each record's entry its own
-          owner's UID
-        - a Candidate record over the size cap reads back through `history`
+- _Outcome:_ `readRefHistory` compares path-limited commit snapshots by each record's own version and presence,
+  retaining repeated versions, metadata-only primary changes, removals, and per-record owner provenance. Batched
+  literal-path tree reads distinguish unavailable blobs from absence; restoration resumes the query. Historical
+  bytes bypass current semantic parsers, and legacy commit messages remain verbatim.
 
 ### `[ ]` **5.5 Stale bases, merges, and no-op rewrites — § 3.7, § 5.2**
 

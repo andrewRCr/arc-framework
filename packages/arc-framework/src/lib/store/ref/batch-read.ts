@@ -59,8 +59,8 @@ function parseBatch(bytes: Uint8Array, queries: readonly string[]): Map<string, 
   return objects;
 }
 
-/** Resolve every tip's root tree, then enumerate all trees in one recursive diff process. */
-export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<Map<string, RefTreeEntry[]>> {
+/** Resolve each tip's root tree and enumerate it, optionally limited to literal paths. */
+export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, paths?: readonly string[]): Promise<Map<string, RefTreeEntry[]>> {
   const pairs = [...tips];
   const queries = pairs.map(([, tip]) => `${tip}^{tree}`);
   const { stdout } = await context.rawExec(["cat-file", "--batch-check"], {
@@ -72,7 +72,7 @@ export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap
   });
   if (trees.length !== pairs.length) throw new Error("Incomplete tree batch-check response");
   const input = trees.filter((tree): tree is string => tree !== null).map((tree) => `${emptyTree(tree.length)} ${tree}\n`).join("");
-  const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-z"], {
+  const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(input),
   });
   const byTree = parseTreeDiff(result.stdout);

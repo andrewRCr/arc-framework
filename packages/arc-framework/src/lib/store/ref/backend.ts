@@ -6,6 +6,7 @@ import { createRefBackendContext, type RefBackendContext } from "./context.js";
 import { refStateVersion } from "./manifest.js";
 import { readRefRecord, listRefRecords } from "./read.js";
 import { writeRefRecord, batchRefRecords } from "./write.js";
+import { historyRefRecord } from "./history.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
 export function createRefBackend(ports: RefStorePorts): Store {
@@ -15,7 +16,7 @@ export function createRefBackend(ports: RefStorePorts): Store {
     read: (input) => readRefRecord(context, input), list: (input) => listRefRecords(context, input),
     write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
-    history: pending("history", context), changes: pending("changes", context), lookup: pending("lookup", context),
+    history: (input) => historyRefRecord(context, input), changes: pending("changes", context), lookup: pending("lookup", context),
     pull: pending("pull", context), push: pending("push", context), maintain: pending("maintain", context),
   };
 }
