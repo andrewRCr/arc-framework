@@ -496,4 +496,82 @@
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Run the full destructive CLI matrix with the flipped backend before release**
+
+- _Routed from:_ `seam-locus` terminal verification, 2026-10-16.
+
+- _Shapes:_ § Scope's scratch-repository rehearsal and pre-release validation of the actual backend flip.
+
+- _Observation:_ the current production executable selects the in-repo backend. `seam-locus`'s A17 proves dormant
+  destructive success and repaired continuation through registered CLI-generated handler inputs, the reference Store,
+  and real Git; its built-CLI scenarios prove pre-flip refusals. That split leaves successful execution through the
+  actual flipped built CLI unproven. The full 14-group matrix is in `notes-seam-locus.md` § Destructive-path
+  verification and flip release checks; the obligation belongs to the work unit that controls the flip.
+
+- _Required check:_ run every group below in scratch repositories through a spawned built CLI selecting the real
+  flipped backend and production ports, before releasing the flip. Cover success, each material refusal, and successful
+  continuation after repair. Retain command results and observable record, UID, marker, checkout, code-ref, and personal
+  byte outcomes. Handler/provider success does not discharge this check. Keep current handler-versus-built-CLI evidence
+  labeled separately; the templates locate existing scenarios rather than asserting a live flipped-backend pass.
+
+- _Matrix:_ paths for the templates are under `packages/arc-framework/__tests__/integration/`, unless identified as
+  unit/provider coverage in `notes-seam-locus.md`.
+
+    1. cold/named start and default bound lifecycle ports: One Planning Store primary; anchored marker/editor excludes
+        only in checkout; HEAD/base unmoved; held/former/Errand name and second marker refuse before writes; repaired
+        retry; default ports and rebind preserved. Templates: start-cold-store; lifecycle-default-locus-ports;
+        lifecycle-marker-occupancy; executor-context.
+    2. graduate/materialize/rename/teardown: Occupied marker refuses before Git; materialize existing
+        local/remote/branchless work and --here; rename follows marker holder; completed anchored teardown clears marker
+        and retains adopted resources as specified. Templates: lifecycle-default-locus-ports;
+        lifecycle-marker-occupancy; materialize-store-cli; materialize-store; corresponding work-unit verb units.
+    3. locus release anchored/spawned: Live owned marker refuses until pause; anchored release preserves dirty files and
+        record; spawned dirty/unpreserved detached commits refuse; repair then removes only intended
+        checkout/registration; fresh marker generation required. Templates: locus-release; session-cli-repair release
+        case; unit/locus/release.
+    4. inbox + route insertion/move/carry: Listed stable ID/version; atomic source removal/destination insert/both
+        receipts; stale version stays; racing edit lists survivor with derived home; failed carry preserves both;
+        repaired carry replaces intended owner entry only. Templates: inbox-cli-dispatch; inbox-cli-repair; lib/inbox
+        route/mover/survivor/receipt units.
+    5. errand queue and queue set: Queue IDs/ranks resolve listed entries; duplicate IDs refuse unchanged Store;
+        repaired stdin accepted; ineligible members reported; selected start consumes only chosen queue member.
+        Templates: inbox-cli-repair; inbox-cli-dispatch; queue/queue-ranks/offer units.
+    6. full/partial open + link: Project queued capture moves into description with date/ID and leaves queue; text
+        description minted; link appends actual capture; correct real branch/marker; partial origin binds listed
+        version. Templates: inbox-cli-dispatch; R adoption/batch units.
+    7. Errand leave and rematerialize: Dirty checkout refusal preserves bytes and record; real preservation permits
+        pause and exact checkout removal; missing code ref refuses unchanged; restored code permits the same UID/claim
+        and saved HEAD to resume. Templates: errand-preservation-store-cli.
+    8. abandon and failed-open rollback: Full abandon returns receipt-selected source; collision names version-bound
+        carry repair and leaves data/marker; repaired carry+retry succeeds; partial abandon leaves capture/queue; real
+        provisioning failure returns entry; repaired same-slug retry allocates fresh active description and preserves
+        failed generation. Templates: inbox-cli-repair; errand-open-rollback-cli.
+    9. close and ID/version removal: Partial close removes only observed version after real preservation evidence;
+        edited/later capture retained and replay absent; unchanged full close leaves description/later same-ID capture;
+        actual changed-code landing stores qualified landingCommit; terminal/merge A20 failed claims repair. Templates:
+        inbox-cli-dispatch; inbox-cli-repair; close-store-landing; terminal-authority-store. The last two are
+        provider/selector templates, not an existing complete built CLI host flow.
+    10. promotion: Same UID role replacement, correct authorized checkout/foreign confirmation, branch cut/recovery and
+        exact anchored marker settlement; description/history retained; promoted task-close set includes Errand work.
+        Templates: errand-promote-store-cli; promote-store; promote-store-runtime; integration/errand-promote-store;
+        integration/unclosed-task-commits. Registered-source success covers the primary checkout and both floors;
+        spawned/foreign variants retain runtime/provider coverage.
+    11. personal reconcile --apply / scratch: Managed links change through Store and lookup; stale support refuses
+        before writes; prose/histories unchanged; occupied scratch preserved, owner repairs destination, alias move
+        succeeds without advancing Store version or HEAD. Templates: user-reference-scratch-cli;
+        user-reference-reconcile-store; session-cli-repair scratch case.
+    12. handoff write file/stdin: Actual computed Store/Git anchors; overwrite exact session context; forged
+        anchors/section boundary refusal unchanged state; repaired stdin succeeds; local maintain report only exceeded
+        measurements; post-write maintain failure remains diagnostic. Templates: handoff-write-store; session-cli-repair
+        handoff case; handoff-tripwires.
+    13. identity add/init/join: Selected identity binding before configured identity; pull before read/seed; seed only
+        absent records; warn on reuse; explicit decline/cancel preserves configuration/data; repaired/new choice seeds
+        only selected person. Templates: identity-setup-store-cli; join-store-cli; identity-setup-store;
+        user-personal-store-callers.
+    14. session-init / handoff status / recovery / Candidate orientation: Real backend persisted state supplies slots,
+        asOf task baseline and restate changes; unavailable state rebuild preserves original Git/same subject; mismatch
+        stops; unclosed set and close/resume action appear; exact Store-owned Candidate ignores checkout bytes and
+        repairs missing/conflicted state. Templates: completed-subject-matrix; recovery-state-basis/store-evidence;
+        restate-store; unclosed-task-frame; recovery-unclosed-task-commits; subject-meta-candidate.
+
 ---
