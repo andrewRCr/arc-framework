@@ -5,6 +5,7 @@ import type { Store } from "../store/contract.js";
 import type { StoreSyncPort } from "../store/operational-sync.js";
 import { readStateHistory, StateHistoryRefusal } from "../handoff/state-history.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
+import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 
 /** State continuity outcome reported alongside the read-only audit. */
 export interface RecoveryStateBasis { seed: CompactionSeed; rebuilt: boolean }
@@ -36,12 +37,19 @@ export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; r
     taskCursor: cursor?.ok === true && cursor.value.status === "found" ? cursor.value.cursor : null }) };
 }
 
-function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAuditProbeState, "recoveryFrame">): void {
+function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet">): void {
   if (!recover.recoveryFrame.ok) throw new Error(`Cannot rebuild recovery state: ${recover.recoveryFrame.error.message}`);
   const frame = recover.recoveryFrame.value;
   if (frame.checkoutPath !== seed.locus.checkoutPath || frame.parentCheckoutPath !== seed.locus.parentCheckoutPath
     || frame.checkoutPath !== seed.repoRoot) throw new Error("Cannot rebuild recovery state in another checkout. Resume in the seed's original checkout.");
-  if (seed.activeWorkUnit !== null && (frame.kind !== "resolved" || frame.subject.kind !== "work-unit" || frame.subject.key !== seed.activeWorkUnit)) {
+  const sameWorkUnit = frame.kind === "resolved" && frame.subject.kind === "work-unit" && frame.subject.key === seed.activeWorkUnit;
+  const parentMetas = recover.loadSet.ok ? recover.loadSet.value.entries.flatMap(entry => {
+    const artifact = identifyWorkUnitArtifactPath(entry.path);
+    return artifact?.artifact === "meta" ? [artifact.slug] : [];
+  }) : [];
+  const sameParentContext = frame.kind === "resolved" && frame.subject.kind !== "work-unit"
+    && seed.locus.parentCheckoutPath !== null && parentMetas.length === 1 && parentMetas[0] === seed.activeWorkUnit;
+  if (seed.activeWorkUnit !== null && !sameWorkUnit && !sameParentContext) {
     throw new Error(`Cannot rebuild recovery state for a different subject. Resume the seed's subject ${seed.activeWorkUnit}.`);
   }
 }
