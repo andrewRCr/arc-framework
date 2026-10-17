@@ -241,7 +241,8 @@ export async function readDerivedLocusRoster(options: {
       && row.subject?.kind === "work-unit" && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle")) {
       const name = evidence.marker.marker.createdFor.name;
       const spawned = evidence.marker.marker.spawnedByArc;
-      row = { ...row, actions: [{ text: noRecordMarkerExit(item.checkout.path, name, spawned),
+      row = { ...row, diagnostics: row.diagnostics.map(diagnostic => ({ ...diagnostic, code: "work-unit-record-missing" })),
+        actions: [{ text: noRecordMarkerExit(item.checkout.path, name, spawned),
         checkout: item.checkout.path, ...(spawned ? { argv: ["arc", "locus", "release", name] } : {}) }] };
     }
     const subjectMeta = activeMeta.kind === "present"

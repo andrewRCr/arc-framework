@@ -21,7 +21,7 @@ import { readDerivedLocusRoster } from "../../../src/lib/locus/derived-reader.js
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
 const base = "a".repeat(40), head = "b".repeat(40);
 const checkout = { path: "/checkout", branch: null, head, detached: true, primary: false, folderPresent: true };
-async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>, merged = true): Promise<RunStaleWorktreeSweepOptions> {
+async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>, merged = true, spawned = true): Promise<RunStaleWorktreeSweepOptions> {
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "worktree") return { stdout: worktreePorcelainZ(`worktree /primary\nHEAD ${base}\nbranch refs/heads/main`) };
     if (args[0] === "cherry") { expect(args).toEqual(["cherry", base, head]); return { stdout: merged ? "" : `+ ${head}\n` }; }
@@ -32,7 +32,7 @@ async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>
     baseBranch: "main", baseEvidence: { remoteSyncEnabled: true, snapshot: { kind: "available", scope: "all-heads", tips: { main: base } }, objectAvailability: { kind: "complete", commits: { [base]: true } }, history: { kind: "complete" } },
     readBlob: async () => null, scanWorktrees: async () => ({ ok: true, worktrees: [checkout] }), folderExists: async () => true,
     userSurfaceFs: { readDir: async () => [], readFile: async () => "", writeFile: async () => {}, mkdir: async () => {} },
-    readMarker: async () => ({ kind: "present", marker: { spawnedByArc: true, wuName: "done", createdFor: { kind: "work-unit", name: "done" }, spawningIdentity: "someone-else", createdAt: "2026-10-14T00:00:00Z" } }) });
+    readMarker: async () => ({ kind: "present", marker: { spawnedByArc: spawned, wuName: "done", createdFor: { kind: "work-unit", name: "done" }, spawningIdentity: "someone-else", createdAt: "2026-10-14T00:00:00Z" } }) });
 }
 
 async function withDerivedRows(input: RunStaleWorktreeSweepOptions): Promise<RunStaleWorktreeSweepOptions> {
@@ -122,8 +122,23 @@ it("offers release for a foreign marked checkout despite the marker's spawning i
   const h = createLifecycleHarness(); await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
   expect((await runStaleWorktreeSweep(await options(h.store))).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
 });
-it("offers release for a marked checkout with no work-unit record", async () => {
-  const h = createLifecycleHarness(); expect((await runStaleWorktreeSweep(await options(h.store))).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+it.each([true, false])("offers release for a marked checkout with no work-unit record (spawned=%s)", async spawned => {
+  const h = createLifecycleHarness(), input = await options(h.store, true, spawned);
+  if (!spawned) {
+    expect(input.derivedRoster?.[0]?.actions?.[0]).toMatchObject({ text: expect.stringMatching(/finish it.*clear the marker/iu) });
+    expect(input.derivedRoster?.[0]?.actions?.[0]).not.toHaveProperty("argv");
+  }
+  expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+});
+it("withholds duplicate anchored cold-start releases and offers release after only one marker remains", async () => {
+  const h = createLifecycleHarness(), original = await options(h.store, true, false);
+  const duplicate = await withDerivedRows({ ...original, scanWorktrees: async () => ({ ok: true, worktrees: [checkout, { ...checkout, path: "/stray" }] }) });
+  const blocked = await runStaleWorktreeSweep(duplicate);
+  expect(blocked.worktrees).toEqual([]);
+  expect(blocked.warnings.join(" ")).toMatch(/multiple marker holders.*release the stray checkout/iu);
+  const repaired = await runStaleWorktreeSweep(await options(h.store, true, false));
+  expect(repaired.worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  expect(repaired.warnings).toEqual([]);
 });
 it("preserves the physical-removal remote gate for ended store records", async () => {
   const h = createLifecycleHarness(); await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
