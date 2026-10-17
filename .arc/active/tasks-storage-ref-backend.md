@@ -1170,18 +1170,14 @@ layouts.
   record creation, replacement, and removal, and malformed-record refusal followed by repair. Competing records come
   from the real no-target producer; the existing killed-process fixtures cover abandoned-holder recovery.
 
-### `[ ]` **13.3 The report a move returns — § 10.5**
+### `[x]` **13.3 The report a move returns — § 10.5**
 
 - _Goal:_ Every move returns one `MigrateReport` of what it wrote, and a `--trial` runs the same build and drops it, so
   a trial's report cannot drift from what its move does.
 
-    - `MigrateReport` as § 10.5 gives it, its `refused` rules and `notices` filled by the moves and the import as they
-      land; a layout move a setting runs returns its report through `runStoreRemote` (13.4.a)
-    - A trial's match with its move is a case of each move that takes `--trial`: the import's in 14.3, and a remote
-      move's, the one that changes the clone's layout among them, in 16.2 and 16.5
-    - Build `test-first` (one behavior at a time):
-        - a layout move the no-target form runs reports every ref it wrote, by scope and person
-        - `--trial` with no target, or with `--leave-source`, refuses `request-invalid`, changing nothing
+- _Outcome:_ Layout reports verify complete ref listings and project/identity scope with the person through both
+  command entries. Invalid no-target and leave-source trial requests preserve refs, roles, and the physical layout;
+  correcting the input permits the no-target move.
 
 ### `[ ]` **13.4 `arc store remote` — § 9.4, § 9.8**
 

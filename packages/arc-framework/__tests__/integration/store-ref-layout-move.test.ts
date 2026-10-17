@@ -68,6 +68,9 @@ describe.each(["migrate", "remote"] as const)("layout round trip through %s", (e
     }
     expect(into.move).toBe("layout");
     expect(into.refs.map(({ ref }) => ref).sort()).toEqual(h.before.map((line) => line.split(" ")[0]).sort());
+    const personal = "refs/arc/user/andrew/personal";
+    expect(into.refs.filter(({ scope }) => scope === "identity")).toEqual([{ ref: personal, scope: "identity", person: "andrew", action: "copy" }]);
+    expect(into.refs.filter(({ ref }) => ref !== personal).every(({ scope, person }) => scope === "project" && person === undefined)).toBe(true);
     const copied = (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout.split("\n").filter(Boolean).sort();
     expect(copied).toEqual(h.before);
     expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/", "refs/arc/history/", "refs/arc-remotes/"])).stdout).toBe("");
@@ -565,4 +568,21 @@ it("gives a clone with no state remote an actionable designation remedy for --to
     remedy: { text: expect.stringContaining("arc store remote") } } });
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "push" })).status).toBe("ok");
   expect(await runStoreMigrate(h.a.ports, { to: "next" })).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
+});
+
+it.each([false, true])("leaves refs, roles, and the physical store unchanged for an invalid trial request, leave source: %s", async (leaveSource) => {
+  const h = await layoutFixture();
+  await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
+  const refs = async () => (await h.a.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout;
+  const config = async () => (await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout;
+  const beforeRefs = await refs(), beforeConfig = await config();
+  const refused = await runStoreMigrate(h.a.ports, { trial: true, ...leaveSource ? { leaveSource: true } : {} });
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "request-invalid", class: "terminal", condition: expect.stringContaining("--trial") } });
+  expect(await refs()).toBe(beforeRefs);
+  expect(await config()).toBe(beforeConfig);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
+  expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+  expect((await h.a.ports.fs.lstat(h.storeDirectory)).isDirectory()).toBe(true);
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
 });
