@@ -363,10 +363,10 @@ publication transition. Public integration follows through `integrate-work-unit.
 
 ## Incidental Work Management
 
-When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline
-(same concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
-[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the
-atomic-vs-multi-step call, capture routing, and where captures drain.
+When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline (same concern), message
+a live work unit's session (its concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the atomic-vs-multi-step call,
+capture routing, and where captures drain.
 
 ### Atomic Task Completion
 
