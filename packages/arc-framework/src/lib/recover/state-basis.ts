@@ -6,6 +6,7 @@ import type { StoreSyncPort } from "../store/operational-sync.js";
 import { readStateHistory, StateHistoryRefusal } from "../handoff/state-history.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
+import type { RecoveryLocusFrame } from "./locus-context.js";
 
 /** State continuity outcome reported alongside the read-only audit. */
 export interface RecoveryStateBasis { seed: CompactionSeed; rebuilt: boolean }
@@ -26,18 +27,18 @@ export async function resolveRecoveryStateBasis(input: { seed: CompactionSeed; r
       if (!(error instanceof StateHistoryRefusal) || error.refusal.code !== "state-unresolvable") throw error;
     }
   }
-  requireOriginalSubject(seed, recover);
-  if (seed.activeWorkUnit === null) return { rebuilt: true, seed: { ...seed, stateVersion: current } };
+  const frame = requireOriginalSubject(seed, recover);
   if (!recover.loadSet.ok) throw new Error(`Cannot rebuild recovery load set: ${recover.loadSet.error.message}`);
   const cursor = recover.taskCursor;
   if (cursor !== undefined && (!cursor.ok || cursor.value.status === "missing" || cursor.value.status === "malformed")) {
     throw new Error("Cannot rebuild recovery state without a readable task cursor. Repair the task list and retry recovery.");
   }
   return { rebuilt: true, seed: CompactionSeedSchema.parse({ ...seed, stateVersion: current, loadSet: recover.loadSet.value,
+    currentWorkflow: frame.workflow, sessionType: frame.sessionType,
     taskCursor: cursor?.ok === true && cursor.value.status === "found" ? cursor.value.cursor : null }) };
 }
 
-function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet">): void {
+function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAuditProbeState, "recoveryFrame" | "loadSet">): RecoveryLocusFrame {
   if (!recover.recoveryFrame.ok) throw new Error(`Cannot rebuild recovery state: ${recover.recoveryFrame.error.message}`);
   const frame = recover.recoveryFrame.value;
   if (frame.checkoutPath !== seed.locus.checkoutPath || frame.parentCheckoutPath !== seed.locus.parentCheckoutPath
@@ -52,4 +53,5 @@ function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAudi
   if (seed.activeWorkUnit !== null && !sameWorkUnit && !sameParentContext) {
     throw new Error(`Cannot rebuild recovery state for a different subject. Resume the seed's subject ${seed.activeWorkUnit}.`);
   }
+  return frame;
 }

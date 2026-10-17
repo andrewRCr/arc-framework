@@ -48,8 +48,8 @@ it("retains a resolving state baseline instead of silently adopting the current 
 });
 it("retains cursorless transient load-set evidence when rebuilding only its unavailable state anchor", async () => {
   const h = createLifecycleHarness();
-  const original = { ...seed(), activeWorkUnit: null, metaPath: null, taskCursor: null };
-  const transient: RecoveryLocusFrame = { ...frame, subject: { kind: "errand", key: "fix", claimId: "c".repeat(32) } };
-  const result = await resolveRecoveryStateBasis({ seed: original, recover: { ...recover, recoveryFrame: ok(transient) }, store: h.store });
+  const original = { ...seed(), activeWorkUnit: null, metaPath: null, taskCursor: null, currentWorkflow: "run-errand", sessionType: null };
+  const transient: RecoveryLocusFrame = { ...frame, workflow: "run-errand", sessionType: null, subject: { kind: "errand", key: "fix", claimId: "c".repeat(32) } };
+  const result = await resolveRecoveryStateBasis({ seed: original, recover: { recoveryFrame: ok(transient), loadSet: ok(original.loadSet) }, store: h.store });
   expect(result).toEqual({ rebuilt: true, seed: { ...original, stateVersion: lifecycleSuccess(await h.store.version()) } });
 });

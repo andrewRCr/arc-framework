@@ -1,4 +1,7 @@
 import { StateVersionSchema } from "../../../src/lib/store/identity.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { resolveRecoveryStateBasis } from "../../../src/lib/recover/state-basis.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 /** Recovery audit over checkout-local seed and derived-frame facts. */
 
 import { readFileSync } from "node:fs";
@@ -1258,3 +1261,37 @@ describe("auditRecoveryState", () => {
     expect(row.context?.taskCursor).toEqual(taskCursor);
   });
 });
+
+it.each((["null", "expired"] as const).flatMap(anchor => (["execution", "planning"] as const).map(sessionType => ({ anchor, sessionType }))))(
+  "rebuilds $anchor state from an emitted $sessionType seed into cursorless verification without replacing code evidence", async ({ anchor, sessionType }) => {
+    const h = createLifecycleHarness(); await h.seedMeta("demo");
+    const beforeLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
+      sessionType, planningStage: sessionType === "planning" ? "generate-tasks" : null, workUnitStage: "task-work", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
+    const beforeRow = workUnitRow({ context: { ...workUnitRow().context!, sessionType, stage: sessionType === "planning" ? "generate-tasks" : null,
+      workflow: sessionType === "planning" ? "planning" : "process-task-loop", loadSet: beforeLoadSet } });
+    const before = derivedFrame({ roster: [beforeRow], entering: { kind: "selected", row: beforeRow },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: beforeRow.context! } });
+    const missing = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } };
+    const emitted = await emitCompactionSeed({ cwd: "/repo", envelope: { identity: { identity: "andrew" }, derivedLocusState: ok(before),
+      worktree: ok({ branch: "fix/demo", identity: { kind: "primary" } }), active: ok({ path: ".arc/active/meta-demo.md", sessionType, currentWorkflow: "process-task-loop" }),
+      loadSet: ok(beforeLoadSet), taskCursor: ok(CURSOR) }, gitSnapshot: { branch: "fix/demo", head: "a".repeat(40), uncommittedFiles: ["src/demo.ts"] },
+      store: anchor === "null" ? { version: async () => ({ status: "refused", refusal: missing }) } : h.store, writeSeed: async () => {} });
+    if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
+    const selected: Store = Object.create(h.store) as Store;
+    if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: missing });
+    const afterLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
+      sessionType: "execution", planningStage: null, workUnitStage: "verification-closeout", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
+    const afterRow = workUnitRow({ context: { ...workUnitRow().context!, workflow: "verify-work-unit", workUnitStage: "verification-closeout",
+      taskCursor: { status: "no-open-task" }, loadSet: afterLoadSet } });
+    const after = derivedFrame({ roster: [afterRow], entering: { kind: "selected", row: afterRow },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: afterRow.context! } });
+    const fresh = recover({ derivedLocusState: ok(after), recoveryFrame: ok(recoveryFrame({ workflow: "verify-work-unit" })), loadSet: ok(afterLoadSet), taskCursor: ok({ status: "no-open-task" }) });
+    const basis = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: fresh, store: selected });
+    const verdict = await run({ seed: basis.seed, recover: fresh });
+    expect(verdict.status).toBe("ready");
+    expect(verdict.taskCursor).toBeNull();
+    expect(basis).toEqual({ rebuilt: true, seed: { ...emitted.seed, stateVersion: lifecycleSuccess(await h.store.version()),
+      currentWorkflow: "verify-work-unit", sessionType: "execution", loadSet: afterLoadSet, taskCursor: null } });
+    expect(emitted.seed.currentWorkflow).toBe(sessionType === "planning" ? "generate-tasks" : "process-task-loop");
+    expect(emitted.seed.uncommittedFiles).toEqual(["src/demo.ts"]);
+  });
