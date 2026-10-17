@@ -10,6 +10,7 @@ import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference 
 import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
+import { resolveArchivedReferences } from "./archive-resolution.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
 
 interface HistoryCommit { revision: string; parents: string[] }
@@ -23,7 +24,7 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
   const resolved = await resolveReadReference(context, input.reference);
   if (resolved.status === "refused") return resolved;
   let reference = resolved.result;
-  const tips = await readRefTips(context);
+  const tips = await readRefTips(context, { includeHistory: true });
   if (reference.owner.type === "project") {
     const owner = projectOwnerFromObjects(tips, await readBatchObjects(context, projectIdentityQueries(tips)));
     if (owner.status === "refused") return owner;
@@ -31,7 +32,9 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
     if (admitted.status === "refused") return admitted;
     reference = admitted.result;
   }
-  const home = expandStoredPath(reference, { registry: context.registry });
+  const archived = await resolveArchivedReferences(context, [reference], tips);
+  if (archived.status === "refused") return archived;
+  const home = expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
   return tip ? readRefHistory(context, reference, home, tip) : { status: "ok", result: [] };
 }

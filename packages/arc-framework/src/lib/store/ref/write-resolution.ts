@@ -7,7 +7,7 @@ import type { StoreResult } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { sameOwner } from "../identity.js";
 import type { ArchivedFolder } from "./archive-read.js";
-import { resolveRefReopens } from "./reopen-resolution.js";
+import { resolveArchivedReferences } from "./archive-resolution.js";
 import { rootFamily } from "./path-decode.js";
 import { bindProjectMutations } from "./project-identity.js";
 import { readRefTips } from "./batch-read.js";
@@ -44,7 +44,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   const observed = await readLiveRefOwners(context, tips);
   if (observed.status === "refused") return observed;
   const owners = observed.result;
-  const archived = await resolveRefReopens(context, writes, tips, owners);
+  const archived = await resolveArchivedReferences(context, writes.flatMap((write) => [write.reference, ...write.resolves ?? []]), tips);
   if (archived.status === "refused") return archived;
   const endedOwners = [...new Map(archived.result.map(({ owner }) => ["uid" in owner ? owner.uid : owner.name, owner])).values()];
   const needsLineage = writes.some((mutation) => [mutation.reference, ...mutation.resolves ?? []]
@@ -107,7 +107,8 @@ function resolveConflictReferences(resolved: ResolvedMutation[], resolve: (refer
   return { status: "ok", result: resolved };
 }
 
-function mutationHome(context: Pick<RefBackendContext, "registry">, reference: RecordReference, archived: readonly ArchivedFolder[]): StoredRecordHome {
+/** Select the history coordinate for a resolved completed owner. */
+export function mutationHome(context: Pick<RefBackendContext, "registry">, reference: RecordReference, archived: readonly ArchivedFolder[]): StoredRecordHome {
   const history = rootFamily(context.registry[reference.kind].family) === "work-item"
     && archived.some(({ owner }) => sameOwner(owner, reference.owner));
   return expandStoredPath(reference, { registry: context.registry, history });

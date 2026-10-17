@@ -1,7 +1,7 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
 import type { ReadPlacement } from "../placement.js";
-import { archivedFolders, isArchiveRef } from "./archive-read.js";
+import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -108,9 +108,11 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
     if (admitted.status === "refused") return admitted;
     input = admitted.result;
   }
+  const latest = new Set(latestArchivedFolders([...trees].flatMap(([ref, entries]) => isArchiveRef(ref)
+    ? archivedFolders(input.family, ref, entries, objects).folders : [])).map(({ ref, root }) => `${ref}:${root}`));
   const groups = [...tips.keys()].map((ref) => {
     const entries = trees.get(ref);
-    return entries ? decodeListedRef(context, input, ref, entries, objects, project?.owner) : unreadableRef(ref);
+    return entries ? decodeListedRef(context, input, ref, entries, objects, latest, project?.owner) : unreadableRef(ref);
   });
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
@@ -226,8 +228,7 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const trees = await readRefTrees(context, selected);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
-  const folder = folders.filter(({ owner }) => sameOwner(owner, reference.owner)).sort((left, right) => right.ref.localeCompare(left.ref)
-    || Number(BigInt("sequence" in right.placement ? right.placement.sequence : "0") - BigInt("sequence" in left.placement ? left.placement.sequence : "0")))[0];
+  const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
   if (!folder) return missing(reference);
   const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement);
@@ -237,10 +238,10 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
 }
 
 function decodeListedRef(context: RefBackendContext, input: ListInput, ref: string, entries: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>, owner?: OwnerIdentity): DecodedRecords {
+  objects: ReadonlyMap<string, BatchObject | null>, latest: ReadonlySet<string>, owner?: OwnerIdentity): DecodedRecords {
   if (!isArchiveRef(ref)) return decodeCapturedRef(context, input, ref, entries, objects, undefined, owner);
   const parsed = archivedFolders(input.family, ref, entries, objects);
-  const groups = parsed.folders.map((folder) => {
+  const groups = parsed.folders.filter(({ root }) => latest.has(`${ref}:${root}`)).map((folder) => {
     const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, objects, folder.metadata, undefined, folder.placement);
     return { records: group.records, diagnostics: group.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
   });

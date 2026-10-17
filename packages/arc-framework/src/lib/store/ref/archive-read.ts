@@ -49,6 +49,20 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
   return { folders, diagnostics };
 }
 
+/** Choose one complete folder per owner, by later quarter then higher sequence. */
+export function latestArchivedFolders(folders: readonly ArchivedFolder[]): ArchivedFolder[] {
+  const selected = new Map<string, ArchivedFolder>();
+  for (const folder of folders) {
+    const prior = selected.get(folder.liveRef);
+    if (!prior || folder.ref > prior.ref || folder.ref === prior.ref && folderSequence(folder) > folderSequence(prior)) selected.set(folder.liveRef, folder);
+  }
+  return [...selected.values()];
+}
+
+function folderSequence(folder: ArchivedFolder): bigint {
+  return BigInt("sequence" in folder.placement ? folder.placement.sequence : "0");
+}
+
 function folderPlacement(root: string, metadata: RefMetadata | null, quarter: ReturnType<typeof ArchiveQuarterSchema.parse>,
   cohort: boolean): ReadPlacement | null {
   const stored = cohort ? metadata?.placement : metadata?.primary?.placement;

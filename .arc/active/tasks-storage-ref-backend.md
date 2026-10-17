@@ -579,21 +579,14 @@ close, and renames and role changes.
   archived/live states; missing or stale history and slug clashes refuse with repaired retries. Canonical quarter refs
   enter manifests, and slug reads keep selecting the live generation after a name is reused.
 
-### `[ ]` **6.3 Writes to a completed item — § 7.3**
+### `[x]` **6.3 Writes to a completed item — § 7.3**
 
 - _Goal:_ Every write to a completed item's records lands on its history ref and refreshes its quarter folder in one
   transaction, so `history` reads one log and a reopen finds the latest state.
 
-    - A write naming the item by UID finds its history ref and each quarter's ref holding its folder from the
-      operation's listing, and again under its locks (§ 5.1)
-    - Build `test-first` (one behavior at a time):
-        - a write to a completed item's record commits on its history ref and refreshes its folder, writing the folder's
-          `batch` and keeping `endBatch`
-        - the write resolving one of its conflict records lands the same way
-        - an item two ends left in two folders reads from the later quarter's, or the higher number's, lists once, and a
-          write refreshes both
-        - a write and `history` where this clone holds no history ref, or a copy whose log lacks the folder's `batch`,
-          refuse `state-unresolvable` naming it
+- _Outcome:_ Completed writes and conflict resolutions validate retained history and refresh every folder, preserving
+  each end's batch and quarter. Reads and listings select one latest folder; check views expose the prepared state.
+  Shared quarter preparation composes archive, reopen, and refresh changes, while identical rewrites remain no-ops.
 
 ### `[ ]` **6.4 Abandon, decomposition, and every other removal — § 7.4, § 7.5**
 

@@ -27,7 +27,8 @@ export function archiveLockRefs(batch: ResolvedBatch): string[] {
 
 /** Assign folders from captured quarter tips and stamp the final item metadata before checks. */
 export async function planRefArchives(context: RefBackendContext, writes: readonly PreparedRefMutation[],
-  groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, batchId: string): Promise<StoreResult<RefArchivePlan[]>> {
+  groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, batchId: string,
+  sharedQuarters?: Map<string, Map<string, RefTreeEntry>>): Promise<StoreResult<RefArchivePlan[]>> {
   const selected = archiveWrites(writes);
   if (selected.length === 0) return { status: "ok", result: [] };
   const quarters = new Set(selected.flatMap(({ mutation }) => mutation.action === "put" && mutation.placement?.kind === "completed"
@@ -38,7 +39,8 @@ export async function planRefArchives(context: RefBackendContext, writes: readon
     if (!trees.has(ref)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
       condition: "The archive quarter's captured tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry the archive.` } } };
   }
-  const entries = new Map([...quarters].map((ref) => [ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry]))]));
+  const entries = sharedQuarters ?? new Map<string, Map<string, RefTreeEntry>>();
+  for (const ref of quarters) if (!entries.has(ref)) entries.set(ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry])));
   const plans: RefArchivePlan[] = [];
   for (const { mutation, home } of selected) {
     if (mutation.action !== "put" || mutation.placement?.kind !== "completed") continue;

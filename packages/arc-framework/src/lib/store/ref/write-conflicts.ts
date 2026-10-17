@@ -29,7 +29,7 @@ async function fileConflicts(context: RefBackendContext, group: RefWriteGroup, w
   for (const clash of write.conflicts) {
     const reference = RecordReferenceSchema.parse({ owner: write.mutation.reference.owner,
       kind: `${write.mutation.reference.kind.split("/")[0]}/conflict-record`, key: randomUUID() });
-    const home = expandStoredPath(reference, { registry: context.registry });
+    const home = expandStoredPath(reference, { registry: context.registry, history: write.home.ref.startsWith("refs/arc/history/") });
     if (home.ref !== write.home.ref) throw new Error("A conflict record escaped its subject's ref");
     const content = canonicalize(ConflictRecordSchema.parse(clash));
     group.entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, content) });

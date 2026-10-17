@@ -7,7 +7,7 @@ import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
 import { resolveRefWrites, refWriteTargets } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
-import { reopenLockRefs, reopenBasisChanged } from "./reopen-resolution.js";
+import { archivedLockRefs, archiveBasisChanged } from "./archive-resolution.js";
 import { archiveLockRefs } from "./write-archive.js";
 import { withRefLocks } from "./write-locks.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
@@ -115,7 +115,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
-    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...archiveLockRefs(resolved.result), ...reopenLockRefs(resolved.result)], () =>
+    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result)], () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null) return result;
   }
@@ -125,7 +125,7 @@ async function commitLockedRefBatch(context: RefBackendContext, resolved: Resolv
   provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
-    if (ownerLocationsChanged(context, resolved, tips) || reopenBasisChanged(resolved, tips)) return null;
+    if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips)) return null;
     const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId);
     if (result === "resolve") return null;
     if (result !== "retry") return result;

@@ -10,7 +10,7 @@ import { refRecordVersion } from "./record-version.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
-import { refWriteTargets } from "./write-resolution.js";
+import { refWriteTargets, mutationHome } from "./write-resolution.js";
 import type { RecordReference } from "../identity.js";
 import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
@@ -19,12 +19,12 @@ import { decodeStoredReference } from "./path-decode.js";
 import { familyOf } from "../catalog.js";
 import { refFormatKey } from "./format-key.js";
 import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
-import { expandStoredPath } from "../stored-path.js";
 import { checkRefWrites } from "./write-checks.js";
 import { bindProjectMutations } from "./project-identity.js";
 import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
 import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
+import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 
 type RefGroup = RefWriteGroup;
@@ -53,14 +53,18 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   if (anchorRefusal) return { status: "refused", refusal: anchorRefusal };
   const reopens = await planRefReopens(context, resolved, groups, tips);
   if (reopens.status === "refused") return reopens;
-  const archives = await planRefArchives(context, prepared.result, groups, tips, batchId);
+  const archives = await planRefArchives(context, prepared.result, groups, tips, batchId, reopens.result[0]?.quarters);
   if (archives.status === "refused") return archives;
+  await stampCompletedWrites(context, resolved, prepared.result, groups, batchId);
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   const broken = await checkRefWrites(context, prepared.result, completed, tips, provenance);
   if (broken) return { status: "refused", refusal: broken };
   const committed = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId);
   const archived = await archiveRefChanges(context, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId);
-  const changes = await reopenRefChanges(context, archived, reopens.result, tips, provenance, batchId);
+  const reopened = await reopenRefChanges(context, archived, reopens.result, tips, provenance, batchId);
+  const refreshed = await refreshCompletedChanges(context, reopened, resolved, completed, provenance, batchId);
+  if (refreshed.status === "refused") return refreshed;
+  const changes = refreshed.result;
   if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";
@@ -93,7 +97,7 @@ async function applyPreparedMutations(context: RefBackendContext, writes: readon
 function applyResolutions(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): void {
   for (const { mutation } of resolved.writes) {
     for (const reference of mutation.resolves ?? []) {
-      const target = expandStoredPath(reference, { registry: context.registry });
+      const target = mutationHome(context, reference, resolved.archived ?? []);
       const group = groups.get(target.ref);
       if (!group) throw new Error("A resolved conflict has no captured ref group");
       group.entries.delete(target.path);

@@ -28,7 +28,9 @@ export async function planRefReopens(context: RefBackendContext, batch: Resolved
   for (const [history, group] of groups) {
     const folders = batch.archived.filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history);
     const first = folders[0];
-    if (!first) continue;
+    if (!first || !batch.writes.some(({ mutation, home }) => home.ref === history && mutation.action === "put"
+      && (mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record")
+      && mutation.placement?.kind !== "completed")) continue;
     const reference = batch.writes.find(({ mutation }) => sameOwner(mutation.reference.owner, first.owner))?.mutation.reference;
     if (!reference) throw new Error("A reopened owner has no mutation");
     delete group.metadata.endBatch;
@@ -44,7 +46,7 @@ export async function planRefReopens(context: RefBackendContext, batch: Resolved
 export async function reopenRefChanges(context: RefBackendContext, changes: readonly RefChange[], plans: readonly RefReopenPlan[],
   tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string): Promise<RefChange[]> {
   if (!plans.length) return [...changes];
-  const result = changes.filter(({ ref }) => !plans.some(({ history }) => history === ref));
+  const result = changes.filter(({ ref }) => !plans.some(({ history, quarters }) => history === ref || quarters.has(ref)));
   for (const plan of plans) {
     const change = changes.find(({ ref }) => ref === plan.history), prior = tips.get(plan.history);
     if (!change || !("next" in change) || !prior) throw new Error("A reopen has no final history commit or captured parent");
