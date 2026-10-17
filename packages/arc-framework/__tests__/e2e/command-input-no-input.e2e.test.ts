@@ -1,6 +1,6 @@
 /** End-to-end bounded-termination proof for interaction-capable CLI commands. */
 
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -159,6 +159,13 @@ describe("command-input no-input matrix", () => {
       if (entry.setup === "local-notes") {
         const saved = await runArcNoTty(["--no-input", "user", "save"], cwd);
         expect(saved.exitCode, JSON.stringify(saved)).toBe(0);
+      }
+      if (entry.setup === "store-pointer") {
+        await mkdir(join(cwd, ".arc", "system"), { recursive: true });
+        await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), 'storage.backing_repository: "https://example.invalid/project-state.git"\n');
+        await git(cwd, ["remote", "add", "origin", join(cwd, "code.git")]);
+        await git(cwd, ["config", "remote.origin.arc-state", "off"]);
+        await git(cwd, ["commit", "--allow-empty", "-m", "chore: seed store command fixture"]);
       }
       if (entry.setup === "unreachable-origin") {
         await git(cwd, ["remote", "add", "origin", join(cwd, ".fixture-missing-origin.git")]);

@@ -65,6 +65,23 @@ export interface ReaderResult {
   warnings: string[];
 }
 
+/** Read the checkout's backing destination, preserving failures at this publication boundary. */
+export async function readBackingRepository(cwd: string): Promise<string | null> {
+  const path = configSettingsPath(cwd);
+  let content: string;
+  try { content = await readFile(path, "utf8"); }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return null;
+    throw new Error(`Cannot read the backing pointer at ${path}. Restore a readable arc-config.yml, then retry the operation.`, { cause: error });
+  }
+  const value = parseArcConfig(content)["storage.backing_repository"] ?? "";
+  return getArcConfigField("storage.backing_repository").schema.parse(value) || null;
+}
+
+function configSettingsPath(cwd: string): string {
+  return join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
+}
+
 /**
  * Read arc-config.yml and return the agent-consumable settings map with
  * documented defaults filled in for any absent keys.
@@ -74,7 +91,7 @@ export interface ReaderResult {
  * the caller to surface — both recoverable, since defaults substitute.
  */
 export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
-  const configPath = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX);
+  const configPath = configSettingsPath(cwd);
   const warnings: string[] = [];
   const defaultsApplied: string[] = [];
 

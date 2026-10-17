@@ -7,6 +7,7 @@ import {
   configValidateCommandInputRegistration,
 } from "./commands/config.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
+import { storeCommandInputPolicyDeclarations, storeCommandInputRegistrations } from "./commands/store-input.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
@@ -106,6 +107,7 @@ import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 
 /** Every command-owned schema registration contributed by migrated families. */
 export const commandInputRegistrations = [
+  ...storeCommandInputRegistrations,
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
@@ -184,5 +186,6 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
+  ...storeCommandInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

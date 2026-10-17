@@ -1,15 +1,40 @@
 /** Production dependency binding with lazy identity, remote, and write-lock resolution. */
 import * as fs from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { dirname, join } from "node:path";
 import { atomicCreateFile, atomicWriteFile } from "../fs.js";
 import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
-import { createExecaGitExec, createExecaGitExecInput } from "../git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../git/process-executor.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
 import type { RefStorePorts, StorePorts, RefRepositoryFileAccess, StoreFileAccess } from "./ports.js";
+import { getOrCreateMachineId } from "./machine-id.js";
+import { createKindRegistry } from "./registry.js";
+import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
+
+/** Bind native ref-store dependencies while leaving the checkout's configuration at the caller. */
+export function createDefaultRefStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput;
+  backingRepository: RefStorePorts["backingRepository"] }): RefStorePorts {
+  const defaults = createDefaultStorePorts(input);
+  return { ...defaults, backingRepository: input.backingRepository,
+    rawExec: createExecaRawGitExec(input.checkoutRoot), sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
+    random: Math.random, registry: createKindRegistry(PRODUCTION_REGISTRATIONS), migrateStep: async () => {},
+    actor: async (identity) => {
+      const { commonDir } = await readGitDirectories(input.checkoutRoot, defaults.fs);
+      const id = await getOrCreateMachineId({ commonGitDir: commonDir, identity, fs: defaults.fs,
+        exclusiveCreate: (path, content) => defaults.fs.exclusiveCreate(path, content) });
+      return `${identity}@${id}`;
+    }, lock: createRefLockFactory(defaults),
+  };
+}
+
+async function signalEndedSleep(milliseconds: number, signal: AbortSignal): Promise<void> {
+  try { await delay(milliseconds, undefined, { signal }); }
+  catch (error) { if (!signal.aborted) throw error; }
+}
 
 /** Bind production I/O without consulting repository configuration or topology.
  * @param input - Checkout and optional already-bound Git adapters.

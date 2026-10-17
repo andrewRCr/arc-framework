@@ -159,7 +159,18 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       terminalSubprocessPolicy,
     ),
   ],
-}, ...rawGitCommandPaths.map((commandPath) => ({
+}, ...["store migrate", "store remote"].map((commandPath) => ({
+  commandPath, aliases: [], sites: [
+    ...([1, 3] as const).map((occurrence) => declareInteractionSite(
+      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
+      { ...terminalSubprocessPolicy, mutationBoundary: "explicit ref-store transport" },
+    )),
+    declareInteractionSite(
+      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
+      rawGitSubprocessPolicy,
+    ),
+  ],
+})), ...rawGitCommandPaths.map((commandPath) => ({
   commandPath,
   aliases: [],
   sites: [

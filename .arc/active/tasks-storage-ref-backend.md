@@ -1202,32 +1202,16 @@ layouts.
           Backing installs only after pointer, layout, role, and project checks; refusal preserves configuration and
           code-held state, and the same setting succeeds after repair.
 
-### `[ ]` **13.5 `arc store migrate` and the hidden `arc store` commands — § 10.1, § 1.2, § 1.3**
+### `[x]` **13.5 `arc store migrate` and the hidden `arc store` commands — § 10.1, § 1.2, § 1.3**
 
 - _Goal:_ `arc store migrate` runs every move the verb defines through one engine, and `arc store` stays out of
   `arc --help` and every production path until the flip.
 
-    - `arc store remote` and `arc store migrate` registered hidden in `cli.ts` as `hook-remedy-roadmap-conflict` is, each
-      with its input declaration in `src/command-input-registrations.ts` and its `NO_INPUT_MATRIX` entry
-      (`__tests__/fixtures/command-input/no-input-matrix.ts`), as that command's own declaration
-      (`src/scripts/remedy-roadmap-conflict.ts`) and entry are; `--json` through `withInteractionContext`; the
-      `--own-state` confirmation a prompt site declared through `declarePromptSite` (`lib/command-input/declaration.ts`)
-      and asked through `prompt` (`lib/command-input/prompter.ts`), as `prompts/join-prompts.ts` declares and asks
-      its sites, its no-input policy § 9.4's refusal
-    - The handlers' production ports: `createDefaultRefStorePorts` in `lib/store/default-ports.ts`, beside
-      `createDefaultStorePorts`, binding the executors, file access, clock, sleep, random source, identity, actor,
-      production registry, and lock factory, the step port a no-op, and the pointer port the handler passes in: the
-      handlers in `commands/` bind it over the config module's read of the invoking checkout's `arc-config.yml`, and 16.3
-      adds its write there, so `lib/store/` reads no configuration itself (12.2); 14.1 adds the in-repo store the import
-      reads
-    - Build `test-first` (one behavior at a time):
-        - `--to` from a local-only clone refuses `no-state-remote` naming `arc store remote <remote> push`, and for a
-          URL the pointer's change then `arc store remote backing push`
-        - `--json` gives each report as data
-        - the `arc store remote` handler asks on a terminal through an injected prompt and runs a yes, sets nothing on a
-          no, and without a terminal refuses naming `--own-state`
-        - `arc --help` lists no `arc store`; a test reading every file under `src/` finds `runStoreRemote` and
-          `runStoreMigrate` called only by the two handlers, and `createRefStore` and `createReadSourceStore` by nothing
+- _Outcome:_ Hidden migrate and remote commands bind native lazy ports and canonical input/prompt declarations.
+  JSON retains reports and typed input refusals; publication applies only an affirmative terminal answer or explicit
+  own-state input. Checkout-root resolution keeps destination reads local, and unreadable pointers preserve roles.
+  Native actors use the shared machine ID, cancellation settles waits and bounds, and source guards confine entries to
+  their handlers while ordinary backend selection stays unchanged.
 
 ### `[ ]` **13.5.R Retained conflict inspection and explicit discard — § 2.6, § 6.6, § 14.13 (A16)**
 
