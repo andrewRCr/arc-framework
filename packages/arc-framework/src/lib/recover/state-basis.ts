@@ -51,6 +51,9 @@ function requireOriginalSubject(seed: CompactionSeed, recover: Pick<RecoveryAudi
     const artifact = identifyWorkUnitArtifactPath(entry.path);
     return artifact?.artifact === "meta" ? [artifact.slug] : [];
   }) : [];
+  if (seed.activeWorkUnit === null && parentMetas.length > 0) {
+    throw new Error("The seed held no work unit, but this transient now inherits a work unit. Start a fresh ARC session for that context, or restore the original parent context and retry recovery.");
+  }
   const sameParentContext = frame.kind === "resolved" && frame.subject.kind !== "work-unit"
     && seed.locus.parentCheckoutPath !== null && parentMetas.length === 1 && parentMetas[0] === seed.activeWorkUnit;
   if (seed.activeWorkUnit !== null && !sameWorkUnit && !sameParentContext) {

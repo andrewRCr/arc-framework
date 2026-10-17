@@ -98,3 +98,39 @@ it.each(["null", "expired"] as const)("keeps a %s no-work-unit seed from adoptin
   expect(await auditRecoveryState({ seed: rebuilt.seed, recover: restored, freshBranch: "main", freshHead: head, freshRepoRoot: checkout.path,
     freshUncommittedFiles: [], resolveCommittedProgress: async () => ({ advanced: false, files: new Set<string>() }) })).toMatchObject({ status: "ready" });
 });
+
+it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["null", "expired"] as const).map(anchor => ({ kind, anchor }))))(
+  "keeps a $anchor no-work-unit $kind seed from inheriting a replacement parent", async ({ kind, anchor }) => {
+    const h = createLifecycleHarness(), warm = transientState(kind);
+    const parent = warm.roster.find(row => row.checkout.primary);
+    if (parent === undefined || warm.entering.kind !== "selected") throw new Error("Missing fixture parent/child");
+    const originalState = DerivedLocusFrameSchema.parse({ ...warm,
+      roster: [warm.entering.row, { ...parent, kind: "unresolved-checkout", context: null,
+        diagnostics: [{ source: "lifecycle", code: "work-unit-record-missing", message: "Parent record is missing." }] }],
+      primaryAvailability: { kind: "unsafe", checkoutPath: "/parent", reasons: ["work-unit-record-missing"] } });
+    const probe = (state: typeof originalState) => {
+      const context = deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
+      return { derivedLocusState: ok(state), recoveryFrame: ok(context.frame), loadSet: ok(context.loadSet),
+        ...(context.taskCursor === null ? {} : { taskCursor: ok(context.taskCursor) }), dirty: ok({ state: "clean" as const, fileCount: 0 }) };
+    };
+    const original = probe(originalState), checkout = warm.entering.row.checkout;
+    const emitted = await emitCompactionSeed({ cwd: checkout.path,
+      stateVersion: anchor === "null" ? null : lifecycleSuccess(await h.store.version()),
+      envelope: { identity: { identity: "andrew" }, derivedLocusState: original.derivedLocusState,
+        worktree: ok({ branch: checkout.branch!, identity: { kind: "linked", path: checkout.path } }),
+        active: ok({ path: null, sessionType: null, currentWorkflow: null }), loadSet: original.loadSet },
+      gitSnapshot: { branch: checkout.branch!, head: checkout.head, uncommittedFiles: [] }, writeSeed: async () => {} });
+    if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
+    expect(emitted.seed).toMatchObject({ activeWorkUnit: null, metaPath: null, locus: { parentCheckoutPath: "/parent" } });
+    await h.seedMeta("other");
+    const selected = Object.create(h.store) as Store;
+    if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+      historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } } });
+    await expect(resolveRecoveryStateBasis({ seed: emitted.seed, recover: probe(transientState(kind, "other")), store: selected }))
+      .rejects.toThrow(/fresh ARC session/iu);
+    const rebuilt = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: original, store: selected });
+    expect(rebuilt.seed).toEqual({ ...emitted.seed, stateVersion: lifecycleSuccess(await h.store.version()) });
+    expect(await auditRecoveryState({ seed: rebuilt.seed, recover: original, freshBranch: checkout.branch!, freshHead: checkout.head,
+      freshRepoRoot: checkout.path, freshUncommittedFiles: [], resolveCommittedProgress: async () => ({ advanced: false, files: new Set<string>() }) }))
+      .toMatchObject({ status: "ready" });
+  });
