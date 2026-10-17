@@ -1179,54 +1179,28 @@ layouts.
   command entries. Invalid no-target and leave-source trial requests preserve refs, roles, and the physical layout;
   correcting the input permits the no-target move.
 
-### `[ ]` **13.4 `arc store remote` — § 9.4, § 9.8**
+### `[x]` **13.4 `arc store remote` — § 9.4, § 9.8**
 
 - _Goal:_ A person sees each remote's role and sets one, the setting moving the layout first where it must and refusing
   any setting that would strand state or publish it where the person did not choose.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
-
-    - `runStoreRemote`'s show and set; the store reports a due confirmation and the handler asks, its prompt and
-      no-terminal refusal covered by 13.5's handler tests; the follow's setting arm lands in 17.1
     - Repointing `backing` refuses `unsupported` until 17.5 builds it
         - _Retired in:_ Phase 17
 
-    - `[ ]` **13.4.a Show and set**
-        - Build `test-first` (one behavior at a time):
-            - `arc store remote` shows each remote's role, the layout, and the store directory's remote, and `--json` the
-              same as data
-            - a setting that changes the layout finishes any recorded move, runs the layout move, and returns its report
-              through `runStoreRemote`, every ref it wrote by scope and person
-            - setting `push` while another remote carries it refuses `role-conflict` naming
-              `arc store migrate --to <remote>` and `arc store remote <other> off`, and a code remote's `push` beside a
-              `backing` carrying `push` refuses `role-conflict` naming `arc store migrate --to <remote>`
-            - a team member on a fork who sets `push` for the upstream gets the separate layout, a pull and a push reaching
-              the upstream by its fetch and push URLs, a `pushurl` among them, while a carried code ref goes to the fork
-            - a setting that repoints `backing` refuses `unsupported`, changing nothing
+    - `[x]` **13.4.a Show and set**
+        - Returns the actual layout and every configured remote's role, distinguishing backing from code remotes.
+          Settings finish recorded moves first, combine both reports, reject competing push roles, and preserve a
+          fork's separate state routing through fetch/push URLs while carried code reaches the fork.
 
-    - `[ ]` **13.4.b The project check at a setting**
-        - Build `test-first` (one behavior at a time):
-            - a clone holding a project ID refuses `identity-mismatch`, naming both projects and setting and pushing
-              nothing, when an answer, a setting, or a first designation of `backing` would set `push` on a remote whose
-              identity record names another project
-            - a designation after a check refused against another project's remote reads the next remote afresh
+    - `[x]` **13.4.b The project check at a setting**
+        - Push settings, own-state answers, and first backing settings check project IDs before changing configuration
+          or layout, under their own network deadline. Captured fetch tips and leased temporary-ref cleanup keep
+          concurrent candidate checks independent and repaired targets are read afresh.
 
-    - `[ ]` **13.4.c The pointer at a setting**
-        - Build `test-first` (one behavior at a time):
-            - where no `backing` carries `push` — none, or one carrying `off`, `read`, or no key — and the pointer names
-              none, a code remote's `push` sets after the project check, moving the store into the code repository's refs
-              and removing `backing`, after which `pull` and `push` sync there
-            - where the pointer names a backing repository, the setting returns a confirmation due naming what a yes
-              publishes and sets nothing, and with `ownState` sets as for a pointer naming none, its report naming § 9.6's
-              route for keeping the backing repository as a read source
-            - on a clone without `backing`, `arc store remote backing push` adds it at the pointer's URL
-            - where the pointer names none, `backing` `off` or `read` sets in place, while `push` or adding refuses
-              `role-conflict`, naming `git remote rename backing <name>` where the code repository has a remote so named
-            - a `backing` setting refuses `role-conflict` while a code remote carries `push`, naming
-              `arc store migrate --to <URL>`, and `move-incomplete` while state sits in the code repository's refs,
-              naming its remedies, where a pull's first designation reports `move-incomplete` and adds no `backing`
-            - where a remote rename, an added remote, or `remote.pushDefault` left the store reporting `move-incomplete`
-              (13.1), a `backing` setting refuses `move-incomplete`, creating no directory
+    - `[x]` **13.4.c The pointer at a setting**
+        - Pointer-backed publication requires consent and reports the route for retaining the backing as a read source.
+          Backing installs only after pointer, layout, role, and project checks; refusal preserves configuration and
+          code-held state, and the same setting succeeds after repair.
 
 ### `[ ]` **13.5 `arc store migrate` and the hidden `arc store` commands — § 10.1, § 1.2, § 1.3**
 

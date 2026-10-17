@@ -47,6 +47,7 @@ export const StoreRemoteInputSchema = z.strictObject({
 export type StoreRemoteInput = z.infer<typeof StoreRemoteInputSchema>;
 /** Clone-local roles and the layout move a setting performed, if any. */
 export interface StoreRemoteView {
+  layout: "default" | "separate";
   remotes: { name: string; role?: "push" | "read" | "off"; url: string; repository: "code" | "backing" }[];
   report?: MigrateReport;
 }

@@ -17,7 +17,7 @@ import { createRefClock } from "../helpers/store/ref-clock.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { RecordReferenceSchema, PullResultSchema, runStoreMigrate } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, PullResultSchema, runStoreMigrate, runStoreRemote } from "../../src/lib/store/index.js";
 
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
 const localId = "34567890-1234-4234-8234-123456789abc";
@@ -52,7 +52,7 @@ describe("automatic designation project check", () => {
     expect(success(await h.b.store.pull())).toEqual({ states: [{ status: "no-remote" }], pulls: [] });
   });
 
-  it("ends a held designation fetch at the operation deadline and allows a repaired retry", async () => {
+  it.each(["automatic", "setting"] as const)("ends a held %s designation fetch at the operation deadline and allows a repaired retry", async (entry) => {
     const h = await refSyncFixture(), clock = createRefClock(new Date(0), 0);
     await putIdentity(h.a.store, localId);
     await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
@@ -67,14 +67,15 @@ describe("automatic designation project check", () => {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Missing HTTP endpoint");
     let redirected = false;
-    const store = createRefStore({ ...h.b.ports, ...clock, exec: async (command, args, options) => {
+    const ports = { ...h.b.ports, ...clock, exec: async (command: Parameters<typeof h.b.ports.exec>[0], args: Parameters<typeof h.b.ports.exec>[1], options: Parameters<typeof h.b.ports.exec>[2]) => {
       if (!redirected && args.includes("fetch")) {
         redirected = true;
         await h.b.exec("git", ["remote", "set-url", "origin", `http://127.0.0.1:${address.port}/repo`]);
       }
       return h.b.ports.exec(command, args, options);
-    } });
-    const pending = store.pull();
+    } };
+    const store = createRefStore(ports);
+    const pending = entry === "automatic" ? store.pull() : runStoreRemote(ports, { remote: "origin", role: "push" });
     void pending.catch(() => undefined);
     try {
       await Promise.race([ready, pending.then(() => { throw new Error("Designation ended before HTTP admission"); })]);
@@ -85,18 +86,22 @@ describe("automatic designation project check", () => {
       const ended = await Promise.race([pending, delay(1000).then(() => waiting)]);
       expect(ended).not.toBe(waiting);
       if (typeof ended === "symbol") throw new Error("The designation fetch outlived its deadline");
-      const result = PullResultSchema.parse(success(ended));
-      expect(result.states).toEqual([]);
-      expect(result.pulls).toMatchObject([{ status: "failed", role: "candidate", failure: { code: "unreachable", cause: "timeout" } }]);
+      if (entry === "automatic") {
+        if (ended.status !== "ok") throw new Error("Automatic designation refused");
+        const result = PullResultSchema.parse(ended.result);
+        expect(result.states).toEqual([]);
+        expect(result.pulls).toMatchObject([{ status: "failed", role: "candidate", failure: { code: "unreachable", cause: "timeout" } }]);
+      } else expect(ended).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", cause: "timeout" } } });
       expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
       expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/designate/"])).stdout).toBe("");
       await h.b.exec("git", ["remote", "set-url", "origin", h.origin]);
-      expect(success(await store.pull()).pulls).toMatchObject([{ status: "pulled", role: "state" }]);
+      if (entry === "automatic") expect(success(await store.pull()).pulls).toMatchObject([{ status: "pulled", role: "state" }]);
+      else expect((await runStoreRemote(ports, { remote: "origin", role: "push" })).status).toBe("ok");
     } finally {
       clock.advance(120_000);
-      await pending.catch(() => undefined);
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      await pending.catch(() => undefined);
     }
   }, 10_000);
 

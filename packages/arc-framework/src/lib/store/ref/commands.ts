@@ -2,13 +2,14 @@
 
 import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput, type StoreMigrateResult,
-  type StoreRemoteInput, type StoreRemoteResult, type StoreCommandResult, type MigrateReport } from "../commands.js";
+  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { readRefDesignation } from "./designation.js";
 import { migrationCodeContext, readLayoutMoveRecord } from "./migrate-record.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
+import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
 
 /** No-target migration reconciles the physical store with its explicitly recorded roles. */
 export async function runRefMigrate(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -42,22 +43,26 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
 export async function runRefRemote(context: RefBackendContext, store: Store, input: StoreRemoteInput): Promise<StoreRemoteResult> {
   const parsed = StoreRemoteInputSchema.safeParse(input);
   if (!parsed.success) return unsupportedCommand("The remote request is invalid.");
-  const designation = await readRefDesignation(context);
-  if (!input.remote || input.remote !== designation.codeRemote || !input.role || input.role === "read") return unsupportedCommand("This remote setting is not implemented.");
+  if (!input.remote && !input.role) return { status: "ok", result: await remoteView(context) };
+  if (!input.remote || !input.role) return invalidCommand("A remote setting requires both a remote and a role.");
   const setting = { remote: input.remote, role: input.role };
   return withMigrationLock(context, async () => {
     const existing = await readLayoutMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
+    let completed: MigrateReport | undefined;
     if (existing.result) {
       const finished = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, existing.result);
       if (finished.status === "refused") return finished;
+      completed = finished.result;
     }
-    const moved = await moveRefLayout(context, store, input.role === "push" ? "default" : "separate", setting);
-    return moved.status === "refused" ? moved : { status: "ok", result: { remotes: (await readRefDesignation(context)).remotes, report: moved.result } };
+    const applied = await applyRefRemoteSetting(context, store, setting, input.ownState);
+    if (applied.status === "ok" && completed) applied.result.report = applied.result.report
+      ? combineLayoutReports(completed, applied.result.report) : completed;
+    return applied;
   });
 }
 
-async function withMigrationLock<T>(context: RefBackendContext, operation: () => Promise<StoreCommandResult<T>>): Promise<StoreCommandResult<T>> {
+async function withMigrationLock<T>(context: RefBackendContext, operation: () => Promise<T>): Promise<T | Extract<StoreRemoteResult, { status: "refused" }>> {
   try {
     const release = await context.lock("migrate");
     try { return await operation(); } finally { await release(); }

@@ -9,6 +9,7 @@ export interface RefRemoteDesignation { name: string; role?: "push" | "read" | "
 /** Counted candidates preserve the code-remote/backing distinction for sync and settings. */
 export interface RefDesignation {
   codeRemote: string | null;
+  codeRemotes: RefRemoteDesignation[];
   remotes: RefRemoteDesignation[];
   backing: RefRemoteDesignation | null;
   pushes: RefRemoteDesignation[];
@@ -25,7 +26,7 @@ export async function readRefDesignation(context: RefBackendContext, common?: st
     ? configRemotes(await repositoryConfig(context, store), "backing").find(({ name }) => name === "backing") ?? null : null;
   const remotes = code.filter(({ name, role }) => name !== "backing" && (backing === null || name === codeRemote || role === "read"));
   if (backing) remotes.push(backing);
-  return { codeRemote, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
+  return { codeRemote, codeRemotes: code, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
 }
 
 /** Configuration-only stops precede any fetch or publication. */

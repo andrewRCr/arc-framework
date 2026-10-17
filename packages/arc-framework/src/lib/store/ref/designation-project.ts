@@ -32,22 +32,28 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
   const original = context.syncDeadline?.cleanup ?? context;
   const cleanup = context.repository ? bindRefRepository(original, context.repository.commonDir, context.repository.gitDir) : original;
   const prefix = `refs/arc/tmp/designate/${remote.name}/`;
-  const release = await context.lock(prefix.slice(0, -1));
+  const observed = new Map<string, string>();
   try {
     await clearProjectCheck(context, prefix);
-    const fetched = await fetchProjectCheck(context, remote, designation, prefix);
+    const fetched = await fetchProjectCheck(context, remote, designation, prefix, observed);
     if (fetched.status === "failed") return fetched;
-    const incoming = await projectIdAt(context, `${prefix}registry`);
+    const incoming = await projectIdFromTip(context, fetched.registry);
     if (incoming.status === "refused") return projectReadFailure(incoming.refusal.condition);
     return incoming.result && incoming.result !== local.result
       ? { status: "identity-mismatch", local: local.result, remote: incoming.result } : { status: "ok" };
   } finally {
-    try { await clearProjectCheck(cleanup, prefix); } finally { await release(); }
+    for (const [ref, expected] of observed) {
+      await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot });
+    }
   }
 }
 
 async function projectIdAt(context: RefBackendContext, ref: string): Promise<StoreResult<string | null>> {
   const tip = (await readSyncRefs(context, ref)).get(ref);
+  return projectIdFromTip(context, tip);
+}
+
+async function projectIdFromTip(context: RefBackendContext, tip?: string): Promise<StoreResult<string | null>> {
   const tips = new Map(tip ? [["refs/arc/project/registry", tip]] : []);
   const owner = projectOwnerFromObjects(tips, await readBatchObjects(context, projectIdentityQueries(tips)));
   return owner.status === "refused" ? owner : { status: "ok", result: owner.result.type === "project" ? owner.result.uid ?? null : null };
@@ -63,12 +69,12 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 }
 
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
-  prefix: string): Promise<{ status: "ok" } | { status: "failed"; failure: ProjectFailure }> {
-  const target = await refFetchTarget(context, remote, designation);
+  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string } | { status: "failed"; failure: ProjectFailure }> {
+  const target = remote.repository === "backing" && !designation.backing ? remote.url : await refFetchTarget(context, remote, designation);
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
     "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()), "--", target,
     `+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`];
-  const completed = await completeProjectFetch(context, args, await runProjectFetch(context, args));
+  const completed = await completeProjectFetch(context, args, await runProjectFetch(context, args, observed), observed);
   if ("failure" in completed) return completed;
   const { fetched, rejected } = completed;
   if (fetched.status === "unreachable") return { status: "failed", failure: { code: "unreachable", class: "recoverable",
@@ -76,23 +82,32 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
     condition: fetched.stderr || "The candidate registry fetch failed.",
     remedy: { text: `Repair ${remote.name} and retry the designation; no role was set.` } } };
   return rejected || fetched.refs.some(({ flag }) => flag === "!")
-    ? projectReadFailure(fetched.stderr || "The candidate registry fetch refused a temporary ref update.") : { status: "ok" };
+    ? projectReadFailure(fetched.stderr || "The candidate registry fetch refused a temporary ref update.") : {
+      status: "ok", registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
+    };
 }
 
 interface ProjectFetch { fetched: FetchOutcome; rejected: boolean }
 
-async function runProjectFetch(context: RefBackendContext, args: string[]): Promise<ProjectFetch> {
-  try { return { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot,
+async function runProjectFetch(context: RefBackendContext, args: string[], observed: Map<string, string>): Promise<ProjectFetch> {
+  let result: ProjectFetch;
+  try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })) }; }
-  catch (error) { return { rejected: true, fetched: parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })) }; }
+  catch (error) { result = { rejected: true, fetched: parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })) }; }
+  if (result.fetched.status === "refs") for (const row of result.fetched.refs) {
+    if (row.flag === "!") continue;
+    if (/^0+$/u.test(row.next)) observed.delete(row.ref);
+    else observed.set(row.ref, row.next);
+  }
+  return result;
 }
 
-async function completeProjectFetch(context: RefBackendContext, args: string[], first: ProjectFetch):
+async function completeProjectFetch(context: RefBackendContext, args: string[], first: ProjectFetch, observed: Map<string, string>):
 Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
   if (first.rejected || first.fetched.status !== "refs" || first.fetched.refs.some(({ flag }) => flag === "!")
     || !await refFetchNeedsCompleteness(context) || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
   const at = args.indexOf("fetch");
-  const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)]);
+  const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], observed);
   if (retry.rejected || retry.fetched.status !== "refs") return retry;
   const missing = await missingRefFetchObjects(context, retry.fetched);
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;
