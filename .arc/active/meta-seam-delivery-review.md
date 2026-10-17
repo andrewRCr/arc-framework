@@ -1,8 +1,8 @@
 # Metadata: Seam Delivery and Review Records
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/seam-delivery-review` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/seam-delivery-review` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-seam-delivery-review.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Reshape the review kinds in the catalog and the registry
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Run the task loop from Task 1.1; Task 1.8 pauses for the locus landing
 
 - **PR URL:** [none]
 - **Completed:** [none]
