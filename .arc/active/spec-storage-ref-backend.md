@@ -4070,7 +4070,9 @@ open:
 
   The port gains `incomplete` for a pull invocation that did not fully synchronize the requested state, preserving
   partial outcomes, condition, and remedy; `unreachable` retains transport failure. Session entry and status fetch
-  render `incomplete` as `pull-incomplete`, and successful outcomes retain their notices for rendering.
+  render `incomplete` as `pull-incomplete`, and successful outcomes retain their notices for rendering. Both session
+  and slug status fetches use that binding. Status renders each notice as `pull-notice`, including notices in partial
+  outcomes, preserving its condition and remedy; whichever implementation lands second completes the shared wiring.
 
 - **A15** — 2026-10-17 — design: failed fetches verify reported updates against actual tracking tips.
   _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ pending → 11.6.

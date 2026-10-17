@@ -1704,6 +1704,12 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
       applied results; retain its condition, remedy, and partial outcomes. Keep `unreachable` for transport failures.
       Both `describeStorePull` and status fetch render `incomplete` as `pull-incomplete`, with exhaustive mappings;
       successful pulls retain their notices for rendering
+    - The port and session-entry result descriptions belong here; status warning rendering belongs to the status and
+      roadmap seam. Whichever lands second completes the shared wiring in `handlers/status.ts`,
+      `handlers/status/store-locus.ts`, and `lib/session-init/store-user-pull.ts`: `incomplete` becomes `pull-incomplete`,
+      and every notice becomes `pull-notice`, including notices inside an incomplete result's partial outcomes. Preserve
+      each condition and remedy; until an ended-conflict remedy exists, name the item and conflict records and explain
+      that the ordinary conflict view does not list them
     - Keep `createStore` as the backend selection point and its current in-repo selection until the cutover
     - Build `test-first` (one behavior at a time):
         - the result projection covers configured and undesignated remotes, no identity, no remote, success, and failure
@@ -1712,6 +1718,10 @@ _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, a
         - maintenance returns the selected store's measurements, including unsupported measurements as `null`
         - the production status-context construction supplies the binding to its selected store while the pre-flip
           session arms remain inactive
+        - both `arc status --fetch` and `arc status <slug> --fetch` use the selected store and bound port, covering the
+          slug dispatch before session-context construction once both seams are available
+        - status renders incomplete pulls and every notice, including partial-outcome notices, with the same conditions
+          and remedies as the bound port, completing the status seam's mappings if this branch lands second
 
 ### `[ ]` **15.4 Branch links, exclusions, and task captures — § 10.9, § 10.11**
 
