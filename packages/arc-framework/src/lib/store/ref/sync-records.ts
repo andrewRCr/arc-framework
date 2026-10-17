@@ -15,6 +15,7 @@ import { appendRefConflicts } from "./write-conflicts.js";
 import { mergeLineText, mergeEntryText, splitEntryList } from "../concurrency/index.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { RefMetadata } from "./metadata.js";
+import type { ReadPlacement } from "../placement.js";
 import type { EntryConfig, KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel } from "./sync-label.js";
@@ -27,17 +28,18 @@ interface RecordChoice { selected: IndexedRecord | undefined; conflicts: Conflic
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
-  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][]): Promise<SyncCheckRecord[]> {
+  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], currentSide: "local" | "incoming" = "incoming"): Promise<SyncCheckRecord[]> {
   const previous = indexRecords(context, ref, base, objects), current = indexRecords(context, ref, local, objects);
   const remote = indexRecords(context, ref, incoming, objects), conflicts: ConflictRecord[] = [];
   const choices: { records: RecordTriple; choice: RecordChoice }[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys(), ...remote.keys()])) {
     const records = { base: previous.get(key), local: current.get(key), incoming: remote.get(key) };
-    // Published values are current; local tips still own first-parent order and the checks' before view.
-    const choice = await chooseRecord(context, ref, { base, local: incoming, incoming: local },
-      { base: records.base, local: records.incoming, incoming: records.local }, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
+    // An end stays current against a late write; ordinary clashes keep the published side.
+    const sides = currentSide === "local" ? { base, local, incoming } : { base, local: incoming, incoming: local };
+    const values = currentSide === "local" ? records : { base: records.base, local: records.incoming, incoming: records.local };
+    const choice = await chooseRecord(context, ref, sides, values, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
     conflicts.push(...choice.conflicts);
-    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, incoming.metadata);
+    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
     choices.push({ records, choice });
   }
   for (const { records, choice } of choices) installRecord(context, ref, group, records, choice.selected, choice.retainMetadata ?? false);
@@ -127,7 +129,7 @@ function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSid
     if (entry.path === home.metadataPath) continue;
     const formatVersion = side.metadata.formats[refFormatKey(reference)] ?? 1;
     const primary = reference.kind === side.metadata.primary?.role || reference.kind === "cohort/document";
-    const value = recordValue(reference, entry, object, side.metadata, formatVersion, primary);
+    const value = recordValue(reference, entry, object, side.metadata, formatVersion, primary, side.placement);
     indexed.set(primary ? "primary" : refFormatKey(reference), { entry, value });
   }
   return indexed;
@@ -158,10 +160,10 @@ function retainPrimaryMetadata(metadata: RefMetadata, local: RefMetadata): void 
 }
 
 function recordValue(reference: RecordReference, entry: RefTreeEntry, object: BatchObject, metadata: RefMetadata,
-  formatVersion: number, primary: boolean): ConflictRecordValue {
+  formatVersion: number, primary: boolean, placement?: ReadPlacement): ConflictRecordValue {
   return ConflictRecordValueSchema.parse({ reference, content: new TextDecoder("utf-8", { fatal: true }).decode(object.bytes),
       version: refRecordVersion(reference, entry.oid, metadata, formatVersion), formatVersion,
-      ...(metadata.primary?.placement ?? metadata.placement) ? { placement: metadata.primary?.placement ?? metadata.placement } : {},
+      ...(placement ?? metadata.primary?.placement ?? metadata.placement) ? { placement: placement ?? metadata.primary?.placement ?? metadata.placement } : {},
       ...primary && metadata.primary?.links ? { links: metadata.primary.links } : {} });
 }
 

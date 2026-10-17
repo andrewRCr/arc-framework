@@ -1,7 +1,7 @@
 /** Capture changed state refs under a stable, globally ordered local lock set. */
 
 import type { PushRefChange } from "../../git/push.js";
-import { HistoryRefSchema } from "../refusal.js";
+import { HistoryRefSchema, type HistoryRef } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { isManifestRef } from "./manifest.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
@@ -25,6 +25,15 @@ export async function capturePushListing(context: RefBackendContext, remote: str
   }
 }
 
+/** Name pending history creates, updates, and deletes for the push loop's next fetch. */
+export async function readPushHistoryRefs(context: RefBackendContext, remote: string, identity: string | null): Promise<HistoryRef[]> {
+  const listing = await readPushListing(context, remote, identity);
+  return listing.changes.flatMap(({ ref }) => {
+    const history = HistoryRefSchema.safeParse(ref);
+    return history.success ? [history.data] : [];
+  });
+}
+
 /** A shared tracking advance can lift a lease only after the captured local tip includes it. */
 export async function pushListingIncludesTracking(context: RefBackendContext, listing: RefPushListing,
   merged: ReadonlyMap<string, string>): Promise<boolean> {
@@ -41,7 +50,13 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
   const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, prefix)]);
   const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
   const tracking = new Map([...allTracking].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
-  const changes = [...local].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  for (const ref of tracking.keys()) {
+    if (local.has(ref)) continue;
+    const counterpart = ref.startsWith("refs/arc/history/") ? ref.replace("refs/arc/history/", "refs/arc/")
+      : /^refs\/arc\/(work|cohort)\//u.test(ref) ? ref.replace("refs/arc/", "refs/arc/history/") : null;
+    if (counterpart && local.has(counterpart)) changes.push({ ref, next: null });
+  }
   return { local, tracking, changes };
 }
 

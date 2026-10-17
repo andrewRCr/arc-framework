@@ -910,28 +910,15 @@ _Purpose:_ Ends and reopens read from state rather than from refs' absence: leas
 pending ends and reopens, a completed item's folder rebuilt from its merged history ref, late writes meeting ends, and
 the withdrawal rule for two ends — the rules the model checks held.
 
-### `[ ]` **10.1 Leased deletes and by-name history fetches — § 6.5**
+### `[x]` **10.1 Leased deletes and by-name history fetches — § 6.5**
 
 - _Goal:_ No push recreates a ref another machine's lifecycle move deleted, and a lifecycle move whose delete loses to a
   write holds rather than undoing.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The first model check
-
-    - The push loop's listing gains every delete an end or reopen owes; its skip of a live ref with a pending end is
-      10.2.a's
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, two and three clones on one bare origin
-        - every push of a work item's or cohort's ref, live or under history, and every delete is leased
-        - an end's delete losing its lease to a write merges that tip into the local history ref and leases again
-        - a reopen's history-ref delete losing to another machine's write to the completed item merges it into the local
-          live ref, the quarter merge keeping the folder's removal
-        - the push loop's pull fetches by name each history ref its push creates, updates, or deletes, so a history-ref
-          create losing to a restored ref settles rather than spinning to the deadline
-        - a reopen racing another clone's write to the completed item keeps the write on the reopened item when the
-          reopening loop's by-name fetch brings it, merging the fetched tip into the live ref
-        - two worktrees of one clone, one's loop owing a ref's delete for an end, paused between its merge and its push
-          while the other's pull fetches another machine's write to that ref: the delete repeats rather than removing a
-          tip it never merged, and the next attempt merges that write into the history ref first
+- _Outcome:_ Push listings include leased lifecycle deletes and fetch pending history creates, updates, and deletes by
+  name. Archive and reopen delete races merge competing writes into the retained or live ref before retrying; retained
+  merges refresh visible folders in the same batch. A changed shared tracking tip forces another merge before a
+  delete may lease it. Three-clone and sibling-worktree cases exercise both layouts.
 
 ### `[ ]` **10.2 Another machine's end and reopen, read from state — § 6.4, § 6.6**
 

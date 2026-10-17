@@ -2,15 +2,12 @@
 
 import type { RefChange } from "../../git/ref-transaction.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import type { RecordReference } from "../identity.js";
 import type { BatchInput } from "../write.js";
 import type { StoreResult } from "../refusal.js";
-import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import { refWriteTargets, type ResolvedBatch } from "./write-resolution.js";
-import type { ArchivedFolder } from "./archive-read.js";
 import type { PreparedRefMutation } from "./write-merge.js";
-import type { RefMetadata } from "./metadata.js";
+import { refreshArchivedFolder } from "./archive-refresh.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { writeRefBlob } from "./tree-write.js";
@@ -48,7 +45,7 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
     const group = groups.get(history), entries = quarters.get(folder.ref);
     const reference = refWriteTargets(context, batch).find(({ home }) => home.ref === history)?.reference;
     if (!group || !entries || !reference) throw new Error("A completed write has no final history tree, quarter, or subject");
-    await refreshFolder(context, folder, group, entries, reference);
+    await refreshArchivedFolder(context, folder, group, entries, reference);
   }
   const result = changes.filter(({ ref }) => !refs.has(ref));
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
@@ -76,20 +73,4 @@ Promise<StoreResult<Map<string, Map<string, RefTreeEntry>>>> {
     quarters.set(ref, new Map(entries.map((entry) => [entry.path, entry])));
   }
   return { status: "ok", result: quarters };
-}
-
-async function refreshFolder(context: RefBackendContext, folder: ArchivedFolder, group: RefWriteGroup,
-  entries: Map<string, RefTreeEntry>, reference: RecordReference): Promise<void> {
-  const home = expandStoredPath(reference, { registry: context.registry });
-  for (const path of entries.keys()) if (path.startsWith(folder.root)) entries.delete(path);
-  const metadata: RefMetadata = { ...group.metadata, endBatch: folder.metadata.endBatch };
-  if (folder.placement.kind !== "completed") throw new Error("A completed folder has no completed placement");
-  if (metadata.placement) metadata.placement = { kind: "completed", quarter: folder.placement.quarter };
-  if (metadata.primary) metadata.primary = { ...metadata.primary, placement: { kind: "completed", quarter: folder.placement.quarter } };
-  const root = expandStoredPath({ ...reference, owner: { ...reference.owner, name: group.metadata.slug ?? reference.owner.name } }, { registry: context.registry, placement: folder.placement }).root;
-  for (const entry of group.entries.values()) {
-    if (entry.path === home.manifestPath.slice(0, -1) || entry.path.startsWith(home.manifestPath)) continue;
-    const path = root + entry.path;
-    entries.set(path, { ...entry, path, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
-  }
 }

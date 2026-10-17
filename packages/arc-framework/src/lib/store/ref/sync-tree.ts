@@ -16,21 +16,25 @@ import { mergeSyncMetadata } from "./sync-metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import { isArchiveRef } from "./archive-read.js";
 import { mergeArchiveTree } from "./sync-archive.js";
+import type { ReadPlacement } from "../placement.js";
+import { completeSyncPlacements } from "./sync-placement.js";
 import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 
 /** One immutable side's raw entries and validated group metadata. */
-export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
+export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
+/** Exact incoming tips and the side a lifecycle merge must preserve at a clash. */
+export interface SyncTreeMergeScope { currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; batchId?: string; reopening?: boolean }
 /** Prepared entries retain untouched blob identities and the provenance's actual owner. */
-export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; notices?: PullNotice[] }
+export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[] }
 
 /** Merge independently changed tree entries and metadata over their captured common ancestor. */
-export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>): Promise<StoreResult<SyncMergedTree>> {
-  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips);
+export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>, scope: SyncTreeMergeScope = {}): Promise<StoreResult<SyncMergedTree>> {
+  return isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips, scope);
 }
 
-async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string, captured: ReadonlyMap<string, string>): Promise<StoreResult<SyncMergedTree>> {
+async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string, captured: ReadonlyMap<string, string>, scope: SyncTreeMergeScope): Promise<StoreResult<SyncMergedTree>> {
   const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   if (!family) return { status: "refused", refusal: corruptRef(ref) };
   const prototype = refPrototype(context, live, family);
@@ -47,19 +51,38 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
     if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
     sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata });
   }
+  if (!await completeSyncPlacements(context, ref, sides, [captured, scope.incoming ?? captured])) {
+    return { status: "refused", refusal: corruptRef(ref) };
+  }
+  const currentSide = scope.currentSide ?? "incoming";
   const [previous, current, remote] = sides;
   if (!previous || !current || !remote) throw new Error("A reconciliation lacks one captured side");
-  const { metadata, conflicts } = mergeSyncMetadata(base ? previous.metadata : undefined, remote.metadata, current.metadata);
-  const entries = new Map<string, RefTreeEntry>();
-  for (const path of new Set([...previous.entries.keys(), ...current.entries.keys(), ...remote.entries.keys()])) {
-    const before = previous.entries.get(path), here = current.entries.get(path), there = remote.entries.get(path);
-    const selected = sameEntry(there, before) ? here : there;
-    if (selected) entries.set(path, selected);
-  }
-  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts);
+  const preferred = currentSide === "local" ? current : remote, other = currentSide === "local" ? remote : current;
+  const { metadata, conflicts } = mergeSyncMetadata(base ? previous.metadata : undefined, preferred.metadata, other.metadata);
+  const entries = mergeEntries(previous, preferred, other);
+  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, currentSide);
+  finishSyncMetadata(ref, metadata, current.metadata, scope);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);
-  return { status: "ok", result: { entries, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
+  return { status: "ok", result: { entries, metadata, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
+}
+
+function finishSyncMetadata(ref: string, metadata: RefMetadata, local: RefMetadata, scope: SyncTreeMergeScope): void {
+  if (scope.reopening) {
+    delete metadata.endBatch;
+    delete metadata.batch;
+    if (metadata.primary && local.primary) metadata.primary = { ...metadata.primary, placement: local.primary.placement };
+  } else if (ref.startsWith("refs/arc/history/") && scope.batchId) metadata.batch = scope.batchId;
+}
+
+function mergeEntries(base: SyncTreeSide, current: SyncTreeSide, incoming: SyncTreeSide): Map<string, RefTreeEntry> {
+  const entries = new Map<string, RefTreeEntry>();
+  for (const path of new Set([...base.entries.keys(), ...current.entries.keys(), ...incoming.entries.keys()])) {
+    const before = base.entries.get(path), here = current.entries.get(path), there = incoming.entries.get(path);
+    const selected = sameEntry(here, before) ? there : here;
+    if (selected) entries.set(path, selected);
+  }
+  return entries;
 }
 
 function metadataAt(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, path: string, ref: string): RefMetadata | null {

@@ -16,7 +16,7 @@ import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
 import { recordPushTracking } from "./push-tracking.js";
-import { capturePushListing, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
+import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
@@ -134,7 +134,9 @@ async function publishListing(context: RefBackendContext, remote: string, target
 
 async function pullPushBasis(context: RefBackendContext, remote: string, loop: PushLoop) {
   let merged: ReadonlyMap<string, string> = new Map();
-  const pulled = await pullRefStore(context, {}, (name, incoming) => { if (name === remote) merged = incoming; },
+  const physical = await readRefRepository(context);
+  const history = await readPushHistoryRefs(physical, remote, await context.identity());
+  const pulled = await pullRefStore(context, { history }, (name, incoming) => { if (name === remote) merged = incoming; },
     async (physical, ref, before, after) => { for (const family of await refMovementFamilies(physical, ref, before, after)) loop.reconciled.add(family); });
   return { pulled, merged };
 }
