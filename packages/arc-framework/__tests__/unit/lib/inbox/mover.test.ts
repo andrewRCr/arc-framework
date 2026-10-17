@@ -21,7 +21,9 @@ it("composes the inbound insert, exact source removal, and receipt with destinat
   if (source.status !== "ok" || destination.status !== "ok") throw new Error("Fixture lists must resolve");
   const rows = rowsInList(source.result);
   if (rows.status !== "ok" || rows.result[0] === undefined) throw new Error("Fixture needs one entry");
-  const plan = prepareEntryMove({ source: source.result, destination: destination.result, entry: rows.result[0], section: "Inbound" }, context);
+  const prepared = await prepareEntryMove({ source: source.result, destination: destination.result, entry: rows.result[0], section: "Inbound" }, context);
+  if (prepared.status !== "ok") throw new Error(prepared.refusal.condition);
+  const plan = prepared.result;
   expect(plan.writes).toHaveLength(3);
   success(await f.store.batch({ writes: plan.writes, provenance: { verb: "route", lifecycleAction: "route" } }));
   const inbound = success(await f.store.read({ reference: destination.result.reference }));
@@ -37,6 +39,7 @@ it("moves an inbound entry into a description without either inbox receipt",asyn
  const {createInboxHarness,entry}=await import("../../../helpers/inbox-harness.js");const h=createInboxHarness();const source=await h.workUnit("from","test-user","active",entry()),target=await h.errand("to");
  const from=await resolveEntryList(source.reference.owner.name,h.context),to=await resolveEntryList(target.reference.owner.name,h.context);if(from.status!=="ok"||to.status!=="ok")throw new Error("Lists missing");
  const rows=rowsInList(from.result);if(rows.status!=="ok"||!rows.result[0])throw new Error("No row");
- const plan=prepareEntryMove({source:from.result,destination:to.result,entry:rows.result[0],section:"Description"},h.context);
+ const prepared=await prepareEntryMove({source:from.result,destination:to.result,entry:rows.result[0],section:"Description"},h.context);
+ if(prepared.status!=="ok")throw new Error(prepared.refusal.condition);const plan=prepared.result;
  expect(plan.writes.map(write=>write.reference.kind)).toEqual(["work-item/description","work-item/inbound"]);
 });

@@ -30,7 +30,7 @@ export async function prepareRoute(input: RouteEntryInput, destination: Resolved
     : prepareExisting(input, destination, section.result, held.result, context);
 }
 
-function prepareInsert(input: RouteEntryInput, destination: ResolvedEntryList, section: string, held: InboxRow[], context: InboxContext): InboxOutcome<RoutePreparation> {
+async function prepareInsert(input: RouteEntryInput, destination: ResolvedEntryList, section: string, held: InboxRow[], context: InboxContext): Promise<InboxOutcome<RoutePreparation>> {
   if (input.from !== undefined || input.expectedVersion !== undefined || !input.content?.trim()) return failure("invalid-input", "Insertion needs entry bytes on stdin and no --from or --expected-version.", "Use arc route --to <destination> with one entry on stdin.");
   const document = `## ${section}\n${input.content}`;
   const parsed = parseEntryList(document, destination.kind);
@@ -41,8 +41,8 @@ function prepareInsert(input: RouteEntryInput, destination: ResolvedEntryList, s
   const entry = ready.success ? ready.data.entries[0] : undefined;
   if (entry?.id === undefined) return failure("invalid-input", "The inserted entry has no valid identity.", "Supply one valid entry heading and retry.");
   if (held.some((row) => row.id === entry.id)) return idClash(entry.id, entry.title, held.find((row) => row.id === entry.id)?.title ?? "", destination.selector);
-  const plan = prepareEntryMove({ source: null, destination, section, entry: { id: entry.id, raw: entry.bytes, section } }, context);
-  return { status: "ok", result: { kind: "move", plan } };
+  const prepared = await prepareEntryMove({ source: null, destination, section, entry: { id: entry.id, raw: entry.bytes, section } }, context);
+  return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", plan: prepared.result } };
 }
 
 async function prepareExisting(input: RouteEntryInput, destination: ResolvedEntryList, section: string, held: InboxRow[], context: InboxContext): Promise<InboxOutcome<RoutePreparation>> {
@@ -71,16 +71,18 @@ interface ObservedMove {
   input: RouteEntryInput; destination: ResolvedEntryList; section: string; source: ResolvedEntryList;
   entry: InboxRow; duplicate: InboxRow | undefined; sameHome: boolean;
 }
-function prepareObservedMove(observed: ObservedMove, context: InboxContext): InboxOutcome<RoutePreparation> {
+async function prepareObservedMove(observed: ObservedMove, context: InboxContext): Promise<InboxOutcome<RoutePreparation>> {
   const { input, destination, section, source, entry, duplicate, sameHome } = observed;
   if (entry.version !== input.expectedVersion) return { status: "refused", refusal: { code: "changed-entry", condition: `Entry ${entry.id} changed; its current version is ${entry.version}.`, remedy: { text: "Read arc inbox <list>, then retry with the version found." }, foundVersion: entry.version } };
   const removal = mayRemoveEntry(source, context.identity);
   if (removal.status === "refused") return removal;
   if (duplicate !== undefined && !sameRoutingList(listCoordinate(source), listCoordinate(destination))) {
-    return sameHome ? { status: "ok", result: { kind: "move", plan: prepareSurvivorCarry({ source, destination, entry, section }, duplicate, context) } }
-      : idClash(entry.id, entry.title, duplicate.title, destination.selector);
+    if (!sameHome) return idClash(entry.id, entry.title, duplicate.title, destination.selector);
+    const prepared = await prepareSurvivorCarry({ source, destination, entry, section }, duplicate, context);
+    return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", plan: prepared.result } };
   }
-  return { status: "ok", result: { kind: "move", plan: prepareEntryMove({ source, destination, entry, section }, context) } };
+  const prepared = await prepareEntryMove({ source, destination, entry, section }, context);
+  return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", plan: prepared.result } };
 }
 
 function idClash(id: string, incoming: string, held: string, destination: string): ReturnType<typeof failure> {

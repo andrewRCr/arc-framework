@@ -56,14 +56,14 @@ async function prepareReturnEntry(entry: InboxRow, source: ResolvedEntryList, de
   return returnToDestination(entry, source, resolved.result, original ? previous.section : undefined, original, context);
 }
 
-function returnToDestination(entry: InboxRow, source: ResolvedEntryList, destination: ResolvedEntryList, previousSection: string | undefined, original: boolean, context: InboxContext): InboxOutcome<ReturnEntry> {
+async function returnToDestination(entry: InboxRow, source: ResolvedEntryList, destination: ResolvedEntryList, previousSection: string | undefined, original: boolean, context: InboxContext): Promise<InboxOutcome<ReturnEntry>> {
   const held = rowsInList(destination);
   if (held.status === "refused") return held;
   const duplicate = held.result.find(row => row.id === entry.id);
   if (duplicate !== undefined) return failure("id-clash", `Return entry ${entry.title} (${entry.id}) clashes with ${duplicate.title} in ${destination.selector}.`, `Carry the survivor with arc route ${entry.id} --from ${destination.selector} --expected-version ${duplicate.version} --to ${source.selector}, then retry the abandon.`);
   const section = previousSection ?? (destination.inbox === "project" ? "Inbox" : "Errand");
-  const plan = prepareEntryMove({ source, destination, entry, section, preserveCreated: original }, context);
-  return { status: "ok", result: { kind: "move", destination, writes: plan.writes } };
+  const prepared = await prepareEntryMove({ source, destination, entry, section, preserveCreated: original }, context);
+  return prepared.status === "refused" ? prepared : { status: "ok", result: { kind: "move", destination, writes: prepared.result.writes } };
 }
 
 function mergeWrite(writes: Mutation[], write: Mutation): void {

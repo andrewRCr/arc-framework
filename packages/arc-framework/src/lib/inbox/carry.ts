@@ -6,7 +6,7 @@ import { appendEntry, entryForDestination, entryHeadingForDestination } from "./
 import { mayReplaceEntry } from "./admission.js";
 import { prepareEntryMove, type EntryMoveInput, type PreparedEntryMove } from "./mover.js";
 import { listCoordinate } from "./receipts.js";
-import type { InboxContext, InboxRow } from "./types.js";
+import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 
 /** Preserve the observed source removal and receipts while replacing or citing its held home.
  * @param input - Source entry and its proven existing destination.
@@ -14,9 +14,11 @@ import type { InboxContext, InboxRow } from "./types.js";
  * @param context - Router identity, clock and randomness.
  * @returns One atomic survivor carry.
  */
-export function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow, context: InboxContext): PreparedEntryMove {
+export async function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow, context: InboxContext): Promise<InboxOutcome<PreparedEntryMove>> {
   const now = context.now();
-  const plan = prepareEntryMove(input, { ...context, now: () => now });
+  const prepared = await prepareEntryMove(input, { ...context, now: () => now });
+  if (prepared.status === "refused") return prepared;
+  const plan = prepared.result;
   const destination = input.destination;
   const replaces = mayReplaceEntry(destination, context.identity);
   const carried = replaces ? "replaced" : "cited";
@@ -25,7 +27,7 @@ export function prepareSurvivorCarry(input: EntryMoveInput, held: InboxRow, cont
     : writeEntryFields(entryForDestination(input.entry.raw, destination.kind, now.toISOString().slice(0, 10), input.source === null ? null : listCoordinate(input.source, input.entry.section)), { Id: id, Cites: held.id });
   const content = replaces ? replaceEntry(destination.saved?.content ?? "", destination.kind, held.id, raw)
     : appendEntry(destination.saved?.content ?? "", input.section, raw);
-  return { ...plan, entryId: id, carried, writes: plan.writes.map((write, index) => index === 0 && write.action === "put" ? { ...write, content } : write) };
+  return { status: "ok", result: { ...plan, entryId: id, carried, writes: plan.writes.map((write, index) => index === 0 && write.action === "put" ? { ...write, content } : write) } };
 }
 
 function replacementProse(raw: string, held: InboxRow): string {

@@ -5,11 +5,11 @@ import { drawEntryId, writeEntryFields } from "../store/kinds/entry-fields.js";
 import type { Mutation } from "../store/write.js";
 import { resolveEntryList, resolveWorkItemList, failure, withProvenance, type ResolvedEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
-import { prepareEntryMove } from "./mover.js";
+import { prepareEntryMove, type PreparedEntryMove } from "./mover.js";
 import { listCoordinate, latestRoutingReceipt } from "./receipts.js";
 import { openErrandHolding } from "./errand-home.js";
 import { readQueueState, renderQueueSet } from "./queue-storage.js";
-import type { InboxContext, InboxOutcome } from "./types.js";
+import type { InboxContext, InboxOutcome, InboxRow } from "./types.js";
 /** A start reports its exact qualified capture origin. */
 export interface ErrandAdoption { origin: { title: string; sourceDigest: null; executeBound: false; version: string } | null; writes: Mutation[]; closed?: string }
 /** Prepare capture adoption or a fresh text description without writing.
@@ -32,18 +32,24 @@ export async function prepareErrandAdoption(input: { slug: string; from?: string
   if (queue.status === "refused") return queue;
   const writes: Mutation[] = [];
   if (!input.partial) {
-    const destination = await descriptionFor(input.slug, context);
-    if (destination.status === "refused") return destination;
-    const held = rowsInList(destination.result);
-    if (held.status === "refused") return held;
-    if (held.result.some((row) => row.id === id)) return failure("id-clash", `Errand ${input.slug} already holds ID ${id}.`, "Inspect its description before linking this entry.");
-    writes.push(...prepareEntryMove({ source: source.result, destination: destination.result, entry, section: "Description" }, context).writes);
+    const prepared = await prepareCaptureMove(input.slug, source.result, entry, context);
+    if (prepared.status === "refused") return prepared;
+    writes.push(...prepared.result.writes);
   }
   if (queue.result.members.some((member) => member.id === id && member.inbox === inbox)) {
     const rendered = renderQueueSet(queue.result, queue.result.members.filter((member) => member.id !== id || member.inbox !== inbox), new Map());
     writes.push({ action: "put", reference: queue.result.reference, content: rendered.content, expected: queue.result.saved?.version ?? null });
   }
   return { status: "ok", result: { origin: { title: input.from, sourceDigest: null, executeBound: false, version: entry.version }, writes, ...(closed === undefined ? {} : { closed }) } };
+}
+
+async function prepareCaptureMove(slug: string, source: ResolvedEntryList, entry: InboxRow, context: InboxContext): Promise<InboxOutcome<PreparedEntryMove>> {
+  const destination = await descriptionFor(slug, context);
+  if (destination.status === "refused") return destination;
+  const held = rowsInList(destination.result);
+  if (held.status === "refused") return held;
+  if (held.result.some(row => row.id === entry.id)) return failure("id-clash", `Errand ${slug} already holds ID ${entry.id}.`, "Inspect its description before linking this entry.");
+  return prepareEntryMove({ source, destination: destination.result, entry, section: "Description" }, context);
 }
 
 async function descriptionFor(slug: string, context: InboxContext): Promise<InboxOutcome<ResolvedEntryList>> {
@@ -74,7 +80,8 @@ async function prepareTextDescription(input: { slug: string; intent?: string; pa
     if (rows.status === "refused") return rows;
     const id = drawEntryId(new Set(rows.result.map((row) => row.id)), context.random ?? Math.random);
     const raw = writeEntryFields(`### **${input.intent?.trim() || input.slug}**`, { Id: id, Created: context.now().toISOString().slice(0, 10) });
-    return { status: "ok", result: { origin: null, writes: prepareEntryMove({ source: null, destination: destination.result, entry: { id, raw, section: "Description" }, section: "Description" }, context).writes } };
+    const prepared = await prepareEntryMove({ source: null, destination: destination.result, entry: { id, raw, section: "Description" }, section: "Description" }, context);
+    return prepared.status === "refused" ? prepared : { status: "ok", result: { origin: null, writes: prepared.result.writes } };
 
 }
 
