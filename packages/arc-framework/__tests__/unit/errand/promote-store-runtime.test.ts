@@ -7,7 +7,8 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/li
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { TransientIdentityRecordV3Schema, projectLocusIdentity } from "../../../src/lib/errand/identity-record.js";
 import { promoteOrdinaryErrandAtRuntime } from "../../../src/lib/errand/promote-runtime.js";
-import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeMarker, readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
 import { readStoreIdentityEvidence, projectStoreIdentityDiscovery } from "../../../src/lib/locus/store-identities.js";
 import { DerivedLocusFrameSchema, DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -70,4 +71,39 @@ it("preserves foreign-generation confirmation without cutting a branch", async (
   const other = { ...f.frame.entering, row: { ...f.frame.roster[0]!, checkout: { ...f.frame.roster[0]!.checkout, path: "/other" } } } as DerivedLocusFrame["entering"];
   expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, readFrame: async () => ({ ...f.frame, entering: other }) })).toMatchObject({ outcome: "confirmation-required" });
   expect(f.calls).toEqual([]);
+});
+it("refuses an unreachable authority pull without mutation and retries through the repaired port", async () => {
+  const f = await fixture(), before = lifecycleSuccess(await f.store.version()), marker = await readWorktreeMarker(f.cwd);
+  let reachable = false;
+  const sync = createStoreSyncPort({ pull: async () => reachable ? { status: "pulled" }
+    : { status: "unreachable", condition: "Origin is offline.", remedy: { text: "Reconnect to origin and retry promotion." } } });
+  const options = { ...f.options, sync };
+  expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "refused", reason: "authority-unresolved",
+    recommendedPromptText: "Origin is offline. Reconnect to origin and retry promotion." });
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(marker);
+  expect(f.calls).toEqual([]);
+  reachable = true;
+  expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
+});
+it("pulls the project identity and source owner before acquiring promotion authority", async () => {
+  const f = await fixture(), repository = "00000000-0000-4000-8000-000000000001";
+  const source = TransientIdentityRecordV3Schema.parse(JSON.parse(f.primary.content));
+  if (source.kind !== "errand" || source.purpose !== "errand") throw new Error("Missing ordinary source");
+  lifecycleSuccess(await f.store.write({ action: "put", reference: f.primary.reference, expected: f.primary.version,
+    content: JSON.stringify({ ...source, owner: "bob" }), placement: { kind: "active" },
+    links: { branches: [{ repository, ref: "chore/fix-it", linkedAs: "created", excluded: [] }] }, provenance: { verb: "update-owner", lifecycleAction: "update" } }));
+  const sync = createStoreSyncPort({ pull: async () => {
+    await f.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "pulled-project", uid: repository })), "{}");
+    const current = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+    lifecycleSuccess(await f.store.write({ action: "put", reference: current.reference, expected: current.version,
+      content: JSON.stringify(source), placement: { kind: "active" }, links: current.links, provenance: { verb: "pull-owner", lifecycleAction: "update" } }));
+    return { status: "pulled" };
+  } });
+  expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, projectId: undefined, sync })).toMatchObject({ outcome: "applied" });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(meta.reference.kind).toBe("work-item/meta");
+  expect(meta.fields).toMatchObject({ owner: "alice" });
+  expect(meta.links?.branches).toContainEqual({ repository, ref: "feat/grown", linkedAs: "created", excluded: [] });
 });

@@ -2177,8 +2177,9 @@ async function runErrandPromoteHandler(
 
   let result: ErrandPromotionResult;
   try {
+    const store = openDefaultStore(cwd, io.exec);
     result = await promoteOrdinaryErrandAtRuntime({
-      store: openDefaultStore(cwd, io.exec),
+      store,
       slug,
       name: wuName,
       type: type !== undefined && type !== "" ? type : "feat",
@@ -2193,6 +2194,7 @@ async function runErrandPromoteHandler(
       execInput: io.execInput,
       readFrame: () => runDerivedLocusStateProbe({
         cwd,
+        store,
         identity,
         baseBranch: settings["branch.base"],
         exec: io.exec,

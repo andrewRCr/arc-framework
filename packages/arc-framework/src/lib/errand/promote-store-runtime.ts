@@ -9,6 +9,7 @@ import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { Store } from "../store/contract.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import { createStoreSyncPort } from "../store/operational-sync.js";
 
 type StoreRuntimeOptions = PromoteOrdinaryErrandRuntimeOptions & { store: Store };
 
@@ -17,6 +18,8 @@ export async function promoteStoreErrandAtRuntime(options: PromoteOrdinaryErrand
   settleOccupancy: (frame: PromotionFrameReceipt) => Promise<PromotionFrameResult>): Promise<ErrandPromotionResult> {
   const store = options.store;
   if (store === undefined) return refused("The operational store is unavailable.");
+  const pulled = await (options.sync ?? createStoreSyncPort()).pull();
+  if (pulled.status === "unreachable") return refused(`${pulled.condition} ${pulled.remedy.text}`);
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(store));
   if (project.status !== "ready") return refused(`${project.reason} ${project.remedy.text}`);
   const frame = await options.readFrame();

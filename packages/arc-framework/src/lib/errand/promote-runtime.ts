@@ -1,5 +1,6 @@
 /** Production local-frame transaction for ordinary Errand promotion. */
 import type { Store } from "../store/contract.js";
+import type { StoreSyncPort } from "../store/operational-sync.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import { promoteStoreErrandAtRuntime } from "./promote-store-runtime.js";
@@ -42,6 +43,8 @@ import {
 export interface PromoteOrdinaryErrandRuntimeOptions {
   /** Optional operational store injected by the lifecycle caller. */
   store?: Store;
+  /** Optional synchronization bound to that same operational store. */
+  sync?: StoreSyncPort;
   projectId?: () => Promise<string>;
   locusPorts?: LocusPorts;
   readonly slug: string;
