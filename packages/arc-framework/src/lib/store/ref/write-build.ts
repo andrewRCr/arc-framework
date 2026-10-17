@@ -1,24 +1,27 @@
 /** Prepare record trees over captured tips and publish their commits in one transaction. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { BatchInput, BatchResult, WriteResult } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { refRecordVersion } from "./record-version.js";
-import { writeRefBlob, writeRefTree } from "./tree-write.js";
+import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
+import { refWriteTargets } from "./write-resolution.js";
 import type { RecordReference } from "../identity.js";
-import { renderStoreCommitMessage } from "../commit-provenance.js";
+import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
 import { decodeStoredReference } from "./path-decode.js";
 import { familyOf } from "../catalog.js";
 import { refFormatKey } from "./format-key.js";
+import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
+import { expandStoredPath } from "../stored-path.js";
 
-interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
+type RefGroup = RefWriteGroup;
 
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
@@ -30,32 +33,36 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     && groups.get(home.ref)?.metadata.slug !== mutation.reference.owner.name)) return "resolve";
   const refusal = capturedWriteRefusal(context, resolved, groups);
   if (refusal) return { status: "refused", refusal };
+  const prepared = await prepareCapturedWrites(context, resolved, groups, provenance);
+  if (prepared.status === "refused") return prepared;
+  applyResolutions(context, resolved, groups);
   const tips = resolved.tips;
   const results: WriteResult[] = [];
-  for (const write of resolved.writes) {
+  for (const write of prepared.result) {
     const group = groups.get(write.home.ref);
     if (!group) throw new Error("A resolved mutation has no captured ref group");
     const applied = await applyMutation(context, group, write);
     if (applied.status === "refused") return applied;
     results.push(applied.result);
   }
-  const changes: RefChange[] = [];
-  const identity = await context.identity();
-  const actor = identity === null ? undefined : await context.actor(identity);
-  for (const [ref, group] of groups) {
-    const write = resolved.writes.find((write) => write.home.ref === ref);
-    if (!write) throw new Error("A changed ref has no mutation");
-    const path = write.home.metadataPath;
-    group.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(group.metadata)) });
-    const tree = await writeRefTree(context, group.entries.values());
-    const parent = tips.get(ref);
-    const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
-      "-m", renderStoreCommitMessage(provenance, write.mutation.reference, batchId, actor)], { cwd: context.checkoutRoot });
-    changes.push({ ref, next: stdout.trim(), expected: parent ?? null });
-  }
+  const changes = await prepareRefCommits(context, prepared.result, refWriteTargets(context, resolved), groups, tips, provenance, batchId, results);
+  if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
   const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (outcome.status !== "committed") return "retry";
   return { status: "ok", result: { batchId, writes: results } };
+}
+
+function applyResolutions(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): void {
+  for (const { mutation } of resolved.writes) {
+    for (const reference of mutation.resolves ?? []) {
+      const target = expandStoredPath(reference, { registry: context.registry });
+      const group = groups.get(target.ref);
+      if (!group) throw new Error("A resolved conflict has no captured ref group");
+      group.entries.delete(target.path);
+      const key = refFormatKey(reference);
+      group.metadata.formats = Object.fromEntries(Object.entries(group.metadata.formats).filter(([candidate]) => candidate !== key));
+    }
+  }
 }
 
 function capturedWriteRefusal(context: RefBackendContext, resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): StoreRefusal | undefined {
@@ -63,12 +70,6 @@ function capturedWriteRefusal(context: RefBackendContext, resolved: ResolvedBatc
   if (collision) return collision;
   const primary = primaryPlacementRefusal(resolved, groups);
   if (primary) return primary;
-  const stale = staleMutations(resolved, groups);
-  if (stale.length > 0) return {
-    code: "version-conflict", class: "recoverable", records: stale,
-    condition: "The expected record versions do not match the captured state",
-    remedy: { text: "Read every conflicting record, then retry the whole batch with its current versions." },
-  };
   return undefined;
 }
 
@@ -103,17 +104,6 @@ function storedPathCollision(context: RefBackendContext, resolved: ResolvedBatch
     if (refusal) return refusal;
   }
   return undefined;
-}
-
-function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, RefGroup>): RecordReference[] {
-  return resolved.writes.flatMap(({ mutation, home }) => {
-    const group = groups.get(home.ref);
-    if (!group) throw new Error("A resolved mutation has no captured ref group");
-    const entry = group.entries.get(home.path);
-    const format = group.metadata.formats[refFormatKey(mutation.reference)] ?? 1;
-    const version = entry ? refRecordVersion(mutation.reference, entry.oid, group.metadata, format) : null;
-    return mutation.expected === version ? [] : [mutation.reference];
-  });
 }
 
 async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<StoreResult<WriteResult>> {
@@ -151,27 +141,28 @@ function removeLineageOwner(metadata: RefMetadata, reference: RecordReference): 
 }
 
 async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<Map<string, RefGroup>>> {
-  const refs = new Set(resolved.writes.map((write) => write.home.ref));
+  const targets = refWriteTargets(context, resolved);
+  const refs = new Set(targets.map(({ home }) => home.ref));
   const tips = new Map([...resolved.tips].filter(([ref]) => refs.has(ref)));
   const trees = tips.size > 0 ? await readRefTrees(context, tips) : new Map<string, RefTreeEntry[]>();
-  const queries = resolved.writes.flatMap(({ home }) => {
+  const queries = targets.flatMap(({ home }) => {
     const tip = tips.get(home.ref);
     return tip ? [`${tip}:${home.metadataPath}`] : [];
   });
   const objects = await readBatchObjects(context, [...new Set(queries)]);
   const groups = new Map<string, RefGroup>();
-  for (const write of resolved.writes) {
-    const { mutation, home } = write;
+  for (const { reference, home } of targets) {
     let group = groups.get(home.ref);
     if (!group) {
       const tip = tips.get(home.ref);
       const metadata = tip ? parseRefMetadata(objects.get(`${tip}:${home.metadataPath}`), home.ref)
         : { formatVersion: 1 as const, formats: {},
           ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
-            ? { slug: mutation.reference.owner.name } : {}) };
+            ? { slug: reference.owner.name } : {}) };
       if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
         namespace: home.ref, ...metadataFailure(home.ref) } };
-      group = { metadata, entries: new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry])) };
+      const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
+      group = { metadata, entries, original: new Map(entries) };
       groups.set(home.ref, group);
     }
   }

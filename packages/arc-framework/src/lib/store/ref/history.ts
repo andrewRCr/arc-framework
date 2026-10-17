@@ -12,6 +12,8 @@ import { resolveReadReference } from "./read.js";
 import { readHistorySnapshots } from "./history-snapshots.js";
 
 interface HistoryCommit { revision: string; parents: string[] }
+/** A landed state paired with the commit that changed it. */
+export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 
 /** Resolve a record and read its newest-first landed states from its own ref. */
 export async function historyRefRecord(context: RefBackendContext, input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>> {
@@ -29,20 +31,28 @@ export async function historyRefRecord(context: RefBackendContext, input: { refe
 /** Read a record log against one exact tip, also usable by a locked stale-base lookup. */
 export async function readRefHistory(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string): Promise<StoreResult<HistoryEntry[]>> {
+  const history = await readRefHistoryDetails(context, reference, home, tip);
+  return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
+}
+
+/** Retain change-commit identities for merge bases and stored-side labels. */
+export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
+  home: StoredRecordHome, tip: string): Promise<StoreResult<RefHistoryDetail[]>> {
   const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
     `:(literal)${home.path}`, `:(literal)${home.metadataPath}`], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const rows = parseHistoryRows(stdout);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
   const snapshots = await readHistorySnapshots(context, reference, home, revisions);
   if (snapshots.status === "refused") return snapshots;
-  const entries: HistoryEntry[] = [];
+  const entries: RefHistoryDetail[] = [];
   for (const row of orderHistoryCommits(rows)) {
     const after = snapshots.result.get(row.revision);
     if (!after) throw new Error("A historical commit has no captured state");
     const before = row.parents[0] ? snapshots.result.get(row.parents[0])?.state : undefined;
     if (after.state.version === (before?.version ?? null)) continue;
     const selected = after.state.version === null ? before?.reference ?? after.state.reference : after.state.reference;
-    entries.push({ ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected) });
+    entries.push({ revision: row.revision,
+      entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected) } });
   }
   return { status: "ok", result: entries };
 }

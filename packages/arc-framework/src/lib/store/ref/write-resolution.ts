@@ -15,6 +15,14 @@ import { readLiveRefOwners } from "./live-owners.js";
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome }
 /** One resolved owner generation per name, with its captured mutation basis. */
 export interface ResolvedBatch { writes: ResolvedMutation[]; tips: Map<string, string> }
+/** A ref/tree coordinate that the batch may change directly or through resolution. */
+export interface RefWriteTarget { reference: RecordReference; home: StoredRecordHome }
+
+/** Include conflict-resolution refs in the same capture, locking, and publication set. */
+export function refWriteTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
+  return batch.writes.flatMap(({ mutation, home }) => [{ reference: mutation.reference, home },
+    ...(mutation.resolves ?? []).map((reference) => ({ reference, home: expandStoredPath(reference, { registry: context.registry }) }))]);
+}
 
 /** Resolve all owner names together so records created in one batch share a generation. */
 export async function resolveRefWrites(context: RefBackendContext, writes: readonly Mutation[]): Promise<StoreResult<ResolvedBatch>> {

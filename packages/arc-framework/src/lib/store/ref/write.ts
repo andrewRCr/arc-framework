@@ -5,7 +5,7 @@ import type { RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
-import { resolveRefWrites } from "./write-resolution.js";
+import { resolveRefWrites, refWriteTargets } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
 import { withRefLocks } from "./write-locks.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
@@ -39,8 +39,8 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
   const validated = parseBatchInput(input);
   if (validated.status === "refused") return validated;
   const parsed = validated.result;
-  for (const mutation of parsed.writes) {
-    const invalidKey = checkRefKey(mutation.reference, context.registry);
+  for (const reference of parsed.writes.flatMap((mutation) => [mutation.reference, ...mutation.resolves ?? []])) {
+    const invalidKey = checkRefKey(reference, context.registry);
     if (invalidKey) return { status: "refused", refusal: invalidKey };
   }
   const puts = parsed.writes.filter((mutation) => mutation.action === "put");
@@ -113,7 +113,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
       .map((write) => write.mutation.reference), context.registry);
     if (collision) return { status: "refused", refusal: collision };
-    const result = await withRefLocks(context, resolved.result.writes.map((write) => write.home.ref), () =>
+    const result = await withRefLocks(context, refWriteTargets(context, resolved.result).map(({ home }) => home.ref), () =>
       commitLockedRefBatch(context, resolved.result, input.provenance, batchId));
     if (result !== null) return result;
   }
@@ -123,15 +123,15 @@ async function commitLockedRefBatch(context: RefBackendContext, resolved: Resolv
   provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<BatchResult> | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
-    if (ownerLocationsChanged(resolved, tips)) return null;
+    if (ownerLocationsChanged(context, resolved, tips)) return null;
     const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId);
     if (result === "resolve") return null;
     if (result !== "retry") return result;
   }
 }
 
-function ownerLocationsChanged(resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
-  return resolved.writes.some(({ home }) => {
+function ownerLocationsChanged(context: RefBackendContext, resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
+  return refWriteTargets(context, resolved).some(({ home }) => {
     const refs = [home.ref];
     if (/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)) refs.push(home.ref.replace("refs/arc/", "refs/arc/history/"));
     return refs.some((ref) => tips.has(ref) !== resolved.tips.has(ref));

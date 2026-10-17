@@ -485,47 +485,25 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   literal-path tree reads distinguish unavailable blobs from absence; restoration resumes the query. Historical
   bytes bypass current semantic parsers, and legacy commit messages remain verbatim.
 
-### `[ ]` **5.5 Stale bases, merges, and no-op rewrites — § 3.7, § 5.2**
+### `[x]` **5.5 Stale bases, merges, and no-op rewrites — § 3.7, § 5.2**
 
 - _Goal:_ A stale put of a merge kind merges from the version it names, every other stale write refuses, and a write that
   changes nothing makes no commit.
 
-    - The stale-base merge passes its expected version to the merge library as `MergeTextInput`'s base version, which
-      `mergeLineText` copies into every hunk record it emits (§ 3.7); role replacement's absence rule lands in 6.6
-    - Build `test-first` (one behavior at a time):
-        - a put expecting absence refuses over a record present in either primary role
-        - a stale put of a `line` or `entry` kind merges from its expected version's content by the kind's mechanism and
-          returns the merged version, and a version the record's history lacks refuses `version-conflict`
-        - a stored side or base repeating an `_Id:_` refuses `record-malformed` naming that version and the ID
-        - a stale put of a single-writer kind and a stale removal refuse `version-conflict` naming every stale record
-        - a put updating a `create-only` or `write-once` record refuses `version-conflict` at its current version, but
-          for the one repair seam-lifecycle admits (`isTerminalSnapshotRepair`, `lib/store/kinds/lineage/repair.ts`): a
-          `repair-lineage` or hand-edit put adding only a terminal lineage record's missing `retiredBranches` at its
-          current version lands, a stale one refuses `version-conflict`, and any other change to the record refuses
-        - an identical rewrite makes no commit and keeps the version, and a put naming an open conflict record in
-          `resolves` with the stored content commits that record's removal alone
-        - a retried update of a hand-typed entry, after its first attempt landed, stamps the same ID, merges to the
-          stored content, and makes no commit
-        - a stale base's merged content passes the serialization rules and the kind's parser again, refusing
-          `record-malformed` with the remedy to read and write over the current version
+- _Outcome:_ Captured version admission checks both primary roles, collects unmergeable stale records, and admits only
+  the current terminal-snapshot repair. Historical line/entry merges retain clashes, reject malformed stored IDs, and
+  recheck merged bytes. Tree comparison preserves true no-ops; conflict resolutions share their refs’ locks and atomic
+  publication while leaving unchanged subjects’ versions and histories intact.
 
-### `[ ]` **5.6 Conflict records and their side labels — § 3.7**
+### `[x]` **5.6 Conflict records and their side labels — § 3.7**
 
 - _Goal:_ A write's clash is filed as write-once conflict records owned by the record they name, with each side labeled
   by the machine that wrote it, so one person's two machines read apart and any clone can place a hunk.
 
-    - A second commit atop the write's own on the ref where its stale-base merge files conflict records, with § 5.5's
-      provenance; each record's ID from `randomUUID`
-    - Build `test-first` (one behavior at a time):
-        - a clash files its records at `conflicts/<id>.json` under the family's root, owned by the named record's owner,
-          and a `lineage/conflict-record` takes its owner from its content
-        - a clash's hunk record carries `baseVersion` naming the write's expected version, with `currentLines` and
-          `incomingLines`
-        - the stored side's label takes the `Arc-Actor` and committer date of the last commit on its ref that changed
-          the record, and the incoming side's this clone's actor and the clock's time
-        - a side whose last commit was made outside ARC labels with its committer's email, or `unknown`
-        - a clone with no identity labels its incoming side with the person's email
-        - a retry of a write whose first attempt clashed files a second record under a new ID
+- _Outcome:_ Stale clashes land at family conflict paths in a second commit with merge provenance and the caller’s
+  batch, lifecycle action, and code head. Each retry allocates fresh UUIDs. Labels use the subject’s actual change
+  commit and this clone’s actor/clock, with committer-email and unknown fallbacks; lineage ownership decodes from the
+  conflict target without requiring an origin-map entry.
 
 ### `[ ]` **5.7 `lookup` over live state — § 8**
 

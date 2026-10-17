@@ -11,6 +11,12 @@ const companion = (key: string, resolved = true) => RecordReferenceSchema.parse(
 const document = (key: string) => RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key });
 
 describe("ref key admission before I/O", () => {
+  it("checks conflict-resolution coordinates before consulting a port", async () => {
+    const reference = document("scratch/one.md");
+    const conflict = RecordReferenceSchema.parse({ owner: reference.owner, kind: "personal/conflict-record", key: "bad/path" });
+    expect(await createPreflightRefStore().write({ ...put(reference), resolves: [conflict], provenance }))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed", reference: conflict } });
+  });
   it("refuses reserved and malformed history coordinates before consulting a port", async () => {
     for (const [reference, code] of [[companion("meta"), "unsupported"], [document(".internal/request.json"), "record-malformed"]] as const) {
       const refusal = code === "unsupported" ? { code, case: "unhomed-kind" } : { code, reference };
