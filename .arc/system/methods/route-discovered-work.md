@@ -98,18 +98,20 @@ learned at its start is not a position. These rules govern the defaults below wi
   `errand`, or `capture`, as the door permits — and carry admission as the alternative at the door's Owner stop. Only
   the Owner selects admission. The work unit's owner then writes a spec amendment through [amend-design][amend-design]
   or new tasks: `fold <wu>` at the owner's own door, otherwise `hold <wu>` for owner adoption.
-- **`closed`** (verification phase onward, integrating included): takes nothing and is not a routing target. The
-  route back in is `arc reopen`; reconsider the target only after its position changes.
+- **`closed`** (verification phase onward, integrating included): takes no routed concern; route it out. Only the
+  Owner can elect admission, through [amend-design][amend-design], which returns the work to its task loop; an
+  Integrating unit is first withdrawn with `arc reopen`.
 - **No window:** `arc status` names why; admit nothing until the target's session or owner confirms its position.
 
 **Live target.** A work unit with a registered checkout is live: coordinate with its session by message first, never
-by capture first. A checkout usually, but not always, has a session working in it. Propose the message to the Owner,
-and send it without asking only where the two sessions already have a conversation. Use the harness's session
-messaging where it has one; otherwise give the Owner the message to relay. A message for the Owner to approve or relay
-ends the turn it appears in: produce it when it is ready, then stop. A message places nothing until the target's owner
-adopts the concern. With no session there to receive it, the Owner chooses between holding it for the next session
-there and the door's other outcomes; a message the Owner declines to send, or the target declines, takes those
-outcomes.
+by capture first. The message carries the door's outcome to the target's owner and adds no outcome of its own; a
+`closed` target takes no message to place a concern. A checkout usually, but not always, has a session working in it.
+Propose the message to the Owner, and send it without asking only where the two sessions already have a conversation.
+Use the harness's session messaging where it has one; otherwise give the Owner the message to relay. A message for the
+Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop. A message places nothing
+until the target's owner adopts the concern. With no session there to receive it, the Owner relays it when one starts,
+and a pre-routed capture beside it holds the concern until then; a message the Owner declines to send, or the target
+declines, takes the door's other outcomes.
 
 ### Integration and re-triage
 
@@ -192,7 +194,7 @@ and opens with a one-sentence Purpose. Carry out minting through the binding bel
 
 - **Inbound entries:** backlog and Planning targets use the draft's `## Inbound Buffer — Pending Integration`
   section; admitted Active entries take the amendment or task route above. A held entry carries
-  `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gated `hold` into a started work
+  `routed from <origin>, <date>` and `_Shapes:_`. Owner adoption carries only a gate-confirmed `hold` into a started work
   unit. A capture owned by that target's owner is transit to their session, never rest in a capture surface.
 - **Writer line:** only a change off the base whose one concern is routing — the drain's or a route-only Errand's —
   writes another work unit's draft, and only a backlog stub's. Other routes reach a sibling as a pre-routed

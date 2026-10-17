@@ -328,7 +328,7 @@ inside the change already under review discharges that: fix it and name the corr
 
 ### Route by urgency × isolation
 
-**Otherwise, route by urgency × isolation** — a coarse _inline / errand-now / inbox-defer_ call. The finer
+**Otherwise, route by urgency × isolation** — a coarse _inline / message / errand-now / inbox-defer_ call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
 | The concern is…                        | Can I write its home here? | Route                                                  |

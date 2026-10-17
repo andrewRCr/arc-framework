@@ -101,7 +101,7 @@ route-discovered-work:
   the record floor regardless of capture-time character, and validate coupling and scope boundaries. `WU_Target`
   is the first candidate to check, never a destination decided by existence. Retain any unclear Errand pair with
   all four record answers for the Owner at § 3.
-- **In-flight target adoption.** Only a gated `hold` into a started work unit takes the method binding's
+- **In-flight target adoption.** Only a gate-confirmed `hold` into a started work unit takes the method binding's
   owner-adoption route. Leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
   and carry the target and `_Shapes:_` for its owning session. Surface the handoff or the binding's named wait at
   § 3; never write to the base branch's stale backlog copy. A failed or ambiguous status lookup stops with its
@@ -160,13 +160,14 @@ title in v1; idempotent); use `--inbox-entry-file <path>` (`-` reads stdin) for 
 the removal with its routing writes. Held entries in a picked stub take the re-triage routes below instead of inbox
 removal.
 
-- **Existing-stub home** — a gated `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's integration
+- **Existing-stub home** — a gate-confirmed `fold` or `hold` into a backlog stub's `draft-*`. Follow the method's integration
   modes: the drain folds only a trivially additive, on-topic note; otherwise append the entry to the draft's
   `## Inbound Buffer — Pending Integration` section, with `routed from <origin>, <date>` and `_Shapes:_`. Create
   the section after Origin/Purpose, set off by `---`, when absent. The owner folds or dispositions every held entry
   before the draft is ready, at drafting's readiness exit and spec entry; the drain never performs that owner's pass.
-- **In-flight owner adoption** — only a gated `hold` into a started target. Make no routing write; set `_Hold: true`,
-  re-stamp `_Created:` to the adoption date, and keep the target and `_Shapes:_` in the capture for its owning session.
+- **In-flight owner adoption** — only a gate-confirmed `hold` into a started target. Make no routing write; set
+  `_Hold: true`, re-stamp `_Created:` to the adoption date, and keep the target and `_Shapes:_` in the capture for its
+  owning session. A live target also takes a proposed message to its session (the method's § Target lifecycle).
   Follow the method binding's named gap for another person's started target, with the wait confirmed at § 3.
   Never append to the base branch's stale backlog copy.
 - **New stub** — carry out a `new-stub` outcome, or one grouped set sharing a concern, through `arc stub` at the
