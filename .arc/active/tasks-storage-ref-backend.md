@@ -1309,29 +1309,16 @@ carry refuses it.
 
 _Exit criterion:_ Every case of § 14.7's import, notes-snapshot, post-import, and Candidate items passes over the fixture.
 
-### `[ ]` **15.1 Completed work units, closed cohorts, and Candidate chains — § 10.9, § 10.11**
+### `[x]` **15.1 Completed work units, closed cohorts, and Candidate chains — § 10.9, § 10.11**
 
 - _Goal:_ Completed items land as an archive or close leaves them, under today's numbers, and each Candidate record's
   chain resolves through `history` exactly as today's reader resolves it over code history.
 
-    - Candidate versions read from the plain path log `readRepositoryCandidateSupersessionChain` walks
-      (`lib/work-unit/candidate-record-store.ts`), at the revision 14.1 names, never the in-repo `history`, which follows
-      renames
-    - No quarter repeats a work-unit number today, so the fixture builds its own two folders sharing a number, beside a
-      gap as `2026-q3`'s at `54`
-    - Build `test-first` (one behavior at a time):
-        - a completed work unit lands its history ref — its Candidate chain replayed oldest first, then a commit of its
-          current files — and its quarter folder under the number it holds today, two folders sharing a number and a gap
-          surviving, and the next archive numbering after the quarter's highest
-        - a closed cohort lands under today's `<NN><a|b>` folder name
-        - each replayed version takes its own batch, and each ended item's record and history ref name one batch, so an
-          imported store's ended items read as none pending (§ 14.5)
-        - a chain with a version a merge commit introduced resolves through the store's `history` as through
-          `resolveCandidateSupersessionAncestors`, and a broken chain and a record today's schema rejects refuse on both
-          sides, the trial listing broken chains in `brokenChains`
-        - a live work unit whose Candidate records sit only on its unmerged branch replays its chain from that branch
-        - every completed work unit's and closed cohort's record compares clean through 14.4's harness with no allowance
-          of its own, a completed work unit's placement naming the quarter and number its folder holds today
+- _Outcome:_ Completed work units and closed cohorts retain their quarter coordinates, duplicate numbers, and gaps,
+  with flat history trees and the next archive following the highest number. Candidate versions replay oldest first
+  from the selected revision's plain path log, including merge-introduced and unmerged-branch records; broken chains
+  remain reported and schema-rejected bytes remain intact. Distinct replay batches precede one shared landing batch,
+  each ended folder agrees with its history, and every completed record compares clean without a new allowance.
 
 ### `[ ]` **15.2 Lineage, renames, and abandoned origins — § 10.9, § 10.11**
 

@@ -10,9 +10,12 @@ import type { KindId } from "../../catalog.js";
 import { expandStoredPath } from "../../stored-path.js";
 import { internalReferences } from "../../in-repo/paths.js";
 import { inspectCandidateChain } from "./review.js";
+import { importCohortPlacements } from "./cohort-source.js";
+import { readImportCandidateVersions } from "./candidate.js";
 
 /** One imported content revision and its containing owner's lifecycle placement. */
-export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean }
+export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
+  versions?: { commit: string; content: string }[] }
 /** All source content is acquired before a destination object or ref is published. */
 export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string): Promise<ImportRecord[]> {
   const source = context.importSource;
@@ -21,17 +24,24 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   const owners = new Map<string, string>();
   const internal: InRepoContext = { ports: source.ports, registry: context.registry };
   const composition = await composedMetas(internal);
-  const metas = await source.store.list({ family: "work-item", kind: "work-item/meta", filter: { locations: ["active", "planned", "provisional"] } });
+  const metas = await source.store.list({ family: "work-item", kind: "work-item/meta" });
   if (metas.status !== "ok") { report.notices.push({ condition: metas.refusal.condition, remedy: metas.refusal.remedy }); return result; }
   if (metas.result.status === "complete") {
     report.notices.push(...metas.result.diagnostics.map(({ condition, remedy }) => ({ condition, remedy })));
     for (const meta of metas.result.records) await appendWorkItem(context, report, result, owners, internal, composition, meta);
   } else if (metas.result.status === "unreadable") report.notices.push({ condition: metas.result.condition, remedy: metas.result.remedy });
+  for (const kind of Object.values(context.registry).filter((definition) => definition.family === "work-item"
+    && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
+    await appendListing(context, report, result, owners, kind.id);
+  }
   const head = StateVersionSchema.parse((await source.ports.exec("git", ["rev-parse", `${codeHead}^{tree}`], { cwd: source.ports.checkoutRoot })).stdout.trim());
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
   await appendPersonal(context, report, result);
-  for (const ref of new Set(result.map(({ reference }) => expandStoredPath(reference, { registry: context.registry }).ref))) {
+  const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"
+    ? [expandStoredPath(reference, { registry: context.registry, placement }).ref, expandStoredPath(reference, { registry: context.registry, history: true }).ref]
+    : [expandStoredPath(reference, { registry: context.registry }).ref]));
+  for (const ref of refs) {
     const person = /^refs\/arc\/user\/([^/]+)\//u.exec(ref)?.[1];
     report.refs.push({ ref, scope: person ? "identity" : "project", ...(person ? { person } : {}), action: "create" });
   }
@@ -45,15 +55,14 @@ async function appendWorkItem(context: RefBackendContext, report: MigrateReport,
   const selected = await composedMetaSource(internal, meta.reference.owner.name, composition);
   const asOf = selected?.revision === undefined ? undefined : StateVersionSchema.parse((await source.exec("git",
     ["rev-parse", `${selected.revision}^{tree}`], { cwd: source.checkoutRoot })).stdout.trim());
-  for (const kind of Object.values(context.registry).filter((definition) => definition.family === "work-item"
-    && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
-    await appendListing(context, report, result, owners, kind.id, meta.reference.owner);
-  }
   for (const kind of ["review/candidate", "review/integration-boundary"] as const) {
     await appendListing(context, report, result, owners, kind, meta.reference.owner, asOf);
   }
   const candidate = result.find(({ reference }) => reference.kind === "review/candidate" && reference.owner.name === meta.reference.owner.name);
-  if (candidate) await inspectCandidateChain(context, candidate, selected?.revision, report);
+  if (candidate) {
+    candidate.versions = await readImportCandidateVersions(context, candidate.reference.owner.name, selected?.revision);
+    await inspectCandidateChain(context, candidate, selected?.revision, report);
+  }
 }
 
 async function appendPersonal(context: RefBackendContext, report: MigrateReport, records: ImportRecord[]): Promise<void> {
@@ -80,7 +89,9 @@ async function appendListing(context: RefBackendContext, report: MigrateReport, 
   if (listing.status !== "ok") { report.notices.push({ condition: listing.refusal.condition, remedy: listing.refusal.remedy }); return; }
   if (listing.result.status === "complete") {
     const asFound = kind === "review/candidate" || kind === "review/integration-boundary";
-    result.push(...listing.result.records.map((record) => ({ ...bindOwner(record, owners), asFound })));
+    const placements = kind === "cohort/document" ? await importCohortPlacements(context, report, asOf) : new Map<string, StoreRecord["placement"]>();
+    result.push(...listing.result.records.map((record) => ({ ...bindOwner(record, owners), asFound,
+      placement: placements.get(record.reference.owner.name) ?? record.placement })));
     await appendDiagnostics(context, report, result, owners, kind, listing.result.diagnostics, owner, asOf);
   } else if (listing.result.status === "unreadable") report.notices.push({ condition: listing.result.condition, remedy: listing.result.remedy });
 }

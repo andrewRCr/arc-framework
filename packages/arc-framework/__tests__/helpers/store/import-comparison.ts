@@ -1,5 +1,5 @@
 /** Independent source and destination copies for record-by-record import comparison. */
-import { importFixture } from "./import-fixture.js";
+import { importFixture, type ImportFixtureOptions } from "./import-fixture.js";
 import { createRefStore, createStore } from "../../../src/lib/store/create.js";
 import { isDeepStrictEqual } from "node:util";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
@@ -25,8 +25,8 @@ export type ImportComparator = (expected: StoreRecord, actual: StoreRecord) =>
 
 /** Arrange independent copies before any import can delete or re-home source data. */
 export async function importComparisonFixture(layout: "default" | "separate" = "default",
-  prepare?: (fixture: Awaited<ReturnType<typeof importFixture>>) => Promise<void>) {
-  const [source, target] = await Promise.all([importFixture(layout), importFixture(layout)]);
+  prepare?: (fixture: Awaited<ReturnType<typeof importFixture>>) => Promise<void>, options: ImportFixtureOptions = {}) {
+  const [source, target] = await Promise.all([importFixture(layout, options), importFixture(layout, options)]);
   if (prepare) { await prepare(source); await prepare(target); }
   const store = createRefStore(target.ports);
   const ports = { ...createDefaultStorePorts(source.ports), ...source.ports };
