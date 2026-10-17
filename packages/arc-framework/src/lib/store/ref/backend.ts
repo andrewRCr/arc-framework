@@ -10,7 +10,7 @@ import { writeRefRecord, batchRefRecords } from "./write.js";
 import { historyRefRecord } from "./history.js";
 import { changesRefRecords } from "./changes.js";
 import { lookupRefRecord } from "./lookup.js";
-import { readRefDesignation, refDesignationStop } from "./designation.js";
+import { pullRefStore } from "./pull.js";
 import { maintainRefStore } from "./maintain.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
@@ -23,11 +23,7 @@ export function createRefBackend(ports: RefStorePorts): Store {
     write: (input) => writeRefRecord(context, input), batch: (input) => batchRefRecords(context, input),
     version: async () => ({ status: "ok", result: await refStateVersion(context) }),
     history: (input) => historyRefRecord(context, input), changes: (input) => changesRefRecords(context, input), lookup: (input) => lookupRefRecord(context, input),
-    pull: async () => {
-      const state = refDesignationStop(await readRefDesignation(context));
-      if (state) return { status: "ok", result: { states: [state], pulls: [] } };
-      return pending("pull", context)();
-    },
+    pull: (input) => pullRefStore(context, input),
     push: pending("push", context), maintain: () => maintainRefStore(context),
   };
 }

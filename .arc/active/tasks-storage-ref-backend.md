@@ -798,7 +798,7 @@ and each family's publish outcome.
 _Mode:_ `slice` through Phase 11 — closes on clones that write, end, reopen, and meet faults against one remote and
 converge with no lost write.
 
-### `[ ]` **9.1 The fetch — § 6.2, § 9.7**
+### `[x]` **9.1 The fetch — § 6.2, § 9.7**
 
 - _Goal:_ One fetch round trip brings the remote's state, and only its state, into a tracking namespace no push, manifest,
   or listing reads, never naming a code commit as held.
@@ -809,43 +809,19 @@ converge with no lost write.
           exit-1 stdout supplies per-ref refusals; only rowless failures use the remote-failure classifier.
           Unit fixtures retain real Git output, including verbose up-to-date reporting.
 
-    - `[ ]` **9.1.b The fetch**
-        - A fetch module under `lib/store/ref/`: refspecs on the command line, one wildcard each, with no `+`, the
-          person's own two refs as one-ref patterns, each mapped to `refs/arc-remotes/<remote>/…`; `--refmap=`,
-          `--no-tags`, `--no-filter`, `--prune`, `--show-forced-updates`, `--porcelain`, `diagnosticLocale: "stable"`
-          (`LC_ALL=C`), and the lock waits (2.3.b); `--negotiation-tip` for each state pattern and tracking namespace
-          that names a ref, else `--refetch`, with a blank `remote.<name>.negotiationInclude`; history refs by name as
-          one-ref patterns
-        - The code remote and `backing` are fetched by name; another of the code repository's remotes by the URL
-          `git remote get-url` gives, tracked under that remote's name
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, two clones on one bare origin, as every later sync case is but where it says otherwise,
-              each clone designating it: in the default layout through `setupMultiClone`'s `config`,
-              `remote.origin.arc-state=push`, and in the separate layout through a setup step after it, a helper in
-              `__tests__/helpers/store/` that creates each clone's store directory as 8.2 makes one and adds its
-              `backing` at the origin's URL carrying `push`, since `config` writes only the code repository's config
-              (`createClone`, `__tests__/helpers/multi-clone.ts`) and 8.1 places an undesignated clone's store in the
-              separate directory, where a remote with no key reads `no-remote` until 12.2
-            - a fetch brings every state ref into `refs/arc-remotes/<remote>/` and none of `errands`, `errands-remote`,
-              or `sync-state`
-            - a remote ref this clone has never seen, and one the remote pruned, update the tracking namespace alone
-            - a history ref asked by name that the remote lacks fetches nothing and fails nothing else, and a read as of
-              a manifest naming an ended item's history ref resolves once a pull by name fetches it
-            - in the separate layout the fetch reaches the remote through the command-line refspecs alone, the
-              directory's own configuration carrying none
-            - a fork's upstream fetched by URL creates and prunes its tracking refs as a fetch by name does
+    - `[x]` **9.1.b The fetch**
+        - Public `pull` fetches designated sources through explicit state-only refspecs, isolated tracking refs, local
+          lock waits, stable diagnostics, and state-only negotiation. Both layouts cover all live namespaces, own-person
+          filtering, pruning, history-backed saved reads, upstream URLs, and successful remote repair.
 
-### `[ ]` **9.1.R Empty fetches keep state-only negotiation — § 6.2 (A13)**
+### `[x]` **9.1.R Empty fetches keep state-only negotiation — § 6.2 (A13)**
 
 - _Goal:_ A pull with no state tips completes when the remote has no requested state, preserving state-only
   negotiation, and a nested tracking tip remains usable after the remote prunes its ref.
 
-    - Replace the no-tip `--refetch` branch in `fetchRefRemote` with the unmatched state pattern, retaining the
-      diagnostics and the completeness retry's explicit refetch. Scan nested tracking refs by prefix.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, both layouts: an empty state remote and an absent history request complete as a no-op;
-          a later state write is fetched without advertising a held code commit, proved by protocol-v2 packets
-        - A read-only clone with no local state prunes its final tracking ref and completes without hanging
+- _Outcome:_ Empty state fetches use the unmatched state pattern; the prefix scan discovers nested tracking refs.
+  Both layouts complete empty/absent-history and final-tracking-prune cases. Protocol-v2 packets retain no held code
+  commits, and cancellation preserves diagnostics as failure rather than completed acquisition.
 
 ### `[ ]` **9.2 Merge after fetch — § 6.4**
 

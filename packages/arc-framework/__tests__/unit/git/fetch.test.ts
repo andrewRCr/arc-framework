@@ -46,3 +46,10 @@ it("reads exit-1 stdout before interpreting a competing diagnostic", () => {
     stdout: recording.stdout, stderr,
   });
 });
+
+it("does not report a canceled fetch as complete when stdout already contains updates", () => {
+  const stdout = recordings.records[0]!.stdout;
+  const failure = makeGitProcessError({ command: "git", args: ["fetch", "--porcelain"], isCanceled: true,
+    stdout, stderr: "" });
+  expect(parseFetchPorcelain(failure)).toEqual({ status: "unreachable", cause: "error", stdout, stderr: "" });
+});
