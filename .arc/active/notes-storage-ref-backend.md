@@ -519,3 +519,23 @@ Author grounding traced `historyRefRecord`, `retiredHistoryHome`, `resolveRefWri
 The grounding-only task audit and specification reader, binding, and coherence checks cover the exact new command,
 notice shape, removal restriction, default backend, and retry boundary. The status port's A14 binding preserves the
 new condition and remedy; the status implementation that lands second completes its rendering.
+
+## A17 — Failed completeness does not certify a tracking tip
+
+The superseded § 6.2 traversal was “over the fetched tips, short of the tracking tips the fetch found”. A real Git
+protocol-v0 bitmap fixture first fetched a commit without a shared code blob. The initial `missingRefFetchObjects`
+implementation followed that cutoff and refused after an intentionally suppressed repair fetch. Tracking had already
+advanced. The remote then advanced again with a new blob absent from code history; the next incremental check passed,
+but a full local-only closure walk still reported the earlier missing blob. The retained failing trace is
+`task-11.3-first-completeness-run.log` in the task evidence directory; the native baseline also lacks its first blob.
+
+The Owner's standing authority covers this determinate correction within the existing completeness goal. Traverse
+fetched tips without tracking cutoffs, on the first check and the full-refetch recheck. This avoids persisting a second
+certification marker or rolling shared tracking refs back, both more mechanism than a partial clone needs. Unfiltered
+clones still skip the closure walk, reads remain local-only, and the same fetch path serves ordinary and named-history
+fetches, then source and migration transfers when those callers land.
+
+Author grounding traced `fetchRefPatterns`, `readRefFetchBasis`, `missingRefFetchObjects`, `pullRemote`, and the
+supplemental fetch in `mergePulledRefState`. The grounding-only revision audit and specification reader, binding, and
+coherence checks cover § 6.2, § 14.5, criterion 25, and 11.3.R, with 11.6 as the segment replay. There is no new stored
+record, result arm, normal full-clone traversal, remote round trip beyond the existing one repair, or lifecycle change.

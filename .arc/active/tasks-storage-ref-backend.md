@@ -1028,8 +1028,9 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
 
 - _Goal:_ A blobless or partial clone holds every state object after each fetch, so no read ever reaches the network.
 
-    - After each fetch in a partial clone, `git rev-list --objects --missing=print` over the fetched tips short of the
-      tracking tips; any missing object reruns the fetch with `--refetch`, and one still incomplete fails the remote as
+    - _Amended in:_ 11.3.R (A17)
+    - After each fetch in a partial clone, `git rev-list --objects --missing=print` over the fetched tips' full reachable
+      closure; any missing object reruns the fetch with `--refetch`, and one still incomplete fails the remote as
       terminal `refused` naming the objects; a clone with no filter skips the check
     - Every check of a blob's presence runs with `--no-lazy-fetch`, since a plain `cat-file -e` fetches the blob it
       tests in a partial clone
@@ -1042,6 +1043,18 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
           `--refetch` rerun brings it, so the leg shows the check working rather than passing with nothing to find
         - a leg whose fetch leaves nothing out records that it does, a control beside the leg that loses a blob
         - a clone with no filter runs no `rev-list` check
+
+### `[ ]` **11.3.R Completeness after a refused fetch — § 6.2 (A17)**
+
+- _Goal:_ A tracking tip advanced by a fetch that later refused cannot hide missing ancestor objects from a later
+  completeness check, including a retry after the remote advances again (A17).
+
+    - Build `test-first` (one behavior at a time):
+        - protocol v0 with bitmaps omits a shared code blob; suppressing the full refetch through the Git boundary leaves
+          it missing, so the remote refuses and applies no state; after the remote advances with a new unshared blob,
+          restore the full refetch and retry, observing the older missing blob repaired and passive history readable
+        - the same retry with no remote advancement repairs the missing closure, preserving the original terminal
+          refusal's named objects and safe retry route
 
 ### `[ ]` **11.4 Carrying a code ref — § 6.8**
 
@@ -2608,3 +2621,7 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - `[ ]` An ended-conflict notice's remedy inspects its exact retained conflict and explicitly discards it with
   expected-version protection through the hidden store command; both layouts preserve retirement, unrelated retained
   records, lineage, and children, and missing-history retry and stale-basis refusal remain actionable (§ 14.13) (A16)
+
+- `[ ]` Partial-clone completeness checks do not cut off at tracking tips advanced by a failed check: after the
+  remote advances again, retry repairs the missing ancestor objects and passive historical reads succeed without
+  fetching (§ 6.2, § 14.5) (A17)

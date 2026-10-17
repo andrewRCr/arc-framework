@@ -1232,10 +1232,12 @@ large state may outlast any bound.
 - **A partial clone checks each fetch.** The tips confine what Git names as held only where the remote advertises the
   state refs alone, as protocol v2's ref prefixes have it; under protocol v0 Git also names advertised refs this clone
   holds, code branches among them, whatever the tips say. So after each fetch in a partial clone,
-  `git rev-list --objects --missing=print` over the fetched tips, short of the tracking tips the fetch found, lists any
-  object it left out; on any, the fetch runs once more with `--refetch`, and one still incomplete fails that remote as
-  terminal `refused` naming the missing objects. A clone with no filter holds every object reachable from what it names
-  as held, so it skips the check.
+  `git rev-list --objects --missing=print` over the fetched tips' full reachable closure lists any object it left out
+  (A17). Tracking tips are never traversal cutoffs: Git can advance them before a completeness check refuses, so a
+  later pull must still detect an earlier missing ancestor, even after the remote advances. On any missing object,
+  the fetch runs once more with `--refetch`, and one still incomplete fails that remote as terminal `refused` naming
+  the missing objects. A clone with no filter holds every object reachable from what it names as held, so it skips
+  the check.
 - **Every other fetch the store makes** — a move's (§ 10.2) and a read source's (§ 9.6) — takes the same flags and the
   same check.
 - **A history ref by name** is fetched as a one-ref pattern, `refs/arc/history/work/<uid>*` or its `cohort/` twin: a
@@ -3306,7 +3308,9 @@ typed conflicts:
       folder comes back;
     - in a blobless partial clone of an origin whose state records share blobs with code history, served with and
       without bitmaps, over protocol v2 and v0, and with `remote.<name>.negotiationInclude` configured, a first pull and
-      a later one each end holding every state blob, and reads run with no fetch;
+      a later one each end holding every state blob, and reads run with no fetch; a still-incomplete full refetch
+      refuses without applying its remote, and a retry after the remote advances repairs missing ancestor objects
+      despite tracking already advancing before the earlier refusal (A17);
     - two and three clones pulling and pushing to one bare origin, through the model check's failing traces: two clones
       ending one item, each perhaps after a reopen of its own, the withdrawn end's `end-withdrawn` notice in the push
       result's `pulls` where the push loop met it, and, where the withdrawn end's batch closed a cohort, the cohort
@@ -4045,6 +4049,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     and explicitly discarded with expected-version protection through the hidden store command. Retirement, unrelated
     records, lineage, and children remain, with named-history retry and stale-basis refusal covered (§ 14.13) (A16).
 
+25. **A failed completeness check does not certify its tracking tip.** After a still-incomplete full refetch, a
+    later pull detects and repairs the missing ancestor objects even when the remote advanced to a new tip whose own
+    objects all arrived. The remote refuses while incomplete and passive current and historical reads succeed after
+    repair without fetching (§ 6.2, § 14.5) (A17).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4130,5 +4139,8 @@ open:
 
 - **A16** — 2026-10-17 — spec-depth: inspect and explicitly discard lineage-ended conflicts without reviving the owner.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 13.5.R. _Revalidated:_ pending → 13.5.R.
+
+- **A17** — 2026-10-17 — design: partial-clone checks traverse fetched tips without tracking cutoffs.
+  _Supersedes:_ § 6.2 tracking-tip cutoffs. _Trigger:_ 11.3 must-stop. _Work:_ 11.3.R. _Revalidated:_ pending → 11.6.
 
 ---
