@@ -103,16 +103,16 @@ learned at its start is not a position. These rules govern the defaults below wi
   Integrating unit is first withdrawn with `arc reopen`.
 - **No window:** `arc status` names why; admit nothing until the target's session or owner confirms its position.
 
-**Live target.** A work unit with a registered checkout is live: coordinate with its session by message first, never
-by capture first. The message carries the door's outcome to the target's owner and adds no outcome of its own; a
-`closed` target takes no message to place a concern. A checkout usually, but not always, has a session working in it.
-Propose the message to the Owner, and send it without asking only where the two sessions already have a conversation.
-Use the harness's session messaging where it has one; otherwise give the Owner the message to relay. A message for the
-Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop. A message places nothing
-until the target's owner adopts the concern, so write a pre-routed capture beside each message that goes out, as
-transit: it holds the concern until the target's owner removes it on adoption, including while no session is there and
-the Owner relays the message when one starts. A message the Owner declines to send, or the target declines, takes the
-door's other outcomes.
+**Live target.** A work unit with a registered checkout is live: coordinate with its session by message, never by
+capture alone. The message carries the door's outcome to the target's owner and adds no outcome of its own; a `closed`
+target takes no message to place a concern, and another person's live target keeps the binding's named gap. A checkout
+usually, but not always, has a session working in it. Propose the message to the Owner, and send it without asking only
+where the two sessions already have a conversation. Use the harness's session messaging where it has one; otherwise
+give the Owner the message to relay. A message places nothing until the target's owner adopts the concern, so before
+producing it, write a pre-routed capture with `_Hold: true` as transit: it holds the concern until the target's owner
+removes it on adoption, including while no session is there and the Owner relays the message when one starts. A
+message for the Owner to approve or relay ends the turn it appears in: produce it when it is ready, then stop. A
+message the Owner declines to send, or the target declines, takes the door's other outcomes.
 
 ### Integration and re-triage
 

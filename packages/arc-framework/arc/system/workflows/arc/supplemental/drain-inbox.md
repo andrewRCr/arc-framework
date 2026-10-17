@@ -104,8 +104,9 @@ route-discovered-work:
 - **In-flight target adoption.** Only a gate-confirmed `hold` into a started work unit takes the method binding's
   owner-adoption route. Leave it in `USER-INBOX` with `_Hold: true`, re-stamp `_Created:` to the adoption date,
   and carry the target and `_Shapes:_` for its owning session; for a live target, also draft the message to its
-  session for the plan. Surface the handoff or the binding's named wait at § 3; never write to the base branch's stale
-  backlog copy. A failed or ambiguous status lookup stops with its diagnostic, never with a checkout-local path guess.
+  session for the plan, except for a held transit capture, which the plan shows as waiting on its target. Surface the
+  handoff or the binding's named wait at § 3; never write to the base branch's stale backlog copy. A failed or
+  ambiguous status lookup stops with its diagnostic, never with a checkout-local path guess.
 - **Group by concern.** Consolidate `new-stub` outcomes sharing one logical concern into one stub, and propose the
   grouping with its rationale. Entry count alone never establishes concern identity.
 - **Commitment (new stubs).** Propose `provisional` unless the Owner commits to sequencing the work unit at § 3,
