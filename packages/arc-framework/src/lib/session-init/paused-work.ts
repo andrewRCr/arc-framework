@@ -8,6 +8,8 @@ import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../acti
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { StoreResult } from "../store/refusal.js";
 import { SessionActionsSchema } from "./actions.js";
+import { readTerminalReferenceAliases } from "../work-unit/terminal-reference-aliases.js";
+import type { StoreRecord } from "../store/read.js";
 
 /** Complete paused-work payload, including each item's waiting context and repair actions. */
 export const PausedWorkResultSchema = z.strictObject({
@@ -97,11 +99,33 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
     return ParsedMetaRecordSchema.parse(record.fields).state === "Shipped" ? "shipped" : "live";
   }
   if (resolved.refusal.code !== "not-found") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
-  const lineage = unwrap(await store.lookup({ kind: "lineage", origin: slug }));
-  const record = unwrap(await store.read({ reference: lineage.reference }));
+  const record = await terminalPrerequisiteRecord(store, slug);
   const terminal = parseLineageRecord(record.content);
   if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage. Inspect and repair it before reviewing this pause.`);
   return terminal.kind === "abandon" || terminal.kind === "decompose" ? "ended" : "live";
+}
+async function terminalPrerequisiteRecord(store: Store, slug: string): Promise<StoreRecord> {
+  const direct = await store.lookup({ kind: "lineage", origin: slug });
+  if (direct.status === "ok") return unwrap(await store.read({ reference: direct.result.reference }));
+  if (direct.refusal.code !== "not-found") throw new Error(`${direct.refusal.condition} ${direct.refusal.remedy.text}`);
+  const records = await terminalAliasRecords(store, slug);
+  const targets = unwrap(await readTerminalReferenceAliases(store, records)).get(slug) ?? [];
+  const target = targets[0];
+  if (targets.length > 1) throw new Error(`Ambiguous terminal history for pause prerequisite '${slug}': ${targets.join(", ")}. Name the intended prerequisite, then retry.`);
+  if (target === undefined) throw new Error(`Pause prerequisite '${slug}' has no authenticated terminal former-name history. Repair its prerequisite or restore history, then retry.`);
+  const lineage = unwrap(await store.lookup({ kind: "lineage", origin: target }));
+  return unwrap(await store.read({ reference: lineage.reference }));
+}
+async function terminalAliasRecords(store: Store, slug: string): Promise<readonly StoreRecord[]> {
+  const listing = unwrap(await store.list({ family: "lineage", kind: "lineage/transition" }));
+  if (listing.status === "absent") return [];
+  if (listing.status === "unreadable") throw new Error(`${listing.condition} ${listing.remedy.text}`);
+  if (listing.missed || listing.diagnostics.length > 0) throw new Error(`Pause prerequisite '${slug}' has incomplete terminal lineage. ${listing.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")} Repair the lineage inventory and retry pause review.`);
+  return listing.records.filter(record => {
+    const terminal = parseLineageRecord(record.content);
+    if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage for '${record.reference.owner.name}'. Resolve any conflicts or repair the lineage, then retry pause review.`);
+    return terminal.kind !== "rename";
+  });
 }
 function unwrap<T>(result: StoreResult<T>): T {
   if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
