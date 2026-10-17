@@ -40,6 +40,32 @@ it("routes the visible entry identity and fields while retaining commented examp
   expect(destination[0]?.raw).toContain("Actual prose");
 }, 30000);
 
+it.each(["\n", "\r\n"])("keeps receipt and destination IDs equal through heading comments with %j endings", async (newline) => {
+  const f = await repairCliFixture(), source = await resolveEntryList("project", f.h.context);
+  if (source.status !== "ok" || !source.result.saved) throw new Error("No source");
+  const comment = ["<!--", "", "Keep the heading note.", "-->"].join(newline);
+  const capture = (id: string) => [`### **Concern** ${comment}`, `- _Id:_ \`${id}\``, "", "Actual prose"].join(newline);
+  await editRecord(f, source.result.saved, `## Inbox${newline}${newline}${capture("12345678")}${newline}`);
+  const row = (await cliRows(f, "project"))[0]; if (!row) throw new Error("No capture");
+  expect(await repairCli(f, ["route", row.id, "--from", "project", "--expected-version", row.version,
+    "--to", "personal", "--section", "Errand"])).toMatchObject({ result: { state: "routed", entryId: row.id } });
+  expect(await cliRows(f, "project")).toEqual([]);
+  expect(await cliRows(f, "personal")).toMatchObject([{ id: row.id, raw: expect.stringContaining(comment) }]);
+  const receipts = success(await f.h.context.store.list({ family: "personal", kind: "personal/routing-receipt" }));
+  expect(receipts).toMatchObject({ status: "complete", records: [{ fields: { entryId: row.id } }] });
+  const workUnit = await f.h.workUnit("comment-heading");
+  success(await f.h.context.store.write({ action: "put", reference: recordReferences["work-item/inbound"](workUnit.reference.owner),
+    expected: null, content: `## Inbound${newline}${newline}${capture("87654321")}${newline}`, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  expect(await repairCli(f, ["errand", "open", "comment-return", "--intent", "Other work", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  const inbound = (await cliRows(f, workUnit.reference.owner.name))[0]; if (!inbound) throw new Error("No inbound entry");
+  expect(await repairCli(f, ["route", inbound.id, "--from", workUnit.reference.owner.name, "--expected-version", inbound.version,
+    "--to", "comment-return"])).toMatchObject({ result: { state: "routed", entryId: inbound.id } });
+  expect(await cliRows(f, "comment-return")).toEqual(expect.arrayContaining([expect.objectContaining({ id: inbound.id })]));
+  expect(await repairCli(f, ["errand", "abandon", "comment-return", "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  expect((await cliRows(f, "personal")).find(entry => entry.id === inbound.id)?.raw).toContain(comment);
+  expect(await cliRows(f, "comment-return")).toEqual([]);
+}, 30000);
+
 it("routes a plain inbound heading through an Errand and returns it to personal captures on abandon", async () => {
   const f = await repairCliFixture(), workUnit = await f.h.workUnit("plain-heading");
   const reference = recordReferences["work-item/inbound"](workUnit.reference.owner);

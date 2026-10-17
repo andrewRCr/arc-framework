@@ -63,4 +63,13 @@ describe("shared entry fields", () => {
     const raw = `### **Title**\n- _Id:_ \`12345678\`\n${comment}`;
     expect(writeEntryFields(raw, { Created: "2026-02-01" })).toContain(comment);
   });
+  it.each(["\n", "\r\n"])("keeps identity visible beside a heading-spanning comment with %j endings", (newline) => {
+    const comment = ["<!--", "", '- _Id:_ `deadbeef`', "-->"].join(newline);
+    const raw = [`### **Title** ${comment}`, '- _Id:_ `12345678`', "", "Actual prose"].join(newline);
+    const rewritten = writeEntryFields(raw, { Created: "2026-02-01" });
+    expect(readEntryField(maskComments(rewritten), "Id")).toBe("12345678");
+    expect(readEntryField(maskComments(rewritten), "Created")).toBe("2026-02-01");
+    expect(rewritten).toContain(comment);
+    expect(rewritten).toContain("Actual prose");
+  });
 });

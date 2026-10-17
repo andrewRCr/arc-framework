@@ -73,12 +73,16 @@ export function writeRemovalTrigger(trigger: string): string { return `_Remove w
  */
 export function writeEntryFields(raw: string, changes: Readonly<Record<string, string | undefined>>): string {
   const newline = raw.includes("\r\n") ? "\r\n" : "\n";
-  const header = (raw.split("\n")[0] ?? "").replace(/\r$/u, "");
+  const firstLine = raw.split("\n")[0] ?? "", heading = firstLine.replace(/\r$/u, "");
+  const headingComment = [...raw.matchAll(/<!--[\s\S]*?(?:-->|$)/gu)].find(comment => comment.index < heading.length
+    && (comment.index + comment[0].length > heading.length || !comment[0].endsWith("-->")));
+  const header = headingComment === undefined ? heading : heading.slice(0, headingComment.index);
   const fields = { ...fieldsOnLines(maskComments(raw).split("\n").slice(1)), ...changes };
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined && !validEntryFieldValue(field, value)) throw new Error(`Invalid ${field} entry value: ${value}`);
   }
   const body = withoutVisibleLines(raw, (line) => fieldOnLine(line) !== undefined).split("\n").slice(1);
+  if (headingComment !== undefined) body.unshift(firstLine.slice(headingComment.index));
   while (body[0]?.trim() === "") body.shift();
   const bodyText = body.join("\n");
   const openComment = bodyText.lastIndexOf("<!--") > bodyText.lastIndexOf("-->");
