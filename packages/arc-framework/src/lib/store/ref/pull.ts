@@ -1,5 +1,6 @@
 /** State acquisition through independently reported remote fetches. */
 
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { RemoteFailureReason } from "../../kernel/index.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { isGitProcessError } from "../../git/process-error.js";
@@ -32,7 +33,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
 }
 
 async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
-  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<StoreResult<PullResult>> {
+  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"],
+  retained = new Map<string, PullAttemptObservations>()): Promise<StoreResult<PullResult>> {
   const designation = await readRefDesignation(context);
   const stop = refDesignationStop(designation);
   if (stop) return { status: "ok", result: { states: [stop], pulls: [] } };
@@ -42,8 +44,11 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
     && (identity !== null || FAMILY_REGISTRY[family].scope !== "identity"));
   const pulls: PullOutcome[] = [];
   for (const remote of designation.remotes.filter(({ role }) => role === "push" || role === "read")) {
-    const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied);
-    if (outcome === "restart") return pullRefStore(context.repository?.source ?? context, input, onMerged, onApplied);
+    const observed = retained.get(remote.name) ?? { notices: [], changed: false };
+    retained.set(remote.name, observed);
+    const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied, observed);
+    if (outcome === "restart") return pullRefStoreOnce({ ...(context.repository?.source ?? context), syncDeadline: context.syncDeadline },
+      input, onMerged, onApplied, retained);
     pulls.push(outcome);
     if (timedOutPull(outcome)) break;
   }
@@ -52,26 +57,31 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
 
 async function pullRemote(context: RefBackendContext, input: PullInput, designation: RefDesignation,
   remote: RefRemoteDesignation, families: FamilyId[],
-  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<PullOutcome | "restart"> {
-  const notices: PullNotice[] = [];
+  onMerged: ((remote: string, incoming: ReadonlyMap<string, string>) => void) | undefined,
+  onApplied: RefMergeOptions["onApplied"], observed: PullAttemptObservations): Promise<PullOutcome | "restart"> {
+  const notices = observed.notices;
   const common = { remote: remote.name, role: remote.role === "read" ? "read" as const : "state" as const,
     families: remote.role === "read" ? families.filter((family) => FAMILY_REGISTRY[family].scope !== "identity") : families, notices };
   try {
+    const prefix = `refs/arc-remotes/${remote.name}/`;
+    const previous = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
     const fetched = await fetchRefRemote(context, remote, designation, input.history, context.syncDeadline?.signal);
     if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.");
-    const prefix = `refs/arc-remotes/${remote.name}/`;
+    observed.changed ||= fetched.refs.some(({ flag }) => flag !== "=");
     const incoming = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) =>
       [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success));
     captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
     const merged = remote.role === "push" ? await mergePulledRefState(context, incoming, designation, remote, input.history ?? [], {
       lock: context.lock, onApplied: async (physical, ref, before, after, applied) => {
+        observed.changed = true;
         notices.push(...applied); await onApplied?.(physical, ref, before, after, applied);
       },
-    }) : null;
+    }, previous) : null;
     if (merged?.status === "restart") return "restart";
     if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.");
     if (merged) onMerged?.(remote.name, incoming);
-    return { ...common, notices: merged?.notices ?? notices, status: fetched.refs.some(({ flag }) => flag !== "=") || merged?.changed ? "pulled" : "noop" };
+    return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
+      status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {
     if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
     return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.");
@@ -81,11 +91,17 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
 type PullScope = Pick<PullOutcome, "remote" | "role" | "families" | "notices">;
 
 function failedRemotePull(context: RefBackendContext, common: PullScope, cause: RemoteFailureReason, condition: string): PullOutcome {
-  return { ...common, status: "failed", failure: { code: "unreachable", class: "recoverable", cause, condition,
+  return { ...common, notices: uniqueNotices(common.notices), status: "failed", failure: { code: "unreachable", class: "recoverable", cause, condition,
     remedy: refSyncTransportRemedy(context, "pull"),
   } };
 }
 
 function timedOutPull(outcome: PullOutcome): boolean {
   return outcome.status === "failed" && outcome.failure.code === "unreachable" && outcome.failure.cause === "timeout";
+}
+
+interface PullAttemptObservations { notices: PullNotice[]; changed: boolean }
+
+function uniqueNotices(notices: readonly PullNotice[]): PullNotice[] {
+  return [...new Map(notices.map((notice) => [canonicalize(notice), notice])).values()];
 }

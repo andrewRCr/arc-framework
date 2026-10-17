@@ -16,9 +16,16 @@ export interface PendingRefEnd { live: string; history: HistoryRef; owner: Owner
 export type RefEndPublished = (live: string, history: string, batch: string, owner: OwnerIdentity) => Promise<boolean>;
 
 /** Resolve publication from both captured item namespaces, without consulting moving ref names. */
-export function refEndPublished(context: RefBackendContext, incoming: ReadonlyMap<string, string>): RefEndPublished {
-  return async (live, history, batch, owner) => (await lifecycleBatches(context, incoming.get(live), owner)).has(batch)
-    || (await lifecycleBatches(context, incoming.get(history), owner)).has(batch);
+export function refEndPublished(context: RefBackendContext, incoming: ReadonlyMap<string, string>,
+  previous: ReadonlyMap<string, string> = new Map()): RefEndPublished {
+  let folders: ReturnType<typeof readLifecycleFolders> | undefined;
+  return async (live, history, batch, owner) => {
+    for (const tip of new Set([incoming.get(live), incoming.get(history), previous.get(live), previous.get(history)])) {
+      if ((await lifecycleBatches(context, tip, owner)).has(batch)) return true;
+    }
+    folders ??= readLifecycleFolders(context, incoming);
+    return (await folders).some((folder) => folder.liveRef === live && folder.metadata.endBatch === batch);
+  };
 }
 
 /** An unpublished end still needs its record and an end absent from both published item tips. */

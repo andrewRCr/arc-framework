@@ -1,5 +1,6 @@
 /** Retirement admission observes the origin's proposed inbound entries. */
 import { expect, it } from "vitest";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema } from "../../../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema } from "../../../../../../src/lib/store/index.js";
 import { createKindRegistry } from "../../../../../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../../../src/lib/store/kinds/registrations.js";
@@ -68,3 +69,18 @@ it("refuses a terminal snapshot whose prior primary cannot be read", async () =>
   proposal.next = { content: JSON.stringify(terminal), fields: terminal };
   expect(await checkLineageRecord(proposal)).toMatchObject([{ rule: "lineage.retired-branches" }]);
 });
+
+it.each(["completed-match", "active-match", "completed-mismatch", "missing"] as const)(
+  "removes terminal lineage only while the archived primary keeps its branch authority: %s", async (mode) => {
+    const proposal = input(null);
+    const branches = [{ repository: "repo", ref: "feat/example", linkedAs: "created" as const, excluded: [] }];
+    const prior = { ...parseLineageRecord(proposal.next!.content), retiredBranches: branches };
+    proposal.prior = { content: JSON.stringify(prior), fields: prior }; proposal.next = undefined;
+    const primary = ruleRecord("work-item/meta", "example", META_RULE_UID, "", undefined,
+      mode === "active-match" ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: ArchiveSequenceSchema.parse("01") });
+    primary.links = { branches: mode === "completed-mismatch" ? [{ ...branches[0]!, linkedAs: "adopted" }] : branches };
+    proposal.after = ruleView(mode === "missing" ? [] : [primary]);
+    const result = await checkLineageRecord(proposal);
+    if (mode === "completed-match") expect(result).toEqual([]);
+    else expect(result).toMatchObject([{ rule: "lineage.retired-branches" }]);
+  });

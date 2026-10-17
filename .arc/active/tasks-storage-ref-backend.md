@@ -966,38 +966,15 @@ the withdrawal rule for two ends — the rules the model checks held.
   pull notices for both prepared merges and fast-forwards. Native split-retirement cases refuse other origin puts
   without ref changes, then admit primary restoration alone or with a companion, or retirement by removal.
 
-### `[ ]` **10.5 Two ends of one item — § 6.6**
+### `[x]` **10.5 Two ends of one item — § 6.6**
 
 - _Goal:_ Of two ends of one item the first published holds: this clone withdraws its own unpublished end whole, and two
   ends both published are reported with the remedy that leaves one.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The first model check, § The second model check
-
-    - The withdrawal is one local transaction inverting every write the end's batch made, and an earlier unpublished
-      lineage it relied on, with the provenance `sync` `withdraw-end`
-    - Its inbox writes invert like the rest, found by the end's batch ID: each entry whose `_Id:_` line the end's batch
-      added to an inbox is taken back out unless the merged published side holds it, and the routing receipts the batch
-      wrote are removed, unpublished as the end is, as the withdrawal removes the conflict record it filed; no receipt
-      is written, so the backend defines no receipt's content
-    - Build `test-first` (one behavior at a time):
-        - two clones ending one item — archive against abandon, and two archives, each perhaps after a reopen of its own
-          — leave the first published, the second reporting `end-withdrawn`, through its push's `pulls` where the push
-          loop met it
-        - two abandons keep the published lineage and remove the conflict record filed over the withdrawn one
-        - a withdrawn end whose batch closed a cohort reopens it, unless the published end closed it too, and each inbox
-          entry it returned is taken back out and the receipt the end wrote for it removed, so its latest receipt again
-          names its home before the end, unless the published end returned it too, whose receipt then stands
-        - the cohort withdrawal case runs through public `pull`, confirming the history ref moves back under
-          `refs/arc/cohort/<uid>` and its quarter folder disappears; this carries 6.5's private-helper test through the
-          public boundary required by § 1.2
-        - a clone that wrote the item's lineage in one batch and removed its primary in a later one, neither published,
-          meeting another clone's archive, withdraws both and reports no `ended-twice`
-        - a clone holding its own unpublished archive meets a lineage end as pending and withdraws its archive
-        - the writes made around the withdrawn end merge into the published end's history ref as late writes
-        - two ends both published — after a mirror push erased the first, or lineage beside an archive from one clone or
-          two — report `ended-twice` on every clone, whose remedy leaves one end, as for two archives into two quarters,
-          and every later pull reads no end pending
-        - a decomposition's children stay as items of their own after its withdrawal
+- _Outcome:_ Losing unpublished end batches are inverted in one transaction, including earlier lineage, cohort closes,
+  and selective inbox returns and receipts; surrounding writes and decomposition children remain. Published double ends
+  persist as notices until their histories are reconciled, lineage cleared, and every archive folder reopened. Lineage
+  removal preserves branch authority through an exact archived-primary snapshot match.
 
 ### `[ ]` **10.6 `arc rename`'s retry over a missing history ref — § 4.5**
 
