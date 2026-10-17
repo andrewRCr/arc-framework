@@ -1,8 +1,8 @@
-# Notes: review-coverage-cadence — seam-lifecycle review evidence
+# Notes: review-coverage-cadence
 
-Field evidence behind `draft-review-coverage-cadence.md`: what eight complete standard passes over one large
-`sensitive` change set actually found, and where each later finding sat relative to the fixes before it. Gathered
-2026-10-16 from the review gate's local operation records for `seam-lifecycle`.
+What eight complete standard passes over one large `sensitive` change set found, and where each later finding sat
+relative to the fixes before it; the prior-art sources; the hosted-review probes; the review call-site inventory; and
+the neighbors task generation and execution meet.
 
 ## Source
 
@@ -14,7 +14,8 @@ Field evidence behind `draft-review-coverage-cadence.md`: what eight complete st
   Owner-approved extra pass.
 - **Records:** the lane-progress record lists each pass's head and response; each pass's approved disposition set in
   the review gate's evidence store carries its findings with loci, severities, and dispositions. These are
-  machine-local under the repository's `.git/arc/review-gate/`, so this file keeps what the draft needs from them.
+  machine-local under the repository's `.git/arc/review-gate/`, so this file keeps what the spec draws on from them,
+  gathered 2026-10-16.
 
 | Pass | Reviewed head | Findings | Fixed | Rejected | Fix round after it (changed lines, files) |
 | ---- | ------------- | -------- | ----- | -------- | ----------------------------------------- |
@@ -229,9 +230,9 @@ the researchers'; "secondary" means a summary or search result, not the source i
 
 ### Re-review after base movement
 
-Gathered 2026-10-16 at source grounding, when the incremental supplemental pass proved unrunnable (D6). Three
-external-research passes; nothing below was independently verified, and several quotes came from search summaries
-rather than the page itself.
+Gathered 2026-10-16 at source grounding, when the incremental supplemental pass proved unrunnable (spec § 7.7). Three
+external-research passes; nothing below was independently verified, and several quotes came from search summaries rather
+than the page itself.
 
 - **Gerrit** (<https://gerrit-review.googlesource.com/Documentation/config-labels.html>). `TRIVIAL_REBASE` needs the
   same commit message and diff as the previous patch set, and no conflict resolution. A resolution makes the patch set
@@ -357,10 +358,11 @@ All six defects were still in the code at CR3: four untouched and two behind fix
 
 ## Review call sites
 
-A read-only inventory of `packages/arc-framework/arc/system/` on 2026-10-16, made to shape D10. Line numbers drift; the
-implementation re-derives it on the then-current base as segment 4's before-inventory. Spot-checked against source:
-the `deliver-stack` and `integrate-work-unit` frontline contradiction, the cloned "frontline admission", the
-`prepare-work-unit` composer wording, `amend-design`'s offer form, and the `draft-design` and `create-spec` postures.
+A read-only inventory of `packages/arc-framework/arc/system/` on 2026-10-16, made to shape the review family (spec
+§ 11). Line numbers drift; the implementation re-derives it on the then-current base as segment 4's before-inventory.
+Spot-checked against source: the `deliver-stack` and `integrate-work-unit` frontline contradiction, the cloned
+"frontline admission", the `prepare-work-unit` composer wording, `amend-design`'s offer form, and the `draft-design` and
+`create-spec` postures.
 
 - **Planning — one block, parameters.** `draft-design`, `create-spec`, and `generate-tasks` repeat the offer callout,
   orientation YAML, authored-partition note, fix-check sentence, pass-record paragraph, and post-settle re-read nearly
@@ -393,6 +395,27 @@ the `deliver-stack` and `integrate-work-unit` frontline contradiction, the clone
 - **Not settled from prose.** Whether the CLI performs the Errand path's fix-verification replay; how
   `prepare-work-unit` handles a `run-self-review` action; `amend-design`'s pass cap.
 
+## Fix-range measure probe
+
+Run 2026-10-16 on this work unit's branch: `changeset resolve`, given a correction scope's `predecessorHeadSha` as
+`diffBaseSha`, measured a one-commit range at 52 lines and 5 files, as `git diff` counts it. The command takes the two
+commits verbatim (`resolveMemberCoordinates`, `hosts/local/repository-target.ts`), so a fix check's measure needs no new
+field (spec § 3.3).
+
+## Planning review of this work unit
+
+The work unit was `Heavy`, and `draft-design` recommends its adversarial offer only at `Novel`; the review ran on the
+Owner's call, 2026-10-16, with fold verification on.
+
+- **First pass.** It found 1 critical, 5 major, and 3 minor findings, all confirmed at source.
+- **Re-entry at `high`.** The design sat at `high` in `draft-design`, where re-entering one level higher has nowhere to
+  go. After the first pass's second fix-check round, a re-entry offer was recommended declined because the stage was
+  already at `high` and the fixes were local corrections, and the Owner declined it. After the second pass's first
+  fix-check round, all seven material findings came from that pass's two new-design folds, and four of their fixes were
+  new design again: the exit gate's sustained non-convergence. The loop ended `re-entered` by returning the two loci to
+  the stage's facilitated shaping step, which no method names as a re-entry response; a fresh loop then ran, and its
+  fix-check rounds converged.
+
 ## Caveats
 
 - **One change set.** Large, sensitive, and stochastic in its reviewer; a second data point would test the pattern.
@@ -403,3 +426,68 @@ the `deliver-stack` and `integrate-work-unit` frontline contradiction, the clone
 - **Prior art does not settle thresholds.** Inspection practice verifies rework by default and re-inspects
   complicated or critical rework; the "re-inspect above 5% rework" figure is folklore (§ Prior art sources), and no
   validated stopping rule for repeated LLM review was found.
+
+## Coordination
+
+The spec names no other work unit. These are the neighbors task generation and execution meet.
+
+### `seam-delivery-review`
+
+Coordinated with its create-spec and generate-tasks sessions on 2026-10-16 and 2026-10-17; its notes and task list
+keep the matching record from its side.
+
+- **Landing order.** This work unit lands first, and `seam-delivery-review` takes the base-merge conflicts.
+- **Shared files.** `local-review-coverage-selection.ts`, `core/local-prepare.ts`,
+  `runtime/local-prepare-composition.ts`, `runtime/respond-command.ts`, `runtime/respond-composition.ts`,
+  `runtime/review-policy-remedy.ts`, `status-errand.ts`, `status.ts`, `status-composition.ts`,
+  `status-delivery-scope.ts`, `review-coverage-selection.ts`, `hosted-reservation-discharge.ts`,
+  `hosted-reservation-support.ts`, `hosted-reservation-admission.ts`, `earlier-review-applicability.ts`,
+  `earlier-review-attempts.ts`, `pre-publication-composition.ts`, `review-policy-driver.ts`,
+  `review-policy-evidence.ts`, `handlers/review.ts`, `lane-progress-conditional.ts`,
+  `core/provisional-pass-assessment.ts`, `delivery-local-review-admission.ts`, and `hosted/`'s CodeRabbit, Codex, and
+  correction-capability modules.
+- **What it relies on.** Change none of these without telling it:
+    - `logicalPass` numbers every finished attempt, fix checks and delta checks included, and its write check and
+      import copy the values as they are. The ceiling compares the complete count, and `exhaustedPassCount` stays the
+      producing attempt's `logicalPass`.
+    - The complete count and the next pass's chosen coverage reach the driver as internal inputs beside `sources` and
+      `maxPasses`, never on the command request its snapshot stores.
+    - A hosted outcome never carries incremental coverage, and `HostedCoverageEvidenceSchema` stays parseable for the
+      stored record that holds one.
+    - The report's render-only inputs, the `**Fails:**` anchor among them, ride beside `proposal` and are never stored;
+      it persists only the approved disposition set.
+    - The delta check writes the record a fix check writes and cites no extra-pass decision, so none of its checks
+      tells the two apart.
+    - The fix-check chain accepts a later Candidate head with the fix head's subject digest, an allowance its deletion
+      pass keeps, and relies on neither `commit-selection` nor a review fix's record-effect settlement, both of which
+      retire at its flip.
+    - The convergence rule needs nothing from it: its side drops both stored resolve-envelope copies
+      (`CandidatePolicyReviewBoundarySchema.policy`, `CandidateFixBoundarySchema.policy`) and recomputes them through
+      the same derivation.
+- **A stored shape goes there.** If implementation finds it needs a new stored record or field, that shape is
+  `seam-delivery-review`'s, since it owns the review gate's storage register row; it does not land here.
+
+### Already routed
+
+Each went out as a `USER-INBOX § Work Unit` capture with `WU_Target` and `_Shapes:_`. Do not route them again from task
+generation or execution.
+
+- `review-orchestration-right-sizing` — its review-lane doctrine home points at `review-model` and the operations
+  rather than minting the pass model.
+- `composable-workflows` — review's operations as worked instances of its procedure library and procedure/check split.
+- One typed driver across code review's four site commands (`WU_Target: TBD`).
+- `docs-content-sweep` — the code-review lane renames in the docs site.
+- A recorded base-merge review check that carries review without a stop, and a typed base reconcile between review fix
+  rounds for overlapping drift (both `WU_Target: TBD`).
+- `delivery-rebuild-continuity` — a typed mark of a held review correction on the continuation's stops, and whether a
+  review fix may land before the Owner's choice at a bound applicability stop.
+- `autonomy-levels` — bounding fix-check rounds when a level lets the agent approve review fixes.
+- `review-source-authority` — whether its operator selection override takes the Owner past a delta check.
+- `review-durability-hardening` — re-triaging its held new-head invalidation entry against the delta check.
+
+### Execution caution
+
+Delivery's authoring rebind refuses a review fix that lands outside the finding's cited file
+(`authoring-rebind-finding-path-missing`, `handlers/delivery-execution.ts`). A sibling sweep produces exactly such
+fixes, so a test that lands a sibling-sweep fix on a delivery member can hit it. The spec leaves that admission
+unchanged, and `review-orchestration-right-sizing` holds the concern.
