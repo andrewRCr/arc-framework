@@ -3987,7 +3987,7 @@ open:
   _Supersedes:_ § 11.6 pathname claim. _Trigger:_ 3.3.a must-stop. _Work:_ 3.3.R. _Revalidated:_ 4.5.
 
 - **A4** — 2026-10-16 — design: retirement checks precede the sweep and admit same-batch inbound settlement.
-  _Supersedes:_ § 7.4 other-origin put refusal. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 6.R.
+  _Supersedes:_ § 7.4 other-origin put refusal. _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ 6.R.
 
 - **A5** — 2026-10-16 — design: verbatim companion paths use segment bounds; combined names retain the key bound.
   _Supersedes:_ § 3.2 key exception and § 5.6 key cap. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 8.6.

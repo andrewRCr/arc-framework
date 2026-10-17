@@ -598,20 +598,14 @@ close, and renames and role changes.
   metadata. Other origin puts refuse unless the batch restores its primary or settles inbound during retirement.
   Missing lineage trees and retained history name repair routes without publishing partial changes.
 
-### `[ ]` **6.R Retirement checks before the final sweep — § 5.3, § 7.4**
+### `[x]` **6.R Retirement checks before the final sweep — § 5.3, § 7.4**
 
 - _Goal:_ A4's ref-backend retirement checks observe the batch's prepared mutations before the automatic sweep, refusing
   held inbound entries while admitting a batch that settles them itself.
 
-    - Exercise the shipped `checkLineageRecord` through a registry override supplying a declared inbound test grammar;
-      `KIND_MECHANISMS["work-item/inbound"]` declares none until the kind's grammar lands
-    - Build `test-first` (one behavior at a time):
-        - abandonment and decomposition batches creating terminal lineage over held inbound entries refuse
-          `lineage.inbound-held`, leaving every touched ref unchanged
-        - the same batch settling the entries, or explicitly removing the inbound record, admits retirement; the check
-          sees that proposed change rather than the old list, and the history tip's final tree is empty
-        - adding a put of another origin record to that retirement still refuses and changes no ref; the settlement
-          exception applies only to the origin's inbound list in the batch creating terminal lineage
+- _Outcome:_ Real-Git coverage runs the shipped lineage check with a declared inbound grammar. Held entries block
+  abandonment and decomposition without ref changes; same-batch settlement or removal admits an empty final history
+  tree. Adding another origin put still refuses, preserving the exception's inbound-only boundary.
 
 ### `[ ]` **6.5 A cohort's close — § 7.6**
 
