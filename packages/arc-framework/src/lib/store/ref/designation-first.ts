@@ -5,7 +5,7 @@ import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRe
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { readRefTips } from "./batch-read.js";
 import { isManifestRef } from "./manifest.js";
-import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
+import { readRefRegistryPresence } from "./designation-presence.js";
 import type { PullOutcome, SyncState } from "../sync.js";
 
 /** Configuration questions and candidate failures prevent state publication independently. */
@@ -31,8 +31,9 @@ export async function resolveRefDesignation(context: RefBackendContext): Promise
   const unanswered = candidates.filter(({ role }) => role === undefined);
   if (designation.backing && unanswered[0]) return { ...result, states: [designationQuestion(unanswered[0], designation)] };
   if (!unanswered.length) return { ...result, states: designation.pushes.length ? [] : [{ status: "no-remote" }] };
-  const present = await registryPresence(context, candidates);
-  return decideDesignation(context, result, unanswered, present);
+  const observed = await registryPresence(context, candidates, designation);
+  if (observed.status === "failed") return { ...result, pulls: [observed] };
+  return decideDesignation(context, result, unanswered, observed.present);
 }
 
 async function installFirstBacking(context: RefBackendContext): Promise<SyncState | null> {
@@ -51,15 +52,20 @@ async function installFirstBacking(context: RefBackendContext): Promise<SyncStat
   return null;
 }
 
-async function registryPresence(context: RefBackendContext, candidates: RefRemoteDesignation[]): Promise<Set<string>> {
+async function registryPresence(context: RefBackendContext, candidates: RefRemoteDesignation[], designation: RefDesignation):
+Promise<{ status: "ok"; present: Set<string> } | Extract<PullOutcome, { status: "failed" }>> {
   const present = new Set<string>();
   for (const remote of candidates) {
-    const source = context.repository?.source ?? context;
-    const { stdout } = await source.exec("git", ["ls-remote", "--refs", "--", remote.name, "refs/arc/project/registry"],
-      { cwd: context.checkoutRoot, interaction: PASSIVE_REMOTE_INTERACTION, diagnosticLocale: "stable" });
-    if (stdout.split(/\r?\n/u).some((line) => line.split("\t")[1] === "refs/arc/project/registry")) present.add(remote.name);
+    const observed = await readRefRegistryPresence(context, remote.name);
+    if (observed.status === "unreachable") {
+      const question = designationQuestion(remote, designation);
+      return { status: "failed", role: "candidate", remote: remote.name, families: ["project-registry"], notices: [],
+        failure: { code: "unreachable", class: "recoverable", cause: observed.cause, condition: observed.condition,
+          remedy: { text: `Repair the remote and retry the pull, or designate it by hand. ${question.remedy.text}`, argv: question.remedy.argv } } };
+    }
+    if (observed.present) present.add(remote.name);
   }
-  return present;
+  return { status: "ok", present };
 }
 
 async function decideDesignation(context: RefBackendContext, result: RefDesignationResolution,
@@ -86,7 +92,7 @@ async function holdsState(context: RefBackendContext): Promise<boolean> {
     .some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
 }
 
-function designationQuestion(remote: RefRemoteDesignation, designation: RefDesignation): SyncState {
+function designationQuestion(remote: RefRemoteDesignation, designation: RefDesignation): Extract<SyncState, { status: "designation-needed" }> {
   const own = remote.repository === "backing" || remote.name === designation.codeRemote;
   const choices = own ? ["push", "off"] as const : ["push", "read", "off"] as const;
   return { status: "designation-needed", remote: remote.name, choices: [...choices], remedy: {

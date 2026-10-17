@@ -1113,19 +1113,11 @@ between layouts as its designation calls for.
           reserved code remotes are ignored, local-only clones report no state remote, and held state requires an explicit
           layout move. The tracked-pointer port remains lazy and outside configuration policy.
 
-    - `[ ]` **12.2.b Presence reads**
-        - `git ls-remote` of `refs/arc/project/registry` alone, run through the backend's executor and bounded by a
-          `DEFAULT_NETWORK_TIMEOUT_MS` bound on the sleep port, whose end aborts its signal (3.1.a), not by the real
-          timer `remote-ref-reader.ts` arms, counting only an output line naming exactly that ref, since `ls-remote`
-          matches by tail and also prints a ref such as `refs/arc-remotes/x/refs/arc/project/registry`
-        - Build `test-first` (one behavior at a time):
-            - Integration tier
-            - a remote whose presence read fails sets and asks nothing and reports a `failed` `unreachable` outcome in the
-              role `candidate`, with no state beside it, and the next pull once it answers decides
-            - a presence read against an HTTP remote that accepts and never answers fails once the case advances the
-              clock past the bound while the server holds the connection, deciding nothing, as § 14.5 has it
-            - a presence read inside `pull`, beside the operation's pending deadline, returns the remote's answer
-            - a remote holding only a ref ending in that name reads as not holding the registry
+    - `[x]` **12.2.b Presence reads**
+        - Registry queries use the executor with their own cancellable sleep-port bound. Only the exact registry ref
+          counts; candidate transport failures report no designation and retain a repair or manual-setting remedy.
+          Real HTTP admission exercises the five-second bound and a later repaired pull; successful reads remain
+          independent of the enclosing operation's pending deadline.
 
     - `[ ]` **12.2.c The states a pull and push report**
         - Build `test-first` (one behavior at a time):
