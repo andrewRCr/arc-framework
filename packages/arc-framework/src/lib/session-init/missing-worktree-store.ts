@@ -24,8 +24,16 @@ export async function readStoreMissingFolderActions(input: { store: Store; proje
     if (read.refusal.code === "not-found") return plain();
     input.warnings?.push(`${read.refusal.condition} ${read.refusal.remedy.text}`); return null;
   }
+  if (read.result.conflicts.length > 0) {
+    input.warnings?.push(`Work item ${read.result.reference.owner.name} has conflicting state; repair its record before cleaning up ${branch}.`);
+    return null;
+  }
   if (read.result.placement?.kind !== "completed") return plain();
-  const link = read.result.links?.branches?.find((item) => item.repository === project.id && workBranchName(item.ref) === branch);
-  if (link === undefined) { input.warnings?.push(`Work item ${read.result.reference.owner.name} lacks its linked branch ${branch}; repair that link, then retry.`); return null; }
+  const links = read.result.links?.branches?.filter((item) => item.repository === project.id && workBranchName(item.ref) === branch) ?? [];
+  if (links.length !== 1 || links[0] === undefined) {
+    input.warnings?.push(`Work item ${read.result.reference.owner.name} has missing or ambiguous linked authority for ${branch}; repair its branch links, then retry.`);
+    return null;
+  }
+  const link = links[0];
   return link.linkedAs === "created" ? missingRegistrationActions(checkout.path, { locked, workUnitName: read.result.reference.owner.name }) : plain();
 }

@@ -55,3 +55,42 @@ it("suppresses one refused branch lookup and carries its repair in warnings", as
   const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project", rows: [row("topic/arbitrary")], shipped: new Set(), warnings, exec, folderExists: async () => false });
   expect(reports).toEqual([]); expect(warnings).toEqual(["Branch authority is unreadable Repair branch authority"]);
 });
+
+it("withholds cleanup for a conflicted primary and restores teardown after repair", async () => {
+  const h = createLifecycleHarness(), warnings: string[] = [];
+  const saved = await h.seedMeta("shipped", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    { branches: [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created", excluded: [] }] });
+  const read = h.store.read.bind(h.store);
+  const conflict = recordReferences["work-item/conflict-record"](saved.reference.owner, "unresolved");
+  const conflicted = vi.spyOn(h.store, "read").mockImplementation(async input => {
+    const result = await read(input);
+    return result.status === "ok" && result.result.reference.kind === "work-item/meta"
+      ? { status: "ok", result: { ...result.result, conflicts: [conflict] } } : result;
+  });
+  const options = { store: h.store, projectId: async () => "project", rows: [row("topic/arbitrary")],
+    shipped: new Set<string>(), warnings, exec, folderExists: async () => false };
+  expect(await readMissingWorktreeFolders(options)).toEqual([]);
+  expect(warnings.join(" ")).toMatch(/conflict.*repair/iu);
+  conflicted.mockRestore();
+  expect((await readMissingWorktreeFolders(options))[0]?.actions[0]?.argv).toEqual(["arc", "teardown", "shipped"]);
+});
+
+it.each([false, true])("withholds ambiguous canonical links regardless of order, then accepts repair (reverse=%s)", async reverse => {
+  const h = createLifecycleHarness(), warnings: string[] = [];
+  const links = [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created" as const, excluded: [] },
+    { repository: "project", ref: "refs/heads/topic/arbitrary", linkedAs: "adopted" as const, excluded: [] }];
+  if (reverse) links.reverse();
+  const saved = await h.seedMeta("shipped", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, { branches: links });
+  const options = { store: h.store, projectId: async () => "project", rows: [row("topic/arbitrary")],
+    shipped: new Set<string>(), warnings, exec, folderExists: async () => false };
+  expect(await readMissingWorktreeFolders(options)).toEqual([]);
+  expect(warnings.join(" ")).toMatch(/ambiguous.*repair/iu);
+  const fixed = await h.store.write({ action: "put", reference: saved.reference, expected: saved.version, content: saved.content,
+    links: { branches: [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created", excluded: [] }] },
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "repair", lifecycleAction: "repair" } });
+  expect(fixed.status).toBe("ok");
+  expect((await readMissingWorktreeFolders(options))[0]?.actions[0]?.argv).toEqual(["arc", "teardown", "shipped"]);
+});
