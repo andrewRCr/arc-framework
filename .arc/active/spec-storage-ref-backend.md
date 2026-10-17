@@ -4133,6 +4133,9 @@ open:
   render `incomplete` as `pull-incomplete`, and successful outcomes retain their notices for rendering. Both session
   and slug status fetches use that binding. Status renders each notice as `pull-notice`, including notices in partial
   outcomes, preserving its condition and remedy; whichever implementation lands second completes the shared wiring.
+  The expected `pullStoreStatus` binding serves every status mode, the slug query included, and the second landing
+  completes its `incomplete` and per-notice mappings. An ended-conflict warning names the item and conflicts, explains
+  that the conflict view omits them, and passes through the retained-conflict remedy.
 
 - **A15** — 2026-10-17 — design: failed fetches verify reported updates against actual tracking tips.
   _Supersedes:_ § 6.3 failed-update flag premise. _Trigger:_ 11.1 must-stop. _Work:_ 11.1.R. _Revalidated:_ pending → 11.6.
