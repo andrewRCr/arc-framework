@@ -1040,24 +1040,15 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
 - _Goal:_ A tracking tip advanced by a fetch that later refused cannot hide missing ancestor objects from a later
   completeness check, including a retry after the remote advances again (A17).
 
-### `[ ]` **11.4 Carrying a code ref — § 6.8**
+### `[x]` **11.4 Carrying a code ref — § 6.8**
 
 - _Goal:_ A code ref rides the state push in one atomic push where one receiver serves both, or as an ordered first leg
   otherwise, and its own refusal never fails or delays the state publish.
 
-    - Build `test-first` (one behavior at a time):
-        - a carried ref over one atomic receiver and over ordered legs lands, `carry` reporting `pushed`
-        - a carried branch rewritten with its `expect` lands where the remote branch still stands at `expect`, and is
-          refused `stale-info` where another push moved it
-        - a carried ref's own rejection repeats the push with state alone, `carry` reporting the refusal
-        - an ordered code leg to an unreachable remote reports `carry` `unreachable` with its cause while the state leg
-          pushes
-        - a push carrying a code ref that publishes no state — on a failed pull and on a diverged ref — pushes the ref
-          alone, as an ordered leg and over one atomic receiver, `publishes` as the stop gives it; the same under
-          `designation-needed` and `moved` are cases of 12.2.c and 16.1, which produce those states
-        - a clone with no code remote reports `no-push-destination`, the state pushing alone
-        - a loop ending `retries-exhausted` with the carried ref not landed reports `carry` `unreachable` with cause
-          `timeout`
+- _Outcome:_ Code tips are captured from the code repository and join its state receiver atomically or publish first
+  as an independent leg for a separate store. Client rejections preserve their code-specific reasons and immediately
+  retry state alone. Failed or diverged state still permits code publication; missing code destinations, independent
+  transport failures, and an unlanded ref at the shared deadline retain distinct carry outcomes and safe retries.
 
 ### `[ ]` **11.5 Hooks, atomic capability, and races a server catches — § 6.8, § 6.9**
 

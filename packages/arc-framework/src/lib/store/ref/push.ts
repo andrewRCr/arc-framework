@@ -2,7 +2,6 @@
 
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { isGitProcessError } from "../../git/process-error.js";
-import { pushRefs } from "../../git/push.js";
 import { classifyPushOutcome, type PushClassification } from "../../git/push-classification.js";
 import type { FamilyId } from "../catalog.js";
 import { statePushFamilies, statePushStates, refMovementFamilies, successfulStatePublishes } from "./push-families.js";
@@ -19,11 +18,16 @@ import { refPushTarget } from "./fetch-target.js";
 import { recordPushTracking } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
 import { excludeBrokenPushRefs, type RefPushExclusion } from "./push-exclusion.js";
+import { captureRefCarry, finishRefCarry, pushRefListingWithCarry, type RefCarryPublication } from "./push-carry.js";
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
-  void input;
-  try { return await withRefSyncDeadline(context, publishRefStore); }
+  try { return await withRefSyncDeadline(context, async (scoped) => {
+    const carry = await captureRefCarry(scoped, input.carry);
+    const result = await publishRefStore(scoped, carry);
+    if (carry && result.status === "ok") result.result.carry = await finishRefCarry(carry);
+    return result;
+  }); }
   catch (error) {
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -33,6 +37,7 @@ export async function pushRefStore(context: RefBackendContext, input: PushInput 
 }
 
 interface PushLoop {
+  carry?: RefCarryPublication;
   pulls: PushResult["pulls"];
   reconciled: Set<FamilyId>; pushed: Set<FamilyId>; retryCount: number; waitedMs: number; lastPushMs: number;
   states: PushResult["states"];
@@ -40,8 +45,8 @@ interface PushLoop {
   pending?: { designation: string; listing: RefPushListing; outcome: Extract<PushClassification, { status: "lost-race" | "by-state" }> };
 }
 
-async function publishRefStore(context: RefBackendContext): Promise<StoreResult<PushResult>> {
-  const loop: PushLoop = { pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [], refusals: [] };
+async function publishRefStore(context: RefBackendContext, carry?: RefCarryPublication): Promise<StoreResult<PushResult>> {
+  const loop: PushLoop = { carry, pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [], refusals: [] };
   for (;;) {
     if (refSyncDeadlineExpired(context)) return exhaustedStatePublication(context, loop);
     let result: StoreResult<PushResult> | "retry";
@@ -139,7 +144,7 @@ async function publishListing(context: RefBackendContext, remote: string, target
   const changes = listing.changes.map((change) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(change.ref)
     ? { ...change, expected: listing.tracking.get(change.ref) ?? null } : change);
   const started = context.clock().getTime();
-  const outcome = await pushRefs(context.exec, target, changes, { cwd: context.checkoutRoot, signal: context.syncDeadline?.signal });
+  const outcome = await pushRefListingWithCarry(context, remote, target, changes, loop.carry);
   loop.lastPushMs = Math.max(0, context.clock().getTime() - started);
   await recordPushTracking(context, remote, listing, outcome);
   if (outcome.status === "refs") for (const row of outcome.refs) {
