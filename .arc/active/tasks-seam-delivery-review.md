@@ -171,8 +171,8 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
             - a stale or failed attempt counts toward none, and its retry shares its logical pass
             - a Candidate's count adds the passes its supersession chain carries
             - the next logical pass is one past the highest logical pass among finished outcomes
-            - where the policy counts complete coverage only, a fix check's finished outcome advances the next logical
-              pass but not the lane's count
+            - where the policy counts complete coverage only, an incremental pass's finished outcome — a fix check's or
+              a delta check's — advances the next logical pass but not the lane's count
             - the frontline lane's count is unchanged by the coverage rule
             - a local or frontline `findings` outcome reads as settled once approved evidence for its result exists
               and, where the approved set carries a fix, its performance is recorded

@@ -530,12 +530,14 @@ outcomes, as each lane's `completedPasses` counts them (`validatePassCounts`,
 (`readCandidateInheritedLaneProgress`, `rg/lane-progress-supersession.ts`, added in `readLaneProgress`,
 `rg/policy/pre-publication-composition.ts`); the policy numbers the next pass and records an exhausted pass count from
 that total (`rg/policy/review-policy-driver.ts`). A planned change to the standard lane's pass policy, expected to land
-before this one, splits the two numbers: the next logical pass still numbers every finished outcome, including a fix
-check's — a pass that reviews an approved fix alone, at incremental coverage — so one finished outcome per logical pass
-still holds (§ 4.8), while the lane's count, which the ceiling compares, takes only finished outcomes whose
-`effectiveCoverage` is `complete`, so a fix check adds nothing to it; the frontline lane's count is unchanged. The
-exhausted pass count an extra-pass decision records stays its producing attempt's `logicalPass`, with the next pass one
-past it, as today's validation requires (`validateAuthorizations`, `rg/core/lane-progress-state-validation.ts`). A
+before this one, splits the two numbers: the next logical pass still numbers every finished outcome, including an
+incremental pass's — a fix check, which reviews an approved fix, or a delta check, which reviews commits answering no
+finding after a pass that converged, its approved dispositions fixing no major or critical finding
+(`fixesMaterialFinding`, `rg/core/review-convergence.ts`), each at incremental coverage — so one finished outcome per
+logical pass still holds (§ 4.8), while the lane's count, which the ceiling compares, takes only finished outcomes whose
+`effectiveCoverage` is `complete`, so an incremental pass adds nothing to it; the frontline lane's count is unchanged.
+The exhausted pass count an extra-pass decision records stays its producing attempt's `logicalPass`, with the next pass
+one past it, as today's validation requires (`validateAuthorizations`, `rg/core/lane-progress-state-validation.ts`). A
 Candidate's supersession chain carries both numbers, each derived from its ancestors' stored outcomes — the first from
 `logicalPass`, the second from `logicalPass` and `effectiveCoverage` — as today's code already carries a complete-pass
 count beside the finished one (`countCompleteLogicalPasses`, `rg/lane-progress.ts`; `inheritedCompletePasses`,
@@ -810,9 +812,10 @@ at (`withCeilingOverride`, `rg/policy/pre-publication-request.ts`), and a ceilin
 past the pass it admitted (`pass-count-mismatch`, `resolveInvalidOverrideReason`, `rg/policy/review-policy-driver.ts`)
 while still applying to the resolution of that pass's own result (`compatibleTerminalGrants`,
 `rg/policy/review-policy-evidence.ts`). An extra pass already used therefore reads as spent, imported or not. Under the
-planned pass policy (§ 4.3) a fix check cites no extra-pass decision: the approved, performed response it verifies
-admits it, which its `correctionScope` names by that response's result (`predecessorProducerId`), so it spends none and
-its outcome's `admittedBy` stays empty.
+planned pass policy (§ 4.3) an incremental pass cites no extra-pass decision: a fix check is admitted by the approved,
+performed response it verifies, and a delta check by Git's proof that its range follows a converged pass, its
+`correctionScope` naming that response's or that pass's result (`predecessorProducerId`), so it spends none and its
+outcome's `admittedBy` stays empty. Both write the same record, and no rule of this change tells them apart.
 
 An `approved-fix` extra pass is also consumed by the attempt citing it (§ 4.6), checked when the attempt is admitted,
 before the pass runs, as `bindConditionalPendingAdmission` checks it today: a consumed pass admits only a retry after an
