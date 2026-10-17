@@ -37,7 +37,7 @@ async function fixture() {
   await ensureWorktreeMarkerIgnored(holder, exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
     createdFor: { kind: "work-unit", name: "paused-unit" } });
-  return { ...h, cwd, exec, holder };
+  return { ...h, cwd, exec, holder, project };
 }
 async function invoke(h: Awaited<ReturnType<typeof fixture>>, argv: readonly string[]) {
   const previousCwd = process.cwd(), previousExit = process.exitCode;
@@ -129,4 +129,33 @@ it("errand check preserves duplicate-holder uncertainty and matches code after t
   expect(repaired.overlaps).toContainEqual(expect.objectContaining({ workItem: "planning-unit", worktreePath: changed, matchedPaths: ["src/shared.ts"] }));
   expect(repaired.skipped ?? []).toEqual([]);
   expect(repaired.indeterminate ?? []).toEqual([]);
+}, 30_000);
+
+it.each(["errand", "groom", "housekeep"] as const)("active in-flight and errand check locate a held %s through the registered reader binding", async kind => {
+  const h = await fixture(), slug = kind === "groom" ? "groom-alpha" : `held-${kind}`, claimId = "e".repeat(32), branch = `chore/${slug}`;
+  h.store.environment.identity = "test-user";
+  const person = OwnerIdentitySchema.parse({ type: "person", name: "test-user" });
+  const reference = kind === "errand" ? recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }))
+    : kind === "groom" ? recordReferences["claims/groom"](person, slug) : recordReferences["claims/housekeep"](person, slug);
+  const base = { version: 3, slug, claimId, branch, createdAt: "2026-10-15T00:00:00Z", updatedAt: "2026-10-15T00:00:00Z", state: "open", changeRequest: null };
+  const content = kind === "errand" ? { ...base, kind: "errand", purpose: "errand", savedHead: null,
+    owner: "test-user", intent: "Fix the shared code", origin: "description", originEntry: null }
+    : kind === "groom" ? { ...base, kind: "groom", protection: "full", anchorStub: "alpha", members: ["alpha"], openedBaseHead: (await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim() }
+    : { ...base, kind: "errand", purpose: "housekeep-routing", savedHead: null };
+  await h.seed(reference, JSON.stringify(content), kind === "errand" ? { kind: "active" } : undefined,
+    kind === "errand" ? { branches: [{ repository: h.project, ref: branch, linkedAs: "created", excluded: [] }] } : undefined);
+  const holder = join(h.cwd, ".arc-checkouts", slug);
+  await h.exec("git", ["branch", branch]);
+  await h.exec("git", ["worktree", "add", holder, branch]);
+  await ensureWorktreeMarkerIgnored(holder, h.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(holder, { spawnedByArc: true, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
+    createdFor: { kind, slug, claimId }, provisioning: "ready" });
+  await mkdir(join(holder, "src"));
+  await writeFile(join(holder, "src/transient.ts"), "export const transient = true;\n");
+  const active = await invoke(h, ["active", "in-flight", "--json"]);
+  expect(active.entries).toContainEqual(expect.objectContaining({ kind: "errand", slug, branch, worktreePath: holder }));
+  const overlap = await invoke(h, ["errand", "check", "--target", "src/transient.ts", "--json"]);
+  expect(overlap.overlaps).toContainEqual(expect.objectContaining({ workItem: slug, branch, worktreePath: holder, matchedPaths: ["src/transient.ts"] }));
+  expect(overlap.skipped ?? []).toEqual([]);
+  expect(overlap.indeterminate ?? []).toEqual([]);
 }, 30_000);

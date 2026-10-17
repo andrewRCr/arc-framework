@@ -10,7 +10,9 @@
  */
 
 import { openDefaultStore } from "./lifecycle-shared.js";
-import type { StoreInFlightEntry } from "../lib/git/in-flight-store.js";
+import type { StoreInFlightEntry, DeriveStoreInFlightOptions } from "../lib/git/in-flight-store.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
 import type { WorktreeRosterEntry } from "../lib/git/worktree-roster.js";
 import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { readdir, readFile } from "node:fs/promises";
@@ -37,6 +39,7 @@ import { createGitExec, createGitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface ActiveStatusCliOptions {
   sessionInit?: boolean;
@@ -173,8 +176,10 @@ export async function handleActiveInFlight(
   );
 
   const locusPorts = store.capabilities.stateOffBranch ? createLocusPorts({ cwd, exec, store }) : undefined;
+  const roster = await readInFlightRoster({ cwd, store, exec, identity, baseBranch: settings["branch.base"] });
   const result = await runActiveInFlightExpansion({
     store,
+    ...(roster === undefined ? {} : { roster }),
     ...(locusPorts === undefined ? {} : { findHoldingCheckout: (name: string) => locusPorts.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }) }),
     exec,
     execInput: createGitExecInput(interaction?.subprocess),
@@ -213,4 +218,9 @@ export async function handleActiveInFlight(
   if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
     process.exitCode = 1;
   }
+}
+
+async function readInFlightRoster(input: { cwd: string; store: Store; exec: GitExec; identity: string | null; baseBranch: string }): Promise<DeriveStoreInFlightOptions["roster"]> {
+  if (!input.store.capabilities.stateOffBranch || input.identity === null) return undefined;
+  return (await runDerivedLocusStateProbe({ ...input, identity: input.identity })).roster;
 }
