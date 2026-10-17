@@ -12,6 +12,8 @@ import type { ObjectFormat } from "./manifest.js";
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
   registry: NonNullable<RefStorePorts["registry"]>;
+  /** Logical state is acquired under this remote root; manifest retention remains machine-local. */
+  readSource?: { root: string; versionRef: string };
   /** One operation's selected repository; absence leaves selection lazy. */
   repository?: { commonDir: string; gitDir: string | null; source: RefBackendContext };
   /** Prospective blobs stay readable in memory until their commit owns the layout lock. */

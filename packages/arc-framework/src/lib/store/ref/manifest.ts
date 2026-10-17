@@ -77,7 +77,7 @@ function hashTree(node: ManifestNode, format: ObjectFormat, trees: ManifestTree[
 /** Persist a captured manifest and retain it with an expected-value local token ref. */
 export async function saveCapturedManifest(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StateVersion> {
   const manifest = buildRefManifest(tips, await readObjectFormat(context));
-  const tokenRef = "refs/arc/tmp/version";
+  const tokenRef = context.readSource?.versionRef ?? "refs/arc/tmp/version";
   if (tips.get(tokenRef) === manifest.version) return manifest.version;
   const input = manifest.trees.map((tree) => tree.entries.map((entry) =>
     `${entry.mode} ${entry.mode === "40000" ? "tree" : "commit"} ${entry.oid}\t${entry.name}\0`).join("") + "\0").join("");

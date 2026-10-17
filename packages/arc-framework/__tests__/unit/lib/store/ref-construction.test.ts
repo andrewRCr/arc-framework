@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createRefStore } from "../../../../src/lib/store/create.js";
+import { createRefStore, createReadSourceStore } from "../../../../src/lib/store/create.js";
 import { createKindRegistry, type KindId } from "../../../../src/lib/store/index.js";
 import type { RefStorePorts } from "../../../../src/lib/store/ports.js";
 
@@ -24,6 +24,19 @@ describe("ref store construction", () => {
     const store = createRefStore(ports);
     expect(calls).toEqual([]);
     expect(store.capabilities).toEqual({ stateOffBranch: true });
+  });
+
+  it("constructs a read source without consulting policy, topology, or process ports", () => {
+    const { ports, calls } = observedPorts();
+    const source = createReadSourceStore(ports, "upstream");
+    expect(calls).toEqual([]);
+    expect(source.capabilities).toEqual({ stateOffBranch: true });
+  });
+
+  it("exposes no mutation or synchronization operation from a read source", () => {
+    const { ports } = observedPorts();
+    const source = createReadSourceStore(ports, "upstream");
+    for (const operation of ["write", "batch", "push", "pull", "maintain"]) expect(source).not.toHaveProperty(operation);
   });
 
   it.each<KindId>(["personal/document", "lineage/transition", "project-machinery/prose"])("rejects an anchor outside a singleton's own ref: %s", async (kind) => {

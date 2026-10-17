@@ -10,10 +10,11 @@ import type { PullInput, PullResult, PullOutcome, PullNotice } from "../sync.js"
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { type RefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { resolveRefDesignation } from "./designation-first.js";
+import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
 import { writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { withRefSyncDeadline } from "./sync-deadline.js";
+import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
 import { fetchRefRemote } from "./fetch.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
@@ -26,8 +27,8 @@ import { HistoryRefSchema } from "../refusal.js";
 
 /** Fetch only explicitly designated state sources into this store's tracking namespace. */
 export async function pullRefStore(context: RefBackendContext, input: PullInput = {},
-  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"]): Promise<StoreResult<PullResult>> {
-  try { return await withRefSyncDeadline(context, (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied)); }
+  onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"], resolution?: RefDesignationResolution): Promise<StoreResult<PullResult>> {
+  try { return await withRefSyncDeadline(context, (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied, new Map(), resolution)); }
   catch (error) {
     if (error instanceof RefFetchKeeperLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lock,
       condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
@@ -40,8 +41,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
 
 async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
   onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"],
-  retained = new Map<string, PullAttemptObservations>()): Promise<StoreResult<PullResult>> {
-  const resolved = await resolveRefDesignation(context);
+  retained = new Map<string, PullAttemptObservations>(), resolution?: RefDesignationResolution): Promise<StoreResult<PullResult>> {
+  const resolved = resolution ?? await resolveRefDesignation(context);
   const { designation, states } = resolved;
   const sources = designation.remotes.filter(({ role }) => role === "read" || role === "push" && !states.length && !resolved.pulls.length);
   if (!sources.length) return { status: "ok", result: { states, pulls: resolved.pulls } };
@@ -76,6 +77,11 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     notices.push(...fetched.notices);
     if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.");
     observed.changed ||= fetched.refs.some(({ flag }) => flag !== "=");
+    const adopted = await adoptSourceProjectIdentity(context, remote, designation);
+    if (adopted.status === "refused") return { ...common, status: "failed", failure: { code: "refused", class: "terminal",
+      message: "The read source was fetched, but its project identity could not be adopted.",
+      condition: adopted.refusal.condition, remedy: adopted.refusal.remedy } };
+    observed.changed ||= adopted.result;
     const incoming = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) =>
       [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => (isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success)
         && !fetched.notices.some((notice) => "ref" in notice && notice.ref === ref)));

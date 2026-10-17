@@ -14,11 +14,13 @@ export async function refFetchRewriteRemedy(context: RefBackendContext, remote: 
   const git = ["git", ...context.repository?.gitDir ? [`--git-dir=${context.repository.gitDir}`] : []];
   const command = (args: string[]) => [...git, ...args].map(quoteShellArgument).join(" ");
   const target = await refFetchTarget(context, remote, designation);
-  const local = (await readSyncRefs(context, ref)).get(ref);
   const tracking = `refs/arc-remotes/${remote.name}/${ref.slice("refs/arc/".length)}`;
   const negotiation = await refFetchNegotiation(context, remote.role === "read" ? null : await context.identity());
-  const fetch = command([...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
-    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target, `+${ref}:${tracking}`]);
+  const fetchArgs = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
+    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target, `+${ref}:${tracking}`];
+  const fetch = command(fetchArgs);
+  if (remote.role === "read") return { text: `Take theirs (replace the read source’s saved history):\n${fetch}`, argv: [...git, ...fetchArgs] };
+  const local = (await readSyncRefs(context, ref)).get(ref);
   const keep = command(["push", `--force-with-lease=${ref}:${observed}`, "--", await refPushTarget(context, remote, designation), `${local ?? ""}:${ref}`]);
   const take = command(["update-ref", ref, tracking, local ?? "0".repeat(observed.length)]);
   return { text: `Keep ours (discard the remote rewrite):\n${keep}\nTake theirs (discard this ref's local changes):\n${fetch}\n${take}`

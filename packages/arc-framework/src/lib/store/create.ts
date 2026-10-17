@@ -1,6 +1,6 @@
 /** The sole composition point for operational state backends. */
 
-import type { Store } from "./contract.js";
+import type { Store, ReadOnlyStore } from "./contract.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
@@ -18,21 +18,35 @@ export function createRefStore(ports: RefStorePorts): Store {
     .then(({ createRefBackend }) => createRefBackend(ports)));
 }
 
+/** Construct a lazy read-only view of one remote's acquired project state. */
+export function createReadSourceStore(ports: RefStorePorts, remote: string): ReadOnlyStore {
+  return lazyReadStore(true, () => import("./ref/backend.js")
+    .then(({ createRefReadSourceBackend }) => createRefReadSourceBackend(ports, remote)));
+}
+
 function lazyStore(stateOffBranch: boolean, construct: () => Promise<Store>): Store {
   let backend: Promise<Store> | undefined;
   const get = (): Promise<Store> => backend ??= construct();
   return {
+    ...lazyReadStore(stateOffBranch, get),
+    write: async (input) => (await get()).write(input),
+    batch: async (input) => (await get()).batch(input),
+    push: async (input) => (await get()).push(input),
+    pull: async (input) => (await get()).pull(input),
+    maintain: async () => (await get()).maintain(),
+  };
+}
+
+function lazyReadStore(stateOffBranch: boolean, construct: () => Promise<ReadOnlyStore>): ReadOnlyStore {
+  let backend: Promise<ReadOnlyStore> | undefined;
+  const get = (): Promise<ReadOnlyStore> => backend ??= construct();
+  return {
     capabilities: { stateOffBranch },
     read: async (input) => (await get()).read(input),
     list: async (input) => (await get()).list(input),
-    write: async (input) => (await get()).write(input),
-    batch: async (input) => (await get()).batch(input),
     version: async () => (await get()).version(),
     history: async (input) => (await get()).history(input),
     changes: async (input) => (await get()).changes(input),
     lookup: async (input) => (await get()).lookup(input),
-    push: async (input) => (await get()).push(input),
-    pull: async (input) => (await get()).pull(input),
-    maintain: async () => (await get()).maintain(),
   };
 }

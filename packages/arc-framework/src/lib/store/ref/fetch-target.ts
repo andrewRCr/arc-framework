@@ -6,7 +6,7 @@ import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 /** Read the target Git uses without importing transport settings from the code repository. */
 export async function refFetchTarget(context: RefBackendContext, remote: RefRemoteDesignation,
   designation: RefDesignation): Promise<string> {
-  if (remote.repository === "backing" || remote.name === designation.codeRemote) return remote.name;
+  if (remote.repository === "backing" || remote.name === designation.codeRemote && !context.repository?.gitDir) return remote.name;
   const source = context.repository?.source ?? context;
   return (await source.exec("git", ["remote", "get-url", remote.name], { cwd: context.checkoutRoot })).stdout.trim();
 }

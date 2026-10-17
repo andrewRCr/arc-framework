@@ -23,7 +23,7 @@ export async function readRefDesignation(context: RefBackendContext, common?: st
   const store = join(commonDir, "arc", "store");
   const backing = await directoryExists(context, store)
     ? configRemotes(await repositoryConfig(context, store), "backing").find(({ name }) => name === "backing") ?? null : null;
-  const remotes = code.filter(({ name }) => name !== "backing" && (backing === null || name === codeRemote));
+  const remotes = code.filter(({ name, role }) => name !== "backing" && (backing === null || name === codeRemote || role === "read"));
   if (backing) remotes.push(backing);
   return { codeRemote, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
 }

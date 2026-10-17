@@ -1,5 +1,6 @@
 /** One-shot, byte-framed Git acquisition for state refs and their objects. */
 
+import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
 import { isGitProcessError } from "../../git/process-error.js";
 
@@ -12,12 +13,13 @@ const encoder = new TextEncoder();
 
 /** Capture local ref tips without dereferencing their potentially missing objects. */
 export async function readRefTips(context: RefBackendContext, options: { includeHistory?: boolean } = {}): Promise<Map<string, string>> {
-  const { stdout } = await context.rawExec(["for-each-ref", ...(options.includeHistory ? [] : ["--exclude=refs/arc/history/"]),
-    "--format=%(objectname) %(refname)", "refs/arc/"], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+  const { stdout } = await context.rawExec(["for-each-ref", ...(options.includeHistory ? [] : [`--exclude=${physicalReadRef(context, "refs/arc/history/")}`]),
+    "--format=%(objectname) %(refname)", physicalReadRef(context, "refs/arc/"),
+    ...context.readSource ? [context.readSource.versionRef] : []], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   return new Map(decoder.decode(stdout).split("\n").filter(Boolean).map((line) => {
     const separator = line.indexOf(" ");
     if (separator < 1) throw new Error("Malformed ref-tip response");
-    return [line.slice(separator + 1), line.slice(0, separator)];
+    return [logicalReadRef(context, line.slice(separator + 1)), line.slice(0, separator)];
   }));
 }
 
@@ -36,10 +38,12 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
     }
   }
   try {
+    const physical = context.readSource ? queries.map((query) => physicalReadRef(context, query)) : queries;
     const { stdout } = await context.rawExec(["cat-file", "--batch"], {
-      cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${queries.join("\n")}\n`),
+      cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${physical.join("\n")}\n`),
     });
-    return parseBatch(stdout, queries);
+    const objects = parseBatch(stdout, physical);
+    return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;
   } catch (error) {
     if (!isGitProcessError(error) || error.kind !== "output-limit" || queries.length === 1) throw error;
     const middle = Math.ceil(queries.length / 2);

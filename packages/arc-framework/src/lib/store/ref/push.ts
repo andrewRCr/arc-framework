@@ -9,7 +9,7 @@ import type { PushInput, PushResult, PublishOutcome } from "../sync.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { resolveRefDesignation } from "./designation-first.js";
+import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
@@ -65,8 +65,7 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
 async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult> | "retry"> {
   const source = context.repository?.source ?? context;
   const resolved = await resolveRefDesignation(context), { designation } = resolved;
-  if (resolved.states.length || resolved.pulls.length) return { status: "ok", result: {
-    states: statePushStates(resolved.states, await context.identity()), pulls: [...loop.pulls, ...resolved.pulls], publishes: [] } };
+  if (resolved.states.length || resolved.pulls.length) return stoppedRefPublication(context, loop, resolved);
   const remote = designation.pushes[0];
   if (!remote) return { status: "ok", result: { states: statePushStates([{ status: "no-remote" }], await context.identity()), pulls: loop.pulls, publishes: [] } };
   const { pulled, merged } = await pullPushBasis(source, remote.name, loop);
@@ -103,6 +102,16 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   result.publishes = [...refusedStatePublishes(loop), ...successfulStatePublishes(unrefusedFamilies(await context.identity(), loop),
     loop.reconciled, loop.pushed, loop.retryCount, loop.waitedMs)];
   return { status: "ok", result };
+}
+
+async function stoppedRefPublication(context: RefBackendContext, loop: PushLoop,
+  resolution: RefDesignationResolution): Promise<StoreResult<PushResult>> {
+  const pulled = resolution.designation.remotes.some(({ role }) => role === "read")
+    ? await pullRefStore(context, {}, undefined, undefined, resolution)
+    : { status: "ok" as const, result: { states: resolution.states, pulls: resolution.pulls } };
+  if (pulled.status === "refused") return pulled;
+  return { status: "ok", result: { states: statePushStates(pulled.result.states, await context.identity()),
+    pulls: [...loop.pulls, ...pulled.result.pulls], publishes: [] } };
 }
 
 function settlePushRejection(loop: PushLoop, designation: RefDesignation, incoming: ReadonlyMap<string, string>) {

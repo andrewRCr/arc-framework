@@ -1122,26 +1122,15 @@ between layouts as its designation calls for.
   Candidate refs are cleared before acquisition and removed after the decision, including cancellation. Partial clones
   repair full object closure, and an unrelated teammate registry adopts the published identity without losing records.
 
-### `[ ]` **12.4 Read sources — § 9.6, § 9.8**
+### `[x]` **12.4 Read sources — § 9.6, § 9.8**
 
 - _Goal:_ An upstream's state is fetched into its own namespace and read through a read-only store, never merged or
   pushed to, its refusals recover as the store's do, and a contributor's local-only store adopts its project ID.
 
-    - `createReadSourceStore(ports, remote)` beside `createStore` in `lib/store/create.ts`: the ref backend over
-      `refs/arc-remotes/<remote>/`, typed `ReadOnlyStore`, keeping its last manifest at
-      `refs/arc/tmp/read/<remote>/version`; in the separate layout the source is fetched by its URL
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, each case in both layouts
-        - a pull fetches a read source's project namespaces into its namespace and no identity-scope ref, the person's
-          own among them, its outcome in the role `read`
-        - the read-source store reads, lists, and looks up there, as of its own state versions too
-        - nothing it fetches merges into local state or pushes
-        - a read source still pulls under a state that stops the state remote's sync
-        - a history ref its refusal names, pulled by name, resolves
-        - a diverged ref there reports `history-diverged` with taking theirs as its one way out
-        - on a clone with no state remote and no ID, the first pull fetching a read source's identity record writes it
-          create-only, `sync` `adopt-project-id`, a later pull leaving it, while a clone with a state remote adopts
-          nothing from a read source
+- _Outcome:_ `createReadSourceStore` exposes the shared read engine over a remote's tracking namespace, with its own
+  manifest keeper and no mutation methods. Read sources survive stopped state synchronization, recover named history,
+  and offer only a source-scoped take-theirs remedy for rewrites. Local-only stores adopt an absent project identity
+  through a create-only `sync` / `adopt-project-id` write, preserving existing IDs and state-remote authority.
 
 ## **Phase 13:** The migrate verb and layout moves
 
