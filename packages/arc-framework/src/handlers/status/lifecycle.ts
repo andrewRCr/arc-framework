@@ -22,7 +22,6 @@ import {
   type DerivedSlugPosition,
   type ScopeWindowFact,
 } from "../../lib/status/slug-position.js";
-import type { DerivedCheckoutRow } from "../../lib/locus/derived-roster.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runDerivedLocusStateProbe } from "../derived-locus-state-probe.js";
 import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
@@ -183,7 +182,7 @@ function formatDerivedStage(position: DerivedSlugPosition): string {
 }
 
 /** Bind the checkout roster read to the derived locus reader. */
-async function readCheckoutRoster(cwd: string, exec: GitExec, identity: string): Promise<readonly DerivedCheckoutRow[]> {
+async function readCheckoutRoster(cwd: string, exec: GitExec, identity: string) {
   const { settings } = await readConfigSettings(cwd);
   const frame = await runDerivedLocusStateProbe({ cwd, identity, baseBranch: settings["branch.base"], exec });
   return frame.roster;
