@@ -11,6 +11,12 @@ import { runHandoffWrite } from "../../src/lib/handoff/write.js";
 import { HandoffWriteRequestSchema } from "../../src/lib/handoff/write-schema.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
+import { writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
+import { createMemoryRemote } from "../helpers/store/sync.js";
+import { ReferenceBackend } from "../helpers/store/reference-backend.js";
+import { handleHandoffWrite } from "../../src/handlers/handoff-write.js";
+import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js";
+import type { StoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import type { Store } from "../../src/lib/store/contract.js";
 const selected = vi.hoisted(() => ({ store: undefined as Store | undefined }));
 vi.mock("../../src/lib/store/create.js", () => ({ createStore: () => {
@@ -97,6 +103,68 @@ it("reports maintenance failure after landing as success with a diagnostic", asy
   expect(await runHandoffWrite({ ...h, request, sync })).toMatchObject({ status: "written", diagnostics: [expect.stringContaining("local maintenance failed")] });
   expect(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).nextAction).toBe(request.nextAction);
 });
+it("refuses an unavailable HEAD without another write or maintenance and retries after repair", async () => {
+  const h = await fixture();
+  let maintained = 0;
+  const sync = createStoreSyncPort({ maintain: async () => { maintained++; return { measurements: [] }; } });
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "written" });
+  expect(maintained).toBe(1);
+  const before = lifecycleSuccess(await h.store.version());
+  await h.exec("git", ["symbolic-ref", "HEAD", "refs/heads/missing"]);
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "refused", refusal: { code: "git-head-unresolved",
+    remedy: { text: expect.stringContaining("Repair HEAD") } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(maintained).toBe(1);
+  await h.exec("git", ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "written" });
+  expect(maintained).toBe(2);
+  expect(lifecycleSuccess(await h.store.version())).not.toBe(before);
+});
+it("refuses a synchronized meta conflict without another write or maintenance and retries after resolution", async () => {
+  const h = await fixture();
+  let maintained = 0;
+  const sync = createStoreSyncPort({ maintain: async () => { maintained++; return { measurements: [] }; } });
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "written" });
+  expect(maintained).toBe(1);
+  const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  lifecycleSuccess(await h.store.sync());
+  const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+  const local = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  const other = lifecycleSuccess(await writer.read({ reference: h.meta.reference }));
+  const provenance = { verb: "update", lifecycleAction: "update" };
+  for (const [store, record, action] of [[h.store, local, "Local continuation"], [writer, other, "Remote continuation"]] as const) {
+    lifecycleSuccess(await store.write({ action: "put", reference: record.reference, expected: record.version,
+      content: writeMetaNextAction(record.content, action), placement: { kind: "active" }, provenance }));
+  }
+  lifecycleSuccess(await h.store.sync());
+  const disputed = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
+  expect(disputed.conflicts).toHaveLength(1);
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "refused", refusal: { code: "work-unit-unreadable",
+    remedy: { text: expect.stringContaining("Resolve its meta conflicts") } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: disputed.reference }))).toEqual(disputed);
+  expect(maintained).toBe(1);
+  lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
+    resolves: disputed.conflicts, content: disputed.content, placement: { kind: "active" }, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await invokeHandoff(h, sync)).toMatchObject({ status: "written" });
+  expect(maintained).toBe(2);
+  const repaired = lifecycleSuccess(await h.store.read({ reference: disputed.reference }));
+  expect(repaired.conflicts).toEqual([]);
+  expect(ParsedMetaRecordSchema.parse(repaired.fields).nextAction).toBe(request.nextAction);
+});
+async function invokeHandoff(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPort) {
+  const file = join(h.cwd, "handoff-request.json");
+  await writeFile(file, JSON.stringify(request));
+  const cwd = process.cwd(), exitCode = process.exitCode;
+  let output = "";
+  const capture = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output += String(chunk); return true; });
+  process.chdir(h.cwd);
+  try {
+    await handleHandoffWrite(file, undefined, { store: h.store, sync });
+    return HandoffWriteResultSchema.parse(JSON.parse(output));
+  } finally { process.chdir(cwd); process.exitCode = exitCode; capture.mockRestore(); }
+}
 it("serves the request schema through the registered CLI", async () => {
   let output = "";
   const capture = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output += String(chunk); return true; });
