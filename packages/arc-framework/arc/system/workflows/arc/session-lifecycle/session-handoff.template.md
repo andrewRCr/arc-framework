@@ -108,8 +108,8 @@ follow the override instead):
 retain the selected checkout for the next session. Use [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, backlog artifacts as applicable), then
-sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
+captures to existing surfaces (`USER-INBOX`, an approved `WORKING-MEMORY` addition, backlog artifacts as applicable),
+then sync + confirm. Use [Between-WUs Handoff Path](#between-wus-handoff-path).
 
 **When context changes** — capture working-directory paths or environment expectations in the active
 meta file only when they change next-session orientation.
@@ -413,7 +413,8 @@ Markers:
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
   (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under
   linked-worktree operation, this is the primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`.
-  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above.
+  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above. An addition
+  is proposed and lands only on approval; invoking the handoff does not approve it.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
       meta-conventions, parking references to uncommitted work visible in `git status`.
@@ -426,7 +427,7 @@ Markers:
       session sees them naturally.
 
     Review at each handoff: remove entries whose triggers are met, AND entries whose information
-    is now carried in tracked state.
+    is now carried in tracked state, and propose any addition not yet proposed.
 
 **Stay-out list — when you notice yourself writing one of these, delete it:**
 
