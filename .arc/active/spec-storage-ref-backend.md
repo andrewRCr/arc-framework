@@ -3135,6 +3135,11 @@ the default in a files-format code repository, and the separate one in its refta
   created (`reconciledRecords`, `__tests__/helpers/store/sync.ts`); and it refuses `state-unresolvable` for a state
   version it holds no snapshot of (`recordsAt`, `changesReference`, `__tests__/helpers/store/read.ts`), where it throws
   today.
+- **`current-removal` checks identity absence through a UID-less project handle.** Removing
+  `project-registry/identity` ends the project ID under § 3.2: a read through the removed record's UID-bearing handle
+  refuses `identity-mismatch`, while its UID-less handle refuses `not-found`. The shared removal assertion keeps its
+  no-version result and successful recreation checks, uses the original fixture handle for that kind alone, and adds
+  no fixture exclusion. A real-Git case checks both handles and recreation (A7).
 - **`keyed-independence` seeds its foreign owner only for owner types a store holds more than one of** — work items,
   cohorts, and people (`__tests__/helpers/store/suite-records.ts`). The contract gives a store one project (D14, § 3.2),
   so for a project-owned kind the item checks two keys under that one owner.
@@ -3938,6 +3943,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     and removals preserve other origins' formats and record versions in the same registry ref, including initial
     and newer-format cases (§ 3.3, § 14.3) (A6).
 
+19. **Identity removal expires its UID handle.** After removing the project identity, the removed record's
+    UID-bearing handle refuses `identity-mismatch`, its UID-less project handle refuses `not-found`, and recreation
+    succeeds. Shared conformance retains removal coverage without a new fixture exclusion (§ 14.2) (A7).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -3985,5 +3994,8 @@ open:
 
 - **A6** — 2026-10-16 — design: lineage transition format keys include the origin UID.
   _Supersedes:_ § 3.3 format-key rule. _Trigger:_ 5.3 must-stop. _Work:_ 5.R2. _Revalidated:_ pending → 8.6.
+
+- **A7** — 2026-10-16 — design: identity removal checks absence through the UID-less project handle.
+  _Supersedes:_ § 14.2 removal assertion. _Trigger:_ 5.10 must-stop. _Work:_ 5.10.R. _Revalidated:_ pending → 8.6.
 
 ---

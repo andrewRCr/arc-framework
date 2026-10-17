@@ -550,6 +550,17 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
         - project references carry no UID before the record exists and the project ID after, as each commit's
           `Arc-Owner` does from the record's own creating commit
 
+### `[ ]` **5.10.R Identity removal conformance — § 14.2 (A7)**
+
+- _Goal:_ Removing the project identity invalidates its UID-bearing handle while the UID-less handle reports absence,
+  and shared removal conformance retains recreation coverage without a new fixture exclusion (A7).
+
+    - Change `registerRecordAssertions`' identity-only absence read to use the original fixture handle
+    - Build `test-first` (one behavior at a time):
+        - removing identity returns no version; its expired UID-bearing handle refuses `identity-mismatch`, its UID-less
+          handle refuses `not-found`, and recreating identity succeeds
+        - the shared removal case passes for every served kind without adding an exclusion
+
 ## **Phase 6:** Lifecycle moves
 
 _Purpose:_ Every lifecycle move as one local transaction, as one clone sees it before any sync: archive and an Errand's
@@ -925,6 +936,8 @@ those 4.4.d holds until Phase 11, and every § 14.3 case that needs no pull pass
       `hold`, `race`, `produce`, and `repair` hooks serve every case they cover
     - The fixture produces `held-here`, `state-unresolvable`, and `namespace-corrupt`, the last by a commit outside ARC
       that a forward repair mends, which carries 7.5's recovery case
+    - Replay 5.10.R's expired project UID, UID-less absence, and recreation case in both layouts to close A7's
+      covering revalidation
     - Replay 5.R2's independent lineage format/version cases in both layouts to close A6's covering revalidation
     - Replay 5.R's companion name/path byte boundaries over both layouts, retaining atomic refusal and repaired
       retries, to close A5's covering revalidation
@@ -2897,3 +2910,6 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 
 - `[ ]` Each lineage transition's format key includes its origin UID; reads, puts, and removals preserve other origins'
   formats and record versions in the same registry ref, including initial and newer-format cases (§ 3.3) (A6)
+
+- `[ ]` Removing project identity expires its UID-bearing handle with `identity-mismatch`; the UID-less handle
+  reports `not-found`, recreation succeeds, and shared removal conformance adds no fixture exclusion (§ 14.2) (A7)

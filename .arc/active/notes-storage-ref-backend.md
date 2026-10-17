@@ -326,4 +326,17 @@ removals, and fault planting must agree; subsequent history, changes, merge, and
 This changes unpublished development encoding in place and adds no compatibility reader or migration. Task 5.R2
 covers independent origins, and Task 8.6 repeats its matrix over both layouts.
 
+## A7 — Identity removal and expired project handles
+
+The superseded generic removal expectation in `registerRecordAssertions` reads through the removed record's
+reference and expects “`code: "not-found"`”. For the ref backend, § 3.2 binds that reference's UID only while the
+identity record exists. `admitProjectReference` therefore refuses the expired UID with `identity-mismatch`; changing
+that refusal would weaken project isolation.
+
+The shared case will instead read through the original fixture handle for `project-registry/identity` alone. The
+fixture supplies that handle without a UID, so the read asks whether identity exists rather than asserting that the
+expired ID remains current. `canonicalReference` resolves that original handle in the reference fixture as well.
+The removal's no-version result and successful recreation checks remain. A dedicated real-Git regression checks both
+handles, and Task 8.6 repeats it over both layouts. No additional conformance exclusion is introduced.
+
 ---
