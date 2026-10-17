@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 1.4 — Read each registration's folder once per scan
-- **Next Task:** Task 1.5 — Take the removal check's outcomes (line ~133 in `tasks-seam-locus.md`)
+- **Last Completed:** Task 7.6 — Session continuity
+- **Next Task:** Task 8.1 — Complete verification (line ~1284 in `tasks-seam-locus.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.5.a — the cleanup decision; the plan is verified against the landed `seam-lifecycle`.
+- **Next Action:** Begin Task 8.1 in a fresh session; load and follow `verify-work-unit.md` for verification.
 
 - **PR URL:** [none]
 - **Completed:** [none]
