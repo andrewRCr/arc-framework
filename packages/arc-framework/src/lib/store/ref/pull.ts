@@ -14,7 +14,8 @@ import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { withRefSyncDeadline } from "./sync-deadline.js";
 import { fetchRefRemote } from "./fetch.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { mergeRefSets, type RefMergeOptions } from "./sync-merge.js";
+import type { RefMergeOptions } from "./sync-merge.js";
+import { mergePulledRefState, captureFetchedHistories } from "./sync-pull-lifecycle.js";
 import { isManifestRef } from "./manifest.js";
 import { HistoryRefSchema } from "../refusal.js";
 
@@ -61,14 +62,16 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     const prefix = `refs/arc-remotes/${remote.name}/`;
     const incoming = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) =>
       [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success));
-    const merged = remote.role === "push" ? await mergeRefSets(context, await readSyncRefs(context, "refs/arc/"), incoming, {
+    captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
+    const merged = remote.role === "push" ? await mergePulledRefState(context, incoming, designation, remote, input.history ?? [], {
       lock: context.lock, onApplied: async (physical, ref, before, after, applied) => {
         notices.push(...applied); await onApplied?.(physical, ref, before, after, applied);
       },
     }) : null;
     if (merged?.status === "restart") return "restart";
+    if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.");
     if (merged) onMerged?.(remote.name, incoming);
-    return { ...common, notices: merged?.notices ?? notices, status: fetched.refs.length > 0 || merged?.changed ? "pulled" : "noop" };
+    return { ...common, notices: merged?.notices ?? notices, status: fetched.refs.some(({ flag }) => flag !== "=") || merged?.changed ? "pulled" : "noop" };
   } catch (error) {
     if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
     return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.");

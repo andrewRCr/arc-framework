@@ -18,10 +18,16 @@ import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.
 /** Reuse the same merge over ordinary refs or a caller's isolated destination refs. */
 export interface RefMergeOptions {
   lock: RefStorePorts["lock"];
+  routes?: ReadonlyMap<string, RefMergeRoute>;
+  priorState?: ReadonlyMap<string, string>;
+  incomingState?: ReadonlyMap<string, string>;
   commitMode?: RefCommitMode;
   targetRef?: (canonical: string) => string;
   onApplied?: (context: RefBackendContext, ref: string, before: string | null, after: string, notices: readonly PullNotice[]) => Promise<void>;
 }
+/** One explicit lifecycle destination and the held source it replaces. */
+export interface RefMergeRoute { ref: string; source: string; currentSide?: "local" | "incoming"; reopening?: boolean }
+
 /** A changed basis asks the caller to release locks and capture its sets again. */
 export type RefMergeResult = { status: "complete"; changed: boolean; notices: PullNotice[] } | { status: "restart" };
 
@@ -31,23 +37,22 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
   let changed = false;
   const notices: PullNotice[] = [];
   for (const [incomingRef, next] of [...incoming].sort(([left], [right]) => left.localeCompare(right))) {
-    const ended = incomingRef.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
-    const ending = ended !== incomingRef && !local.has(incomingRef) && local.has(ended);
-    const live = incomingRef.replace("refs/arc/history/", "refs/arc/");
-    const reopening = live !== incomingRef && !local.has(incomingRef) && local.has(live);
-    const ref = ending ? ended : reopening ? live : incomingRef;
+    const route = options.routes?.get(incomingRef);
+    const ref = route?.ref ?? incomingRef;
     const target = options.targetRef?.(ref) ?? ref;
-    const quarters = await readSyncHistoryQuarters(context, ref, local);
-    const result = await withRefLocks({ ...context, lock: options.lock }, [target, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
-      const current = (await readSyncRefs(context, target)).get(target) ?? null;
-      if (current !== (local.get(ref) ?? null)) return { status: "restart" };
-      if (current === next || current && await syncRefIsAncestor(context, next, current)) return { status: "complete", changed: false, notices: [] };
+    const source = route?.source ?? ref;
+    const sourceTarget = options.targetRef?.(source) ?? source;
+    const quarters = await readSyncHistoryQuarters(context, ref, local, [next]);
+    const result = await withRefLocks({ ...context, lock: options.lock }, [target, sourceTarget, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
+      const current = (await readSyncRefs(context, sourceTarget)).get(sourceTarget) ?? null;
+      if (current !== (local.get(source) ?? null)) return { status: "restart" };
+      if (source === ref && (current === next || current && await syncRefIsAncestor(context, next, current))) return { status: "complete", changed: false, notices: [] };
       if (!await unchangedSyncHistoryQuarters(context, quarters, options.targetRef)) return { status: "restart" };
       const batchId = randomUUID();
       const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
       let tree: SyncMergedTree | undefined;
       if (current && !await syncRefIsAncestor(context, current, next)) {
-        const merged = await mergeSyncTree(staged, ref, current, next, local, { currentSide: ending ? "local" : "incoming", incoming, batchId, reopening });
+        const merged = await mergeSyncTree(staged, ref, current, next, local, { currentSide: route?.currentSide, incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening });
         if (merged.status === "refused") return { status: "complete", changed: false, notices: [{
           kind: "namespace-corrupt", ref, condition: merged.refusal.condition, remedy: merged.refusal.remedy,
         }] };
@@ -60,7 +65,8 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       const committed = await commitRefStep(staged, async (physical) => {
         const tip = prepared && current ? await commitSyncMerge(physical, prepared, current, next, batchId) : next;
         publishedTip = tip;
-        const changes: RefChange[] = [{ ref: target, next: tip, expected: current }];
+        const changes: RefChange[] = [{ ref: target, next: tip, expected: local.get(ref) ?? null }];
+        if (source !== ref && current) changes.push({ ref: sourceTarget, delete: true, expected: current });
         if (prepared) for (const quarter of quarters) {
           const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
           const next = await commitRefTree(physical, quarter.entries.values(), quarter.tip, { verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor);

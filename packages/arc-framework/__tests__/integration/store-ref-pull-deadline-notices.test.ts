@@ -29,8 +29,8 @@ describe.each(["default", "separate"] as const)("partial pull deadline in the %s
     success(await h.b.store.write({ action: "put", reference: personal("remote.md"), expected: null, content: "remote\n", provenance }));
     success(await h.b.store.push());
     const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
-    const check: WriteCheck = ({ next }) => Promise.resolve(next?.content.includes("left=1") && next.content.includes("right=1") ? [{
-      rule: "cohort.combination", condition: "The combined group needs a later edit.", remedy: { text: "Edit one combined field and save again." },
+    const check: WriteCheck = ({ next }) => Promise.resolve(next?.content === "remote\n" ? [{
+      rule: "personal.combination", condition: "The combined personal records need a later edit.", remedy: { text: "Edit one combined field and save again." },
     }] : []);
     let firstApplied = false, armed = true, admitted: (() => void) | undefined;
     const ready = new Promise<void>((resolve) => { admitted = resolve; });
@@ -43,11 +43,11 @@ describe.each(["default", "separate"] as const)("partial pull deadline in the %s
         if (active.aborted) cancel(); else active.addEventListener("abort", cancel, { once: true });
       });
     };
-    const groupRef = `refs/arc/cohort/${"uid" in group.reference.owner ? group.reference.owner.uid : ""}`;
-    const store = createRefStore({ ...h.a.ports, ...clock, registry: { ...registry, "cohort/document": { ...registry["cohort/document"], check } },
+    const firstRef = "refs/arc/user/andrew/personal";
+    const store = createRefStore({ ...h.a.ports, ...clock, registry: { ...registry, "personal/document": { ...registry["personal/document"], check } },
       lock: async (name) => {
         const release = await h.a.ports.lock(name);
-        return async () => { await release(); if (name === groupRef) firstApplied = true; };
+        return async () => { await release(); if (name === firstRef) firstApplied = true; };
       }, rawExec: (args, options) => firstApplied && armed && variant === "raw" && args.includes("cat-file")
         ? queueUntilCanceled(args, options?.signal) : h.a.ports.rawExec(args, options),
       execInput: (args, input, options) => firstApplied && armed && variant === "stdin" && args.includes("update-ref")
@@ -65,16 +65,16 @@ describe.each(["default", "separate"] as const)("partial pull deadline in the %s
       const result = success(ended);
       expect(result.pulls).toEqual([expect.objectContaining({ status: "failed",
         failure: expect.objectContaining({ code: "unreachable", cause: "timeout" }),
-        notices: [expect.objectContaining({ kind: "rule-broken", rule: "cohort.combination", reference: group.reference })],
+        notices: [expect.objectContaining({ kind: "rule-broken", rule: "personal.combination", reference: personal("remote.md") })],
       })]);
       if ("publishes" in result) {
         const failed = result.pulls[0];
         if (failed?.status !== "failed") throw new Error("Expected a failed state pull");
         expect(result.publishes).toEqual([expect.objectContaining({ status: "failed", failure: failed.failure })]);
       }
-      expect(success(await h.a.store.read({ reference: group.reference })).content).toContain("left=1\nseparator\nright=1");
-      success(await store.pull());
       expect(success(await h.a.store.read({ reference: personal("remote.md") })).content).toBe("remote\n");
+      success(await store.pull());
+      expect(success(await h.a.store.read({ reference: group.reference })).content).toContain("left=1\nseparator\nright=1");
     } finally { clock.advance(120_000); rescue.abort(); await pending.catch(() => undefined); }
   });
 });

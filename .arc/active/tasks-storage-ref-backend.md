@@ -920,83 +920,30 @@ the withdrawal rule for two ends — the rules the model checks held.
   merges refresh visible folders in the same batch. A changed shared tracking tip forces another merge before a
   delete may lease it. Three-clone and sibling-worktree cases exercise both layouts.
 
-### `[ ]` **10.2 Another machine's end and reopen, read from state — § 6.4, § 6.6**
+### `[x]` **10.2 Another machine's end and reopen, read from state — § 6.4, § 6.6**
 
 - _Goal:_ Every pull reads another machine's end or reopen from the records state holds, whichever merge brought them,
   so no live ref returns beside a published end and no end is lost to a reopen.
 
-- **Additional Context:** `notes-storage-ref-backend.md` § The first model check, § The second model check
+    - `[x]` **10.2.a Pending ends**
+        - Shared records are merged before end detection against the held history. All pending histories are fetched
+          together; live items move atomically into their merged histories and stay out of pending push listings.
 
-    - A module of its own for the pending-end and pending-reopen tests, kept apart from the merge, whose definitions of
-      this clone's own unpublished end and reopen read records, never the tracking history ref, replacing 9.2.a's
-      stand-in; it takes the local and incoming ref sets and the test of what counts as published as parameters, the
-      pull passing the store's refs, its tracking refs, and a published end's tracking state, and 13.1's copy its own
-      (§ 10.4)
+    - `[x]` **10.2.b When the by-name fetch fails**
+        - Failed fetches retain pending ends and prior notices, stop publication, and resume on retry. Missing history
+          reports an `end-pending` remedy on every pull until a holding clone restores it.
 
-    - `[ ]` **10.2.a Pending ends**
-        - The push loop's listing skips a live ref whose item has a pending end, which waits for the pull that applies
-          it
-        - Build `test-first` (one behavior at a time):
-            - a quarter folder beside a live ref, or beside a history ref whose log lacks the folder's `endBatch`, is a
-              pending end
-            - lineage in the fetched registry is a pending end only where the fetch left the live tracking ref absent,
-              and lineage beside a live ref the remote still holds ends nothing
-            - the pull fetches by name, in one fetch, the history ref of every item with a pending end, and a live ref
-              then merges into the fetched history ref and moves under `refs/arc/history/`
-            - a history ref fetched by name ahead of the merge merges only after the test, and only for an item with no
-              end pending
-            - a clone that reopens and ends an item between pushes, publishing only the history ref and the record, has
-              its end applied on every other clone
-            - a reopen's by-name fetch bringing a tip that holds an end the live ref's log lacks ends the item, as 10.1's
-              reopen race extends
-            - a history copy lacking a later write's `batch` takes no pending end from the folder it refreshed
-            - lineage written beside a live ref and published reads no end through two pulls and a push from a second
-              clone, and the primary's later removal ends the item there at the next pull, every later pull reading none
-              pending; the same with the primary removed first and the lineage written after
-            - an abandoned item whose history ref holds a late write's conflict records reads no end pending at any later
-              pull
-            - a live ref whose item has a pending end stays out of the push loop's listing, so an unleased live-ref push
-              never recreates an ended item's ref
-            - after a quarter's renumbering merge (9.2.b), each clone's next pulls read no pending end
+    - `[x]` **10.2.c Pending reopens**
+        - Folder removal and a fetched live tip move held history back to live state, retaining end removals beside
+          lineage. A surviving unpublished end holds against that move.
 
-    - `[ ]` **10.2.b When the by-name fetch fails**
-        - Build `test-first` (one behavior at a time):
-            - a by-name fetch that fails leaves the end pending and the live ref in place, reports the state remote
-              `failed` with that cause and the notices of what applied, and a push meanwhile lists no live ref of that item
-            - the next pull, its merge bringing nothing, applies the end
-            - a push whose own pull's by-name fetch fails ends before any push, `pulls` carrying that `failed` outcome
-              with its notices and `publishes` one `failed` naming every family of its scope
-            - a by-name fetch that succeeds without the history ref reports `end-pending` naming it on every pull until
-              a clone holding it pushes it back, and the next pull applies the end
+    - `[x]` **10.2.d This clone's own unpublished end and reopen**
+        - Record-backed predicates distinguish own moves, undone archives, and subsequent ends, including sibling
+          history fetches. Local ends retain fetched reopen ancestry; retired histories containing conflicts stay ended.
 
-    - `[ ]` **10.2.c Pending reopens**
-        - Build `test-first` (one behavior at a time):
-            - a history ref this clone holds, with no unpublished end of its own on it, beside a tracking ref for the live
-              ref and no folder in the merged quarter, is a pending reopen, applied at the pull whose state shows it rather
-              than the one whose merge brought the folder's removal
-            - an archived item reopened and then given lineage beside its live primary reopens on a clone holding its
-              history ref
-            - a live ref back beside lineage alone reads as a reopen keeping the end's removals
-            - a clone whose published end another machine then reopens applies the reopen at its next pull
-            - a pruned tracking ref with no end record reads as a loss the next push restores
-
-    - `[ ]` **10.2.d This clone's own unpublished end and reopen**
-        - Build `test-first` (one behavior at a time):
-            - a clone holding another machine's published archive when that machine's reopen publishes applies the reopen
-              and deletes no live ref
-            - a clone that undid its own unpublished archive by a reopen before applying another machine's end that is
-              then reopened deletes no live ref
-            - a clone holding its own unpublished reopen of an item another clone reopens and abandons between its pushes
-              ends the item at its push loop's pull and publishes no live ref beside the lineage, the same where another
-              worktree's by-name fetch moved the history tracking ref first
-            - a clone whose live ref was never reopened applies another machine's abandon though another worktree fetched
-              the history ref by name first
-            - a clone that published an archive and then applied another machine's reopen applies that machine's later
-              abandon, as does a clone whose other worktree fetched the item's history ref by name before another machine
-              reopened and abandoned it, neither reading the reopen as its own
-            - this clone's own unpublished end, made after a reopen of its own, meets another machine's published reopen
-              by merging the fetched live tip into its history ref and leasing the live ref's delete on that tip, and a
-              live ref back without the folder's removal meets the end the same way
+- _Outcome:_ The lifecycle classifier is separate from merging and accepts the caller's publication predicate for a
+  later copy. Named history observations come from verbose fetch rows, including unchanged tips. Historical quarter
+  snapshots supply completed placement when an intervening reopen removed the current folder.
 
 ### `[ ]` **10.3 A completed item's folder across clones — § 6.4, § 7.3**
 

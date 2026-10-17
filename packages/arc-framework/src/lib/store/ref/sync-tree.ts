@@ -17,6 +17,7 @@ import { writeRefBlob } from "./tree-write.js";
 import { isArchiveRef } from "./archive-read.js";
 import { mergeArchiveTree } from "./sync-archive.js";
 import type { ReadPlacement } from "../placement.js";
+import { readLineageOwners } from "./lineage-resolution.js";
 import { completeSyncPlacements } from "./sync-placement.js";
 import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
@@ -25,7 +26,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
 /** Exact incoming tips and the side a lifecycle merge must preserve at a clash. */
-export interface SyncTreeMergeScope { currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; batchId?: string; reopening?: boolean }
+export interface SyncTreeMergeScope { currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; priorState?: ReadonlyMap<string, string>; batchId?: string; reopening?: boolean }
 /** Prepared entries retain untouched blob identities and the provenance's actual owner. */
 export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[] }
 
@@ -43,15 +44,17 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   const tips = new Map([["local", local], ["incoming", incoming], ...base ? [["base", base] as const] : []]);
   const trees = await readRefTrees(context, tips);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  const lineage = await readLineageOwners(context, new Map([...captured, ...(scope.incoming ?? [])]));
+  const retiredOwner = lineage.status === "ok" ? lineage.result.find((owner) => "uid" in owner && live === `refs/arc/work/${owner.uid}`) : undefined;
   const sides: SyncTreeSide[] = [];
   for (const key of ["base", "local", "incoming"]) {
     if (key === "base" && !base) { sides.push({ tip: null, entries: new Map(), metadata: { formatVersion: 1, formats: {} } }); continue; }
     const entries = trees.get(key);
-    const metadata = metadataAt(entries, objects, home.metadataPath, live);
+    const metadata = sideMetadata(entries, objects, home.metadataPath, live, retiredOwner?.name);
     if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
     sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata });
   }
-  if (!await completeSyncPlacements(context, ref, sides, [captured, scope.incoming ?? captured])) {
+  if (!await completeSyncPlacements(context, ref, sides, [captured, scope.incoming ?? captured, scope.priorState ?? captured])) {
     return { status: "refused", refusal: corruptRef(ref) };
   }
   const currentSide = scope.currentSide ?? "incoming";
@@ -71,7 +74,7 @@ function finishSyncMetadata(ref: string, metadata: RefMetadata, local: RefMetada
   if (scope.reopening) {
     delete metadata.endBatch;
     delete metadata.batch;
-    if (metadata.primary && local.primary) metadata.primary = { ...metadata.primary, placement: local.primary.placement };
+    if (metadata.primary && local.primary && local.primary.placement.kind !== "completed") metadata.primary = { ...metadata.primary, placement: local.primary.placement };
   } else if (ref.startsWith("refs/arc/history/") && scope.batchId) metadata.batch = scope.batchId;
 }
 
@@ -92,4 +95,10 @@ function metadataAt(entries: readonly RefTreeEntry[] | undefined, objects: Reado
 
 function sameEntry(left: RefTreeEntry | undefined, right: RefTreeEntry | undefined): boolean {
   return left?.oid === right?.oid && left?.mode === right?.mode;
+}
+
+function sideMetadata(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>,
+  path: string, ref: string, retiredName: RefMetadata["slug"]): RefMetadata | null {
+  return entries?.length === 0 && retiredName ? { formatVersion: 1, formats: {}, slug: retiredName }
+    : metadataAt(entries, objects, path, ref);
 }

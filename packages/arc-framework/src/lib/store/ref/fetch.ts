@@ -15,12 +15,24 @@ export async function fetchRefRemote(context: RefBackendContext, remote: RefRemo
   const patterns = ["refs/arc/work/*", "refs/arc/cohort/*", "refs/arc/archive/*", "refs/arc/project/*",
     ...identity ? [`refs/arc/user/${identity}/personal*`, `refs/arc/user/${identity}/claims*`] : [],
     ...new Set(history.map((ref) => `${ref}*`))];
+  return fetchRefPatterns(context, remote, designation, patterns, identity, signal);
+}
+
+/** Fetch a discovered set of histories without changing the namespace snapshot being reconciled. */
+export async function fetchRefHistories(context: RefBackendContext, remote: RefRemoteDesignation,
+  designation: RefDesignation, history: readonly HistoryRef[], signal?: AbortSignal): Promise<FetchOutcome> {
+  return fetchRefPatterns(context, remote, designation, [...new Set(history.map((ref) => `${ref}*`))],
+    remote.role === "read" ? null : await context.identity(), signal);
+}
+
+async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
+  patterns: readonly string[], identity: string | null, signal?: AbortSignal): Promise<FetchOutcome> {
   const negotiation = await negotiationArgs(context, identity);
   const source = context.repository?.source ?? context;
   const target = remote.repository === "backing" || remote.name === designation.codeRemote ? remote.name
     : (await source.exec("git", ["remote", "get-url", remote.name], { cwd: context.checkoutRoot })).stdout.trim();
   const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
-    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", ...negotiation, "--", target,
+    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target,
     ...patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`)];
   try {
     return parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal,

@@ -14,9 +14,9 @@ export interface SyncHistoryQuarter { ref: string; tip: string; entries: Map<str
 
 /** Select only folders this captured history can refresh without discarding an unseen batch. */
 export async function readSyncHistoryQuarters(context: RefBackendContext, ref: string,
-  tips: ReadonlyMap<string, string>): Promise<SyncHistoryQuarter[]> {
+  tips: ReadonlyMap<string, string>, additionalTips: readonly string[] = []): Promise<SyncHistoryQuarter[]> {
   const tip = tips.get(ref);
-  if (!ref.startsWith("refs/arc/history/") || !tip) return [];
+  if (!ref.startsWith("refs/arc/history/") || !tip && !additionalTips.length) return [];
   const quarters = new Map([...tips].filter(([name]) => isArchiveRef(name)));
   if (!quarters.size) return [];
   const trees = await readRefTrees(context, quarters);
@@ -27,7 +27,7 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
   const first = own[0]?.folders[0];
   if (!first) return [];
   const reference = RecordReferenceSchema.parse({ owner: first.owner, kind: first.metadata.primary?.role ?? "cohort/document" });
-  const { stdout } = await context.exec("git", ["log", "--format=%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+  const { stdout } = await context.exec("git", ["log", "--format=%B%x00", ...new Set([...(tip ? [tip] : []), ...additionalTips])], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const batches = new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
     .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
   return own.flatMap(({ ref: quarter, entries, folders }) => {

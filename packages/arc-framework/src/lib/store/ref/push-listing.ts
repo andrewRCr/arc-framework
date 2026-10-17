@@ -6,6 +6,7 @@ import type { RefBackendContext } from "./context.js";
 import { isManifestRef } from "./manifest.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { withRefLocks } from "./write-locks.js";
+import { readPendingRefEnds } from "./sync-lifecycle.js";
 
 /** Immutable source and tracking tips read while the selected refs were locked. */
 export interface RefPushListing {
@@ -50,7 +51,9 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
   const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, prefix)]);
   const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
   const tracking = new Map([...allTracking].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
-  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+  const pending = [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
+    ? new Set((await readPendingRefEnds(context, local, local, tracking)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
+  const changes: PushRefChange[] = [...local].filter(([ref, tip]) => !pending.has(ref) && tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
   for (const ref of tracking.keys()) {
     if (local.has(ref)) continue;
     const counterpart = ref.startsWith("refs/arc/history/") ? ref.replace("refs/arc/history/", "refs/arc/")
