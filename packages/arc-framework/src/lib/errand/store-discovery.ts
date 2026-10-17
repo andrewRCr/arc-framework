@@ -46,9 +46,13 @@ async function acquire(store: Store, inputs: Parameters<Store["list"]>[0][], err
 
 function projectRecord(saved: StoreRecord, errands: boolean): { record?: TransientIdentityRecord; diagnostics: ListingDiagnostic[] } {
   const slug = errands ? saved.reference.owner.name : typeof saved.reference.key === "string" ? saved.reference.key : "";
-  const read = deserializeTransientIdentityRecord(saved.content, slug);
   const diagnostic = (condition: string): ListingDiagnostic => ({ kind: "malformed", key: slug,
     condition: `Malformed ${saved.reference.kind} ${slug}: ${condition}.`, remedy: { text: `Repair the ${saved.reference.kind} record ${slug}, then retry.` } });
+  if (saved.conflicts.length > 0) return { diagnostics: [{
+    ...diagnostic(`unresolved conflicts: ${saved.conflicts.map(reference => JSON.stringify(reference)).join(", ")}`),
+    remedy: { text: "Resolve the named conflict records, then retry transient identity discovery." },
+  }] };
+  const read = deserializeTransientIdentityRecord(saved.content, slug);
   if (read.kind !== "valid") return { diagnostics: [diagnostic(read.kind)] };
   if (errands && (saved.placement?.kind !== "active" || read.record.kind !== "errand" || read.record.purpose !== "errand")) {
     return { diagnostics: [diagnostic("active ordinary Errand expected")] };
