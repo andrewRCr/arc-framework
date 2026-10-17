@@ -61,7 +61,8 @@ function memoryHeaderError(content: string): string | undefined {
   const lines = maskComments(content).split(/\r?\n/u);
   let inMemories = false;
   for (const [index, line] of lines.entries()) {
-    if (line.startsWith("## ") || line === "---") inMemories = line === "## Memories";
+    const boundary = line.trimEnd();
+    if (boundary.startsWith("## ") || boundary === "---") inMemories = boundary === "## Memories";
     if (!inMemories || !/^\s*[_*]Remove when:/u.test(line)) continue;
     const previous = previousNonBlank(lines, index);
     if (!/^\*\*.+:\*\*\s*$/u.test(lines[previous] ?? "")) {

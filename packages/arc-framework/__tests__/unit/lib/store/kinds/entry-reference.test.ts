@@ -36,6 +36,23 @@ describe("production entry reference writes", () => {
     if (result.status === "refused") expect(result.refusal).toMatchObject({ code: "record-malformed", condition: expect.stringContaining("**Title:**") });
     expect((await fixture.store.read({ reference })).status).toBe("refused");
   });
+  it.each(["\n", "\r\n"].flatMap((newline) => [" ", "\t"].flatMap((suffix) =>
+    ["**Wrapped\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
+    "persists memory only after repairing its header under a whitespace-suffixed section: $newline $suffix $header",
+    async ({ newline, suffix, header }) => {
+      const fixture = createReferenceFixture(), reference = fixture.reference("personal/working-memory");
+      const content = `## Memories${suffix}\n**Good:**\n_Remove when: good._\n\n${header}\n_Remove when: done._\n`.replaceAll("\n", newline);
+      const before = success(await fixture.store.version());
+      expect(await fixture.store.write({ action: "put", reference, expected: null, content, provenance }))
+        .toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("**Title:**") } });
+      expect(success(await fixture.store.version())).toBe(before);
+      expect((await fixture.store.read({ reference })).status).toBe("refused");
+      const repaired = content.replace(header.replaceAll("\n", newline), "**Fixed:**");
+      expect((await fixture.store.write({ action: "put", reference, expected: null, content: repaired, provenance })).status).toBe("ok");
+      const parsed = parseEntryList(success(await fixture.store.read({ reference })).content, "personal/working-memory");
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.entries).toHaveLength(2);
+    });
   it("reads today's seeded memory and project inbox; ignores commented triggers and bold body prose", async () => {
     const memory = await readFile(new URL("../../../../../templates/user/WORKING-MEMORY.md", import.meta.url), "utf8");
     expect(parseEntryList(memory, "personal/working-memory").success).toBe(true);

@@ -21,6 +21,14 @@ describe("production entry grammars", () => {
     expect(parsed.success).toBe(false);
     if (!parsed.success) expect(parsed.error).toContain("**Title:**");
   });
+  it.each(["\n", "\r\n"].flatMap((newline) => [" ", "\t"].flatMap((suffix) =>
+    ["**Wrapped\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
+    "refuses malformed memory under a whitespace-suffixed section: $newline $suffix $header", ({ newline, suffix, header }) => {
+      const content = `## Memories${suffix}\n**Good:**\n_Remove when: good._\n\n${header}\n_Remove when: done._\n`.replaceAll("\n", newline);
+      const parsed = parseEntryList(content, "personal/working-memory");
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) expect(parsed.error).toContain("**Title:**");
+    });
   it("refuses memory without a trigger", () => {
     expect(parseEntryList("## Memories\n**Title:**\nBody\n", "personal/working-memory").success).toBe(false);
   });
