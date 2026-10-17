@@ -10,7 +10,7 @@ import { changeCommitMessage } from "./changes-graph.js";
 import { viewRefFamily } from "./view-state.js";
 import { rootFamily, refOwner, decodeReference } from "./codec.js";
 import { refPrototype } from "./read.js";
-import { metadataFailure, parseRefMetadata } from "./metadata.js";
+import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
 import { historicalState, type HistoricalState } from "./history-snapshots.js";
 
 /** Keep the record's location and prior version until cross-ref batch grouping is complete. */
@@ -37,7 +37,7 @@ export function changeWindowReferences(context: RefBackendContext, captured: Cap
     if (!records.length) continue;
     const metadataEntry = entries.find(({ path }) => path === home.metadataPath);
     const metadata = parseRefMetadata(metadataEntry ? captured.objects.get(metadataEntry.oid) : null, liveRef);
-    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: captured.window.ref, ...metadataFailure(captured.window.ref) } };
+    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: captured.window.ref, ...historicalMetadataFailure(captured.window.ref) } };
     const storedOwner = refOwner(liveRef, family, metadata);
     const owner = storedOwner.type === "project" ? projectOwner ?? storedOwner : storedOwner;
     for (const entry of records) {

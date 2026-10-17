@@ -1,11 +1,12 @@
 /** Two-process live UID reads resolve slug paths from metadata and pin their object basis. */
+import { corruptRef } from "./namespace-health.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects } from "./batch-read.js";
-import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readBatchObjects, readRefTrees } from "./batch-read.js";
+import { parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
@@ -20,7 +21,8 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const tip = captured.get(shell.ref);
     if (tip?.type !== "commit") return null;
     const metadata = parseRefMetadata(captured.get(metadataQuery), shell.ref);
-    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: shell.ref, ...metadataFailure(shell.ref) } };
+    if (!metadata) return unreadableUidTip(context, shell.ref, tip.oid);
+
     const reference = canonicalUidReference(context, requested, shell.ref, metadata);
     const home = expandStoredPath(reference, { registry: context.registry });
     const recordQuery = `${tip.oid}:${home.path}`, pinnedMetadata = `${tip.oid}:${home.metadataPath}`;
@@ -46,4 +48,9 @@ function liveUidReference(context: RefBackendContext, reference: RecordReference
 function canonicalUidReference(context: RefBackendContext, requested: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
   const kind = ["work-item/meta", "work-item/record"].includes(requested.kind) ? metadata.primary?.role ?? requested.kind : requested.kind;
   return RecordReferenceSchema.parse({ ...requested, kind, owner: refOwner(ref, context.registry[requested.kind].family, metadata) });
+}
+
+async function unreadableUidTip(context: RefBackendContext, ref: string, tip: string): Promise<StoreResult<StoreRecord> | null> {
+  const trees = await readRefTrees(context, new Map([[ref, tip]]));
+  return trees.get(ref)?.length === 0 ? null : { status: "refused", refusal: corruptRef(ref, !trees.has(ref)) };
 }

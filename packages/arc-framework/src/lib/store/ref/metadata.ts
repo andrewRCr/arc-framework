@@ -38,3 +38,11 @@ export function metadataFailure(namespace: string): { condition: string; remedy:
     text: `Repair ${namespace} forward: commit its metadata file from the last parsing tip on top of its current tip in the store repository, then retry.`,
   } };
 }
+
+/** Explain why repairing the current tip cannot decode a malformed ancestor. */
+export function historicalMetadataFailure(namespace: string): { condition: string; remedy: Remedy } {
+  return { condition: `Historical metadata on ${namespace} is missing or cannot be parsed.`, remedy: {
+    text: "Restore original missing historical objects if available; a forward repair cannot change an ancestor. "
+      + "For changes, compare readable saved states in an interval after repair. Do not infer historical metadata.",
+  } };
+}

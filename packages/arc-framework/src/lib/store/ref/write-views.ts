@@ -1,18 +1,19 @@
 /** Read-only before/after views over captured tips and the complete prepared batch. */
 
+import { corruptRef } from "./namespace-health.js";
 import type { StoreView } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
 import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
 import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
-import { appendArchivedLookupTrees } from "./lookup-trees.js";
+import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
 import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
@@ -45,23 +46,25 @@ function lookupView(context: RefBackendContext, state: RefViewState, input: Look
   const missingIdentity = claimIdentityRefusal(input, identity);
   if (missingIdentity) return { status: "refused", refusal: missingIdentity };
   const trees = lookupViewTrees(context, state, identity);
-  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result);
+  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result.trees, trees.result.unreadable);
 }
 
-function lookupViewTrees(context: RefBackendContext, state: RefViewState, identity: string | null = null): StoreResult<ReadonlyMap<string, RefLookupTree>> {
+function lookupViewTrees(context: RefBackendContext, state: RefViewState, identity: string | null = null): StoreResult<RefLookupCapture> {
   const trees = new Map<string, RefLookupTree>();
+  const unreadable = new Map<string, StoreRefusal>();
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry"
       && !(identity !== null && ref === `refs/arc/user/${identity}/claims`)) continue;
     const family = viewRefFamily(ref);
     const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
-    if (!group.entries || !metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-      namespace: ref, ...metadataFailure(ref) } };
+    if (group.entries?.length === 0) continue;
+    if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries)); continue; }
     trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
   }
   const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
-  appendArchivedLookupTrees(trees, quarters, state.objects);
-  return { status: "ok", result: trees };
+  for (const [ref, group] of state.refs) if (isArchiveRef(ref) && !group.entries) unreadable.set(ref, corruptRef(ref, !group.entries));
+  appendArchivedLookupTrees(trees, quarters, state.objects, unreadable);
+  return { status: "ok", result: { trees, unreadable } };
 }
 
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
@@ -91,7 +94,7 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
 function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): StoreResult<ListInput> {
   if (!listOwnerReference(input)) return { status: "ok", result: input };
   const trees = lookupViewTrees(context, state);
-  return trees.status === "refused" ? trees : resolveCapturedListInput(context, input, trees.result);
+  return trees.status === "refused" ? trees : resolveCapturedListInput(context, input, trees.result.trees, trees.result.unreadable);
 }
 
 async function readView(context: RefBackendContext, state: RefViewState, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -167,7 +170,7 @@ function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home
 function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {
   if (!needsOwnerLookup(reference)) return { status: "ok", result: reference };
   const trees = lookupViewTrees(context, state);
-  return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result);
+  return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result.trees, trees.result.unreadable);
 }
 
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {

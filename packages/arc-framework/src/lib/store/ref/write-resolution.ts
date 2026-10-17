@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { Mutation } from "../write.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { sameOwner } from "../identity.js";
 import type { ArchivedFolder } from "./archive-read.js";
@@ -16,7 +16,7 @@ import { checkLiveNamespace } from "./namespace-admission.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { retirementTargets } from "./write-retirement.js";
 import { resolveNamedRefWrites, writeOwnerNameKey } from "./write-names.js";
-import { readLiveRefOwners } from "./live-owners.js";
+import { readLiveRefOwners, type LiveRefOwners } from "./live-owners.js";
 
 /** Canonical mutation and its concrete ref/tree address. */
 export interface ResolvedMutation { mutation: Mutation; home: StoredRecordHome; prior?: { reference: RecordReference; home: StoredRecordHome } }
@@ -48,7 +48,9 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   writes = named.result.writes;
   const observed = await readLiveRefOwners(context, tips);
   if (observed.status === "refused") return observed;
-  const owners = observed.result;
+  const owners = observed.result.owners;
+  const brokenTarget = unreadableWriteTarget(context, writes, observed.result);
+  if (brokenTarget) return { status: "refused", refusal: brokenTarget };
   const archived = await resolveArchivedReferences(context, writes.flatMap((write) => [write.reference, ...write.resolves ?? []]), tips);
   if (archived.status === "refused") return archived;
   const endedOwners = [...new Map(archived.result.map(({ owner }) => ["uid" in owner ? owner.uid : owner.name, owner])).values()];
@@ -74,6 +76,8 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   }
   const canonical = resolveConflictReferences(resolved, resolve);
   if (canonical.status === "refused") return canonical;
+  const unknownClaim = unreadableNewClaim(resolved, observed.result);
+  if (unknownClaim) return { status: "refused", refusal: unknownClaim };
   const clash = checkLiveNamespace(resolved, owners);
   if (clash) return { status: "refused", refusal: clash };
   return { status: "ok", result: { writes: resolved, tips, archived: archived.result } };
@@ -141,4 +145,24 @@ function resolvedOwnerWrite(context: RefBackendContext, mutation: Mutation, owne
   const reference = RecordReferenceSchema.parse({ ...current, owner: { ...owner, name: name ?? owner.name } });
   return { mutation: { ...mutation, reference }, home: mutationHome(context, reference, archived),
     ...(reference.owner.name === owner.name ? {} : { prior: { reference: current, home: mutationHome(context, current, archived) } }) };
+}
+
+function unreadableWriteTarget(context: RefBackendContext, writes: readonly Mutation[], captured: LiveRefOwners): StoreRefusal | undefined {
+  for (const reference of writes.flatMap((write) => [write.reference, ...write.resolves ?? []])) {
+    if (reference.owner.type !== "person" && reference.owner.type !== "project" && !reference.owner.uid) continue;
+    const broken = captured.unreadable.get(expandStoredPath(reference, { registry: context.registry }).ref);
+    if (broken) return broken;
+  }
+  return undefined;
+}
+
+function unreadableNewClaim(writes: readonly ResolvedMutation[], captured: LiveRefOwners): StoreRefusal | undefined {
+  const unseen = [...captured.unreadable.values()][0];
+  if (!unseen) return undefined;
+  const changesClaim = writes.some(({ mutation }) => {
+    if (mutation.action !== "put" || !["work-item/meta", "work-item/record", "cohort/document"].includes(mutation.reference.kind)) return false;
+    const prior = captured.owners.find(({ owner }) => sameOwner(owner, mutation.reference.owner))?.primary;
+    return !prior || prior.reference.owner.name !== mutation.reference.owner.name;
+  });
+  return changesClaim ? unseen : undefined;
 }

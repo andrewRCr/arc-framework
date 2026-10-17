@@ -37,7 +37,10 @@ export async function resolveLineageReadReference(context: RefBackendContext, re
   if (live.status === "refused") return live;
   const lineage = await readLineageOwners(context, tips);
   if (lineage.status === "refused") return lineage;
-  const candidates = lineageOwnerCandidates(reference, live.result.map(({ owner }) => owner), lineage.result);
+  const liveOwners = live.result.owners.map(({ owner }) => owner);
+  const candidates = lineageOwnerCandidates(reference, liveOwners, lineage.result);
+  const skipped = [...live.result.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
+  if (skipped && !liveOwners.some((owner) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
     condition: "More than one lineage origin holds this name.", remedy: { text: "Name the intended origin by UID, then retry." },

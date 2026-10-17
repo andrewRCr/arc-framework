@@ -703,34 +703,25 @@ by every tier, and an item ref broken outside ARC.
   keys land through write and batch. Older UID hints and former names retain valid literal paths; A10's covering
   revalidation remains at Task 8.6.
 
-### `[ ]` **7.5 A broken item ref — § 3.3, § 8**
+### `[x]` **7.5 A broken item ref — § 3.3, § 8**
 
 - _Goal:_ A commit made outside ARC that breaks one item's ref costs that item alone: its records refuse
   `namespace-corrupt` with the forward repair, and `lookup` refuses only where the broken ref could hold a better answer.
 
     - _Amended in:_ 7.5.R (A11)
 
-    - Build `test-first` (one behavior at a time):
-        - a work item's ref whose metadata file or root tree such a commit broke lists as one `unreadable` diagnostic with
-          `missed`, and `version` still lists it
-        - `read`, `history`, `changes`, and a write touching its records refuse `namespace-corrupt` naming the ref, with
-          the remedy to commit the last parseable metadata file on its tip
-        - a slug another live item holds as its current slug, and a commit another item matches by SHA, resolve
-        - a slug only the broken ref could hold, a commit another item matches only by copy key, and a branch or claim
-          the scan matches nowhere else refuse `namespace-corrupt` naming it
-        - forward repair restores current operations; exact historical queries retain undecodable-state refusals
-          under 7.5.R, and the fixture's produced/repaired recovery case lands through 8.6's hooks
+- _Outcome:_ Captures retain readable trees beside per-ref failures, applying highest-tier slug/SHA precedence and
+  refusing uncertain lower matches. UID operations name the damaged ref; ordinary peer updates continue while unknown
+  namespace claims refuse. Listings retain diagnostics and manifests retain damaged tips.
 
-### `[ ]` **7.5.R Forward repair preserves exact historical evidence — § 3.3 (A11)**
+### `[x]` **7.5.R Forward repair preserves exact historical evidence — § 3.3 (A11)**
 
 - _Goal:_ Verify that metadata repair restores current operations without inventing an ancestor's metadata, and that
   restoring missing objects separately recovers exact historical queries (A11).
 
-    - Build `test-first` (one behavior at a time):
-        - a forward metadata commit restores current read, list, lookup and write; history and changes across the
-          malformed ancestor retain `namespace-corrupt` with a historical-evidence remedy
-        - a changes interval wholly after repair succeeds; a saved broken state still refuses
-        - restoring a missing tip or root object restores current and historical queries without altering the ref
+- _Outcome:_ Tip admission returns typed refusals before history traversal. Forward metadata repair restores current
+  operations; malformed ancestors and saved broken states remain explicit failures, while post-repair changes succeed.
+  Restoring missing tip/root objects recovers exact history; A11's covering revalidation remains at Task 8.6.
 
 ## **Phase 8:** The separate layout
 

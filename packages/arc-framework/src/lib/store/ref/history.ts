@@ -1,5 +1,6 @@
 /** Record history follows immutable ref commits and filters unrelated changes. */
 
+import { checkRefTip } from "./namespace-health.js";
 import type { HistoryEntry } from "../contract.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -53,6 +54,8 @@ export async function readRefHistory(context: RefBackendContext, reference: Reco
 /** Retain change-commit identities for merge bases and stored-side labels. */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string): Promise<StoreResult<RefHistoryDetail[]>> {
+  const unhealthy = await checkRefTip(context, home.ref, tip, home.metadataPath);
+  if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
   const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
     ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });

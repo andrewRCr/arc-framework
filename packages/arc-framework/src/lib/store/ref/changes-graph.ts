@@ -1,4 +1,8 @@
 /** Immutable commit windows and raw trees used to enumerate landed record changes. */
+import { checkRefTip } from "./namespace-health.js";
+import { expandStoredPath } from "../stored-path.js";
+import { refPrototype } from "./read.js";
+import { viewRefFamily } from "./view-state.js";
 import type { ChangesInput } from "../contract.js";
 import type { StateVersion } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
@@ -33,6 +37,8 @@ export function createChangeWindowReader(context: RefBackendContext): ChangeWind
 export async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow): Promise<StoreResult<CapturedChangeWindow>> {
   const heads = await readBatchObjects(context, [window.upper, ...window.lower ? [window.lower] : []]);
   if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  const unhealthy = await checkWindowTips(context, window);
+  if (unhealthy) return { status: "refused", refusal: unhealthy };
   const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
     ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
   { cwd: context.checkoutRoot, objectAccess: "local-only" });
@@ -61,4 +67,17 @@ export function changeCommitMessage(captured: CapturedChangeWindow, revision: st
   const raw = new TextDecoder().decode(object.bytes), boundary = raw.indexOf("\n\n");
   if (boundary < 0) throw new Error("Git returned a commit without its header boundary");
   return raw.slice(boundary + 2);
+}
+
+async function checkWindowTips(context: RefBackendContext, window: RefChangeWindow): Promise<StoreRefusal | undefined> {
+  const live = window.ref.replace("refs/arc/history/", "refs/arc/");
+  const family = viewRefFamily(live);
+  if (family) {
+    const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
+    for (const tip of [window.upper, ...window.lower ? [window.lower] : []]) {
+      const unhealthy = await checkRefTip(context, window.ref, tip, home.metadataPath);
+      if (unhealthy) return unhealthy;
+    }
+  }
+  return undefined;
 }

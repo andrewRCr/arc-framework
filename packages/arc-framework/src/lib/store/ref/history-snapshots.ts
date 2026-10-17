@@ -8,7 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeReference, refOwner } from "./codec.js";
 import { readRefContent } from "./content-read.js";
-import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { historicalMetadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { checkRefKey } from "./path-admission.js";
 import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
@@ -45,7 +45,7 @@ export function historicalState(context: RefBackendContext, requested: RecordRef
   const metadataEntry = tree.find((entry) => entry.path === home.metadataPath);
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, home.ref);
   if (!metadata && tree.every((entry) => entry.path === home.metadataPath)) return { status: "ok", result: { reference: requested, version: null, content: null } };
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
+  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
   requested = historicalReference(context, requested, home, metadata);
   const path = expandStoredPath(requested, { registry: context.registry }).path;
   const entry = tree.find((entry) => entry.path === path);

@@ -1,5 +1,6 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
+import { corruptRef } from "./namespace-health.js";
 import type { ReadPlacement } from "../placement.js";
 import { archivedFolders, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
@@ -48,10 +49,12 @@ export async function readRefRecord(context: RefBackendContext, input: ReadInput
   reference = admitted.result;
   if (!tip) return missing(reference);
   const object = objects.get(recordQuery);
-  if (object?.type !== "blob") return missing(reference);
   const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: home.ref, ...metadataFailure(home.ref) } };
+  if (!metadata) {
+    const roots = await readRefTrees(context, new Map([[home.ref, tip]]));
+    return { status: "refused", refusal: corruptRef(home.ref, !roots.has(home.ref)) };
+  }
+  if (object?.type !== "blob") return missing(reference);
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });

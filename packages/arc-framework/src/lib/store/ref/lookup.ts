@@ -1,7 +1,7 @@
 /** Metadata-based lookup of names, code links, and claims over captured state trees. */
 
 import type { LookupInput, LookupResult } from "../lookup.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefMetadata } from "./metadata.js";
@@ -21,13 +21,15 @@ export async function lookupRefRecord(context: RefBackendContext, input: LookupI
   const missingIdentity = claimIdentityRefusal(input, identity);
   if (missingIdentity) return { status: "refused", refusal: missingIdentity };
   const trees = await readLookupTrees(context, identity);
-  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result);
+  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result.trees, trees.result.unreadable);
 }
 
 /** Match the same lookup rules against a caller's captured or prepared tree set. */
 export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registry">, input: LookupInput,
-  trees: ReadonlyMap<string, RefLookupTree>): StoreResult<LookupResult> {
+  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map()): StoreResult<LookupResult> {
   const candidates = lookupCandidates(context, input, trees);
+  const skipped = lookupSkippedRefusal(context, input, trees, unreadable, candidates.length > 0);
+  if (skipped) return { status: "refused", refusal: skipped };
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map(({ reference }) => reference), condition: "The lookup matches more than one record generation.",
     remedy: { text: "Name the intended owner by UID and rename one to a free slug, then repeat the lookup." },
@@ -85,4 +87,18 @@ function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: st
   return Object.entries(registry.metadata.lineage ?? {}).flatMap(([uid, name]) => (byUid ? uid === origin : name === origin)
     && registry.entries.some(({ path }) => path === `lineage/${uid}.json`)
     ? [RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" })] : []);
+}
+
+function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,
+  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>, matched: boolean): StoreRefusal | undefined {
+  if (input.kind === "lineage") return unreadable.get("refs/arc/project/registry");
+  if (input.kind === "claim" && input.claim.kind === "partial-errand") return undefined;
+  if (input.kind === "claim" && (input.claim.kind === "groom" || input.claim.kind === "housekeep")) {
+    return matched ? undefined : [...unreadable].find(([ref]) => /^refs\/arc\/user\/[^/]+\/claims$/u.test(ref))?.[1];
+  }
+  const skipped = [...unreadable].find(([ref]) => /^refs\/arc\/(?:work|cohort|archive)\//u.test(ref))?.[1];
+  if (!skipped) return undefined;
+  if (input.kind === "slug") return preferredNameTrees(context, trees, input.slug).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug) ? undefined : skipped;
+  if (input.kind === "commit") return commitCandidates(context, trees, input, "sha").length > 0 ? undefined : skipped;
+  return matched ? undefined : skipped;
 }
