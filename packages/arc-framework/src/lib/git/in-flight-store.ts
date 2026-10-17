@@ -8,7 +8,7 @@ import { acquireStoreErrands, acquireStoreClaims, type StoreIdentityAcquisition 
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { GitExec } from "./exec.js";
 import { readLocalInFlightRefSnapshot } from "./remote-ref-reader.js";
-import type { InFlightWorkUnit, InFlightErrand, DeriveInFlightResult, InFlightWarning } from "./in-flight-derivation.js";
+import type { InFlightWorkUnit, InFlightErrand, DeriveInFlightResult, InFlightWarning, InFlightEntryMark } from "./in-flight-derivation.js";
 
 /** Store work units can be planning without a code branch and paused while remaining in flight. */
 export type StoreInFlightWorkUnit = Omit<InFlightWorkUnit, "branch" | "scheduling"> & { branch?: string; scheduling?: "paused" };
@@ -123,18 +123,32 @@ async function addWorkUnits(context: InFlightProjection): Promise<void> {
 }
 async function addWorkUnit(context: InFlightProjection, item: import("../store/lifecycle-index.js").LifecycleEntry): Promise<void> {
   const name = item.reference.owner.name, fields = item.fields;
-  const row = context.options.roster?.find((candidate) => candidate.subject?.kind === "work-unit" && candidate.subject.key === name);
-  let path = row?.checkout.path;
-  if (context.options.findHoldingCheckout !== undefined) {
-    try { path = await context.options.findHoldingCheckout(name) ?? undefined; }
-    catch (error) { context.warn(error instanceof Error ? error.message : String(error)); }
-  }
-  const holder = path === row?.checkout.path ? row : context.options.roster?.find(candidate => candidate.checkout.path === path
-    && candidate.subject?.kind === "work-unit" && candidate.subject.key === name);
+  const { path, holder, marks } = await workUnitLocation(context, name);
   context.entries.push({ kind: "work-unit", name, state: item.phase, ...context.locate(context.branchFor(item, holder?.checkout.branch), path), dependsOn: fields.dependsOn,
     ...optionalField("owner", fields.owner), ...optionalField("cohort", fields.cohort), ...optionalField("class", fields.workClass),
     ...optionalField("priority", fields.priority), ...(fields.pause === null ? {} : { scheduling: "paused" }),
+    ...(marks === undefined ? {} : { marks }),
     ...(fields.design.length === 0 ? {} : { design: fields.design.join(", ") }) });
+}
+async function workUnitLocation(context: InFlightProjection, name: string): Promise<{
+  path?: string; holder?: DerivedCheckoutRow; marks?: readonly InFlightEntryMark[];
+}> {
+  const rows = context.options.roster?.filter((candidate) => candidate.subject?.kind === "work-unit" && candidate.subject.key === name) ?? [];
+  if (rows.length > 1 || rows.some(row => row.kind !== "work-unit" || row.diagnostics.length > 0)) {
+    const details = rows.flatMap(row => row.diagnostics.map(diagnostic => diagnostic.message)).join(" ");
+    const repair = rows.length > 1 ? "Inspect and release the stray checkout's claim, then retry." : "Repair the reported checkout evidence, then retry.";
+    context.warn(`Work unit '${name}' has unresolved checkout evidence at ${rows.map(row => row.checkout.path).join(", ")}. ${details} ${repair}`);
+    return { marks: ["degraded", rows.length > 1 ? "location-ambiguous" : "indeterminate"] };
+  }
+  const holder = rows[0];
+  if (context.options.findHoldingCheckout === undefined) return { path: holder?.checkout.path, holder };
+  try {
+    const path = await context.options.findHoldingCheckout(name) ?? undefined;
+    return { path, holder: rows.find(row => row.checkout.path === path) };
+  } catch (error) {
+    context.warn(`Holder lookup failed for work unit '${name}': ${error instanceof Error ? error.message : String(error)} Repair its checkout evidence, then retry.`);
+    return { marks: ["degraded", "indeterminate"] };
+  }
 }
 function optionalField<Key extends string>(key: Key, value: string | null | undefined): Partial<Record<Key, string>> {
   return value == null ? {} : { [key]: value } as Record<Key, string>;

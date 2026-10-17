@@ -18,6 +18,8 @@ import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { seed, success, testProvenance } from "../../helpers/store/suite-tools.js";
+import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 async function fixture() {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
@@ -91,6 +93,24 @@ it("leaves both checkouts unresolved when two markers name one work unit", async
   const result = await frame(h.io);
   expect(result.roster.map(row => row.kind)).toEqual(["unresolved-checkout", "unresolved-checkout"]);
   expect(result.roster.every(row => row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("withholds a preselected holder after a failed location lookup and resumes after repair", async () => {
+  const h = await fixture(), derived = await frame(h.io);
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  let repaired = false;
+  const options = { store: h.fixture.store, exec: fake.exec, identity: "andrew", teamMode: false,
+    projectId: async () => "project-1", roster: derived.roster,
+    findHoldingCheckout: async () => { if (!repaired) throw new Error("Holder evidence is unavailable. Repair the checkout claim and retry."); return "/repo"; } };
+  const uncertain = await deriveStoreInFlight(options);
+  expect(uncertain.entries).toHaveLength(1);
+  expect(uncertain.entries[0]).not.toHaveProperty("worktreePath");
+  expect(uncertain.entries[0]).toMatchObject({ marks: expect.arrayContaining(["degraded", "indeterminate"]) });
+  expect(uncertain.warnings).toContainEqual(expect.objectContaining({ rendered: expect.stringMatching(/repair.*retry/iu) }));
+  repaired = true;
+  const healthy = await deriveStoreInFlight(options);
+  expect(healthy.entries[0]).toMatchObject({ worktreePath: "/repo" });
+  expect(healthy.entries[0]).not.toHaveProperty("marks");
 });
 
 it("grants no role when the store inventory misses a work-unit record", async () => {

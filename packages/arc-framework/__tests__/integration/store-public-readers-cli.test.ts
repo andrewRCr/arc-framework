@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { OwnerIdentitySchema, recordReferences, sameReference } from "../../src/lib/store/identity.js";
-import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, writeWorktreeMarker,
+  readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration } from "../../src/lib/git/worktree-marker.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
@@ -101,4 +102,31 @@ it("errand check reports committed and checkout code overlap for paused and bran
   ]));
   expect(result.overlaps).toHaveLength(2);
   expect(result.indeterminate ?? []).toEqual([]);
+}, 30_000);
+
+it("errand check preserves duplicate-holder uncertainty and matches code after the stray claim is released", async () => {
+  const h = await fixture();
+  const empty = join(h.cwd, ".arc-checkouts", "a-empty-planning"), changed = join(h.cwd, ".arc-checkouts", "b-changed-planning");
+  for (const holder of [empty, changed]) {
+    await h.exec("git", ["worktree", "add", "--detach", holder, "main"]);
+    await ensureWorktreeMarkerIgnored(holder, h.exec, nodeWorktreeMarkerIgnoreFs);
+    await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-15T00:00:00Z",
+      createdFor: { kind: "work-unit", name: "planning-unit" } });
+  }
+  await mkdir(join(changed, "src"));
+  await writeFile(join(changed, "src/shared.ts"), "export const shared = true;\n");
+  const uncertain = await invoke(h, ["errand", "check", "--target", "src/shared.ts", "--json"]);
+  expect(uncertain.overlaps).toEqual([]);
+  expect(uncertain.skipped ?? []).toContainEqual(expect.objectContaining({ workItem: "planning-unit",
+    reason: "entry-location-ambiguous", marks: expect.arrayContaining(["degraded", "location-ambiguous"]) }));
+  const warnings = JSON.stringify(uncertain.warnings);
+  expect(warnings).toContain(empty); expect(warnings).toContain(changed);
+  expect(warnings).toMatch(/release.*stray|stray.*claim/iu);
+  const marker = await readWorktreeMarkerGeneration(empty);
+  if (marker.kind !== "present") throw new Error("Missing stray marker");
+  expect(await removeWorktreeMarkerGeneration(empty, marker.bytes)).toEqual({ kind: "removed" });
+  const repaired = await invoke(h, ["errand", "check", "--target", "src/shared.ts", "--json"]);
+  expect(repaired.overlaps).toContainEqual(expect.objectContaining({ workItem: "planning-unit", worktreePath: changed, matchedPaths: ["src/shared.ts"] }));
+  expect(repaired.skipped ?? []).toEqual([]);
+  expect(repaired.indeterminate ?? []).toEqual([]);
 }, 30_000);
