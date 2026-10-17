@@ -1089,23 +1089,10 @@ between layouts as its designation calls for.
   Status exposes it, validation recognizes it, and its unset repository-URL policy accepts the empty sentinel or a
   trimmed nonempty string. Explicit key inventories and complete settings fixtures include the new field.
 
-### `[ ]` **12.2 A first designation — § 9.2, § 9.3**
+### `[x]` **12.2 A first designation — § 9.2, § 9.3**
 
 - _Goal:_ A clone's first pull sets its state remote without asking only where the answer cannot publish state the
   person did not choose, and otherwise reports the question with its answering command, never prompting.
-
-- **Additional Context:** `notes-storage-ref-backend.md` § The second model check
-
-- _Note:_ The rule changes what a remote with no `arc-state` key means, which before it read as `no-remote`; the
-  fixture's `remote(false)` sets `off` (9.6), earlier tests designate explicitly — planted repositories through 3.1.e,
-  the multi-clone cases through 9.1.b — and the 9.6 items and every Phase 9–11 case run again green with the rule live.
-
-    - A designation module under `lib/store/ref/` over 8.1's counted designation, and its integration with `pull` and
-      `push`; the backend's ports gain a pointer port reading `storage.backing_repository` from the invoking checkout's
-      `arc-config.yml`, which 16.3 extends with a write, so `lib/store/` reads no configuration module itself
-    - A first designation offers `push` and `off` for the code remote and for `backing`, and `push`, `read`, and `off` for
-      an upstream; where two remotes other than the code remote hold the registry, the first in `git remote`'s order is
-      asked, the next once it is answered
 
     - `[x]` **12.2.a The decision**
         - The first-choice resolver preserves recorded roles, asks about a separate store or backing pointer, and
@@ -1119,17 +1106,11 @@ between layouts as its designation calls for.
           Real HTTP admission exercises the five-second bound and a later repaired pull; successful reads remain
           independent of the enclosing operation's pending deadline.
 
-    - `[ ]` **12.2.c The states a pull and push report**
-        - Build `test-first` (one behavior at a time):
-            - a fresh clone's first `pull` over each case — the code remote holding the registry, an upstream holding it,
-              neither, and a tracked pointer — sets or reports `designation-needed`, the same whether or not the test
-              process has a terminal, since the store asks nothing, its `argv` recommending `push` for the code remote and
-              `backing` and `read` for an upstream
-            - a designated clone syncs by its record from a worktree whose pointer is absent while the clone carries
-              `backing`, present while it carries none, or at another URL, and reports no state
-            - a state that stops the sync fetches and pushes nothing for the state remote
-            - a push carrying a code ref under `designation-needed` pushes the ref alone, as an ordered leg and over one
-              atomic receiver, `publishes` empty, as § 14.5 has it
+    - `[x]` **12.2.c The states a pull and push report**
+        - Piped and actual terminal processes return the same choices and recommended commands. Recorded remotes sync
+          despite absent, present, or changed checkout pointers. A designation question leaves state untouched while
+          carried code publishes alone in both layouts; the earlier sync scenario and both full shared suites also run
+          with designation active.
 
 ### `[ ]` **12.3 The project ID and the `push` check — § 9.8**
 
