@@ -1269,13 +1269,15 @@ the close as the action; and no ratchet floor exceeds its count at the merged ba
   malformed, and conflicted records retain a repair-and-retry route. Candidate acquisition no longer trusts checkout
   bytes when state lives off the branch.
 
-### `[ ]` **7.6 Session continuity** — validate exit criterion at segment scope
+### `[x]` **7.6 Session continuity** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Run the exit criterion's scenario over the reference backend and a scripted repository, and request
-      `arc check segment`.
+- _Outcome:_ On the freshly merged base, handoff writes computed state and Git anchors and bounded maintenance
+  advisories; identity setup preserves existing records and warns on reuse. Entering session and recovery expose the
+  same unclosed commits as default task close, with close or repair actions. Store-owned Candidate acquisition and its
+  repaired refusals hold, all ratchet buckets remain within base, and A17's handler proof stays distinct from the
+  successful built-CLI release checks retained for the backend flip.
 
 ## **Phase 8:** Verification
 

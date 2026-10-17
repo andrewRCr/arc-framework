@@ -2639,7 +2639,7 @@ this design open.
 - **A16** — 2026-10-16 — design: primary records expose former slugs as read-only aliases. _Supersedes:_ § 3.5,
   alias-listing premise. _Trigger:_ 3.8 must-stop. _Work:_ 3.R. _Revalidated:_ 3.10.
 - **A17** — 2026-10-16 — spec-depth: dormant destructive paths use handler success and CLI refusal proof until flip.
-  _Supersedes:_ none. _Trigger:_ 2.9 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.6.
+  _Supersedes:_ none. _Trigger:_ 2.9 must-stop. _Work:_ 7.R. _Revalidated:_ 7.6.
 - **A18** — 2026-10-16 — task: include the rename remedy's typed action and doubled force in its E2E assertion.
   _Supersedes:_ none. _Trigger:_ 1.13 segment. _Work:_ 1.R. _Revalidated:_ 1.13.
 - **A19** — 2026-10-16 — task: include the dormant handlers in the complete CLI-loading test inventory.
@@ -2650,7 +2650,7 @@ this design open.
   _Supersedes:_ § 4.1, user-reference meta write. _Trigger:_ 5.1 must-stop. _Work:_ 5.R. _Revalidated:_ 5.11.
 
 - **A22** — 2026-10-16 — task: acquire the subject Candidate through its resolved Store owner. _Supersedes:_ none.
-  _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.6.
+  _Trigger:_ 7.5 must-stop. _Work:_ 7.R2. _Revalidated:_ 7.6.
 - **A23** — 2026-10-16 — task: include the Store consumers in the exact locus import inventory. _Supersedes:_ none.
   _Trigger:_ 2.10 segment. _Work:_ 2.R2. _Revalidated:_ 2.10.
 
