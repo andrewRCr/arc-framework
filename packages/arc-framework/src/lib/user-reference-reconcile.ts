@@ -23,6 +23,8 @@ import { recordPut } from "./store/lifecycle-write.js";
 import { applyPreparedLifecycleWrite, revalidateLifecycleRecords } from "./work-unit/prepared-lifecycle-write.js";
 import type { Remedy } from "./store/refusal.js";
 import { readStoreUserReferenceTransitions } from "./store/user-reference-authority.js";
+import { findStoreReferenceTargetConflicts } from "./store/user-reference-targets.js";
+import type { StoreResult } from "./store/refusal.js";
 import {
   enumerateTransitionReferenceTransitions,
   resolveReferenceTransition,
@@ -83,6 +85,7 @@ export interface UserReferenceReconcilePlan {
 export interface PlanUserReferenceReconcileInput {
   scratch?: ScratchReconcilePlan;
   stateOffBranch?: boolean;
+  referenceConflicts?: readonly string[];
   transitions: readonly ReachableReferenceTransition[];
   userInbox: UserReferenceSurface;
   workingMemory?: UserReferenceSurface;
@@ -267,7 +270,8 @@ function rewriteTargetLine(line: string, visible: string, index: number, input: 
   const match = MANAGED_TARGET.exec(visible);
   const subject = input.stateOffBranch === true ? targetNamedByLine(visible) : match?.[1];
   if (subject === undefined) return line;
-  const resolution = resolveReferenceTransition(input.transitions, subject);
+  const resolution: ReferenceTransitionResolution = input.referenceConflicts?.includes(subject)
+    ? { kind: "conflict", reason: "ambiguous-history" } : resolveReferenceTransition(input.transitions, subject);
   if (resolution.kind === "rename") {
     replacements.push({ subject, targetSlug: resolution.targetSlug });
     if (input.stateOffBranch === true) {
@@ -637,17 +641,22 @@ async function readUserReferencePlan(ctx: UserReferenceReconcileBaseContext): Pr
 }
 async function runPreparedUserReferenceReconcile(ctx: UserReferenceReconcileBaseContext,
   basis: UserReferenceStoreBasis): Promise<UserReferenceReconcileResult> {
-  const plan = await readUserReferencePlan(ctx);
+  const initial = await readPreparedReferencePlan(ctx, basis);
+  if (initial.status === "refused") return { status: "refused", plan: await readUserReferencePlan(ctx), refusal: initial.refusal };
+  let plan = initial.result;
   if (!ctx.apply) return { status: plan.status, plan };
-  const writes = plan.edits.map(edit => {
-    const record = basis.byPath.get(edit.path);
-    if (record?.reference.kind !== "personal/inbox") throw new Error(`Prepared user-reference edit lacks an acquired personal inbox: ${edit.path}`);
-    return recordPut(record, { content: edit.content });
-  });
   const handle = await ctx.acquireLock();
   try {
     const valid = await revalidateLifecycleRecords(basis.store, basis.records);
     if (valid.status === "refused") return { status: "refused", plan, refusal: valid.refusal };
+    const checked = await readPreparedReferencePlan(ctx, basis);
+    if (checked.status === "refused") return { status: "refused", plan, refusal: checked.refusal };
+    plan = checked.result;
+    const writes = plan.edits.map(edit => {
+      const record = basis.byPath.get(edit.path);
+      if (record?.reference.kind !== "personal/inbox") throw new Error(`Prepared user-reference edit lacks an acquired personal inbox: ${edit.path}`);
+      return recordPut(record, { content: edit.content });
+    });
     if (writes.length > 0) {
       const records = basis.records.filter(record => writes.some(write => sameReference(write.reference, record.reference)));
       const applied = await applyPreparedLifecycleWrite(basis.store, { records, writes }, { verb: "user-reconcile-references", lifecycleAction: "reconcile" });
@@ -660,4 +669,16 @@ async function runPreparedUserReferenceReconcile(ctx: UserReferenceReconcileBase
     const writtenPaths = [...plan.edits.map(edit => edit.path), ...(scratch?.moves.map(move => move.to) ?? [])];
     return writtenPaths.length === 0 ? { status: current.status, plan: current } : { status: "applied", plan: current, writtenPaths };
   } finally { await ctx.releaseLock(handle); }
+}
+
+async function readPreparedReferencePlan(ctx: UserReferenceReconcileBaseContext,
+  basis: UserReferenceStoreBasis): Promise<StoreResult<UserReferenceReconcilePlan>> {
+  const surfaces = await ctx.readSurfaces();
+  const input = { ...surfaces, transitions: ctx.transitions,
+    ...(ctx.scratch === undefined ? {} : { scratch: await planScratchReconcile(ctx.scratch) }) };
+  const plan = planUserReferenceReconcile(input);
+  const conflicts = await findStoreReferenceTargetConflicts(basis.store, basis.records, plan.edits.flatMap(edit => edit.replacements));
+  if (conflicts.status === "refused") return conflicts;
+  return { status: "ok", result: conflicts.result.length === 0 ? plan : planUserReferenceReconcile({ ...input,
+    referenceConflicts: [...(input.referenceConflicts ?? []), ...conflicts.result] }) };
 }

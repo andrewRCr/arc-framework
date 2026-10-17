@@ -5,11 +5,13 @@ import type { Store } from "./store/contract.js";
 import { OwnerIdentitySchema, recordReferences, sameReference, type RecordReference } from "./store/identity.js";
 import type { StoreRecord } from "./store/read.js";
 import type { StoreResult } from "./store/refusal.js";
-import { acquireStoreUserReferenceAuthority } from "./store/user-reference-authority.js";
+import { acquireStoreUserReferenceAuthority, type StoreUserReferenceAuthority } from "./store/user-reference-authority.js";
 import { readLifecycleMetaFields, workUnitMetaPath } from "./store/lifecycle-write.js";
 import { parseEntryList } from "./store/kinds/entry-list.js";
 import { revalidateLifecycleRecords } from "./work-unit/prepared-lifecycle-write.js";
-import type { PlanUserReferenceReconcileInput, UserReferenceEvidenceAuthorityResult, UserReferenceStoreBasis } from "./user-reference-reconcile.js";
+import { findStoreReferenceTargetConflicts } from "./store/user-reference-targets.js";
+import { planUserReferenceReconcile } from "./user-reference-reconcile.js";
+import type { PlanUserReferenceReconcileInput, UserReferenceEvidenceAuthorityResult, UserReferenceStoreBasis, UserReferenceSurface } from "./user-reference-reconcile.js";
 
 /** Captured surfaces and their complete expected-version basis, shared by inspection and apply. */
 export interface StoreUserReferencePreparation {
@@ -42,21 +44,34 @@ export async function createStoreUserReferencePrepareContext(input: {
     ...(memory.result === null ? {} : { workingMemory: { path: memoryPath, content: memory.result.content } }),
   };
   if (input.workUnit !== undefined) {
-    const selected = await input.store.lookup({ kind: "slug", slug: SlugSchema.parse(input.workUnit) });
-    if (selected.status === "refused") return selected;
-    const meta = records.find(record => sameReference(record.reference, selected.result.reference));
-    if (meta?.reference.kind !== "work-item/meta") return invalid(selected.result.reference,
-      "The selected work unit is not in the acquired metadata authority. Read its current record again, then retry.");
-    const fields = readLifecycleMetaFields(meta);
-    if (fields.status === "refused") return fields;
-    const path = workUnitMetaPath(meta);
-    byPath.set(path, meta);
-    surfaces.sessionNotes = { path, content: fields.result.sessionContext ?? "" };
+    const context = await acquireSessionContext(input.store, records, input.workUnit);
+    if (context.status === "refused") return context;
+    byPath.set(context.result.surface.path, context.result.record);
+    surfaces.sessionNotes = context.result.surface;
   }
+  const qualified = await qualifyReferenceSurfaces(input.store, records, surfaces, acquired.result.transitions);
+  if (qualified.status === "refused") return qualified;
   const valid = await revalidateLifecycleRecords(input.store, records);
   if (valid.status === "refused") return valid;
   return { status: "ok", result: { authority: { status: "ready", ref: "store", remoteEvidence: "not-applicable", transitions: acquired.result.transitions },
-    surfaces, preparedStore: { store: input.store, records, byPath } } };
+    surfaces: qualified.result, preparedStore: { store: input.store, records, byPath } } };
+}
+async function acquireSessionContext(store: Store, records: readonly StoreRecord[], workUnit: string): Promise<StoreResult<{ record: StoreRecord; surface: UserReferenceSurface }>> {
+  const selected = await store.lookup({ kind: "slug", slug: SlugSchema.parse(workUnit) });
+  if (selected.status === "refused") return selected;
+  const meta = records.find(record => sameReference(record.reference, selected.result.reference));
+  if (meta?.reference.kind !== "work-item/meta") return invalid(selected.result.reference,
+    "The selected work unit is not in the acquired metadata authority. Read its current record again, then retry.");
+  const fields = readLifecycleMetaFields(meta);
+  if (fields.status === "refused") return fields;
+  return { status: "ok", result: { record: meta, surface: { path: workUnitMetaPath(meta), content: fields.result.sessionContext ?? "" } } };
+}
+async function qualifyReferenceSurfaces(store: Store, records: readonly StoreRecord[],
+  surfaces: StoreUserReferencePreparation["surfaces"], transitions: StoreUserReferenceAuthority["transitions"]): Promise<StoreResult<StoreUserReferencePreparation["surfaces"]>> {
+  const plan = planUserReferenceReconcile({ ...surfaces, transitions });
+  const conflicts = await findStoreReferenceTargetConflicts(store, records, plan.edits.flatMap(edit => edit.replacements));
+  if (conflicts.status === "refused") return conflicts;
+  return { status: "ok", result: conflicts.result.length === 0 ? surfaces : { ...surfaces, referenceConflicts: conflicts.result } };
 }
 async function readPersonal(store: Store, reference: RecordReference): Promise<StoreResult<StoreRecord | null>> {
   const read = await store.read({ reference });
