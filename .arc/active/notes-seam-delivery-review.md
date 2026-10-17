@@ -435,16 +435,18 @@ meets this one:
   (`resolveCompletedCandidateWorkUnits`); that change's spec moves both onto the store (its § 2.1, § 3.4). Respond's Candidate
   reads and writes, `arc candidate applicability resolve`, and delivery execution's review-fix inspection and
   acknowledgement resolve their owner through them, so this change's flip-time tests take the owner from the harness's
-  stand-in (spec, § 14.4; Tasks 4.2 and 4.6.c).
+  stand-in (spec, § 14.4; Tasks 4.2 and 4.6.c). Its landing is the pause before Phase 2, which merges base and
+  re-grounds each task built on its plan against the code that landed (Task 1.8 - `tasks-seam-delivery-review.md`).
 - **"A planned change to the standard lane's pass policy"** — `review-coverage-cadence`, its D4: a fix check takes a
   logical pass but adds nothing to the standard lane's pass count, the exhausted pass count an extra pass records stays
-  its producer's logical pass, and the supersession chain carries both numbers (spec, § 4.3, § 5.5). It is expected to
-  land first, and the two edit several of the same review-gate files, so the first base merge after it lands conflicts
-  there: `status-errand.ts`, `status-composition.ts`, `status-singleton.ts`, `runtime/respond-command.ts`,
-  `runtime/respond-composition.ts`, `runtime/local-prepare-composition.ts`, `policy/pre-publication-composition.ts`,
-  `policy/review-policy-driver.ts`, `policy/hosted-reservation-discharge.ts`, `policy/hosted-reservation-support.ts`,
-  `policy/hosted-reservation-admission.ts`, `hosted/coderabbit.ts`, `hosted/codex.ts`,
-  `hosted/correction-review-capability.ts`, and `handlers/review.ts`.
+  its producer's logical pass, and the supersession chain carries both numbers (spec, § 4.3, § 5.5). It lands ahead of
+  this change's Phase 4, where the task loop takes its landing or the Owner's choice to proceed without it (Task 3.7 -
+  `tasks-seam-delivery-review.md`), and the two edit several of the same review-gate files, so the first base merge
+  after it lands conflicts there: `status-errand.ts`, `status-composition.ts`, `status-singleton.ts`,
+  `runtime/respond-command.ts`, `runtime/respond-composition.ts`, `runtime/local-prepare-composition.ts`,
+  `policy/pre-publication-composition.ts`, `policy/review-policy-driver.ts`, `policy/hosted-reservation-discharge.ts`,
+  `policy/hosted-reservation-support.ts`, `policy/hosted-reservation-admission.ts`, `hosted/coderabbit.ts`,
+  `hosted/codex.ts`, `hosted/correction-review-capability.ts`, and `handlers/review.ts`.
 - **"The ref backend" and "the import"** — `storage-ref-backend`: the import, its trial, and its refusals, which call
   this change's mapping (spec, § 11); the history refs and the `state-unresolvable` refusal (spec, § 10.4); and the
   layout row for the review kinds. Its spec builds only `arc rename`'s retry and leaves every other caller's to its

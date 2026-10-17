@@ -450,6 +450,20 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
       write check, so the production registrations reach a backend's checks in tests only through the wiring test above
       and 4.2's harness.
 
+### `[ ]` **1.8 Take the planned locus change's landing, and re-ground the tasks built on it — § 12.1, § 12.4, § 14.4**
+
+- _Goal:_ Phase 2 starts on a base carrying the planned locus change, with every task that names that change's code
+  grounded in what landed rather than in its plan.
+
+    - The task loop stops here until that change has landed on base, as at any blocking dependency, then merges base.
+    - Re-check against the landed code each task grounded on that change before it landed: 2.4.c
+      (`lib/locus/subject-meta.ts`, `commands/active/status.ts`, and the deferred list in `cli-loading-boundary.test.ts`),
+      4.2 (the Candidate mutation owner's stand-in, and the Errand seeded in its identity's ref), 4.4.a (the review
+      gate's five calls to `resolveActiveWu`), 4.4.b (the marker's `claimId`), 4.6.b, 4.6.c
+      (`resolveCandidateMutationOwner`), 7.2 (`handlers/status/lifecycle.ts`), and 7.6 (the subject's `store` option and
+      `readStoreSubjectCandidate`), with spec § 12.1, § 12.4, and § 14.4 and `notes-seam-delivery-review.md`
+      § Neighbors. A correction runs through `amend-design.md` before Phase 2 starts.
+
 ## **Phase 2:** Before the flip — Candidate and boundary callers through the store
 
 _Purpose:_ Land everything observable before the flip: the checkpoint's binding first, ahead of the integration
@@ -753,7 +767,7 @@ alone.
 
         - The module stays registry-free and checks nothing at runtime: its tests run each returned record through its
           kind's parser and its write check with the returned set as the after-view, through the production registry,
-          3.7's run does so over this repository's records, and the import's own parse of what it writes is the
+          3.8's run does so over this repository's records, and the import's own parse of what it writes is the
           runtime backstop (§ 11.4).
         - Build `test-first` (one behavior at a time):
             - every record the mapping returns parses under its kind and passes its kind's write check over the returned
@@ -899,7 +913,18 @@ alone.
 
     - Mark `[~]` where the import has not landed on base when this task is reached, naming the change that binds it.
 
-### `[ ]` **3.7 The import's mapping** — validate exit criterion at segment scope
+### `[ ]` **3.7 Take the planned pass-policy change's landing before the review gate's arms — § 4.3, § 5.5**
+
+- _Goal:_ Phase 4 starts on a base carrying the planned change to the standard lane's pass policy, or on the Owner's
+  decision to proceed without it, so the review gate's arms from the flip are built over the pass policy that ships.
+
+    - That change lands ahead of Phase 4, since it edits the review gate's files Phases 4–5 rewrite
+      (`notes-seam-delivery-review.md` § Neighbors). Where it has landed on base, merge base; where it has not, stop for
+      the Owner's choice: wait for it, or proceed and take its conflicts at the base merge after it lands.
+    - Once it is merged, re-check 1.2.c's count derivation against the policy that landed, and each task of Phases 4–5
+      that names a file it changed; a correction runs through `amend-design.md` before Phase 4 starts.
+
+### `[ ]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
 
