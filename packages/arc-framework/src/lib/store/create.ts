@@ -55,7 +55,10 @@ function lazyReadStore(stateOffBranch: boolean, construct: () => Promise<ReadOnl
 /** Run an explicit migration against the ref backend, independently of operational backend selection. */
 export async function runStoreMigrate(ports: RefStorePorts, input: StoreMigrateInput = {}): Promise<StoreMigrateResult> {
   const { runRefBackendMigrate } = await import("./ref/backend.js");
-  return runRefBackendMigrate(ports, input);
+  if (!input.import || ports.importSource) return runRefBackendMigrate(ports, input);
+  const { createDefaultStorePorts } = await import("./default-ports.js");
+  const sourcePorts = { ...createDefaultStorePorts(ports), ...ports };
+  return runRefBackendMigrate({ ...ports, importSource: { store: createStore(sourcePorts), ports: sourcePorts } }, input);
 }
 
 /** Inspect or set ref-store roles, performing any layout move required by that setting. */

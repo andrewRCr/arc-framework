@@ -16,7 +16,10 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
   const parsed = StoreMigrateInputSchema.safeParse(input);
   if (!parsed.success) return invalidCommand("The migration request is invalid.");
   if (parsed.data.trial && (!parsed.data.to && !parsed.data.import || parsed.data.leaveSource)) return invalidCommand("--trial requires --to or --import and cannot accompany --leave-source.");
-  if (parsed.data.import) return unsupportedCommand("--import is not implemented.");
+  if (parsed.data.import) return withMigrationLock(context, async () => {
+    const { importTrackedState } = await import("./import/entry.js");
+    return importTrackedState(context, store, parsed.data);
+  });
   if (parsed.data.leaveSource) return unsupportedCommand("--leave-source is not implemented.");
   if (parsed.data.to) {
     const designation = await readRefDesignation(context);

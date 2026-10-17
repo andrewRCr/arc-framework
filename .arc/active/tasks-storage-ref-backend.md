@@ -1245,63 +1245,17 @@ _Exit criterion:_ Over a fixture in today's substrates, `arc store migrate --imp
 cohort, its trial report matching what it does, every record comparing clean, and a rerun after the landing finishing
 without duplicating one.
 
-### `[ ]` **14.1 The transform module and the import's entry point — § 1.2, § 10.8**
+### `[x]` **14.1 The transform module and the import's entry point — § 1.2, § 10.8**
 
 - _Goal:_ The import reads today's state through the in-repo implementation from a module the cutover can delete whole,
   refuses each record its build cannot land until the source is fixed, and lands into whatever layout the clone's
   designation selects.
 
-    - The transform under `lib/store/ref/import/`, nothing else referencing it, naming surfaces through
-      `IDENTITY_STATUS_FILENAME` and the layout resolver as the `surface-names` rule requires; `--import` and `--trial`
-      through `runStoreMigrate`, whose transform uses the backend's own kind registry port (3.1.a) and whose ports add
-      the in-repo store the transform reads, which only `lib/store/create.ts` may build
-    - The fixture: a repository in today's substrates under `__tests__/helpers/store/`, built once as a prepared template
-      each test copies (§ 14.12), holding live work units and open cohorts here, and each later source's rows as its
-      task adds them
-    - Each live work unit's review records and Candidate path log are read at the revision the in-repo implementation
-      picks for its meta, the `revision` `composedMetaSource` returns over `composedMetas`'s composition
-      (`lib/store/in-repo/meta.ts`), absent for a meta the working tree holds: its review records through the in-repo
-      `list` and `read` with that revision's tree as `asOf`, since the in-repo `asOf` names a saved tree and its review
-      sources otherwise read the working tree (`reviewSources`, `lib/store/in-repo/list.ts`), and its path log through
-      `readRepositoryCandidateSupersessionChain` (`lib/work-unit/candidate-record-store.ts`), which gains a `revision`
-      input its `git log` runs at, `HEAD` by default; the project's own records are read at the importing checkout's
-      HEAD, which `Arc-Code-Head` names
-    - The in-repo `list` reports a record its decode refuses only as a `malformed` diagnostic keyed by its path
-      (`listedRecord`, `lib/store/in-repo/list.ts`), today's five schema-failing Candidate records among them (§ 10.9);
-      for a kind whose row carries records as found, the transform maps that path back to its reference by the pairs
-      `internalReferences` (`lib/store/in-repo/paths.ts`) enumerates at the same revision, reads it through the in-repo
-      `read`, which returns its raw content (`readTracked`), and lands it
-    - Every record built passes the serialization rules (`checkSerializationRules`, 5.1), the key checks (5.2.a), and
-      the parse and stamp step (5.2.b), a refusal listed in the trial's `refused` under its rule
-    - The project ID comes from `resolveRepositoryIdentity` at the landing; a trial reads the review gate's record
-      through a `readRepositoryIdentity(publisher)` this task exports beside it from
-      `scripts/review-gate/hosts/local/git-common-state.ts`, which reads and never mints, listing in `notices` that the
-      landing would mint it where none exists
-    - Wherever the build refuses — a record listed in `refused`, or a condition in `notices` that refuses the import —
-      the import lands nothing and refuses `import-refused`, carrying its `MigrateReport`, while its trial returns that
-      report; every case of Phases 14 and 15 that refuses the import until its source is fixed refuses so, and a store
-      that holds state refuses through the `store` arm, as below (§ 10.1, § 10.5)
-    - Phase 14's fixture holds no Errand, buffer section, held capture, or execute-bound mark, whose kinds the production
-      registry declares no grammar for; 15.3 brings them under a test registry
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through `runStoreMigrate` over the fixture, as every case of Phases 14 and 15 is
-        - the import lands in the default layout where the code remote carries `push`, and in the separate one otherwise
-        - the store's project ID is the clone's review-gate repository ID, and a trial on a clone whose gate never ran
-          writes nothing under `.git/arc/review-gate/`
-        - a store that holds state refuses the import before its build, `identity-mismatch` naming both projects where
-          it holds another project's ID and `version-conflict` naming what it holds otherwise, each with the remedy to
-          import from a clone whose store holds none; one whose project ID is that repository ID finishes its landing
-          (14.3)
-        - a companion keyed as another kind is listed under `key`, and an entry the stamp cannot place an ID in and
-          entries repeating an `_Id:_` under `entry-id`, each refusing the import until its source is fixed, after which
-          the import lands
-        - a fixture record breaking each serialization rule, one per rule of 5.1's table, is listed in `refused` under
-          that rule's identifier, the import refusing until the record is fixed and then landing
-        - a live work unit whose review records sit only on its unmerged branch imports them from that branch, and its
-          landing commits name the importing checkout's HEAD as `Arc-Code-Head`
-        - a live work unit's Candidate record today's schema rejects, which the in-repo `list` reports only as a
-          diagnostic, lands unchanged
-        - in the separate layout, the import creates the store directory and lands there
+- _Outcome:_ The deletable import transform reads the in-repo source through the composition point, pins each live
+  work unit's reviews and Candidate chain to its selected meta revision, and prepares isolated commits in either
+  layout. Serialization, key, parser, and entry-ID admission block the entire landing until repaired; legacy Candidate
+  diagnostics retain their raw records. Trials read the repository identity passively, and occupied stores refuse
+  before the build with typed project or version conflicts.
 
 ### `[ ]` **14.2 Live work units and open cohorts — § 10.9**
 

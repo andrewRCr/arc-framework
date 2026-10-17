@@ -20,6 +20,12 @@ const RepositoryIdentityRecordSchema = z.strictObject({
 
 const REPOSITORY_IDENTITY_RECORD = "repository-identity.json";
 
+/** Read an existing repository identity without creating its namespace or minting an ID. */
+export async function readRepositoryIdentity(publisher: GitCommonStatePublisher): Promise<string | null> {
+  const content = await publisher.read({ root: "review-gate", namespace: "identity" }, REPOSITORY_IDENTITY_RECORD);
+  return content === null ? null : RepositoryIdentityRecordSchema.parse(JSON.parse(content)).repositoryId;
+}
+
 /** Serialize local review source release across concurrent prepare, attest, and resume commands. */
 export async function withRepositoryLocalReviewLock<T>(
   exec: GitExec,

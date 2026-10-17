@@ -63,12 +63,13 @@ export async function readRepositoryCandidateSupersessionChain(input: {
   workUnit: string;
   record: CandidateManagedRecordV1;
   exec: GitExec;
+  revision?: string;
 }): Promise<readonly CandidateSupersessionAncestor[]> {
   if (input.record.attestation.supersedes === undefined) return [];
   const path = resolveCandidateRecordRelativePath(input.workUnit);
   let revisions: readonly string[];
   try {
-    const result = await input.exec("git", ["log", "--format=%H", "--", path], {
+    const result = await input.exec("git", ["log", input.revision ?? "HEAD", "--format=%H", "--", path], {
       cwd: input.cwd, objectAccess: "local-only",
     });
     revisions = result.stdout.split(/\r?\n/u).filter((revision) => revision !== "");

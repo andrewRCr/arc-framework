@@ -4,6 +4,7 @@ import type { GitExec, GitExecInput, RawGitExec } from "../git/exec.js";
 import type { Slug } from "../kernel/schema/slug.js";
 import type { KindId } from "./catalog.js";
 import type { KindDefinition } from "./registry.js";
+import type { ReadOnlyStore } from "./contract.js";
 
 /** File types used by the lifecycle walk; symbolic links are never regular records. */
 export interface StoreDirectoryEntry {
@@ -62,6 +63,8 @@ export interface RefStorePorts {
   /** Read the invoking checkout's tracked pointer only at destination decisions. */
   backingRepository: () => Promise<string | null>;
   registry?: Readonly<Record<KindId, KindDefinition>>;
+  /** One-time import source, bound by the backend composition point only when requested. */
+  importSource?: { store: ReadOnlyStore; ports: StorePorts };
   /** Observe an explicit move step before it runs; fault tests may interrupt the operation here. */
   migrateStep?: (step: string) => Promise<void>;
   /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
