@@ -1050,27 +1050,16 @@ in both layouts with no exclusion beyond § 14.1's, 4.4.d's last set removed (9.
   retry state alone. Failed or diverged state still permits code publication; missing code destinations, independent
   transport failures, and an unlanded ref at the shared deadline retain distinct carry outcomes and safe retries.
 
-### `[ ]` **11.5 Hooks, atomic capability, and races a server catches — § 6.8, § 6.9**
+### `[x]` **11.5 Hooks, atomic capability, and races a server catches — § 6.8, § 6.9**
 
 - _Goal:_ A hook or a receiver's limits shape a push only as § 6.8 and § 6.9 read them, and a race the server catches at
   its commit is told from a refusal by state.
 
-    - A server's own move inside its window comes from an `update` hook, or a pre-receive hook run with
-      `GIT_QUARANTINE_PATH` unset, since Git refuses a ref update from inside the quarantine a pushed pack lands in; the
-      hook fails the test where its own update did not land
-    - Build `test-first` (one behavior at a time):
-        - a pre-push hook declining a carried ref repeats with state alone and reports its text verbatim as
-          `hook-declined`, and one declining a state-only push ends the loop terminal `refused` with its stderr
-        - a pre-push hook sleeping past the deadline ends `timeout` at the deadline with no hook process left, its
-          remedy naming the hook, and one passing a push of `refs/arc/*` alone lets the push land
-        - a receiver without atomic pushes falls back to ordered legs for one state ref and a carried ref, and refuses
-          several state refs terminal `refused` naming the capability
-        - a server moving or deleting a ref inside its own window makes a leased create, a leased delete, and an update
-          each read as a lost race that settles on the next attempt; a hook that moves the ref and declines reads as one
-          too, and one that declines and moves nothing reads terminal `refused` with its text
-        - a server moving the carried branch inside its window fails the atomic push `atomic transaction failed` on every
-          line, which the backend attributes to the carried ref by one `ls-remote` and its lease or ancestry, repeating
-          with state alone and reporting the ref `raced`
+- _Outcome:_ An atomic-capability refusal falls back to ordered code and state while multi-ref state batches stay
+  atomic. Hook refusals retain their text; deadline cancellation ends hooks and their children and names the hook's
+  repair. Verified receiver mutations exercise leased creates, updates, and deletes. One code-tip observation attributes
+  ambiguous atomic failures by lease or local ancestry without fetching code; unattributed failures wait for state,
+  and code inspection failures and ordered-leg races leave state independently publishable.
 
 ### `[ ]` **11.6 Sync between clones** — validate exit criterion at segment scope
 

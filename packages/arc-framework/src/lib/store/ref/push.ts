@@ -106,8 +106,10 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
 function settlePushRejection(loop: PushLoop, designation: RefDesignation, incoming: ReadonlyMap<string, string>) {
   const pending = loop.pending;
   loop.pending = undefined;
-  return pending?.designation === JSON.stringify(designation)
+  const refusal = pending?.designation === JSON.stringify(designation)
     && pending.listing.changes.every(({ ref }) => incoming.get(ref) === pending.listing.tracking.get(ref)) ? pending.outcome : null;
+  if (pending && !refusal && loop.carry) loop.carry.unattributed = undefined;
+  return refusal;
 }
 
 type StatePushFailure = Extract<PublishOutcome, { status: "failed" }>["failure"];
@@ -132,7 +134,7 @@ function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushCla
   return outcome.status === "unreachable"
     ? { code: "unreachable", class: "recoverable", cause: outcome.cause,
       condition: outcome.message || "The state push could not reach its receiver.",
-      remedy: refSyncTransportRemedy(context, "push") }
+      remedy: refSyncTransportRemedy(context, "push", outcome.cause === "timeout") }
     : { code: "refused", class: "terminal", message: outcome.message || "The receiver refused the state push.",
       condition: "The receiver refused publication; all unaccepted writes remain local.",
       remedy: { text: outcome.status === "refused" && outcome.reason === "atomic-unsupported"

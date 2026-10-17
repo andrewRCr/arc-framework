@@ -1,23 +1,11 @@
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { refCarryFixture as carryFixture, carriedBranch as branch, carriedDocument as reference, carryProvenance as provenance } from "../helpers/store/ref-carry.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { createRefClock } from "../helpers/store/ref-clock.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, RecordReferenceSchema, PushResultSchema, PushInputSchema } from "../../src/lib/store/index.js";
-
-const reference = RecordReferenceSchema.parse({ kind: "personal/document", key: "carried.md", owner: { type: "person", name: "andrew" } });
-const provenance = { verb: "edit", lifecycleAction: "save" };
-const branch = "refs/heads/carried";
-
-async function carryFixture(layout: "default" | "separate") {
-  const h = await refSyncFixture(layout);
-  const parent = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
-  const code = await plantRef(h.a.root, branch, [{ path: "carried.txt", content: "Carried code.\n" }], { parents: [parent] });
-  success(await h.a.store.write({ action: "put", reference, expected: null, content: "Carried state.\n", provenance }));
-  return { ...h, code };
-}
 
 describe.each(["default", "separate"] as const)("carried code in the %s layout", (layout) => {
   it("publishes code and state together or in ordered receiver transactions", async () => {
