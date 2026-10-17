@@ -217,6 +217,24 @@ report step, not GitHub's enclosing job duration. Their mode is `ci-job`, `nativ
 | integration-3 | 255,172      | 240,300              | 38856961515 |
 | integration-4 | 281,215      | 264,600              | 38856961515 |
 
+### Early local conformance comparison
+
+Task 9.6 ran each complete conformance file once, sequentially on the same WSL2 machine, using `npm run test:file`.
+The file times below are Vitest's single-file execution times, excluding transformation, imports, and controller
+preparation. The in-repo fixture completes fewer cases because of its declared interim exclusions.
+
+| Backend  | File time (s) | Completed cases | Named skips | Ratio to in-repo |
+| -------- | ------------- | --------------- | ----------- | ---------------- |
+| in-repo  | 43.58         | 308             | 696         | 1.00             |
+| default  | 202.01        | 1,028           | 58          | 4.64             |
+| separate | 217.62        | 1,028           | 58          | 4.99             |
+
+Both ref layouts pass their applicable assertions with only § 14.1's permanent exclusions and the suite's own
+mechanism applicability skips. Both local timing comparisons exceed 1.5 times. Task 18.3 must resolve the cost and
+establish § 14.12's bound on the same GitHub-hosted runner before its criterion closes. These local results do not
+establish that CI bound. Raw logs, elapsed command times, and derived file-time ratios are retained under
+`.arc/user/andrew/.internal/storage-ref-backend-tools/task-9.6/`.
+
 ## A designation per scope
 
 Where personal state publishes stays with the backend; a designation per scope is a deferred follow-on, never

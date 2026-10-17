@@ -23,12 +23,12 @@ describe.each(["default", "separate"] as const)("pulled history in the %s layout
     success(await h.a.store.write({ action: "put", reference, expected: base.version, content: text("remote"), provenance }));
     success(await h.b.store.write({ action: "put", reference, expected: base.version, content: text("local"), provenance }));
     const local = success(await h.b.store.read({ reference })), from = success(await h.b.store.version());
-    if (kept === "remote") {
+    if (kept === "local") {
       const localTip = (await h.b.git(["rev-parse", ref])).stdout, remoteTip = (await h.a.git(["rev-parse", ref])).stdout;
       await h.a.git(["fetch", "--no-tags", h.b.gitDir ?? h.b.root, `${ref}:refs/merge-fixture/local`]);
       const metadata = (await h.a.git(["rev-parse", `${ref}:andrew/metadata-andrew.json`])).stdout;
       await plantRef(h.a.root, ref, [{ path: "andrew/metadata-andrew.json", oid: metadata, mode: "100644" },
-        { path: "andrew/ordered.md", content: text("remote") }], { parents: [localTip, remoteTip],
+        { path: "andrew/ordered.md", content: text("local") }], { parents: [localTip, remoteTip],
         ...h.a.gitDir ? { gitDir: h.a.gitDir } : {},
         message: renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, reference, randomUUID()),
       });
@@ -67,16 +67,16 @@ describe.each(["default", "separate"] as const)("pulled history in the %s layout
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference }));
     const history = success(await h.b.store.history({ reference }));
-    expect(history.map(({ content }) => content)).toEqual(["b2", "a2", "b2", "b1", "a1", "b1", "base"].map((part) => text(part)));
+    expect(history.map(({ content }) => content)).toEqual(["a2", "b2", "a1", "b1", "base"].map((part) => text(part)));
     expect(history[0]?.version).toBe(merged.version);
     const changes = success(await h.b.store.changes({ from, to: success(await h.b.store.version()), references: [reference] }));
-    expect(changes.map(({ content }) => content)).toEqual([text("a2"), text("b2")]);
+    expect(changes.map(({ content }) => content)).toEqual([text("a2")]);
     expect(merged.conflicts).toHaveLength(1);
     const conflict = merged.conflicts[0];
     if (!conflict) throw new Error("Expected the second pull's clash");
     const clash = ConflictRecordSchema.parse(JSON.parse(success(await h.b.store.read({ reference: conflict })).content));
-    expect(clash.current.label.actor).toBe(await h.b.ports.actor(SlugSchema.parse("andrew")));
-    expect(clash.incoming.label.actor).toBe(await h.a.ports.actor(SlugSchema.parse("andrew")));
+    expect(clash.current.label.actor).toBe(await h.a.ports.actor(SlugSchema.parse("andrew")));
+    expect(clash.incoming.label.actor).toBe(await h.b.ports.actor(SlugSchema.parse("andrew")));
     expect(clash.current.label.actor).not.toBe(clash.incoming.label.actor);
   });
 

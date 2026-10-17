@@ -11,6 +11,7 @@ import { createDefaultStorePorts, createRefLockFactory } from "../../../src/lib/
 import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js";
 import { readGitDirectories } from "../../../src/lib/git/directories.js";
 import { expandStoredPath } from "../../../src/lib/store/stored-path.js";
+import { createRefRemote, REF_PEER_PATH } from "./ref-remote.js";
 import { createRefRecovery } from "./ref-recovery.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -27,7 +28,7 @@ const families = FAMILY_IDS.filter((family) => family !== "project-machinery" &&
 export const refDeclarations: FixtureDeclarations = {
   ...referenceDeclarations, families,
   unservedFamilies: { "project-machinery": "Tracked in the standard profile.", constitution: "Tracked in the standard profile." },
-  substrates: ["refs"], syncFamilies: families,
+  substrates: ["refs"], syncFamilies: families, syncRetryCount: 1, syncWaitedMs: 0,
   identitySyncFamilies: families.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
   familyExclusions: refFamilyExclusions(families),
   rejectingContentUnavailable: Object.fromEntries(Object.entries(referenceDeclarations.rejectingContentUnavailable)
@@ -54,6 +55,18 @@ async function buildTemplate(layout: RefFixtureLayout): Promise<string> {
       await mkdir(dirname(store), { recursive: true });
       await git("git", ["init", "--bare", "--ref-format=reftable", "--object-format=sha1", store]);
     }
+    const peer = join(root, REF_PEER_PATH);
+    await git("git", ["clone", "--quiet", root, peer]);
+    await makeGitExec(peer)("git", ["config", "user.name", "Peer"]);
+    await makeGitExec(peer)("git", ["config", "user.email", "peer@example.com"]);
+    if (layout === "separate") {
+      for (const checkout of [root, peer]) {
+        const directory = join(checkout, ".git/arc/store");
+        if (checkout === peer) await git("git", ["init", "--bare", "--ref-format=reftable", directory]);
+        await git("git", [`--git-dir=${directory}`, "remote", "add", "backing", remote]);
+        await git("git", [`--git-dir=${directory}`, "config", "remote.backing.arc-state", "off"]);
+      }
+    }
     return root;
   } catch (error) { await removeGitBackedDir(root); throw error; }
 }
@@ -77,12 +90,13 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   const { commonDir } = await readGitDirectories(root, defaults.fs);
   const gitDir = layout === "separate" ? join(commonDir, "arc", "store") : undefined;
   let identity: string | undefined = "test-user";
-  const ports: RefStorePorts = { ...defaults, ...createRefClock(), rawExec: createExecaRawGitExec(root),
-    registry, random: () => 0.5, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
+  const clock = createRefClock(new Date("2026-01-01T00:00:00Z"), 0);
+  const ports: RefStorePorts = { ...defaults, ...clock, rawExec: createExecaRawGitExec(root),
+    registry, random: () => 0, identity: async () => identity === undefined ? null : SlugSchema.parse(identity),
     actor: async (identity) => `${identity}@00000000-0000-4000-8000-000000000001`, lock: (ref, wait) => native(ref, held.has(ref) ? 20 : wait) };
   const projectId = randomUUID();
   const store = createRefStore(ports);
-  const unavailable = (): never => { throw new Error("This conformance fixture hook is not implemented yet"); };
+  const remote = createRefRemote(root, ports, clock.advance, gitDir);
   const fixture: RefConformanceFixture = { root, ports, store, gitDir, declarations: refDeclarations,
     reference(kind, suffix = "one") {
       const shape = KIND_SHAPES[kind];
@@ -105,7 +119,7 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
     race: (left, right) => Promise.all([store.write(left), createRefStore(ports).write(right)]),
     identity: (name) => { identity = name; },
     plant: (reference, kind) => plantRefFixtureFault({ root, ports, store, gitDir }, reference, kind),
-    remote: unavailable, remoteState: unavailable,
+    ...remote,
     async hold(reference, holding) {
       const ref = expandStoredPath(reference, { registry }).ref;
       if (holding) { if (!held.has(ref)) held.set(ref, await native(ref)); }

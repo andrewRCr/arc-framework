@@ -75,13 +75,13 @@ describe.each(["default", "separate"] as const)("archive pull merging in the %s 
     const h = await refSyncFixture(layout), ref = "refs/arc/user/andrew/personal";
     const references = ["first.md", "second.md"].map((key) => RecordReferenceSchema.parse({ kind: "personal/document", key,
       owner: { type: "person", name: "andrew" } }));
-    for (const reference of references) success(await h.a.store.write({ action: "put", reference, expected: null, content: "base\n", provenance }));
+    for (const reference of references) success(await h.a.store.write({ action: "put", reference, expected: null, content: "left=0\nseparator\nright=0\n", provenance }));
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     success(await h.b.store.pull());
     for (const reference of references) {
       const base = success(await h.a.store.read({ reference }));
-      success(await h.a.store.write({ action: "put", reference, expected: base.version, content: "remote\n", provenance }));
-      success(await h.b.store.write({ action: "put", reference, expected: base.version, content: "local\n", provenance }));
+      success(await h.a.store.write({ action: "put", reference, expected: base.version, content: "left=1\nseparator\nright=0\n", provenance }));
+      success(await h.b.store.write({ action: "put", reference, expected: base.version, content: "left=0\nseparator\nright=1\n", provenance }));
     }
     const from = success(await h.b.store.version());
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);

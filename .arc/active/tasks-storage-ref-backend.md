@@ -893,26 +893,16 @@ converge with no lost write.
   Applied merge notices survive cancellation, including after remote acceptance; a fresh call reconciles saved writes.
   Unreachable results explain the separate store's transport configuration boundary.
 
-### `[ ]` **9.6 The conformance sync items in both layouts — § 14.1**
+### `[x]` **9.6 The conformance sync items in both layouts — § 14.1**
 
 - _Goal:_ The shared suite's sync items, and the assertions 4.4.d holds for a pull or push, pass over the ref backend in
   both layouts, so no exclusion remains beyond § 14.1's.
 
-    - The fixture's remote hooks drive a real bare origin, designated `push` on the code remote in the default layout
-      and through the store directory's `backing` in the separate one; `remote(false)` sets the remote's `arc-state` to
-      `off`, so pulls and pushes report `no-remote`, and from 13.1 runs the move such a setting calls for; `remoteState`
-      moves the origin away for `down`, advances it from an executor wrapper at the push for `contended`, as
-      `inRepoRemote` (`__tests__/helpers/store/in-repo-remote.ts`) does, and installs a receive hook for `refusing`
-    - `remote(true)` returns a store over a second clone of the origin that pulls before each read and pushes after each
-      write, as `remoteFacingStore` (`__tests__/helpers/store/in-repo-remote.ts`) does, so item 16's reconcile
-      assertions write through it and read `reconciled` at the local push
-    - The fixture declares `syncRetryCount` and `syncWaitedMs` from its own virtual clock and sleep port (3.1.a) and
-      random source, so the contended case's figures are exact and no backoff wait reaches the deadline
-    - Removes 4.4.d's exclusions held for a pull or push, which Phase 11's exit criterion retires: item 16, the
-      pull-side merge cases, recovery's `unreachable`, `refused`, and `retries-exhausted` cases, and
-      `primary-role-reopen-sync-and-current-side-conflicts`
-    - Each layout's conformance time read once here against the in-repo conformance's on the same machine, so a fixture
-      breaking § 14.12's 1.5 times bound is caught before 18.3 measures it in CI
+- _Outcome:_ A prepared peer clone, real origin fault controls, and a virtual between-attempt deadline exercise sync
+  and repair through public stores in both layouts. All temporary sync exclusions are retired. Ordinary clashes keep
+  the published side current, including metadata, removals, labels, and primary roles; local-first history remains.
+  The early local cost comparisons exceed 1.5 times; `notes-storage-ref-backend.md` § CI cost history records the
+  measurements, with the hosted bound still open under 18.3.
 
 ## **Phase 10:** Lifecycle across clones
 
@@ -2540,6 +2530,8 @@ surviving suites are recorded in `notes-storage-ref-backend.md`.
 - _Goal:_ Running both backends until the cutover costs CI no more than the bound: each layout's ref conformance run
   within 1.5 times the in-repo conformance's time on the same GitHub-hosted runner.
 
+    - Resolve the early local cost miss recorded by 9.6 in `notes-storage-ref-backend.md` § CI cost history; the
+      original hosted bound remains the target
     - Per-file times from the `duration-results-integration-*` artifacts a dispatched run uploads (`ci.yml`), the in-repo
       conformance file (`__tests__/integration/store-in-repo-conformance.test.ts`) and each layout's ref conformance file
       read from one run on `ubuntu-latest`, the shard that ran each named beside its time

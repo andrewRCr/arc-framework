@@ -33,9 +33,11 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
   const choices: { records: RecordTriple; choice: RecordChoice }[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys(), ...remote.keys()])) {
     const records = { base: previous.get(key), local: current.get(key), incoming: remote.get(key) };
-    const choice = await chooseRecord(context, ref, { base, local, incoming }, records, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
+    // Published values are current; local tips still own first-parent order and the checks' before view.
+    const choice = await chooseRecord(context, ref, { base, local: incoming, incoming: local },
+      { base: records.base, local: records.incoming, incoming: records.local }, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
     conflicts.push(...choice.conflicts);
-    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, local.metadata);
+    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, incoming.metadata);
     choices.push({ records, choice });
   }
   for (const { records, choice } of choices) installRecord(context, ref, group, records, choice.selected, choice.retainMetadata ?? false);

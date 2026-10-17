@@ -53,9 +53,9 @@ describe.each(["default", "separate"] as const)("push leases in the %s layout", 
     success(await h.b.store.pull());
     expect(success(await h.b.store.read({ reference: two.reference })).content).toContain("Local beta.");
     const reconciled = success(await h.b.store.read({ reference: one.reference }));
-    expect(reconciled.content).toContain("Local alpha.");
+    expect(reconciled.content).toContain("Other machine.");
     expect(reconciled.conflicts).toHaveLength(1);
-    expect(success(await h.b.store.read({ reference: reconciled.conflicts[0]! })).content).toContain("Other machine.");
+    expect(success(await h.b.store.read({ reference: reconciled.conflicts[0]! })).content).toContain("Local alpha.");
   });
   it("repeats its pull when a sibling fetch changes the shared lease beyond the captured local tip", async () => {
     const h = await refSyncFixture(layout);

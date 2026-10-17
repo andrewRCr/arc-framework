@@ -87,15 +87,15 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     await h.a.git(["push", h.remoteName, `${claims}:${claims}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference }));
-    expect(merged.content).toBe(local.content);
+    expect(merged.content).toBe(incoming.content);
     expect(merged.conflicts).toHaveLength(1);
     const conflict = merged.conflicts[0];
     if (!conflict) throw new Error("Expected the stored whole-record clash");
     const clash = ConflictRecordSchema.parse(JSON.parse(success(await h.b.store.read({ reference: conflict })).content));
     expect(clash).toMatchObject({ location: { kind: "record" }, record: merged.reference,
       base: { content: base.content, version: base.version },
-      current: { value: { content: local.content, version: local.version }, label: { actor: localActor } },
-      incoming: { value: { content: incoming.content, version: incoming.version }, label: { actor: remoteActor } } });
+      current: { value: { content: incoming.content, version: incoming.version }, label: { actor: remoteActor } },
+      incoming: { value: { content: local.content, version: local.version }, label: { actor: localActor } } });
   });
 
   it("merges competing prose with the merge base's record version on its hunk", async () => {
@@ -109,13 +109,13 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference }));
-    expect(merged.content).toBe("local\n");
+    expect(merged.content).toBe("remote\n");
     expect(merged.conflicts).toHaveLength(1);
     const conflict = merged.conflicts[0];
     if (!conflict) throw new Error("Expected the stored prose clash");
     const clash = ConflictRecordSchema.parse(JSON.parse(success(await h.b.store.read({ reference: conflict })).content));
     expect(clash).toMatchObject({ location: { kind: "hunk" }, baseVersion: base.version, base: "base",
-      current: { content: "local" }, incoming: { content: "remote" } });
+      current: { content: "remote" }, incoming: { content: "local" } });
     const late = success(await h.a.store.write({ action: "put", reference, expected: base.version, content: "late\n", provenance }));
     const writeConflict = late.conflicts[0];
     if (!writeConflict) throw new Error("Expected the stale write to clash against the same base");
@@ -144,7 +144,7 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     success(await h.b.store.write({ action: "put", reference, expected: base.version, content: text("local"), provenance }));
     if (badSide === "local") await damage(h.b, text("local"));
     if (badSide === "incoming") await damage(h.a, text("remote"));
-    const before = success(await h.b.store.read({ reference }));
+    const before = success(await h.a.store.read({ reference }));
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference }));
@@ -176,14 +176,14 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     await h.a.git(["push", h.remoteName, `${live}:${live}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference: created.reference }));
-    expect(merged.links).toEqual(current.links);
+    expect(merged.links).toEqual(incoming.links);
     expect(merged.conflicts).toHaveLength(1);
     const conflict = merged.conflicts[0];
     if (!conflict) throw new Error("Expected the competing metadata values to be preserved");
     expect(JSON.parse(success(await h.b.store.read({ reference: conflict })).content)).toMatchObject({
       record: merged.reference, location: { kind: "record" }, base: { version: base.version },
-      current: { value: { links: current.links, version: current.version } },
-      incoming: { value: { links: incoming.links, version: incoming.version } },
+      current: { value: { links: incoming.links, version: incoming.version } },
+      incoming: { value: { links: current.links, version: current.version } },
     });
   });
 
@@ -222,16 +222,16 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference })), conflict = merged.conflicts[0];
-    expect(merged.content).toBe("local\n");
+    expect(merged.content).toBe("remote\n");
     expect(merged.conflicts).toHaveLength(1);
     if (!conflict) throw new Error("Expected the competing creations to clash");
     expect(JSON.parse(success(await h.b.store.read({ reference: conflict })).content)).toMatchObject({
-      location: { kind: "hunk" }, baseVersion: null, base: "", current: { content: "local" }, incoming: { content: "remote" },
+      location: { kind: "hunk" }, baseVersion: null, base: "", current: { content: "remote" }, incoming: { content: "local" },
     });
     expect((await h.b.git(["rev-list", "--parents", "-n", "1", ref])).stdout.split(" ").slice(1)).toEqual([current, incoming]);
   });
 
-  it.each(["unchanged", "changed"])("keeps a deletion against the other clone's %s record", async (state) => {
+  it.each(["unchanged", "changed"])("merges a local deletion against the remote's %s record", async (state) => {
     const h = await refSyncFixture(layout), reference = personal("removed.md");
     success(await h.a.store.write({ action: "put", reference, expected: null, content: "base\n", provenance }));
     const base = success(await h.a.store.read({ reference }));
@@ -242,7 +242,8 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     success(await h.a.store.write({ action: "put", reference: personal("peer.md"), expected: null, content: "peer\n", provenance }));
     await h.a.git(["push", h.remoteName, `${ref}:${ref}`]);
     success(await h.b.store.pull());
-    expect(await h.b.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    if (state === "unchanged") expect(await h.b.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    else expect(success(await h.b.store.read({ reference })).content).toBe("remote\n");
     expect(success(await h.b.store.read({ reference: personal("peer.md") })).content).toBe("peer\n");
     const listed = success(await h.b.store.list({ family: "personal", kind: "personal/conflict-record" }));
     expect("records" in listed ? listed.records : []).toHaveLength(state === "changed" ? 1 : 0);
@@ -251,9 +252,9 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     if (!conflict) throw new Error("Expected the removed-versus-changed conflict");
     expect(JSON.parse(success(await h.b.store.read({ reference: conflict })).content)).toMatchObject({
       location: { kind: "record" }, base: { content: base.content, version: base.version },
-      current: { value: null }, incoming: { value: { content: "remote\n" } },
+      current: { value: { content: "remote\n" } }, incoming: { value: null },
     });
-    success(await h.b.store.write({ action: "put", reference, expected: null, content: "resolved\n", resolves: [conflict], provenance }));
+    success(await h.b.store.write({ action: "put", reference, expected: success(await h.b.store.read({ reference })).version, content: "resolved\n", resolves: [conflict], provenance }));
     expect(success(await h.b.store.read({ reference })).content).toBe("resolved\n");
     expect(success(await h.b.store.list({ family: "personal", kind: "personal/conflict-record" })).status).toBe("absent");
   });
@@ -310,12 +311,12 @@ describe.each(["default", "separate"] as const)("pull merging in the %s layout",
     await h.a.git(["push", h.remoteName, `${live}:${live}`]);
     success(await h.b.store.pull());
     const merged = success(await h.b.store.read({ reference: created.reference })), conflict = merged.conflicts[0];
-    expect(merged.placement).toEqual({ kind: "backlog", commitment: "provisional" });
+    expect(merged.placement).toEqual({ kind: "active" });
     expect(merged.conflicts).toHaveLength(1);
     if (!conflict) throw new Error("Expected the placement conflict");
     expect(JSON.parse(success(await h.b.store.read({ reference: conflict })).content)).toMatchObject({
-      location: { kind: "record" }, current: { value: { placement: { kind: "backlog", commitment: "provisional" } } },
-      incoming: { value: { placement: { kind: "active" } } },
+      location: { kind: "record" }, current: { value: { placement: { kind: "active" } } },
+      incoming: { value: { placement: { kind: "backlog", commitment: "provisional" } } },
     });
   });
 

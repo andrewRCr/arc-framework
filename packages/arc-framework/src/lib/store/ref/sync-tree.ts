@@ -49,11 +49,11 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   }
   const [previous, current, remote] = sides;
   if (!previous || !current || !remote) throw new Error("A reconciliation lacks one captured side");
-  const { metadata, conflicts } = mergeSyncMetadata(base ? previous.metadata : undefined, current.metadata, remote.metadata);
+  const { metadata, conflicts } = mergeSyncMetadata(base ? previous.metadata : undefined, remote.metadata, current.metadata);
   const entries = new Map<string, RefTreeEntry>();
   for (const path of new Set([...previous.entries.keys(), ...current.entries.keys(), ...remote.entries.keys()])) {
     const before = previous.entries.get(path), here = current.entries.get(path), there = remote.entries.get(path);
-    const selected = sameEntry(here, before) ? there : here;
+    const selected = sameEntry(there, before) ? here : there;
     if (selected) entries.set(path, selected);
   }
   const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts);

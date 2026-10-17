@@ -51,6 +51,13 @@ export function createRefRecovery(fixture: RefConformanceFixture) {
       repairs.set(id, async () => { reference = record.reference; });
       return { run: () => fixture.store.read({ reference }) };
     }
+    if (id === "unreachable" || id === "refused" || id === "retries-exhausted") {
+      fixture.remote(true);
+      await seed(fixture, fixture.reference("work-item/meta"));
+      fixture.remoteState(id === "unreachable" ? "down" : id === "refused" ? "refusing" : "contended");
+      repairs.set(id, async () => { fixture.remoteState("available"); });
+      return { run: () => fixture.store.push() };
+    }
     const record = await seed(fixture, fixture.reference("work-item/meta"));
     let mutation = update(fixture, record);
     if (id === "version-conflict") {
