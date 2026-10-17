@@ -1276,25 +1276,17 @@ without duplicating one.
   recognize their existing project ID and resume publication without reading or duplicating source records, including
   after an unreachable remote or an interrupted successful push; failures carry the import retry remedy.
 
-### `[ ]` **14.4 The import's comparison harness — § 14.7**
+### `[x]` **14.4 The import's comparison harness — § 14.7**
 
 - _Goal:_ After an import, every record the in-repo implementation lists in the source it imported reads the same
   through the ref backend — its content and every field both carry, never its version — but for the transforms the
   import's table names.
 
-    - A differential helper under `__tests__/helpers/store/`, on `lifecycle-differential.ts`'s precedent, over 14.1's
-      fixture, reading the in-repo side from a fresh copy of the prepared template, the source as the import read it, so
-      a source the import deletes, the transient-identity refs among them (15.3.a), still compares
-    - The default comparator reads an entry kind's record less each entry's `_Id:_` stamp, the stamp § 10.9 gives every
-      entry kind, so 14.2's project inbox compares clean; each later source registers a comparator for its own records
-      with the other allowances its table row names, so a transform outside them reports
-    - The harness compares the in-repo listing's diagnostics too, each matched to a record or diagnostic the ref backend
-      lists, so a record the import dropped reports
-    - Build `test-first` (one behavior at a time):
-        - every live work unit's and open cohort's record compares clean
-        - the project inbox compares clean less its stamps, and an entry whose text differs beyond its stamp reports
-        - a record whose transform differs from its source by more than its table row reports the record and field
-        - a record the in-repo listing reports only as a diagnostic, dropped from the landing, reports
+- _Outcome:_ The differential harness reads an independent prepared source through public store, lifecycle, and
+  layout APIs, comparing content, common parsed fields, and placement with per-kind normalization hooks. It ignores
+  version differences and entry-ID stamps, normalizes machine JSON, and matches source diagnostics to retained records
+  or diagnostics, reporting dropped records. The combined scenario compares clean after landing and an unchanged rerun
+  in both layouts, while deliberate prose, field, and record loss remains observable.
 
 ### `[ ]` **14.5 The import's first path** — validate exit criterion at segment scope
 
