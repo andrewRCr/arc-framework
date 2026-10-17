@@ -466,17 +466,14 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   before that map, conflict owners come from content, and origin UID mismatches retain exact-path diagnostics.
   Shared resolvers support the later history and changes operations; the lineage conformance exclusions are retired.
 
-### `[ ]` **5.R2 Independent lineage format versions — § 3.3 (A6)**
+### `[x]` **5.R2 Independent lineage format versions — § 3.3 (A6)**
 
 - _Goal:_ Each lineage transition's format key includes its origin UID, so reads, writes, and removals of one origin
   preserve every other origin's format and record version (A6).
 
-    - Build `test-first` (one behavior at a time):
-        - two origins in one registry ref retain independent initial and newer format versions in reads and listings
-        - putting or removing one origin preserves the other's format, bytes, and record version
-        - an unknown newer format on one origin remains its own diagnostic and admits a supporting registry retry
-    - Reads, stale admission, metadata updates, and fixture fault planting use the same coordinate rule; history,
-      changes, merges, and import retain it when their tasks build those paths
+- _Outcome:_ `refFormatKey` adds the resolved origin UID only to lineage transition coordinates. Decoding, stale
+  admission, puts, removals, and fixture fault planting agree, preserving independent initial and newer formats and
+  other origins' versions. Unsupported formats remain per-origin diagnostics with a supporting-registry retry.
 
 ### `[ ]` **5.4 `history` follows a record — § 3.1, § 3.6**
 

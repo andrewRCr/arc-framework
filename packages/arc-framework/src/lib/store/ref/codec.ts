@@ -3,7 +3,6 @@
 import { FAMILY_REGISTRY } from "../registry.js";
 import { OwnerIdentitySchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
-import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { FamilyId } from "../catalog.js";
 import type { RefBackendContext } from "./context.js";
 import type { BatchObject } from "./batch-read.js";
@@ -13,6 +12,7 @@ import { readRefContent, recordDiagnostic, parsedOwnerProblem } from "./content-
 import { decodeStoredReference, rootFamily } from "./path-decode.js";
 export { rootFamily, lineageOwner } from "./path-decode.js";
 import { refRecordVersion } from "./record-version.js";
+import { refFormatKey } from "./format-key.js";
 
 /** Match a captured live ref against the registry, never another ref under the prefix. */
 export function matchesFamilyRef(ref: string, family: FamilyId): boolean {
@@ -42,7 +42,7 @@ export function decodeRecord(context: RefBackendContext, reference: RecordRefere
   path: string, conflicts: RecordReference[] = []): StoreRecord | ListingDiagnostic {
   const kind = context.registry[reference.kind];
   const primary = reference.kind === metadata.primary?.role || reference.kind === "cohort/document";
-  const formatVersion = metadata.formats[canonicalize({ kind: reference.kind, ...(reference.key === undefined ? {} : { key: reference.key }) })] ?? 1;
+  const formatVersion = metadata.formats[refFormatKey(reference)] ?? 1;
   if (formatVersion > kind.formatVersion) return recordDiagnostic(path, { kind: "unknown-format-version",
     condition: "Stored format version is newer than this build supports." });
   const decoded = readRefContent(kind, object.bytes);

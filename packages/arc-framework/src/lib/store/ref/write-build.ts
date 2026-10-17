@@ -16,6 +16,7 @@ import { checkSerializationRules } from "../serialization.js";
 import { checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
 import { decodeStoredReference } from "./path-decode.js";
 import { familyOf } from "../catalog.js";
+import { refFormatKey } from "./format-key.js";
 
 interface RefGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
 
@@ -109,8 +110,7 @@ function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, Ref
     const group = groups.get(home.ref);
     if (!group) throw new Error("A resolved mutation has no captured ref group");
     const entry = group.entries.get(home.path);
-    const { kind, key } = mutation.reference;
-    const format = group.metadata.formats[canonicalize({ kind, ...(key === undefined ? {} : { key }) })] ?? 1;
+    const format = group.metadata.formats[refFormatKey(mutation.reference)] ?? 1;
     const version = entry ? refRecordVersion(mutation.reference, entry.oid, group.metadata, format) : null;
     return mutation.expected === version ? [] : [mutation.reference];
   });
@@ -118,8 +118,8 @@ function staleMutations(resolved: ResolvedBatch, groups: ReadonlyMap<string, Ref
 
 async function applyMutation(context: RefBackendContext, group: RefGroup, write: ResolvedMutation): Promise<StoreResult<WriteResult>> {
   const { mutation, home } = write;
-  const { kind, key } = mutation.reference;
-  const formatKey = canonicalize({ kind, ...(key === undefined ? {} : { key }) });
+  const { kind } = mutation.reference;
+  const formatKey = refFormatKey(mutation.reference);
   if (mutation.action === "remove") {
     group.entries.delete(home.path);
     if (kind === "lineage/transition") removeLineageOwner(group.metadata, mutation.reference);
