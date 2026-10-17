@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "status-derived-position",
+  "claimId": "f912e1dcfcff392ade4b314be4625acd",
+  "createdAt": "2026-10-17T13:07:42.290Z",
+  "updatedAt": "2026-10-17T13:07:42.290Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Show a work unit's derived lifecycle position and scope window in arc status <slug>",
+  "branch": "chore/status-derived-position",
+  "origin": "inbox",
+  "originEntry": "Show a work unit's derived lifecycle position and scope window in `arc status <slug>`",
+  "originEntrySourceDigest": "sha256:b788b9bfbe172603749741b4979982d77265c1f0b093ae6d1b63f94b2608032e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
