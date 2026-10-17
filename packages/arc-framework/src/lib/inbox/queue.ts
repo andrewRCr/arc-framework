@@ -32,7 +32,7 @@ export async function setErrandQueue(request: unknown, context: InboxContext): P
   if (!parsed.success) return refused({ code: "invalid-input", condition: parsed.error.message, remedy: { text: "Supply schemaVersion: 1 and the whole members array, each with inbox and id." } });
   const duplicate = duplicateMember(parsed.data.members);
   if (duplicate !== null) return refused(duplicate);
-  const state = await readQueueState(context);
+  const state = await readQueueState(context, "replace");
   if (state.status === "refused") return refused(state.refusal);
   const titles = await referenceTitles(context);
   if (titles.status === "refused") return refused(titles.refusal);

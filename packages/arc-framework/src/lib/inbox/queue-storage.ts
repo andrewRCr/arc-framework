@@ -18,15 +18,22 @@ export interface StoredQueueMember extends QueueMember { raw: string }
 export interface QueueState { reference: RecordReference; saved: StoreRecord | null; members: StoredQueueMember[] }
 /** Read and validate every member, including its list qualifier and fractional rank.
  * @param context - Store bound to the person whose queue is read.
+ * @param mode - Whole-queue replacement may discard malformed members at the observed version.
  * @returns Complete rank-ordered queue or refusal.
  */
-export async function readQueueState(context: InboxContext): Promise<InboxOutcome<QueueState>> {
+export async function readQueueState(context: InboxContext, mode: "list" | "replace" = "list"): Promise<InboxOutcome<QueueState>> {
   const owner = OwnerIdentitySchema.safeParse({ type: "person", name: context.identity });
   if (!owner.success) return failure("identity-missing", "The queue requires an ARC identity.", "Configure your ARC identity, then retry.");
   const reference = recordReferences["personal/errand-queue"](owner.data);
   const read = await context.store.read({ reference });
   if (read.status === "refused") return read.refusal.code === "not-found" ? { status: "ok", result: { reference, saved: null, members: [] } } : { status: "refused", refusal: withProvenance(read.refusal) };
-  const parsed = parseEntryList(read.result.content, "personal/errand-queue");
+  const members = parseQueueMembers(read.result.content);
+  if (members.status === "refused" && mode === "list") return members;
+  return { status: "ok", result: { reference: read.result.reference, saved: read.result, members: members.status === "ok" ? members.result : [] } };
+}
+
+function parseQueueMembers(content: string): InboxOutcome<StoredQueueMember[]> {
+  const parsed = parseEntryList(content, "personal/errand-queue");
   if (!parsed.success) return failure("record-malformed", parsed.error, "Repair the queue through arc errand queue set.");
   const members: StoredQueueMember[] = [];
   for (const entry of parsed.data.entries) {
@@ -36,7 +43,7 @@ export async function readQueueState(context: InboxContext): Promise<InboxOutcom
     }
     members.push({ id: entry.id, inbox, title: entry.title, rank, raw: entry.bytes });
   }
-  return { status: "ok", result: { reference: read.result.reference, saved: read.result, members: members.sort(compareQueueMembers) } };
+  return { status: "ok", result: members.sort(compareQueueMembers) };
 }
 
 /** Reassign minimal ranks and render the requested set while retaining unmodified entry bytes.
@@ -61,7 +68,7 @@ export function renderQueueSet(state: QueueState, desired: readonly QueueReferen
   const split = splitEntryList(state.saved?.content ?? "", ENTRY_CONFIGS["personal/errand-queue"]);
   let content = rejoinEntryList({ parts: split.parts.flatMap<ListEntry | OutsideEntry>((part) => {
     if (part.kind !== "entry") return [part];
-    const selected = part.id === undefined ? undefined : byId.get(part.id);
+    const selected = part.id === undefined || !previous.has(part.id) ? undefined : byId.get(part.id);
     return selected === undefined ? [] : [{ ...part, bytes: selected.raw }];
   }) });
   for (const member of members) if (!previous.has(member.id)) content = appendEntry(content, "Queue", member.raw);

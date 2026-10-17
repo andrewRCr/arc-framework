@@ -4,9 +4,40 @@ import { createInboxHarness, entry } from "../../../helpers/inbox-harness.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { listErrandQueue, setErrandQueue } from "../../../../src/lib/inbox/queue.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
+import { resolveQueueExecutionOffer } from "../../../../src/lib/inbox/offer.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
 
 const request = (...ids: string[]) => ({ schemaVersion: 1, members: ids.map((id) => ({ id, inbox: "personal" })) });
 describe("identity Errand queue", () => {
+  it("repairs an admitted malformed rank through the whole-queue setter without overwriting a lost version", async () => {
+    const h = createInboxHarness();
+    await h.inbox("personal", [entry("11111111", "One"), entry("22222222", "Two")].join("\n\n"));
+    await setErrandQueue(request("11111111", "22222222"), h.context);
+    const ref = recordReferences["personal/errand-queue"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" }));
+    const prior = success(await h.context.store.read({ reference: ref }));
+    const outside = "Queue instructions.\n<!-- Preserve this note. -->\n";
+    success(await h.context.store.write({ action: "put", reference: ref, expected: prior.version,
+      content: outside + prior.content.replace(/- _Rank:_ `[^`]+`/u, '- _Rank:_ `bad rank`'), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "refused", remedy: { text: expect.stringContaining("arc errand queue set") } });
+    const malformedVersion = success(await h.context.store.version());
+    expect(await setErrandQueue({ schemaVersion: 1, members: [{ inbox: "wrong", id: "11111111" }] }, h.context)).toMatchObject({ state: "refused", code: "invalid-input" });
+    expect(success(await h.context.store.version())).toBe(malformedVersion);
+    const repaired = await setErrandQueue(request("22222222", "11111111"), h.context);
+    expect(repaired).toMatchObject({ state: "set", members: [{ id: "22222222" }, { id: "11111111" }] });
+    const saved = success(await h.context.store.read({ reference: ref }));
+    expect(saved.content).toContain(outside);
+    expect(saved.content).not.toContain("bad rank");
+    expect(await listErrandQueue(h.context)).toMatchObject({ state: "listed", members: [{ id: "22222222" }, { id: "11111111" }] });
+    expect(await resolveQueueExecutionOffer(h.context)).toMatchObject({ status: "ok", result: { nextOffer: { key: "personal:22222222" } } });
+    const racing = Object.create(h.context.store) as Store;
+    racing.write = async input => {
+      success(await h.context.store.write({ action: "remove", reference: ref, expected: saved.version, provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      return h.context.store.write(input);
+    };
+    expect(await setErrandQueue(request("11111111"), { ...h.context, store: racing })).toMatchObject({ state: "refused", code: "version-conflict" });
+    expect(await h.context.store.read({ reference: ref })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(await setErrandQueue(request("11111111"), h.context)).toMatchObject({ state: "set", members: [{ id: "11111111" }] });
+  });
   it("sets, shows rank order, and moves only the member outside the earliest longest subsequence", async () => {
     const h = createInboxHarness(); await h.inbox("personal", [entry("11111111", "One"), entry("22222222", "Two"), entry("33333333", "Three")].join("\n\n"));
     const initial = await setErrandQueue(request("11111111", "22222222", "33333333"), h.context);

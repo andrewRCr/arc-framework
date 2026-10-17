@@ -8,6 +8,8 @@ import { resolveEntryList } from "../../src/lib/inbox/lists.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
+import { readQueueState } from "../../src/lib/inbox/queue-storage.js";
+import { resolveQueueExecutionOffer } from "../../src/lib/inbox/offer.js";
 
 it("keeps the capture gate clear for commented targets and names a visible held capture", async () => {
   const f = await repairCliFixture(), personal = await resolveEntryList("personal", f.h.context);
@@ -85,6 +87,24 @@ it("refuses duplicate queue IDs across inboxes and accepts a repaired single mem
   expect(success(await f.h.context.store.version())).toBe(before);
   expect(await invoke([member])).toMatchObject({ result: { state: "set", members: [member] } });
   expect(await repairCli(f, ["errand", "queue", "--json"])).toMatchObject({ result: { state: "listed", members: [member] } });
+}, 30000);
+
+it("repairs an admitted malformed queue rank with the command its listing advertises", async () => {
+  const f = await repairCliFixture();
+  const member = { inbox: "project", id: "12345678" };
+  const set = () => repairCli(f, ["errand", "queue", "set", "-"], { stdin: JSON.stringify({ schemaVersion: 1, members: [member] }) });
+  expect(await set()).toMatchObject({ result: { state: "set" } });
+  const queue = await readQueueState(f.h.context);
+  if (queue.status !== "ok" || !queue.result.saved) throw new Error("No queue");
+  const outside = "Queue instructions.\n<!-- Keep this note. -->\n";
+  await editRecord(f, queue.result.saved, outside + queue.result.saved.content.replace(/- _Rank:_ `[^`]+`/u, '- _Rank:_ `bad rank`'));
+  expect(await repairCli(f, ["errand", "queue", "--json"])).toMatchObject({ exitCode: 1, result: { state: "refused", remedy: { text: expect.stringContaining("arc errand queue set") } } });
+  expect(await set()).toMatchObject({ exitCode: 0, result: { state: "set", members: [member] } });
+  expect(await repairCli(f, ["errand", "queue", "--json"])).toMatchObject({ exitCode: 0, result: { state: "listed", members: [member] } });
+  const repaired = success(await f.h.context.store.read({ reference: queue.result.reference }));
+  expect(repaired.content).toContain(outside);
+  expect(repaired.content).not.toContain("bad rank");
+  expect(await resolveQueueExecutionOffer(f.h.context)).toMatchObject({ status: "ok", result: { nextOffer: { key: "project:12345678" } } });
 }, 30000);
 
 it("keeps a survivor through destination rename and failed atomic carry, then replaces only its held capture on retry", async () => {
